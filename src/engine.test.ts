@@ -1205,6 +1205,45 @@ describe("buildBatchPrompt", () => {
     expect(FLOW_QUESTIONS).toContain("dropped on the window");
   });
 
+  describe("data-path questions", () => {
+    const withPatch = (name: string, patch: string) => [file(name, 1, 0, patch)];
+    const destructive = withPatch("src/main/heal.ts", "@@ -0,0 +1 @@\n+  unlinkSync(source);");
+    const ask = (f: PrFile[], questions?: Parameters<typeof buildBatchPrompt>[8]) =>
+      buildBatchPrompt(ctx, f, false, { index: 1, total: 1 }, "/tmp/d", ctx.instructions, "", questions);
+
+    test("without a pattern in the added lines the prompt is the one from before the questions existed", () => {
+      const text = ask(files);
+      expect(text).not.toContain("Risks this part's added lines show");
+      expect(text).toBe(ask(files, []));
+      expect(text.slice(text.indexOf(FLOW_QUESTIONS))).toStartWith(`${FLOW_QUESTIONS}\n\n${RULES}`);
+      // A removed line or an unchanged one never selects a question.
+      const removed = withPatch("src/main/heal.ts", "@@ -1 +0,0 @@\n-  unlinkSync(source);\n   unlinkSync(other);");
+      expect(ask(removed)).toBe(ask(removed, []));
+    });
+
+    test("with a pattern, the section sits between the flow questions and the rules", () => {
+      const text = ask(destructive);
+      const section = text.indexOf("## Risks this part's added lines show");
+      expect(section).toBe(text.indexOf(FLOW_QUESTIONS) + FLOW_QUESTIONS.length + 2);
+      expect(section).toBeLessThan(text.indexOf(RULES));
+      const flat = text.slice(section, text.indexOf(RULES)).replace(/\s+/g, " ");
+      expect(flat).toContain("### Destructive steps that do not re-verify their target");
+      expect(flat).toContain("What proves the target is still what this code means to delete");
+      expect(flat).toContain("record the answer as one entry of `contracts`");
+      expect(flat).toContain("report it as a finding as well");
+      // Only the selected question is listed.
+      expect(flat).not.toContain("### What bounds the whole wait");
+    });
+
+    test("everything but the new section is unchanged", () => {
+      const withQuestions = ask(destructive);
+      const without = ask(destructive, []);
+      const start = withQuestions.indexOf("\n\n## Risks this part's added lines show");
+      const end = withQuestions.indexOf(RULES) - 2;
+      expect(withQuestions.slice(0, start) + withQuestions.slice(end)).toBe(without);
+    });
+  });
+
   test("asks the failure-path question for async calls, handlers, windows and file reads", () => {
     for (const phrase of [
       "Failure path",

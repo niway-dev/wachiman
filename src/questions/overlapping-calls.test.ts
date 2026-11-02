@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { QUESTION } from "./overlapping-calls.ts";
+import { QUESTION } from "./overlapping-calls";
 
 const SETTINGS_FILE = "apps/kaipu-record/src/main/workspaces/workspace-settings.ts";
 

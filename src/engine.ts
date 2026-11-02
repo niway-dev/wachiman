@@ -56,6 +56,7 @@ import {
   type LineCounter,
 } from "./contracts";
 import type { ProviderAdapter } from "./providers/types";
+import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 
 export interface PrFile {
   filename: string;
@@ -2235,6 +2236,7 @@ export function buildBatchPrompt(
   dir: string,
   instructions: string,
   evidence = "",
+  questions: readonly DataPathQuestion[] = selectQuestions(files),
 ) {
   const list = files.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
   const scope = ctx.since
@@ -2279,7 +2281,7 @@ open thread.
 `
     : ""
 }
-${FLOW_QUESTIONS}
+${FLOW_QUESTIONS}${renderDataPathQuestions(questions)}
 
 ${RULES}${instructions}
 
@@ -2411,6 +2413,10 @@ function reviewBatch(
   );
   writeFileSync(join(dir, "threads.json"), JSON.stringify(threads, null, 2));
   const evidence = gatherEvidence(deps, files, dir);
+  const questions = selectQuestions(files);
+  deps.log(
+    `Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`,
+  );
   const prompt = buildBatchPrompt(
     ctx,
     files,
@@ -2419,6 +2425,7 @@ function reviewBatch(
     dir,
     ctx.instructions,
     evidence,
+    questions,
   );
 
   const call = attempt(() => runProvider(deps, prompt, dir, budgetUsd, SCHEMA), budgetUsd);

@@ -1,4 +1,4 @@
-import type { DataPathQuestion } from "./types.ts";
+import type { DataPathQuestion } from "./types";
 
 /**
  * Trigger rule. The question applies to a batch only when ALL of these hold for one file:
