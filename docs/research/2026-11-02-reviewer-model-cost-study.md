@@ -56,6 +56,85 @@ These percentages describe prices at fixed usage, not quality-preserving savings
 
 Current sources disagree across routes: OpenCode lists Sonnet cache reads at $0.20, while Anthropic direct lists $0.10; DeepSeek Pro PAYG rates also differ from direct. Record the actual endpoint, effective model version, usage buckets, and invoice, not just a friendly model name. #90's claim that Opus/Sonnet cache reads cost the same needs route/date qualification.
 
+## Tabulated capacity, processing, and intelligence evidence
+
+Snapshot retrieved 2026-11-02. “Latest” means the newest live evidence verified in this research, not a guarantee that every evaluation has been rerun on the latest endpoint. ND means not verified, never zero. API limits are not recommended review budgets.
+
+### Context and output capacity
+
+| Model / version | Advertised context | Maximum output | Reasoning control / identity caveat | Source |
+| --- | ---: | ---: | --- | --- |
+| Opus 5.5 | 1M tokens | 128K standard; 300K batch beta | Adaptive, always on; Wachiman reference uses high | [Anthropic specification](https://platform.claude.com/docs/en/models/opus-5-5/overview) |
+| Sonnet 5.5 | 1M | 128K standard; 300K batch beta | Adaptive; Wachiman reference uses high | [Anthropic specification](https://platform.claude.com/docs/en/models/sonnet-5-5/overview) |
+| DeepSeek V4.1 Flash 1017 | 1M | 384K listed API maximum | Pin effective version behind `deepseek-flash` | [API specification](https://api-docs.deepseek.com/quick_start/pricing/) |
+| DeepSeek V4 Pro 0813 | 1M | 384K listed API maximum | Effective endpoint identity unresolved; see below | [API specification](https://api-docs.deepseek.com/quick_start/pricing/) |
+| Qwen3.8 Flash, hosted | 1,000,000 | 131,072 | Thinking cap 262,144; high/max map to xhigh on documented route | [Hosted specification](https://docs.qwencloud.com/developer-guides/getting-started/latest-model) |
+| Qwen3.8 Max, hosted | 1M | 131K, as published | Thinking input maximum 983K; AA lists 984K for 0902 | [Hosted specification](https://www.qwencloud.com/news/qwen-3-8-max) |
+
+Context includes material needed by the request; maximum input, reasoning and output allowances cannot simply be added as independently usable capacity. Check endpoint-specific accounting. Qwen hosted Flash is not automatically the same deployment as the open-weight Flash-Next checkpoint; do not transfer local-checkpoint limits or results by name similarity.
+
+**DeepSeek source conflict:** its [September 10 announcement](https://deepseek.com/en/news/deepseek-v4-1-flash/) says Pro requests would route to Flash starting September 14, while the current API table still identifies Pro-0813 separately. Keep Pro's earlier price scenario conditional; verify effective model and billing before calling it an independent experimental arm. Public pages alone do not resolve this contradiction.
+
+### Independent intelligence and processing measurements
+
+Artificial Analysis (AA) is the measurement producer here, not the model vendor. The current pages identify **Intelligence Index v5.0**, a nine-evaluation composite. Scores are index points, not percent accuracy, IQ, or percent of Opus's review capability. This is the most recent common independent index verified here. Do not mix cached search results from v4.3.2 with v5.0.
+
+| Exact evaluated configuration | AA index v5.0 ↑ | Output tokens/s ↑ | Published latency, seconds ↓ | AA cost/task, USD ↓ | Source |
+| --- | ---: | ---: | --- | ---: | --- |
+| Opus 5.5 high, default fallback | 52 | 79.6 | 47.50, FAQ TTFT label | 3.46 | [AA Opus high](https://artificialanalysis.ai/models/claude-opus-5-5-high) |
+| Sonnet 5.5 high, default fallback | 41 | 105.7 | 13.47, FAQ TTFT label | 1.64 | [AA Sonnet high](https://artificialanalysis.ai/models/claude-sonnet-5-5-high) |
+| DeepSeek V4.1 Flash 1017 max | 32 | 170 | 1.28 first chunk; 11.73 reasoning | 0.60 | [AA provider table](https://artificialanalysis.ai/providers/deepseek) |
+| DeepSeek V4 Pro 0813 max | 23 | 94 | 1.79 first chunk; 21.38 reasoning | 1.77 | [AA provider table](https://artificialanalysis.ai/providers/deepseek) |
+| Qwen3.8 Max 0902 | 34 | 39.4 | 2.90, FAQ TTFT label | 10.02 | [AA Qwen Max](https://artificialanalysis.ai/models/qwen3-8-max) |
+| Qwen3.8 Flash, hosted | ND | ND | ND | ND | No independently verified matching row located |
+
+Use the DeepSeek provider **table** snapshot above consistently: its summary and FAQ showed different rolling speed numbers during retrieval. These are changing service measurements, not immutable model specifications. AA's latency sections distinguish first chunk, first answer and thinking time, while some FAQs use the shorter TTFT label. The heterogeneous latency column is deliberately NOT ranked as one metric. First chunk can be reasoning, not an actionable answer.
+
+AA cost/task includes its benchmark's token consumption and cache behavior; it is neither Wachiman cost/PR nor the fixed-token scenario above. Qwen Max's $10.02/task illustrates why cheaper output tokens do not guarantee cheaper completed work. We have not reproduced that figure. Benchmark effort/harness differs between rows; a shared index is useful evidence, not a controlled Wachiman A/B.
+
+Derived output-only comparison: Sonnet high generates about 1.33x as many tokens/s as Opus high on these measurements. This does not imply a review finishes 33% sooner: total output, reasoning, tools, queueing and retries also matter. Prefill throughput, p50/p95 complete-review latency and peak runner memory are ND for all six candidates in a matched Wachiman experiment.
+
+### Recent model-specific studies and review relevance
+
+| Candidate | Latest source verified here | Published result / evidence | What it establishes and what it does not |
+| --- | --- | --- | --- |
+| Opus 5.5 high | Live AA v5.0 page above; historical Wachiman E1 | 7.3 known Medium+ bugs/round, 11 distinct/3 rounds, zero invalid observed | Stronger local reference than Sonnet on that corpus; not a universal reviewer ranking |
+| Sonnet 5.5 high | Live AA v5.0 page above; historical Wachiman E1 | 5.3 bugs/round, 9 distinct/3 rounds, zero invalid observed | Measured lower cost with omissions; “73% retained” is local, not a general quality ratio |
+| DeepSeek V4.1 Flash | [Technical report](https://arxiv.org/abs/2609.19969), submitted Sep 17; [current model card](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash) | DeepSWE v1.1: 69.8 with Claude Code vs 74.2 with mini-SWE; Terminal-Bench 2.1: 88.0 vs 90.3 for those harnesses | Vendor-reported harness sensitivity; neither is a code-review recall test or necessarily the exact hosted 1017 revision |
+| DeepSeek V4 Pro 0813 | Live AA v5.0 provider table above | Index 23 on max; endpoint identity remains disputed by official pages | External baseline exists; running the alias may not reproduce this model |
+| Qwen3.8 Flash | [Current hosted model documentation](https://docs.qwencloud.com/developer-guides/getting-started/latest-model), release date not established here | Vendor reports SWE-bench Pro 62.5 and DeepSWE 1.1 58.7 | Candidate-selection evidence; independent hosted-model measurement and Wachiman recall still missing |
+| Qwen3.8 Max | [Aug 3 release evaluation](https://www.qwencloud.com/news/qwen-3-8-max); newer 0902 AA row above | Vendor reports SWE-bench Pro 67.7, Terminal-Bench 2.1 86.6; newer AA index 34 | Different revisions, harnesses and suites; do not subtract vendor scores to infer review superiority |
+
+SWE-style scores measure solving repository tasks, not spotting defects without changing the code. The local experiment remains the decision gate. A blank independent score is more honest than borrowing a score from Qwen 27B, Flash-Next or an older index version.
+
+### Memory: what is actually stored and where
+
+| Memory dimension | Claude Opus / Sonnet API | DeepSeek API | Qwen hosted API | Wachiman consequence |
+| --- | --- | --- | --- | --- |
+| Model weights in our runner | None required | None required | None required | No local GPU VRAM requirement for API inference; runner still needs normal process RAM |
+| Provider RAM/VRAM per request | ND | ND for hosted endpoint | ND for hosted endpoint | Cannot rank API providers by an invented GB figure |
+| Peak runner RAM | Not measured | Not measured | Not measured | Measure maximum RSS of engine + CLI process tree on the same batch/concurrency |
+| Working context | Up to advertised 1M | Up to advertised 1M | Up to advertised 1M | Target 16K–32K evidence packets experimentally; retrieval and explicit incomplete coverage remain required |
+| Prompt-cache hit price, USD/MTok | Opus 0.20; Sonnet 0.10, direct | Flash 0.006; Pro 0.044, peak direct, conditional identity | Flash 0.016; Max 0.25, OpenCode route | Cache is a billing/compute optimization, not persistent knowledge; see dated price sources above |
+| Persistent project memory | Engine-owned repository facts | Same | Same | Store provenance; retrieve relevant facts; invalidate against current code |
+| Exact local self-hosting footprint | Weights not provided by these API specifications | Requires a specific checkpoint/runtime | Requires a specific checkpoint/runtime | Separate deployment study, not part of choosing the API |
+
+One actual research memory metric is available: DeepSeek's [V4.1 Flash report](https://arxiv.org/abs/2609.19969) gives **890 bytes/token for its global KV-cache component in HBM**. At 32,000 tokens that component is 28.48 MB decimal; at 1,000,000 it is 890 MB. This excludes model weights, other caches, workspaces and concurrency. It is emphatically not “the entire model fits in 890 MB.” It describes the paper's architecture, not a measured hosted endpoint allocation or our runner memory.
+
+### Metrics the next paid experiment must emit
+
+| Metric | Unit / aggregation | Why it changes the decision |
+| --- | --- | --- |
+| Peak context | Tokens/request, max and p95 | Tests whether 1M capacity is useful at all |
+| Prompt processing | Prefill tokens/s; fixed 16K/32K inputs | Separates reading speed from answer generation |
+| First chunk / first answer | Seconds, recorded separately | Makes reasoning latency visible |
+| Output and reasoning | Billed tokens, separated where available | Finds cheaper models that spend more tokens |
+| Cache | Read/write tokens, hit ratio, effective USD | Tests actual reuse rather than advertised discount |
+| Complete review | Seconds/PR p50/p95; turns and tool calls | Measures user-visible processing performance |
+| Runner memory | Peak RSS MB, whole process tree | Sizes Actions runners; unrelated to hosted model VRAM |
+| Quality | Confirmed recall by severity, false positives, incomplete coverage | Prevents fast/cheap but shallow reviews from winning |
+| Cost | USD/completed PR and confirmed Medium+ defect | Includes retries, failures, judge calls and subscription allocation |
+
 ## Gateways, free access, and pooled subscriptions
 
 **OpenRouter:** one integration and balance can simplify experiments and provider selection. Standard adds 5.5% when buying credits; inference itself follows listed provider rates. For example, $10 of credits costs $10.55 before taxes. It is not an automatic discount on Opus. Free access has limits (the pricing page lists 50 requests/day); one tool-driven review consumes multiple requests. Pin model and provider during evaluation; do not use an automatic free-model router as a reproducible model identity. Verify tools, schema support, reasoning accounting, caching and data policy for the selected endpoint. Source: [OpenRouter pricing](https://openrouter.ai/pricing).
@@ -91,7 +170,7 @@ Proposed experiments, not shipping defaults:
 6. Compare effort high vs medium as a separate arm AFTER model-only evaluation. “High” is not equivalent across providers. Track whether savings come from less reasoning, fewer tool turns, or incomplete work.
 7. A judge must receive bounded original evidence and engine obligations, including closed contracts. Allow bounded evidence requests. Summaries alone can preserve the reader's mistake.
 
-No latency/speedup claim is available yet. Record median and p95 end-to-end review time, tool time, time to first token, output rate, queue time and retries. Parallel calls can reduce elapsed time while increasing rate-limit failures and leaving token cost unchanged. API context is not the runner's RAM; self-hosting adds weights/KV-cache memory and GPU economics, which this study does not price.
+No matched Wachiman latency/speedup measurement is available yet; published service measurements are tabulated above. Record median and p95 end-to-end review time, tool time, time to first token, output rate, queue time and retries. Parallel calls can reduce elapsed time while increasing rate-limit failures and leaving token cost unchanged. API context is not the runner's RAM; self-hosting adds weights/KV-cache memory and GPU economics, which this study does not price.
 
 ## Staged experiment and proposed decision gates
 
