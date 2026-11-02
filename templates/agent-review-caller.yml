@@ -1,17 +1,21 @@
 name: Agent review
 # Get the key at https://console.anthropic.com and save it as the repository secret ANTHROPIC_API_KEY.
-# Pin an exact release tag (`@v1.0.0`): it never moves, every update arrives as a Dependabot pull
-# request you read first, and a bad release is undone by editing the tag back. Do not use the floating
-# `@v1`: it would run each new release with your key before you have seen it.
-# First install: the installing pull request gets only the automatic review. `/wachi review`
-# and thread replies work from the next pull request, because `issue_comment` runs from the default branch.
+# Pin an exact release tag (`@v1.3.0`): it names the release whose workflow and engine run with your
+# key. Maintainers do not move release tags, but a repository admin can; a full commit SHA cannot be
+# re-pointed (see docs/install.md, "What pinning a version does and does not guarantee"). Do not use
+# the floating `@v1`: it would run each new release with your key before you have seen it.
+# Updates reach you only when you change this line, by hand or through a Dependabot pull request you
+# enable and read. A bad release is undone by editing the pin back.
+# First install: the installing pull request can get the automatic review. `/wachi review` works once
+# this file is on the default branch, because `issue_comment` runs from there. A reply in a review
+# thread starts no run by itself; ask for a review (docs/install.md, "Ask for a review").
 on:
   pull_request: { types: [opened, ready_for_review] }
   issue_comment: { types: [created] }
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.0.0
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.3.0
     with:
       operator: EDIT-THIS-github-login
     secrets:

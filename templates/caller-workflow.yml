@@ -13,29 +13,32 @@ name: Agent review
 #   - `review`: once, when a pull request opens ready for review or leaves draft.
 #     A later push does not re-run it.
 #   - `on-demand`: when the repository owner comments on a pull request:
-#     `/wachi review` re-reviews what changed since the last reviewed commit and
-#     answers the owner's replies in the open threads; `/wachi review <path>…` reviews
-#     only those paths; any other `/wachi …` comment is a question, answered as a comment.
+#     `/wachi review` re-reviews what changed since the last complete, unscoped review and,
+#     when that review has work to do, answers the owner's replies in the open threads;
+#     `/wachi review <path>…` reviews only those paths; any other `/wachi …` comment is a
+#     question, answered as a comment.
 #
 # Limit of this install: the copied engine lives in the consumer repository itself, so engine and
 # reviewed head cannot be fully separated here (on `pull_request` the engine is the pull request's
 # own copy, and the checkout is the process's working directory). The reusable workflow
-# (templates/agent-review-caller.yml) checks them out as siblings and is preferred. This copy
+# (templates/agent-review-caller.yml) checks them out as siblings and is preferred; to move
+# an existing copy there, see docs/setup-copy.md. This copy
 # still runs `bun --no-env-file --config=scripts/agent-review/bunfig.toml ... --repo-dir .`, so
 # Bun reads no `bunfig.toml` or `.env` from the head; copy `bunfig.toml` next to `cli.ts`.
 #
 # Before the agent is called, `scripts/agent-review/cli.ts` drops lockfiles, build output and
 # generated files, then packs the rest into batches of about 1,000 changed lines, riskiest
 # first, one agent call each with its diff inside the prompt. A batch that leaves files
-# unaccounted for is re-run once with only those files. There is no size gate: the budget
-# below bounds the run, and a file still not accounted for marks the review "partial" on
-# its first line.
+# unaccounted for is re-run once with only those files. There is no size gate: the budgets
+# below limit each run (Claude Code's per-call limit is a soft cap that can be exceeded; see
+# docs/providers/claude-code.md), and a file still not accounted for marks the review
+# "partial" on its first line.
 #
 # Comments come from `github-actions[bot]` through the workflow token, so no GitHub
 # App needs to be installed.
 #
 # Both jobs run `scripts/agent-review/cli.ts`: the agent only reads (files, the PR, its diff),
-# and the CLI posts the review, capped by the budgets below. That is enough
+# and the CLI posts the review, within the budgets below. That is enough
 # here because only the owner pushes (EDIT THIS: say who can open pull requests in this
 # repository), so everything the agent reads is trusted. A public repository needs more
 # before copying this file: prompt injection and outside contributors. Three things
@@ -54,7 +57,8 @@ on:
     types: [opened, ready_for_review]
   # GitHub runs `issue_comment` workflows from the default branch's copy of this file. The
   # pull request that installs the workflow therefore gets only the `pull_request` review;
-  # `/wachi review` and thread replies start working once the file is on the default branch.
+  # `/wachi review` starts working once the file is on the default branch. A reply in a review
+  # thread starts no run by itself.
   issue_comment:
     types: [created]
 
@@ -69,8 +73,9 @@ env:
   # Pinned: the version is part of what was verified to work (see above). Bump it by
   # hand, and re-run a review to check.
   CLAUDE_CODE_VERSION: 2.1.304
-  # Batch size, and the most one batch, one pull request and one `/wachi` question may
-  # spend. Past the pull request's budget the remaining batches are listed as not reviewed.
+  # Batch size, and the limits on one batch, one pull request and one `/wachi` question (soft
+  # caps per call, not a guaranteed ceiling). Past the pull request's budget the remaining
+  # batches are listed as not reviewed.
   # A pull request edits these for its own `review` run, which the trust assumption above
   # accepts.
   AGENT_REVIEW_BATCH_LINES: 1000
