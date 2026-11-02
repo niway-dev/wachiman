@@ -5,7 +5,7 @@
   how often the triggers fire on real pull requests (below), not whether the questions find bugs
   or what they cost in model calls.
 - **Date:** 2026-11-02
-- **Evidence:** [field run 2026-11-02](../benchmark/2026-11-02-field/README.md), section "What to
+- **Evidence:** [field run 2026-11-02](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-field/README.md), section "What to
   improve in Wachiman", items 1 to 5. That page is on branch `docs/field-run-kaipu-workspaces`
   (pull request #87) and links here once both are merged.
 - **Numbering:** 0014 and 0015 are taken by the open design pull request #80, so this record is

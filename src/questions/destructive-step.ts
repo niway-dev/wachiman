@@ -1,7 +1,7 @@
 import type { DataPathQuestion } from "./types";
 
 /**
- * Field run on kaipu-record (docs/benchmark/2026-11-02-field): the engine flagged the line above an
+ * Field run on kaipu-record (2026-11-02-field in niway-dev/wachiman-benchmarks): the engine flagged the line above an
  * unguarded delete and moved on, three times. The delete ran later than the decision to delete
  * (crash recovery, healing), so nothing proved the target was still the thing meant to go, and a
  * failed delete still dropped the record that would have allowed a retry.
