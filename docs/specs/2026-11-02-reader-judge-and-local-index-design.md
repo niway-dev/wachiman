@@ -33,7 +33,7 @@ references and know where to go deep.
 
 **Gates, in order (revised after Sol's review):**
 
-1. **Measure v1.4.0** on Opus ([2026-11-02 hypothesis](../benchmark/2026-11-02/README.md)), then
+1. **Measure v1.4.0** on Opus ([2026-11-02 hypothesis](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02/README.md)), then
    **E1**, the same on Sonnet. Both are repeated, then run on held-out PRs.
 2. **Measure whether the reader's evidence is enough.** Hide the bug and give a judge only a
    Sonnet reader's packet: can it establish each defect from that alone? Classify each failure as

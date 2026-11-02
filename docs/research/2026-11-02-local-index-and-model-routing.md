@@ -84,6 +84,6 @@ No 2026 change was found; check the current docs before relying on the figures.
 ## 6. From Wachiman's own logs
 
 Pullfrog's prompt allows specialist subagents. In the 14 Pullfrog runs whose tool calls are
-saved under `docs/benchmark/`, it started none: the only "Task" in those logs is
+saved in [niway-dev/wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks), it started none: the only "Task" in those logs is
 `» Task complete.`. Its advantage on those pull requests came from one agent following one
 action across files, not from specialisation.
