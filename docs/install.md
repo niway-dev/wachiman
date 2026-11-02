@@ -41,6 +41,7 @@ You need:
    name: Agent review
    on:
      pull_request: { types: [opened, ready_for_review, synchronize] }
+     pull_request_review_comment: { types: [created] }
      issue_comment: { types: [created] }
    permissions: { contents: read, pull-requests: write, issues: read }
    jobs:
@@ -139,10 +140,15 @@ pull request from then on, including ones opened earlier.
   `Already reviewed at abc1234` and nothing is analysed. To look at it again anyway, name a
   path: `/wachi review <path>`. Replies in finding threads are not processed in the
   unchanged-head case either (next point).
-- **Replying in a finding's thread does not start a run.** The reply is read only during a later
-  review that has work to do, and only if an earlier complete review exists. To get a reply
-  considered on an unchanged head, ask for a review scoped to the file the thread is on. Only
-  replies from people with `OWNER`, `MEMBER` or `COLLABORATOR` access reach the agent.
+- **Your reply in a finding's thread gets an answer, with conditions.** The template lists
+  `pull_request_review_comment`, so your reply (only yours, as `operator`) starts a short job that
+  answers the threads waiting for an answer, once the head has been reviewed. Anyone else's reply
+  starts nothing. Only replies from people with `OWNER`, `MEMBER` or `COLLABORATOR` access reach the
+  agent. A caller without that trigger gets no such answer
+  ([upgrading.md](upgrading.md#answering-thread-replies-without-a-push)).
+- **Automatic runs share a ceiling.** The first review, push reviews and thread replies on one pull
+  request together spend at most `auto_budget_usd` (default $6); then one notice is posted and
+  `/wachi review` still works ([costs.md](costs.md#the-ceiling-per-pull-request)).
 - **A mistyped path can widen the request.** Words after `review` that match no changed file
   are ignored. If none match, the request runs as an unscoped review, which may spend more than
   the scoped one you meant. Check the path spelling against the pull request's file list.
@@ -214,7 +220,7 @@ rules it is reviewed under. See [review-policy.md](review-policy.md).
 Only `operator` is required. Every other input, with its default, type and the environment
 setting it becomes, is in [configuration.md](configuration.md#inputs); that page is the only place
 the inputs are listed. The ones people change first are `mention` (the command word), the budgets
-(`budget_usd`, `batch_budget_usd`, `answer_budget_usd`), `skip_branch_prefixes` and
+(`budget_usd`, `auto_budget_usd`, `batch_budget_usd`, `answer_budget_usd`), `skip_branch_prefixes` and
 `review_on_push`. Budgets apply per run, not per month, and the Claude Code limit on a call is a
 soft client-side cap, so it can be exceeded ([costs.md](costs.md)).
 

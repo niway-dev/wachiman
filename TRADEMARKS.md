@@ -1,8 +1,6 @@
-<!-- TODO(owner): "NIWAY" below is the name used in LICENSE. Replace it with the legal name of the owner of the marks once it is confirmed, and decide whether to state a governing law. Delete this comment when done. -->
-
 # Wachiman trademark policy
 
-Last updated: 2026-11-01
+Last updated: 2026-11-02
 
 This policy says what you may do with the name and logo of Wachiman without asking, what needs
 permission, and how to ask. It is short on purpose. If you are unsure, ask: you will not get in
@@ -12,14 +10,17 @@ In short:
 
 - You can always say "Wachiman" truthfully: in articles, talks, documentation, "works with Wachiman".
 - You can run it, configure it and redistribute unmodified copies.
-- If you change it and other people see the result, give it your own name and your own logo. You can
-  say it is "based on Wachiman".
+- If you distribute a modified version, or its output reaches people outside your team, give it
+  another name, remove the original logo and replace its Wachiman comment heading. You can say it is
+  "based on Wachiman". If you change it only for your own team and nobody outside it sees the
+  result, you may keep the name.
 - Do not use the name or the logo as part of the name of a product, company, domain or service, or in
   a way that suggests we made or approved something.
 
 ## 1. What is covered
 
-NIWAY uses the following as trademarks (Wachiman™). This policy applies to them whether or not they
+The following are trademarks of NIWAY (Niway S.A.C., a company incorporated in Peru and based in
+Lima), used as Wachiman™. They are not registered. This policy applies to them whether or not they
 are registered anywhere.
 
 - **The name "Wachiman".**
@@ -105,7 +106,8 @@ If you distribute a modified version, or what it publishes reaches anyone outsid
 
 You may keep the technical names that exist so setups keep working: the `/wachi` and `/wachiman`
 commands, the hidden `<!-- wachi:… -->` markers in comments, the `AGENT_REVIEW_*` settings and the
-`agent-review` file names. They are interfaces, not branding.
+`agent-review` file names. This includes legacy `agent-review`/`claude-review` state markers and
+compatibility command aliases. They are interfaces, not branding.
 
 If you change the code only for your own team and nobody outside it sees the result, you may leave
 the name as it is.

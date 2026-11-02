@@ -1,9 +1,37 @@
 # Changelog
 
 > **Licensing.** Releases up to and including v1.3.0 were published under the GNU Affero General
-> Public License v3. Later releases are published under the Functional Source License 1.1
+> Public License version 3 or any later version. Later releases are published under the Functional Source License 1.1
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
+
+## [1.4.0](https://github.com/niway-dev/wachiman/compare/v1.3.0...v1.4.0) (2026-11-02)
+
+
+### Features
+
+* ask flow and failure questions, return contracts and confidence ([c364f13](https://github.com/niway-dev/wachiman/commit/c364f13453822c2c99db5f094c6e0871650fcda8))
+* ask flow and failure questions, return contracts and confidence ([22cf113](https://github.com/niway-dev/wachiman/commit/22cf113b7c46679787df2bdac68cebe79797af75))
+* cap agent turns and kill calls at a wall-clock limit ([8a67abb](https://github.com/niway-dev/wachiman/commit/8a67abb63035c493a94015bf0240274a030abc76))
+* cap agent turns and kill calls at a wall-clock limit ([57c94d4](https://github.com/niway-dev/wachiman/commit/57c94d4dcab6911f78591d447a71b859df0fd2aa))
+* give each batch the sibling call sites of the symbols it newly calls ([4842d98](https://github.com/niway-dev/wachiman/commit/4842d98c989fc8085580d7ea00a2c26390bf7d67))
+* give each batch the sibling call sites of the symbols it newly calls ([afb8f38](https://github.com/niway-dev/wachiman/commit/afb8f383261171fb596e78a47dbbe2bee89dee93))
+* make the model's reasoning effort an explicit, logged input ([#56](https://github.com/niway-dev/wachiman/issues/56)) ([e15e5cc](https://github.com/niway-dev/wachiman/commit/e15e5ccf7dc6e5402315c08eb998950664823fa3))
+* relicense future releases under FSL-1.1-ALv2 and add a trademark policy ([531d4a0](https://github.com/niway-dev/wachiman/commit/531d4a0995b5595848e8e27cbaf44a8aed4b9357))
+* relicense future releases under FSL-1.1-ALv2 and add a trademark policy ([0a610a5](https://github.com/niway-dev/wachiman/commit/0a610a58017b2500a2a5557d065d830893405892))
+* review every push incrementally and skip rebases with no content change ([709defd](https://github.com/niway-dev/wachiman/commit/709defddc6b2d7e4740d6b6c629afa3b59ba918a)), closes [#43](https://github.com/niway-dev/wachiman/issues/43)
+* review every push incrementally; a rebase with no content change costs nothing ([c4cc8d3](https://github.com/niway-dev/wachiman/commit/c4cc8d39c612613a569b11f3b6e811b6512000db))
+
+
+### Bug Fixes
+
+* a merge of the base branch reviews none of the base's files ([c3965f5](https://github.com/niway-dev/wachiman/commit/c3965f5df6f2387a152fd6254dcd566c4ab063dc))
+* enforce the confidence rule in code and pin the one-review contract ([5f2dda1](https://github.com/niway-dev/wachiman/commit/5f2dda122437e43649e602811027ebc5f507d508))
+* enforce the confidence rule in code; pin the one-review contract ([#17](https://github.com/niway-dev/wachiman/issues/17)) ([25c95a8](https://github.com/niway-dev/wachiman/commit/25c95a86269a954914ca1db363c62554b5e9107e))
+* name Niway S.A.C. as licensor and fill the legal placeholders ([6893774](https://github.com/niway-dev/wachiman/commit/6893774a9b11a398c1daf0baf139b07f8a0f0a6a))
+* name Niway S.A.C. as licensor and fill the legal placeholders ([e585ca0](https://github.com/niway-dev/wachiman/commit/e585ca030bdb8d203502728336e6cced4f45ad28))
+* qualify the Apache conversion in ADR 0013 and complete the FAQ Competing Use summary ([b87fcd7](https://github.com/niway-dev/wachiman/commit/b87fcd7bd878d30fd3dbabdfa16618bf624626e4))
+* scope the Apache conversion to FSL versions and tighten the license summaries ([795c52d](https://github.com/niway-dev/wachiman/commit/795c52de9e300c866573741def8c735f546ed29c))
 
 ## [1.3.0](https://github.com/niway-dev/wachiman/compare/v1.2.1...v1.3.0) (2026-10-31)
 

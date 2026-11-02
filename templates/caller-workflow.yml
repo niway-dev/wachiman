@@ -13,8 +13,15 @@ name: Agent review
 #   - `review`: when a pull request opens ready for review or leaves draft, and on every later
 #     push (`synchronize`), which reviews only the commits that are new since the last review.
 #     A rebase with no change in content posts a one-line marker and calls no model. Each push
-#     can spend up to AGENT_REVIEW_BUDGET_USD; to review only on open and on `/wachi review`,
-#     remove `synchronize` from the `pull_request` types below.
+#     can spend up to AGENT_REVIEW_BUDGET_USD, and all automatic runs on one pull request
+#     together up to AGENT_REVIEW_AUTO_BUDGET_USD (`/wachi review` is not limited by it); to
+#     review only on open and on `/wachi review`, remove `synchronize` from the `pull_request`
+#     types below.
+#   - `threads`: when the repository owner replies in a review thread (a
+#     `pull_request_review_comment`), Wachiman answers every thread that waits for an answer,
+#     with no review and no resolve, but only once the pull request's head was already reviewed
+#     (otherwise the review of the push reads the replies). Remove the
+#     `pull_request_review_comment` trigger below to turn it off.
 #   - `on-demand`: when the repository owner comments on a pull request:
 #     `/wachi review` re-reviews what changed since the last complete, unscoped review and,
 #     when that review has work to do, answers the owner's replies in the open threads;
@@ -64,6 +71,10 @@ on:
   # thread starts no run by itself.
   issue_comment:
     types: [created]
+  # A reply in a review thread. Like `pull_request`, it runs from the pull request's own copy of
+  # this file, with secrets for a same-repository head.
+  pull_request_review_comment:
+    types: [created]
 
 # Claude Code runs directly rather than through anthropics/claude-code-action: in one
 # setup the action's first API call failed with `billing_error` while `claude -p`, with the
@@ -84,6 +95,11 @@ env:
   AGENT_REVIEW_BATCH_LINES: 1000
   AGENT_REVIEW_BATCH_BUDGET_USD: 0.75
   AGENT_REVIEW_BUDGET_USD: 3
+  # The most all automatic runs on one pull request (first review, push reviews, thread replies)
+  # may spend together; the engine sums it from its own signed review footers. `/wachi review`
+  # is not limited by it. A thread-reply run has its own cap, inside this one.
+  AGENT_REVIEW_AUTO_BUDGET_USD: 2
+  AGENT_REVIEW_THREADS_BUDGET_USD: 0.25
   AGENT_REVIEW_ANSWER_BUDGET_USD: 1
   # The login allowed to command the tool (EDIT THIS). The `on-demand` job `if:` checks the same
   # login, and the CLI checks it again against the comment's author.
@@ -136,9 +152,63 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
+          # `opened`, `ready_for_review` or `synchronize`: each counts against the automatic ceiling.
+          AGENT_REVIEW_TRIGGER: ${{ github.event.action }}
         # `--config=<path>` needs the equals sign: `-c <path>` did not replace the head's config
         # in Bun 1.3.4. `--no-env-file` keeps the head's `.env` out of this process.
         run: bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts review "$PR" --repo-dir .
+
+  threads:
+    name: Agent thread replies
+    # EDIT THIS: replace 'your-github-login' below with the operator's login, and keep it equal to
+    # AGENT_REVIEW_OPERATOR above. Only a reply by the operator (not a bot), on a head in this
+    # repository, starts the job; the engine checks the login again and acts only when the head
+    # was already reviewed.
+    if: |
+      github.event_name == 'pull_request_review_comment' &&
+      github.event.comment.in_reply_to_id &&
+      github.event.comment.user.login == 'your-github-login' &&
+      github.event.comment.user.type != 'Bot' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Its own group, never cancelling: a reply must not cancel the review of a push that arrived
+    # seconds before. GitHub keeps one pending run per group, and a run handles every pending
+    # thread, so a dropped pending run loses nothing.
+    concurrency:
+      group: agent-review-threads-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout the pull request head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.4
+
+      - name: Install Claude Code
+        env:
+          CLAUDE_INSTALL_DIR: ${{ runner.temp }}/claude-bin
+          # Optional: pin the binary's SHA-256 yourself. Empty means the publisher's manifest.
+          CLAUDE_CODE_SHA256: ""
+        run: |
+          bash scripts/agent-review/install-claude-code.sh
+          echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Answer the pending threads
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts threads "$PR" --repo-dir .
 
   on-demand:
     name: Agent on demand

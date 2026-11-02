@@ -149,6 +149,25 @@ const MAX_CITED_BYTES = 8 * 1024 * 1024;
  * chooses these paths, and the engine must not read outside the head on its behalf.
  */
 export function repoLineCounter(repoDir: string): LineCounter {
+  const resolveFile = repoFileResolver(repoDir);
+  return (path) => {
+    const real = resolveFile(path);
+    if (real === null) return null;
+    try {
+      if (statSync(real).size > MAX_CITED_BYTES) return Number.MAX_SAFE_INTEGER;
+      return countLines(readFileSync(real, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+}
+
+/**
+ * The real path of a regular file inside `repoDir`, or null when the path is empty, absolute,
+ * missing, not a file, or leaves the directory (`..`, a symlink pointing out). The model and
+ * GitHub choose these paths; the engine must not read outside the head on their behalf.
+ */
+export function repoFileResolver(repoDir: string): (path: string) => string | null {
   let root: string;
   try {
     root = realpathSync(repoDir);
@@ -161,10 +180,7 @@ export function repoLineCounter(repoDir: string): LineCounter {
       const real = realpathSync(resolve(root, path));
       const rel = relative(root, real);
       if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null;
-      const stat = statSync(real);
-      if (!stat.isFile()) return null;
-      if (stat.size > MAX_CITED_BYTES) return Number.MAX_SAFE_INTEGER;
-      return countLines(readFileSync(real, "utf8"));
+      return statSync(real).isFile() ? real : null;
     } catch {
       return null;
     }

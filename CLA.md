@@ -2,8 +2,8 @@
 
 **Version 0.1, draft, 2026-11-01.** Written for the project; not yet reviewed by a lawyer.
 
-This agreement is between you ("You") and NIWAY ("NIWAY"), the publisher of Wachiman.
-<!-- TODO(owner): replace "NIWAY" with the legal entity name and type, and add its country of registration. -->
+This agreement is between you ("You") and NIWAY (Niway S.A.C., a company incorporated in Peru and
+based in Lima; "NIWAY"), the publisher of Wachiman.
 It applies to every Contribution You submit once You have accepted it.
 
 ## In one minute
@@ -11,8 +11,9 @@ It applies to every Contribution You submit once You have accepted it.
 - **You keep the copyright** to what You write.
 - **You give NIWAY a broad, permanent license** to it, including the right to release it under
   other terms than the project's current license, for example a commercial license.
-- **Versions already published keep the license they were published under.** Each version also
-  becomes available under Apache 2.0 two years after it is made available.
+- **Versions already published keep the license they were published under.** Each version published
+  under FSL-1.1-ALv2 also becomes available under Apache 2.0 two years after that version is made
+  available.
 - You confirm that You have the right to contribute what You submit.
 
 The sections below are the binding text.
@@ -51,8 +52,8 @@ and under other licenses.
 
 - A version of Wachiman already published stays available under the license it was published
   under. A change of license applies only to versions published after it.
-- Each published version becomes available under the Apache License 2.0 on the second anniversary
-  of the date it is made available, as the project license provides.
+- Each version published under FSL-1.1-ALv2 also becomes available under the Apache License 2.0
+  on the second anniversary of the date that version is made available, as that license provides.
 - NIWAY may decline any Contribution and need not use one it accepts.
 
 ## 6. Your representations
@@ -75,7 +76,8 @@ Except as stated above, Contributions are provided "as is", without warranties o
 
 ## 8. Governing law
 
-<!-- TODO(owner): governing law and venue. Not known; do not publish this agreement without it. -->
+This agreement is governed by the laws of Peru. The courts of Lima, Peru, have jurisdiction over
+any dispute about it.
 
 ## How to sign
 

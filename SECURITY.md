@@ -18,7 +18,10 @@ sentence says otherwise. If an assumption does not hold for your repository, do 
 - **Only trusted people can push branches to a repository that runs it.** The review job holds
   your API key, and on `pull_request` GitHub runs the workflow file from the pull request's own
   branch. A person who can push can therefore change the workflow and read the key. Nothing in
-  this tool defends against that.
+  this tool defends against that. The same holds for `pull_request_review_comment`, the event that
+  starts a thread-reply run: it is documented to run the workflow file from the pull request's merge
+  commit and to give a same-repository head the repository's secrets, like `pull_request`, but the
+  first real install has not yet verified that ([ADR 0012](docs/adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)).
 - **Fork pull requests are excluded from review.** The automatic job skips them. The on-demand job
   reads the pull request's head repository name with the job's token, and stops before checking
   out or reviewing the head if it is not the calling repository. Data about a fork pull request

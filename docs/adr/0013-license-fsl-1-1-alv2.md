@@ -26,18 +26,20 @@ What was true when this was decided:
 
 1. **New versions are licensed under the Functional Source License, Version 1.1, ALv2 Future
    License (`FSL-1.1-ALv2`).** The text is the unmodified official template, with the licensor
-   "NIWAY" and the year 2026. `package.json` declares `FSL-1.1-ALv2`.
+   "Niway S.A.C." and the year 2026. `package.json` declares `FSL-1.1-ALv2`.
 2. **Versions published before the license change stay under the AGPL.** That covers every release
    up to and including v1.3.0 and every commit before the commit that replaced `LICENSE`. Rights
    already granted cannot be withdrawn, and this record does not try to.
 3. **Only a Competing Use needs a commercial license.** The license permits every purpose except
    making the software available to others in a commercial product or service that substitutes for
-   it, substitutes for something NIWAY offers using it, or offers the same or substantially
+   it, substitutes for another NIWAY product or service using it that already existed when that
+   version was made available, or offers the same or substantially
    similar functionality. Internal use, non-commercial education and research, and professional
    services to a licensee are Permitted Purposes. A commercial license is a separate agreement
-   with NIWAY, requested at contact@niway.com and agreed case by case.
-4. **Each version becomes Apache 2.0 two years after it is made available.** This is the license's
-   "Grant of Future License", applied per version, not per project.
+   with NIWAY (Niway S.A.C.), requested at contact@niway.com and agreed case by case.
+4. **Each version published under FSL-1.1-ALv2 becomes Apache 2.0 two years after it is made
+   available.** This is the license's "Grant of Future License", applied per version, not per
+   project.
 5. **The project is called source available, never open source,** and copy names the license.
 6. **Outside contributions require a contributor license agreement** in which the contributor keeps
    copyright and grants NIWAY the right to license the contribution on other terms. A DCO
@@ -106,6 +108,22 @@ What was true when this was decided:
 - A lawyer's review finds the FSL text or the contributor agreement unsuitable for NIWAY's
   jurisdiction.
 - The Functional Source License publishes a new version.
+
+## Owner answers (2026-11-01)
+
+The notice in `LICENSE` named "NIWAY" as the licensor, and the legal entity, the governing law of
+the contributor agreement and the owner of the trademarks were not yet confirmed. The owner has
+since answered:
+
+- **Licensor and copyright holder:** Niway S.A.C., a company incorporated in Peru and based in
+  Lima. `LICENSE` now reads "Copyright 2026 Niway S.A.C."; no other word of the license text
+  changed. "NIWAY" remains the brand and short name.
+- **Contributor agreement:** the party is NIWAY (Niway S.A.C.). It is governed by the laws of Peru,
+  with the courts of Lima, Peru, as venue.
+- **Trademarks:** owned by Niway S.A.C. and not registered.
+
+These apply from the release after v1.3.0. Releases up to v1.3.0 keep the notice and the AGPL
+they were published with. The contributor agreement is still not reviewed by a lawyer.
 
 ## References
 
