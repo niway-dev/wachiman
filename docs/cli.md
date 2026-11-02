@@ -134,7 +134,7 @@ Like `comment`, `threads` needs a working provider binary and credential before 
   `· {n} batches` part appears only when the review ran more than one batch. The footer names the
   provider and model, for example "Claude Sonnet 5.5 via Claude Code 2.1.304", and the reasoning
   effort the run used (`low`, `medium`, `high`, `xhigh` or `max`, [configuration.md](configuration.md#reasoning-effort)).
-  The `· effort {effort}` part is **new in the release after v1.3.0**: the footer of a v1.3.0
+  The `· effort {effort}` part is **new in v1.4.0**: the footer of a v1.3.0
   review is `<sub>{model label} · {n} batches · ${cost}</sub>` and has no effort field. A finding on a line of the diff is an
   inline comment on that line; one on a line outside the diff goes in the body under "Outside the
   diff". Coverage is reported by the agent per file, not measured line by line.
@@ -158,8 +158,8 @@ Like `comment`, `threads` needs a working provider binary and credential before 
   replies (see "What `threads` does").
 - `comment` with a question: one pull request comment (not a review) holding the answer, written in
   English, and a footer `<sub>{model label} · effort {effort} · ${cost}</sub>` (no batch count,
-  since an answer is one call). As with a review, the `· effort {effort}` part is new in the
-  release after v1.3.0; v1.3.0 prints `<sub>{model label} · ${cost}</sub>`. The answer is one call over the whole diff, with no batching, no coverage check and no
+  since an answer is one call). As with a review, the `· effort {effort}` part is new in
+  v1.4.0; v1.3.0 prints `<sub>{model label} · ${cost}</sub>`. The answer is one call over the whole diff, with no batching, no coverage check and no
   thread context, capped by `answer_budget_usd`.
 - With `AGENT_REVIEW_DRY_RUN=1` it reads GitHub but prints instead of posting. It still calls the
   agent, so it still costs money.

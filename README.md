@@ -62,7 +62,7 @@ This is not a sandbox. What is enforced, what the tests show and what is still u
 
 ## Status and providers
 
-The current release is **v1.3.0** ([CHANGELOG.md](CHANGELOG.md)). The command-line contract
+The current release is **v1.5.0** ([CHANGELOG.md](CHANGELOG.md)). The command-line contract
 ([docs/cli.md](docs/cli.md)) and the provider adapter boundary are in place. The older
 `CLAUDE_REVIEW_*` variables, `.github/claude-review.md` and the `@claude` mention are still read
 with a notice; see [docs/upgrading.md](docs/upgrading.md).

@@ -1,6 +1,6 @@
 name: Agent review
 # Get the key at https://console.anthropic.com and save it as the repository secret ANTHROPIC_API_KEY.
-# Pin an exact release tag (`@v1.3.0`): it names the release whose workflow and engine run with your
+# Pin an exact release tag (`@v1.5.0`): it names the release whose workflow and engine run with your
 # key. Maintainers do not move release tags, but a repository admin can; a full commit SHA cannot be
 # re-pointed (see docs/install.md, "What pinning a version does and does not guarantee"). Do not use
 # the floating `@v1`: it would run each new release with your key before you have seen it.
@@ -24,7 +24,7 @@ on:
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.3.0
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0
     with:
       operator: EDIT-THIS-github-login
       # review_on_push: false   # review only on open, ready for review and `/wachi review`
