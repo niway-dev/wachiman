@@ -248,11 +248,20 @@ identical counts as unchanged even without a patch (a binary file).
 What this does not catch: a rebase onto a base that changes what the unchanged lines mean (the base
 renamed a function the pull request calls) looks unchanged and is not reviewed again.
 
-A merge of the base branch into the pull request is a push on top, and GitHub's compare lists the
-base's files. Those are not part of the pull request (its file list is the diff against the merge
-base) and are not reviewed. Of the pull request's own files, only the ones whose change differs
-from the reviewed one are reviewed again; a merge that changes none of them posts a one-line
-"Brought up to date with the base branch" marker and calls no model.
+A merge of the base branch into the pull request (or of a parent branch, in a stack) is a push on
+top, and GitHub's compare lists the merged branch's files. Those are not part of the pull request
+(its file list is the diff against the merge base) and are not reviewed. Of the pull request's own
+files, only the ones whose change differs from the reviewed one are candidates. In a candidate file
+both branches changed, compare also shows the merged branch's lines as added: only the rows the
+author wrote go to the model, the merged branch's added lines are shown as context and its deleted
+lines are left out. A merge that leaves no row of the author's posts a one-line "Brought up to date
+with the base branch" marker and calls no model.
+
+How a row is told apart: compare's patch and the pull request's patch (against the current base)
+both end at the head, so an added row is the author's when the pull request adds that same line
+number. A removed row is the author's when the pull request at the last review had added that line,
+or when the pull request now removes the same text. When GitHub sent no patch for the file (binary,
+too large), nothing can be told apart and compare's patch is sent as it is.
 
 To turn it off, remove `synchronize` from the caller's types, or pass `review_on_push: false` to the
 reusable workflow. Each push can spend up to `budget_usd`, and all automatic runs on the pull request
