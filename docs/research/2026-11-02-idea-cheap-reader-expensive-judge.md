@@ -1,7 +1,7 @@
 # Idea: a cheap model reads, an expensive model judges
 
 - **Status:** idea, not a decision. Nothing is planned or built. Revisit after the v1.4.0
-  benchmark ([2026-11-02](../benchmark/2026-11-02/README.md)) and a Sonnet-only run of it.
+  benchmark ([2026-11-02](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02/README.md)) and a Sonnet-only run of it.
 - **Raised:** 2026-11-02, by the owner: "Sonnet as a subagent to lighten costs, Opus for the hard
   work."
 
@@ -43,7 +43,7 @@ it has to do the reading.
 ## A fact from the benchmark logs
 
 Pullfrog's prompt allows specialist subagents, but in the 14 Pullfrog runs whose tool calls are
-saved under `docs/benchmark/` (2026-10-31 live and re-reviews, 2026-11-01 replays) it started
+saved in [niway-dev/wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks) (2026-10-31 live and re-reviews, 2026-11-01 replays) it started
 **none**: the only "Task" in those logs is the closing line `» Task complete.`. Its advantage on
 those PRs came from one agent following one action across files, not from specialisation.
 CodeRabbit's internals are not visible; nothing here says whether it uses several agents.
