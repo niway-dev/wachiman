@@ -5,7 +5,8 @@
   up. The command-line contract and the provider adapter boundary are in place (`docs/cli.md`);
   the copy-the-files template remains supported. **Still unbuilt:** the policy-versioning
   mechanism of decision 4. Severity rules live in `src/engine.ts`, and the only consumer input is
-  the focus file.
+  the focus file. **Decision 5 amended** by [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md)
+  (proposed 2026-11-01): the operator's thread replies also start an automatic run.
 - **Date:** 2026-10-25. **Amended 2026-10-26:** decision 3 now recommends an exact release tag;
   the floating major tag is kept but no longer recommended. See "Amendment" below.
 
