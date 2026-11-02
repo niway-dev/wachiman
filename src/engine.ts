@@ -40,6 +40,8 @@ export interface PrFile {
   deletions: number;
   /** GitHub omits it for binary files and very large diffs. */
   patch?: string;
+  /** The file's blob at the compared commit: equal blobs are equal contents. Absent for a removed file. */
+  sha?: string;
 }
 
 /**
@@ -604,6 +606,8 @@ export function buildReview(input: {
   files: PrFile[];
   headSha: string;
   since: string | null;
+  /** The branch was rewritten since `since`, and `files` are those whose changed lines differ. */
+  rebased?: boolean;
   /** Limited to `<mention> review <paths>`. */
   scoped: boolean;
   costUsd: number;
@@ -640,7 +644,9 @@ export function buildReview(input: {
   const reviewed = new Set(output.files_reviewed);
   const notReviewed = expected.filter((f) => !reviewed.has(f));
   const reasons = new Map(output.files_skipped.map((s) => [s.path, s.reason]));
-  const scope = since ? `changes since \`${short(since)}\`` : "the whole pull request";
+  const scope = since
+    ? `the changes since \`${short(since)}\`${input.rebased ? " (after a rebase)" : ""}`
+    : "the whole pull request";
   const parts: string[] = [];
   const list = notReviewed.map((f) => `\`${neutralise(f)}\`${reasons.has(f) ? ` (${neutralise(reasons.get(f) ?? "")})` : ""}`);
   const fullList = list.join(", ");
@@ -1050,7 +1056,7 @@ const jsonLines = <T>(text: string) =>
 // `gh --jq` prints string results raw, like `jq -r`: `@json` of an object prints the object's
 // JSON, and `@json` of a string prints the quoted string. One JSON value per line either way.
 export function listFiles(gh: GhFn, repo: string, pr: number): PrFile[] {
-  const jq = ".[] | {filename, additions, deletions, patch} | @json";
+  const jq = ".[] | {filename, additions, deletions, patch, sha} | @json";
   return jsonLines<PrFile>(
     gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/files`, "--jq", jq]),
   );
@@ -1090,11 +1096,74 @@ export function lastEngineMarker(reviews: { body: string; created_at?: string }[
 }
 
 export function compareFiles(gh: GhFn, repo: string, base: string, head: string) {
-  const jq = "{status, files: [.files[] | {filename, additions, deletions, patch}]}";
+  const jq = "{status, files: [.files[] | {filename, additions, deletions, patch, sha}]}";
   return JSON.parse(gh(["api", `repos/${repo}/compare/${base}...${head}`, "--jq", jq])) as {
     status: string;
     files: PrFile[];
   };
+}
+
+/**
+ * The rows of a file's patch that add or remove a line, in order: no context rows, no hunk
+ * headers, so no line numbers. Two diffs of one change over different bases (a rebase moves the
+ * context and the numbers) give the same signature, like `git patch-id` over a diff without
+ * context. Null when GitHub sent no patch (binary, or too large): nothing can be compared.
+ */
+export function changeSignature(patch: string | undefined | null) {
+  if (!patch) return null;
+  return patch
+    .split("\n")
+    .filter((row) => row.startsWith("+") || row.startsWith("-"))
+    .join("\n");
+}
+
+/** GitHub's compare endpoint lists at most 300 files; a list that long may be cut short. */
+const COMPARE_FILE_LIMIT = 300;
+
+/** What a rewritten branch (a rebase, a squash, a force-push) changed compared to what was reviewed. */
+export type RebaseDelta =
+  | { kind: "unchanged"; removed: string[] }
+  | { kind: "changed"; files: PrFile[]; unchanged: number }
+  | { kind: "unknown"; reason: string };
+
+/**
+ * For a head that does not follow the last reviewed commit (`diverged`, `behind`): compares the
+ * pull request's own change at that commit with its change now, per file, by `changeSignature`.
+ * The old change is `base...last` (three dots: from the merge base of the base branch and the old
+ * head), so a rebase that only moved the base shows the same lines added and removed. A file
+ * whose blob or signature is equal is not sent to the model again. A file with no patch and a
+ * different or unknown blob, a new file and a file whose lines differ are "changed". Any doubt (the old commit is gone, the
+ * list may be cut short) is "unknown", and the caller reviews the whole pull request.
+ */
+export function rebaseDelta(
+  gh: GhFn,
+  repo: string,
+  base: string,
+  last: string,
+  current: PrFile[],
+): RebaseDelta {
+  let old: { files: PrFile[] };
+  try {
+    old = compareFiles(gh, repo, base, last);
+  } catch (error) {
+    return { kind: "unknown", reason: `could not compare the base with the last reviewed commit (${String(error).slice(0, 120)})` };
+  }
+  if (old.files.length >= COMPARE_FILE_LIMIT)
+    return { kind: "unknown", reason: `the old change lists ${old.files.length} files, which GitHub may have cut short` };
+  const signature = (f: PrFile) => changeSignature(f.patch);
+  const before = new Map(old.files.map((f) => [f.filename, { sha: f.sha, signature: signature(f) }]));
+  const changed = current.filter((f) => {
+    const was = before.get(f.filename);
+    if (was === undefined) return true; // not in the old change: a new file
+    // The same blob is the same contents, patch or no patch (a binary file, a huge diff).
+    if (was.sha && was.sha === f.sha) return false;
+    return was.signature == null || signature(f) == null || was.signature !== signature(f);
+  });
+  if (changed.length === 0) {
+    const kept = new Set(current.map((f) => f.filename));
+    return { kind: "unchanged", removed: old.files.map((f) => f.filename).filter((n) => !kept.has(n)) };
+  }
+  return { kind: "changed", files: changed, unchanged: current.length - changed.length };
 }
 
 export interface RawThread {
@@ -1289,16 +1358,87 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     return;
   }
   let since: string | null = null;
+  let rebased = false;
   let files = prFiles;
   if (last && paths.length === 0) {
-    const cmp = compareFiles(gh, repo, last, headSha);
-    if (cmp.status === "ahead") {
+    let status = "unavailable";
+    let cmp: ReturnType<typeof compareFiles> | null = null;
+    try {
+      cmp = compareFiles(gh, repo, last, headSha);
+      status = cmp.status;
+    } catch (error) {
+      // A force-push can leave the old commit unreachable; that is a rewritten branch, not a failure.
+      deps.warn(`Could not compare ${short(last)} with the head: ${String(error).slice(0, 200)}`);
+    }
+    if (cmp && cmp.status === "ahead") {
+      // New commits on top. `compare` lists everything that changed since `last`, which after a
+      // merge of the base branch into the pull request includes the base's own files: those are
+      // not part of the pull request (GitHub's file list is the diff against the merge base) and
+      // are not reviewed. Of the pull request's files, only those whose change differs from the
+      // one reviewed at `last` are reviewed again.
       since = last;
-      files = cmp.files;
+      const inPr = new Map(prFiles.map((f) => [f.filename, f]));
+      const own = cmp.files.filter((f) => inPr.has(f.filename));
+      const delta =
+        own.length === 0
+          ? ({ kind: "unchanged", removed: [] } as RebaseDelta)
+          : rebaseDelta(gh, repo, baseSha(gh, repo, pr), last, own.map((f) => inPr.get(f.filename)!));
+      if (delta.kind === "unchanged") {
+        deps.log(
+          `The ${cmp.files.length} file(s) changed since ${short(last)} are not part of the pull request's own change (a merge of the base branch), or their change is the one already reviewed; nothing to review.`,
+        );
+        // The marker moves so that the next push is compared with this head, not with the old one.
+        postReview(deps, repo, pr, headSha, {
+          body: [
+            branded(`Brought up to date with the base branch, no new changes since \`${short(last)}\`.`),
+            SIGNATURE.review,
+            marker(headSha),
+          ].join("\n\n"),
+          comments: [],
+        });
+        return;
+      }
+      if (delta.kind === "changed") {
+        const keep = new Set(delta.files.map((f) => f.filename));
+        files = own.filter((f) => keep.has(f.filename));
+      } else {
+        files = own;
+      }
+      if (files.length < cmp.files.length)
+        deps.log(
+          `${cmp.files.length - files.length} of the ${cmp.files.length} file(s) changed since ${short(last)} are not reviewed: not in the pull request's own change, or that change is the one already reviewed.`,
+        );
     } else {
-      deps.log(
-        `The last reviewed commit ${short(last)} is not behind the head (${cmp.status}); full review.`,
-      );
+      // The branch was rewritten (a rebase, a squash, a force-push). The content decides, not the SHAs.
+      const base = baseSha(gh, repo, pr);
+      const delta = rebaseDelta(gh, repo, base, last, prFiles);
+      if (delta.kind === "unchanged") {
+        deps.log(
+          `The last reviewed commit ${short(last)} is not behind the head (${status}), but the pull request's changes are the same${delta.removed.length > 0 ? ` (no longer in it: ${delta.removed.join(", ")})` : ""}; rebased with no content change, nothing to review.`,
+        );
+        // The marker moves so that the next push is compared with this head, not with the old one.
+        postReview(deps, repo, pr, headSha, {
+          body: [
+            branded(`Rebased onto \`${short(base)}\`, no new changes since \`${short(last)}\`.`),
+            SIGNATURE.review,
+            marker(headSha),
+          ].join("\n\n"),
+          comments: [],
+        });
+        return;
+      }
+      if (delta.kind === "changed") {
+        deps.log(
+          `The last reviewed commit ${short(last)} is not behind the head (${status}); the branch was rewritten. ${delta.files.length} file(s) differ from what was reviewed, ${delta.unchanged} are the same and are not reviewed again.`,
+        );
+        since = last;
+        rebased = true;
+        files = delta.files;
+      } else {
+        deps.log(
+          `The last reviewed commit ${short(last)} is not behind the head (${status}) and the change cannot be compared (${delta.reason}); full review.`,
+        );
+      }
     }
   }
 
@@ -1325,6 +1465,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     repo,
     headSha,
     since,
+    rebased,
     paths,
     dropped: dropped.length,
     everyFile,
@@ -1432,6 +1573,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     files: kept,
     headSha,
     since,
+    rebased,
     scoped: paths.length > 0,
     costUsd: spent,
     batches: reports,
@@ -1474,6 +1616,8 @@ export interface ReviewContext {
   repo: string;
   headSha: string;
   since: string | null;
+  /** The branch was rewritten since `since`: the files are those whose changed lines differ. */
+  rebased?: boolean;
   paths: string[];
   dropped: number;
   everyFile: string;
@@ -1493,7 +1637,9 @@ export function buildBatchPrompt(
 ) {
   const list = files.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
   const scope = ctx.since
-    ? `only the changes since commit ${ctx.since}, the last reviewed one`
+    ? ctx.rebased
+      ? `only the files whose changed lines differ from what was reviewed at commit ${ctx.since}, the last reviewed one (the branch was rebased since; a file's diff below is still its whole diff against the base)`
+      : `only the changes since commit ${ctx.since}, the last reviewed one`
     : "the whole pull request";
   return `You are reviewing pull request #${ctx.pr} in ${ctx.repo}, checked out at its head commit ${ctx.headSha}.
 The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.

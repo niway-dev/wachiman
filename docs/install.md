@@ -58,6 +58,7 @@ The reusable workflow takes these `with:` inputs. Only `operator` is required.
 | `claude_code_sha256` | empty | Optional SHA-256 of the Claude Code binary for the runner platform; empty reads it from the publisher manifest (see [providers/claude-code.md](providers/claude-code.md)) |
 | `bun_version` | `1.3.4` | Pinned Bun version |
 | `skip_branch_prefixes` | `release-please--` | Comma-separated head branch prefixes that are not reviewed |
+| `review_on_push` | `true` | Review each push to an open pull request, only the new commits. Needs `synchronize` in the caller's `pull_request` types (the template has it). Each push can spend up to `budget_usd`; set `false` to review only on open, ready for review and `/wachi review`. See [reviews.md](reviews.md#reviews-on-push) |
 
 Input defaults are kept in sync by hand with the defaults in `src/config.ts`. CI pins Bun
 separately from the `bun_version` input. `AGENT_REVIEW_EXCLUDE` and `AGENT_REVIEW_DRY_RUN` have no

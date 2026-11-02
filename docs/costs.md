@@ -122,6 +122,15 @@ and spends again.
 ## Things that add to the total
 
 - **Retries.** Described above: a second call, with its own cap, for files the first call missed.
+- **Pushes.** With `synchronize` in the caller (the templates have it), every push to an open pull
+  request starts a review with its own `budget_usd`. It reads only what is new since the last
+  complete review, so a small fix costs a small review, but a pull request that gets ten pushes pays
+  for ten reviews, and a push that changes many files can spend the whole budget again. A rebase
+  with no change in the pull request's lines costs no model call (one runner job of a few seconds and
+  one line on the pull request). A burst of pushes runs once, because the older run is cancelled; what
+  a cancelled run had already spent is not verified here. To opt out, remove `synchronize` from the
+  caller or set `review_on_push: false`. Whether the cost per pull request is worth the findings on
+  later commits is not measured yet ([ADR 0011](adr/0011-review-every-push-incrementally.md)).
 - **Repeated runs.** A new `/wachi review` after a change, a pull request that leaves draft,
   and a scoped review on an unchanged head each start a full budget. A plain `/wachi review` on a head
   that already has a complete review stops with "Already reviewed" before any provider call.

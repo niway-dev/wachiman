@@ -5,8 +5,13 @@ name: Agent review
 # `@v1`: it would run each new release with your key before you have seen it.
 # First install: the installing pull request gets only the automatic review. `/wachi review`
 # and thread replies work from the next pull request, because `issue_comment` runs from the default branch.
+# `synchronize` reviews every push to an open pull request, only the commits that are new since the
+# last review (a rebase with no change in content only moves the marker and costs no model call).
+# Each push can spend up to `budget_usd`. To review only on open and on `/wachi review`, remove
+# `synchronize` here, or keep it and pass `review_on_push: false` below. The trigger lives in this
+# file: bumping the pinned release does not add it to a caller that already exists.
 on:
-  pull_request: { types: [opened, ready_for_review] }
+  pull_request: { types: [opened, ready_for_review, synchronize] }
   issue_comment: { types: [created] }
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
@@ -14,5 +19,6 @@ jobs:
     uses: niway-dev/wachiman/.github/workflows/review.yml@v1.0.0
     with:
       operator: EDIT-THIS-github-login
+      # review_on_push: false   # review only on open, ready for review and `/wachi review`
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

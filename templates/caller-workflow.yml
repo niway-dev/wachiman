@@ -10,8 +10,11 @@ name: Agent review
 # The "copy the files" workflow template. Copy it with the `src/` folder of niway-dev/wachiman
 # (as `scripts/agent-review/`, see docs/setup-copy.md), record the decision in the repository's ADRs, and edit the
 # trust paragraph below to say who can push. It runs narrowly:
-#   - `review`: once, when a pull request opens ready for review or leaves draft.
-#     A later push does not re-run it.
+#   - `review`: when a pull request opens ready for review or leaves draft, and on every later
+#     push (`synchronize`), which reviews only the commits that are new since the last review.
+#     A rebase with no change in content posts a one-line marker and calls no model. Each push
+#     can spend up to AGENT_REVIEW_BUDGET_USD; to review only on open and on `/wachi review`,
+#     remove `synchronize` from the `pull_request` types below.
 #   - `on-demand`: when the repository owner comments on a pull request:
 #     `/wachi review` re-reviews what changed since the last reviewed commit and
 #     answers the owner's replies in the open threads; `/wachi review <path>…` reviews
@@ -51,7 +54,7 @@ name: Agent review
 
 on:
   pull_request:
-    types: [opened, ready_for_review]
+    types: [opened, ready_for_review, synchronize]
   # GitHub runs `issue_comment` workflows from the default branch's copy of this file. The
   # pull request that installs the workflow therefore gets only the `pull_request` review;
   # `/wachi review` and thread replies start working once the file is on the default branch.

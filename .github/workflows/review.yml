@@ -89,6 +89,13 @@ on:
         description: Comma-separated head branch prefixes whose pull requests are not reviewed
         type: string
         default: release-please--
+      review_on_push:
+        description: >-
+          Review every push to an open pull request, only the new commits (the caller must list
+          `synchronize` in its `pull_request` types). A push can spend up to `budget_usd`; set
+          false to review only on open, ready for review and `/wachi review`.
+        type: boolean
+        default: true
     secrets:
       ANTHROPIC_API_KEY:
         description: Anthropic API key that pays for the review
@@ -102,9 +109,13 @@ jobs:
     name: Agent review
     # Fork and Dependabot pull requests get no secrets, so the job could only fail there.
     # The skipped branch prefixes are checked in the first step (a prefix list cannot be
-    # matched in an expression).
+    # matched in an expression). These conditions hold for every `pull_request` action, so a
+    # push (`synchronize`) to a draft, a fork or a skipped branch is skipped like an open is.
+    # `review_on_push: false` skips the push runs; the trigger itself lives in the caller.
+    # A burst of pushes runs once: the concurrency group below cancels the older run.
     if: |
       github.event_name == 'pull_request' &&
+      (github.event.action != 'synchronize' || inputs.review_on_push) &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.actor != 'dependabot[bot]'
