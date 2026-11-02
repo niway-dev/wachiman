@@ -1,0 +1,29 @@
+{
+ "number": 461,
+ "title": "chore: add Pullfrog workflow file",
+ "body": "This PR adds the `.github/workflows/pullfrog.yml` workflow file to enable [Pullfrog](https://pullfrog.com) agent runs in this repository.\n\nOnce merged, return to the [Pullfrog console](https://pullfrog.com/console/niway-dev/kaipu-record) and click **Verify workflow** to finish setup.",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "pullfrog[bot]",
+  "type": "Bot"
+ },
+ "created_at": "2026-10-31T00:15:31Z",
+ "updated_at": "2026-10-31T00:16:28Z",
+ "closed_at": "2026-10-31T00:16:24Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/461",
+ "base": {
+  "ref": "main",
+  "sha": "5e464c9fe6a773b30a00b4d6aea8defe571d973b"
+ },
+ "head": {
+  "ref": "pullfrog/add-workflow-1793405729246",
+  "sha": "adaaa91ed611c94d9e475261a73461ce458dbf2e",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 1,
+ "additions": 81,
+ "deletions": 0,
+ "labels": []
+}

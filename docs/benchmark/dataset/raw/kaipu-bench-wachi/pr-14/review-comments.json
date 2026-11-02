@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4437284861,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-ready-window.ts",
+  "line": 223,
+  "original_line": 223,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 223,
+  "original_position": 223,
+  "commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "original_commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730204359,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:49:33Z",
+  "updated_at": "2026-11-01T20:49:33Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/14#discussion_r4437284861",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: A reused window can show the previous take's card for a frame**\n\nAfter ✕ or an action, `close()` hides the window (line 153), but the card renderer still holds the old payload. On the next take, `present()` sends the new payload and calls `showInactive()` in the same tick (lines 223–225). The renderer has not repainted yet, so the hidden window's last frame (the old recording's duration and size) can appear briefly before the new card replaces it. One option: have the card clear its state when it is dismissed. Another: show the window only after the card has painted, for example on the first `resize` after a payload.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437284867,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/post-recording-card.tsx",
+  "line": 48,
+  "original_line": 48,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 47,
+  "original_position": 47,
+  "commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "original_commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730204359,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:49:33Z",
+  "updated_at": "2026-11-01T20:49:33Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/14#discussion_r4437284867",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: Doc comment says the card goes away when the user leaves the page**\n\nThe updated comment still says the card \"stays until the user picks something, closes it or leaves the page\". That is only true of the in-app fallback. The floating window (`recording-ready-window.ts:89-90`) has no tie to the page and stays until an action, ✕ or Escape. Reword the comment so it covers both cases.\n\n<!-- wachi:finding -->"
+ }
+]

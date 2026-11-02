@@ -1,0 +1,16 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T05:54:26Z",
+  "databaseId": 41396715269,
+  "displayTitle": "[replay] fix(api): close upload abuse paths [NIW2-323]",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "f00a204b53af23acb396be1456db057ab15c87ff",
+  "status": "completed",
+  "updatedAt": "2026-11-02T05:56:16Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41396715269",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

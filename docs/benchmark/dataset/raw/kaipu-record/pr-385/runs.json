@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:54:23Z",
+  "databaseId": 40452298827,
+  "displayTitle": "refactor(desktop): drop the Recent row from the Record page",
+  "event": "pull_request",
+  "headBranch": "chore/record-page-drop-recent",
+  "headSha": "02802ccfe1d0a9407df9e8c9d178c0e0523f458c",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:54:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40452298827",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:49:44Z",
+  "databaseId": 40451870782,
+  "displayTitle": "refactor(desktop): drop the Recent row from the Record page",
+  "event": "pull_request",
+  "headBranch": "chore/record-page-drop-recent",
+  "headSha": "02802ccfe1d0a9407df9e8c9d178c0e0523f458c",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:50:00Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40451870782",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:33:39Z",
+  "databaseId": 40450402587,
+  "displayTitle": "refactor(desktop): drop the Recent row from the Record page",
+  "event": "pull_request",
+  "headBranch": "chore/record-page-drop-recent",
+  "headSha": "045520ad2eb44721b81396262227df427e14e06d",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:34:03Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40450402587",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:33:39Z",
+  "databaseId": 40450402166,
+  "displayTitle": "refactor(desktop): drop the Recent row from the Record page",
+  "event": "pull_request",
+  "headBranch": "chore/record-page-drop-recent",
+  "headSha": "045520ad2eb44721b81396262227df427e14e06d",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:33:57Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40450402166",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T00:47:04Z",
+  "databaseId": 40796300120,
+  "displayTitle": "fix(desktop): main-side recording resources end with the take (audit REC-A2/B3/B4/B5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-400-21-recording-main-side-resources",
+  "headSha": "34d46d1623eacf3a2a39a343338280e27c4453df",
+  "status": "completed",
+  "updatedAt": "2026-10-29T00:47:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40796300120",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T23:40:19Z",
+  "databaseId": 40788959749,
+  "displayTitle": "fix(desktop): main-side recording resources end with the take (audit REC-A2/B3/B4/B5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-400-21-recording-main-side-resources",
+  "headSha": "34d46d1623eacf3a2a39a343338280e27c4453df",
+  "status": "completed",
+  "updatedAt": "2026-10-28T23:40:36Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40788959749",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:13:39Z",
+  "databaseId": 40723862311,
+  "displayTitle": "fix(desktop): main-side recording resources end with the take (audit REC-A2/B3/B4/B5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-400-21-recording-main-side-resources",
+  "headSha": "04f94aed0ddc3750542d7b58224d3623992acd28",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:13:59Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40723862311",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:12:59Z",
+  "databaseId": 40723750414,
+  "displayTitle": "fix(desktop): main-side recording resources end with the take (audit REC-A2/B3/B4/B5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-400-21-recording-main-side-resources",
+  "headSha": "4514e8fe98b1cbfd9327ceca0d8e3bf0a8e6e765",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:13:37Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40723750414",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:12:59Z",
+  "databaseId": 40723749513,
+  "displayTitle": "fix(desktop): main-side recording resources end with the take (audit REC-A2/B3/B4/B5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-400-21-recording-main-side-resources",
+  "headSha": "4514e8fe98b1cbfd9327ceca0d8e3bf0a8e6e765",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:13:19Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40723749513",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

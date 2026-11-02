@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T17:13:07Z",
+  "databaseId": 41223449935,
+  "displayTitle": "feat(desktop): import a video into the Library (NIW2-579)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-579-import-video",
+  "headSha": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "status": "completed",
+  "updatedAt": "2026-10-31T17:13:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41223449935",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T18:40:18Z",
+  "databaseId": 41108890505,
+  "displayTitle": "feat(desktop): import a video into the Library (NIW2-579)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-579-import-video",
+  "headSha": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "status": "completed",
+  "updatedAt": "2026-10-30T18:42:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41108890505",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T18:40:18Z",
+  "databaseId": 41108889834,
+  "displayTitle": "feat(desktop): import a video into the Library (NIW2-579)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-579-import-video",
+  "headSha": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "status": "completed",
+  "updatedAt": "2026-10-30T18:41:22Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41108889834",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

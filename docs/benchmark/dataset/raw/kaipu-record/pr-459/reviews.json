@@ -1,0 +1,86 @@
+[
+ {
+  "id": 5718773440,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "01b157c8bc43c7663a141f6c5f65f4280c566c56",
+  "submitted_at": "2026-10-30T21:20:13Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#pullrequestreview-5718773440",
+  "body": "**Agent review** of the whole pull request, at `01b157c`: all 53 files reviewed.\n\n6 finding(s): 2 to fix, 4 to consider; 6 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 4.** Part 1 looks sound. Main checks every path that comes from the renderer: it must be absolute, have an allowed extension, exist as a regular file, not already be in the vault, and be readable. The copy is staged as a `.part` file, checked with mediabunny, and then committed under a lock, writing the sidecar before the media file. The preload addition (`webUtils.getPathForFile` plus two invoke channels) stays inside the existing contextBridge pattern. `shared/import-video.ts` uses only type imports. I found one issue: when an import is already running, `useImportVideos` throws away a new request with no message, while its doc comment says the second one waits.\n\n**Batch 2 of 4.** I reviewed all 16 files in part 2 and have one \"consider\" finding. When a drop on Prepare finishes importing, Prepare opens the new video even if the user has already left the screen, for example through Back or \"From your Library\". Nothing checks that Prepare is still mounted, and Back stays enabled during an import. I found no bugs in the rest: the `?to=` destination carry-over, the `chosen` ref reset when the recording changes, the sizeless destination list, and the Library header and drop-zone wiring. The tests check what their names say.\n\n**Batch 3 of 4.** Part 3 has one \"consider\" finding, in the CSS. Nothing in this part blocks the merge or needs a \"fix\".\n\n- **LICENSE:** The file is now the unmodified AGPL-3.0 text. The project's \"or any later version\" header is gone, which matches `AGPL-3.0-only`. `marketing/open-source.md` records this as intentional (NIW2-566), and the copyright and version-3-only notice are in README.md (lines 284–288).\n- **`LEGAL_VERSION`:** It moves to 2026-10-30. That matches the legal pages' \"updated\" message in `en.json` and `es.json` (line 1498): \"Version 2026-10-30\".\n- **`prepare-drop-zone.module.css`:** The CSS variables it uses are defined elsewhere in the renderer. The one finding: `.wrap` centres its content and also scrolls vertically. If the zone is taller than the column, the top of it can be cut off with no way to scroll to it.\n\n**Batch 4 of 4.** Part 4 covers the docs, the legal files and the i18n messages. The import-video backlog doc is now out of date: it says only the Library catches file drops, but the Prepare drop zone added in this same PR catches them too. The Prepare drop body text lists fewer formats than the import accepts. And the README names a person as copyright holder while the CLA grants its rights to the company. The package license fields and the en/es message pairs match what the docs say.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 4 | 20 | 955 | 8 | reviewed | 8 | $0.33 |\n| Batch 2 of 4 | 16 | 997 | 4 | reviewed | 7 | $0.31 |\n| Batch 3 of 4 | 3 | 919 | 4 | reviewed | 15 | $0.33 |\n| Batch 4 of 4 | 14 | 542 | 1 | reviewed | 5 | $0.19 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 4 batches · $1.16</sub>\n\n<!-- agent-review sha=01b157c8bc43c7663a141f6c5f65f4280c566c56 -->"
+ },
+ {
+  "id": 5721968589,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "13b7ff5da65f3d0b59d0542132babf328ce373b3",
+  "submitted_at": "2026-10-31T08:19:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#pullrequestreview-5721968589",
+  "body": ""
+ },
+ {
+  "id": 5721968676,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "13b7ff5da65f3d0b59d0542132babf328ce373b3",
+  "submitted_at": "2026-10-31T08:19:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#pullrequestreview-5721968676",
+  "body": ""
+ },
+ {
+  "id": 5722037374,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "13b7ff5da65f3d0b59d0542132babf328ce373b3",
+  "submitted_at": "2026-10-31T08:45:40Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#pullrequestreview-5722037374",
+  "body": ""
+ },
+ {
+  "id": 5722037629,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "13b7ff5da65f3d0b59d0542132babf328ce373b3",
+  "submitted_at": "2026-10-31T08:45:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#pullrequestreview-5722037629",
+  "body": ""
+ },
+ {
+  "id": 5722037910,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "13b7ff5da65f3d0b59d0542132babf328ce373b3",
+  "submitted_at": "2026-10-31T08:45:45Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#pullrequestreview-5722037910",
+  "body": ""
+ },
+ {
+  "id": 5722038162,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "13b7ff5da65f3d0b59d0542132babf328ce373b3",
+  "submitted_at": "2026-10-31T08:45:47Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#pullrequestreview-5722038162",
+  "body": ""
+ }
+]

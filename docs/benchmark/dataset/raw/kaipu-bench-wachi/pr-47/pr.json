@@ -1,0 +1,31 @@
+{
+ "number": 47,
+ "title": "[replay] Bug: main window disappears when it loses focus (macOS)",
+ "body": "> **Replay of [niway-dev/kaipu-record#255](https://github.com/niway-dev/kaipu-record/pull/255)** for the code-review benchmark. Base `400c80e`, head `78e20a2`: the same commits the original reviewers saw, so the diff is byte-identical. Never merged. Method and scoring: [wachiman/docs/benchmark](https://github.com/niway-dev/wachiman/tree/main/docs/benchmark). The original description follows.\n\n---\n\nQueue: niway-dev/agent-work-queue#9\n\n## Summary\n- Cause: applyDockPolicy() ran app.dock.show() on every call; on macOS that re-transforms the process and orders windows out and back in, which is the native blur → hide → show the diagnosis logged\n- Fix: the activation-policy setters remember the last applied policy and return early when unchanged, so camera on no longer triggers a transition; real transitions still happen\n- Added settings-store and recording-hub regression tests (fail on old code, pass now), moved the backlog page to ready-to-validate, bun run verify green, committed as 78e20a2; manual on-device check still pending\n\n## Acceptance criteria\n- [x] The hide-on-blur path is found and removed\n- [x] A regression test covers camera on → main window stays visible\n\n## Tests\nPassed.",
+ "state": "open",
+ "merged": false,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T05:54:13Z",
+ "updated_at": "2026-11-02T05:55:58Z",
+ "closed_at": null,
+ "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/47",
+ "base": {
+  "ref": "replay/pr-255/base",
+  "sha": "400c80e4ff0dcb98338b411aea70a02b63b517d7"
+ },
+ "head": {
+  "ref": "replay/pr-255/head",
+  "sha": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "repo": "niway-dev/kaipu-bench-wachi"
+ },
+ "changed_files": 5,
+ "additions": 319,
+ "deletions": 13,
+ "labels": [
+  "replay"
+ ]
+}

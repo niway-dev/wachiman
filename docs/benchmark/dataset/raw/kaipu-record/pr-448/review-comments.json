@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4427359967,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/prepare/prepare-page.tsx",
+  "line": 269,
+  "original_line": 269,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 269,
+  "original_position": 269,
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "original_commit_id": "0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5717179920,
+  "subject_type": "line",
+  "created_at": "2026-10-30T18:49:03Z",
+  "updated_at": "2026-10-30T18:49:04Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#discussion_r4427359967",
+  "body": "🟡🐛 **Consider · bug: YouTube's \"Ready\" badge and the detail's \"Open existing\" can disagree**\n\nThe list row shows the Ready badge when *any* preset of the destination already has a reusable copy (`presetsOf(d).some(...)`). The detail pane's `existing` (line 329) only looks at the preset that is selected right now (`presetForDestination(selected, probe, youtube)`). Example: a 4K YouTube copy exists, but the default for a 1080p source is 1440p. The row says \"Ready\", and clicking it shows a plain \"Prepare for YouTube · ~N MB\" button with no \"Open existing\". One fix is to compute the badge from the preset the row would actually make (`reusable[presetForDestination(d, probe, youtube)]`). The other is to switch `youtube` to the preset that already exists when the user picks the row."
+ },
+ {
+  "id": 4427359979,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/prepare/prepare-page.test.tsx",
+  "line": 199,
+  "original_line": 199,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 199,
+  "original_position": 199,
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "original_commit_id": "0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5717179920,
+  "subject_type": "line",
+  "created_at": "2026-10-30T18:49:03Z",
+  "updated_at": "2026-10-30T18:49:04Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#discussion_r4427359979",
+  "body": "🟡🧪 **Consider · tests: \"Only when the copy fits\" test never checks the negative case**\n\nThis test's name is \"GitHub promises the 10 MB limit only when the copy fits it\". It uses the 3:02 recording, whose Light estimate does not fit the 10 MB limit (`destinations.test.ts:114`). But it only checks that the \"Small copy that plays inline\" subtitle is shown. It never checks that \"Under the 10 MB limit\" is absent. If the conditional at `prepare-page.tsx:271` (`d === \"github\" && plan.underGithubFreeLimit`) regressed to always show the promise, this test would still pass, because `getByText` on the fallback subtitle succeeds either way only when the branch is correct. Add `expect(within(github).queryByText(\"Under the 10 MB limit\")).toBeNull()` so the test covers what its name says."
+ },
+ {
+  "id": 4427359989,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/export-presets.md",
+  "line": 11,
+  "original_line": 11,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 7,
+  "original_position": 7,
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "original_commit_id": "0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5717179920,
+  "subject_type": "line",
+  "created_at": "2026-10-30T18:49:03Z",
+  "updated_at": "2026-10-30T18:49:04Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#discussion_r4427359989",
+  "body": "🟡📝 **Consider · docs: \"not merged yet\" goes stale when this PR merges**\n\nThe new superseded note says Prepare lives \"on `feature/niw2-578-prepare-screen` (not merged yet)\". This note arrives in the same PR as the code, so once the PR merges the sentence is false: the recording page will already use Prepare on main. Consider removing the branch name and the parenthesis, or naming the PR instead. prepare-screen.md's status line already tracks merge state, so this note doesn't need to."
+ },
+ {
+  "id": 4431076485,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/prepare/prepare-page.tsx",
+  "line": 269,
+  "original_line": 269,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 269,
+  "original_position": 269,
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "original_commit_id": "0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd",
+  "in_reply_to_id": 4427359967,
+  "pull_request_review_id": 5721973433,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:21:14Z",
+  "updated_at": "2026-10-31T08:21:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#discussion_r4431076485",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nObsolete: #458 (`cba9d254`) already computes the badge from the preset the row would make, `reusable[presetForDestination(d, probe, youtube)]`. That is the first fix suggested here. The code now lives in `pages/export/export-page.tsx:338`, after #467 renamed Prepare to Export, so the Ready badge and \"Open existing\" always look at the same preset.\n"
+ },
+ {
+  "id": 4431076544,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/prepare/prepare-page.test.tsx",
+  "line": 199,
+  "original_line": 199,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 199,
+  "original_position": 199,
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "original_commit_id": "0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd",
+  "in_reply_to_id": 4427359979,
+  "pull_request_review_id": 5721973514,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:21:16Z",
+  "updated_at": "2026-10-31T08:21:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#discussion_r4431076544",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nObsolete: #458 removed this test and #467 removed the conditional subtitle it covered. GitHub's limit is now a size-bar tag, tested on both sides in `pages/export/export-page.test.tsx:235` (the 3:02 recording reads \"over GitHub's 10 MB free-plan limit\") and `:245` (a 20 s recording reads \"fits the 10 MB limit\").\n"
+ },
+ {
+  "id": 4431129378,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/export-presets.md",
+  "line": 11,
+  "original_line": 11,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 7,
+  "original_position": 7,
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "original_commit_id": "0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd",
+  "in_reply_to_id": 4427359989,
+  "pull_request_review_id": 5722035041,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:45:17Z",
+  "updated_at": "2026-10-31T08:45:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#discussion_r4431129378",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nFixed in [`7a3aac00`](https://github.com/niway-dev/kaipu-record/commit/7a3aac00ec8b9987055dada42021419946c33bcb) on #471 (top of the stack): export-presets.md no longer names the stack branch or says \"not merged yet\"; it says Share moved to the Export screen (first built as Prepare).\n"
+ }
+]

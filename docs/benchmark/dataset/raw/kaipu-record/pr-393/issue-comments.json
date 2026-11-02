@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6434902149,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-27T05:55:36Z",
+  "updated_at": "2026-10-27T05:55:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/393#issuecomment-6434902149",
+  "body": "Merged #392 into this branch in 679a01dd to resolve the overlap in `recording-hub.ts` and `recorder-engine.ts`. Both fixes are kept: the bar lookup uses the source cache and still bails after a stop, and a failed compositor start releases both the screen tracks and the mic. Merge order is now #391, then #392, then this PR. Checks: `check-types` is clean, lint has 0 errors, the full suite passes (284 files, 2609 tests), and the recording and hub suites passed again after the final type fix."
+ }
+]

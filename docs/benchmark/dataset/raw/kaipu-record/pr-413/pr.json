@@ -1,0 +1,29 @@
+{
+ "number": 413,
+ "title": "fix(desktop): main-side recording resources end with the take (audit REC-A2/B3/B4/B5)",
+ "body": "Implements the approved spec `apps/documentation/src/content/docs/specs/2026-10-28-niw2-400-recording-main-resources.md` (audit plan 21). Closes audit findings REC-A2, REC-B4, REC-B3, REC-B5.\n\n**Goal:** nothing main starts for a take outlives it.\n\n## Already on `main` before this PR\n\nThe spec was written from older code. Some of it shipped in other PRs before this one. That code was already tested, so this PR leaves it unchanged:\n\n- **REC-B3, control bar after the take ended:** the hub's `takeCount` guard plus `!activity.active` before the delayed `bar.show`, and `ControlBarWindow`'s `wanted` flag in `ready-to-show`. Tests: `recording-hub.test.ts` (\"a stop that lands before the source lookup resolves…\", \"a source lookup left over from a cancelled take…\") and `control-bar-window.test.ts` (\"stays hidden when the take ended before its first window loaded\").\n- **REC-A2/B4, abort part:** an `abortedSessions` set that `cursorTrackStart` checked after its `getSources` await.\n- **`forceReset` writer handling:** it already calls `writer.releaseAll()`, which closes handles and keeps the `.part` files for recovery. The spec's constraint says plan 22's handling supersedes the plain `abortAll()`. So `abortAll()` was **not** added: `forceReset` keeps `releaseAll()`.\n\n## What this PR changes\n\n1. **`RecordingWriter.ids()`:** lists the open sessions, so a reset can mark them ended before releasing them.\n2. **Hub, ended sessions (REC-A2/B4):** `abortedSessions` becomes `endedSessions` (capped at 64, cleared by `recordingCreate` for a reused id). It is now filled by:\n   - abort (as before)\n   - finalize entry (new)\n   - `forceReset`, for every open writer session (new)\n\n   `cursorTrackStart` refuses an ended id before the display lookup, and checks again after it. Before this, a lookup outlasting a finalized or force-reset take started a 125 Hz sampler and the global mouse hook that nothing would ever stop.\n3. **Stop guard (REC-B5):** a new pure `stop-guard.ts` (`proceedWhenRecordingStops`) replaces the duplicated timeout + `ipcMain.once` blocks in the close and quit guards of `main/index.ts`. Exactly one path runs and the other is cancelled. The timeout path calls `hub.forceReset()`. Before this, a hung renderer left the hub \"recording\". The stale `once` listener also stayed registered, so the next take's stop closed the window the user had got back.\n4. The PR deletes plan 21 and moves its row in `plans/audit-2026-10-15/00-index.md` to *Shipped*.\n\n## Review focus (from the spec)\n\n1. A late `cursor-track:start` after abort returns `{ enabled: false }`: existing test, plus new tests for finalize, forced reset and the up-front refusal.\n2. `recordingCreate` for a reused id re-enables tracking: existing test.\n3. A stop before the display lookup resolves never shows the bar; a newer start shows it once: existing tests.\n4. `hide()` before `ready-to-show` never shows the bar: existing test.\n5. Stop guard: the timeout path removes its listener, so a later stop cannot proceed again (`stop-guard.test.ts`).\n\n## Known follow-up (not in this PR, per spec)\n\nThe close/quit timeout can still cut off a slow finalize `copyFile`. It also calls `forceReset()` on a renderer that may only be slow, not dead. The fix is a `finalizeInFlight` counter that re-arms the timeout.\n\n## How I verified it\n\n- New tests were run first and failed for the expected reason: `ids` missing, `{ enabled: true }` instead of `false`, `getSources` called, module missing.\n- `apps/kaipu-record/node_modules/.bin/vitest run src/main/recording/`: 22 files, 207 tests pass.\n- `bun run check-types`: pass.\n- `bun run verify`, run twice in a row: pass (300 test files / 2884 tests in `kaipu-record`).\n- The Playwright desktop E2E suite was not run locally (CI runs it).\n\n## How to test it yourself\n\n1. `bun run dev`. Deny screen capture (or unplug the selected display) and press Record. The start fails, the bar never appears, and main-process CPU stays idle (no 125 Hz sampler: check Activity Monitor).\n2. Put the vault on a slow USB volume. Start a take, press ⌘W, then \"Stop and close\". After 5 s the window closes and the bar is gone. Relaunch, record again and stop: the window does **not** close by itself.\n3. Record and stop normally. The bar hides and the main window comes back (regression check).\n\nRefs NIW2-400\n\nRun: agent-runner attempt 1, session da9914f2-b9f7-4106-9927-f7428e373df6, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T16:12:54Z",
+ "updated_at": "2026-10-29T00:47:05Z",
+ "closed_at": "2026-10-29T00:47:00Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/413",
+ "base": {
+  "ref": "main",
+  "sha": "f10e39a47aaa755b7ebe767b16d0745deb23de74"
+ },
+ "head": {
+  "ref": "feature/niw2-400-21-recording-main-side-resources",
+  "sha": "34d46d1623eacf3a2a39a343338280e27c4453df",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 9,
+ "additions": 258,
+ "deletions": 31,
+ "labels": []
+}

@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4437281260,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library/library-page.test.tsx",
+  "line": 225,
+  "original_line": 225,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 122,
+  "original_position": 122,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730200517,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:48:32Z",
+  "updated_at": "2026-11-01T20:48:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/7#discussion_r4437281260",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: \"…and forgets it\" never checks that the copy was forgotten**\n\nThe test only checks `router.state.location.pathname`. Nothing checks that `markCopySeen` ran (`ready-copy-card` `onOpen` → `library-page.tsx:416`), for example that `getReadyCopies().copies` no longer has `asset-copy`. If the `markCopySeen` call were dropped, this test would still pass, because no Sidebar is mounted here to forget the copy on the detail route. You could add `expect(getReadyCopies().copies).toEqual([])`.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437281261,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library/library-page.tsx",
+  "line": 409,
+  "original_line": 409,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 62,
+  "original_position": 62,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730200517,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:48:32Z",
+  "updated_at": "2026-11-01T20:48:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/7#discussion_r4437281261",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: While its ready card shows, the copy loses its Edit, Prepare, Tags and Delete actions**\n\n`leadingIds` takes the copy out of the regular `VideoCard` list (lines 422–424), and `ReadyCopyCard` only offers open, reveal, drag and dismiss. So from the grid, a copy that just finished cannot be deleted, tagged or prepared until the user closes the card or leaves the Library. The list view (line 447 onward) never shows the ready card, so there the copy keeps its row. If this is intended, it is worth saying so in the backlog doc. If not, the ready card could expose the same overflow actions.\n\n<!-- wachi:finding -->"
+ }
+]

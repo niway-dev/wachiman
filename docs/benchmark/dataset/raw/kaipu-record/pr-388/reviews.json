@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5662272944,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "784044a17bafea4152f172e72901508dce1c7527",
+  "submitted_at": "2026-10-27T04:38:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/388#pullrequestreview-5662272944",
+  "body": "**Agent review** of the whole pull request, at `784044a`: all 20 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. I reviewed the diff only and did not open other files in the repository or run the tests. The new IPC channels check that both offsets are numbers in the main process, and `moveBy` also rejects non-finite values. Every move is clamped to the recorded area or the display. `src/shared` gains no value imports. The new tests match the behaviour they name, and the docs and messages agree with the code.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 20 | 581 | 8 | reviewed | 2 | $0.08 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.08</sub>\n\n<!-- agent-review sha=784044a17bafea4152f172e72901508dce1c7527 -->"
+ }
+]

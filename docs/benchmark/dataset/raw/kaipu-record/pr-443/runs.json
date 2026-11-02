@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:19:46Z",
+  "databaseId": 41219148279,
+  "displayTitle": "feat(desktop): give the editor a webcam layer model seeded from where the bubble was recorded (NIW2-573)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-573-webcam-scene",
+  "headSha": "3afba3338fd888172c51f83c373bb7d4475879aa",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:19:52Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41219148279",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T09:07:34Z",
+  "databaseId": 41187387558,
+  "displayTitle": "feat(desktop): give the editor a webcam layer model seeded from where the bubble was recorded (NIW2-573)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-573-webcam-scene",
+  "headSha": "3afba3338fd888172c51f83c373bb7d4475879aa",
+  "status": "completed",
+  "updatedAt": "2026-10-31T09:07:49Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41187387558",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T08:53:00Z",
+  "databaseId": 41029440631,
+  "displayTitle": "feat(desktop): give the editor a webcam layer model seeded from where the bubble was recorded (NIW2-573)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-573-webcam-scene",
+  "headSha": "62e4fc238933b5f5a4f613477883a1ecc755fc74",
+  "status": "completed",
+  "updatedAt": "2026-10-30T08:53:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41029440631",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T08:50:38Z",
+  "databaseId": 41029181669,
+  "displayTitle": "feat(desktop): give the editor a webcam layer model seeded from where the bubble was recorded (NIW2-573)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-573-webcam-scene",
+  "headSha": "5efa2953079a576c8d28b84a41a8dbeb33d5373e",
+  "status": "completed",
+  "updatedAt": "2026-10-30T08:52:13Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41029181669",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T08:50:38Z",
+  "databaseId": 41029181087,
+  "displayTitle": "feat(desktop): give the editor a webcam layer model seeded from where the bubble was recorded (NIW2-573)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-573-webcam-scene",
+  "headSha": "5efa2953079a576c8d28b84a41a8dbeb33d5373e",
+  "status": "completed",
+  "updatedAt": "2026-10-30T08:50:54Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41029181087",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

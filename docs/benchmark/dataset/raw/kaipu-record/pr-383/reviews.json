@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5660343253,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "submitted_at": "2026-10-26T23:15:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/383#pullrequestreview-5660343253",
+  "body": "**Agent review** of the whole pull request, at `e5defa7`: all 67 files reviewed.\n\n5 finding(s), 1 to fix; 5 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 5.** I found no correctness or security bugs in this part. IPC inputs are validated in main (`isCaptureMode`, `parsePhaseReport`). The shade window uses the existing preload, and the countdown and Esc lifecycle in the hub is consistent. I left two notes: `recent-recordings.tsx` has no test, and the countdown value in a phase report isn't range-checked.\n\n**Batch 2 of 5.** I found one correctness bug in this part. The aspect-ratio lock in frame-box.tsx is not gated on the record intent, so it stays active in screenshot mode after switching with P. The other files in this part had nothing worth flagging.\n\n**Batch 3 of 5.** I reviewed the 10 files in this part and found no correctness or security bugs. I left one minor note: `SelectionToolbar` draws a divider even when the intent switch is absent. I did not run the tests. I checked the other files only by reading the diff, and I looked at one caller outside this part, capture-overlay.tsx, to confirm `onIntent` is always set there.\n\n**Batch 4 of 5.** Reviewed the tests and stylesheets in part 4 from the diff alone and found no correctness, security or rules problems. I did not open the implementation files, so test-versus-code agreement is unchecked; the numbers the tests assert are internally consistent.\n\n**Batch 5 of 5.** The CSS, docs and messages in this part look consistent: en.json and es.json have matching keys, the CSS variables the overlay uses exist, and the removed `useSelection`, `hintFrameRecord` and `{recordKey}` strings have no remaining callers. One note: several new `record.*` i18n keys look unused in the renderer, so they may be dead translations.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 5 | 26 | 989 | 8 | reviewed | 5 | $0.15 |\n| Batch 2 of 5 | 8 | 647 | 4 | reviewed | 2 | $0.07 |\n| Batch 3 of 5 | 10 | 965 | 4 | reviewed | 3 | $0.09 |\n| Batch 4 of 5 | 15 | 877 | 2 | reviewed | 2 | $0.08 |\n| Batch 5 of 5 | 8 | 569 | 1 | reviewed | 6 | $0.09 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · 5 batches · $0.48</sub>\n\n<!-- agent-review sha=e5defa7c7b840a7eb44a84fd4bcd5862b77c2570 -->"
+ }
+]

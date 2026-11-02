@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:31:08Z",
+  "databaseId": 40726747023,
+  "displayTitle": "perf(desktop): compositor draws at the capture rate and pauses (audit REC-A7)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-401-25-compositor-cadence",
+  "headSha": "9eb4ee2cb271cc49cde5208887f25fd05cb7936a",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:31:48Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40726747023",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:31:08Z",
+  "databaseId": 40726746510,
+  "displayTitle": "perf(desktop): compositor draws at the capture rate and pauses (audit REC-A7)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-401-25-compositor-cadence",
+  "headSha": "9eb4ee2cb271cc49cde5208887f25fd05cb7936a",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:31:26Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40726746510",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

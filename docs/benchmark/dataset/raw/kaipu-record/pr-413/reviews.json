@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5685915059,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4514e8fe98b1cbfd9327ceca0d8e3bf0a8e6e765",
+  "submitted_at": "2026-10-28T16:13:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/413#pullrequestreview-5685915059",
+  "body": "**Agent review** of the whole pull request, at `4514e8f`: all 8 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe code changes look correct: `stop-guard` makes exactly one of the stop and timeout paths run and removes its listener on timeout, and the `endedSessions` set is checked before and after the display lookup. The `hub` variable used by the guards exists in `index.ts`, and the tests cover the new paths. The one finding is that the spec doc describes `abortAll` and a `barGeneration` counter that this PR does not contain, even though the doc says it is the contract.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 8 | 647 | 5 | reviewed | 6 | $0.09 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.09</sub>\n\n<!-- agent-review sha=4514e8fe98b1cbfd9327ceca0d8e3bf0a8e6e765 -->"
+ },
+ {
+  "id": 5691110677,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "34d46d1623eacf3a2a39a343338280e27c4453df",
+  "submitted_at": "2026-10-28T23:40:44Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/413#pullrequestreview-5691110677",
+  "body": ""
+ }
+]

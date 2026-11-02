@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T21:03:45Z",
+  "databaseId": 41128121490,
+  "displayTitle": "feat(desktop): recording page — Send to…, master tag, copies from this master (NIW2-585)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-585-send-to-master",
+  "headSha": "2eb861a4e0781957c9f1f6ca741928183458b2b1",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:05:12Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41128121490",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-30T21:13:38Z",
+  "databaseId": 41129419873,
+  "displayTitle": "feat(desktop): recording page — Send to…, master tag, copies from this master (NIW2-585)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "5e464c9fe6a773b30a00b4d6aea8defe571d973b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:13:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41129419873",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T08:21:30Z",
+  "databaseId": 41184271421,
+  "displayTitle": "feat(desktop): recording page — Send to…, master tag, copies from this master (NIW2-585)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "61136a6b68fc2713bc4a41f1714f7d0b787a1929",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:21:30Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41184271421",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T08:46:57Z",
+  "databaseId": 41185989700,
+  "displayTitle": "feat(desktop): recording page — Send to…, master tag, copies from this master (NIW2-585)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "8aa2c207ee4095dcc94d7e43ed0a879be8494624",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:46:58Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41185989700",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

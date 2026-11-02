@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:57:36Z",
+  "databaseId": 41127297445,
+  "displayTitle": "feat(desktop): \"Your video is ready\" toast after recording (NIW2-584)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-584-post-recording-toast",
+  "headSha": "a23f20165c4133c40838a2ce0911a8bf7f2a7083",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:58:22Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41127297445",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-30T21:11:12Z",
+  "databaseId": 41129097162,
+  "displayTitle": "feat(desktop): \"Your video is ready\" toast after recording (NIW2-584)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "5e464c9fe6a773b30a00b4d6aea8defe571d973b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:11:22Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41129097162",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

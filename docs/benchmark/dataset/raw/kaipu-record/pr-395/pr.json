@@ -1,0 +1,29 @@
+{
+ "number": 395,
+ "title": "fix(desktop): reset the control bar on start, configurable countdown, and start/stop race fixes",
+ "body": "## Summary\n\nTwo changes to how a recording starts, plus five lifecycle bugs found by auditing the same path.\n\n1. **The control bar no longer shows the last take's \"Saving…\" when a take starts.** The bar window is hidden, not destroyed, between takes, and kept its last state (\"saving\"). The next take showed it again while the engine acquired screen, mic and encoder (up to 10 s), so it read as stuck. The bar now has a `starting` state (\"Starting…\", grey dot, Stop cancels). It is reset when the bar hides, when a take starts, and replayed to a new window once its page loads.\n2. **Countdown length is a setting**: Settings → Recording → \"Countdown before recording\", Off / 3 s / 5 s (default 3). With Off the take starts at once: no number, no shade dim, no wait. Read at start time, so a change applies to the next take without a restart.\n\n## Bugs fixed by the audit (each with a test that failed first)\n\n| # | Bug | Sequence |\n|---|-----|----------|\n| 1 | Bar floats over the idle app | First take of a session: `bar.show` creates the window, the start fails or is stopped before `ready-to-show`; `hide()` is a no-op, then `ready-to-show` shows it. |\n| 2 | A cancelled take's display lookup acts on the next take | Take A cancelled while `displayIdForSource` runs, take B starts; A's lookup lands, moves the bar and replaces B's area shade. More likely with countdown Off. Fixed with a per-take generation. |\n| 3 | Cursor tracker + global mouse hook left running while idle | `recordingAbort` arrives before `cursorTrackStart` finishes its display lookup; the tracker then starts and samples at 60 Hz until quit. |\n| 4 | A take records a dead capture | Engine resolves, the screen capture ends before the cursor session resolves: `onError` → `stopRecording` no-ops (no engine yet). Now fails the start the usual way. |\n| 5 | Pause/Resume during \"finalizing\" | A bar Pause racing the Stop shortcut paused the engine mid-flush. Now only from \"recording\" / \"paused\". |\n\nChecked and not bugs: stop during `starting` with the lookup pending (already guarded), engine `onError` during finalize, double stop, stale tick after the next start.\n\nUnverified (hardware only): whether macOS repaints a hidden window before `showInactive`. If not, a take might flash one frame of \"Saving…\" before \"Starting…\".\n\n## Design notes\n\n- `applyTick` ignores `starting`, so `RecordingActivity` keeps its three states.\n- Destroying the bar on stop was rejected: every take would pay a full renderer load before the bar appears.\n- Countdown Off: no countdown shade is opened, so the take's border appears a few hundred ms into the take (it no longer reuses the countdown window). The shade is content-protected, so the video is unaffected.\n- Main and the recorder each read the countdown length (main when the region is prepared, the recorder from its cached copy). If main prepared \"off\" and the recorder still counts, the hub draws the shade on the recorder's first `counting` report, so a countdown is never invisible (0c97034e, from the agent review).\n- `RECORDING_COUNTDOWN_SECONDS` → `DEFAULT_RECORDING_COUNTDOWN_SECONDS`; values outside 0/3/5 fall back to 3 in `mergeSettings`.\n\n## Verification\n\nOn this exact tree:\n- `vitest run` in `apps/kaipu-record`: 286 files, 2639 tests passed (at 0c97034e).\n- `bun run check-types`: 24/24. `bun run lint`: 0 errors. `oxfmt --check .`: clean. `bun run build --filter='@kaipu/*'`: ok.\n- `bun run verify` stops at `check-workflows`, which fails on `main` too — fixed separately in the companion PR. Pushed with `LEFTHOOK=0` for that reason.\n- E2E not run locally (CI runs it).\n\n## How to test it yourself\n\n`bun run dev` on this branch.\n\n1. **Bar, second take:** record ~3 s and stop (\"Saving…\", then the library). Start another take right away and watch the bar as it appears: **\"Starting…\"**, grey dot, no timer, then it counts. On `main` the same moment shows \"Saving…\" with a spinner.\n2. **Bar, first take:** restart the app and record: \"Starting…\", not a frozen \"00:00\".\n3. **Cancel while starting:** press Stop on \"Starting…\": the app comes back, no error toast, no bar left on screen.\n4. **Countdown 5 s:** Settings → Recording → Countdown → 5 s, record a whole screen: 5-4-3-2-1. Esc cancels.\n5. **Countdown Off:** set Off and record: no number, no wait, the app hides at once. Repeat with a Frame area: no dim; the pink border and \"REC\" tag appear a few hundred ms in.\n6. **Countdown 3 s (default):** set 3 s again and record: 3-2-1 as before.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T20:13:40Z",
+ "updated_at": "2026-10-27T20:24:03Z",
+ "closed_at": "2026-10-27T20:23:59Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/395",
+ "base": {
+  "ref": "main",
+  "sha": "c8a1519279782f4874bb0a12b6709dbdbcb8ce10"
+ },
+ "head": {
+  "ref": "fix/record-start-bar-and-countdown",
+  "sha": "0c97034ec82435cc9c9dce95b9ef7bc6b7b93aca",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 24,
+ "additions": 916,
+ "deletions": 88,
+ "labels": []
+}

@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T00:25:15Z",
+  "databaseId": 41367047328,
+  "displayTitle": "ci(agent-review): review every push to a ready pull request",
+  "event": "pull_request",
+  "headBranch": "ci/agent-review-on-push",
+  "headSha": "eca331971d6a44d73249382863813a888e51be7a",
+  "status": "completed",
+  "updatedAt": "2026-11-02T00:25:54Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41367047328",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-11-02T00:25:30Z",
+  "databaseId": 41367071405,
+  "displayTitle": "ci(agent-review): review every push to a ready pull request",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "f6ffcb861f5f5982fd729671694d99403d61de09",
+  "status": "completed",
+  "updatedAt": "2026-11-02T00:25:31Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41367071405",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

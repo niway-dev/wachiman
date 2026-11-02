@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T01:04:50Z",
+  "databaseId": 40430407299,
+  "displayTitle": "feat(desktop): record modes, camera bubble controls, capture metadata and tray submenu (integration)",
+  "event": "pull_request",
+  "headBranch": "feat/record-modes-integration",
+  "headSha": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "status": "completed",
+  "updatedAt": "2026-10-27T01:04:57Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40430407299",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T00:56:28Z",
+  "databaseId": 40429543020,
+  "displayTitle": "feat(desktop): record modes, camera bubble controls, capture metadata and tray submenu (integration)",
+  "event": "pull_request",
+  "headBranch": "feat/record-modes-integration",
+  "headSha": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "status": "completed",
+  "updatedAt": "2026-10-27T00:56:48Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40429543020",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T00:07:16Z",
+  "databaseId": 40424319542,
+  "displayTitle": "feat(desktop): record modes, camera bubble controls, capture metadata and tray submenu (integration)",
+  "event": "pull_request",
+  "headBranch": "feat/record-modes-integration",
+  "headSha": "8b18ce170cdd3e46b4d84808d2f0bde8e084043f",
+  "status": "completed",
+  "updatedAt": "2026-10-27T00:10:09Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40424319542",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T00:07:16Z",
+  "databaseId": 40424319132,
+  "displayTitle": "feat(desktop): record modes, camera bubble controls, capture metadata and tray submenu (integration)",
+  "event": "pull_request",
+  "headBranch": "feat/record-modes-integration",
+  "headSha": "8b18ce170cdd3e46b4d84808d2f0bde8e084043f",
+  "status": "completed",
+  "updatedAt": "2026-10-27T00:07:36Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40424319132",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

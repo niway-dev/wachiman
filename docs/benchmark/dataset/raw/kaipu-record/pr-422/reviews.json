@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5693208416,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "submitted_at": "2026-10-29T05:20:39Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/422#pullrequestreview-5693208416",
+  "body": "**Agent review** of the whole pull request, at `61cac59`: all 4 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is sound. The watchdog races `close()` against a deadline. On a hang it samples the stack, attaches evidence on a best-effort basis, kills the process and throws. The `finally` in teardown still removes the temp directories. The vitest `main` project already includes `e2e/helpers/**/*.test.ts` (`vitest.config.ts:62`), and Playwright only matches `*.e2e.ts` (`playwright.config.ts:20`), so the new unit test runs under vitest and not under Playwright. `test.info()` throwing outside the Playwright runner is caught and falls back to `console.error`, which covers the `verify/` scripts. I found one minor point, about a test that only restates a constant.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 4 | 212 | 4 | reviewed | 7 | $0.08 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.08</sub>\n\n<!-- agent-review sha=61cac59916bbf4ba6cbfa85a9c5a1b68f5974073 -->"
+ },
+ {
+  "id": 5693225253,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "7de0112e41312bc2c9200e4e123790d4bb28dabc",
+  "submitted_at": "2026-10-29T05:22:52Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/422#pullrequestreview-5693225253",
+  "body": ""
+ },
+ {
+  "id": 5693237593,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "7de0112e41312bc2c9200e4e123790d4bb28dabc",
+  "submitted_at": "2026-10-29T05:24:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/422#pullrequestreview-5693237593",
+  "body": "**Agent review** of changes since `61cac59`, at `7de0112`: all 4 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. The earlier thread is addressed. The 120 s test timeout is now a shared constant, and `sampleProcess` uses the exported `SAMPLE_TIMEOUT_MS` instead of a literal 20 s. The new test checks that the quit deadline plus the sample timeout (35 s) fits within half of the test timeout (60 s), so it checks the relation the old test only named.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 4 | 34 | 4 | reviewed | 5 | $0.03 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.03</sub>\n\n<!-- agent-review sha=7de0112e41312bc2c9200e4e123790d4bb28dabc -->"
+ },
+ {
+  "id": 5693237676,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "7de0112e41312bc2c9200e4e123790d4bb28dabc",
+  "submitted_at": "2026-10-29T05:24:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/422#pullrequestreview-5693237676",
+  "body": ""
+ }
+]

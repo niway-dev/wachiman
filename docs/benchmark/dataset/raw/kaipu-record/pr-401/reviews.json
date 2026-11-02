@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5674557591,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "53f5806c321ab5caeb762f02807bd0ae79883699",
+  "submitted_at": "2026-10-27T21:22:52Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/401#pullrequestreview-5674557591",
+  "body": "**Agent review** of the whole pull request, at `53f5806`: all 3 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change renames the reusable workflow to niway-dev/wachi-reviewer, pins it to v1.2.0, and switches the command to `/wachi review`. The workflow, the ADR amendment and the CI doc agree with each other, and the ADR amendment's anchor slug matches its heading. I have one suggestion. An exact tag can still be re-pushed, so the \\\"never moves\\\" claim in the workflow comment and the ADR amendment is too strong. A commit SHA would give the guarantee the ADR describes.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 3 | 35 | 8 | reviewed | 5 | $0.05 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.05</sub>\n\n<!-- agent-review sha=53f5806c321ab5caeb762f02807bd0ae79883699 -->"
+ },
+ {
+  "id": 5674569685,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4002b6dd9dee271201d76a00fd6e3e616a3f8af0",
+  "submitted_at": "2026-10-27T21:23:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/401#pullrequestreview-5674569685",
+  "body": ""
+ }
+]

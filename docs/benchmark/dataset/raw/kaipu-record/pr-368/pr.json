@@ -1,0 +1,29 @@
+{
+ "number": 368,
+ "title": "fix(desktop): trim handles track the pointer, respect bounds and end once (audit VID-B1/B2/B7/B8)",
+ "body": "## What changed and why\n\nCloses audit findings VID-B1 (high), VID-B2, VID-B7 and VID-B8 from plan 19 (trim drag). Before this PR a clip's start trim handle ran away from the pointer, trims had no bounds, a cancelled pointer left the editor stuck \"interacting\", and every live frame of a drag permanently shortened annotations.\n\n- `timeline.ts`: `trimClip` takes an optional `sourceDuration`. The end edge stops at the source length. Each edge stops at the nearest neighbouring clip's footage, independent of item order. Clips that already overlap (old sessions) are ignored, so a clip is never trapped.\n- `timeline-strip.tsx`: trim and slide-duration drags freeze `orig`, the pointer x and the seconds-per-pixel scale on pointerdown, then report `orig + (clientX - x0) * secPerPx`. That removes the feedback loop where the live `sourceStart`/`duration` changed under the pointer. `pointercancel` and `lostpointercapture` now end the drag, and \"end\" is reported exactly once (same contract as `zoom-lane.tsx`).\n- `video-editor-page.tsx`: `handleTrim` and `handleSlideDuration` clamp overlays from the overlays captured at drag start, so shorten-then-lengthen gives annotations back. They also pass the source length to `trimClip`.\n- `overlay-lane.tsx`: pill body drags and resize handles get the same cancel / lost-capture handling.\n\nEach task started with failing tests (run before the fix): 4 in `timeline.test.ts`, 4 in `timeline-strip.test.tsx`, 2 in `overlay-lane.test.tsx`.\n\n## Behaviour changes\n\n- Trims now stop at a neighbouring clip's footage and at the source length (intended).\n- The handle may drift slightly from the pointer if the timeline rescales mid-drag (accepted trade-off of the frozen baseline).\n- Not fixed, flagged: a handle that unmounts mid-drag (selection change) still leaves `interacting` stuck. Same gap as `zoom-lane.tsx`.\n- `clampOverlays` in `handleDeleteSelected` is a single commit and stays as is.\n\n## Plan file and index row\n\nThe plan (`plans/audit-2026-10-15/19-trim-drag.md`) and its row in `00-index.md` exist only on `docs/code-audit-2026-10-15` (PR #301, still open), not on `main`, so there is nothing to delete here. They need removing when #301 lands or in a follow-up on that branch.\n\n## Verification\n\n- `bun run verify` from the repo root, run twice in a row: both exit 0 (12/12 turbo tasks, 260 test files / 2263 desktop tests, 92 server tests). The 7 lint warnings it prints are in code this PR does not touch.\n- `apps/kaipu-record/node_modules/.bin/vitest run src/renderer/src/features/video-editor src/renderer/src/pages/video-editor`: 612 passed.\n- Playwright desktop E2E not run locally (CI runs it).\n- The shorten-then-lengthen annotation restore (page level, `handleTrim`) has no test harness; it is covered only by manual step 3 below, which I did not run.\n\nRefs NIW2-399\n\n## How to test it yourself\n\n1. Open a recording, select the clip, drag the **left** handle right ~50 px slowly. The cut should advance smoothly (before: 5 s → 9.7 s → 14 s).\n2. Split at 10 s, drag clip B's left handle left. It stops at the cut. Drag the last clip's right handle far right. It stops at the source length and the timeline does not grow.\n3. Add an annotation near the end, drag the end handle shorter, then back. The annotation returns to full length.\n4. Start a trim drag and press Esc / switch Space mid-drag. The editor is not stuck \"interacting\" (undo works, the inspector responds).\n\nRun: Gas City session ni-wisp-m4cf1s5, bead ka-l03, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T03:28:18Z",
+ "updated_at": "2026-10-25T03:29:05Z",
+ "closed_at": "2026-10-25T03:29:05Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/368",
+ "base": {
+  "ref": "main",
+  "sha": "3377f73a99e4e4d5ed80ac7ea283accb7023838f"
+ },
+ "head": {
+  "ref": "feature/niw2-399-19-trim-drag",
+  "sha": "3f24212c13f3b4592e8f4e4543c466709ae6c068",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 7,
+ "additions": 351,
+ "deletions": 66,
+ "labels": []
+}

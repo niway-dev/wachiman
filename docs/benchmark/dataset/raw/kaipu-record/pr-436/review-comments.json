@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4421334642,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/export-presets.md",
+  "line": null,
+  "original_line": 67,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 45,
+  "commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "original_commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5709237540,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:21:27Z",
+  "updated_at": "2026-10-30T07:21:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/436#discussion_r4421334642",
+  "body": "🟠📝 **Fix · docs: \"Audio on fixed presets is AAC 128 kbps\" is now false for YouTube**\n\nThis bullet is unchanged, but the YouTube canvases are fixed presets too, and they now target 384 kbps. `resolveExportTarget` picks `YOUTUBE_AUDIO_BITRATE` (384_000) for them in `export-presets.ts:489`, and the table row and the new section in this same doc both say 384 kbps. Suggested wording: \"Audio on Vertical and Square is AAC 128 kbps …; YouTube uses 384 kbps (see below)\"."
+ },
+ {
+  "id": 4421334651,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/export-presets.md",
+  "line": null,
+  "original_line": 217,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 82,
+  "commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "original_commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5709237540,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:21:27Z",
+  "updated_at": "2026-10-30T07:21:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/436#discussion_r4421334651",
+  "body": "🟠📝 **Fix · docs: Wrong claim that upscaling used the default filter before this PR**\n\nThe fixed-canvas framer, which upscales YouTube Fit output, already set `imageSmoothingEnabled = true` and `imageSmoothingQuality = \"high\"` before this PR (`compose-output-frame.ts:213-214` and `:220-221`, untouched here). The code comment this PR adds at `:99` says so too: \"as the fixed-canvas framer does\". The zoom crop also already had `\"high\"` quality. This PR only adds `imageSmoothingEnabled = true` there, plus high-quality smoothing for contained slides (`drawContained`). Saying upscaling \"now\" uses high quality and \"used the default filter\" before overstates the change: readers will think it explains a visual difference. Suggested wording: \"slides drawn onto the canvas now use `imageSmoothingQuality = \\\"high\\\"` as well (the framer and zoom crop already did)\". For the same reason, the first two tests in `compose-output-frame.test.ts` cover behaviour that existed before this PR, not something it adds."
+ },
+ {
+  "id": 4421342509,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/export-presets.md",
+  "line": null,
+  "original_line": 67,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 45,
+  "commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "original_commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "in_reply_to_id": 4421334642,
+  "pull_request_review_id": 5709250862,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:22:49Z",
+  "updated_at": "2026-10-30T07:22:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/436#discussion_r4421342509",
+  "body": "Fixed in 12d33d10: the bullet now says Vertical and Square use AAC 128 kbps and YouTube uses 384 kbps (see below)."
+ },
+ {
+  "id": 4421342686,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/export-presets.md",
+  "line": null,
+  "original_line": 217,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 82,
+  "commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "original_commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "in_reply_to_id": 4421334651,
+  "pull_request_review_id": 5709251142,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:22:51Z",
+  "updated_at": "2026-10-30T07:22:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/436#discussion_r4421342686",
+  "body": "Fixed in 12d33d10: the note now says only slides gained `imageSmoothingQuality = \"high\"`; the fixed-canvas framer and the zoom crop already had it, so it does not explain the YouTube difference (that is the 1440p/4K upload). The PR body is corrected the same way. The first two tests in `compose-output-frame.test.ts` stay as regression guards for the existing framer behaviour, which the 1440p/4K upscale now depends on."
+ }
+]

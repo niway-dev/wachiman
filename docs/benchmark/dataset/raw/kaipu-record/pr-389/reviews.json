@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5662348170,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "617970648f47a1c73f79981d5001d03d3de3dce7",
+  "submitted_at": "2026-10-27T04:51:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/389#pullrequestreview-5662348170",
+  "body": "**Agent review** of the whole pull request, at `6179706`: all 6 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is correct and consistent. `actionForKey` ignores R outside the record intent, and every caller (frame box, screen card, window picker) goes through it. `ActionButtons` drops Record in the capture intent, and the tests and docs match the code. One minor point: the toolbar width constant still budgets for the removed Record button, which the PR description already admits.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 6 | 126 | 4 | reviewed | 8 | $0.09 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.09</sub>\n\n<!-- agent-review sha=617970648f47a1c73f79981d5001d03d3de3dce7 -->"
+ }
+]

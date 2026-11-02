@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:28:35Z",
+  "databaseId": 40726321024,
+  "displayTitle": "fix(desktop): stop the app freezing forever at start recording (uiohook-napi deadlock)",
+  "event": "pull_request",
+  "headBranch": "fix/uiohook-start-deadlock",
+  "headSha": "b79f83aa0cdf964045c90483fe3ecc61b151bbd9",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:29:14Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40726321024",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-28T16:28:38Z",
+  "databaseId": 40726327398,
+  "displayTitle": "fix(desktop): stop the app freezing forever at start recording (uiohook-napi deadlock)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "f10e39a47aaa755b7ebe767b16d0745deb23de74",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:28:46Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40726327398",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-28T16:28:39Z",
+  "databaseId": 40726331319,
+  "displayTitle": "fix(desktop): stop the app freezing forever at start recording (uiohook-napi deadlock)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "f10e39a47aaa755b7ebe767b16d0745deb23de74",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:28:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40726331319",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

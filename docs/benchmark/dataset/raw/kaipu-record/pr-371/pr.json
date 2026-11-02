@@ -1,0 +1,29 @@
+{
+ "number": 371,
+ "title": "perf(desktop): pooled canvases in the export workers (audit VID-A5)",
+ "body": "## What changed and why\n\nCloses audit finding **VID-A5**. The MP4 export worker and the GIF worker built their `CanvasSink` without `poolSize`, so mediabunny allocated a new full-size `OffscreenCanvas` for every decoded frame (~18,000 per 10 min of 30 fps 1080p), including frames the fps cap then drops.\n\n- New pure module `canvas-sink-options.ts`: `EXPORT_CANVAS_POOL_SIZE = 2` and `exportCanvasSinkOptions(width, height)` returning `{ width, height, fit: \"contain\", poolSize }`.\n- `export-worker.ts` and `gif-worker.ts` build their sink from it (the only two `new CanvasSink(` call sites in `export/`).\n\nWhy 2 is safe (checked against the mediabunny 1.61.4 source in `node_modules`): the pool is a per-sink ring buffer, slots are filled lazily, and the canvas returned for iteration N is only reused at iteration N+poolSize. Both consumers copy the pixels synchronously (`compose.clip` / `grab()`) before pulling the next frame. If a future change retains `wrapped.canvas` across iterations, raise the pool size first.\n\n## How it was verified\n\n- New test `canvas-sink-options.test.ts` written first (failed: module missing), then green. It pins the exact options and that `poolSize` is a positive integer (mediabunny throws on negative/non-integer; 0 disables pooling).\n- `apps/kaipu-record/node_modules/.bin/vitest run src/renderer/src/features/video-editor/export`: 16 files, 181 tests passed.\n- `bun run verify` run twice, exit 0 both times. The second run was served entirely from the Turbo cache, so it adds no new evidence over the first.\n\n## Not verified (needs a human on a real recording)\n\nThe workers cannot run in jsdom, and I did not run the desktop app or Playwright. Two items from the plan are therefore **not done**:\n\n- The wall-clock / memory gain is unmeasured; the finding's numbers are allocation churn.\n- That output frames are identical before/after (first frame, a cut boundary, a slide boundary) was not checked visually.\n\n## Recorded follow-up (not implemented)\n\nSkip drawing fps-capped frames via a `VideoSampleSink`-based variant. Switching the MP4 worker to `canvasesAtTimestamps` was rejected: in 1.61.4 it still decodes every packet, changes frame selection against the cap's nearest-slot rule, and bypasses `rebaseVideoTimestamp`'s straddle guard. Pursue the `VideoSampleSink` variant only if the measurement below shows the dropped-frame draw is still hot.\n\n## Plan file\n\nThe plan (`plans/audit-2026-10-15/29-export-canvas-pool.md`) and its `00-index.md` row exist only on `docs/code-audit-2026-10-15` (PR #301), not on `main`, so there was nothing to delete here. They need removing once #301 merges.\n\n## How to test it yourself\n\n1. Export a 5-minute 60 fps recording with a 24 fps quality tier on `main` and on this branch. Compare wall time and the export worker's memory in Activity Monitor.\n2. Export one MP4 with a zoom and a redaction, and one GIF, on both builds. Compare the first frame, a cut boundary and a slide boundary: they must be identical.\n\nRefs NIW2-404\n\nRun: Gas City session ni-wisp-7jqbo78, bead ka-7q3, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T03:45:24Z",
+ "updated_at": "2026-10-25T03:46:06Z",
+ "closed_at": "2026-10-25T03:46:06Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/371",
+ "base": {
+  "ref": "main",
+  "sha": "267ba289630028f4c13676bd9f8a86ed416679c9"
+ },
+ "head": {
+  "ref": "feature/niw2-404-29-export-canvas-pool",
+  "sha": "156f15a3a492bb9d6550c2e7a00495c911e20511",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 4,
+ "additions": 43,
+ "deletions": 7,
+ "labels": []
+}

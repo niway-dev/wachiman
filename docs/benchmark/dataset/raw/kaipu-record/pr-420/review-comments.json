@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4408259320,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/e2e/helpers/launch.ts",
+  "line": null,
+  "original_line": 59,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 45,
+  "commit_id": "937d5138696c0390bb51ee7a3bfd7c604aa5f4db",
+  "original_commit_id": "937d5138696c0390bb51ee7a3bfd7c604aa5f4db",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5692327159,
+  "subject_type": "line",
+  "created_at": "2026-10-29T02:57:54Z",
+  "updated_at": "2026-10-29T02:57:54Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/420#discussion_r4408259320",
+  "body": "🟡🧹 **Consider · cleanup: Uncleared 5s timer after kill**\n\nThe fallback `setTimeout(resolve, 5_000)` is never cleared. When `closed` settles first (the normal case after SIGKILL) the timer stays pending for up to 5s, which can hold the worker open. Keep its handle and clear it in a `finally`, as the first race does."
+ },
+ {
+  "id": 4408423480,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/e2e/helpers/launch.ts",
+  "line": null,
+  "original_line": 59,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 45,
+  "commit_id": "937d5138696c0390bb51ee7a3bfd7c604aa5f4db",
+  "original_commit_id": "937d5138696c0390bb51ee7a3bfd7c604aa5f4db",
+  "in_reply_to_id": 4408259320,
+  "pull_request_review_id": 5692527241,
+  "subject_type": "line",
+  "created_at": "2026-10-29T03:32:25Z",
+  "updated_at": "2026-10-29T03:32:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/420#discussion_r4408423480",
+  "body": "Right on the leak. Rather than clear the timer, the whole `closeOrKill` was withdrawn in f3dc20d (revert of 937d513): it was a timer in the test harness patching over a hang that lives in the app's quit path, it is not needed for the release (the CI retry already absorbs the hang), and it would hide the event. The hang keeps its evidence in the PR description and gets its own ticket."
+ }
+]

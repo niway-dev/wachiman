@@ -1,0 +1,98 @@
+[
+ {
+  "id": 5731963636,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4b5439fdb5051df171f6fd7552a70f3de75c849a",
+  "submitted_at": "2026-11-02T04:01:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731963636",
+  "body": "👮 **Wachiman** · review of the whole pull request, at `4b5439f`: all 2 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag. The change is a one-line pin bump from niway-dev/wachiman v1.3.0 to v1.4.0, plus a dated paragraph added to ADR 0028's last amendment. The paragraph is added under the 2026-11-01 amendment and leaves the earlier text alone, so the ADR stays append-only. It also correctly limits the earlier list of known costs: a rebase that changes content still triggers a full review, and there is still no per-pull-request limit. The workflow keeps its triggers, permissions, inputs and secret. I could not check two things because the reusable workflow lives in another repository: what v1.4.0 does, and whether it still accepts the `operator` and `model` inputs. That question is recorded as an open contract, not as a finding.\n\n<details><summary>What the change connects to (0 closed, 1 open)</summary>\n\nQuestions the reviewer answered about what this change does to the running product. The engine checked that the cited lines exist, not that the answers are true.\n\n**Open: the reviewer could not close these**\n- The Agent review job now calls the reusable workflow niway-dev/wachiman/.github/workflows/review.yml at tag v1.4.0 instead of v1.3.0, with the same inputs and… (`.github/workflows/agent-review.yml:21`) — Does niway-dev/wachiman@v1.4.0's review.yml still accept `operator` and `model`, and does its `review_on_push` input default to true? Files that would answer it: `niway-dev/wachiman/.github/workflows/review.yml@v1.4.0`.\n\n</details>\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 2 | 11 | 8 | reviewed | 5 | $0.14 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · effort high · $0.14</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=4b5439fdb5051df171f6fd7552a70f3de75c849a -->\n\n<!-- wachi:attempt id=3bbaf2d0-3bd1-478c-ab4d-caec48ffa7fb -->"
+ },
+ {
+  "id": 5731968904,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4b5439fdb5051df171f6fd7552a70f3de75c849a",
+  "submitted_at": "2026-11-02T04:03:08Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731968904",
+  "body": "> ℹ️ No critical issues. One small docs gap below.\n\n**Reviewed changes**\n\nReviewed the pin bump against the upstream `review.yml` diff between `v1.3.0` and `v1.4.0`, and checked the ADR 0028 paragraph against the `v1.4.0` release notes.\n\n- **Pin bump to `v1.4.0`**: the only interface changes are four new inputs, all with defaults (`effort: high`, `max_turns: 40`, `call_timeout_s: 900`, `review_on_push: true`). Required inputs (`operator`, `ANTHROPIC_API_KEY`) and per-job `permissions` are unchanged, so the caller as written still works, and push reviews stay on.\n- **ADR 0028 dated paragraph**: every behavior it claims (no model call on a rebase with no content change, a base merge reviews no base files, the effort footer, turn and timeout caps, sibling call sites, confidence) matches the release notes.\n\n<!--\nPullfrog review metadata. These findings were written against 4b5439f;\nif commits have landed on ci/wachiman-v1.4.0 since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 2\n- Commits reviewed: 1\n- Base: main (ef2ba13)\n- Head: ci/wachiman-v1.4.0 (4b5439f)\n- Reviewed commits:\n  - 4b5439f — ci: bump the agent review to wachiman v1.4.0\n- Prior pullfrog review: none\n-->\n\n### ℹ️ ADR 0028's Status row does not mention the `v1.4.0` pin\n\nEvery earlier amendment to ADR 0028 also added a dated entry to the Status row, which is the one place that lists what changed and when. The 2026-11-02 paragraph is nested inside the 2026-11-01 section, so the Status row still ends at \"Amended 2026-11-01: reviews also run on every push\". Someone reading only the Status row will not see that the engine pin moved.\n\n<details><summary>Technical details</summary>\n\n````markdown\n# ADR 0028 Status row misses the 2026-11-02 pin bump\n\n## Affected sites\n- apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx:12 — Status cell ends at the 2026-11-01 amendment\n\n## Required outcome\n- The Status cell names the 2026-11-02 change (pin moved to `v1.4.0`), linking to the amendment section, the same way the 2026-10-27 and 2026-11-01 entries do.\n\n## Suggested approach (optional)\n- Append e.g. `; 2026-11-02: pinned to v1.4.0 ([amendment](#amendment-reviews-also-run-on-every-push))` to the Status cell, or give the 2026-11-02 paragraph its own `## Amendment:` heading and link that. Re-run oxfmt afterwards, since it will re-pad the whole table.\n````\n\n</details>\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix it ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/481?action=fix&review_id=5731968904) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41386152089/job/125087326400) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5731977264,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "submitted_at": "2026-11-02T04:04:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731977264",
+  "body": "👮 **Wachiman** · review of the changes since `4b5439f`, at `b18d3d2`: all 1 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis part changes only ADR 0028. It adds a 2026-11-02 note to the Status row and edits the opening sentence of the 2026-11-02 paragraph in the \\\"reviews also run on every push\\\" amendment. The `v1.4.0` pin agrees with `.github/workflows/agent-review.yml:21`. The Status anchor resolves to the section that holds the new paragraph. One documentation finding (consider): the text presents the move to `niway-dev/wachiman` as part of this change, but the 2026-11-01 amendment and the previous `v1.3.0` pin already used it. Also, the Status cell still says the review is consumed through `niway-dev/wachi-reviewer`. No code paths change, so there are no contracts to record.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 1 | 16 | 1 | reviewed | 5 | $0.13 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · effort high · $0.13</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=b18d3d23340de5a77b39b2d8da58c5f955f0e2ee -->\n\n<!-- wachi:attempt id=90e7b9c0-5cbe-4e6a-a2d0-235398d69fe0 -->"
+ },
+ {
+  "id": 5731981189,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "submitted_at": "2026-11-02T04:05:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731981189",
+  "body": "> ✅ No new issues found. The earlier note about the Status row is addressed.\n\n**Reviewed changes**\n\nReviewed `b18d3d2`, the only commit since the prior Pullfrog review. It changes only ADR 0028.\n\n- **Added the 2026-11-02 entry to the ADR 0028 Status row**: it names the `v1.4.0` pin and links to `#amendment-reviews-also-run-on-every-push`, which resolves to the section holding the new paragraph. The rest of the table change is formatter re-padding.\n- **Reworded the 2026-11-02 paragraph**: it now also records that the engine lives in `niway-dev/wachiman`. The workflow actually moved there in `9ae51c18` (`v1.2.1`), and no ADR amendment recorded it at the time, so this entry is the first place the ADR states it. The Wachiman bot already has an open inline thread about the dating, so I am not raising it again.\n\n<!--\nPullfrog review metadata. These findings were written against b18d3d2;\nif commits have landed on ci/wachiman-v1.4.0 since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 2\n- Commits reviewed: 2\n- Base: main (ef2ba13)\n- Head: ci/wachiman-v1.4.0 (b18d3d2)\n- Reviewed commits:\n  - b18d3d2 — docs(adr): list the v1.4.0 pin in ADR 0028's status row\n  - 4b5439f — ci: bump the agent review to wachiman v1.4.0\n- Prior pullfrog review: 4b5439f (https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731968904)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41386408266/job/125088117845) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5731986260,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0dbca02fd27e197ae79bab726028696975cb104b",
+  "submitted_at": "2026-11-02T04:06:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731986260",
+  "body": ""
+ },
+ {
+  "id": 5731988629,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0dbca02fd27e197ae79bab726028696975cb104b",
+  "submitted_at": "2026-11-02T04:07:24Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731988629",
+  "body": "👮 **Wachiman** · review of the changes since `b18d3d2`, at `0dbca02`: all 1 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis round changes only ADR 0028: it rewords the Status cell and the 2026-11-02 paragraph. The earlier thread is addressed. The cell now names `niway-dev/wachiman` as the current engine, and the dated paragraph records only the `v1.4.0` pin. The move to wachiman is noted there as an earlier change that hadn't been recorded. The pin matches `.github/workflows/agent-review.yml:21`. The new text keeps the history: the 2026-10-27 amendment and its rename to `wachi-reviewer` are unchanged, and the only edits are the Status line and the paragraph this PR adds. No new findings.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 1 | 19 | 1 | reviewed | 6 | $0.13 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · effort high · $0.13</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=0dbca02fd27e197ae79bab726028696975cb104b -->\n\n<!-- wachi:attempt id=dab53e3b-2a52-47f0-921a-86e0563507f1 -->"
+ },
+ {
+  "id": 5731988694,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0dbca02fd27e197ae79bab726028696975cb104b",
+  "submitted_at": "2026-11-02T04:07:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731988694",
+  "body": ""
+ },
+ {
+  "id": 5731992249,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0dbca02fd27e197ae79bab726028696975cb104b",
+  "submitted_at": "2026-11-02T04:08:10Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731992249",
+  "body": "> ✅ No new issues found. The ADR now dates the move to `niway-dev/wachiman` correctly.\n\n**Reviewed changes**\n\nReviewed `0dbca02`, the only commit since the prior Pullfrog review. Like the last one, it changes only ADR 0028.\n\n- **Corrected the engine name in the Status row**: the opening of the row now says the review runs through `niway-dev/wachiman` instead of `niway-dev/wachi-reviewer`. The 2026-11-02 entry now names only the `v1.4.0` pin, and its anchor link still resolves.\n- **Moved the wachiman note out of the 2026-11-02 claim**: the dated paragraph opens with the `v1.4.0` pin alone and closes by saying the engine has been in `niway-dev/wachiman` since the `v1.2.1` pin (2026-10-31, `9ae51c18`). I checked that commit locally: it is dated 2026-10-31 and changes `wachi-reviewer@v1.2.0` to `wachiman@v1.2.1`, so the citation is accurate.\n\n<!--\nPullfrog review metadata. These findings were written against 0dbca02;\nif commits have landed on ci/wachiman-v1.4.0 since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 2\n- Commits reviewed: 3\n- Base: main (ef2ba13)\n- Head: ci/wachiman-v1.4.0 (0dbca02)\n- Reviewed commits:\n  - 0dbca02 — docs(adr): date the move to niway-dev/wachiman correctly in ADR 0028\n- Prior pullfrog review: b18d3d2 (https://github.com/niway-dev/kaipu-record/pull/481#pullrequestreview-5731981189)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41386635418/job/125088811308) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ }
+]

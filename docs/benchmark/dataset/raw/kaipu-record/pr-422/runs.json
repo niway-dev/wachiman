@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T06:05:18Z",
+  "databaseId": 40827111431,
+  "displayTitle": "test(e2e): bound the quit hang to 15 s and attach the main process's stack",
+  "event": "pull_request",
+  "headBranch": "fix/e2e-quit-hang-evidence",
+  "headSha": "7de0112e41312bc2c9200e4e123790d4bb28dabc",
+  "status": "completed",
+  "updatedAt": "2026-10-29T06:05:25Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40827111431",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T05:24:01Z",
+  "databaseId": 40823172254,
+  "displayTitle": "test(e2e): bound the quit hang to 15 s and attach the main process's stack",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "e47a043b0f1c2743adace8e88fd55e86bfcdcedd",
+  "status": "completed",
+  "updatedAt": "2026-10-29T05:24:32Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40823172254",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T05:22:55Z",
+  "databaseId": 40823066207,
+  "displayTitle": "test(e2e): bound the quit hang to 15 s and attach the main process's stack",
+  "event": "pull_request",
+  "headBranch": "fix/e2e-quit-hang-evidence",
+  "headSha": "7de0112e41312bc2c9200e4e123790d4bb28dabc",
+  "status": "completed",
+  "updatedAt": "2026-10-29T05:23:13Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40823066207",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T05:20:07Z",
+  "databaseId": 40822787260,
+  "displayTitle": "test(e2e): bound the quit hang to 15 s and attach the main process's stack",
+  "event": "pull_request",
+  "headBranch": "fix/e2e-quit-hang-evidence",
+  "headSha": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "status": "completed",
+  "updatedAt": "2026-10-29T05:20:44Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40822787260",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T05:20:06Z",
+  "databaseId": 40822786402,
+  "displayTitle": "test(e2e): bound the quit hang to 15 s and attach the main process's stack",
+  "event": "pull_request",
+  "headBranch": "fix/e2e-quit-hang-evidence",
+  "headSha": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "status": "completed",
+  "updatedAt": "2026-10-29T05:20:23Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40822786402",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

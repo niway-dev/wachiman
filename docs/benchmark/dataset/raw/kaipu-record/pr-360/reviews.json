@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5595297539,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "e5b25e6390b1e094a3bd4d2e103ad43c3442d1b6",
+  "submitted_at": "2026-10-21T05:23:39Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/360#pullrequestreview-5595297539",
+  "body": "**Claude review** of the whole pull request, at `e5b25e6`: all 2 files reviewed.\n\n1 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Outside the diff\n\n- **Note (correctness): Leave-time autosave now waits on the queue with no timeout** (`apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.tsx:413`): The old autosave waited at most 5s for the busy lock. Now `persist` is enqueued behind every earlier job. If a job never settles (for example the native PDF save dialog is open, or an IPC call hangs), the blocked navigation (`blocker.state === \"blocked\"`) waits on it without limit. The user cannot leave the editor until that job settles. Consider a timeout, or skipping the queue wait when the head job is a dialog-bound PDF export.\n\n### Summary\n\nThe queue-based serialization of saves, copies and exports is sound. Edits made during a save, typed titles, and Discard ownership are all handled, and the tests cover them. I found one non-blocking concern: the leave-time autosave can now wait on the queue indefinitely, where before it waited at most 5s.\n\n<sub>Claude Sonnet 5.5 · $0.10</sub>\n\n<!-- claude-review sha=e5b25e6390b1e094a3bd4d2e103ad43c3442d1b6 -->"
+ }
+]

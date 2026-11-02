@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T21:14:49Z",
+  "databaseId": 40585134828,
+  "displayTitle": "ci: keep the PR review running after its engine moved to wachi-reviewer",
+  "event": "pull_request",
+  "headBranch": "ci/wachi-reviewer-rename",
+  "headSha": "67b7ac90386eaca4e11d89c79bdac8f3dd9797e9",
+  "status": "completed",
+  "updatedAt": "2026-10-27T21:14:57Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40585134828",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T21:13:11Z",
+  "databaseId": 40584894264,
+  "displayTitle": "ci: keep the PR review running after its engine moved to wachi-reviewer",
+  "event": "pull_request",
+  "headBranch": "ci/wachi-reviewer-rename",
+  "headSha": "67b7ac90386eaca4e11d89c79bdac8f3dd9797e9",
+  "status": "completed",
+  "updatedAt": "2026-10-27T21:14:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40584894264",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T21:13:11Z",
+  "databaseId": 40584893926,
+  "displayTitle": "ci: keep the PR review running after its engine moved to wachi-reviewer",
+  "event": "pull_request",
+  "headBranch": "ci/wachi-reviewer-rename",
+  "headSha": "67b7ac90386eaca4e11d89c79bdac8f3dd9797e9",
+  "status": "completed",
+  "updatedAt": "2026-10-27T21:13:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40584893926",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

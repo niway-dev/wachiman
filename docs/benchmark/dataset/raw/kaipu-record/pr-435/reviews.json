@@ -1,0 +1,110 @@
+[
+ {
+  "id": 5706687033,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0488f20146805e17c1f6f49518c074249d214af3",
+  "submitted_at": "2026-10-30T00:28:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706687033",
+  "body": "**Agent review** of the whole pull request, at `0488f20`: all 77 files reviewed.\n\n8 finding(s): 2 to fix, 6 to consider; 8 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 6.** Part 1 covers the shared types, the preload API, the new pure helpers (file-stem, media-url, default-capture-name, editor-sessions) and the main-process IPC wiring. I found no defects.\n\n- **Shared directory:** none of the new files there has a value import from a workspace package. `screenshot-title` imports only the sibling file `./default-capture-name`.\n- **New IPC channels:** each one checks its renderer input in main. The rename handler checks `id` with `isPlainItemId` and requires `assetId` and `title` to be strings. The editor-session handlers ignore anything that isn't a string.\n- **Editor holds:** a hold is tied to the window that asked for it and to that page's generation. It is released when the window is destroyed, its renderer crashes, or its main frame navigates.\n- **Media URLs:** `parseMediaUrl` decodes the id once and refuses separators and `..`. Ids from `fileStemFromTitle` collapse `..` to a single dot, so they always round-trip.\n- **Delete:** dropping `deleteVideoEditSession` from the delete handler loses nothing, because `remove()` already deletes the edit session, its metadata and the assets folder as companions (library-vault.ts:591, 931).\n\nMy only finding is the stale marker comment in library-storage.ts (consider, docs).\n\n**Batch 2 of 6.** Part 2 covers the vault rename and allocation core, plus the callers moved onto `allocateId` and `overwriteImage`. The design holds up. Lock order is consistent: NAMES_LOCK is always taken before a sidecar lock. `describe()` inside `renameItem` avoids the sidecar lock because the identity is already settled. Copy-then-rename has a clear commit point, and `ItemGoneError` stops a queued write from bringing back the old stem. The screenshot overwrite path now requires `overwriteAssetId`, and the only renderer caller (screenshot-editor-page.tsx:344) passes it. I found no blockers. There are two minor points: the `renameItem` doc doesn't match what happens when the title write fails, and a crash between allocation and the media write leaves a stub sidecar behind. I ran no tests.\n\n**Batch 3 of 6.** I reviewed all four test files in part 3: file-stem, gif-save, library-service and library-vault rename. They match the implementation I checked: `allocateId` writes its stub with `atomicWriteFile`, not `writeMeta`, so the gif-save failure test hits the real sidecar write. `EditorSessions.isOpen` matches on id or assetId, which fits the empty-assetId assertions. The NFC test input really is NFD. There is one finding, a suggestion only: on Linux CI the case-only rename test takes the \"free\" path, not the case-insensitive \"case\" branch its name describes.\n\n**Batch 4 of 6.** I found no defects in part 4, only one optional cleanup in a test.\n\n**Renames that move files:**\n- The renderer now patches the library list by `assetId`, so the item's new id from main replaces the old one.\n- In the screenshot editor, renames go through the same queue as saves.\n- The video editor first asks main to hold the item (`acquireEditorSession`) and loads nothing until main returns the item's current id.\n\n**Screenshot overwrites:** both callers of `persist` pass the current `savedId`. So preferring `savedIdRef.current` in the overwrite path keeps the overwrite id and `overwriteAssetId` in step after a rename.\n\n**Video editor sessions:** the editor releases its hold on every path I traced:\n- unmount before the hold is granted\n- unmount after it is granted\n- the item is gone, or two files claim it\n\n**Media URLs:** every `kaipu-media://` URL now goes through `mediaUrl`, so ids are encoded consistently. That fixes the unencoded `fetch` calls in `heal-orphan-metadata.ts`, `export-runner.ts`, `probe-source.ts` and `use-gif-export.ts`.\n\n**Tests:** the updated tests match the new title-derived file names and the new rename result.\n\n**Batch 5 of 6.** Part 5 has two documentation fixes and no problems in the tests or the stylesheet:\n\n- **ADR index** (`index.mdx:16`): the row for ADR 0032 still says \"nothing implemented yet\", but this PR implements it and the ADR itself says so.\n- **Library vault doc** (`library-vault.mdx:180`): the gotcha says a rename rejects only for an unknown id or a title that can't be written. It leaves out the ambiguous-identity rejection, which line 112 of the same page and `ipc-contract.mdx` both list.\n\nI compared the claims about the player and the editor hold with the code they describe:\n\n- **Player:** the docs say the detail page's player reloads under the new id and keeps its position. `recording-player.tsx` does that.\n- **Editor hold:** the docs say the video editor acquires its item through main, loads nothing when there's no answer, and releases the hold on unmount. `video-editor-page.tsx` does all three.\n\nThe new tests assert what their names say, and the `setup.ts` defaults match the new API's return types.\n\n**Batch 6 of 6.** Part 6 (the spec and the en/es messages): the new i18n keys (`renameKeptLocked/Busy/Editing/Error`, `itemAmbiguous`, `videoEditor.sourceUnavailable`) are in both locales, sit in the namespaces their callers use (`rename-outcome.ts`, `video-editor-page.tsx:381`), and the Spanish text matches the English. The spec's change log covers the deviations made during implementation. One optional docs note: the §4/§5 contract blocks still show the earlier rename signature, without the `assetId` argument and the `editing` reason.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 6 | 15 | 525 | 8 | reviewed | 8 | $0.22 |\n| Batch 2 of 6 | 9 | 862 | 5 | reviewed | 7 | $0.38 |\n| Batch 3 of 6 | 4 | 967 | 2 | reviewed | 7 | $0.24 |\n| Batch 4 of 6 | 36 | 970 | 4 | reviewed | 3 | $0.31 |\n| Batch 5 of 6 | 10 | 810 | 2 | reviewed | 4 | $0.30 |\n| Batch 6 of 6 | 3 | 414 | 1 | reviewed | 7 | $0.24 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 6 batches · $1.69</sub>\n\n<!-- agent-review sha=0488f20146805e17c1f6f49518c074249d214af3 -->"
+ },
+ {
+  "id": 5706707573,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "81b80253812558778b0c6854dafb4f4a61dc8b4a",
+  "submitted_at": "2026-10-30T00:31:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706707573",
+  "body": ""
+ },
+ {
+  "id": 5706707806,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "81b80253812558778b0c6854dafb4f4a61dc8b4a",
+  "submitted_at": "2026-10-30T00:31:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706707806",
+  "body": ""
+ },
+ {
+  "id": 5706708031,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "81b80253812558778b0c6854dafb4f4a61dc8b4a",
+  "submitted_at": "2026-10-30T00:31:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706708031",
+  "body": ""
+ },
+ {
+  "id": 5706708267,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "81b80253812558778b0c6854dafb4f4a61dc8b4a",
+  "submitted_at": "2026-10-30T00:31:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706708267",
+  "body": ""
+ },
+ {
+  "id": 5706708688,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "81b80253812558778b0c6854dafb4f4a61dc8b4a",
+  "submitted_at": "2026-10-30T00:31:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706708688",
+  "body": ""
+ },
+ {
+  "id": 5706709087,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "81b80253812558778b0c6854dafb4f4a61dc8b4a",
+  "submitted_at": "2026-10-30T00:31:33Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706709087",
+  "body": ""
+ },
+ {
+  "id": 5706709325,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "81b80253812558778b0c6854dafb4f4a61dc8b4a",
+  "submitted_at": "2026-10-30T00:31:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706709325",
+  "body": ""
+ },
+ {
+  "id": 5706709611,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "81b80253812558778b0c6854dafb4f4a61dc8b4a",
+  "submitted_at": "2026-10-30T00:31:37Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/435#pullrequestreview-5706709611",
+  "body": ""
+ }
+]

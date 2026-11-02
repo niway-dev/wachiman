@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:46:40Z",
+  "databaseId": 40451598202,
+  "displayTitle": "fix(desktop): start the take when Screen records a single display",
+  "event": "pull_request",
+  "headBranch": "fix/screen-mode-recording",
+  "headSha": "849cb2ff9d8788cb4a29066a4638932ab2f262c0",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:46:46Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40451598202",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:34:22Z",
+  "databaseId": 40450468212,
+  "displayTitle": "fix(desktop): start the take when Screen records a single display",
+  "event": "pull_request",
+  "headBranch": "fix/screen-mode-recording",
+  "headSha": "849cb2ff9d8788cb4a29066a4638932ab2f262c0",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:34:48Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40450468212",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:34:21Z",
+  "databaseId": 40450467773,
+  "displayTitle": "fix(desktop): start the take when Screen records a single display",
+  "event": "pull_request",
+  "headBranch": "fix/screen-mode-recording",
+  "headSha": "849cb2ff9d8788cb4a29066a4638932ab2f262c0",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:34:37Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40450467773",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

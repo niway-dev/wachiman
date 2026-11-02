@@ -1,0 +1,38 @@
+[
+ {
+  "id": 5640884039,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "submitted_at": "2026-10-25T01:08:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/366#pullrequestreview-5640884039",
+  "body": "**Claude review** of the whole pull request, at `9f67c3c`: all 12 files reviewed.\n\n2 finding(s), 0 to fix; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no blocking correctness or security problems in this PR. The settings-store probe, the two panel changes, the tests and the docs are consistent with each other. I left two notes. One is the `app.dock.isVisible()` lag risk, which only owner QA on a packaged build can settle. The other is that the ADR status wording differs between the index and the ADR page.\n\n<sub>Claude Sonnet 5.5 · $0.12</sub>\n\n<!-- claude-review sha=9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea -->"
+ },
+ {
+  "id": 5640891867,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "bda1ea951b218eaa3abc6a3e445aa0c27c202973",
+  "submitted_at": "2026-10-25T01:12:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/366#pullrequestreview-5640891867",
+  "body": ""
+ },
+ {
+  "id": 5640892081,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "bda1ea951b218eaa3abc6a3e445aa0c27c202973",
+  "submitted_at": "2026-10-25T01:12:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/366#pullrequestreview-5640892081",
+  "body": ""
+ }
+]

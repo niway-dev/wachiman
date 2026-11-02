@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4439709848,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.module.css",
+  "line": null,
+  "original_line": 119,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 14,
+  "commit_id": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "original_commit_id": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5733099508,
+  "subject_type": "line",
+  "created_at": "2026-11-02T07:09:10Z",
+  "updated_at": "2026-11-02T07:09:10Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/485#discussion_r4439709848",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: Clicks now pass through the hint, but the card still hides the Rename pencil (confidence medium)**\n\nWith `pointer-events: none`, a click on the card's text now reaches the Rename pencil under it, so the E2E passes: Playwright clicks the button's center and the hit-test skips the card. For a person, though, the card is still painted on top of the pencil. It sits at `z-index: 40` (line 123) with an opaque `background: var(--bg-modal)` (line 132), and that token is `#131315` / `#ffffff` in `packages/tokens/css/tokens.css:13,64`. Where the two overlap, the user can't see the pencil, and clicking on the hint's text would start a rename they couldn't see coming.\n\nThe PR's own test step 3 (\"click the pencil … even where the card overlaps it\") assumes the user knows the pencil is there. If the goal is that the hint never gets in the way of the page, you could place the hint so it doesn't overlap the page header (for example, anchor it to the right of the switcher instead of under it). Another option is to keep `pointer-events: none` and also make the card fade out on hover. This is a design call, not a regression: before this PR the overlapped area couldn't be clicked at all.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439750952,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.module.css",
+  "line": null,
+  "original_line": 119,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 14,
+  "commit_id": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "original_commit_id": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "in_reply_to_id": 4439709848,
+  "pull_request_review_id": 5733152592,
+  "subject_type": "line",
+  "created_at": "2026-11-02T07:16:21Z",
+  "updated_at": "2026-11-02T07:16:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/485#discussion_r4439750952",
+  "body": "Agreed, fixed in 90ea5d1c. Clicking through a card that hides the button is not what the spec asks for (\"does not cover … and does not block clicks outside itself\").\n\nThe hint no longer floats: it sits in the header row, right of the switcher bar, so it cannot paint over the page. The `pointer-events` workaround is gone. On a narrow window (720 px minimum) the text truncates first and \"Got it\" stays whole; I checked 720, 1180 and 1440 px with the real CSS in headless Chrome. The fade-on-hover option would not work with `pointer-events: none` anyway, because the card never receives hover.\n"
+ },
+ {
+  "id": 4439755036,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.module.css",
+  "line": null,
+  "original_line": 119,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 14,
+  "commit_id": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "original_commit_id": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "in_reply_to_id": 4439709848,
+  "pull_request_review_id": 5733157757,
+  "subject_type": "line",
+  "created_at": "2026-11-02T07:17:00Z",
+  "updated_at": "2026-11-02T07:17:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/485#discussion_r4439755036",
+  "body": "👮 **Wachiman** · **Looks addressed** at `90ea5d1`: Addressed. The hint is no longer absolutely positioned or layered over the page. It now sits in the header row as an in-flow flex item beside the bar (`.anchor` is display:flex and `.hint` uses flex: 0 100 auto), so it cannot cover the Rename pencil or swallow its click. The pointer-events workaround is gone because nothing needs it now.\n\n<!-- wachi:reply -->"
+ },
+ {
+  "id": 4439801824,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.module.css",
+  "line": null,
+  "original_line": 119,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 14,
+  "commit_id": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "original_commit_id": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "in_reply_to_id": 4439709848,
+  "pull_request_review_id": 5733216417,
+  "subject_type": "line",
+  "created_at": "2026-11-02T07:24:57Z",
+  "updated_at": "2026-11-02T07:24:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/485#discussion_r4439801824",
+  "body": "👮 **Wachiman** · **Looks addressed** at `6141718`: Confirmed. In `workspace-switcher.module.css`, `.hint` (lines 123-139) is now a flex item in the header row: it has no absolute positioning, no z-index and no `pointer-events` override. `.hintText` truncates with an ellipsis, and `.hintDismiss` has `flex-shrink: 0`, so \"Got it\" stays whole. The hint can no longer paint over the Rename pencil.\n\n<!-- wachi:reply -->"
+ }
+]

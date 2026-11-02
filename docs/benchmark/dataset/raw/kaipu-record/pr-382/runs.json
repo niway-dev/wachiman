@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-26T23:11:49Z",
+  "databaseId": 40418064204,
+  "displayTitle": "feat(desktop): persist recording capture metadata and label it in the library",
+  "event": "pull_request",
+  "headBranch": "feat/recording-capture-metadata",
+  "headSha": "0d6986df43c604e756e6c9f49120593670bcc4f8",
+  "status": "completed",
+  "updatedAt": "2026-10-26T23:12:17Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40418064204",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-27T00:45:59Z",
+  "databaseId": 40428469204,
+  "displayTitle": "feat(desktop): persist recording capture metadata and label it in the library",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "a6d1c8953490beb0e644df9b762d87b95072064e",
+  "status": "completed",
+  "updatedAt": "2026-10-27T00:46:00Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40428469204",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

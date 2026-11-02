@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T17:39:56Z",
+  "databaseId": 40737861004,
+  "displayTitle": "perf(desktop): stop re-reading preferences.json on every IPC call (audit LIB-A3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-394-11-vault-directory-cache",
+  "headSha": "eb924af2228314c949aa96836fe4b0e848dabd0c",
+  "status": "completed",
+  "updatedAt": "2026-10-28T17:40:02Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40737861004",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T15:47:35Z",
+  "databaseId": 40719526251,
+  "displayTitle": "perf(desktop): stop re-reading preferences.json on every IPC call (audit LIB-A3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-394-11-vault-directory-cache",
+  "headSha": "eb924af2228314c949aa96836fe4b0e848dabd0c",
+  "status": "completed",
+  "updatedAt": "2026-10-28T15:48:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40719526251",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T15:47:34Z",
+  "databaseId": 40719525380,
+  "displayTitle": "perf(desktop): stop re-reading preferences.json on every IPC call (audit LIB-A3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-394-11-vault-directory-cache",
+  "headSha": "eb924af2228314c949aa96836fe4b0e848dabd0c",
+  "status": "completed",
+  "updatedAt": "2026-10-28T15:47:53Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40719525380",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

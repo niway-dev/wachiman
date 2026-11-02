@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6540906598,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T08:01:01Z",
+  "updated_at": "2026-10-31T08:01:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/468#issuecomment-6540906598",
+  "body": "## Conflict with #454 in `webcam-layer.tsx`, and how to resolve it\n\n#454 (`feature/niw2-582-webcam-lane-thumbnails`) also changes `webcam-layer.tsx`, so this PR conflicts with it once both reach the same branch. I did not merge #454 into this branch: this PR targets #463, which does not contain #454, so merging it would add #454's 15 commits to this PR's diff.\n\n**Resolution.** Keep this PR's structure, and move every part of #454's sync logic into the shared `useWebcamSync` hook:\n\n- **Seek lead.** `seekStartedAt` and `lastSeekSeconds` live in the hook. `apply()` seeks to `min(seekTo + webcamSeekLead(moving, lastSeekSeconds), duration)`, where `moving = main playing && !mainWaiting`. The hook returns an `onSeeked` handler that measures how long the seek took and then resyncs. `WebcamMedia` wires it to the webcam `<video>`'s `onSeeked`.\n- **Buffering hold.** `mainWaiting` lives in the hook, along with the main video's `waiting`, `stalled` (only below `HAVE_FUTURE_DATA`) and `playing` listeners. The webcam pauses while the screen buffers, and there is no `safePlay` while `mainWaiting` is set.\n- **This PR's rate sync goes on top.** `cam.playbackRate` is mirrored from the main video at the start of `apply()`, and a `ratechange` listener sits next to the others.\n- **Drag state stays in the editor's `WebcamLayer`.** That covers `drag`, `dragging` and `abort`. `WebcamPlaybackLayer` in the Library gets the seek lead and the buffering hold for free.\n\n**Checked.** I ran a trial merge of `origin/feature/niw2-582-webcam-lane-thumbnails` into this branch with this resolution, then aborted it: `check-types` was clean, and the full desktop vitest suite passed (332 files, 3469 tests). The same resolution is committed on the local QA branch `qa/webcam-all` as merge `005a0e0f`, which was not pushed.\n"
+ }
+]

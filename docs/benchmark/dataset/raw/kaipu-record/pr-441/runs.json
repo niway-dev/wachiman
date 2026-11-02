@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:17:37Z",
+  "databaseId": 41218972933,
+  "displayTitle": "feat(desktop): record the webcam as its own file on the screen's clock (NIW2-571)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-571-webcam-recorder",
+  "headSha": "d97c8f91865c208836b9376b2f29a6cb7159e867",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:17:44Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41218972933",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T09:04:12Z",
+  "databaseId": 41187144287,
+  "displayTitle": "feat(desktop): record the webcam as its own file on the screen's clock (NIW2-571)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-571-webcam-recorder",
+  "headSha": "d97c8f91865c208836b9376b2f29a6cb7159e867",
+  "status": "completed",
+  "updatedAt": "2026-10-31T09:04:32Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41187144287",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T08:23:19Z",
+  "databaseId": 41026097367,
+  "displayTitle": "feat(desktop): record the webcam as its own file on the screen's clock (NIW2-571)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-571-webcam-recorder",
+  "headSha": "9ab51d9729a0ddabf2c228956c14d2fe31118f2d",
+  "status": "completed",
+  "updatedAt": "2026-10-30T08:23:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41026097367",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T08:19:48Z",
+  "databaseId": 41025700693,
+  "displayTitle": "feat(desktop): record the webcam as its own file on the screen's clock (NIW2-571)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-571-webcam-recorder",
+  "headSha": "1486d87fc6a62ce58b99e74adc4a072adff70a91",
+  "status": "completed",
+  "updatedAt": "2026-10-30T08:22:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41025700693",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T08:19:47Z",
+  "databaseId": 41025699962,
+  "displayTitle": "feat(desktop): record the webcam as its own file on the screen's clock (NIW2-571)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-571-webcam-recorder",
+  "headSha": "1486d87fc6a62ce58b99e74adc4a072adff70a91",
+  "status": "completed",
+  "updatedAt": "2026-10-30T08:20:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41025699962",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

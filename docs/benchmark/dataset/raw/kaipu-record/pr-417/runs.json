@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T17:41:21Z",
+  "databaseId": 40738083274,
+  "displayTitle": "fix: keep the screenshot editor's capture title readable",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-351-screenshot-editor-title-input-is-too-narrow-and-truncates",
+  "headSha": "9597b871e11b817f6bab73915f0bca80c400894d",
+  "status": "completed",
+  "updatedAt": "2026-10-28T17:41:27Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40738083274",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:46:45Z",
+  "databaseId": 40729308697,
+  "displayTitle": "fix: keep the screenshot editor's capture title readable",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-351-screenshot-editor-title-input-is-too-narrow-and-truncates",
+  "headSha": "9597b871e11b817f6bab73915f0bca80c400894d",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:47:32Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40729308697",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:46:45Z",
+  "databaseId": 40729307851,
+  "displayTitle": "fix: keep the screenshot editor's capture title readable",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-351-screenshot-editor-title-input-is-too-narrow-and-truncates",
+  "headSha": "9597b871e11b817f6bab73915f0bca80c400894d",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:47:03Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40729307851",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

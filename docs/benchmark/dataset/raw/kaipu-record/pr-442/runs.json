@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:19:46Z",
+  "databaseId": 41219147350,
+  "displayTitle": "feat(desktop): keep the webcam file paired in the library and serve it to the editor (NIW2-572)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-572-webcam-vault",
+  "headSha": "e97c5551d4ee50d8d9601db2d98ffc6be43ae086",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:19:54Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41219147350",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T09:05:53Z",
+  "databaseId": 41187267756,
+  "displayTitle": "feat(desktop): keep the webcam file paired in the library and serve it to the editor (NIW2-572)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-572-webcam-vault",
+  "headSha": "e97c5551d4ee50d8d9601db2d98ffc6be43ae086",
+  "status": "completed",
+  "updatedAt": "2026-10-31T09:06:10Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41187267756",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T08:31:32Z",
+  "databaseId": 41027024450,
+  "displayTitle": "feat(desktop): keep the webcam file paired in the library and serve it to the editor (NIW2-572)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-572-webcam-vault",
+  "headSha": "220ba48a6e6f59625e37e93f95c3d39f235f5aeb",
+  "status": "completed",
+  "updatedAt": "2026-10-30T08:32:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41027024450",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T08:31:31Z",
+  "databaseId": 41027023696,
+  "displayTitle": "feat(desktop): keep the webcam file paired in the library and serve it to the editor (NIW2-572)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-572-webcam-vault",
+  "headSha": "220ba48a6e6f59625e37e93f95c3d39f235f5aeb",
+  "status": "completed",
+  "updatedAt": "2026-10-30T08:31:48Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41027023696",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

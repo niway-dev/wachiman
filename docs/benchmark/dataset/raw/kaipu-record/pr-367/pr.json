@@ -1,0 +1,29 @@
+{
+ "number": 367,
+ "title": "fix(desktop): serialize and harden vault writes (audit LIB-B1/B8/B10, SHOT-B3)",
+ "body": "## What changed and why\n\nTwo concurrent writes to the same vault item could lose an update, reject each other with `ENOENT`, or leave a truncated sidecar, and a failed screenshot overwrite could destroy the original PNG. This closes audit findings **LIB-B1** (high), **LIB-B8**, **LIB-B10** and **SHOT-B3**, following plan `04-sidecar-write-serialization` (Batch 2, parent NIW2-382).\n\n- **New `main/library/atomic-write.ts`**: a module-level per-key async mutex (`withLock`), unique temp names, and an fsync'd `atomicWriteFile`. The lock is module-scoped because `currentVault()` builds a fresh `LibraryVault` per IPC call, so a per-instance lock would not span callers.\n- **`LibraryVault.writeMeta` and `ensureIdentity`** now take the lock keyed by the sidecar path and read-merge-write inside it. The per-instance `identityInFlight` guard is gone: the lock plus a re-read inside it covers LIB-B8. `remove()` takes the same lock so a racing `writeMeta` cannot recreate a sidecar just after it is deleted.\n- **`writeImage`, `writeThumbnail`, `writeCursorTrack`, the tag registry and the video edit-session files** use `atomicWriteFile`. Screenshots use the `.part` suffix, which is not in `ALL_EXTS`, so a half-written shot stays invisible to `list()`.\n- **`saveScreenshotToVault`**: when a *new* screenshot's sidecar write fails, the PNG is removed so the caller's retry cannot save it again under a second id and leave an orphan. An overwrite keeps its PNG.\n\n## Deviations from the plan\n\n- **Task 5 is in `main/screenshots/screenshot-save.ts`, not `screenshot-ipc.ts`.** The save sequence moved into `saveScreenshotToVault` after the plan was written. Because that function only needs `../library`, I tested it with a mocked vault instead of leaving it manual-only: `screenshot-save.test.ts` (fails without the fix, passes with it).\n- **The 40-writer test asserts 40 distinct fields**, not just valid JSON, to match Review Focus 1 (\"all 40 fields\").\n- **The \"keeps the original\" `writeImage` test fails differently than the plan predicted.** In a read-only directory the old `writeFile` does not truncate the PNG; it writes through the existing file's permissions and overwrites it. The test still separates the behaviours: old code resolves and overwrites, new code rejects and keeps the original.\n- **The plan file and its `00-index.md` row are not deleted here.** Both exist only on `docs/code-audit-2026-10-15` (PR #301, still open), not on `main`. Whoever merges #301 second should drop the plan 04 file and its index row.\n\n## How I verified it\n\nRun from `apps/kaipu-record` unless noted.\n\n- Race tests first, confirmed failing on the old code: `ENOENT` on `clip.json.tmp`, five different `assetId`s for one item, and a lost title.\n- `node_modules/.bin/vitest run src/main/library/library-vault.test.ts src/main/library/library-vault.hash-retry.test.ts`, run 3 times: 30/30 each time.\n- `node_modules/.bin/vitest run src/main/library src/main/recording`: 193 passed.\n- `bun run check-types`: green.\n- `CI=1 bun run verify` from the repo root: **two consecutive green runs** (260 files, 2251 tests in `kaipu-record`).\n  - An earlier run had one failure, `capture-overlay.test.tsx` (\"answers copy from the Copy button and from ⌘C…\"), which timed out at 10 s while turbo ran 12 tasks in parallel. It passed 3 of 3 in isolation, this PR changes nothing under `src/renderer`, and it passed in both later full runs. It looks like a timing flake under load; I did not investigate it further.\n- I ran `bun install --frozen-lockfile` first, because this worktree's `node_modules` was missing `better-auth` and type checking failed in `browser-sign-in.ts` (a file this PR does not touch).\n- Not run: the Playwright desktop E2E suite (CI runs it), and the manual steps below.\n\n## How to test it yourself\n\n1. In the Library, open an item's tag field and paste `design, demo, ` (two tags at once). Open `<vault>/.kaipu/<id>.json`: it must be valid JSON containing both tags. (Plan 17 fixes the UI assigning only the last tag; this PR guarantees the file stays intact.)\n2. Rename an item three times quickly. The title shown and the sidecar must agree, with no `*.tmp` or `*.part` left in `.kaipu/`.\n3. Screenshot → edit → Save → Overwrite twice. `<vault>/<id>.png` must be the latest edit, with no `.part` files in the vault root.\n\nRefs NIW2-390\n\nRun: Gas City session ni-wisp-u1z8wr5, bead ka-9t3, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T03:09:22Z",
+ "updated_at": "2026-10-25T03:22:55Z",
+ "closed_at": "2026-10-25T03:22:39Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/367",
+ "base": {
+  "ref": "main",
+  "sha": "72ab3e2698c2d774be8896be06ccf380ce84fab0"
+ },
+ "head": {
+  "ref": "feature/niw2-390-04-sidecar-write-serialization",
+  "sha": "25ced906c0bb44d8c8a889c35e42239b117c63d6",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 8,
+ "additions": 289,
+ "deletions": 63,
+ "labels": []
+}

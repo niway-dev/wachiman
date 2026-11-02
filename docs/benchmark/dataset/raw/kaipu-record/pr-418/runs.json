@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T23:04:45Z",
+  "databaseId": 40784740831,
+  "displayTitle": "fix(desktop): resend a spare overlay its state once its listener is attached",
+  "event": "pull_request",
+  "headBranch": "fix/overlay-spare-state-race",
+  "headSha": "afd007dff9ec288a29c67da01841421de7d9fd77",
+  "status": "completed",
+  "updatedAt": "2026-10-28T23:04:53Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40784740831",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T22:45:49Z",
+  "databaseId": 40782426351,
+  "displayTitle": "fix(desktop): resend a spare overlay its state once its listener is attached",
+  "event": "pull_request",
+  "headBranch": "fix/overlay-spare-state-race",
+  "headSha": "afd007dff9ec288a29c67da01841421de7d9fd77",
+  "status": "completed",
+  "updatedAt": "2026-10-28T22:46:12Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40782426351",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T22:45:49Z",
+  "databaseId": 40782425919,
+  "displayTitle": "fix(desktop): resend a spare overlay its state once its listener is attached",
+  "event": "pull_request",
+  "headBranch": "fix/overlay-spare-state-race",
+  "headSha": "afd007dff9ec288a29c67da01841421de7d9fd77",
+  "status": "completed",
+  "updatedAt": "2026-10-28T22:46:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40782425919",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

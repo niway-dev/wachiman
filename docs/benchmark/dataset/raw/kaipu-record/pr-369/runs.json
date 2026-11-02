@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:34:03Z",
+  "databaseId": 40158689623,
+  "displayTitle": "perf(desktop): timeline thumbnails read by Range, cached per recording (audit VID-A3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-403-28-video-thumbnails-by-range",
+  "headSha": "6810f795c6e92bf278142a14215f8d5f6fb2a69f",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:34:09Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40158689623",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:33:20Z",
+  "databaseId": 40158644541,
+  "displayTitle": "perf(desktop): timeline thumbnails read by Range, cached per recording (audit VID-A3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-403-28-video-thumbnails-by-range",
+  "headSha": "6810f795c6e92bf278142a14215f8d5f6fb2a69f",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:33:37Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40158644541",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:33:20Z",
+  "databaseId": 40158644537,
+  "displayTitle": "perf(desktop): timeline thumbnails read by Range, cached per recording (audit VID-A3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-403-28-video-thumbnails-by-range",
+  "headSha": "6810f795c6e92bf278142a14215f8d5f6fb2a69f",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:33:45Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40158644537",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ }
+]

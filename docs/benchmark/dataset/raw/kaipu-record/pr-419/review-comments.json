@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4407206446,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/camera-bubble-window.ts",
+  "line": 170,
+  "original_line": 170,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 11,
+  "original_position": 11,
+  "commit_id": "b752d69bae8b9010ef6e235e3cec0d2fb4c476d1",
+  "original_commit_id": "4bf11e197bc766276a7a7507a59c69ef7abb5b73",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5691077080,
+  "subject_type": "line",
+  "created_at": "2026-10-28T23:36:07Z",
+  "updated_at": "2026-10-28T23:36:07Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/419#discussion_r4407206446",
+  "body": "🟡🧪 **Consider · tests: No test covers the new visible-only guard in CameraBubbleWindow.raise()**\n\nThe bar's `raise()` change has a test, but the bubble's equivalent change (`raise()` now does nothing while the bubble is hidden) has none. No `camera-bubble-window*.test.ts` exists in the directory, so this is a new test file. A short test that `moveTop` is skipped after `hide()` and called when visible would stop a regression back to the macOS behaviour where `moveTop()` puts a hidden window back on screen."
+ },
+ {
+  "id": 4407233816,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/recording/camera-bubble-window.ts",
+  "line": 170,
+  "original_line": 170,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 11,
+  "original_position": 11,
+  "commit_id": "b752d69bae8b9010ef6e235e3cec0d2fb4c476d1",
+  "original_commit_id": "4bf11e197bc766276a7a7507a59c69ef7abb5b73",
+  "in_reply_to_id": 4407206446,
+  "pull_request_review_id": 5691110483,
+  "subject_type": "line",
+  "created_at": "2026-10-28T23:40:42Z",
+  "updated_at": "2026-10-28T23:40:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/419#discussion_r4407233816",
+  "body": "Added in b752d69b: `camera-bubble-window.test.ts` checks that `raise()` skips `moveTop` after `hide()` and calls it once the bubble is shown again (plus the no-window case). Same shape as the bar's test."
+ }
+]

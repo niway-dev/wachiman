@@ -1,0 +1,16 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T03:21:21Z",
+  "databaseId": 41382646098,
+  "displayTitle": "[replay r5] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "efaae4a5679b154bc56c9ea5da864c2daa6b3bbf",
+  "status": "completed",
+  "updatedAt": "2026-11-02T03:24:38Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41382646098",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

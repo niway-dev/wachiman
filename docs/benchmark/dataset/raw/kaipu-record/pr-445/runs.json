@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:19:49Z",
+  "databaseId": 41219151723,
+  "displayTitle": "feat(desktop): exports keep the face above the zoom, even over a still screen (NIW2-575)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-575-webcam-export",
+  "headSha": "e528e0abd762b93487e3a72082306eab9c480fea",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:19:55Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41219151723",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T09:11:32Z",
+  "databaseId": 41187667997,
+  "displayTitle": "feat(desktop): exports keep the face above the zoom, even over a still screen (NIW2-575)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-575-webcam-export",
+  "headSha": "e528e0abd762b93487e3a72082306eab9c480fea",
+  "status": "completed",
+  "updatedAt": "2026-10-31T09:11:48Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41187667997",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T09:53:47Z",
+  "databaseId": 41036743766,
+  "displayTitle": "feat(desktop): exports keep the face above the zoom, even over a still screen (NIW2-575)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-575-webcam-export",
+  "headSha": "f4c162b146157362e0589121ed521e653a730520",
+  "status": "completed",
+  "updatedAt": "2026-10-30T09:54:07Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41036743766",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T09:49:08Z",
+  "databaseId": 41036192366,
+  "displayTitle": "feat(desktop): exports keep the face above the zoom, even over a still screen (NIW2-575)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-575-webcam-export",
+  "headSha": "77ec29f2c14d69f8e95a8572be44adb01dc0f4f2",
+  "status": "completed",
+  "updatedAt": "2026-10-30T09:51:24Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41036192366",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T09:49:07Z",
+  "databaseId": 41036191640,
+  "displayTitle": "feat(desktop): exports keep the face above the zoom, even over a still screen (NIW2-575)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-575-webcam-export",
+  "headSha": "77ec29f2c14d69f8e95a8572be44adb01dc0f4f2",
+  "status": "completed",
+  "updatedAt": "2026-10-30T09:49:27Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41036191640",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

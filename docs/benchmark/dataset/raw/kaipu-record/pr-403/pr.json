@@ -1,0 +1,29 @@
+{
+ "number": 403,
+ "title": "fix(desktop): Record page settings open under the row instead of clipping off the window",
+ "body": "## What this does\n\nThe Record page's Mic, Audio and Camera settings now open as an inline drawer right under the Sound & camera row, like the capture panel already does. They used to open as floating popovers. Only one drawer is open at a time, and on the page the Mic and Audio drawers use two columns, so the device list has room. Once open, a drawer scrolls itself into view.\n\nThese commits were meant for #399 but landed on its branch after it had merged, so they never reached `main`. This PR carries them over unchanged, cherry-picked onto the current `main`.\n\n## Why\n\nThe owner tested #399 in the running app. The Mic popover hung below the row as a `fixed` layer, was cut off at the bottom of the window, and did not push the page content. The capture panel's inline drawer did not have that problem, and the owner preferred it.\n\n## What changes for you\n\n- **The Record page shows drawers, not popovers, for all three tiles (Camera included).** A drawer pushes the page, which scrolls. Opening one closes the others. Esc or the chevron closes it, and so does leaving the window. Focus moves into the drawer when it opens and returns to the chevron when it closes.\n- **The idle Record page is a little tighter vertically**, with a smaller subtitle margin and smaller divider and section-label margins.\n- **Nothing changes in the capture panel.**\n\n## What to review\n\n1. **`apps/kaipu-record/src/renderer/src/pages/record/record-page.tsx` — the drawers sit inside `.lockable`, right after the row, in both the idle and the recording layouts.** Check that the recording layout still behaves: only the source card is locked, and the drawers stay live mid-take.\n2. **`apps/kaipu-record/src/renderer/src/features/audio-settings/audio-settings-content.module.css` — the two-column layout (`data-columns`)** collapses to one column below a 520 px container width. In the panel variant the column wrappers use `display: contents`. Decide whether that breakpoint fits the card. This can only be judged by looking; see Manual verification.\n3. **`apps/kaipu-record/src/renderer/src/features/settings-controls/settings-drawer.tsx` — `scrollIntoView({ block: \"nearest\" })`** runs only for the page variant. The panel grows its own window instead.\n\n**Safe to skim:** the deleted popover files (`settings-popover.tsx`, `camera-settings-popover.tsx` and the `*WithPopover` components; a grep finds no remaining use), the test harnesses moved from `dialog` to `region`, and the two one-line backlog doc updates.\n\n## Proof\n\n| Criterion | What was done | How to check it | Evidence |\n| --- | --- | --- | --- |\n| Settings appear under the row and are not clipped | Inline `SettingsDrawer` (page variant) for Mic, Audio and Camera | Manual 1 | `record-page.test.tsx`: opening Mic renders a `region` in the row's block and no `dialog`. **Not verified visually.** |\n| Room for the device list | Two columns for Mic and Audio, denser rows, tighter page margins | Manual 2 | `audio-controls.test.tsx`: the page variant has `data-columns` and the panel variant does not. **Not verified visually.** |\n\n## Decisions\n\n- **Camera also uses the drawer on the Record page.** Options: drawer only for Mic and Audio, or for all three. Taken: all three, so the row behaves the same way everywhere.\n- **Popover code deleted** rather than kept unused.\n\n## Checks\n\nFrom `apps/kaipu-record` on this branch:\n\n- `vitest run` → exit 0, 299 files, 2825 tests (rerun). The first full run had 1 failure, in `capture-overlay.test.tsx` (\"answers from the active overlay on Enter\"). That file is not touched here. It then passed 3 out of 3 runs on its own, and the full rerun was green. Treat it as a flaky test from `main`.\n- `bun run check-types` → exit 0\n- `bun run lint` → exit 0, 0 errors, 17 warnings\n- `oxfmt --check` on the changed files → exit 0\n\n## Verify it yourself\n\n**Setup:** `git switch fix/record-page-settings-drawers && bun install && bun run dev`\n\n**1. No clipping.** On the Record page, turn the mic on and click the Mic chevron.\nExpect: a drawer opens under the row and pushes the card down; if it reaches below the window, the page scrolls to show it.\nBroken if: anything floats over the page or is cut off at the window edge.\n\n**2. Room for the list.** With 3 or more microphones, open Mic in a window about 700 px tall.\nExpect: devices on the left; level, noise and note on the right, all readable.\nBroken if: the columns look cramped or unbalanced, or a narrow window does not fall back to one column.\n\n**3. One at a time.** Open Mic, then Audio, then Camera.\nExpect: each opening closes the previous drawer.\n\n## Manual verification\n\n- [ ] Step 1: no clipping; the drawer pushes the page\n- [ ] Step 2: two-column layout reads well; narrow window falls back to one column\n- [ ] Step 3: only one drawer at a time\n- [ ] The Camera drawer header looks right at full size\n\n## What I did not verify\n\n- Nothing was run in the Electron app, so the layout, the breakpoint and the scroll-into-view are unchecked visually.\n- The flaky `capture-overlay` test was not investigated.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T03:21:13Z",
+ "updated_at": "2026-10-28T05:06:59Z",
+ "closed_at": "2026-10-28T05:06:53Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/403",
+ "base": {
+  "ref": "main",
+  "sha": "2eb7b9c96caa7a6a9cebd198759e8800a68f16d4"
+ },
+ "head": {
+  "ref": "fix/record-page-settings-drawers",
+  "sha": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 22,
+ "additions": 493,
+ "deletions": 611,
+ "labels": []
+}

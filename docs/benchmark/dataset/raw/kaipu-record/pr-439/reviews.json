@@ -1,0 +1,38 @@
+[
+ {
+  "id": 5709341526,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c59e58fb89d3c5bc3ce2b0e122f8fb93e59c1074",
+  "submitted_at": "2026-10-30T07:34:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/439#pullrequestreview-5709341526",
+  "body": "**Agent review** of the whole pull request, at `c59e58f`: all 16 files reviewed.\n\n2 finding(s): 2 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI reviewed all 16 files in this part and found nothing that blocks the merge. Only a missing sidecar (ENOENT) still counts as a legacy item. A read error or a corrupt sidecar now raises SidecarUnavailableError. The item is still listed, using a stand-in assetId that is never persisted. Every write path refuses to write for it: writeMeta, ensureIdentity, removeLocalCopy (checked before it deletes anything) and overwriting a screenshot. composeLibrary keeps the cloud association through lastSeenLocalId instead of clearing it. The tests cover EIO, EACCES, a mode-000 file, several corrupt shapes, copying a corrupt sidecar only once, and that the original identity comes back once the file reads again. The value import in src/shared is unchanged; only a type was added. I have two optional suggestions (consider): add a test for the new metadataIssue check in isCloudUploadEligible, and clear the quarantine set once a sidecar reads cleanly again.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 16 | 446 | 6 | reviewed | 7 | $0.21 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.21</sub>\n\n<!-- agent-review sha=c59e58fb89d3c5bc3ce2b0e122f8fb93e59c1074 -->"
+ },
+ {
+  "id": 5718243285,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "e9c8961c434835ceef2cfa43cc5428b23eb02672",
+  "submitted_at": "2026-10-30T20:25:06Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/439#pullrequestreview-5718243285",
+  "body": ""
+ },
+ {
+  "id": 5718243786,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "e9c8961c434835ceef2cfa43cc5428b23eb02672",
+  "submitted_at": "2026-10-30T20:25:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/439#pullrequestreview-5718243786",
+  "body": ""
+ }
+]

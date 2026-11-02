@@ -1,0 +1,16 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T03:21:43Z",
+  "databaseId": 41382678314,
+  "displayTitle": "[replay r6] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "efaae4a5679b154bc56c9ea5da864c2daa6b3bbf",
+  "status": "completed",
+  "updatedAt": "2026-11-02T03:25:03Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41382678314",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

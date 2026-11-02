@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4385243793,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/frame-size.ts",
+  "line": null,
+  "original_line": 19,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 19,
+  "commit_id": "606828de9fd74812a0de24a0892cec1571c52d21",
+  "original_commit_id": "606828de9fd74812a0de24a0892cec1571c52d21",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5662421486,
+  "subject_type": "line",
+  "created_at": "2026-10-27T05:01:15Z",
+  "updated_at": "2026-10-27T05:01:15Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/390#discussion_r4385243793",
+  "body": "🟠🐛 **Fix · bug: `await video.play()` has no timeout and can stall recording start**\n\n`measureFrameSize` now sits on the critical path of `startEngine`, and `startEngine` awaits it before the compositor or the encoder exists. A `<video>` fed by a `MediaStream` only resolves `play()` once it has data. If the desktop track delivers no frame (the source is gone, the track is muted, or capture permission is half-granted), `play()` can stay pending. The recording then hangs on start, with no error and no fallback to the reported size. The `catch` and the fallback only run if `play()` rejects. The test file's own comment says jsdom's media element never resolves `play()`, which shows that a pending `play()` is a known state.\n\nRace `play()` against a short timeout, for example 1–2 s, and fall through to `getSettings()` when it expires. Alternatively wait on `loadedmetadata`, with the same timeout. Add a test where `play` never resolves."
+ },
+ {
+  "id": 4385243798,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.test.tsx",
+  "line": 227,
+  "original_line": 227,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 4,
+  "original_position": 4,
+  "commit_id": "70609fce17ab3cd40b1b35b5a32775fec042354e",
+  "original_commit_id": "606828de9fd74812a0de24a0892cec1571c52d21",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5662421486,
+  "subject_type": "line",
+  "created_at": "2026-10-27T05:01:15Z",
+  "updated_at": "2026-10-27T05:01:15Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/390#discussion_r4385243798",
+  "body": "🟡🧪 **Consider · tests: No test for the fallback paths of `measureFrameSize`**\n\nBoth new tests cover only the case where the video element reports a size that differs from `getSettings()`. Nothing covers the other branches of `measureFrameSize`: `videoWidth` of 0, a rejected `play()`, and the fallback to `getSettings()` or to the passed-in fallback size. The project's jsdom default is `videoWidth` 0, so existing tests exercise the fallback only by accident. A small `frame-size.test.ts` would pin those branches. It would also pin the cleanup of `pause()` and `srcObject = null`."
+ },
+ {
+  "id": 4385332934,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/frame-size.ts",
+  "line": null,
+  "original_line": 19,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 19,
+  "commit_id": "606828de9fd74812a0de24a0892cec1571c52d21",
+  "original_commit_id": "606828de9fd74812a0de24a0892cec1571c52d21",
+  "in_reply_to_id": 4385243793,
+  "pull_request_review_id": 5662544095,
+  "subject_type": "line",
+  "created_at": "2026-10-27T05:17:55Z",
+  "updated_at": "2026-10-27T05:17:55Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/390#discussion_r4385332934",
+  "body": "Fixed in 70609fce: `play()` is raced against a 1.5 s timeout (`FRAME_SIZE_TIMEOUT_MS`), and on expiry the take is sized from `getSettings()`. A test with a `play()` that never settles pins it. It fails on the previous code by timing out."
+ },
+ {
+  "id": 4385333225,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.test.tsx",
+  "line": 227,
+  "original_line": 227,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 4,
+  "original_position": 4,
+  "commit_id": "70609fce17ab3cd40b1b35b5a32775fec042354e",
+  "original_commit_id": "606828de9fd74812a0de24a0892cec1571c52d21",
+  "in_reply_to_id": 4385243798,
+  "pull_request_review_id": 5662544444,
+  "subject_type": "line",
+  "created_at": "2026-10-27T05:17:57Z",
+  "updated_at": "2026-10-27T05:17:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/390#discussion_r4385333225",
+  "body": "Added in 70609fce: `frame-size.test.ts` covers the delivered size winning, `videoWidth` 0, a rejected `play()`, a report with no size (passed fallback), the timeout, and the cleanup (`pause()`, `srcObject` cleared)."
+ }
+]

@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5685672786,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "83e52345bd088f277986b3380902c0e339382d04",
+  "submitted_at": "2026-10-28T15:57:10Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/411#pullrequestreview-5685672786",
+  "body": "**Agent review** of the whole pull request, at `83e5234`: all 7 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. `TagEditor` now builds each edit on a ref that tracks the latest list sent. A pasted list ends in a single `onAssign` call. Tags are only created while they still fit under the per-item cap. The ref re-syncs with the props once all saves settle. Both callers now return the `setTags` promise, and `setTags` catches and reports its own errors (`use-local-library.ts:77-86`), so the `.finally` in `commit` is never given a rejection. The new tests cover the paste, cap, quick-removal and re-sync cases. I did not run the test suite. The docs changes are consistent with the plan file's removal.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 7 | 224 | 4 | reviewed | 5 | $0.07 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.07</sub>\n\n<!-- agent-review sha=83e52345bd088f277986b3380902c0e339382d04 -->"
+ }
+]

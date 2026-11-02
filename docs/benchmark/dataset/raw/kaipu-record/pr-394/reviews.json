@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5673660257,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "submitted_at": "2026-10-27T20:14:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/394#pullrequestreview-5673660257",
+  "body": "**Agent review** of the whole pull request, at `824596c`: all 1 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is a one-line removal of the `bun test ./scripts/` step from `check-workflows`. No test files exist under `scripts/`, so the removal is safe. ADR 0028 still describes that step as running the review script's tests. I left a non-blocking note about it.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 1 | 2 | 6 | reviewed | 5 | $0.03 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.03</sub>\n\n<!-- agent-review sha=824596c3353c6c7c4e5dd1ef06e025eb21b16366 -->"
+ },
+ {
+  "id": 5673744695,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "submitted_at": "2026-10-27T20:20:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/394#pullrequestreview-5673744695",
+  "body": ""
+ }
+]

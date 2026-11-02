@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T01:45:10Z",
+  "databaseId": 40802296607,
+  "displayTitle": "fix(desktop): drag-out never copies the file and never deletes a drag in progress (audit LIB-B12)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-398-18-drag-out-across-volumes",
+  "headSha": "fc4b4db66a216c95feec2d1aaa1872498e521eb2",
+  "status": "completed",
+  "updatedAt": "2026-10-29T01:45:16Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40802296607",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T00:52:43Z",
+  "databaseId": 40796889363,
+  "displayTitle": "fix(desktop): drag-out never copies the file and never deletes a drag in progress (audit LIB-B12)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-398-18-drag-out-across-volumes",
+  "headSha": "fc4b4db66a216c95feec2d1aaa1872498e521eb2",
+  "status": "completed",
+  "updatedAt": "2026-10-29T00:53:01Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40796889363",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:04:57Z",
+  "databaseId": 40722415704,
+  "displayTitle": "fix(desktop): drag-out never copies the file and never deletes a drag in progress (audit LIB-B12)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-398-18-drag-out-across-volumes",
+  "headSha": "59d9eaa624447eb9f7d0bcf53ca02e1c293c9365",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:05:33Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40722415704",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T16:04:56Z",
+  "databaseId": 40722415188,
+  "displayTitle": "fix(desktop): drag-out never copies the file and never deletes a drag in progress (audit LIB-B12)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-398-18-drag-out-across-volumes",
+  "headSha": "59d9eaa624447eb9f7d0bcf53ca02e1c293c9365",
+  "status": "completed",
+  "updatedAt": "2026-10-28T16:05:17Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40722415188",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

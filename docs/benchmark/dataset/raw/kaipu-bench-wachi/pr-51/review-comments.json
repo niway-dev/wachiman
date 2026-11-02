@@ -1,0 +1,117 @@
+[
+ {
+  "id": 4439380374,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-shade-window.ts",
+  "line": 187,
+  "original_line": 187,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 178,
+  "original_position": 178,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732675750,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:29Z",
+  "updated_at": "2026-11-02T06:08:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/51#discussion_r4439380374",
+  "body": "👮 **Wachiman** · 🟠🐛 **Fix · bug: Reused shade window never recovers from a renderer crash (confidence medium)**\n\nThe shade window is now created once and kept for the whole session. `ensureWindow` only builds a new one when the window is `null` or destroyed (line 135), and it only listens for `closed` (lines 187-193). A renderer crash leaves the BrowserWindow open: it is not destroyed and `ready` stays true. After that, every later `show` takes the reuse path (lines 78-91). `send` goes to a dead webContents, `showInactive` puts up an empty transparent window, and `onShown` fires right away. The hub then marks the countdown as shown (`recording-hub.ts:546-551`), so the recorder starts counting with no visible 3-2-1 and no REC border, for every take until the app restarts. Nothing tells the user.\n\nBefore this change each take loaded a fresh window, so a crash affected only one take. The sibling overlay windows handle this case: `capture-overlay-windows.ts:657-660` reacts to `render-process-gone`, and to `did-fail-load` and `unresponsive`.\n\nFix: on `render-process-gone`, destroy the window (or set `this.window = null; this.ready = false`) so the next `show` loads a new one.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439380379,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-shade-window.test.ts",
+  "line": 191,
+  "original_line": 191,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 191,
+  "original_position": 191,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732675750,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:30Z",
+  "updated_at": "2026-11-02T06:08:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/51#discussion_r4439380379",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: \"crash\" case in the test name is not exercised (confidence high)**\n\nThe test is named \"loads a new window when its page is gone (crash, closed)\", but it only calls `destroy()`, which fires `closed`. A renderer crash does not destroy the window, so the case the name promises is not covered. Either cover a crash once one is handled (see the finding on `recording-shade-window.ts:187`), or drop \"crash\" from the name.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439380384,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 490,
+  "original_line": 490,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 337,
+  "original_position": 337,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732675750,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:30Z",
+  "updated_at": "2026-11-02T06:08:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/51#discussion_r4439380384",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: System-audio write-back now happens during the countdown and survives a cancel (confidence medium)**\n\nThe live-settings forwarder is now attached as soon as the countdown's acquisition resolves (line 490). Its constructor writes `isSystemAudioEnabled: false` back to the persisted settings when the prepared engine has no loopback (lines 727-730). Before this change, that write-back ran only once a take had actually started. Now a countdown the user cancels with Esc (lines 399-407) still turns their System audio toggle off for good, even though nothing was recorded. When loopback is missing permanently (the macOS dev build), the next real take would flip it off anyway. When the loopback acquisition fails only transiently, the user's preference is lost silently. One option: delay that one write-back until `beginTake` commits the take (for example from `sync`, or just before `prepared.begin()`), and keep `sysOn = false` locally.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439380388,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/desktop/recording-pipeline.mdx",
+  "line": 452,
+  "original_line": 452,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 151,
+  "original_position": 151,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732675750,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:30Z",
+  "updated_at": "2026-11-02T06:08:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/51#discussion_r4439380388",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: \"With the countdown off nothing changes\" leaves out the new hide-settle wait (confidence high)**\n\nWith the countdown off, `startTake` still goes through `hideAppForTake`. That function now asks `recordingHideMainWindow()` and waits `WINDOW_HIDE_SETTLE_MS` when the window was on screen, which is the Record page's case (recorder-store.ts:380-389). `beginTake` awaits that before `begin()` (recorder-store.ts:527). So a countdown-off take started from the Record page now begins about 50 ms later than before. Consider saying that it acquires at once and begins once it is acquired and the hide has settled (step 3), rather than \"nothing changes\".\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439380390,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/screenshots/overlay/overlay-query.test.ts",
+  "line": 26,
+  "original_line": 26,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 8,
+  "original_position": 8,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732675750,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:30Z",
+  "updated_at": "2026-11-02T06:08:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/51#discussion_r4439380390",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: The spare test's `frame: null` / `intent: \"capture\"` assertions only check the defaults (confidence medium)**\n\n`QUERY` has no `frame` or `intent` parameter, so `frame: null` and `intent: \"capture\"` hold whether or not `spare=1` is set. The parser reads `frame` the same way with or without the flag (overlay-query.ts:90). As written, the test pins only `spare` and `scaleFactor`, while its name suggests it checks how a spare treats mode, intent and frame. Either drop those two expectations or name the test after what it checks (the flag is parsed). The state-driven behaviour itself is covered in capture-overlay.test.tsx.\n\n<!-- wachi:finding -->"
+ }
+]

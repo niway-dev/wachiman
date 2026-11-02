@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5674158006,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "submitted_at": "2026-10-27T20:52:31Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#pullrequestreview-5674158006",
+  "body": "**Agent review** of the whole pull request, at `6d1e073`: all 8 files reviewed.\n\n3 finding(s): 1 to fix, 2 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change adds on-demand Playwright proof scenarios under `verify/`, a `recordVideoDir` option on the e2e launch helper, and a verify skill doc. It touches no Electron boundary, no shared imports, no install scripts and no CI, and the ADR 0006 and 0027 references exist. I found one weak test (the library scenario never asserts the seeded recording is listed) and two smaller robustness points.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 8 | 229 | 6 | reviewed | 6 | $0.08 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.08</sub>\n\n<!-- agent-review sha=6d1e0734b499c8a34fca309541745ec36bcb16dc -->"
+ },
+ {
+  "id": 5674423759,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c1d4c72673fffdad358dc90c51e2e8faf2606fc4",
+  "submitted_at": "2026-10-27T21:13:06Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#pullrequestreview-5674423759",
+  "body": ""
+ },
+ {
+  "id": 5674424428,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c1d4c72673fffdad358dc90c51e2e8faf2606fc4",
+  "submitted_at": "2026-10-27T21:13:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#pullrequestreview-5674424428",
+  "body": ""
+ },
+ {
+  "id": 5674425275,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c1d4c72673fffdad358dc90c51e2e8faf2606fc4",
+  "submitted_at": "2026-10-27T21:13:12Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#pullrequestreview-5674425275",
+  "body": ""
+ }
+]

@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5685798703,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "59d9eaa624447eb9f7d0bcf53ca02e1c293c9365",
+  "submitted_at": "2026-10-28T16:05:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/412#pullrequestreview-5685798703",
+  "body": "**Agent review** of the whole pull request, at `59d9eaa`: all 6 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change looks correct. Drag copies now live inside the vault on the same volume, are pruned by age instead of wiped on every drag, and the legacy temp folder is cleaned. The tests cover the hard-link, EXDEV, copy-fallback and read-only paths. I have one low-severity note: drag folders in a previous vault location are never cleaned after the user changes the vault directory.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 6 | 253 | 5 | reviewed | 6 | $0.07 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.07</sub>\n\n<!-- agent-review sha=59d9eaa624447eb9f7d0bcf53ca02e1c293c9365 -->"
+ },
+ {
+  "id": 5685805658,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "59d9eaa624447eb9f7d0bcf53ca02e1c293c9365",
+  "submitted_at": "2026-10-28T16:05:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/412#pullrequestreview-5685805658",
+  "body": ""
+ }
+]

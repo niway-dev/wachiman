@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5730202823,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "submitted_at": "2026-11-01T20:49:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/13#pullrequestreview-5730202823",
+  "body": "👮 **Wachiman** · review of the whole pull request, at `dac8318`: all 14 files reviewed.\n\n4 finding(s): 4 to consider; 4 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 of 2. The \\\"Where is this going?\\\" strip is replaced by a full panel of destination cards that shows until the first copy exists. The copies panel now lists picture size and file size for each copy, adds a Drag handle and an \\\"Open in Export →\\\" button, and the detail page's layout is rearranged. The new drag handle uses `startFileDrag`, which the preload already exposes (`preload/index.ts:87`), so the Electron boundary is not widened. The probe now runs for every preparable recording; the page needs it for the resolution in the metadata line. I found no bugs in the page logic. The only findings are two small test gaps in `master-copies-panel.test.tsx`.\n\n**Batch 2 of 2.** I found no defects in part 2, only two optional suggestions. The tests, stylesheets, messages and docs match the new page in `library-detail-page.tsx` and the new panels. The title row is apart from the actions. \"Where is it going?\" shows only on a master with no copies and hides its Export button until dismissed. A heavy master keeps its hint inside that panel, and the \"Saved to your Library\" notice replaces the master note. The removed test assertion that the file is not read is consistent with the page now reading every local recording. The removed i18n keys are not used anywhere, and `sendTo` is kept for the Library's card and row. The two suggestions: the archive card's accessible name reads awkwardly, and the doc's validation script says to drag the copy's row when only its Drag button starts a drag.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 5 | 852 | 4 | reviewed | 6 | $0.24 |\n| Batch 2 of 2 | 9 | 763 | 2 | reviewed | 8 | $0.34 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.57</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=dac8318b631e64780f65ce94b4aaa57261d7d63d -->\n\n<!-- wachi:attempt id=3302a97e-6033-481e-87f6-913eba596623 -->"
+ }
+]

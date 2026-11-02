@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-25T23:48:55Z",
+  "databaseId": 40246435815,
+  "displayTitle": "ci: review pull requests through niway-dev/agent-review's reusable workflow",
+  "event": "pull_request",
+  "headBranch": "ci/agent-review-reusable-workflow",
+  "headSha": "534d6c98047ee44bfff2eca52dafc86093e930c1",
+  "status": "completed",
+  "updatedAt": "2026-10-25T23:49:05Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40246435815",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-26T20:00:20Z",
+  "databaseId": 40391764613,
+  "displayTitle": "ci: review pull requests through niway-dev/agent-review's reusable workflow",
+  "event": "pull_request",
+  "headBranch": "ci/agent-review-reusable-workflow",
+  "headSha": "1fdeba7f5f8c2e0615f82f3fcb84288ada83dac1",
+  "status": "completed",
+  "updatedAt": "2026-10-26T20:01:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40391764613",
+  "workflowName": "Agent review",
+  "log": "ok"
+ }
+]

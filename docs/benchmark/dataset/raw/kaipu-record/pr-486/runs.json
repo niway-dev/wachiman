@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T19:25:34Z",
+  "databaseId": 41509810426,
+  "displayTitle": "design: capture preview card (NIW2-606)",
+  "event": "pull_request",
+  "headBranch": "design/niw2-606-capture-preview",
+  "headSha": "a40c8703528be2398e641d67afc28496a9967242",
+  "status": "completed",
+  "updatedAt": "2026-11-02T19:27:14Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41509810426",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-11-02T19:25:49Z",
+  "databaseId": 41509849258,
+  "displayTitle": "design: capture preview card (NIW2-606)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "c8beb0ad4ffda313c109e2a7b5f644cf37d4e0ad",
+  "status": "completed",
+  "updatedAt": "2026-11-02T19:25:58Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41509849258",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T19:31:17Z",
+  "databaseId": 41510691140,
+  "displayTitle": "design: capture preview card (NIW2-606)",
+  "event": "pull_request",
+  "headBranch": "design/niw2-606-capture-preview",
+  "headSha": "f86dc4b0c912ff48e697545b62afeae2b8381c0f",
+  "status": "completed",
+  "updatedAt": "2026-11-02T19:32:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41510691140",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T19:36:03Z",
+  "databaseId": 41511440732,
+  "displayTitle": "design: capture preview card (NIW2-606)",
+  "event": "pull_request",
+  "headBranch": "design/niw2-606-capture-preview",
+  "headSha": "a02f95d872c406732f00c92029dcbf8fcf624947",
+  "status": "completed",
+  "updatedAt": "2026-11-02T19:37:07Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41511440732",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-11-02T19:36:12Z",
+  "databaseId": 41511466498,
+  "displayTitle": "design: capture preview card (NIW2-606)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "c8beb0ad4ffda313c109e2a7b5f644cf37d4e0ad",
+  "status": "completed",
+  "updatedAt": "2026-11-02T19:36:14Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41511466498",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

@@ -1,0 +1,29 @@
+{
+ "number": 459,
+ "title": "feat(desktop): drop a video into Prepare (NIW2-587)",
+ "body": "## What and why\n\n[NIW2-587](https://linear.app/niway/issue/NIW2-587/prepare-drop-zone-to-prepare-an-outside-video). You can now prepare a video Kaipu did not record (a phone clip, a Zoom recording, a file someone sent). This follows the design: [Kaipu Prepare](https://claude.ai/design/p/71546ef1-baf5-42e9-8fcc-9b9b44f2c7ab?file=Kaipu+Prepare.dc.html), section 5 \"Bring a video from outside\", board \"Drop zone\".\n\n- **`/prepare` (no recording).** The left column lists the destinations without sizes, because there is no source to estimate from yet. Nothing is selected unless `?to=` names a destination. The right column is the large dashed pink drop zone with **Choose a file…** (the Library's import dialog) and **From your Library**. Back goes to the Library.\n- **Drop anywhere on Prepare.** This works on the no-recording screen, on a recording's Prepare screen, and on the left footer **Prepare another video**. The video is imported through #447's path and Prepare opens on `/prepare/<newAssetId>`, keeping the selected destination as `?to=`. If several videos are dropped, all are imported, Prepare opens on the first one, and a toast says how many more are in the Library.\n- **Footer.** The hint is back to \"Drop a file here or from your Library\". The footer lights up while a file is dragged over the window. Clicking it opens `/prepare?to=<selected>`; on the no-recording screen, clicking it opens the file dialog.\n- **Entry point.** A **Prepare a video** button in the Library header, next to \"Import a video\". No sidebar entry.\n- **Electron's default.** If nothing handles a dropped file, Electron navigates the window to it. While Prepare is mounted, the whole window takes file drops (`useFileDrop` from #447), so that cannot happen. A test checks that the drop event's default is prevented.\n\n## Stack and merge order\n\n- Base: `feature/niw2-583-prepare-two-column` (#458, which is stacked on #448).\n- **This diff includes #447** (https://github.com/niway-dev/kaipu-record/pull/447, the Library import) through the merge commit `67662cef`, until #447 lands in the stack. **Merge #447 before this one.** Merge conflicts were only in the backlog index table and two test files. Both sides were kept.\n- When I pushed, #447, #448 and #458 were all still open, so nothing was rebased.\n\n## Decisions\n\n- **One import path.** `usePrepareImport` (`features/prepare/use-prepare-import.ts`) wraps #447's `useImportVideos` and `useFileDrop`. `useImportVideos` gets an optional `onImported` that replaces its \"is in your Library\" toast; the hook still reports failures and skipped files.\n- **The Library is refreshed before navigating.** This way the next screen already holds the new video, instead of flashing \"File not found\".\n- **Which destination is carried over:** the one picked on the screen, otherwise the one in the URL. With a recording open and nothing picked, no `?to=` is added; the next screen defaults to YouTube either way.\n- **The drop hook sits above every Prepare state** (loading, not found, not preparable), so a drop on those screens also imports instead of navigating the window to the file.\n\n## Verification\n\n- `bun run verify` from the repo root passes. That covers lint, format, build, types, and all 3053 desktop tests.\n- New tests:\n  - The no-recording state: no sizes, nothing selected, the buttons.\n  - Drop → import → navigate, with the URL's destination and with a destination picked on a recording.\n  - A drop on the footer.\n  - Several files dropped.\n  - A non-video dropped: skipped, and the window does not navigate.\n  - `onImported` in the import hook.\n  - The Library entry point.\n- I mutation-checked the destination carry-over and the drop wiring: the tests fail without them.\n- **Not run in Electron.** Runtime QA is the owner's.\n\n## How to test it yourself\n\n1. Check out `feature/niw2-587-prepare-drop-zone`, run `bun install` and `bun run dev`.\n2. Library → **Prepare a video** (header). You get the destination list without sizes and the pink drop zone.\n3. Pick **GitHub · Jira · Linear**, then drag an `.mp4` or `.mov` from Finder anywhere onto the window. The zone lights up (\"Drop to prepare it\"). Drop it: it imports, and Prepare opens on the new video with GitHub selected. The video also appears in the Library with the Imported marker.\n4. On that Prepare screen, pick **Slack · Discord** and drop another video onto **Prepare another video** (bottom left). Prepare opens on the new one with Slack selected.\n5. Drop three videos at once. Prepare opens on the first, and a toast says \"2 more videos are in your Library\".\n6. Drop a `.pdf`. A toast says it was skipped, and **the window stays on Prepare** (it does not show the PDF).\n7. On `/prepare`, **Choose a file…** opens the import dialog, and **From your Library** and **Back to Library** go to the Library.\n8. With a recording open, click **Prepare another video**. It opens the drop zone with the same destination selected.\n9. Switch the app language to Spanish and check the copy.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-30T21:17:25Z",
+ "updated_at": "2026-10-31T17:12:55Z",
+ "closed_at": "2026-10-31T17:12:55Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/459",
+ "base": {
+  "ref": "feature/niw2-586-background-toasts",
+  "sha": "0f0896c038c2c4f4c08cf16bd1fe6ea2c17aadf6"
+ },
+ "head": {
+  "ref": "feature/niw2-587-prepare-drop-zone",
+  "sha": "a8c1679fcda544b6cc5074551dfac24cee93435f",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 44,
+ "additions": 2215,
+ "deletions": 86,
+ "labels": []
+}

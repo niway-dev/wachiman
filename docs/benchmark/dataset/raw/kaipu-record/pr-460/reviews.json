@@ -1,0 +1,134 @@
+[
+ {
+  "id": 5719767032,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "e015f7707f300b570998b91712d874964b3ed816",
+  "submitted_at": "2026-10-30T23:29:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719767032",
+  "body": "**Agent review** of the whole pull request, at `e015f77`: all 82 files reviewed.\n\n10 finding(s): 4 to fix, 6 to consider; 10 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 11.** Part 1 covers the preload, shared types, main-process wiring for maintenance mode (vault leases on IPC handlers, the export lease, the reconcile IPC), plus the atomic-write, file-stem and gif-save changes. The new preload methods add no unchecked renderer input. `recordingCreate`'s `kind` is checked in main: anything other than \"export\" counts as a recording. Shared types take only type imports. I found one problem: a second Fix all call can wipe out the cancel handle of a run that is already waiting, so that run can't be cancelled.\n\n**Batch 2 of 11.** I read both files in this part in full: the stricter, no-replace changes in `library-vault.ts` (strict sidecar reads, `existsStrict`, reservations, renames done through `safe-place`) and the new `safe-place.ts`. The identity-checked removals, the rollback paths and the case-only rename sequence hold up for every path I traced. The pattern `COLLISION_TAIL` matches what `firstCandidate` produces. On volumes without hard links, renames now copy the file, which costs time; ADR 0033 records that cost on purpose, so I didn't flag it. There is one finding, at \\\"consider\\\": in `placeNew` with `stuck: \\\"set-aside\\\"`, a source whose removal check returns \\\"unknown\\\" is left under its staging name without being set aside or marked as placed.\n\n**Batch 3 of 11.** I read both files in this part in full and found no bugs. `VaultActivity` does what it promises. `admit` checks the maintenance flag and counts the lease in one synchronous step. `settle` does the final zero check and sets the flag together. A recording or export that starts while Fix all is waiting makes Fix all fail with `VaultBusyError`. When the abort signal fires, the waiting entry is cleared and its listener removed. The one finding is a comment: it says `onWaiting` fires only when the set of kinds changes, but the code calls it on every release while waiting. The test helpers had no issues.\n\n**Batch 4 of 11.** I reviewed `vault-reconcile.ts`, which covers the scanner, the orphan-run manifests and their replay, the fix pipeline and the rename planner. I found no defects I could back with evidence.\n\n- **Unreadable state is never treated as absence.** The scan treats an unreadable record as a finding, not an empty one. `pathState` reads any error other than ENOENT or ENOTDIR as \"unknown\". Fix all fails closed when an orphan run's manifest can't be read.\n- **Orphan moves never overwrite.** Each one goes through `placeNoReplace`, or for a folder or symlink, a `rename` checked against the run's own folder. The manifest entry is written before the first file moves.\n- **Leftovers from a crashed run wait for that run.** Files in an unfinished bundle are listed as held and skipped by the new classification, so a bundle is never split across two runs.\n- **The fix calls behave as the pipeline assumes.** I read `writeMeta` (merges into the existing record; refuses to create one for an item that is gone), `adoptMedia` (under a lock, only when the record is missing) and `isStemFree` (free only when every path is proven absent) in `library-vault.ts`.\n\nI didn't find a problem in the planner's fallback for name cycles or in the progress and fix counts that I could tie to a concrete input that breaks them.\n\n**Batch 5 of 11.** I found nothing to flag in part 5. All 12 files were reviewed; none were skipped.\n\n**Take lifecycle (`recording-hub.ts` with `recording-writer.ts`):**\n- The vault lease is taken synchronously at create, before any file is opened. If the vault is in maintenance mode, the create is refused and starts nothing.\n- Each take ends exactly once. The first end (finalize, abort, page gone or window reset) sets `take.ending`, and any later end reuses it.\n- Cleanup waits for the create and any finalize in progress to settle first.\n- Writer cleanups are tied to the take's own staging file, so they can't reach a later session that reuses the same id.\n\nThese race paths hold up:\n- **Abort during finalize:** the abort waits for the finalize. If the take was stranded, the writer keeps the `.part`.\n- **Stranded export:** its partial is discarded once the save-elsewhere dialog has had its chance.\n- **Page reload while the file is still opening:** the reload's end owns the file, and the create rejects.\n\n**Placement:** replacing `moveFile` with `placeNew` / `placeNoReplace` / `replaceConfirmed` removes the old risk of overwriting a file during a copy fallback. On failure, the code releases only the reservation it made (`releaseReservation`, `discardCreated`), never a file that took the name in the meantime. The new GIF tests check exactly that case.\n\n**Stranded-recording sweep:** it now skips parts whose placement marker shows the bytes are already in the vault. Those parts are moved aside, never deleted, and markers whose part is gone are removed.\n\n**Screenshot and editor handlers:** they are wrapped in the matching vault-activity kinds, and a cursor track is written to the folder the take was saved in.\n\n**Tests:**\n- The maintenance test walks every registered library handler. The only exemptions are channels that don't touch vault files and the reconcile channels, which answer for themselves.\n- The NFD name test really contains the decomposed `e` + U+0301 form; I checked it with a search for that byte sequence.\n\nI didn't run any tests; this is from reading the code.\n\n**Batch 6 of 11.** Part 6 is test files only. One test is weaker than its description says: the screenshot-overwrite refusal test passes on any `Error`, so it doesn't show that the item was found and then refused because its record is unreadable. The other tests (the safe-place primitives, the rename link/unlink mocks, the no-replace image and GIF writes, and the VaultActivity admission contract) are consistent with the behaviour they claim to cover.\n\n**Batch 7 of 11.** I reviewed the new fault-injection test suite for vault reconciliation. The fs/promises mock, the exhaustive EIO injection loop and the orphan-manifest fail-closed cases look sound. One fix: the EACCES case uses chmod but, unlike the other test files that use chmod, it isn't skipped when the tests run as root or on Windows, so it fails in those environments.\n\n**Batch 8 of 11.** Part 8 covers the reconcile tests for fix, race and scan. Together they exercise convergence after a failure at any point, the orphan manifest being replayed, shared and protected companions, the tag registry guard, and confirm that a scan only reads. The assertions match the behaviour their names describe. Line 33 of the scan test looks like a duplicate of line 32, but it is a separate case: it uses a U+202F narrow no-break space before PM. The only issue is a fixture comment with the wrong chain length.\n\n**Batch 9 of 11.** I reviewed all 7 test files in part 9 and found no correctness problems. The tests cover the new lifecycle behaviour: vault leases held from create through finalize, reloads and forced resets, exports being discarded while recordings are kept, and the placement edge cases (no hard links, short writes, close and copy failures, staging files that can't be removed). Their mocks match the open flags the code uses: \\\"wx+\\\" for staging files and \\\"wx\\\" for placement. I have two small suggestions: a header comment that refers to a review round, and a test title that doesn't parse.\n\n**Batch 10 of 11.** I reviewed all 25 files in part 10 and found one small issue, a misplaced comment. Nothing blocks the merge.\n\n**The finding:** in `screenshot-editor-page.tsx`, the new retry hook was inserted between `autosaveEdits` and its doc comment. The comment that describes `autosaveEdits` now sits on `persistRef`. Moving the new block above the comment fixes it.\n\n**What I checked and found correct:**\n- **Export lease:** `beginExport` takes a vault lease before the source is read. Every failure path after that moves the export status out of \"exporting\", which sends `setExportActive(false)` and releases the lease in main (`index.ts:749-758`). A reload releases it too (`onPageGone`, `appReady`).\n- **Saving after maintenance:** the video editor's autosave and the screenshot editor's save both write again once \"Check and fix files\" ends. They only do so when something is still unsaved or a save was refused.\n- **Refusal messages:** a rename, tag change or delete refused during maintenance, or on an unreadable record, now shows a plain toast instead of an error report.\n- **Fix dialog and banner:** the dialog can be closed at every step except while files are being fixed, and closing it while waiting cancels the run. The banner's rules for when it shows or stays hidden match how the \"Not now\" choice is remembered (in `localStorage`).\n- **Tests:** the updated recording-writer, stranded-recording, screenshot-save and renderer-lifetime tests check what their names say.\n\n**Batch 11 of 11.** I read all 12 files in this part and checked the tests against `reconcile-store.ts` and `reconcile-dialog.tsx`.\n\n**Tests:** they match how the store behaves:\n- Mounting runs one scan per vault folder.\n- Opening the dialog scans again, and a finished fix scans a third time. That is the 3 scans the dialog test expects.\n- Cancel only goes to main while the run is still waiting.\n- The dialog's waiting text names short activities only. Recording and export are left out on purpose, because those make the fix refuse with `busy` instead of waiting.\n\n**Docs:** ADR 0033, `ipc-contract.mdx` and `library-vault.mdx` agree with the channel and type changes visible from this part.\n\n**Messages:** one finding, a grammar slip in the English plural of `reconcileKept`.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 11 | 12 | 578 | 8 | reviewed | 5 | $0.26 |\n| Batch 2 of 11 | 2 | 954 | 5 | reviewed | 7 | $0.31 |\n| Batch 3 of 11 | 2 | 260 | 5 | reviewed | 2 | $0.07 |\n| Batch 4 of 11 | 1 | 1056 | 5 | reviewed | 3 | $0.19 |\n| Batch 5 of 11 | 12 | 979 | 5 | reviewed | 7 | $0.37 |\n| Batch 6 of 11 | 5 | 998 | 2 | reviewed | 3 | $0.19 |\n| Batch 7 of 11 | 1 | 432 | 2 | reviewed | 3 | $0.11 |\n| Batch 8 of 11 | 3 | 996 | 2 | reviewed | 5 | $0.20 |\n| Batch 9 of 11 | 7 | 917 | 2 | reviewed | 3 | $0.18 |\n| Batch 10 of 11 | 25 | 832 | 4 | reviewed | 12 | $0.40 |\n| Batch 11 of 11 | 12 | 781 | 2 | reviewed | 6 | $0.29 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 11 batches · $2.57</sub>\n\n<!-- agent-review sha=e015f7707f300b570998b91712d874964b3ed816 -->"
+ },
+ {
+  "id": 5719799765,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:34:44Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719799765",
+  "body": ""
+ },
+ {
+  "id": 5719799962,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:34:46Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719799962",
+  "body": ""
+ },
+ {
+  "id": 5719800130,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:34:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719800130",
+  "body": ""
+ },
+ {
+  "id": 5719800294,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:34:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719800294",
+  "body": ""
+ },
+ {
+  "id": 5719800439,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:34:52Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719800439",
+  "body": ""
+ },
+ {
+  "id": 5719800634,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:34:54Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719800634",
+  "body": ""
+ },
+ {
+  "id": 5719800771,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:34:56Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719800771",
+  "body": ""
+ },
+ {
+  "id": 5719800970,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:34:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719800970",
+  "body": ""
+ },
+ {
+  "id": 5719801125,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:35:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719801125",
+  "body": ""
+ },
+ {
+  "id": 5719801311,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "submitted_at": "2026-10-30T23:35:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/460#pullrequestreview-5719801311",
+  "body": ""
+ }
+]

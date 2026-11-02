@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T05:27:02Z",
+  "databaseId": 40638064134,
+  "displayTitle": "feat(desktop): zoom and reposition the camera image to frame yourself in the bubble",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-framing",
+  "headSha": "7eb431785c3b1b4ef17e87da689c723a39f06ab7",
+  "status": "completed",
+  "updatedAt": "2026-10-28T05:27:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40638064134",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T05:07:16Z",
+  "databaseId": 40636122183,
+  "displayTitle": "feat(desktop): zoom and reposition the camera image to frame yourself in the bubble",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-framing",
+  "headSha": "7eb431785c3b1b4ef17e87da689c723a39f06ab7",
+  "status": "completed",
+  "updatedAt": "2026-10-28T05:07:33Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40636122183",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T05:06:41Z",
+  "databaseId": 40636067835,
+  "displayTitle": "feat(desktop): zoom and reposition the camera image to frame yourself in the bubble",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-framing",
+  "headSha": "8f05571d934fef2bf29f2d97c02a8c57c9dd8603",
+  "status": "completed",
+  "updatedAt": "2026-10-28T05:07:01Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40636067835",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T04:54:19Z",
+  "databaseId": 40634916120,
+  "displayTitle": "feat(desktop): zoom and reposition the camera image to frame yourself in the bubble",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-framing",
+  "headSha": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "status": "completed",
+  "updatedAt": "2026-10-28T04:54:55Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40634916120",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T04:54:19Z",
+  "databaseId": 40634915697,
+  "displayTitle": "feat(desktop): zoom and reposition the camera image to frame yourself in the bubble",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-framing",
+  "headSha": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "status": "completed",
+  "updatedAt": "2026-10-28T04:54:35Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40634915697",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

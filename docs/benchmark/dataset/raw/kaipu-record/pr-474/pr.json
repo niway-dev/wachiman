@@ -1,0 +1,29 @@
+{
+ "number": 474,
+ "title": "ci: move the agent review to niway-dev/wachiman v1.3.0",
+ "body": "## Summary\n\nPoints the agent review at **`niway-dev/wachiman` v1.3.0**, the latest release. The engine repository was renamed to `niway-dev/wachiman` (its ADR 0009), and GitHub does not redirect `uses:` after a rename, so the old line fails with \"repository not found\".\n\nWhat v1.3.0 brings ([changelog](https://github.com/niway-dev/wachiman/blob/main/CHANGELOG.md)):\n\n- every comment the bot posts opens with \"👮 **Wachiman**\", so it is clear which tool wrote it;\n- `/wachiman` is accepted besides `/wachi`;\n- the v1.2.1 fixes: engine-only markers, review dating, retries on transient GitHub errors, and review instructions read from the base commit.\n\n## Verification\n\nThe PR runs its own `agent-review.yml`; a resolved `uses:` line means the job starts instead of failing at setup.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-31T18:49:10Z",
+ "updated_at": "2026-10-31T18:59:06Z",
+ "closed_at": "2026-10-31T18:59:01Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/474",
+ "base": {
+  "ref": "main",
+  "sha": "f6ff5ab3bccd85f767dad08befbb3157f0235046"
+ },
+ "head": {
+  "ref": "ci/wachiman-rename",
+  "sha": "cdf571257b957e5002b611797b669ff54305ef54",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 2,
+ "additions": 3,
+ "deletions": 3,
+ "labels": []
+}

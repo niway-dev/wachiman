@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4403294395,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/recording-compositor-perf.md",
+  "line": 48,
+  "original_line": 48,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 15,
+  "original_position": 15,
+  "commit_id": "9eb4ee2cb271cc49cde5208887f25fd05cb7936a",
+  "original_commit_id": "9eb4ee2cb271cc49cde5208887f25fd05cb7936a",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5686173038,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:31:43Z",
+  "updated_at": "2026-10-28T16:31:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/415#discussion_r4403294395",
+  "body": "🟡📝 **Consider · docs: Measured numbers are promised but not included**\n\nThe approved spec's task list (spec line 279) asks for the cadence paragraph \"with the measured numbers\". This paragraph says they are \"still to be measured\". The spec's decision 9 also asks to confirm that requestVideoFrameCallback fires on the hidden recorder window. Measure it before merging and fill in the numbers. Otherwise, state in the PR that this spec item is open."
+ },
+ {
+  "id": 4403302754,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/recording-compositor-perf.md",
+  "line": 48,
+  "original_line": 48,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 15,
+  "original_position": 15,
+  "commit_id": "9eb4ee2cb271cc49cde5208887f25fd05cb7936a",
+  "original_commit_id": "9eb4ee2cb271cc49cde5208887f25fd05cb7936a",
+  "in_reply_to_id": 4403294395,
+  "pull_request_review_id": 5686184140,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:32:26Z",
+  "updated_at": "2026-10-28T16:32:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/415#discussion_r4403302754",
+  "body": "Agreed, and it stays open on purpose: this worker could not run an Electron renderer (and the runner has no ProMotion display), so the measurement and the rVFC-in-hidden-window check are left for the pre-merge run in **How to test it yourself**; the PR description says so at the top. Once measured, the numbers go into this paragraph in place of \"still to be measured\"."
+ }
+]

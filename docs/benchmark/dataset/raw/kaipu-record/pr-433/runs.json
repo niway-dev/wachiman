@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T23:42:06Z",
+  "databaseId": 40974909885,
+  "displayTitle": "ci: review pull requests with Claude Opus 5.5",
+  "event": "pull_request",
+  "headBranch": "ci/review-opus-5-5",
+  "headSha": "cd82f7a2748dabeb2441c480b8ed2a3b676ad432",
+  "status": "completed",
+  "updatedAt": "2026-10-29T23:42:12Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40974909885",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T22:49:30Z",
+  "databaseId": 40968758555,
+  "displayTitle": "ci: review pull requests with Claude Opus 5.5",
+  "event": "pull_request",
+  "headBranch": "ci/review-opus-5-5",
+  "headSha": "cd82f7a2748dabeb2441c480b8ed2a3b676ad432",
+  "status": "completed",
+  "updatedAt": "2026-10-29T22:50:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40968758555",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T22:49:30Z",
+  "databaseId": 40968757981,
+  "displayTitle": "ci: review pull requests with Claude Opus 5.5",
+  "event": "pull_request",
+  "headBranch": "ci/review-opus-5-5",
+  "headSha": "cd82f7a2748dabeb2441c480b8ed2a3b676ad432",
+  "status": "completed",
+  "updatedAt": "2026-10-29T22:49:48Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40968757981",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

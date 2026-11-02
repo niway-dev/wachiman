@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5705987137,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "cd82f7a2748dabeb2441c480b8ed2a3b676ad432",
+  "submitted_at": "2026-10-29T22:50:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/433#pullrequestreview-5705987137",
+  "body": "**Agent review** of the whole pull request, at `cd82f7a`: all 1 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis PR sets `model: claude-opus-5-5` in the reviewer caller workflow and adds a comment explaining the cost trade-off. `claude-opus-5-5` is a valid model ID. I couldn't check from this repository that the reusable workflow accepts a `model` input or what its default caps are. This PR's own run is the test of both, as its body says. One finding: accepted ADR 0028 still says Sonnet 5.5 does the reviews. It needs an amendment recording the switch to Opus.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 1 | 3 | 8 | reviewed | 7 | $0.11 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.11</sub>\n\n<!-- agent-review sha=cd82f7a2748dabeb2441c480b8ed2a3b676ad432 -->"
+ }
+]

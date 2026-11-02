@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T16:56:00Z",
+  "databaseId": 40916399178,
+  "displayTitle": "fix(desktop): run the dev app alongside the installed one, without sharing its session",
+  "event": "pull_request",
+  "headBranch": "fix/desktop-dev-own-user-data",
+  "headSha": "f3e96bcf7f9da4f8ac9485ffef6161284901996d",
+  "status": "completed",
+  "updatedAt": "2026-10-29T16:56:31Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40916399178",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-29T16:56:11Z",
+  "databaseId": 40916427704,
+  "displayTitle": "fix(desktop): run the dev app alongside the installed one, without sharing its session",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "2b93b515904dd3c487d25ee9e3e53bc158e4478e",
+  "status": "completed",
+  "updatedAt": "2026-10-29T16:56:12Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40916427704",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

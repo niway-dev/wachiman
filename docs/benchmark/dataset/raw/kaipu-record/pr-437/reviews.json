@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5709261122,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "submitted_at": "2026-10-30T07:24:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#pullrequestreview-5709261122",
+  "body": "**Agent review** of the whole pull request, at `c03c973`: all 9 files reviewed.\n\n3 finding(s): 3 to fix; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis PR adds only documentation: two proposed ADRs (0032 and 0033), a design spec, a backlog page, and the related index and cross-link updates. I checked the repo facts the spec relies on, and they hold:\n- The `chromeMediaSource: \"desktop\"` capture is in `recorder-engine.ts` around lines 218–245.\n- `camera-bubble-window.ts` has the \"deliberately NOT content-protected\" comment.\n- `fullDisplayBorderAllowed` uses the 10 2004 threshold.\n\nI found three errors in the spec, all worth fixing in this PR:\n- **Offset sign:** the preview sync rules (and failure 13) use `t + offset`, while the rest of the spec uses `t − offset`.\n- **Capture width:** the `getUserMedia` request uses `lines * 4/3`, which asks for 960×720 instead of the decided 1280×720.\n- **Pre-2004 Windows:** failure 2 points this case to a \"Plan B fallback\", but Plan B is macOS-only.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 9 | 925 | 4 | reviewed | 4 | $0.27 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.27</sub>\n\n<!-- agent-review sha=c03c973bc5917485b761aa711c626c91e2a1fc59 -->"
+ },
+ {
+  "id": 5709277937,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "084f7daefae8adbd4c6e1382df49320014bcda68",
+  "submitted_at": "2026-10-30T07:26:13Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#pullrequestreview-5709277937",
+  "body": ""
+ },
+ {
+  "id": 5709278324,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "084f7daefae8adbd4c6e1382df49320014bcda68",
+  "submitted_at": "2026-10-30T07:26:15Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#pullrequestreview-5709278324",
+  "body": ""
+ },
+ {
+  "id": 5709278702,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "084f7daefae8adbd4c6e1382df49320014bcda68",
+  "submitted_at": "2026-10-30T07:26:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#pullrequestreview-5709278702",
+  "body": ""
+ }
+]

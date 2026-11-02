@@ -1,0 +1,29 @@
+{
+ "number": 410,
+ "title": "perf(desktop): stop re-reading preferences.json on every IPC call (audit LIB-A3)",
+ "body": "## What changed and why\n\n`vaultDirectory()` read and parsed `preferences.json` synchronously on the Electron main thread on every call — every Library IPC handler and every media request (about 2n reads per list, ~50 ms blocked at n=500). Audit finding **LIB-A3** (`apps/documentation/src/content/docs/audits/2026-10-15/findings/library-a.md`), plan `plans/audit-2026-10-15/11-vault-directory-cache.md`, approved spec `specs/2026-10-28-niw2-394-vault-directory-cache.md` (first commit on this branch).\n\nOnly `apps/kaipu-record/src/main/library/vault-location.ts` changes:\n\n- The parsed preferences are cached in module state, **keyed by the preferences file path**, so a different `userData` dir never sees another dir's value.\n- `vaultDirectory()` reads from the cache: after the first call it never touches the disk.\n- `setVaultDirectory` / `resetVaultDirectory` re-read the file from disk (so keys added by hand are merged, not clobbered), write atomically as before, and refresh the cache **only after the rename succeeds** — a failed write throws and leaves the previous value.\n- The signature stays synchronous; no caller changes.\n\n**Behaviour change:** a hand edit of `preferences.json` while the app runs is no longer seen by reads. It is picked up on the next app start, and its other keys are merged into the next choose/reset write. Before, a hand edit took effect on the very next call.\n\nThe PR also deletes the shipped plan file and its row in `plans/audit-2026-10-15/00-index.md` (status now 12 of 36 shipped).\n\n### Tests (written first, run red before the fix)\n\nFive new cases in `vault-location.test.ts`; the existing three are unchanged:\n\n| Test | Before the fix |\n| --- | --- |\n| serves later reads from memory (hand edit to `/b` after `set(\"/a\")` is not seen) | **failed** (returned `/b`) |\n| a set after a hand edit merges the file's other keys | passed (regression guard) |\n| reset after a hand edit drops only `vaultDirectory` | passed (regression guard) |\n| a failed write (userData dir removed) throws and keeps the previous value | **failed** (fell back to the default) |\n| a different userData dir does not see another dir's cache | passed (guards the cache key) |\n\n## How I verified it\n\n- `apps/kaipu-record/node_modules/.bin/vitest run src/main/library/vault-location.test.ts` before the fix → 2 failed / 6 passed; after → 8/8.\n- `apps/kaipu-record/node_modules/.bin/vitest run src/main/library` → 13 files, 128 tests passed.\n- `bun run verify` (workflows check, lint, oxfmt, build, check-types, all tests) → green, run twice in a row.\n- Playwright desktop E2E not run locally (CI runs it).\n\n## How to test it yourself\n\n1. Open the Library with many items → behaviour unchanged, it lists at least as fast (with plan 01's `library_listed` event, `ms` drops by roughly 2n × 50 µs).\n2. Settings → Files → pick a new folder → the Library lists the new folder and posters load; Reset → the default folder is back.\n3. Quit, hand-edit `vaultDirectory` in `preferences.json` (in the app's userData dir), relaunch → the edit is honoured.\n\nRefs NIW2-394\n\nRun: agent-runner attempt 1, session ea136cdb-1a53-4709-be10-6ceab908f45f, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T15:47:29Z",
+ "updated_at": "2026-10-28T17:39:56Z",
+ "closed_at": "2026-10-28T17:39:53Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/410",
+ "base": {
+  "ref": "main",
+  "sha": "f10e39a47aaa755b7ebe767b16d0745deb23de74"
+ },
+ "head": {
+  "ref": "feature/niw2-394-11-vault-directory-cache",
+  "sha": "eb924af2228314c949aa96836fe4b0e848dabd0c",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 4,
+ "additions": 87,
+ "deletions": 8,
+ "labels": []
+}

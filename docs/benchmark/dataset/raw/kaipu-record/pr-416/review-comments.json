@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4403370603,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/build-cursor-track.ts",
+  "line": null,
+  "original_line": 25,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 7,
+  "commit_id": "e6f8ea48db86082ce8976e61e66d952e515f3b16",
+  "original_commit_id": "e6f8ea48db86082ce8976e61e66d952e515f3b16",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5686271024,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:38:38Z",
+  "updated_at": "2026-10-28T16:38:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/416#discussion_r4403370603",
+  "body": "🟡🧹 **Consider · cleanup: Comment line wrongly wrapped**\n\nThe edit left a very long line (the `meta.durationMs + 250 ... The tracker keeps sampling until ...` text) while the rest of the block wraps at ~90 columns. Re-wrap the paragraph to match the surrounding comment."
+ },
+ {
+  "id": 4403370615,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 572,
+  "original_line": 572,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 19,
+  "original_position": 19,
+  "commit_id": "4859af90656c7c4ee8561724de73198c2e5a6fbe",
+  "original_commit_id": "e6f8ea48db86082ce8976e61e66d952e515f3b16",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5686271024,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:38:38Z",
+  "updated_at": "2026-10-28T16:38:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/416#discussion_r4403370615",
+  "body": "🟡🐛 **Consider · bug: Pause before first-media resolves is not tracked in videoClock**\n\n`videoClock` is only created when `firstMediaTimestamp` resolves. `pauseRecording` and `resumeRecording` skip it while it is null (lines 831, 841). If the user pauses and resumes before t0 resolves, that pause is never removed from the video duration. The spec lists this as the known pre-t0 pause gap and keeps it out of scope. It is not tested, though, so a test that pins the accepted behaviour would help."
+ },
+ {
+  "id": 4407238485,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/recording/build-cursor-track.ts",
+  "line": null,
+  "original_line": 25,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 7,
+  "commit_id": "e6f8ea48db86082ce8976e61e66d952e515f3b16",
+  "original_commit_id": "e6f8ea48db86082ce8976e61e66d952e515f3b16",
+  "in_reply_to_id": 4403370603,
+  "pull_request_review_id": 5691115715,
+  "subject_type": "line",
+  "created_at": "2026-10-28T23:41:30Z",
+  "updated_at": "2026-10-28T23:41:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/416#discussion_r4407238485",
+  "body": "Fixed in a567031a: the paragraph is re-wrapped at the block's ~90 columns."
+ },
+ {
+  "id": 4407238673,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 572,
+  "original_line": 572,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 19,
+  "original_position": 19,
+  "commit_id": "4859af90656c7c4ee8561724de73198c2e5a6fbe",
+  "original_commit_id": "e6f8ea48db86082ce8976e61e66d952e515f3b16",
+  "in_reply_to_id": 4403370615,
+  "pull_request_review_id": 5691115945,
+  "subject_type": "line",
+  "created_at": "2026-10-28T23:41:32Z",
+  "updated_at": "2026-10-28T23:41:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/416#discussion_r4407238673",
+  "body": "Behaviour kept (out of scope per the spec), test added in 93f801b7: a pause issued before `firstMediaTimestamp` resolves is not taken off `durationMs` — the wall clock reports 1 s, the video clock 2400 ms. The test says so in its name, so a change there is a decision rather than an accident."
+ }
+]

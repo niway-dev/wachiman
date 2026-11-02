@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5641385671,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "156f15a3a492bb9d6550c2e7a00495c911e20511",
+  "submitted_at": "2026-10-25T03:45:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/371#pullrequestreview-5641385671",
+  "body": "**Claude review** of the whole pull request, at `156f15a`: all 4 files reviewed.\n\n0 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no issues. In both workers, `compose.clip` copies the pixels from the pooled canvas before the next frame is pulled, so reusing two canvases is safe. In `export-worker.ts` the copy is synchronous, and the `await` calls that follow it only touch the composed output. The GIF worker also grabs the output right after composing. The change adds no workspace-package value imports and nothing in `shared/**`.\n\n<sub>Claude Sonnet 5.5 · $0.05</sub>\n\n<!-- claude-review sha=156f15a3a492bb9d6550c2e7a00495c911e20511 -->"
+ }
+]

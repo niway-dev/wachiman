@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4421391723,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "CLA.md",
+  "line": 19,
+  "original_line": 15,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 19,
+  "original_position": 15,
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "original_commit_id": "800367db8b9d786618dae86ace6d3de55d26edf8",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5709315914,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:31:11Z",
+  "updated_at": "2026-10-30T07:31:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#discussion_r4421391723",
+  "body": "🟡❓ **Consider · question: Who holds the copyright that Niway would relicense: Cristian Sotomayor or Niway S.A.C.?**\n\nThe CLA's whole purpose is stated here: \"Kaipu has one owner who can decide how the whole project is licensed\", and CONTRIBUTING.md:38-39 repeats it (\"keep the whole project under one owner, including the right to change its license later\"). Every contributor license goes to **Niway S.A.C.** (CLA.md:5, §2). But README.md:284 names the copyright holder as **Cristian Sotomayor** personally, \"published by Niway S.A.C.\".\n\nIf Cristian holds the copyright in the bulk of the code and has no written assignment or exclusive license to Niway, Niway would hold relicensing rights only over contributors' code, not the core. The \"one owner\" premise would then fail. Is there an assignment or license from Cristian to Niway? If not, should the README notice name Niway, or should the CLA grant go to both parties? You flagged this in the PR body. I'm raising it on the CLA because that is the document whose promise depends on the answer."
+ },
+ {
+  "id": 4421391729,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "CLA.md",
+  "line": 29,
+  "original_line": 25,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 29,
+  "original_position": 25,
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "original_commit_id": "800367db8b9d786618dae86ace6d3de55d26edf8",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5709315914,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:31:11Z",
+  "updated_at": "2026-10-30T07:31:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#discussion_r4421391729",
+  "body": "🟡❓ **Consider · question: The CLA claims to cover issue attachments and any communication, but only PR authors ever sign it**\n\n§1 defines \"Contribution\" to include an \"issue attachment or any other channel\", and \"Submit\" covers \"any form of electronic or written communication\". CONTRIBUTING.md:9-11 says issues are how everyone outside the collaborator group contributes. The only way to accept the CLA is a comment on a first pull request (How to sign, CLA.md:89). So an issue reporter who attaches a patch or snippet has never agreed to these terms, and §2's relicensing grant does not reach their material. Do you want to narrow §1 to material submitted by someone who has signed? Or should CONTRIBUTING say that code pasted into issues is used only once its author has signed the CLA?"
+ },
+ {
+  "id": 4421391732,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/web-hono/src/components/legal/legal-config.ts",
+  "line": 1,
+  "original_line": 1,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 2,
+  "original_position": 2,
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "original_commit_id": "800367db8b9d786618dae86ace6d3de55d26edf8",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5709315914,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:31:11Z",
+  "updated_at": "2026-10-30T07:31:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#discussion_r4421391732",
+  "body": "🟡🧹 **Consider · cleanup: LEGAL_VERSION is not imported anywhere; the visible version is a hard-coded i18n string**\n\nNothing in the repository imports `LEGAL_VERSION`. legal-page.tsx, legal-links.tsx and signup-legal-notice.tsx import only `LEGAL_DOCUMENTS` and `LEGAL_CONTACT_EMAIL`. The \"Version 2026-10-30\" shown on `/legal/*` comes from the literal `updated` messages in packages/i18n/messages/en.json:1335 and es.json:1335 (legal-page.tsx:26). Bumping this constant changes nothing at runtime, and the next legal update has to change three places by hand. Either drop the constant, or build the `updated` message from it with an ICU `{version}` parameter so there is a single source of truth."
+ },
+ {
+  "id": 4421405466,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "CLA.md",
+  "line": 19,
+  "original_line": 15,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 19,
+  "original_position": 15,
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "original_commit_id": "800367db8b9d786618dae86ace6d3de55d26edf8",
+  "in_reply_to_id": 4421391723,
+  "pull_request_review_id": 5709333547,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:33:18Z",
+  "updated_at": "2026-10-30T07:33:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#discussion_r4421405466",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of @csdev19**\n\nOpen question for the owner, so the code is unchanged. Whether Cristian Sotomayor holds the copyright personally or Niway S.A.C. does, or whether there is an assignment between them, is a fact only the owner can settle. It is asked in the PR body and in chat. Depending on the answer, either the README notice names Niway or the CLA's grantee changes; I will update it then."
+ },
+ {
+  "id": 4421405756,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "CLA.md",
+  "line": 29,
+  "original_line": 25,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 29,
+  "original_position": 25,
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "original_commit_id": "800367db8b9d786618dae86ace6d3de55d26edf8",
+  "in_reply_to_id": 4421391729,
+  "pull_request_review_id": 5709333875,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:33:21Z",
+  "updated_at": "2026-10-30T07:33:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#discussion_r4421405756",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of @csdev19**\n\nFixed in 5881c399: the CLA now applies to Contributions submitted after accepting it. Material from someone who has not signed, such as a patch in an issue, is treated as a report only and not merged until its author signs. CONTRIBUTING.md says the same."
+ },
+ {
+  "id": 4421405974,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/web-hono/src/components/legal/legal-config.ts",
+  "line": 1,
+  "original_line": 1,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 2,
+  "original_position": 2,
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "original_commit_id": "800367db8b9d786618dae86ace6d3de55d26edf8",
+  "in_reply_to_id": 4421391732,
+  "pull_request_review_id": 5709334181,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:33:23Z",
+  "updated_at": "2026-10-30T07:33:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#discussion_r4421405974",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of @csdev19**\n\nKeeping it here: the constant is meant for open-work item 1 in `backlog/legal-documents.md` (store `termsVersion` on sign-up), so dropping it now would be undone by that work. Deriving the visible `updated` string from it through an ICU `{version}` parameter is a fair cleanup, but it is outside this PR's scope; noted as a follow-up for that item."
+ }
+]

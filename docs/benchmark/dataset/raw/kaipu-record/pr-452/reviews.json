@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5718477669,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4630a5cbf35ca3fa88d9d2ea8fa9ae5cff16e9b4",
+  "submitted_at": "2026-10-30T20:48:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/452#pullrequestreview-5718477669",
+  "body": "**Agent review** of the whole pull request, at `4630a5c`: all 30 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nNo findings. The new `recording:webcam-track-supported` channel takes no renderer input and returns a boolean worked out in main, so the preload boundary is not widened in any risky way. `src/shared` gains no value imports from workspace packages; it only drops the marker constant. Every `recordingCreate` call passes the now-required `kind` and `purpose`: the take's screen and webcam sessions in recorder-store, and the export in export-runner. The doc's claims about how main reads `kind` and `purpose` match recording-hub.ts:402. When finalize strands a take, `strand` now discards a webcam part that `placeWebcam` would also have discarded, so the two agree. `freeWebcamSiblingPath` stops salvage from silently overwriting a webcam file the save dialog never confirmed. `webcamTrackState` gives `describe()` and `probeWebcam` one shared rule. The cheaper refusals now run before hashing in `removeLocalCopy`, and a test covers that. The engine's stop path now releases devices in a `finally`, and it no longer closes a webcam source whose encoder failed. The new `webcamNotSaved` toast is in an else-branch after `webcamUnavailable`, so a take never shows both. The docs and i18n strings match the code.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 30 | 772 | 8 | reviewed | 8 | $0.37 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.37</sub>\n\n<!-- agent-review sha=4630a5cbf35ca3fa88d9d2ea8fa9ae5cff16e9b4 -->"
+ }
+]

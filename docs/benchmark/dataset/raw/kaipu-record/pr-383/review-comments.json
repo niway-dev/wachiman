@@ -1,0 +1,117 @@
+[
+ {
+  "id": 4383517235,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/components/recent-recordings.tsx",
+  "line": 42,
+  "original_line": 42,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 42,
+  "original_position": 42,
+  "commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "original_commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5660343253,
+  "subject_type": "line",
+  "created_at": "2026-10-26T23:15:16Z",
+  "updated_at": "2026-10-26T23:15:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/383#discussion_r4383517235",
+  "body": "**Note (other): New RecentRecordings component and hook have no test**\n\n`RecentRecordings` and `useRecentRecordings` add filtering (`kind === \"recording\"`), sorting, a limit of 4, a refresh on window focus, and the \"Today/Yesterday\" label logic. Nothing in this part tests any of that. Add a small test that covers an empty list (renders null), ordering, and navigation to `/library/:assetId`."
+ },
+ {
+  "id": 4383517243,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.ts",
+  "line": 409,
+  "original_line": 409,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 83,
+  "original_position": 83,
+  "commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "original_commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5660343253,
+  "subject_type": "line",
+  "created_at": "2026-10-26T23:15:16Z",
+  "updated_at": "2026-10-26T23:15:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/383#discussion_r4383517243",
+  "body": "**Note (other): Phase report accepts any finite number as the countdown value**\n\n`parsePhaseReport` accepts any finite number for `counting`. The value goes into the shade's URL and is drawn as the countdown number. The sender is our own renderer, so this is low risk. Still, the report crosses the IPC boundary, so consider restricting it to a small integer range (for example 0–10)."
+ },
+ {
+  "id": 4383517248,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/screenshots/overlay/frame-box.tsx",
+  "line": 161,
+  "original_line": 161,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 69,
+  "original_position": 69,
+  "commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "original_commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5660343253,
+  "subject_type": "line",
+  "created_at": "2026-10-26T23:15:16Z",
+  "updated_at": "2026-10-26T23:15:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/383#discussion_r4383517248",
+  "body": "**Should fix (correctness): Ratio lock stays active after switching to the capture intent**\n\n`locked = ratioValue(ratio)` is not gated on `recording`. The overlay can now switch intent in place with P/V. Suppose it opens to record with a remembered 16:9 area, so `ratio` is initialised to \"16:9\". The user then presses P to take a screenshot. `recording` becomes false and the RatioBar is hidden, but `locked` is still 16/9. Drawing a new box and resizing the box therefore stay locked to 16:9 in screenshot mode, and nothing in the UI shows the lock or lets the user turn it off. Use `const locked = recording ? ratioValue(ratio) : null`. Also consider resetting or refitting the frame when the intent flips."
+ },
+ {
+  "id": 4383517253,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/screenshots/overlay/selection-chrome.tsx",
+  "line": 159,
+  "original_line": 159,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 64,
+  "original_position": 64,
+  "commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "original_commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5660343253,
+  "subject_type": "line",
+  "created_at": "2026-10-26T23:15:16Z",
+  "updated_at": "2026-10-26T23:15:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/383#discussion_r4383517253",
+  "body": "**Note (correctness): Divider drawn even when the intent switch is absent**\n\n`SelectionToolbar` always renders the `barDivider` after `<IntentSwitch>`, but `IntentSwitch` returns null when `chrome.onIntent` is undefined (the field is optional). In that case a stray divider appears at the toolbar's left edge. `RecordWidget` guards its divider with `chrome.onIntent &&`. The toolbar should do the same. The only caller I found, capture-overlay.tsx, always sets `onIntent`, so this does not show today."
+ },
+ {
+  "id": 4383517260,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "packages/i18n/messages/en.json",
+  "line": 245,
+  "original_line": 245,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 11,
+  "original_position": 11,
+  "commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "original_commit_id": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5660343253,
+  "subject_type": "line",
+  "created_at": "2026-10-26T23:15:16Z",
+  "updated_at": "2026-10-26T23:15:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/383#discussion_r4383517260",
+  "body": "**Note (other): New record.* keys appear unused**\n\nKeys added under the record namespace (inputMicrophone, inputSystemAudio, inputCamera, inputOn, inputOff, chipMic, chipSystem, chipCamera, frameCaption, ratioFree) have no t() call in the renderer I could find in .tsx files (the overlay uses overlay.chipMic etc.). If they are really unused, drop them from en.json and es.json to avoid dead translations. Ignore if RecordingToggles (another part) builds them dynamically."
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6503024626,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-29T16:56:07Z",
+  "updated_at": "2026-10-29T16:56:07Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/428#issuecomment-6503024626",
+  "body": "> [!CAUTION]\n> **Risk: high.** Moves where a dev run keeps `auth.enc` (session token, `safeStorage`) and changes app startup order in `apps/kaipu-record/src/main/index.ts` (sensitive words: auth, session).\n\n\n| id | severity | outcome |\n|---|---|---|\n| S1 | nit | fixed in f3e96bcf — test hard-codes `<appData>/kaipu-record` and pins package.json name/productName |\n| S2 | nit | declined, follow-up — dev and prod can now run together on the shared vault: startup/quit `cleanupDragCopies` wipes `.kaipu/drag`; `recoverStrandedRecordings` could move the other app's `.part` after a 2+ min pause |\n| S3 | nit | declined, known limit — a custom vault picked in prod lives in prod's `preferences.json`; dev uses the default folder |\n| S4 | nit | fixed in f3e96bcf — comment no longer claims an unverified keychain entry name |\n\nRounds: 2 of 5. Round 1: Opus subagent (fresh context), 4 nits. Round 2: Codex CLI (different provider, read-only, account default model), APPROVE, no findings.\n\nVerdict for f3e96bcf7f9da4f8ac9485ffef6161284901996d (patch-id 0ea8b5cb683603d6d8cb46d048928e2672a42d45): approved, only nits remain.\n"
+ }
+]

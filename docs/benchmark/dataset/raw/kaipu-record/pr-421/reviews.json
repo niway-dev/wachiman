@@ -1,0 +1,98 @@
+[
+ {
+  "id": 5692391900,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3e2cbb79198dcc5b1c0b9356474ad04f92dd75ab",
+  "submitted_at": "2026-10-29T03:09:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#pullrequestreview-5692391900",
+  "body": "**Agent review** of the whole pull request, at `3e2cbb7`: all 3 files reviewed.\n\n3 finding(s): 2 to fix, 1 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe docs-only change has date inconsistencies. The theme-flash fix is called both the commit before the experiment and one day before it, and the release dates disagree with the changelogs. The stage 3 status also differs between the ADR and the backlog page. The technical-debt entry is consistent with the migration page.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 3 | 95 | 1 | reviewed | 4 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=3e2cbb79198dcc5b1c0b9356474ad04f92dd75ab -->"
+ },
+ {
+  "id": 5692449713,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "716627c255e3ce988c43dbcba28d5dead788dd76",
+  "submitted_at": "2026-10-29T03:19:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#pullrequestreview-5692449713",
+  "body": ""
+ },
+ {
+  "id": 5692450015,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "716627c255e3ce988c43dbcba28d5dead788dd76",
+  "submitted_at": "2026-10-29T03:19:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#pullrequestreview-5692450015",
+  "body": ""
+ },
+ {
+  "id": 5692450335,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "716627c255e3ce988c43dbcba28d5dead788dd76",
+  "submitted_at": "2026-10-29T03:19:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#pullrequestreview-5692450335",
+  "body": ""
+ },
+ {
+  "id": 5692463091,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "716627c255e3ce988c43dbcba28d5dead788dd76",
+  "submitted_at": "2026-10-29T03:21:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#pullrequestreview-5692463091",
+  "body": "**Agent review** of changes since `3e2cbb7`, at `716627c`: all 2 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nDocs-only change, and it resolves all three earlier threads. The ADR status and the backlog table now agree on stage 3, release dates follow the changelogs, and the theme-flash commit timing is consistent with line 260. I found nothing new to flag.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 2 | 33 | 1 | reviewed | 5 | $0.04 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.04</sub>\n\n<!-- agent-review sha=716627c255e3ce988c43dbcba28d5dead788dd76 -->"
+ },
+ {
+  "id": 5692463170,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "716627c255e3ce988c43dbcba28d5dead788dd76",
+  "submitted_at": "2026-10-29T03:21:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#pullrequestreview-5692463170",
+  "body": ""
+ },
+ {
+  "id": 5692463297,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "716627c255e3ce988c43dbcba28d5dead788dd76",
+  "submitted_at": "2026-10-29T03:21:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#pullrequestreview-5692463297",
+  "body": ""
+ },
+ {
+  "id": 5692463484,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "716627c255e3ce988c43dbcba28d5dead788dd76",
+  "submitted_at": "2026-10-29T03:21:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#pullrequestreview-5692463484",
+  "body": ""
+ }
+]

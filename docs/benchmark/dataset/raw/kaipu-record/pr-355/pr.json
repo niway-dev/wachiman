@@ -1,0 +1,29 @@
+{
+ "number": 355,
+ "title": "ci: add an advisory Claude review on pull requests",
+ "body": "Adds a Claude code review on pull requests. It copies the `claude -p` review kit that runs in csdev19/invisible-assistant (#223 there), from niway-dev/pr-review-engine.\n\nClaude Sonnet 5.5 reviews a pull request once when it is ready for review, and again when the owner comments `@claude review`; that second pass covers only what changed since the last reviewed commit. Findings arrive as **inline review comments** you can answer in their threads. **Nothing blocks a merge.** A pull request above 3,000 changed lines or 60 files, after dropping lockfiles and build output, gets a message on how to scope it, and Claude is not called.\n\n## What to review\n\n1. **`.github/workflows/claude-review.yml:52-61`: who can start a run.** This repository is public. Decide whether these conditions keep strangers out:\n   - fork PRs are skipped, and they get no secrets anyway;\n   - Dependabot and `release-please--*` PRs are skipped;\n   - only an `@claude` comment by the `OWNER` starts the on-demand job, which also refuses a fork PR before checkout.\n2. **`scripts/claude-review.ts`, `openBotThreads`: untrusted text.** Anyone can reply in a review thread on a public repository. Only `OWNER`, `MEMBER` and `COLLABORATOR` replies are handed to Claude. Check that the filter is the only path for replies to reach the prompt.\n3. **`.github/claude-review.md`: the review focus.** These are Kaipu's rules as Claude will read them: the Electron boundary, `src/shared` value imports, package import rules, the web proxy, no install scripts, docs. Decide whether anything is missing or wrong.\n4. **ADR 0028, decision 6, and its non-goals: the trust model.** It holds while you are the only collaborator.\n\n**Safe to skim:**\n- `scripts/claude-review.ts` and its test are a byte-for-byte copy of the kit's, already reviewed and run in invisible-assistant #223.\n- The index row and the CI doc note.\n\n## Checks\n\n- `bun run check-workflows`: the existing checks, plus `bun test ./scripts/` (29 pass, the kit's tests). It is now part of `verify`.\n- `bun run verify` passed (pre-push hook).\n- `bunx tsc -p scripts/tsconfig.json`: no errors.\n\n## Manual verification\n\n1. **Add the repository secret `ANTHROPIC_API_KEY`** (Settings → Secrets and variables → Actions → **Repository secrets**, not an environment):\n   ```\n   gh secret set ANTHROPIC_API_KEY -R niway-dev/kaipu-record\n   ```\n   A separate key with a spend limit in the Console is safer for a public repository.\n2. Mark this PR ready for review. The `Claude review` job should post a GitHub review on this PR.\n3. After merge: comment `@claude review` on any open PR to try the on-demand job. It runs from `main`.\n\n## Not verified live\n\n- Nothing has run in this repository yet: the secret does not exist.\n- An inline review comment and a thread reply have not been seen live in any repository. The four runs on invisible-assistant #223 found nothing to comment on a diff line.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-20T21:32:18Z",
+ "updated_at": "2026-10-20T23:14:15Z",
+ "closed_at": "2026-10-20T23:14:07Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/355",
+ "base": {
+  "ref": "main",
+  "sha": "81863542f2120e32f95b5fe0df72ea0c43a2ab5d"
+ },
+ "head": {
+  "ref": "ci/claude-pr-review",
+  "sha": "988972bcfbef9071b06deb46a83dade45fa06060",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 8,
+ "additions": 1361,
+ "deletions": 1,
+ "labels": []
+}

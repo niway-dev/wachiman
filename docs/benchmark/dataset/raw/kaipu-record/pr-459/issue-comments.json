@@ -1,0 +1,24 @@
+[
+ {
+  "id": 6533746311,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-30T21:23:14Z",
+  "updated_at": "2026-10-30T21:23:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#issuecomment-6533746311",
+  "body": "**Restacked on #456.** The base is now `feature/niw2-586-background-toasts` (#456, the top of the Prepare stack: #448 ← #458 ← #455 ← #457 ← #456). I merged that branch into this one in 13b7ff5d, with no force push.\n\n### Conflicts and how they were resolved\nEverything from both sides is kept.\n\n- **`video-card.tsx`**: an original shows the MASTER · FULL QUALITY tag (#457) in place of the kind badge. The capture pill stays hidden for an imported video (#447).\n- **`library-page.tsx`**: the page now uses both the `prepare` and `backgroundCopy` translators. Header layout: title + \"✓ N copy ready\" chip on the left (subtitle below), with Sync · \"Prepare a video\" · \"Import a video\" (primary) on the right.\n- **`en.json` / `es.json`**: #456 removed the unused `prepare.*` keys, and that stays. The drop-zone keys and `prepareAVideo` from #459 are added back on top. I checked the code: none of the removed keys are referenced.\n- **`library-page.test.tsx`** (both branches added it): now one file built on #456's mocked library. It covers Import (button, drop zone, drop anywhere), \"Prepare a video\", the ready-copies chip and outline, and a new check of the header order (chip by the title, then Prepare, then Import).\n- **`video-row.test.tsx`, `library-detail-page.test.tsx`**: the \"Imported\" tests now sit next to the Master / Send to… tests.\n- **Docs**: the backlog index keeps both rows (background copies, drop into Prepare) plus the import and supporter-license rows, and the sidebar keeps both entries.\n\n`bun run verify` passes locally: 317 test files, 3086 tests. I have not run the app in Electron.\n\n### Still carries #447\nThis branch still contains #447's commits (`feature/niw2-579-import-video`, Import a video into the Library, based on `main`). Either merge #447 into the stack before #459, or review it as part of this PR. Otherwise the diff against the new base includes the import feature.\n\n### How to test it yourself\n1. Check out `feature/niw2-587-prepare-drop-zone`, run `bun install` and `bun run rebuild:native`, then start the desktop app.\n2. Library: the header shows the title, then Sync, Prepare a video and Import a video. Finish a copy from Prepare and come back: the \"✓ 1 copy ready\" chip sits next to the title.\n3. Originals show MASTER · FULL QUALITY and a Send to… button. An imported video shows \"Imported\" and no capture pill.\n4. Click \"Prepare a video\": Prepare opens with the drop zone. Drop an MP4 there: it is imported, and Prepare opens on it.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n"
+ },
+ {
+  "id": 6546288588,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T16:47:47Z",
+  "updated_at": "2026-10-31T16:47:47Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/459#issuecomment-6546288588",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nMerged `main` up the stack. Two things changed in this PR's import code, not just conflict markers:\n\n- a8c1679f: main's vault no longer creates a record for an id with neither a record nor media (ADR 0035), so every import failed with `copy-failed`. The import now reserves its stem with `vault.reserve`, places the copy without replacing anything, and gives back only what it made. A clash now gets ` (2)`, the suffix every capture uses, instead of `-2`.\n- 4ab94fde (merge): the import handlers run inside the workspace gate and under one vault lease. The preload sends the workspace stamp (`scopedInvoke`), and the dialog stays outside the gate so a workspace switch never waits on the user. The Import dialog is refused before it opens while \"Check and fix files\" runs.\n\nNot done here: imported items keep the `imported-<timestamp>` stem instead of a title-based name.\n"
+ }
+]

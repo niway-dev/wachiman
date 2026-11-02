@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5718563881,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a23f20165c4133c40838a2ce0911a8bf7f2a7083",
+  "submitted_at": "2026-10-30T20:58:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/455#pullrequestreview-5718563881",
+  "body": "**Agent review** of the whole pull request, at `a23f201`: all 13 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis PR replaces the inline \\\"Where is it going?\\\" panel with a \\\"Your video is ready\\\" card in the top-right status-card stack. The card is rendered through `StatusCardPortal`. `StatusCard` gains three optional props: `wide`, `plainIcon` and `badge`. `StatusCardActions` gains `equal`, and `StatusCardButton` gains `title`. All of these default to the old behaviour, so the cards that already use them are unaffected.\\n\\nWhat I checked:\\n- **Page logic:** the conditions for showing the card are unchanged, and leaving the page (including through Edit first) unmounts it.\\n- **Tests:** the new unit and page tests cover the chips, More places, Edit first, Open/✕ and the case with no timer.\\n- **Messages:** the `postRecording` keys match in en and es, and nothing still references the removed `prepare.panel*` keys.\\n- **Docs:** prepare-screen.md matches the new behaviour, and the Settings label it quotes exists.\\n- **Dependencies:** `@kaipu/brand` is already a dependency of the desktop app.\\n\\nI found no defects. There is one optional point: the \\\"Open\\\" button only closes the card, and only its tooltip says so.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 13 | 850 | 4 | reviewed | 9 | $0.27 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.27</sub>\n\n<!-- agent-review sha=a23f20165c4133c40838a2ce0911a8bf7f2a7083 -->"
+ },
+ {
+  "id": 5722036041,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "15972469900608d2de558910f76411c4b9069fe3",
+  "submitted_at": "2026-10-31T08:45:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/455#pullrequestreview-5722036041",
+  "body": ""
+ }
+]

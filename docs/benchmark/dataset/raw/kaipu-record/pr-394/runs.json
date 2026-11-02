@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:15:01Z",
+  "databaseId": 40576336518,
+  "displayTitle": "fix(ci): drop the scripts test step that has no tests left",
+  "event": "pull_request",
+  "headBranch": "fix/verify-no-script-tests",
+  "headSha": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:15:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40576336518",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:13:41Z",
+  "databaseId": 40576136003,
+  "displayTitle": "fix(ci): drop the scripts test step that has no tests left",
+  "event": "pull_request",
+  "headBranch": "fix/verify-no-script-tests",
+  "headSha": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:14:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40576136003",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:13:41Z",
+  "databaseId": 40576134987,
+  "displayTitle": "fix(ci): drop the scripts test step that has no tests left",
+  "event": "pull_request",
+  "headBranch": "fix/verify-no-script-tests",
+  "headSha": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:13:58Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40576134987",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6486969256,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-29T03:20:57Z",
+  "updated_at": "2026-10-29T03:20:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/421#issuecomment-6486969256",
+  "body": "/wachi review\n\nThe three findings are answered in their threads (ae94f097, e2aa5a22, 716627c2). Please review the new head."
+ }
+]

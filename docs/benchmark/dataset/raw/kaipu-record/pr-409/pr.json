@@ -1,0 +1,29 @@
+{
+ "number": 409,
+ "title": "chore(desktop): log countdown ticks and every cancel of a pending take",
+ "body": "## Summary\n\nSome frame-mode takes hang right after `renderer: acquiring during countdown`, and the log then says nothing: no countdown end, no `screen getUserMedia resolved`, no error. The next click starts normally, so the recorder is back to idle. That rules out a dead renderer. Either something cancelled the take silently, or the main window's renderer stalled. Today a cancel prints nothing, so the log cannot tell which.\n\nThe owner's logs from 2026-10-27 and 2026-10-28 point to one pattern, but it is not confirmed:\n- The hung takes started from the tray or shortcut (`start clicked (last mode)`), usually with the main window hidden.\n- The working ones started from the window.\n- macOS `task_policy_set` errors appear at the moment of the hang.\n\nThis PR changes no behavior. It adds `[record-timing]` lines, so the next hang names its cause:\n\n- **Renderer**\n  - one line per countdown second (`countdown tick (N left)`), which works as a heartbeat;\n  - `cancelled during the countdown` and `cancelled while starting`;\n  - `command from main: <command>`.\n- **Main**\n  - which surface sent a stop: Esc, the stop shortcut, the tray menu or the control bar;\n  - `countdown region abandoned (<reason>)`, either the 5 s TTL or the recorder going idle;\n  - `main window unresponsive` and `responsive again`, which print even outside a timeline.\n\n## Checks\n\n- `bun run check-types`: pass.\n- Main and recording unit tests: 1080 pass.\n- Pre-push `verify-local`: pass.\n\n## How to test it yourself\n\n1. Pull this branch, restart `bun run dev`.\n2. Start a frame take from the Record page and let it record a few seconds.\n   - Each second of the countdown prints `countdown tick`.\n   - Marks print only inside an open timeline. A stop sent after `status recording` closed the start's timeline stays quiet. The new lines target the countdown and the starting phase, where a timeline is always open.\n3. Hide the main window. Start a frame take from the tray or the record shortcut, and repeat until one hangs.\n4. Paste the terminal from the click to a few seconds after the hang. Read the last line:\n   - `countdown tick` lines that stop: the renderer stalled.\n   - A cancel line or a stop source: something cancelled the take, and the line names it.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T06:56:58Z",
+ "updated_at": "2026-10-28T15:24:01Z",
+ "closed_at": "2026-10-28T15:23:58Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/409",
+ "base": {
+  "ref": "main",
+  "sha": "75ace2aecda10f028b415ffbc3503b43c2a8dd0e"
+ },
+ "head": {
+  "ref": "chore/record-start-diagnostics",
+  "sha": "c32f88914b3e270fdae77762c24c4194298282a1",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 3,
+ "additions": 25,
+ "deletions": 5,
+ "labels": []
+}

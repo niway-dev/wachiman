@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4438647195,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/destinations-panel.tsx",
+  "line": 91,
+  "original_line": 91,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 91,
+  "original_position": 91,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731779206,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:24:34Z",
+  "updated_at": "2026-11-02T03:24:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/23#discussion_r4438647195",
+  "body": "👮 **Wachiman** · 🟠🐛 **Fix · bug: A failed probe leaves every non-archive card on \"…\" forever (confidence high)**\n\nThe panel takes only `probe` and treats `null` as \"not read yet\", so it shows `…` (line 91). The page passes `useSourceProbe(...).probe` (library-detail-page.tsx:142). That hook returns `{ status: \"error\", probe: null }` when the file can't be read or the probe is unusable, which includes a duration of 0 (use-prepare-copy.ts:29-31, 55-57). On a recording like that, all six destination cards except Archive show the loading ellipsis for good, and nothing tells the user the estimate is unavailable. The heavy-to-send text next to it already handles this case with `heavyBannerBodyNoEstimate`. Fix: pass the probe status (or an `estimateUnavailable` flag) and drop the size line, or show a \"no estimate\" label, when the status is `error`.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438647201,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/master-copies-panel.test.tsx",
+  "line": 100,
+  "original_line": 100,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 102,
+  "original_position": 102,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731779206,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:24:34Z",
+  "updated_at": "2026-11-02T03:24:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/23#discussion_r4438647201",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: The test overwrites the shared `startFileDrag` stub and never restores it (confidence high)**\n\n`window.electronAPI.startFileDrag = startFileDrag` replaces the stub that test/setup.ts:109 installs once per file, and the test never puts it back. Every later test in this file runs against the leftover `vi.fn()`. The sibling test does `vi.spyOn(window.electronAPI, \"startFileDrag\")` and then `mockRestore()` (export-status-cards.test.tsx:143,152). Using that pattern here would keep the tests independent.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438647212,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/master-copies-panel.test.tsx",
+  "line": 140,
+  "original_line": 140,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 143,
+  "original_position": 143,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731779206,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:24:34Z",
+  "updated_at": "2026-11-02T03:24:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/23#discussion_r4438647212",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: The \"Open in Export → shows only where…\" test never checks the case where the button should be absent (confidence high)**\n\nThe test's name promises the button appears only when there is an export screen to open. It only renders with `onOpenExport` set and clicks the button. It never renders without the prop to check that the button is missing, which is the case the page relies on for non-preparable items (library-detail-page.tsx:513). Add a render with no `onOpenExport` and assert `queryByRole(\"button\", { name: \"Open in Export →\" })` is null. Separately, every render passes `probe`, so the \"only the file size\" fallback in `factsOf` has no test either.\n\n<!-- wachi:finding -->"
+ }
+]

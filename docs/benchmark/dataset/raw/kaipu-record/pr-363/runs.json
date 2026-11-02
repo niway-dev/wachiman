@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T23:02:50Z",
+  "databaseId": 39690778074,
+  "displayTitle": "fix(deps): move @kaipu/domain to dependencies where runtime code needs it",
+  "event": "pull_request",
+  "headBranch": "chore/dependency-manifest-hygiene",
+  "headSha": "fedb69ea9b913db7a05e818f43250f7e8f77b55f",
+  "status": "completed",
+  "updatedAt": "2026-10-21T23:02:58Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39690778074",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T17:54:41Z",
+  "databaseId": 39647980485,
+  "displayTitle": "fix(deps): move @kaipu/domain to dependencies where runtime code needs it",
+  "event": "pull_request",
+  "headBranch": "chore/dependency-manifest-hygiene",
+  "headSha": "fedb69ea9b913db7a05e818f43250f7e8f77b55f",
+  "status": "completed",
+  "updatedAt": "2026-10-21T17:55:00Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39647980485",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T17:54:41Z",
+  "databaseId": 39647980468,
+  "displayTitle": "fix(deps): move @kaipu/domain to dependencies where runtime code needs it",
+  "event": "pull_request",
+  "headBranch": "chore/dependency-manifest-hygiene",
+  "headSha": "fedb69ea9b913db7a05e818f43250f7e8f77b55f",
+  "status": "completed",
+  "updatedAt": "2026-10-21T17:55:03Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39647980468",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T17:54:35Z",
+  "databaseId": 39647966120,
+  "displayTitle": "fix(deps): move @kaipu/domain to dependencies where runtime code needs it",
+  "event": "pull_request",
+  "headBranch": "chore/dependency-manifest-hygiene",
+  "headSha": "fedb69ea9b913db7a05e818f43250f7e8f77b55f",
+  "status": "completed",
+  "updatedAt": "2026-10-21T17:54:41Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39647966120",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T17:42:47Z",
+  "databaseId": 39646223578,
+  "displayTitle": "fix(deps): move @kaipu/domain to dependencies where runtime code needs it",
+  "event": "pull_request",
+  "headBranch": "chore/dependency-manifest-hygiene",
+  "headSha": "fedb69ea9b913db7a05e818f43250f7e8f77b55f",
+  "status": "completed",
+  "updatedAt": "2026-10-21T17:43:04Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39646223578",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

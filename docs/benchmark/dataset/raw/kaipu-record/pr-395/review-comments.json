@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4393629596,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/desktop/recording-pipeline.mdx",
+  "line": 393,
+  "original_line": 393,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 23,
+  "original_position": 23,
+  "commit_id": "0c97034ec82435cc9c9dce95b9ef7bc6b7b93aca",
+  "original_commit_id": "2212b42faccb008af785ca01ba5c3d094191b262",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5673663022,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:14:14Z",
+  "updated_at": "2026-10-27T20:14:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/395#discussion_r4393629596",
+  "body": "🟡📝 **Consider · docs: New paragraph opens with an orphaned reference and mixes languages**\n\nThe surrounding section is written in Spanish, but the added paragraph is in English. It also starts with 'it would otherwise keep that \"Saving…\"', which points at nothing in the preceding text if the earlier Saving description is not directly above. Write it in the section's language and make it self-contained."
+ },
+ {
+  "id": 4393629605,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.ts",
+  "line": 735,
+  "original_line": 709,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 166,
+  "original_position": 125,
+  "commit_id": "0c97034ec82435cc9c9dce95b9ef7bc6b7b93aca",
+  "original_commit_id": "2212b42faccb008af785ca01ba5c3d094191b262",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5673663022,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:14:14Z",
+  "updated_at": "2026-10-27T20:14:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/395#discussion_r4393629605",
+  "body": "🟡🐛 **Consider · bug: Countdown length is read from two places that can briefly disagree**\n\nMain decides whether to draw the shade from getAppSettings(), while the renderer store decides whether to count from its own cached copy (primed async, updated by broadcast). If the two differ at the moment of a start, for example right after a change, main draws no shade while the renderer counts, or main draws a shade while the renderer skips the countdown. The 'starting' report then clears it, so it is cosmetic and short-lived. Passing the length from the renderer in the start request would make the two agree."
+ },
+ {
+  "id": 4393692184,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/desktop/recording-pipeline.mdx",
+  "line": 393,
+  "original_line": 393,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 23,
+  "original_position": 23,
+  "commit_id": "0c97034ec82435cc9c9dce95b9ef7bc6b7b93aca",
+  "original_commit_id": "2212b42faccb008af785ca01ba5c3d094191b262",
+  "in_reply_to_id": 4393629596,
+  "pull_request_review_id": 5673743784,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:20:48Z",
+  "updated_at": "2026-10-27T20:20:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/395#discussion_r4393692184",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian**\n\nKeeping it as is. Language: CLAUDE.md (\"Documentation\" → \"Language\") says doc bodies are English and new Spanish text is not added; the Spanish sections are legacy debt to translate, not a style to match. Reference: the paragraph sits directly under the one that describes the bar's \"Saving…\" state on stop, so \"that 'Saving…'\" points at the text right above it."
+ },
+ {
+  "id": 4393692492,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.ts",
+  "line": 735,
+  "original_line": 709,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 166,
+  "original_position": 125,
+  "commit_id": "0c97034ec82435cc9c9dce95b9ef7bc6b7b93aca",
+  "original_commit_id": "2212b42faccb008af785ca01ba5c3d094191b262",
+  "in_reply_to_id": 4393629605,
+  "pull_request_review_id": 5673744151,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:20:50Z",
+  "updated_at": "2026-10-27T20:20:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/395#discussion_r4393692492",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian**\n\nFixed in 0c97034e, the other way round from the suggestion: the hub now follows the recorder. If the region was prepared with the countdown off and the recorder still reports `counting`, the hub opens the countdown shade on that value, and the recorder's `recordingCountdownVisible` wait holds until it is on screen. That was the bad case (an invisible countdown with Esc held). The reverse case (main draws a \"3\", the recorder skips) is cleared by the `starting` report, as you noted. Covered by \"draws the countdown the recorder runs when its length disagrees with the region's\", which failed before the fix."
+ }
+]

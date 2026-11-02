@@ -1,0 +1,29 @@
+{
+ "number": 421,
+ "title": "docs(stylex): record where the migration stands on 2026-10-28",
+ "body": "## What changed\n\n- **ADR 0008 status**: stages 0–2b shipped (PRs #212–#227); web roadmap, auth and dashboard on StyleX (web-v0.11.0); stages 3–4 planned. The line still said \"2b–4 planned\".\n- **`backlog/stylex-migration.md`**: status note updated, and a new dated section \"Where it stands (2026-10-28)\" with the per-surface table (what is on StyleX, what is still on CSS Modules or Tailwind), the four-week bundle comparison at `78f6deac` vs `cf478229` and why it is not a migration measurement, the production stylesheet table for kaipu.app, and the two claims the migration does not support (the first-paint fix predates it; \"performance went up\" has no controlled measurement).\n- **`backlog/technical-debt.md`**: new entry, the web ships one StyleX sheet (973 rules, 56 KB raw, 11 KB gzip) for every route.\n\n## What to review\n\nThe numbers. They were measured today, one run each, on the author's machine; the ledger says so. The StyleX sheet claim (\"every route loads every atomic\") comes from the PostCSS scanner's behaviour and from the built sheet's contents; it was not verified by splitting it.\n\n## Not in this PR\n\nNo code. The desktop renderer JS nearly doubling between the two commits is recorded as unexplained, not investigated.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-29T03:08:32Z",
+ "updated_at": "2026-10-29T03:24:10Z",
+ "closed_at": "2026-10-29T03:24:07Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/421",
+ "base": {
+  "ref": "main",
+  "sha": "cf478229368d6328e7081077c5cbe00e3f976489"
+ },
+ "head": {
+  "ref": "docs/stylex-state-2026-10-28",
+  "sha": "716627c255e3ce988c43dbcba28d5dead788dd76",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 3,
+ "additions": 84,
+ "deletions": 12,
+ "labels": []
+}

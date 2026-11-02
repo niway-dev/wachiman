@@ -1,0 +1,29 @@
+{
+ "number": 425,
+ "title": "fix(desktop): the capture overlay hears keys from the commit that paints it",
+ "body": "Fixes https://linear.app/niway/issue/NIW2-557. Failing run: https://github.com/niway-dev/kaipu-record/actions/runs/40831253017 (`Release Desktop`, `desktop-v0.15.0`).\n\n## What failed\n\n`capture-overlay.test.tsx › Enter starts recording the area and remembers it`: the test pressed Enter the moment the frame box was in the DOM and `answer` was never called (`Number of calls: 0`, 10 s wait). The identical tree had passed `PR checks` on the release PR 40 minutes earlier.\n\n## Why\n\n`FrameBox` (and `ScreenCard`, `WindowPicker`, `CaptureOverlay`) attached its window `keydown` listener in `useEffect`. React runs passive effects **a task after** the commit that paints the element. A waiting query (`findByTestId`) resolves from a `MutationObserver` microtask, i.e. right after the commit and before that task, so Enter can fire while nobody listens. Nothing retries the key, so the answer never arrives. The gap only opens when React's scheduler yields mid-render (5 ms slice), which happens more in one process running the whole suite (`bun run verify` at the tag) than in the three PR shards.\n\nReproduced: a probe pressing Enter right after `findByTestId` 150 times recorded one press with a single keydown listener registered, and exactly that repeat failed like CI.\n\n## Fix\n\nThe four keydown listeners attach in `useLayoutEffect`: same commit as the paint, so a box that says \"Enter to capture\" always hears Enter. In the product this also closes a (tiny) window where a key pressed as the overlay appeared was dropped.\n\nA regression test observes the DOM with a `MutationObserver` and expects both listeners to exist already. It fails on the old code (`expected 1 to be 2`) and passes now. 601 probe repeats after the fix under CPU load: 0 drops.\n\n## Verification\n\n- `vitest run` for the desktop app: 305 files passed; the only failure is the pre-existing `click-hook-native-patch.test.ts`, which needs `bun run rebuild:native` locally and is unrelated.\n- `check-types`, `oxlint`, `oxfmt --check`: clean.\n\n## How to test it yourself\n\n1. `bun run dev` in `apps/kaipu-record`, open the capture overlay (frame mode) and press Enter as soon as the box appears; repeat a few times. The capture (or recording, with V) always starts.\n2. In `apps/kaipu-record`, run `bun run test -- src/renderer/src/features/screenshots/overlay` and see 160 tests pass, including \"the frame box hears Enter as soon as it is in the DOM\".\n3. Optional, to see the test catch the bug: change `useLayoutEffect` back to `useEffect` in `frame-box.tsx` and run step 2 again; the new test fails with `expected 1 to be 2`.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-29T07:18:48Z",
+ "updated_at": "2026-10-29T07:19:37Z",
+ "closed_at": "2026-10-29T07:19:32Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/425",
+ "base": {
+  "ref": "main",
+  "sha": "95af96e9e07ca5d68f76064fc187f7c3227bfdfe"
+ },
+ "head": {
+  "ref": "fix/overlay-enter-listener-race",
+  "sha": "41f0e4b9ba32dc9bb8497f2583e6c01b87ecd68a",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 5,
+ "additions": 45,
+ "deletions": 8,
+ "labels": []
+}

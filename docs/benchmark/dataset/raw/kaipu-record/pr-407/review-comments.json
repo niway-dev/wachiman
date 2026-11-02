@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4397277387,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/camera-settings/camera-settings-fields.tsx",
+  "line": null,
+  "original_line": 341,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 58,
+  "commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "original_commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5678289458,
+  "subject_type": "line",
+  "created_at": "2026-10-28T05:42:07Z",
+  "updated_at": "2026-10-28T05:42:07Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#discussion_r4397277387",
+  "body": "🟡🧹 **Consider · cleanup: Dead compact handling left in the Size block**\n\nThe Size block is now rendered only when `!compact`, so `compact={compact}` on this RadioChips is always false and can be dropped. The `sizes`, `valueText` and `onSliderKey` values (lines 276-308) are also still computed on every compact render though nothing uses them there. If the CSS still has `.fields[data-compact]` rules for the slider, ticks or range, those are dead too."
+ },
+ {
+  "id": 4397287934,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/camera-settings/camera-settings-fields.tsx",
+  "line": null,
+  "original_line": 341,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 58,
+  "commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "original_commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "in_reply_to_id": 4397277387,
+  "pull_request_review_id": 5678303691,
+  "subject_type": "line",
+  "created_at": "2026-10-28T05:43:33Z",
+  "updated_at": "2026-10-28T05:43:33Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#discussion_r4397287934",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of csdev19**\n\nFixed in 9f1e845e: the Size chips now pass `compact={false}`. Keeping `sizes`, `valueText` and `onSliderKey` where they are. They are a few string lookups per render, and moving them into the `!compact` branch adds churn for no measurable gain. None of the `[data-compact]` CSS rules are dead: `.chips[data-compact] .chip` still styles the Shape chips, and the slider, ticks and range have no compact rules.\n"
+ },
+ {
+  "id": 4397296216,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/camera-settings/camera-settings-fields.tsx",
+  "line": null,
+  "original_line": 341,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 58,
+  "commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "original_commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "in_reply_to_id": 4397277387,
+  "pull_request_review_id": 5678314823,
+  "subject_type": "line",
+  "created_at": "2026-10-28T05:44:43Z",
+  "updated_at": "2026-10-28T05:44:44Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#discussion_r4397296216",
+  "body": "**Looks addressed** at `9f1e845`: The Size chips no longer pass `compact={compact}`. They pass the literal `false` (line 341), which fits because `RadioChips` declares `compact: boolean` as required (line 46). I agree with leaving `sizes`, `valueText` and `onSliderKey` where they are. The `[data-compact]` CSS is still used: `.chips[data-compact] .chip` styles the Shape chips (css line 53)."
+ },
+ {
+  "id": 4397388501,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/camera-settings/camera-settings-fields.tsx",
+  "line": null,
+  "original_line": 341,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 58,
+  "commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "original_commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "in_reply_to_id": 4397277387,
+  "pull_request_review_id": 5678435416,
+  "subject_type": "line",
+  "created_at": "2026-10-28T05:57:58Z",
+  "updated_at": "2026-10-28T05:57:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#discussion_r4397388501",
+  "body": "**Looks addressed** at `69fdf57`: Thanks. Passing `compact={false}` on the Size chips in 9f1e845e covers it. Your reasoning for keeping the cheap `sizes`, `valueText` and `onSliderKey` computations and the `[data-compact]` CSS rules is fine."
+ }
+]

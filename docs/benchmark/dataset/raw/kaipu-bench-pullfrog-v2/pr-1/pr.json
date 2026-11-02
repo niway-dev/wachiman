@@ -1,0 +1,29 @@
+{
+ "number": 1,
+ "title": "[setup] register kaipu-record workflows so they can be disabled",
+ "body": "Setup only, closed right away. Opening a pull request registers the replayed commits' own workflows (`agent-review.yml`, `pr-checks.yml`); they are then disabled so they never run once the reviewer's secret exists. The benchmark PRs are opened after the reviewer app is installed.",
+ "state": "closed",
+ "merged": false,
+ "draft": true,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-01T23:20:34Z",
+ "updated_at": "2026-11-01T23:20:42Z",
+ "closed_at": "2026-11-01T23:20:42Z",
+ "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/1",
+ "base": {
+  "ref": "replay/pr-465/base",
+  "sha": "13b7ff5da65f3d0b59d0542132babf328ce373b3"
+ },
+ "head": {
+  "ref": "replay/pr-465/head",
+  "sha": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "repo": "niway-dev/kaipu-bench-pullfrog-v2"
+ },
+ "changed_files": 14,
+ "additions": 1056,
+ "deletions": 559,
+ "labels": []
+}

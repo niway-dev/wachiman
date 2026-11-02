@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5718520706,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b0f9062ba52da42af0022693ac3b9e908e0a4828",
+  "submitted_at": "2026-10-30T20:53:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/453#pullrequestreview-5718520706",
+  "body": "**Agent review** of the whole pull request, at `b0f9062`: all 3 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change does what it says: the camera bubble no longer has a border at rest, and its hover outline and controls are hidden as soon as a take is pending (the countdown). Before, they were hidden only once the take was active. I found nothing to fix in the three files.\n\nHow I checked it against the main process:\n- **Pending reaches the bubble window.** `setPending` sends the state to every window (`recording-hub.ts:516-521`), and `publicActivity` adds `pending: true` while no recording is active (`recording-hub.ts:239`).\n- **No flash of the controls when the take starts.** `recordingStart` marks the recording active (`recording-hub.ts:641`) before it calls `setPending(false)` (`recording-hub.ts:650`). The bubble window therefore never gets a state that is neither pending nor active between the countdown and the take.\n- **Tests.** The new component test covers a cancelled countdown: the controls come back while the pointer is still on the bubble. The stylesheet tests read the real CSS file. They find the file with `new URL(import.meta.url).pathname`, as `one-owner.test.ts` and `preview-stage-sizing.test.ts` already do.\n- **Comments.** The updated comments in the component and the stylesheet match the code.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 3 | 80 | 4 | reviewed | 10 | $0.19 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.19</sub>\n\n<!-- agent-review sha=b0f9062ba52da42af0022693ac3b9e908e0a4828 -->"
+ }
+]

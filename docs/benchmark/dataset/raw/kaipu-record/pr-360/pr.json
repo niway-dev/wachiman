@@ -1,0 +1,29 @@
+{
+ "number": 360,
+ "title": "fix(desktop): screenshot editor save races (audit SHOT-B1/B4/B8/B9)",
+ "body": "## What was broken\n\nThe screenshot editor had several save races (audit lens B, plan 05):\n\n- **SHOT-B1**: an edit made while a save was in flight was marked clean when the save resolved, so the debounced autosave and the leave-time autosave both skipped it and the edit was lost. A title typed during the save was also overwritten by the saved title.\n- **SHOT-B4**: after an auto-save on open plus a manual \"Save copy\", Discard deleted the user's copy and kept the auto-saved item.\n- **SHOT-B8**: if the image loaded before settings resolved, auto-save/auto-copy never ran.\n- **SHOT-B9**: Copy/Save/Export clicks during another export were silently dropped (a `busy` ref), and toast Retry buttons still ran after the editor unmounted, re-saving a discarded capture with the wrong export scale.\n\n## What changed\n\nAll in `apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.tsx`:\n\n- A promise queue (`enqueue`) replaces the `busy` ref. Clicks wait their turn instead of being dropped, and a double click on a fresh shot becomes an overwrite of the first save (`bindToSaved`) instead of a duplicate item. The autosave's poll-for-lock loop is gone, since the queue does the waiting.\n- A `sceneRevision` ref, bumped by the dirty effect, lets `persist` clear `dirty` only if no edit landed during the save. The title is adopted only if the field did not change meanwhile.\n- A `latest` ref (scene + title draft, refreshed every render) lets queued jobs export the current scene rather than the one from the render that queued them.\n- An `alive` ref makes queued jobs and toast Retry no-ops after unmount.\n- `autoSavedId` is the only id Discard may delete; any manual save clears it, so the Discard button disappears.\n- The auto-actions effect also depends on `actionsReady`, so it fires when the settings arrive after the image.\n\nNew test file `screenshot-editor-page.test.tsx` (8 tests) covers each of these.\n\n## Behaviour changes to note\n\n1. After any manual save the Discard button disappears (Discard only ever deletes the auto-saved item).\n2. A click during a running export waits instead of being dropped. A hung IPC call now blocks later clicks.\n\n## Plan deviation: SHOT-B2 not done\n\nThe plan (written 6 days ago) fixes \"Keep editing\" discarding a capture that arrives while the editor is dirty. Since `915a2140` (save every capture and open Capture in the editor) main saves every capture to the vault first and the editor opens it by id, so the incoming capture is already durable. A dirty editor bound to a vault item autosaves and proceeds instead of showing the dialog. The in-memory fallback (vault write failed in main) is the only remaining path and is rare. No dialog or i18n change was made.\n\nThe plan's tests that relied on a `screenshotSave` setting were adapted: that setting was removed in the same commit, so \"manual\" tests use a pasted image (no auto actions) and the auto-save tests use a capture blob.\n\n## How it was verified\n\nFrom `apps/kaipu-record`:\n\n- `node_modules/.bin/vitest run src/renderer/src/pages/screenshot-editor`: 7 of 8 new tests fail on the old page, 8 of 8 pass on the new one.\n- `bun run test`: 253 files, 2209 tests passed.\n- `bun run check-types`: no errors.\n- `bun run lint`: 0 errors (the 17 warnings are pre-existing and none are in this file).\n- `oxfmt --check` on the changed directory: clean.\n\n## Findings closed\n\nSHOT-B1, SHOT-B4, SHOT-B8, SHOT-B9. SHOT-B2 skipped (premise no longer holds, see above).\n\nThe plan lives in PR #301 (`docs/code-audit-2026-10-15`): `plans/audit-2026-10-15/05-screenshot-editor-save-races.md`. Per the plan, the doc cleanup (deleting the plan file and its index row) belongs to that branch, not this PR.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-21T05:23:10Z",
+ "updated_at": "2026-10-21T05:38:01Z",
+ "closed_at": "2026-10-21T05:37:57Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/360",
+ "base": {
+  "ref": "main",
+  "sha": "4686d306d4f7ffb2037b2893fa200860c7a636c5"
+ },
+ "head": {
+  "ref": "fix/audit-05-screenshot-editor-save-races",
+  "sha": "e5b25e6390b1e094a3bd4d2e103ad43c3442d1b6",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 2,
+ "additions": 331,
+ "deletions": 102,
+ "labels": []
+}

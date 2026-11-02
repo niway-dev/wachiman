@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5662809913,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4725456134cb3c10840eaea85f7a5439c55c5234",
+  "submitted_at": "2026-10-27T05:54:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/393#pullrequestreview-5662809913",
+  "body": "**Agent review** of the whole pull request, at `4725456`: all 21 files reviewed.\n\n2 finding(s): 2 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** I found no correctness, boundary or ADR problems in this part. The new IPC surface is narrow: the main-process handler validates the renderer's timing input, and `shared/` takes no new package value imports. Two low-severity suggestions remain: the renderer-supplied timing label should have control characters stripped before it is logged, and one new constant in `main/index.ts` sits between two related ones. I did not run the tests and read only the diffs. I also grepped `recording-hub.ts` to confirm that `isActive` and `isPending` exist on the hub handle.\n\n**Batch 2 of 2.** No findings in part 2. The screen and mic now open in parallel, and the mic is released if the screen, frame measurement or compositor step fails. `captureThumbnail` catches its own errors and never rejects, so `stop()` cannot throw from the poster-frame race. The countdown-visibility wait is guarded by a request counter, so a cancel or a restart during the wait cannot start a stale countdown. The new tests cover these paths. I did not run the test suite.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 14 | 909 | 8 | reviewed | 3 | $0.13 |\n| Batch 2 of 2 | 7 | 431 | 4 | reviewed | 3 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · 2 batches · $0.20</sub>\n\n<!-- agent-review sha=4725456134cb3c10840eaea85f7a5439c55c5234 -->"
+ }
+]

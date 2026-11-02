@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5677399890,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "submitted_at": "2026-10-28T03:22:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/403#pullrequestreview-5677399890",
+  "body": "**Agent review** of the whole pull request, at `d01c9ec`: all 22 files reviewed.\n\n3 finding(s): 3 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Outside the diff\n\n- 🟡📝 **Consider · docs: Intro still describes the design as \"split toggle + popover\"** (`apps/documentation/src/content/docs/backlog/camera-bubble-shape-and-size.md:12`): Line 12 still says the chosen direction is \"1a — split toggle + popover\", while the UI section now says the Record page uses an inline drawer, not a popover. The line quotes the design direction's name, so it may be intentional history. A short note that the Record page later moved to a drawer would stop readers from taking the intro as the current behavior.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 replaces the Record page's Mic, Audio and Camera popovers with the inline `SettingsDrawer` in a `page` variant. I found no functional bugs. No references to the removed popover components remain, and `exclusive` and the blur-close behaviour carry over. The tests were updated to match and cover both the page variant and the scroll-into-view behaviour. I left two naming and comment-formatting suggestions.\n\n**Batch 2 of 2.** Part 2 (CSS, tests, docs) looks consistent with the drawer change. The container query's container is the page-variant drawer, which is an ancestor of the content, so the two-column layout works as intended. One minor docs note: line 12 of the camera doc still says \\\"split toggle + popover\\\" for the design direction.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 14 | 990 | 4 | reviewed | 9 | $0.15 |\n| Batch 2 of 2 | 8 | 114 | 2 | reviewed | 7 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · 2 batches · $0.22</sub>\n\n<!-- agent-review sha=d01c9ec516eaedbcceed4742515c033a4a5e4c19 -->"
+ }
+]

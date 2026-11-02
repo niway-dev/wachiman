@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5677952918,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "submitted_at": "2026-10-28T04:54:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#pullrequestreview-5677952918",
+  "body": "**Agent review** of the whole pull request, at `1e151b4`: all 17 files reviewed.\n\n3 finding(s): 1 to fix, 2 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is functionally sound. I found no value import in shared/ and no change to the Electron boundary. One test is misleading: its name promises live-change coverage it doesn't have. The backlog doc also needs two small fixes: it omits the resolution freeze during a take, and the status banner doesn't match the legend. I did not check the doc's \\\"every 60 ms\\\" persistence claim against use-camera-settings.ts.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 17 | 891 | 4 | reviewed | 4 | $0.13 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.13</sub>\n\n<!-- agent-review sha=1e151b4b01c85ce451312e0ed4ca9eae3700a316 -->"
+ },
+ {
+  "id": 5678023807,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8f05571d934fef2bf29f2d97c02a8c57c9dd8603",
+  "submitted_at": "2026-10-28T05:06:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#pullrequestreview-5678023807",
+  "body": ""
+ },
+ {
+  "id": 5678024023,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8f05571d934fef2bf29f2d97c02a8c57c9dd8603",
+  "submitted_at": "2026-10-28T05:06:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#pullrequestreview-5678024023",
+  "body": ""
+ },
+ {
+  "id": 5678024184,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8f05571d934fef2bf29f2d97c02a8c57c9dd8603",
+  "submitted_at": "2026-10-28T05:06:52Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#pullrequestreview-5678024184",
+  "body": ""
+ }
+]

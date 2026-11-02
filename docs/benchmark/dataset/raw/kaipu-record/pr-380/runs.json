@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-26T22:56:16Z",
+  "databaseId": 40416189056,
+  "displayTitle": "feat(desktop): camera bubble shape and size controls",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-controls",
+  "headSha": "db61d2658088b27ca233da46e7ac8e38bbb654e6",
+  "status": "completed",
+  "updatedAt": "2026-10-26T22:57:22Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40416189056",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-27T00:45:51Z",
+  "databaseId": 40428455941,
+  "displayTitle": "feat(desktop): camera bubble shape and size controls",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "a6d1c8953490beb0e644df9b762d87b95072064e",
+  "status": "completed",
+  "updatedAt": "2026-10-27T00:46:01Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40428455941",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

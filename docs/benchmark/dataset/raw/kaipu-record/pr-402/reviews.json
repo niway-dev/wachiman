@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5674883966,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "submitted_at": "2026-10-27T21:48:33Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/402#pullrequestreview-5674883966",
+  "body": "**Agent review** of the whole pull request, at `01dfe73`: all 26 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 3.** I found nothing to flag in part 1. The new `recordingHideMainWindow` IPC channel takes no renderer input, and `shared/types` only gained type exports. The shade window reuse logic is consistent: it resets to idle while hidden, sends state before showing, and a `show` followed by `hide` before the first paint never shows the window. I did not run the tests.\n\n**Batch 2 of 3.** No findings in this part. I read the full diff for all six files. For recorder-store.ts I also read the begin-take and failure path in the file itself. The start, cancel and failure paths look consistent: a countdown-time acquisition is discarded on cancel, on a changed input and on a failure, and the live-settings forwarder is stopped in each case. I did not read the files of the other two parts, so the new `recordingHideMainWindow` call and the preload and shade-window changes it relies on were not checked.\n\n**Batch 3 of 3.** No findings in this part. I read `recorder-store.ts` (lines 225–375) to check the new tests and the new \"Start sequence\" doc against it. The tests match the behaviour they name: acquiring during the countdown, the input check at countdown end, the 50 ms hide settle, and cancel and failure release. The doc matches the code on the names it cites (`WINDOW_HIDE_SETTLE_MS`, `acquireDuringCountdown`, `needsNewAcquisition`, `discardStart`, `beginTake`). I did not check the doc's claims about `recorder-engine.ts`, the main process or mediabunny.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 3 | 15 | 998 | 8 | reviewed | 3 | $0.12 |\n| Batch 2 of 3 | 6 | 701 | 4 | reviewed | 3 | $0.09 |\n| Batch 3 of 3 | 5 | 625 | 2 | reviewed | 4 | $0.10 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · 3 batches · $0.30</sub>\n\n<!-- agent-review sha=01dfe73fa65f01171659b9c695e1d751b22d22ed -->"
+ }
+]

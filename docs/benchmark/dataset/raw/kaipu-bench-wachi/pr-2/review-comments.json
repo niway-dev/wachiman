@@ -1,0 +1,25 @@
+[
+ {
+  "id": 4437259043,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/export-status-cards.tsx",
+  "line": 216,
+  "original_line": 216,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 143,
+  "original_position": 143,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730176663,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:42:29Z",
+  "updated_at": "2026-11-01T20:42:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/2#discussion_r4437259043",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: Progressbar nested inside the pill's button is hidden from assistive tech**\n\nThe pill is a `<button aria-label={t(\"expand\")}>` (line 199–203) that wraps a `<span role=\"progressbar\" aria-valuenow=…>`. Buttons have presentational children in ARIA, and the button's `aria-label` overrides its content, so screen readers announce only \"Show the export's progress\". They never hear the percent or the progressbar role. If the minimized state should still report progress, move the progressbar out of the button so it is a sibling, or add the percent to the button's accessible name (for example, by including the `pill` text in the label).\n\n<!-- wachi:finding -->"
+ }
+]

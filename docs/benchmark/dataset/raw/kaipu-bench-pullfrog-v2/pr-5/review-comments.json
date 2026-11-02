@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4437827710,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/index.ts",
+  "line": 902,
+  "original_line": 902,
+  "start_line": 899,
+  "side": "RIGHT",
+  "position": 32,
+  "original_position": 32,
+  "commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "original_commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730802425,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:34:59Z",
+  "updated_at": "2026-11-01T23:35:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/5#discussion_r4437827710",
+  "body": "`showMainWindow()` only calls `show()` and `focus()`. The card is a non-activating panel, so clicking a chip leaves Kaipu inactive, and the repo has already found that this is not enough: `recording-hub.test.ts:728` says *\"Showing the window alone leaves it unfocused behind the other app\"* and expects `app.focus({ steal: true })`. When the user is in another app (the case this window is for), step 5 of the test plan (\"Kaipu comes to the front\") will probably fail. Prepare or the editor would open behind the other app. `bringAppToFront()` in this file already does `showMainWindow()`, `applyDockPolicy()` and `app.focus({ steal: true })`.\n\n```suggestion\n    openInMain: (handOff) => {\n      bringAppToFront();\n      sendToRenderer(IPC_CHANNELS.recordingReadyOpen, handOff);\n    },\n```"
+ },
+ {
+  "id": 4437827718,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/post-recording-card.tsx",
+  "line": 49,
+  "original_line": 49,
+  "start_line": 45,
+  "side": "RIGHT",
+  "position": 48,
+  "original_position": 48,
+  "commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "original_commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730802425,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:35:00Z",
+  "updated_at": "2026-11-01T23:35:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/5#discussion_r4437827718",
+  "body": "Nit: this doc comment still says the card stays until the user *\"leaves the page\"*. That is now true only of the in-app fallback, because the floating window outlives navigation. Line 47 also runs well past the wrap width of the lines around it.\n\n```suggestion\n * \"Your video is ready\" (NIW2-584): the card shown right after a recording, floating on the\n * desktop in its own window (`RecordingReadyCard`), or on the recording page's status stack\n * when that window could not open. It asks where the video is going, with chips into\n * Prepare, and stays until the user picks something or closes it (the in-app card also\n * when the user leaves the page) — there is no timer, since the question\n```"
+ },
+ {
+  "id": 4437828197,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/post-recording-card.tsx",
+  "line": 49,
+  "original_line": 49,
+  "start_line": 45,
+  "side": "RIGHT",
+  "position": 48,
+  "original_position": 48,
+  "commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "original_commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "in_reply_to_id": 4437827718,
+  "pull_request_review_id": 5730803003,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:35:11Z",
+  "updated_at": "2026-11-01T23:35:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/5#discussion_r4437828197",
+  "body": "Correction: the suggestion above drops the last line, `is the point. Settings → Export quality turns it off.`. Please keep that line after it if you apply the suggestion.\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [View workflow run](https://github.com/niway-dev/kaipu-bench-pullfrog-v2/actions/runs/41362567509/job/125015871110) ｜ via [Pullfrog](https://pullfrog.com) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ }
+]

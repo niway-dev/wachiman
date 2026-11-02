@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T21:21:09Z",
+  "databaseId": 40586052621,
+  "displayTitle": "feat(verify): add on-demand proof scenarios and a verify skill",
+  "event": "pull_request",
+  "headBranch": "feat/verify-skill",
+  "headSha": "c1d4c72673fffdad358dc90c51e2e8faf2606fc4",
+  "status": "completed",
+  "updatedAt": "2026-10-27T21:21:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40586052621",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T21:13:05Z",
+  "databaseId": 40584879023,
+  "displayTitle": "feat(verify): add on-demand proof scenarios and a verify skill",
+  "event": "pull_request",
+  "headBranch": "feat/verify-skill",
+  "headSha": "c1d4c72673fffdad358dc90c51e2e8faf2606fc4",
+  "status": "completed",
+  "updatedAt": "2026-10-27T21:13:21Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40584879023",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:52:02Z",
+  "databaseId": 40581820698,
+  "displayTitle": "feat(verify): add on-demand proof scenarios and a verify skill",
+  "event": "pull_request",
+  "headBranch": "feat/verify-skill",
+  "headSha": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:52:36Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40581820698",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:52:02Z",
+  "databaseId": 40581820398,
+  "displayTitle": "feat(verify): add on-demand proof scenarios and a verify skill",
+  "event": "pull_request",
+  "headBranch": "feat/verify-skill",
+  "headSha": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:52:21Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40581820398",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

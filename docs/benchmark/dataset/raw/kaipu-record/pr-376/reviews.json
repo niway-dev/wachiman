@@ -1,0 +1,38 @@
+[
+ {
+  "id": 5656600441,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "3542e3308797ff366cbdb89d0d7950ac92c5c3ee",
+  "submitted_at": "2026-10-26T17:54:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/376#pullrequestreview-5656600441",
+  "body": "**Claude review** of the whole pull request, at `3542e33`: all 6 files reviewed.\n\n2 finding(s), 0 to fix; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis PR only adds documentation: an ADR, a design spec and a backlog entry. I found no correctness or security problems. Docs are in English, the backlog doc has a status banner and an index row, and the sidebar entry is added. There are two notes: ADR 0024 is not marked as amended by 0030, and the target shape differs between the ADR and the spec.\n\n<sub>Claude Sonnet 5.5 · $0.13</sub>\n\n<!-- claude-review sha=3542e3308797ff366cbdb89d0d7950ac92c5c3ee -->"
+ },
+ {
+  "id": 5659098666,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "334ad2c422ca13beba9e85f358440f085c50165d",
+  "submitted_at": "2026-10-26T21:12:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/376#pullrequestreview-5659098666",
+  "body": ""
+ },
+ {
+  "id": 5659099023,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "334ad2c422ca13beba9e85f358440f085c50165d",
+  "submitted_at": "2026-10-26T21:12:45Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/376#pullrequestreview-5659099023",
+  "body": ""
+ }
+]

@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4383404990,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.ts",
+  "line": 107,
+  "original_line": 107,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 19,
+  "original_position": 19,
+  "commit_id": "db61d2658088b27ca233da46e7ac8e38bbb654e6",
+  "original_commit_id": "db61d2658088b27ca233da46e7ac8e38bbb654e6",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5660208151,
+  "subject_type": "line",
+  "created_at": "2026-10-26T22:57:18Z",
+  "updated_at": "2026-10-26T22:57:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/380#discussion_r4383404990",
+  "body": "**Note (correctness): Grip preview can outlive a release that doesn't change the persisted size**\n\n`applySize()` is the only thing that clears `previewSize`, and it only runs when the persisted size differs from `appliedBubbleSize`. If a grip drag ends on the size that is already persisted (for example, dragging out and back), or the renderer's last in-flight preview differs from `start.applied`, the settings write doesn't change the size. The hub then skips `applySize()`, and `CameraBubbleWindow.previewSize` stays set. The window can stay at the preview size while settings say another. Clearing the preview on release regardless of change would avoid this, for example with a dedicated 'preview end' call or by clearing it in the `updateSettings` path."
+ },
+ {
+  "id": 4383404996,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/camera-settings/use-camera-settings.ts",
+  "line": 101,
+  "original_line": 101,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 101,
+  "original_position": 101,
+  "commit_id": "db61d2658088b27ca233da46e7ac8e38bbb654e6",
+  "original_commit_id": "db61d2658088b27ca233da46e7ac8e38bbb654e6",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5660208151,
+  "subject_type": "line",
+  "created_at": "2026-10-26T22:57:18Z",
+  "updated_at": "2026-10-26T22:57:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/380#discussion_r4383404996",
+  "body": "**Note (correctness): Pending throttled write is dropped on unmount**\n\nThe effect cleanup clears `timer.current` without sending `latest.current`. If the last change in a burst (slider drag or key press) is made within 60 ms of the previous write and the component then unmounts, that final value is never persisted. The unmount can come from closing the Record page or the panel. Flush the pending value in the cleanup, for example by calling `send()` when the timer is set, instead of just clearing it."
+ }
+]

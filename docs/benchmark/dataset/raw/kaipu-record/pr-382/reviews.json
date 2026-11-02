@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5660321137,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0d6986df43c604e756e6c9f49120593670bcc4f8",
+  "submitted_at": "2026-10-26T23:12:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/382#pullrequestreview-5660321137",
+  "body": "**Agent review** of the whole pull request, at `0d6986d`: all 35 files reviewed.\n\n0 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. The new `src/shared/recording-capture.ts` takes only type imports from outside itself, so the preload-bundle rule holds. Main validates the renderer's capture value with `sanitizeRecordingCapture` before writing it to the sidecar. It validates it again when reading the sidecar back. The analytics refactor still type-checks, because `input.area` is already a boolean there. The change has a doc, the English and Spanish messages, and tests for each layer. I did not run the tests or the type-check.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 35 | 806 | 6 | reviewed | 3 | $0.11 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.11</sub>\n\n<!-- agent-review sha=0d6986df43c604e756e6c9f49120593670bcc4f8 -->"
+ }
+]

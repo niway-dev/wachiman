@@ -1,0 +1,29 @@
+{
+ "number": 472,
+ "title": "docs(desktop): record what the webcam track shipped and learned; pin hook binaries, check ADR numbers",
+ "body": "## What this is\n\nThe webcam track (NIW2-565) merged on 2026-10-31. This PR records what shipped, how it was reviewed, and the lessons, in `backlog/webcam-track.md` (same shape as #470). It also adds two checks so the most expensive mistakes fail on their own.\n\n## Changes\n\n- **`backlog/webcam-track.md`**:\n  - status banner moved to \"merged\";\n  - new sections: **What shipped** (PR table), **How it was built and reviewed**, **Still unverified**, the new follow-ups, and **Lessons**;\n  - no backlog row: #473 removed the hand-kept index, so the page carries its own status.\n- **`lefthook.yml`**: pre-commit calls `./node_modules/.bin/oxfmt` and `./node_modules/.bin/oxlint` instead of `bunx`.\n  - Why: in a worktree without `node_modules`, `bunx` downloaded a different formatter version and reformatted five files of `main` inside a merge commit.\n  - Now the hook fails loudly when the tools are missing.\n- **`scripts/check-adr-numbers.ts`**: runs first in `verify:local` (pre-push). It fails in two cases:\n  - two ADR files share a number;\n  - a branch's ADR number is already taken on `origin/main` by a different decision.\n  - Why: the webcam stack held 0032/0033 in about 120 citations across twelve branches while `main` gave those numbers to workspaces, and renumbering took two cascade rounds.\n\nNo Linear ticket: the workspace hit its free issue limit.\n\n## How to test it yourself\n\n1. Read `apps/documentation/src/content/docs/backlog/webcam-track.md`, from \"What shipped\" to \"Lessons\". Check that it matches what you saw in QA.\n2. ADR check, failing case: `touch apps/documentation/src/content/docs/architecture/decisions/0032-test.mdx && bun scripts/check-adr-numbers.ts`. It exits 1 and says 0032 is taken on `origin/main` by the workspaces ADR. Then `rm` the file.\n3. ADR check, passing case: `bun scripts/check-adr-numbers.ts` on this branch exits 0 with no output.\n4. Hook: in a fresh worktree without `bun install`, `git commit` now fails with \"./node_modules/.bin/oxfmt: No such file or directory\" instead of formatting with a downloaded version.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-31T16:30:52Z",
+ "updated_at": "2026-10-31T17:50:34Z",
+ "closed_at": "2026-10-31T17:50:30Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/472",
+ "base": {
+  "ref": "main",
+  "sha": "edb7aa82e0e866cba40d7570e9f1aacf434c8b35"
+ },
+ "head": {
+  "ref": "docs/niw2-565-webcam-track-record",
+  "sha": "a32874a4493e4ddf7b92ae21c0b9920f2953ec81",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 4,
+ "additions": 201,
+ "deletions": 16,
+ "labels": []
+}

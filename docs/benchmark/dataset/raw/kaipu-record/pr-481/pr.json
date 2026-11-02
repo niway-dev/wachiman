@@ -1,0 +1,29 @@
+{
+ "number": 481,
+ "title": "ci: bump the agent review to wachiman v1.4.0",
+ "body": "## What\n\nMoves the agent review pin from `niway-dev/wachiman@v1.3.0` to [`v1.4.0`](https://github.com/niway-dev/wachiman/releases/tag/v1.4.0), and records the bump in ADR 0028's \"reviews also run on every push\" amendment.\n\n## Why\n\n`main` already lists `synchronize` (ADR 0028, amendment of 2026-11-01), but it still ran v1.3.0, which predates the push mode. v1.4.0 is the release built for it:\n\n- a rebase with no content change only moves the marker and makes no model call;\n- merging the base branch into a PR reviews none of the base's files;\n- reasoning effort is an explicit input, printed in every footer (default `high`, unchanged here);\n- each call is capped at 40 agent turns and 900 s wall clock;\n- each batch gets the other call sites of the symbols the diff newly calls;\n- findings carry a confidence, enforced in code.\n\nThe caller keeps `model: claude-opus-5-5` and the default budgets ($0.75 per batch, $3 per review). No new `with:` inputs: `review_on_push` defaults to `true`.\n\nStill open (ADR 0028 now says so): a rebase that changes content reviews again, and there is no per-PR spending limit.\n\n## How to test it yourself\n\n1. This PR's own \"Agent review\" run should use v1.4.0: the review comment footer names the effort (`high`) and the model (Opus 5.5).\n2. Push one more small commit to this branch: a new run should review only that commit, not the whole PR.\n3. Optional: rebase this branch on `main` without changing content and force-push; the run should end without a model call (no new findings, near-zero cost in the log).\n4. After merge, compare on the next feature PRs: findings per push, cost per run (from the run log), and how many findings land on fix commits.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n\n<!-- coderabbit-ai-generated:v1 -->\n\n## Summary by CodeRabbit\n\n* **Chores**\n  * Updated maintenance of the automated review process. This change does not alter app features or functionality visible to end users.\n\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T04:01:23Z",
+ "updated_at": "2026-11-02T04:18:31Z",
+ "closed_at": "2026-11-02T04:18:27Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/481",
+ "base": {
+  "ref": "main",
+  "sha": "ef2ba136006c08682e52c81ce6094f7feeb35112"
+ },
+ "head": {
+  "ref": "ci/wachiman-v1.4.0",
+  "sha": "0dbca02fd27e197ae79bab726028696975cb104b",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 2,
+ "additions": 18,
+ "deletions": 8,
+ "labels": []
+}

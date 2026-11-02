@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6541089522,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T08:21:26Z",
+  "updated_at": "2026-10-31T08:21:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#issuecomment-6541089522",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nAnswers to the review summary on this PR, by finding:\n\n- **YouTube's Ready badge vs. the detail pane:** obsolete. #458 computes the badge from the preset the row would make, `pages/export/export-page.tsx:338` at the top of the stack. See the inline thread.\n- **\"Only when the copy fits\" test:** obsolete. #458/#467 replaced the test and the subtitle with size-bar tests that cover both sides (`export-page.test.tsx:235` and `:245`). See the inline thread.\n- **export-presets.md \"not merged yet\" wording:** still applies; it will be answered in its inline thread with the commit that fixes it.\n"
+ }
+]

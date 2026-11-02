@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5674431815,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "67b7ac90386eaca4e11d89c79bdac8f3dd9797e9",
+  "submitted_at": "2026-10-27T21:13:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/400#pullrequestreview-5674431815",
+  "body": "**Agent review** of the whole pull request, at `67b7ac9`: all 1 files reviewed.\n\n1 finding(s): 1 to consider; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Outside the diff\n\n- 🟡❓ **Consider · question: Comment still names the old `@agent-review` command** (`.github/workflows/agent-review.yml:4`): The engine was renamed to wachi-reviewer. The header comment still tells users to comment `@agent-review review`, and the file and workflow name are still `agent-review`. If the renamed engine now listens for a different mention or command, this comment is stale and on-demand runs will silently do nothing. Please confirm the trigger is unchanged, or update the comment.\n\n### Summary\n\nThe change is a one-line switch of the reusable workflow path to the renamed repository, with the same `@v1` tag, and it looks correct. The one open point is that the header comment still refers to `@agent-review review`, which may be stale after the rename. I did not check that `wachi-reviewer` has a `v1` tag, since that repository isn't available here.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 1 | 2 | 8 | reviewed | 4 | $0.03 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.03</sub>\n\n<!-- agent-review sha=67b7ac90386eaca4e11d89c79bdac8f3dd9797e9 -->"
+ }
+]

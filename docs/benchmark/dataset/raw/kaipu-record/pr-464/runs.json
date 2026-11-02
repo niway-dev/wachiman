@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T01:04:45Z",
+  "databaseId": 41153536509,
+  "displayTitle": "feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "event": "pull_request",
+  "headBranch": "feature/ready-copy-in-library",
+  "headSha": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "status": "completed",
+  "updatedAt": "2026-10-31T01:05:51Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41153536509",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T08:47:00Z",
+  "databaseId": 41185992542,
+  "displayTitle": "feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "8aa2c207ee4095dcc94d7e43ed0a879be8494624",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:47:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41185992542",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T16:47:52Z",
+  "databaseId": 41221398719,
+  "displayTitle": "feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "744a41b736093caae5bf317c0bbb211134ec72db",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:47:53Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41221398719",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

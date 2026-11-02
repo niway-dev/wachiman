@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4380638451,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0030-recording-target-and-area-crop-in-the-compositor.mdx",
+  "line": null,
+  "original_line": 14,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 14,
+  "commit_id": "efab683b6e0da1b3db70a67d9b0153c1d95bc2c8",
+  "original_commit_id": "3542e3308797ff366cbdb89d0d7950ac92c5c3ee",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5656600441,
+  "subject_type": "line",
+  "created_at": "2026-10-26T17:54:28Z",
+  "updated_at": "2026-10-26T17:54:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/376#discussion_r4380638451",
+  "body": "**Note (adr): ADR 0030 reverses a 0024 non-goal but 0024 is not marked as amended**\n\nThe 'Relates to' row says ADR 0024's 'recording through the overlay' non-goal is the feature designed here. 0024 also rejected a second picker, and 0030 decision 4 gives the overlay a `record` intent. That changes 0024, much as 0024 amended 0022 (the index shows 'amended by 0024' on 0022). The index row for 0024 still says plain 'Proposed'. ADRs are append-only, so add a status note on 0024, such as 'amended by 0030', and update its index row. The spec also says 0022, 0024 and 0029 'all stand'. Reword it, or state which part of 0024 is amended."
+ },
+ {
+  "id": 4380638463,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0030-recording-target-and-area-crop-in-the-compositor.mdx",
+  "line": 38,
+  "original_line": 38,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 38,
+  "original_position": 38,
+  "commit_id": "f36c3792e2ae37d6e575c2ec25ad79c1aae864d1",
+  "original_commit_id": "3542e3308797ff366cbdb89d0d7950ac92c5c3ee",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5656600441,
+  "subject_type": "line",
+  "created_at": "2026-10-26T17:54:28Z",
+  "updated_at": "2026-10-26T17:54:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/376#discussion_r4380638463",
+  "body": "**Note (other): Window target shape differs between the ADR and the spec**\n\nThe ADR defines `{ kind: \"window\", sourceId }` and `{ kind: \"display\", displayId }` without `name`. The spec (section 1) defines every variant with `name: string`. Pick one shape so the ADR and the spec agree before the contract task starts."
+ },
+ {
+  "id": 4382543830,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0030-recording-target-and-area-crop-in-the-compositor.mdx",
+  "line": null,
+  "original_line": 14,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 14,
+  "commit_id": "efab683b6e0da1b3db70a67d9b0153c1d95bc2c8",
+  "original_commit_id": "3542e3308797ff366cbdb89d0d7950ac92c5c3ee",
+  "in_reply_to_id": 4380638451,
+  "pull_request_review_id": 5659098666,
+  "subject_type": "line",
+  "created_at": "2026-10-26T21:12:42Z",
+  "updated_at": "2026-10-26T21:12:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/376#discussion_r4382543830",
+  "body": "Fixed in 0e82b5c3: ADR 0024 now records the amendment in its status table, on the non-goal itself and in the index row (\"Proposed; amended by 0030\"). 0030's Relates-to row says it amends that non-goal through decision 4, and the spec no longer says 0024 stands unchanged. The rest of 0024, including reusing one picker, still stands."
+ },
+ {
+  "id": 4382544116,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0030-recording-target-and-area-crop-in-the-compositor.mdx",
+  "line": 38,
+  "original_line": 38,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 38,
+  "original_position": 38,
+  "commit_id": "f36c3792e2ae37d6e575c2ec25ad79c1aae864d1",
+  "original_commit_id": "3542e3308797ff366cbdb89d0d7950ac92c5c3ee",
+  "in_reply_to_id": 4380638463,
+  "pull_request_review_id": 5659099023,
+  "subject_type": "line",
+  "created_at": "2026-10-26T21:12:44Z",
+  "updated_at": "2026-10-26T21:12:45Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/376#discussion_r4382544116",
+  "body": "Fixed in 334ad2c4: the ADR's shape wins. The spec's `RecordingTarget` and decision 1 drop `name`. The label the control bar shows stays the resolved source name (`selectedSource.name`), which is also what the implementation in #377 does."
+ }
+]

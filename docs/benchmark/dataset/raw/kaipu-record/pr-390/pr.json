@@ -1,0 +1,29 @@
+{
+ "number": 390,
+ "title": "fix(desktop): size and crop recordings from the frames the capture delivers",
+ "body": "## Problem\n\nA Frame (area) recording plays back as a mostly black video with a piece of the selection in the top-left corner. Full-display recordings on a MacBook were affected too: they came out 2560×1440 and pillarboxed instead of the panel's 1.54 aspect.\n\n## Root cause\n\n`startEngine` sized everything from `screenTrack.getSettings()`. For desktop capture, Chromium reported the `maxWidth`/`maxHeight` ceiling the engine requests (7680×4320) instead of the delivered frames (3024×1964 on the owner's MacBook).\n\n- The area crop scales the DIP rectangle by `trackSize / displaySize`. With 7680/1512 ≈ 5.08 instead of 2, the source rectangle landed about 5× too far and too large. `drawImage` clipped it to the real 3024×1964 frame, so only a corner was drawn and the rest of the canvas stayed black.\n- Full display: `fitToCap(7680, 4320, 1440)` = 2560×1440, which is exactly the size of the owner's full-screen file `recording-2026-10-27-04-54-57.mp4`. That file is pillarboxed, because the compositor letterboxes the real 1.54 frames into a 16:9 canvas.\n\nEvidence: `ffprobe` on the two takes from tonight gives 2650×1440 (Frame) and 2560×1440 (Screen), and the machine has a single 3024×1964 display. Both sizes follow from the 7680×4320 report and from no other input.\n\n## Fix\n\n`measureFrameSize` (new, `recording/frame-size.ts`) plays the track in a hidden `<video>` and reads `videoWidth`/`videoHeight`. Those are the frames the compositor's `drawImage` crops from. `getSettings()` remains as the fallback when the element cannot report a size.\n\n## Verification\n\n- Two new engine tests use a track that reports 7680×4320 while delivering 3024×1964. One covers an area crop and one a full display. Both fail without the fix and pass with it.\n- `check-types` is clean, lint is clean, and the full suite passes (280 files, 2567 tests).\n\n**Not verified:** I did not make a real recording with the fix. Please QA on the MacBook:\n\n1. Make a Frame recording. The file should show only the selected area, filling the video.\n2. Make a Screen recording. The file should be 1662×1080 or 2217×1440 depending on the quality preset, with no side bars.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T05:00:45Z",
+ "updated_at": "2026-10-27T05:20:41Z",
+ "closed_at": "2026-10-27T05:20:38Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/390",
+ "base": {
+  "ref": "main",
+  "sha": "4cd60000783848d368de9efe3c67b9b64134e421"
+ },
+ "head": {
+  "ref": "fix/area-crop-real-frame-size",
+  "sha": "70609fce17ab3cd40b1b35b5a32775fec042354e",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 4,
+ "additions": 173,
+ "deletions": 4,
+ "labels": []
+}

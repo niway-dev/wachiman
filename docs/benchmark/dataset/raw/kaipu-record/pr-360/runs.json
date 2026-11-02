@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:38:00Z",
+  "databaseId": 39550652780,
+  "displayTitle": "fix(desktop): screenshot editor save races (audit SHOT-B1/B4/B8/B9)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-05-screenshot-editor-save-races",
+  "headSha": "e5b25e6390b1e094a3bd4d2e103ad43c3442d1b6",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:38:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39550652780",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:23:13Z",
+  "databaseId": 39549256081,
+  "displayTitle": "fix(desktop): screenshot editor save races (audit SHOT-B1/B4/B8/B9)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-05-screenshot-editor-save-races",
+  "headSha": "e5b25e6390b1e094a3bd4d2e103ad43c3442d1b6",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:23:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39549256081",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:23:13Z",
+  "databaseId": 39549255962,
+  "displayTitle": "fix(desktop): screenshot editor save races (audit SHOT-B1/B4/B8/B9)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-05-screenshot-editor-save-races",
+  "headSha": "e5b25e6390b1e094a3bd4d2e103ad43c3442d1b6",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:23:42Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39549255962",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ }
+]

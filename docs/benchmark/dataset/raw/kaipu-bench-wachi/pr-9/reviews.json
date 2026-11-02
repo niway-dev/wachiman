@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5730201702,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "submitted_at": "2026-11-01T20:48:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/9#pullrequestreview-5730201702",
+  "body": "👮 **Wachiman** · review of the whole pull request, at `b2705a9`: all 28 files reviewed.\n\n2 finding(s): 2 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 adds the floating \"Your video is ready\" window. It covers the shared contract and parsers, the preload bridge, the main-process window class and its wiring, the hub remembering the display of the last take, and the renderer card and hooks. The main process parses and checks what the card sends, and the card channels are limited to the card's own `webContents`. `shared/` takes no value imports from workspace packages. The tests cover placement, the window lifecycle, validation and the mapping from actions to hand-offs. I found no blockers and two optional points: `recording-ready:show` doesn't check which renderer sent it, and the `PostRecordingCard` doc comment still says the card goes away when the user leaves the page.\n\n**Batch 2 of 2.** Part 2 (renderer wiring, tests, styles, docs and i18n): I found nothing to flag. The recording page asks for the floating card only once the source probe has finished, as \"ready\" or \"error\". It asks once per location.key, and a ref guards against StrictMode running the effect twice. The in-app card shows only if main answers false or the IPC call fails, so the card never appears twice. The 16 px body padding in main.css matches READY_WINDOW_PADDING, and the window height is the card height plus that padding on both sides. The hand-off paths reuse preparePath, editorPathFor and the libraryDetail route. The tests check what their names say. The backlog doc and its index row match the code in main/recording/recording-ready-window.ts (every action closes the card; all but ✕ then open the main window), and the new openFloatingHint string is used by PostRecordingCard when onOpen is set.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 15 | 998 | 8 | reviewed | 3 | $0.25 |\n| Batch 2 of 2 | 13 | 297 | 4 | reviewed | 13 | $0.28 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.53</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=b2705a9ce2593b29ae50235312a4226955bbbb36 -->\n\n<!-- wachi:attempt id=add84964-cebb-4f7e-8a8c-6661b232f987 -->"
+ }
+]

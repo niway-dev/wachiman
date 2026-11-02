@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4437827674,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library/library-page.tsx",
+  "line": 53,
+  "original_line": 53,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 42,
+  "original_position": 42,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730802385,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:34:59Z",
+  "updated_at": "2026-11-01T23:35:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/6#discussion_r4437827674",
+  "body": "With `useFileDrop` removed, nothing on the Library calls `preventDefault` on `dragover` / `drop` any more. `use-file-drop.ts` says what happens then: \"a file dropped where nothing handles it makes Electron navigate the window to that file\". `main/index.ts` has no `will-navigate` guard. A user who drops a video on the Library, as NIW2-579 taught them to, will probably see the app replaced by a bare video player. The new test cannot catch this because jsdom never navigates.\n\n<details><summary>Technical details</summary>\n\n````markdown\n# Unhandled file drops on the Library navigate the Electron window\n\n## Affected sites\n- apps/kaipu-record/src/renderer/src/pages/library/library-page.tsx:53 — the `useFileDrop` call that absorbed drops was removed\n- apps/kaipu-record/src/main/index.ts:400 — `setWindowOpenHandler` is set, but there is no `will-navigate` handler for the main window\n- apps/kaipu-record/src/renderer/src/pages/library/library-page.test.tsx:80 — only checks that `importVideoFiles` is not called\n\n## Required outcome\n- Dropping a file anywhere in the app outside Export must not navigate the window away from the renderer.\n\n## Suggested approach (optional)\n- Add a window-wide guard: either `mainWindow.webContents.on(\"will-navigate\", e => e.preventDefault())` for non-app URLs in main, or a shell-level `dragover`/`drop` `preventDefault` that Export's `useFileDrop` overrides. Another option is to have the Library catch the drop and route to `/export` with the files, so the old gesture still works.\n- This also protects Record, Editor and Settings, which were already exposed before this PR.\n````\n\n</details>"
+ },
+ {
+  "id": 4437827680,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/export/recent-exports.tsx",
+  "line": 17,
+  "original_line": 17,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 17,
+  "original_position": 17,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730802385,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:34:59Z",
+  "updated_at": "2026-11-01T23:35:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/6#discussion_r4437827680",
+  "body": "`recentCopies` keeps every MP4 that has an `export` sidecar, editor exports included. Each one then gets a destination from `destinationOfPreset`. An edited export at the default Balanced preset therefore shows up as \"Slack · Discord ✓ Ready\". The running row (line 50) makes the same fallback for editor jobs. `MasterCopiesPanel.destinationPresetOf` already handles this correctly by requiring `fingerprint === WHOLE_RECORDING_FINGERPRINT`.\n\n<details><summary>Technical details</summary>\n\n````markdown\n# Recent exports mislabels editor exports as destination copies\n\n## Affected sites\n- apps/kaipu-record/src/renderer/src/pages/export/recent-exports.tsx:17 — filter does not check `export.fingerprint`\n- apps/kaipu-record/src/renderer/src/pages/export/recent-exports.tsx:50 — `running.destination ?? destinationOfPreset(running.presetId)` gives editor jobs (no `destination`, `wholeRecording` falsy) a destination logo\n- apps/kaipu-record/src/renderer/src/pages/export/recent-exports.tsx:65 — destination name derived from preset for every row\n\n## Required outcome\n- Only whole-recording copies (`export.fingerprint === WHOLE_RECORDING_FINGERPRINT`) are named after a destination. Editor exports either stay out of the list or show their own title and a generic icon, as `MasterCopiesPanel` does.\n- The running row names a destination only when `job.destination` or `job.wholeRecording` says it is a destination copy.\n````\n\n</details>"
+ }
+]

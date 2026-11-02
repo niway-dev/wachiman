@@ -1,0 +1,24 @@
+[
+ {
+  "id": 6533559687,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-30T21:12:08Z",
+  "updated_at": "2026-10-30T21:12:08Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/454#issuecomment-6533559687",
+  "body": "## Review ledger\n\nEach finding was checked against the code before it was fixed; all five reproduced.\n\n| id | severity | outcome |\n| --- | --- | --- |\n| S1 | should | fixed: 53462588 — the page resolves the webcam inspector target at the playhead frozen while a drag is open, and `HistorySlider` calls `onEnd` when it unmounts mid-drag (guards every inspector). Page test: a Size drag while the playhead enters an override keeps the inspector, then a commit lands and Ctrl+Z undoes it. |\n| N1 | nit | fixed: d4f92555 — the GIF worker passes `slot.sourceTime` as `cameraTs`, as the MP4 path does (E9); the held frame's span still decides redactions. GIF wiring test over a still screen. |\n| N2 | nit | fixed: 9291d7bb — the P7 lead applies only while the main clock moves (`!main.paused && !mainWaiting`). Test: after a 400 ms seek, `waiting` then a scrub seeks to the exact time. |\n| N3 | nit | fixed: 0d721d46 — `useCompanionThumbnails` reports the webcam's covered source range `[offset, offset + duration)` from the duration the decode already computes; the lane leaves tiles outside it empty (replaces the one-spacing gap rule). Tests for a late start and an early end, each shorter than one spacing. |\n| N4 | nit | fixed: 5b604f12 — `CACHE_LIMIT` is 16 filmstrips (8 recordings with a webcam), comment says what it counts; test that 8 webcam recordings keep both strips. |\n\nVerification (from `apps/kaipu-record`): `vitest run` 328 files / 3371 tests passed; `check-types` (node + web) clean; `oxlint` 0 errors, the same 17 pre-existing warnings as the base. Pre-push `verify-local` passed. No Electron or E2E run.\n\n## How to test it yourself\n\n1. Open a recording with a webcam, add an override (Custom) section, put the playhead just before it and select the bubble.\n2. Press play and drag the Size slider while the playhead crosses into the override. The inspector stays on \"Webcam\" during the drag, then switches to the section; clicking a Shape button applies, and Cmd+Z undoes it.\n3. On a long recording whose webcam starts a few seconds late (or ends early), the webcam lane's filmstrip shows empty tiles where the webcam has no footage.\n4. Export a GIF with a zoom over a stretch where the screen is still: the crop follows the face's shrink like the MP4 export.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n"
+ },
+ {
+  "id": 6533593037,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-30T21:14:07Z",
+  "updated_at": "2026-10-30T21:14:07Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/454#issuecomment-6533593037",
+  "body": "## Confirmation review\n\nFresh Opus 5.5 reviewer on 1b4e0756..5b604f12: **approved, only nits remain**. S1, N1–N4 fixed and each pinned by a test that fails without it. Two optional nits left as is: a ref assigned during render in `video-editor-page.tsx:1059` (idempotent), and the GIF crop reading the sample time on a moving screen (under one frame, matches the face).\n"
+ }
+]

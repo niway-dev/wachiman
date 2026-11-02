@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-26T23:13:48Z",
+  "databaseId": 40418300093,
+  "displayTitle": "feat(desktop): record modes UI — selector chrome, region countdown and Record page",
+  "event": "pull_request",
+  "headBranch": "feat/record-modes-ui",
+  "headSha": "e5defa7c7b840a7eb44a84fd4bcd5862b77c2570",
+  "status": "completed",
+  "updatedAt": "2026-10-26T23:15:21Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40418300093",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-27T00:46:01Z",
+  "databaseId": 40428472722,
+  "displayTitle": "feat(desktop): record modes UI — selector chrome, region countdown and Record page",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "a6d1c8953490beb0e644df9b762d87b95072064e",
+  "status": "completed",
+  "updatedAt": "2026-10-27T00:46:02Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40428472722",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

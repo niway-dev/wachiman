@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T05:06:56Z",
+  "databaseId": 40636091978,
+  "displayTitle": "fix(desktop): Record page settings open under the row instead of clipping off the window",
+  "event": "pull_request",
+  "headBranch": "fix/record-page-settings-drawers",
+  "headSha": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "status": "completed",
+  "updatedAt": "2026-10-28T05:07:02Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40636091978",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T03:21:18Z",
+  "databaseId": 40626200614,
+  "displayTitle": "fix(desktop): Record page settings open under the row instead of clipping off the window",
+  "event": "pull_request",
+  "headBranch": "fix/record-page-settings-drawers",
+  "headSha": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "status": "completed",
+  "updatedAt": "2026-10-28T03:22:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40626200614",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T03:21:17Z",
+  "databaseId": 40626200100,
+  "displayTitle": "fix(desktop): Record page settings open under the row instead of clipping off the window",
+  "event": "pull_request",
+  "headBranch": "fix/record-page-settings-drawers",
+  "headSha": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "status": "completed",
+  "updatedAt": "2026-10-28T03:21:35Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40626200100",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6541318731,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T08:46:55Z",
+  "updated_at": "2026-10-31T08:46:55Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/466#issuecomment-6541318731",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nAnswering the github-actions review summary, on #471 (top of the stack):\n\n- **The card can disappear entirely**: fixed in [`1ff66f1b`](https://github.com/niway-dev/kaipu-record/commit/1ff66f1bab3dd4de9fa9a1c597122f436cc24c18). `show()` now resolves only once the card reports ready, and `false` on a failed load, a dead renderer or a 3 s timeout, so the page shows its in-app card instead.\n- **Any window can ask for the card**: fixed in [`1ff66f1b`](https://github.com/niway-dev/kaipu-record/commit/1ff66f1bab3dd4de9fa9a1c597122f436cc24c18). `recording-ready:show` answers only the main window's renderer.\n\nThe pullfrog findings (Back re-asking for the card, the clipped shadow) are answered in their inline threads.\n"
+ }
+]

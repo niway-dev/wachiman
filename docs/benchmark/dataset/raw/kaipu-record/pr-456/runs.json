@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:59:35Z",
+  "databaseId": 41127542908,
+  "displayTitle": "feat(desktop): background copy toasts, Library badge and \"copy ready\" (NIW2-586)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-586-background-toasts",
+  "headSha": "e313ec8292732c19fe97ce6be135a4b01ab13f3d",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:01:12Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41127542908",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-30T21:18:10Z",
+  "databaseId": 41130003468,
+  "displayTitle": "feat(desktop): background copy toasts, Library badge and \"copy ready\" (NIW2-586)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "5e464c9fe6a773b30a00b4d6aea8defe571d973b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:18:11Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41130003468",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

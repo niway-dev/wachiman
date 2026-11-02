@@ -1,0 +1,38 @@
+[
+ {
+  "id": 5709237540,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "submitted_at": "2026-10-30T07:21:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/436#pullrequestreview-5709237540",
+  "body": "**Agent review** of the whole pull request, at `bff7fcf`: all 18 files reviewed.\n\n2 finding(s): 2 to fix; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe code looks right. The legacy \"youtube\" id maps to \"youtube-1440\" and stays out of reuse, because the fingerprint now includes an encode revision. The single YouTube row works: it keeps the chosen resolution, and the inner radio click stops propagation to the row. Bitrates, audio fallbacks and keyframes match the tests. The `shared/` change adds no value imports. There are two doc findings in the backlog page: it still says fixed presets use 128 kbps audio, and it says upscaling used the default filter before, which the framer code contradicts.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 18 | 701 | 6 | reviewed | 9 | $0.37 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.37</sub>\n\n<!-- agent-review sha=bff7fcf900bc9e6490d8344f7d76d190985b35f5 -->"
+ },
+ {
+  "id": 5709250862,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "12d33d10cf322a2848847cae94744976480a70a1",
+  "submitted_at": "2026-10-30T07:22:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/436#pullrequestreview-5709250862",
+  "body": ""
+ },
+ {
+  "id": 5709251142,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "12d33d10cf322a2848847cae94744976480a70a1",
+  "submitted_at": "2026-10-30T07:22:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/436#pullrequestreview-5709251142",
+  "body": ""
+ }
+]

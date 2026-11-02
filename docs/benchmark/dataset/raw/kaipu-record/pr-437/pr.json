@@ -1,0 +1,29 @@
+{
+ "number": 437,
+ "title": "design: webcam as its own track above the zoom (NIW2-565)",
+ "body": "## Summary\n\nDesign only — no code. Auto-zoom crops the face out of recordings because the camera bubble is a floating window burned into the screen pixels; there is no separate webcam file. This PR records how we fix that the way Cap, Screen Studio and Tella do.\n\n- **Spec** `specs/2026-10-30-webcam-track-design.md`: one-minute block (9 decisions, defaulted open questions, out of scope, failures, acceptance criteria), then capture, sync, exclusion, vault, scene model, preview, export, back-compat, size (16–25 days; Plan B +5–8) and task order.\n- **ADR 0032** — the webcam is its own track (`.kaipu/<id>.webcam.mp4`, same clock as the screen, start offset on the sidecar) and the bubble is excluded from the capture. **Plan A is chosen** (owner, 2026-10-30): Electron content protection on the bubble from creation. **Plan B is recorded, not scheduled**: native ScreenCaptureKit exclusion by window id, as Cap does, only if the spike fails, under its own ticket. Hiding the bubble is rejected.\n- **ADR 0033** — the webcam is a viewport layer composed after the zoom crop and the output framing; Share composes it at the recorded layout.\n- **Task 0** — the one-day exclusion spike, run by the owner by hand, with steps, pixels to check and the plan each outcome selects.\n- Backlog page `backlog/webcam-track.md` (🔵 Proposed) + index row + sidebar entry; superseded note on capture-modes spec decision 6; note on the terminal-line bug page.\n\nOwner answers folded in: Plan A chosen, Plan B recorded only, no hiding the bubble, 720p30 webcam, Share includes the webcam, spike first.\n\nLinear: [NIW2-565](https://linear.app/niway/issue/NIW2-565)\n\n## Verification\n\n- Internal links in the new docs were checked against existing pages by script.\n- `astro build` passes locally (347 pages) on 03520a08; CI skips the docs build for this PR. The `#35-task-0--the-exclusion-spike` anchor exists in the built spec.\n- Pre-push `verify:local` (lint, oxfmt, build, types) passed on push.\n\n- Agent review findings (offset sign, webcam width, pre-2004 Windows) fixed in df0abc99; replies in each thread.\n\n## How to test it yourself\n\n1. `bun run dev` in `apps/documentation` (or open the preview deploy).\n2. Open **Backlog → Webcam track**: the 🔵 banner shows and links to the spec and both ADRs.\n3. Open the spec: the decisions table renders, and section 3.5 \"Task 0 — the exclusion spike\" lists the takes, the pixels to check, and the outcome → plan table.\n4. Open **Architecture → Decisions**: 0032 and 0033 appear at the top of the index as Proposed.\n5. On the bug page \"control bar hides last terminal line\", the link to Task 0 jumps to that section.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-30T07:23:15Z",
+ "updated_at": "2026-10-31T16:16:50Z",
+ "closed_at": "2026-10-31T16:16:38Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/437",
+ "base": {
+  "ref": "main",
+  "sha": "8aa2c207ee4095dcc94d7e43ed0a879be8494624"
+ },
+ "head": {
+  "ref": "design/niw2-565-webcam-track",
+  "sha": "df3abc96a93ef6307d49fd699e177173c6e660c3",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 9,
+ "additions": 1076,
+ "deletions": 143,
+ "labels": []
+}

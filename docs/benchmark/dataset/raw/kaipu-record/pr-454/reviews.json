@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5718559352,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "1b4e075626ccd13f7c04656d94fd1b3d5dd12264",
+  "submitted_at": "2026-10-30T20:57:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/454#pullrequestreview-5718559352",
+  "body": "**Agent review** of the whole pull request, at `1b4e075`: all 33 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 has no defects. I compared the clip loop moved out of the worker into export-clip-frames.ts with the old export-worker.ts loop, and it behaves the same. The only change is that webcam fills now pass the fill time as `cameraTs`, so the zoom crop follows the camera while the redactions stay those of the held frame. The composer revision was bumped to match. Other changes checked: the companion filmstrip offset and cache key in use-source-thumbnails, the GIF webcam fetch now handling an error raised before the fetch returns, the seek lead and the waiting/stalled/playing handling in WebcamLayer, the inspector-target rule in webcam-selection, and the zoom/pan clamps in webcam-layout. The new import from @shared/camera-bubble has no dependencies of its own, so it is safe in the worker bundle. One optional test-strength suggestion on the filmstrip's empty-tile test.\n\n**Batch 2 of 2.** I found nothing to flag in part 2. I compared the tests with the code they cover, and their expected values match it:\n- `exportClipFrames`: output-time rebasing, the webcam frame looked up at the source time (face#120 at 4 s), fills over a still screen, and carrying `prevOutTs` across a cut.\n- The GIF worker tests: each sampled frame's webcam lookup lines up with how `gif-worker.ts` wires `framesAt` and `compose.clip`.\n- `companionSampleTimes`: I worked through all three expected arrays by hand.\n- `webcamSeekLead`'s zero result while paused, its cap on long seeks and its handling of NaN.\n- `webcamInspectorTarget` and `webcamOutlined`.\n\nThe webcam lane's 44px height matches the Clips lane (`timeline-strip.module.css`), as its comment says. The spec's new text on the filmstrip and on the inspector editing the override under the playhead matches `webcam-selection.ts`.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 21 | 919 | 4 | reviewed | 4 | $0.27 |\n| Batch 2 of 2 | 12 | 696 | 2 | reviewed | 8 | $0.25 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.52</sub>\n\n<!-- agent-review sha=1b4e075626ccd13f7c04656d94fd1b3d5dd12264 -->"
+ }
+]

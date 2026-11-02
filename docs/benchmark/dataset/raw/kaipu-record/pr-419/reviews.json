@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5691077080,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4bf11e197bc766276a7a7507a59c69ef7abb5b73",
+  "submitted_at": "2026-10-28T23:36:07Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/419#pullrequestreview-5691077080",
+  "body": "**Agent review** of the whole pull request, at `4bf11e1`: all 5 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is correct. `ControlBarWindow.raise()` checks `wanted`, and `bar.hide()` is now called when a countdown is abandoned. I checked `raiseFloating` in `recording-hub.ts` (line 461) and the callers of `bar.show`/`bar.hide`: a raise that arrives before `bar.show` is skipped, but a bar shown later lands on top anyway. The only gap is that the bubble's new visibility guard has no test.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 5 | 36 | 5 | reviewed | 8 | $0.07 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.07</sub>\n\n<!-- agent-review sha=4bf11e197bc766276a7a7507a59c69ef7abb5b73 -->"
+ },
+ {
+  "id": 5691110483,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b752d69bae8b9010ef6e235e3cec0d2fb4c476d1",
+  "submitted_at": "2026-10-28T23:40:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/419#pullrequestreview-5691110483",
+  "body": ""
+ }
+]

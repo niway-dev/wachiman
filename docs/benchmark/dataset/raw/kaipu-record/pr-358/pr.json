@@ -1,0 +1,29 @@
+{
+ "number": 358,
+ "title": "fix(desktop): tag registry imports once and is never overwritten when untrusted (audit LIB-A4, LIB-B6, LIB-B7)",
+ "body": "## What was broken\n\n- LIB-A4 / LIB-B7: with no `tags.json`, every `tags:list` re-ran the legacy Phase 1 tag import (a full vault scan), because the registry was only written when legacy tags existed. `list()` also scanned the vault for counts even with zero tags.\n- LIB-B6: any read error or parse failure of `tags.json` (corrupt JSON, newer version, EIO/EACCES) was treated as \"no registry\", so the next tag write replaced the file and erased every tag.\n\n## What changed (`src/main/library/tag-repository.ts` + tests)\n\n- `importLegacy` always persists the registry (even empty) before rewriting sidecars, so the import runs exactly once per vault.\n- `list()` returns `[]` without scanning when there are no live tags.\n- `read()`: only ENOENT means \"no registry\". Corrupt/newer-version JSON throws `TagRegistryError(\"corrupt\")` after copying the file to `tags.json.corrupt-<ts>` once per session; other read errors throw `TagRegistryError(\"unreadable\")`. All write paths call `read()` first, so writes are refused and the file is untouched.\n\nBehaviour change: a corrupt `tags.json` now makes `tags:list` reject (the existing `errorTags` toast) instead of silently showing no tags and later wiping the file. Follow-up outside this PR: `use-tags.ts` `create` calls `listTags()` unguarded in its catch block, so with a corrupt registry `create` rejects instead of returning `null`.\n\n## How it was verified\n\nFrom `apps/kaipu-record`:\n- `bun run test src/main/library/tag-repository.test.ts`: 21 passed (6 new).\n- `bun run check-types`: no errors.\n- `bun run lint`: 0 errors (17 pre-existing warnings).\n- Full `bun run test`: 2178 tests passed; 3 files (`library-service`, `edit-project-probe`, `video-edit-session`) fail to load only because Electron's binary is not installed in this worktree (`bun install --ignore-scripts`); unrelated to this change.\n\nNote: the new \"writes the registry before stripping legacy tags\" test uses a persistent `writeMeta` rejection, since `vault.list()` now backfills identity via `writeMeta` and swallows its errors (would consume a one-shot mock).\n\n## Findings closed\n\nLIB-A4, LIB-B7, LIB-B6. The plan lives in PR #301 (`docs/code-audit-2026-10-15`, `plans/audit-2026-10-15/07-tags-registry-integrity.md`); it is not on main, so this PR does not delete it.\n\n## How to test it yourself\n\n1. Open the Library on a vault that never had tags: `<vault>/.kaipu/tags.json` appears as `{\"version\":1,\"tags\":[]}` and stays across reopenings.\n2. Quit, edit `tags.json` to `{bad`, reopen: tags toast appears, creating a tag fails, the file is unchanged and one `tags.json.corrupt-<ts>` sits beside it.\n3. Restore a valid file: tags work again.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-21T05:19:15Z",
+ "updated_at": "2026-10-21T05:37:34Z",
+ "closed_at": "2026-10-21T05:37:32Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/358",
+ "base": {
+  "ref": "main",
+  "sha": "4686d306d4f7ffb2037b2893fa200860c7a636c5"
+ },
+ "head": {
+  "ref": "fix/audit-07-tags-registry-integrity",
+  "sha": "981630aaf6f9b17eeb4cabaa8350d466da44e3ef",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 2,
+ "additions": 136,
+ "deletions": 9,
+ "labels": []
+}

@@ -1,0 +1,62 @@
+[
+ {
+  "id": 5673670075,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "submitted_at": "2026-10-27T20:14:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#pullrequestreview-5673670075",
+  "body": "**Agent review** of the whole pull request, at `335ddd2`: all 9 files reviewed.\n\n2 finding(s): 1 to fix, 1 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is mostly sound and well tested. One real gap: `RecordingWriter.releaseAll` is added and tested but never called from the crash or close handlers, so the handle leak is not fixed. A smaller point: when the take-back fails, the error still points salvage at a staging path that no longer exists.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 9 | 294 | 5 | reviewed | 3 | $0.05 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.05</sub>\n\n<!-- agent-review sha=335ddd236a1d2651c730d99d04db5450b971b785 -->"
+ },
+ {
+  "id": 5673990578,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "submitted_at": "2026-10-27T20:38:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#pullrequestreview-5673990578",
+  "body": ""
+ },
+ {
+  "id": 5673991504,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "submitted_at": "2026-10-27T20:38:45Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#pullrequestreview-5673991504",
+  "body": ""
+ },
+ {
+  "id": 5674030599,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "submitted_at": "2026-10-27T20:41:46Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#pullrequestreview-5674030599",
+  "body": ""
+ },
+ {
+  "id": 5674031022,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "submitted_at": "2026-10-27T20:41:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#pullrequestreview-5674031022",
+  "body": ""
+ }
+]

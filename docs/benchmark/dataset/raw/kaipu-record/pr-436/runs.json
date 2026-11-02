@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T08:08:38Z",
+  "databaseId": 41183378934,
+  "displayTitle": "feat(export): YouTube preset exports 1440p or 4K (NIW2-564)",
+  "event": "pull_request",
+  "headBranch": "feat/niw2-564-youtube-1440-4k",
+  "headSha": "8496ec130c82492efb8a6d8bd6ac221281abbbd2",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:08:46Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41183378934",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T07:55:14Z",
+  "databaseId": 41182486177,
+  "displayTitle": "feat(export): YouTube preset exports 1440p or 4K (NIW2-564)",
+  "event": "pull_request",
+  "headBranch": "feat/niw2-564-youtube-1440-4k",
+  "headSha": "8496ec130c82492efb8a6d8bd6ac221281abbbd2",
+  "status": "completed",
+  "updatedAt": "2026-10-31T07:55:33Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41182486177",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T07:22:47Z",
+  "databaseId": 41019721999,
+  "displayTitle": "feat(export): YouTube preset exports 1440p or 4K (NIW2-564)",
+  "event": "pull_request",
+  "headBranch": "feat/niw2-564-youtube-1440-4k",
+  "headSha": "12d33d10cf322a2848847cae94744976480a70a1",
+  "status": "completed",
+  "updatedAt": "2026-10-30T07:23:04Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41019721999",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T07:20:29Z",
+  "databaseId": 41019489160,
+  "displayTitle": "feat(export): YouTube preset exports 1440p or 4K (NIW2-564)",
+  "event": "pull_request",
+  "headBranch": "feat/niw2-564-youtube-1440-4k",
+  "headSha": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "status": "completed",
+  "updatedAt": "2026-10-30T07:21:31Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41019489160",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T07:20:29Z",
+  "databaseId": 41019488084,
+  "displayTitle": "feat(export): YouTube preset exports 1440p or 4K (NIW2-564)",
+  "event": "pull_request",
+  "headBranch": "feat/niw2-564-youtube-1440-4k",
+  "headSha": "bff7fcf900bc9e6490d8344f7d76d190985b35f5",
+  "status": "completed",
+  "updatedAt": "2026-10-30T07:20:46Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41019488084",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

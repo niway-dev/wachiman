@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5641294627,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0be08de9587bda716ac1235271faf1084ba1478d",
+  "submitted_at": "2026-10-25T03:09:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/367#pullrequestreview-5641294627",
+  "body": "**Claude review** of the whole pull request, at `0be08de`: all 8 files reviewed.\n\n2 finding(s), 0 to fix; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no correctness or security bugs in the locking and atomic-write changes. I left two notes. `remove()` still deletes the old `.tmp` name, which new temp files no longer use, so crash leftovers pile up. The chmod-based test fails when run as root.\n\n<sub>Claude Sonnet 5.5 · $0.11</sub>\n\n<!-- claude-review sha=0be08de9587bda716ac1235271faf1084ba1478d -->"
+ }
+]

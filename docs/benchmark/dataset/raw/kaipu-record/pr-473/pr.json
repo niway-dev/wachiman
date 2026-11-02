@@ -1,0 +1,29 @@
+{
+ "number": 473,
+ "title": "docs: drop the remaining hand-kept indexes",
+ "body": "Removes the documentation indexes that are kept by hand. Every PR that adds a page was editing the same shared list, so branches in flight kept conflicting on files none of them were about: #470 hit it twice on `backlog/index.mdx`, and `architecture/decisions/index.mdx` changed 13 times in a week. The work queue is the tracker, and every listing is now generated. This follows general-knowledge `conventions/adr-pattern.md` (\"No hand-kept index\") and `feature-docs-as-memory.md` (\"The generated index\").\n\n## What changes for you\n\n- **Sidebar:** Desktop App, Backlog, Stack and Authentication now autogenerate from their folders, like every other section. Getting Started is the one fixed group. The Authentication landing page moves to `authentication/index.mdx`, and its URL is unchanged. Product Philosophy stays first in Desktop App through `sidebar.order` in its frontmatter. A new page appears when it is created. The manual lists had already drifted: 5 backlog pages and `desktop/analytics-and-flags` were not in the sidebar, and now they are.\n- **ADRs:** the table in `architecture/decisions/index.mdx` is gone. The page keeps its intro and points to the generated sidebar, and each ADR file carries its own status and date. Existing links to `/architecture/decisions/` keep working.\n- **Audit 2026-10-15 fix plans:** `00-index.md` loses its status line (\"12 of 36 shipped\") and its per-batch tables. What shipped is tracked in Linear (NIW2-381 to NIW2-422) and in the PRs that delete each plan. `report.md` points there.\n- **Changelog:** `changelog.mdx` is deleted, together with its sidebar group. It was kept by hand and had been stale since 2026-07-01. The changelog template is removed from the `feature-docs` skill, and step 7 is removed from `/save-feature`, so no agent recreates it.\n- **`.gitignore`:** now ignores `.build/`, the Swift Package Manager cache. It had slipped into this PR's first commit.\n- **`CLAUDE.md`:** the Sidebar rule now says every folder autogenerates and that there are no hand-kept indexes.\n\nNot touched:\n- the two roadmaps (`backlog/roadmap.md`, `briefings/roadmap.md`), because the hub allows a roadmap as a promise;\n- the section overview pages (`architecture/`, `testing/`, `marketing/` index), which are rarely edited;\n- the feature-docs \"Parent Index\" template, which holds per-area context and is not a global list;\n- old plans that mention `backlog/index.mdx`, which are history.\n\n## Checks\n\n- `bun run build` in `apps/documentation` succeeds (363 pages, one fewer because the changelog is gone).\n- `oxfmt --check .` is clean, and the push hook's `verify-local` passed.\n\n## How to test it yourself\n\n1. Run `bun run dev` in `apps/documentation`.\n2. Open the Backlog and Desktop App sidebar groups.\n   - Expect: every page in each folder is listed, including `backlog/check-and-fix-files` and `desktop/analytics-and-flags`. There is no Changelog group.\n3. Open `/architecture/decisions/`.\n   - Expect: an intro with no table. The ADRs are in the sidebar.\n4. Open `/plans/audit-2026-10-15/00-index/` and `/audits/2026-10-15/report/`.\n   - Expect: no status counts. The links between them resolve.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-31T17:22:24Z",
+ "updated_at": "2026-10-31T17:42:52Z",
+ "closed_at": "2026-10-31T17:42:52Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/473",
+ "base": {
+  "ref": "main",
+  "sha": "e088a24127b571466628b8b87bb5a0ba931ac713"
+ },
+ "head": {
+  "ref": "docs/drop-hand-kept-indexes",
+  "sha": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 12,
+ "additions": 33,
+ "deletions": 338,
+ "labels": []
+}

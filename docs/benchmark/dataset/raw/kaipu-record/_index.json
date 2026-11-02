@@ -1,0 +1,3271 @@
+[
+ {
+  "number": 1,
+  "title": "Implement Kaipu design tokens and enhance recorder UI features",
+  "state": "closed",
+  "head": "refactor/settings-deport",
+  "result": "skipped"
+ },
+ {
+  "number": 2,
+  "title": "Kaipu Record — core de grabación + analytics (flags + manejo de errores)",
+  "state": "closed",
+  "head": "feat/screen-recording-control-bar",
+  "result": "skipped"
+ },
+ {
+  "number": 3,
+  "title": "Desktop: firma + notarización macOS + pipeline de release",
+  "state": "closed",
+  "head": "feat/release-pipeline",
+  "result": "skipped"
+ },
+ {
+  "number": 4,
+  "title": "feat(kaipu-record): global shortcuts, window reachability & camera/control-bar fixes",
+  "state": "closed",
+  "head": "feat/shortcuts-and-window-reachability",
+  "result": "skipped"
+ },
+ {
+  "number": 5,
+  "title": "docs: consolidate docs into the site + documentation rules",
+  "state": "closed",
+  "head": "docs/consolidate-documentation",
+  "result": "skipped"
+ },
+ {
+  "number": 6,
+  "title": "feat(kaipu-record): version gate (fail-open kill-switch + soft nudge)",
+  "state": "closed",
+  "head": "feat/version-gate",
+  "result": "skipped"
+ },
+ {
+  "number": 7,
+  "title": "feat: macOS auto-update (R2 feed) + product landing page",
+  "state": "closed",
+  "head": "feat/auto-update",
+  "result": "skipped"
+ },
+ {
+  "number": 8,
+  "title": "chore(env): drop unused BETTER_AUTH_SECRET (web) + DATABASE_URL_DIRECT (web+api)",
+  "state": "closed",
+  "head": "chore/env-cleanup",
+  "result": "skipped"
+ },
+ {
+  "number": 9,
+  "title": "fix(workers): brand Cloudflare Worker names (kaipu-api / kaipu-web)",
+  "state": "closed",
+  "head": "fix/worker-names",
+  "result": "skipped"
+ },
+ {
+  "number": 10,
+  "title": "ci(r2): reuse account id + bucket as constant (only 2 R2 secrets needed)",
+  "state": "closed",
+  "head": "fix/r2-reuse-account-id",
+  "result": "skipped"
+ },
+ {
+  "number": 11,
+  "title": "refactor(kaipu-record): post-launch consolidation (pure extraction + practical tests + audit playbook)",
+  "state": "closed",
+  "head": "refactor/kaipu-record-consolidation",
+  "result": "skipped"
+ },
+ {
+  "number": 12,
+  "title": "fix(recording): preserve the screen's real aspect ratio (no 16:9 squeeze)",
+  "state": "closed",
+  "head": "fix/recording-aspect-ratio",
+  "result": "skipped"
+ },
+ {
+  "number": 13,
+  "title": "feat(screenshots): capture, editor, beautify, library + re-edit (v1)",
+  "state": "closed",
+  "head": "feat/screenshots",
+  "result": "skipped"
+ },
+ {
+  "number": 14,
+  "title": "feat(screenshots): editor tools v2 — freehand pen, blur redaction, auto-select",
+  "state": "closed",
+  "head": "feat/screenshot-editor-tools",
+  "result": "skipped"
+ },
+ {
+  "number": 15,
+  "title": "feat(screenshots): crop tool — non-destructive, native-pixel export V2",
+  "state": "closed",
+  "head": "feat/screenshot-crop",
+  "result": "skipped"
+ },
+ {
+  "number": 16,
+  "title": "feat(widget): dual-mode Capture Panel — Record / Capture tabs",
+  "state": "closed",
+  "head": "feat/widget-capture-tabs",
+  "result": "skipped"
+ },
+ {
+  "number": 17,
+  "title": "fix(recording): lift the recording engine out of the page mount (audit batch 1)",
+  "state": "closed",
+  "head": "fix/recording-engine-lifetime",
+  "result": "skipped"
+ },
+ {
+  "number": 18,
+  "title": "fix: guard destructive exits mid-recording & in the editor (audit batch 2)",
+  "state": "closed",
+  "head": "fix/unguarded-exits",
+  "result": "skipped"
+ },
+ {
+  "number": 19,
+  "title": "fix: surface silent failures across recording, library, screenshots & settings (audit batch 3)",
+  "state": "closed",
+  "head": "fix/surface-silent-failures",
+  "result": "skipped"
+ },
+ {
+  "number": 20,
+  "title": "fix: shortcuts & window reachability (audit batch 4a)",
+  "state": "closed",
+  "head": "fix/shortcuts-window-reachability",
+  "result": "skipped"
+ },
+ {
+  "number": 21,
+  "title": "fix(settings): broadcast persisted-settings changes to every window (audit batch 4b)",
+  "state": "closed",
+  "head": "fix/settings-broadcast",
+  "result": "skipped"
+ },
+ {
+  "number": 22,
+  "title": "fix(library): confirm, validate & re-list on a vault-folder change (audit batch 4c)",
+  "state": "closed",
+  "head": "fix/vault-folder-change-safety",
+  "result": "skipped"
+ },
+ {
+  "number": 23,
+  "title": "docs+test: correct IPC contract doc & cover record-page auto-start (audit batch 4d)",
+  "state": "closed",
+  "head": "fix/ipc-docs-and-record-page-tests",
+  "result": "skipped"
+ },
+ {
+  "number": 24,
+  "title": "fix(screenshots): editor & export fidelity — double-composite, clip, arrow scale, crop/padding (audit batch 5)",
+  "state": "closed",
+  "head": "fix/screenshot-editor-export-fidelity",
+  "result": "skipped"
+ },
+ {
+  "number": 25,
+  "title": "fix(recording): verify + harden macOS system audio (best-effort, video-only fallback)",
+  "state": "closed",
+  "head": "fix/system-audio-graceful-fallback",
+  "result": "skipped"
+ },
+ {
+  "number": 26,
+  "title": "docs(video-editor): design spec + six implementation plans",
+  "state": "closed",
+  "head": "feat/video-editor-plans",
+  "result": "skipped"
+ },
+ {
+  "number": 27,
+  "title": "feat(video-editor): editor core — timeline, cut, trim, undo/redo (plans 01–03)",
+  "state": "closed",
+  "head": "feat/video-editor-core",
+  "result": "skipped"
+ },
+ {
+  "number": 28,
+  "title": "feat(video-editor): full quick video editor — timeline, cut, annotations, slides, mediabunny export",
+  "state": "closed",
+  "head": "feat/video-editor",
+  "result": "skipped"
+ },
+ {
+  "number": 29,
+  "title": "docs(testing): E2E harness design + implementation plan (Playwright + Electron)",
+  "state": "closed",
+  "head": "test/e2e-harness",
+  "result": "skipped"
+ },
+ {
+  "number": 30,
+  "title": "test(e2e): Playwright + Electron testing foundation — harness, CI, testability map & 6 flow tests",
+  "state": "closed",
+  "head": "test/e2e-harness-impl",
+  "result": "skipped"
+ },
+ {
+  "number": 31,
+  "title": "feat(i18n): web + desktop i18n foundation (Stage 1 — wire)",
+  "state": "closed",
+  "head": "feat/i18n-web-desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 32,
+  "title": "feat(i18n): Stage 2 — propagate translations to every page & feature (es/en)",
+  "state": "closed",
+  "head": "feat/i18n-stage2-propagation",
+  "result": "skipped"
+ },
+ {
+  "number": 33,
+  "title": "ci(release): adopt release-please — fix desktop auto-update version drift",
+  "state": "closed",
+  "head": "fix/auto-updater",
+  "result": "skipped"
+ },
+ {
+  "number": 34,
+  "title": "chore(main): release desktop 0.3.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 35,
+  "title": "chore(main): release web 0.2.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 36,
+  "title": "ci(format): exclude generated CHANGELOG.md from oxfmt",
+  "state": "closed",
+  "head": "fix/oxfmt-ignore-changelog",
+  "result": "skipped"
+ },
+ {
+  "number": 37,
+  "title": "ci: per-project pipelines — universal compile check + scoped test suites",
+  "state": "closed",
+  "head": "ci/per-project-pipelines",
+  "result": "skipped"
+ },
+ {
+  "number": 38,
+  "title": "feat(tokens): shared @kaipu/tokens design-tokens package (PR1 — dark, zero visual change)",
+  "state": "closed",
+  "head": "feat/design-tokens-package",
+  "result": "skipped"
+ },
+ {
+  "number": 39,
+  "title": "feat(tokens): real light palette + landing theme toggle (PR2)",
+  "state": "closed",
+  "head": "feat/design-tokens-light-web",
+  "result": "skipped"
+ },
+ {
+  "number": 40,
+  "title": "chore(main): release desktop 0.4.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 41,
+  "title": "chore(main): release web 0.3.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 42,
+  "title": "feat(desktop): light/dark theme setting applied in every window (design tokens PR3)",
+  "state": "closed",
+  "head": "feat/design-tokens-desktop-theme",
+  "result": "skipped"
+ },
+ {
+  "number": 43,
+  "title": "fix(editor): edited videos now get a poster thumbnail",
+  "state": "closed",
+  "head": "fix/editor-thumbnail-generation",
+  "result": "skipped"
+ },
+ {
+  "number": 44,
+  "title": "feat(library): self-heal imported/interrupted recordings + localize edited title",
+  "state": "closed",
+  "head": "feat/heal-orphan-metadata",
+  "result": "skipped"
+ },
+ {
+  "number": 45,
+  "title": "feat(landing): feature showcase with looping video demos",
+  "state": "closed",
+  "head": "feat/landing-redesign",
+  "result": "skipped"
+ },
+ {
+  "number": 46,
+  "title": "fix(library): recover from post-record detail race instead of \"File not found\"",
+  "state": "closed",
+  "head": "fix/library-detail-missing-fallback",
+  "result": "skipped"
+ },
+ {
+  "number": 47,
+  "title": "feat(landing): hero + feature demo clips (bundled, optimized)",
+  "state": "closed",
+  "head": "feat/landing-demo-clips",
+  "result": "skipped"
+ },
+ {
+  "number": 48,
+  "title": "chore(main): release web 0.4.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 49,
+  "title": "ci(desktop): stop storing redundant macOS artifact on tag releases",
+  "state": "closed",
+  "head": "ci/desktop-artifact-storage",
+  "result": "skipped"
+ },
+ {
+  "number": 50,
+  "title": "feat(screenshots): multi-line text annotations (Alt/Shift+Enter line break)",
+  "state": "closed",
+  "head": "feat/screenshot-text-multiline",
+  "result": "skipped"
+ },
+ {
+  "number": 51,
+  "title": "feat(screenshots): resizable text box with word-wrap (Excalidraw-style)",
+  "state": "closed",
+  "head": "feat/screenshot-text-wrap",
+  "result": "skipped"
+ },
+ {
+  "number": 52,
+  "title": "feat(screenshots): re-edit text labels in place (double-click)",
+  "state": "closed",
+  "head": "feat/screenshot-text-reedit",
+  "result": "skipped"
+ },
+ {
+  "number": 53,
+  "title": "feat: cloud recordings — accounts + R2 presigned upload (backend)",
+  "state": "closed",
+  "head": "feat/cloud-recordings-r2-backend",
+  "result": "skipped"
+ },
+ {
+  "number": 54,
+  "title": "chore(main): release desktop 0.5.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 55,
+  "title": "chore(main): release api 0.2.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--api",
+  "result": "skipped"
+ },
+ {
+  "number": 56,
+  "title": "chore(main): release web 0.5.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 57,
+  "title": "docs(backlog): backend security hardening hub + 7 workstreams",
+  "state": "closed",
+  "head": "docs/backend-security-hardening",
+  "result": "skipped"
+ },
+ {
+  "number": 58,
+  "title": "docs(backlog): correct dependency-upgrade versions + scope the audit",
+  "state": "closed",
+  "head": "docs/dependency-security-scope-and-versions",
+  "result": "skipped"
+ },
+ {
+  "number": 59,
+  "title": "docs(backlog): register cloud-recordings-upload in the sidebar",
+  "state": "closed",
+  "head": "docs/link-cloud-recordings-sidebar",
+  "result": "skipped"
+ },
+ {
+  "number": 60,
+  "title": "docs(backlog): note Cloudflare Rate Limiting Rules as an implementation option",
+  "state": "closed",
+  "head": "docs/api-abuse-cloudflare-rate-limiting",
+  "result": "skipped"
+ },
+ {
+  "number": 61,
+  "title": "docs(backlog): propose Cloudflare Cron Triggers for the sweep",
+  "state": "closed",
+  "head": "docs/cloud-lifecycle-cron-triggers",
+  "result": "skipped"
+ },
+ {
+  "number": 62,
+  "title": "docs(backlog): decide the operational-events destination explicitly",
+  "state": "closed",
+  "head": "docs/production-security-telemetry-note",
+  "result": "skipped"
+ },
+ {
+  "number": 63,
+  "title": "docs(backlog): link + verify the stale Better Auth Electron doc",
+  "state": "closed",
+  "head": "docs/desktop-auth-link-stale-doc",
+  "result": "skipped"
+ },
+ {
+  "number": 64,
+  "title": "docs(specs): Desktop authentication design spec",
+  "state": "closed",
+  "head": "docs/desktop-authentication-spec",
+  "result": "skipped"
+ },
+ {
+  "number": 65,
+  "title": "docs(plans): Desktop authentication implementation plan",
+  "state": "closed",
+  "head": "docs/desktop-authentication-plan",
+  "result": "skipped"
+ },
+ {
+  "number": 66,
+  "title": "feat(infra-auth): add the bearer plugin for non-browser clients",
+  "state": "closed",
+  "head": "feat/desktop-auth-01-bearer-plugin",
+  "result": "skipped"
+ },
+ {
+  "number": 67,
+  "title": "feat(auth): add shared AuthStatus/AuthCredentials/AuthError types",
+  "state": "closed",
+  "head": "feat/desktop-auth-02-shared-types",
+  "result": "skipped"
+ },
+ {
+  "number": 68,
+  "title": "feat(auth): add auth-client — sign-in/sign-up/get-session/sign-out over bearer",
+  "state": "closed",
+  "head": "feat/desktop-auth-03-auth-client",
+  "result": "skipped"
+ },
+ {
+  "number": 69,
+  "title": "feat(auth): add auth-store — safeStorage persistence, sender-validated IPC, broadcast",
+  "state": "closed",
+  "head": "feat/desktop-auth-04-auth-store",
+  "result": "skipped"
+ },
+ {
+  "number": 70,
+  "title": "feat(auth): declare the 5 auth IPC channels, KaipuElectronAPI methods, and preload impl",
+  "state": "closed",
+  "head": "feat/desktop-auth-05-ipc-contract",
+  "result": "skipped"
+ },
+ {
+  "number": 71,
+  "title": "feat(auth): wire registerAuth into the main process",
+  "state": "closed",
+  "head": "feat/desktop-auth-07-main-wiring",
+  "result": "skipped"
+ },
+ {
+  "number": 72,
+  "title": "feat(auth): add useAuthStatus renderer hook",
+  "state": "closed",
+  "head": "feat/desktop-auth-08-use-auth-status",
+  "result": "skipped"
+ },
+ {
+  "number": 73,
+  "title": "feat(auth): add AccountPanel — sign-in/sign-up/sign-out UI",
+  "state": "closed",
+  "head": "feat/desktop-auth-09-account-panel",
+  "result": "skipped"
+ },
+ {
+  "number": 74,
+  "title": "feat(auth): add account/sign-in/sign-up copy (en + es)",
+  "state": "closed",
+  "head": "feat/desktop-auth-10-i18n",
+  "result": "skipped"
+ },
+ {
+  "number": 75,
+  "title": "fix(auth): match real i18n copy in account-panel tests",
+  "state": "closed",
+  "head": "feat/desktop-auth-10b-account-panel-copy-fix",
+  "result": "skipped"
+ },
+ {
+  "number": 76,
+  "title": "feat(auth): add the Account section to Settings",
+  "state": "closed",
+  "head": "feat/desktop-auth-11-settings-page",
+  "result": "skipped"
+ },
+ {
+  "number": 77,
+  "title": "fix(auth): resolve typecheck:web errors",
+  "state": "closed",
+  "head": "feat/desktop-auth-11b-typecheck-web-fixes",
+  "result": "skipped"
+ },
+ {
+  "number": 79,
+  "title": "fix(auth): Task 12 manual verification — 3 real bugs found and fixed",
+  "state": "closed",
+  "head": "feat/desktop-auth-12-manual-verification",
+  "result": "skipped"
+ },
+ {
+  "number": 81,
+  "title": "fix(auth): final whole-branch review findings — 2 Critical + 3 Important",
+  "state": "closed",
+  "head": "feat/desktop-auth-13-final-review-fixes",
+  "result": "skipped"
+ },
+ {
+  "number": 82,
+  "title": "docs(specs): correct the get-session 401 assumption in the Error-handling table",
+  "state": "closed",
+  "head": "docs/desktop-auth-spec-error-handling-correction",
+  "result": "skipped"
+ },
+ {
+  "number": 83,
+  "title": "fix(screenshots): text annotation SE handle stops resizing once the label wraps",
+  "state": "closed",
+  "head": "fix/text-annotation-corner-resize",
+  "result": "skipped"
+ },
+ {
+  "number": 84,
+  "title": "feat: plan entitlements (free/pro) + template cleanup",
+  "state": "closed",
+  "head": "feat/plan-entitlements-and-cleanup",
+  "result": "skipped"
+ },
+ {
+  "number": 85,
+  "title": "chore(hooks): migrate husky + lint-staged to lefthook",
+  "state": "closed",
+  "head": "chore/lefthook-migration",
+  "result": "skipped"
+ },
+ {
+  "number": 86,
+  "title": "fix(desktop): single-instance lock so a second launch never runs on in-memory storage",
+  "state": "open",
+  "head": "fix/single-instance-lock",
+  "result": "skipped"
+ },
+ {
+  "number": 87,
+  "title": "feat(desktop): move sign-in and sign-up out of Settings into full-window pages",
+  "state": "closed",
+  "head": "feat/desktop-auth-pages",
+  "result": "skipped"
+ },
+ {
+  "number": 88,
+  "title": "feat(desktop): show a \"local env\" chip in the status bar of dev builds",
+  "state": "closed",
+  "head": "feat/dev-env-badge",
+  "result": "skipped"
+ },
+ {
+  "number": 89,
+  "title": "feat(desktop): sober Account row in Settings and action-named auth buttons",
+  "state": "closed",
+  "head": "feat/settings-account-copy",
+  "result": "skipped"
+ },
+ {
+  "number": 90,
+  "title": "feat(desktop): stable asset identity and the combined local + cloud library",
+  "state": "closed",
+  "head": "feat/cloud-02-local-identity",
+  "result": "skipped"
+ },
+ {
+  "number": 91,
+  "title": "feat(desktop): split Settings into pages and add a Cloud section with save modes and capacity",
+  "state": "closed",
+  "head": "feat/settings-storage-cloud",
+  "result": "skipped"
+ },
+ {
+  "number": 92,
+  "title": "feat(cloud): server quotas, revisions and restricted tickets (plan 01, Tasks 0-9)",
+  "state": "closed",
+  "head": "feat/cloud-01-server-quotas",
+  "result": "skipped"
+ },
+ {
+  "number": 93,
+  "title": "docs(backlog): handoff for the optional cloud work",
+  "state": "closed",
+  "head": "docs/cloud-handoff",
+  "result": "skipped"
+ },
+ {
+  "number": 94,
+  "title": "feat(server): plan command to grant and revoke pro, plus a commands reference",
+  "state": "closed",
+  "head": "feat/plan-grant-command",
+  "result": "skipped"
+ },
+ {
+  "number": 95,
+  "title": "fix(desktop): settings page gutter and slimmer settings nav",
+  "state": "closed",
+  "head": "fix/settings-layout-spacing",
+  "result": "skipped"
+ },
+ {
+  "number": 96,
+  "title": "chore: bring cloud plan 01 Tasks 0-9 (#92, #93) into main",
+  "state": "closed",
+  "head": "feat/settings-storage-cloud",
+  "result": "skipped"
+ },
+ {
+  "number": 97,
+  "title": "feat(server): cloud assets router and GET /me/storage (plan 01, Task 10)",
+  "state": "closed",
+  "head": "feat/cloud-10-server-routes",
+  "result": "skipped"
+ },
+ {
+  "number": 98,
+  "title": "fix(desktop): tell the user to verify their email when cloud access is missing",
+  "state": "closed",
+  "head": "fix/cloud-unverified-email-copy",
+  "result": "skipped"
+ },
+ {
+  "number": 99,
+  "title": "docs: cloud error states map and signed-out Cloud view",
+  "state": "closed",
+  "head": "docs/cloud-error-states",
+  "result": "skipped"
+ },
+ {
+  "number": 100,
+  "title": "feat(desktop): skeleton on the Cloud page until auth status loads",
+  "state": "closed",
+  "head": "feat/cloud-page-skeleton",
+  "result": "skipped"
+ },
+ {
+  "number": 101,
+  "title": "feat(desktop): block cloud save modes until the email is verified",
+  "state": "closed",
+  "head": "feat/cloud-gate-unverified",
+  "result": "skipped"
+ },
+ {
+  "number": 102,
+  "title": "feat(legal): terms, privacy, Cloud and cookies pages",
+  "state": "closed",
+  "head": "feat/legal-pages",
+  "result": "skipped"
+ },
+ {
+  "number": 103,
+  "title": "feat(web): Kaipu logo, favicons and SEO metadata",
+  "state": "closed",
+  "head": "feat/web-kaipu-logo",
+  "result": "skipped"
+ },
+ {
+  "number": 104,
+  "title": "chore(main): release web 0.6.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 105,
+  "title": "ci(api): pass R2 cloud storage secrets to the Worker on release",
+  "state": "closed",
+  "head": "ci/api-r2-secrets",
+  "result": "skipped"
+ },
+ {
+  "number": 106,
+  "title": "docs(cloud): 2026-09-15 product decisions, copy update and implementation plans",
+  "state": "closed",
+  "head": "docs/cloud-2026-09-15-decisions",
+  "result": "skipped"
+ },
+ {
+  "number": 107,
+  "title": "feat(email): transactional email with Resend (verification + password reset)",
+  "state": "closed",
+  "head": "feat/transactional-email",
+  "result": "skipped"
+ },
+ {
+  "number": 108,
+  "title": "chore(main): release api 0.3.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--api",
+  "result": "skipped"
+ },
+ {
+  "number": 109,
+  "title": "chore(main): release desktop 0.6.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 110,
+  "title": "chore(main): release web 0.7.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 111,
+  "title": "fix(kaipu-record): add manual refresh for email-verification banner",
+  "state": "closed",
+  "head": "fix/email-verification-refresh-button",
+  "result": "skipped"
+ },
+ {
+  "number": 112,
+  "title": "docs(secrets): design the Infisical + varlock migration",
+  "state": "closed",
+  "head": "docs/infisical-varlock-migration-design",
+  "result": "skipped"
+ },
+ {
+  "number": 113,
+  "title": "feat(secrets): phase 1 — varlock foundation and root schema",
+  "state": "closed",
+  "head": "feat/varlock-phase-1-foundation",
+  "result": "skipped"
+ },
+ {
+  "number": 114,
+  "title": "feat(secrets): source local env from Infisical, drop dotenvx",
+  "state": "closed",
+  "head": "feat/infisical-local-dev",
+  "result": "skipped"
+ },
+ {
+  "number": 115,
+  "title": "feat(console): add the Kaipu Console app",
+  "state": "closed",
+  "head": "feat/console-app",
+  "result": "skipped"
+ },
+ {
+  "number": 116,
+  "title": "fix(desktop): bump electron-builder to 26.16.1 for macOS 26.6 signing",
+  "state": "closed",
+  "head": "fix/desktop-signing-keychain",
+  "result": "skipped"
+ },
+ {
+  "number": 117,
+  "title": "chore(main): release desktop 0.6.1",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 118,
+  "title": "feat(email): report why a transactional send failed",
+  "state": "closed",
+  "head": "feat/email-observability",
+  "result": "skipped"
+ },
+ {
+  "number": 119,
+  "title": "chore(main): release api 0.4.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--api",
+  "result": "skipped"
+ },
+ {
+  "number": 120,
+  "title": "fix(kaipu-record): keep the verification-email state across mounts",
+  "state": "closed",
+  "head": "fix/verification-email-state",
+  "result": "skipped"
+ },
+ {
+  "number": 121,
+  "title": "chore(main): release desktop 0.6.2",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 122,
+  "title": "feat(web): public roadmap page at /roadmap",
+  "state": "closed",
+  "head": "feat/public-roadmap",
+  "result": "skipped"
+ },
+ {
+  "number": 123,
+  "title": "fix(web-hono): give the dev Worker its env instead of the parent process",
+  "state": "closed",
+  "head": "fix/web-hono-dev-env",
+  "result": "skipped"
+ },
+ {
+  "number": 124,
+  "title": "chore(main): release web 0.8.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 125,
+  "title": "fix(env): close the gaps where config never reaches the runtime that reads it",
+  "state": "closed",
+  "head": "fix/env-delivery-gaps",
+  "result": "skipped"
+ },
+ {
+  "number": 126,
+  "title": "fix(web): one header per public page, and English as the default locale",
+  "state": "closed",
+  "head": "fix/web-shell-and-english-default",
+  "result": "skipped"
+ },
+ {
+  "number": 127,
+  "title": "chore(main): release desktop 0.7.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 128,
+  "title": "chore(repo): make `bun run check-types` cover the apps too",
+  "state": "closed",
+  "head": "chore/uniform-check-types",
+  "result": "skipped"
+ },
+ {
+  "number": 129,
+  "title": "refactor(i18n): export Translator<N> so the cheap translator type is the only one",
+  "state": "closed",
+  "head": "refactor/scoped-translator-type",
+  "result": "skipped"
+ },
+ {
+  "number": 130,
+  "title": "docs(secrets): correct the env docs and record the audit as a handoff",
+  "state": "closed",
+  "head": "docs/secrets-and-dependency-audit-handoff",
+  "result": "skipped"
+ },
+ {
+  "number": 131,
+  "title": "docs(video-editor): v2 design specs and audited implementation plan (zoom, blur, cover)",
+  "state": "closed",
+  "head": "docs/video-editor-v2-plan",
+  "result": "skipped"
+ },
+ {
+  "number": 132,
+  "title": "fix(kaipu-record): generate the export poster from the rendered output",
+  "state": "closed",
+  "head": "feat/video-editor-v2-poster-from-output",
+  "result": "skipped"
+ },
+ {
+  "number": 133,
+  "title": "feat(kaipu-record): capture a cursor position track with every screen recording",
+  "state": "closed",
+  "head": "feat/video-editor-v2-cursor-track",
+  "result": "skipped"
+ },
+ {
+  "number": 134,
+  "title": "feat(kaipu-record): capture clicks for the cursor track, gated on Accessibility",
+  "state": "closed",
+  "head": "feat/video-editor-v2-click-hook",
+  "result": "skipped"
+ },
+ {
+  "number": 135,
+  "title": "feat(kaipu-record): add the zoom detector, camera path and redaction math",
+  "state": "closed",
+  "head": "feat/video-editor-v2-zoom-math",
+  "result": "skipped"
+ },
+ {
+  "number": 136,
+  "title": "feat(kaipu-record): scene v2, cursor-track loading and session autosave",
+  "state": "closed",
+  "head": "feat/video-editor-v2-scene-v2",
+  "result": "skipped"
+ },
+ {
+  "number": 137,
+  "title": "feat(kaipu-record): add the Activity and Zooms lanes and the inspector column",
+  "state": "closed",
+  "head": "feat/video-editor-v2-timeline-lanes",
+  "result": "skipped"
+ },
+ {
+  "number": 138,
+  "title": "feat(kaipu-record): move the preview camera and add the camera box",
+  "state": "closed",
+  "head": "feat/video-editor-v2-preview-camera",
+  "result": "skipped"
+ },
+ {
+  "number": 139,
+  "title": "feat(kaipu-record): add blur and cover privacy regions to the editor",
+  "state": "closed",
+  "head": "feat/video-editor-v2-redactions",
+  "result": "skipped"
+ },
+ {
+  "number": 140,
+  "title": "feat(kaipu-record): burn zoom and privacy regions into the export",
+  "state": "closed",
+  "head": "feat/video-editor-v2-export-pass",
+  "result": "skipped"
+ },
+ {
+  "number": 141,
+  "title": "feat(kaipu-record): video editor v2 polish and the Accessibility onboarding step",
+  "state": "closed",
+  "head": "feat/video-editor-v2-polish",
+  "result": "skipped"
+ },
+ {
+  "number": 142,
+  "title": "docs(video-editor): record cursor-free capture as a v2.1 roadmap item",
+  "state": "closed",
+  "head": "docs/cursor-sprite-roadmap",
+  "result": "skipped"
+ },
+ {
+  "number": 143,
+  "title": "feat(kaipu-record): cursor-track inspector, check CLI, real fixture, and the tail-cut fix",
+  "state": "closed",
+  "head": "feat/video-editor-v2-cursor-track-check",
+  "result": "skipped"
+ },
+ {
+  "number": 144,
+  "title": "docs(video-editor): propose edit-state indicators (saving · edited, not exported)",
+  "state": "closed",
+  "head": "docs/edit-state-indicators",
+  "result": "skipped"
+ },
+ {
+  "number": 145,
+  "title": "docs(video-editor): camera box UX findings from validating the preview camera",
+  "state": "closed",
+  "head": "docs/camera-box-ux",
+  "result": "skipped"
+ },
+ {
+  "number": 146,
+  "title": "docs(video-editor): propose annotation options in the inspector column",
+  "state": "closed",
+  "head": "docs/annotation-inspector",
+  "result": "skipped"
+ },
+ {
+  "number": 147,
+  "title": "docs(adr): 0003 — an export never replaces the original recording",
+  "state": "closed",
+  "head": "docs/adr-export-never-replaces",
+  "result": "skipped"
+ },
+ {
+  "number": 148,
+  "title": "docs(video-editor): v2 handoff — state, merge order, pending checks",
+  "state": "closed",
+  "head": "docs/video-editor-v2-handoff",
+  "result": "skipped"
+ },
+ {
+  "number": 149,
+  "title": "chore(repo): require a \"What to review\" section on every PR",
+  "state": "closed",
+  "head": "chore/pr-what-to-review-section",
+  "result": "skipped"
+ },
+ {
+  "number": 150,
+  "title": "fix(ci): stop the desktop postinstall from building uiohook on Linux CI",
+  "state": "closed",
+  "head": "fix/desktop-postinstall-linux-ci",
+  "result": "skipped"
+ },
+ {
+  "number": 151,
+  "title": "chore(repo): drop the desktop postinstall, check for the rebuild instead",
+  "state": "closed",
+  "head": "chore/native-deps-doctor",
+  "result": "skipped"
+ },
+ {
+  "number": 152,
+  "title": "feat(kaipu-record): annotation inspector and camera box body-drag",
+  "state": "closed",
+  "head": "feat/video-editor-v2-ux-followups",
+  "result": "skipped"
+ },
+ {
+  "number": 153,
+  "title": "feat(desktop): Accessibility as a permissions row + language picker in onboarding",
+  "state": "closed",
+  "head": "feat/onboarding-accessibility-row-and-language",
+  "result": "skipped"
+ },
+ {
+  "number": 154,
+  "title": "docs(backlog): live recording controls proposal + group the video editor v2 wave",
+  "state": "closed",
+  "head": "docs/live-recording-controls",
+  "result": "skipped"
+ },
+ {
+  "number": 155,
+  "title": "feat(screenshots): save automatically or on click (Settings → Screenshots)",
+  "state": "closed",
+  "head": "feat/settings-screenshot-save",
+  "result": "skipped"
+ },
+ {
+  "number": 156,
+  "title": "feat(library): lineage (source ↔ exports), edited/not-exported badge, editor save state",
+  "state": "closed",
+  "head": "feat/library-lineage-edit-state",
+  "result": "skipped"
+ },
+ {
+  "number": 157,
+  "title": "docs(backlog): eight proposals that missed #154, plus naming a capture from the editor",
+  "state": "closed",
+  "head": "docs/backlog-batch-2",
+  "result": "skipped"
+ },
+ {
+  "number": 158,
+  "title": "docs(backlog): CI minutes audit — where they go and what to cut",
+  "state": "closed",
+  "head": "docs/ci-minutes-audit",
+  "result": "skipped"
+ },
+ {
+  "number": 159,
+  "title": "fix(kaipu-record): decide \"exported\" by a stamp, not by comparing clocks",
+  "state": "closed",
+  "head": "fix/export-stamp-and-original-label",
+  "result": "skipped"
+ },
+ {
+  "number": 160,
+  "title": "ci(release-please): run only when a releasable path changes",
+  "state": "closed",
+  "head": "ci/release-please-paths",
+  "result": "skipped"
+ },
+ {
+  "number": 161,
+  "title": "ci(hooks): local verify gate on pre-push and ADR 0004 (local-first verification)",
+  "state": "closed",
+  "head": "ci/local-verify-gate",
+  "result": "skipped"
+ },
+ {
+  "number": 162,
+  "title": "ci(release): verify gate on every release and desktop E2E on the macOS build",
+  "state": "closed",
+  "head": "ci/release-gates",
+  "result": "skipped"
+ },
+ {
+  "number": 163,
+  "title": "ci: retire pull_request triggers from the four validation workflows",
+  "state": "closed",
+  "head": "ci/retire-pr-checks",
+  "result": "skipped"
+ },
+ {
+  "number": 164,
+  "title": "ci(release): validate the release candidate on the release-please PR",
+  "state": "closed",
+  "head": "ci/release-candidate-verify",
+  "result": "skipped"
+ },
+ {
+  "number": 165,
+  "title": "chore(main): release desktop 0.8.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 166,
+  "title": "ci: cache turbo outputs so the surviving runs stop recomputing everything",
+  "state": "closed",
+  "head": "ci/turbo-cache",
+  "result": "skipped"
+ },
+ {
+  "number": 167,
+  "title": "ci: delete a PR's caches when it closes, and stop minting one per push",
+  "state": "closed",
+  "head": "ci/cache-hygiene",
+  "result": "skipped"
+ },
+ {
+  "number": 168,
+  "title": "ci(release): make the verify label both the trigger and the gate",
+  "state": "closed",
+  "head": "ci/release-verify-label",
+  "result": "skipped"
+ },
+ {
+  "number": 169,
+  "title": "docs(backlog): handoff for the CI cost work",
+  "state": "closed",
+  "head": "docs/ci-cost-handoff",
+  "result": "skipped"
+ },
+ {
+  "number": 170,
+  "title": "feat(watermark): move the mark to the bottom-right corner and quiet it down",
+  "state": "closed",
+  "head": "feat/watermark-bottom-left",
+  "result": "skipped"
+ },
+ {
+  "number": 171,
+  "title": "docs(specs): design Settings → Updates with no off switch",
+  "state": "closed",
+  "head": "docs/settings-updates-spec",
+  "result": "skipped"
+ },
+ {
+  "number": 172,
+  "title": "feat(watermark): move the mark to the bottom-right corner and quiet it down",
+  "state": "closed",
+  "head": "feat/watermark-bottom-right",
+  "result": "skipped"
+ },
+ {
+  "number": 173,
+  "title": "feat(updater): surface the real update state and a button to check now",
+  "state": "closed",
+  "head": "feat/settings-updates",
+  "result": "skipped"
+ },
+ {
+  "number": 174,
+  "title": "ci: make Draft → Ready for review the release-candidate readiness signal",
+  "state": "closed",
+  "head": "ci/draft-ready-release-candidate",
+  "result": "skipped"
+ },
+ {
+  "number": 175,
+  "title": "docs(ci): clarify PR check names and document pipeline alternatives",
+  "state": "closed",
+  "head": "docs/clarify-pr-checks",
+  "result": "skipped"
+ },
+ {
+  "number": 176,
+  "title": "ci: run the desktop E2E suite before the tag, not after it",
+  "state": "closed",
+  "head": "ci/candidate-desktop-e2e",
+  "result": "skipped"
+ },
+ {
+  "number": 177,
+  "title": "fix(video-editor): size the preview from its container, not the viewport",
+  "state": "closed",
+  "head": "fix/video-editor-preview-scaling",
+  "result": "skipped"
+ },
+ {
+  "number": 178,
+  "title": "chore(main): release desktop 0.9.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 179,
+  "title": "test(desktop): run the E2E suite pre-push, and contain the CI-only flake",
+  "state": "closed",
+  "head": "fix/desktop-e2e-flake-containment",
+  "result": "skipped"
+ },
+ {
+  "number": 180,
+  "title": "test(e2e): stop the suite asking macOS for screen capture on every launch",
+  "state": "closed",
+  "head": "fix/e2e-no-screen-capture-prompt",
+  "result": "skipped"
+ },
+ {
+  "number": 181,
+  "title": "fix(recording): stop holding the microphone open just to read device labels",
+  "state": "closed",
+  "head": "fix/microphone-not-held-on-record-page",
+  "result": "skipped"
+ },
+ {
+  "number": 182,
+  "title": "docs(backlog): record the surviving E2E screen-permission dialog as a known issue",
+  "state": "closed",
+  "head": "docs/known-issue-e2e-screen-prompt",
+  "result": "skipped"
+ },
+ {
+  "number": 183,
+  "title": "fix(ci): the required check must never skip — a skipped check reads as passed",
+  "state": "closed",
+  "head": "fix/gate-must-never-skip",
+  "result": "skipped"
+ },
+ {
+  "number": 184,
+  "title": "feat(video-editor): make text labels editable and multi-line",
+  "state": "closed",
+  "head": "feat/video-editor-editable-multiline-text",
+  "result": "skipped"
+ },
+ {
+  "number": 185,
+  "title": "fix(video-editor): hide the label while its inline editor is open",
+  "state": "closed",
+  "head": "fix/video-editor-text-edit-overlap",
+  "result": "skipped"
+ },
+ {
+  "number": 186,
+  "title": "test: drop three tests that cannot catch the failure they name",
+  "state": "closed",
+  "head": "test/audit-session-tests",
+  "result": "skipped"
+ },
+ {
+  "number": 187,
+  "title": "fix(video-editor): capture the pointer on the layer, so double-click still edits",
+  "state": "closed",
+  "head": "fix/video-editor-text-double-click",
+  "result": "skipped"
+ },
+ {
+  "number": 188,
+  "title": "docs(specs): design one owner for text annotation geometry",
+  "state": "closed",
+  "head": "docs/spec-text-annotation-geometry",
+  "result": "skipped"
+ },
+ {
+  "number": 189,
+  "title": "feat(annotations): the box governs the text, with one owner for its geometry",
+  "state": "closed",
+  "head": "feat/text-box-governs-text",
+  "result": "skipped"
+ },
+ {
+  "number": 190,
+  "title": "fix(ci): report the merge gate once per commit, from the run that verified it",
+  "state": "closed",
+  "head": "fix/pr-checks-one-report-per-sha",
+  "result": "skipped"
+ },
+ {
+  "number": 191,
+  "title": "chore: open-source security sweep before the repository goes public",
+  "state": "closed",
+  "head": "chore/open-source-security-sweep",
+  "result": "skipped"
+ },
+ {
+  "number": 192,
+  "title": "feat: free local recordings, Kaipu identity, and growth strategy",
+  "state": "closed",
+  "head": "feat/growth-strategy-and-free-watermark",
+  "result": "skipped"
+ },
+ {
+  "number": 193,
+  "title": "CI runner strategy: vendors, self-hosted, and what actually costs us",
+  "state": "open",
+  "head": "wip/ci-runner-strategy",
+  "result": "skipped"
+ },
+ {
+  "number": 194,
+  "title": "feat(screenshots): copy a capture to the clipboard automatically, plus three annotation fixes",
+  "state": "closed",
+  "head": "feat/screenshot-auto-clipboard",
+  "result": "skipped"
+ },
+ {
+  "number": 195,
+  "title": "chore(main): release desktop 0.10.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 196,
+  "title": "feat(web): marketing home, Kai branding, and conversion audit",
+  "state": "closed",
+  "head": "feat/marketing-landing",
+  "result": "skipped"
+ },
+ {
+  "number": 197,
+  "title": "chore(main): release web 0.9.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 198,
+  "title": "fix(landing): read the real keyboard shortcuts instead of typed glyphs",
+  "state": "closed",
+  "head": "fix/shared-shortcut-constants",
+  "result": "skipped"
+ },
+ {
+  "number": 199,
+  "title": "feat(editor): mute as an edit, the editor's width back to the timeline, one stable window",
+  "state": "closed",
+  "head": "feat/editor-mute",
+  "result": "skipped"
+ },
+ {
+  "number": 200,
+  "title": "feat(web): the fox everywhere the web still showed the old play-mark",
+  "state": "closed",
+  "head": "feat/web-brand-marks",
+  "result": "skipped"
+ },
+ {
+  "number": 201,
+  "title": "docs(plans): establish the focused Kai delivery contract",
+  "state": "closed",
+  "head": "docs/home-kai-contract",
+  "result": "skipped"
+ },
+ {
+  "number": 202,
+  "title": "feat(web): the home meets Kai, speaks Spanish and turns light",
+  "state": "closed",
+  "head": "feat/home-kai-web",
+  "result": "skipped"
+ },
+ {
+  "number": 203,
+  "title": "docs(marketing): the fox is Kai — reconcile brand docs with the shipped home",
+  "state": "closed",
+  "head": "docs/home-kai-reconcile",
+  "result": "skipped"
+ },
+ {
+  "number": 204,
+  "title": "feat(web): Kai's moods — the menu-bar marks, tappable",
+  "state": "closed",
+  "head": "feat/home-kai-moods",
+  "result": "skipped"
+ },
+ {
+  "number": 205,
+  "title": "feat(web): the home speaks Spanish and turns light",
+  "state": "closed",
+  "head": "feat/home-theme-and-locale",
+  "result": "skipped"
+ },
+ {
+  "number": 206,
+  "title": "fix(web): the moments band and Kai get room to be separate sections",
+  "state": "closed",
+  "head": "fix/home-section-rhythm",
+  "result": "skipped"
+ },
+ {
+  "number": 207,
+  "title": "docs(frontend): record the landing's web-vitals baseline before optimizing",
+  "state": "closed",
+  "head": "docs/web-vitals-baseline",
+  "result": "skipped"
+ },
+ {
+  "number": 208,
+  "title": "fix(ci): the web preview installs wrangler, and stops claiming it deploys prod",
+  "state": "closed",
+  "head": "fix/preview-web-wrangler",
+  "result": "skipped"
+ },
+ {
+  "number": 209,
+  "title": "fix(ci): the web preview emits a version URL, and says so when it cannot",
+  "state": "closed",
+  "head": "fix/web-preview-version-urls",
+  "result": "skipped"
+ },
+ {
+  "number": 210,
+  "title": "docs(frontend): record the first edge measurement of the landing",
+  "state": "closed",
+  "head": "docs/web-vitals-cloudflare-row",
+  "result": "skipped"
+ },
+ {
+  "number": 211,
+  "title": "docs(adr): 0007 — prod previews via Version URLs, dev environment deferred",
+  "state": "closed",
+  "head": "docs/adr-prod-previews",
+  "result": "skipped"
+ },
+ {
+  "number": 212,
+  "title": "feat(styles): StyleX stages 0-1 — the proven pipeline and typed literal tokens with a light theme",
+  "state": "closed",
+  "head": "experiment/stylex-button",
+  "result": "skipped"
+ },
+ {
+  "number": 213,
+  "title": "design: shared styling on StyleX — spec and ADR 0008",
+  "state": "closed",
+  "head": "design/shared-styling",
+  "result": "skipped"
+ },
+ {
+  "number": 214,
+  "title": "fix(web-ui): the package stops shipping a second Tailwind build",
+  "state": "closed",
+  "head": "fix/web-ui-css-dedup",
+  "result": "skipped"
+ },
+ {
+  "number": 215,
+  "title": "feat(ui): the shared Button becomes an atom, with the boundary that makes it shareable",
+  "state": "closed",
+  "head": "feat/ui-atoms-button",
+  "result": "skipped"
+ },
+ {
+  "number": 216,
+  "title": "docs(frontend): the third web-vitals row, and why its mobile score is confounded",
+  "state": "closed",
+  "head": "docs/web-vitals-post-dedup",
+  "result": "skipped"
+ },
+ {
+  "number": 217,
+  "title": "feat(kaipu-record): every Button in the app is the shared one",
+  "state": "closed",
+  "head": "feat/desktop-button-adopts-ui",
+  "result": "skipped"
+ },
+ {
+  "number": 218,
+  "title": "feat(ui): Badge and Card join the atoms, IconButton is deleted",
+  "state": "closed",
+  "head": "feat/ui-atoms-badge-card-iconbutton",
+  "result": "skipped"
+ },
+ {
+  "number": 219,
+  "title": "fix(kaipu-record): the E2E suite runs under node, so it runs at all",
+  "state": "closed",
+  "head": "fix/playwright-single-runtime",
+  "result": "skipped"
+ },
+ {
+  "number": 220,
+  "title": "feat(ui): Input and SearchInput join the atoms, PageHeader is deleted",
+  "state": "closed",
+  "head": "feat/ui-atoms-form-controls",
+  "result": "skipped"
+ },
+ {
+  "number": 221,
+  "title": "feat(ui): the Modal becomes the first molecule, and Toggle sheds Radix",
+  "state": "closed",
+  "head": "feat/ui-molecules-modal-popover",
+  "result": "skipped"
+ },
+ {
+  "number": 222,
+  "title": "feat(ui): Row and the toast stack move to the shared library",
+  "state": "closed",
+  "head": "feat/ui-row-toast",
+  "result": "skipped"
+ },
+ {
+  "number": 223,
+  "title": "feat(ui): Popover joins the molecules, and the docs catch up with reality",
+  "state": "closed",
+  "head": "feat/ui-popover-select",
+  "result": "skipped"
+ },
+ {
+  "number": 224,
+  "title": "docs(backlog): a ledger for the debts this migration left on purpose",
+  "state": "closed",
+  "head": "docs/technical-debt-ledger",
+  "result": "skipped"
+ },
+ {
+  "number": 225,
+  "title": "feat(tokens): accent alpha variants replace hardcoded rgba literals",
+  "state": "closed",
+  "head": "feat/tokens-accent-alpha",
+  "result": "skipped"
+ },
+ {
+  "number": 226,
+  "title": "feat(ui): recording controls move to @kaipu/ui (stage 2b, part 1)",
+  "state": "closed",
+  "head": "feat/stylex-stage-2b-recording-controls",
+  "result": "skipped"
+ },
+ {
+  "number": 227,
+  "title": "feat(ui): stage 2b part 2 — shared navigation rail and a real-components landing shot",
+  "state": "closed",
+  "head": "feat/stylex-stage-2b-shell",
+  "result": "skipped"
+ },
+ {
+  "number": 228,
+  "title": "docs: add .hermes.md agent context",
+  "state": "closed",
+  "head": "docs/hermes-context",
+  "result": "skipped"
+ },
+ {
+  "number": 229,
+  "title": "chore: close the shipped debts and name the real recordings folder",
+  "state": "closed",
+  "head": "chore/close-shipped-debts",
+  "result": "skipped"
+ },
+ {
+  "number": 230,
+  "title": "perf(web-hono): landing critical path diet (lazy hydration, lean root, WebP foxes)",
+  "state": "closed",
+  "head": "perf/landing-critical-path",
+  "result": "skipped"
+ },
+ {
+  "number": 231,
+  "title": "feat(brand): replace raster fox moods with vector SVGs",
+  "state": "closed",
+  "head": "feat/brand-vector-fox",
+  "result": "skipped"
+ },
+ {
+  "number": 232,
+  "title": "fix(desktop): the light theme reaches the shared components",
+  "state": "closed",
+  "head": "fix/ui-light-theme",
+  "result": "skipped"
+ },
+ {
+  "number": 233,
+  "title": "fix(ui): enabled buttons keep their fill",
+  "state": "closed",
+  "head": "fix/ui-hover-erases-background",
+  "result": "skipped"
+ },
+ {
+  "number": 234,
+  "title": "perf(desktop): the capture panel opens without waiting for every window",
+  "state": "closed",
+  "head": "perf/capture-panel-latency",
+  "result": "skipped"
+ },
+ {
+  "number": 235,
+  "title": "ci: every pull request is checked in Actions; pre-push keeps only the fast checks",
+  "state": "closed",
+  "head": "ci/checks-move-to-actions",
+  "result": "skipped"
+ },
+ {
+  "number": 236,
+  "title": "feat(desktop): the window grows from its centre when the editor needs room",
+  "state": "closed",
+  "head": "feat/window-grows-from-center",
+  "result": "skipped"
+ },
+ {
+  "number": 237,
+  "title": "chore: the public repository gets its community files and its new address",
+  "state": "closed",
+  "head": "chore/public-repo-community",
+  "result": "skipped"
+ },
+ {
+  "number": 238,
+  "title": "ci: run the PR checks in parallel, and stop the edited twin from passing them",
+  "state": "closed",
+  "head": "ci/parallel-pr-checks",
+  "result": "skipped"
+ },
+ {
+  "number": 239,
+  "title": "docs(marketing): product direction and monetization proposal",
+  "state": "closed",
+  "head": "docs/product-direction-monetization",
+  "result": "skipped"
+ },
+ {
+  "number": 240,
+  "title": "ci(pr-checks): skip the desktop E2E on docs-only pull requests",
+  "state": "closed",
+  "head": "ci/skip-desktop-e2e-docs-only",
+  "result": "skipped"
+ },
+ {
+  "number": 241,
+  "title": "design: live controls, tags, editor workspace, auto polish and cursor research",
+  "state": "open",
+  "head": "design/live-controls-tags-cursor",
+  "result": "skipped"
+ },
+ {
+  "number": 242,
+  "title": "docs(hermes): night shift context for this repo",
+  "state": "open",
+  "head": "docs/hermes-night-shift-context",
+  "result": "skipped"
+ },
+ {
+  "number": 243,
+  "title": "feat(desktop): live recording controls — mute mic, system audio and camera mid-take (NIW2-152)",
+  "state": "closed",
+  "head": "night/niw2-152-live-recording-controls",
+  "result": "skipped"
+ },
+ {
+  "number": 244,
+  "title": "feat(desktop): Editor workspace — every Edit lands in one URL-addressed editor (NIW2-157)",
+  "state": "closed",
+  "head": "night/niw2-157-editor-workspace",
+  "result": "skipped"
+ },
+ {
+  "number": 245,
+  "title": "feat(desktop): tags as entities — colored tags, tag drawer and faceted Library filters (NIW2-154)",
+  "state": "closed",
+  "head": "night/niw2-154-recording-tags",
+  "result": "skipped"
+ },
+ {
+  "number": 246,
+  "title": "fix(ci): Worker secrets ship inside the deployed version",
+  "state": "closed",
+  "head": "fix/wrangler-deploy-secrets",
+  "result": "skipped"
+ },
+ {
+  "number": 247,
+  "title": "ci(pr-checks): the E2E leaves production, jobs get scoped names, the docs site gets built",
+  "state": "closed",
+  "head": "ci/e2e-without-production-environment",
+  "result": "skipped"
+ },
+ {
+  "number": 248,
+  "title": "ci(release): a release run queues behind another, it never cancels it",
+  "state": "open",
+  "head": "ci/release-runs-queue-not-cancel",
+  "result": "skipped"
+ },
+ {
+  "number": 249,
+  "title": "docs(web): vitals row 4 on production, and the shipped bundle gets its own log",
+  "state": "open",
+  "head": "docs/web-vitals-production-row",
+  "result": "skipped"
+ },
+ {
+  "number": 251,
+  "title": "chore(main): release desktop 0.11.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 252,
+  "title": "docs(specs): auto polish research findings (NIW2-158)",
+  "state": "closed",
+  "head": "night/niw2-158-auto-polish-research",
+  "result": "skipped"
+ },
+ {
+  "number": 253,
+  "title": "fix(desktop): derive the app icon from @kaipu/brand; brand icon in the dev Dock (NIW2-181)",
+  "state": "closed",
+  "head": "night/niw2-181-app-icon",
+  "result": "skipped"
+ },
+ {
+  "number": 254,
+  "title": "docs(plans): home conversion v2 plan + prototype (NIW2-141)",
+  "state": "closed",
+  "head": "night/niw2-141-home-conversion-plan",
+  "result": "skipped"
+ },
+ {
+  "number": 255,
+  "title": "Bug: main window disappears when it loses focus (macOS)",
+  "state": "closed",
+  "head": "queue-9-bug-main-window-disappears-when-it-loses",
+  "result": "skipped"
+ },
+ {
+  "number": 256,
+  "title": "Screenshot editor: name the capture (title input)",
+  "state": "closed",
+  "head": "queue-11-screenshot-editor-name-the-capture-title",
+  "result": "skipped"
+ },
+ {
+  "number": 257,
+  "title": "Desktop releases end up as pre-release, so /releases/latest has no DMG",
+  "state": "open",
+  "head": "queue-33-desktop-releases-end-up-as-pre-release-s",
+  "result": "skipped"
+ },
+ {
+  "number": 258,
+  "title": "Refresh the public roadmap page",
+  "state": "closed",
+  "head": "queue-46-refresh-the-public-roadmap-page",
+  "result": "skipped"
+ },
+ {
+  "number": 259,
+  "title": "Screenshot export: PDF",
+  "state": "closed",
+  "head": "queue-53-screenshot-export-pdf",
+  "result": "skipped"
+ },
+ {
+  "number": 260,
+  "title": "Screenshot editor toolbar: responsive layout",
+  "state": "closed",
+  "head": "queue-55-screenshot-editor-toolbar-responsive-lay",
+  "result": "skipped"
+ },
+ {
+  "number": 261,
+  "title": "docs(kaipu): NIW2-199 cloud recordings upload backlog edits",
+  "state": "closed",
+  "head": "docs/cloud-recordings-backlog-rescue",
+  "result": "skipped"
+ },
+ {
+  "number": 262,
+  "title": "feat(kaipu): NIW2-200 editor workspace commits rescued from local clone (NIW2-157)",
+  "state": "closed",
+  "head": "night/niw2-157-editor-workspace-rescue",
+  "result": "skipped"
+ },
+ {
+  "number": 263,
+  "title": "docs(kaipu): NIW2-199 cloud recordings upload backlog edits",
+  "state": "open",
+  "head": "docs/NIW2-199-cloud-recordings-backlog",
+  "result": "skipped"
+ },
+ {
+  "number": 264,
+  "title": "feat(kaipu): NIW2-200 editor workspace commits rescued from local clone (NIW2-157)",
+  "state": "closed",
+  "head": "feat/NIW2-200-editor-workspace-rescue",
+  "result": "skipped"
+ },
+ {
+  "number": 265,
+  "title": "design(kaipu): NIW2-216 sharing access modes",
+  "state": "open",
+  "head": "design/NIW2-216-sharing-access-modes",
+  "result": "skipped"
+ },
+ {
+  "number": 266,
+  "title": "feat(kaipu): NIW2-217 export a short video as an animated GIF",
+  "state": "closed",
+  "head": "feat/NIW2-217-gif-export",
+  "result": "skipped"
+ },
+ {
+  "number": 267,
+  "title": "docs(kaipu): NIW2-214 cloud state refresh and phase 3 plan",
+  "state": "open",
+  "head": "docs/NIW2-214-cloud-state-and-phase-3-plan",
+  "result": "skipped"
+ },
+ {
+  "number": 268,
+  "title": "feat(kaipu): NIW2-214 cloud sweep cron, account purge and cloud:uploads switch",
+  "state": "open",
+  "head": "feat/NIW2-214-cloud-sweep-and-purge",
+  "result": "skipped"
+ },
+ {
+  "number": 269,
+  "title": "feat(kaipu): NIW2-218 export presets pipeline and fast start",
+  "state": "closed",
+  "head": "feat/NIW2-218-export-presets",
+  "result": "skipped"
+ },
+ {
+  "number": 270,
+  "title": "chore(kaipu): NIW2-214 cloud storage ops docs, WAF runbook, CI integration step and migration baseline",
+  "state": "open",
+  "head": "chore/NIW2-214-cloud-ops-docs-ci",
+  "result": "skipped"
+ },
+ {
+  "number": 271,
+  "title": "feat(kaipu): NIW2-218 export preset picker in the export sheet",
+  "state": "closed",
+  "head": "feat/NIW2-218-export-presets-ui",
+  "result": "skipped"
+ },
+ {
+  "number": 272,
+  "title": "feat(kaipu): NIW2-218 small-file size check and retry",
+  "state": "closed",
+  "head": "feat/NIW2-218-small-file",
+  "result": "skipped"
+ },
+ {
+  "number": 273,
+  "title": "fix(kaipu): NIW2-232 unify plan information (Free 250 MB)",
+  "state": "closed",
+  "head": "fix/NIW2-232-unify-plans",
+  "result": "skipped"
+ },
+ {
+  "number": 274,
+  "title": "feat(web-hono): authenticated /account page (profile, sign-in methods, plan and storage)",
+  "state": "closed",
+  "head": "feature/niw2-220-web-account-page-with-sign-in-methods-plan-and-storage-usage",
+  "result": "skipped"
+ },
+ {
+  "number": 275,
+  "title": "ci: harden workflows and Cloudflare config [NIW2-326]",
+  "state": "open",
+  "head": "fix/ci-cloudflare-hardening",
+  "result": "skipped"
+ },
+ {
+  "number": 276,
+  "title": "fix(api): close upload abuse paths [NIW2-323]",
+  "state": "closed",
+  "head": "feature/niw2-323-close-api-upload-abuse-paths",
+  "result": "skipped"
+ },
+ {
+  "number": 277,
+  "title": "docs(specs): extension model and server-side hooks [NIW2-329]",
+  "state": "open",
+  "head": "feature/niw2-329-extension-model-feature-tables-linked-to-any-entity-and",
+  "result": "skipped"
+ },
+ {
+  "number": 278,
+  "title": "fix(auth): harden authentication and upgrade vulnerable dependencies [NIW2-324]",
+  "state": "open",
+  "head": "feature/niw2-324-harden-authentication-and-upgrade-vulnerable-dependencies",
+  "result": "skipped"
+ },
+ {
+  "number": 279,
+  "title": "docs(specs): editor compose — new image and new video from several sources",
+  "state": "open",
+  "head": "design/editor-compose",
+  "result": "skipped"
+ },
+ {
+  "number": 280,
+  "title": "docs(backlog): review of the open PRs — verdicts, deploy prerequisites, merge order",
+  "state": "open",
+  "head": "docs/pr-review-2026-10-12",
+  "result": "skipped"
+ },
+ {
+  "number": 281,
+  "title": "chore(main): release web 0.10.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 282,
+  "title": "design: tags as entities with local-first, opt-in sync",
+  "state": "closed",
+  "head": "design/tags-as-entities",
+  "result": "skipped"
+ },
+ {
+  "number": 283,
+  "title": "feat(kaipu): NIW2-218 Balanced 1080p default and Export quality setting",
+  "state": "closed",
+  "head": "feat/NIW2-218-export-quality",
+  "result": "skipped"
+ },
+ {
+  "number": 284,
+  "title": "feat(kaipu): NIW2-218 Share button and already-exported reuse",
+  "state": "closed",
+  "head": "feat/NIW2-218-share-button",
+  "result": "skipped"
+ },
+ {
+  "number": 285,
+  "title": "feat(kaipu): NIW2-218 export sheet redesign and heavy-file banner",
+  "state": "closed",
+  "head": "feat/NIW2-218-share-sheet-design",
+  "result": "skipped"
+ },
+ {
+  "number": 286,
+  "title": "feat(kaipu): NIW2-218 background exports with progress and Ready to share cards",
+  "state": "closed",
+  "head": "feat/NIW2-218-background-export",
+  "result": "skipped"
+ },
+ {
+  "number": 288,
+  "title": "feat(kaipu): NIW2-218 quality tiers replace size-capped exports",
+  "state": "closed",
+  "head": "feat/NIW2-218-quality-tiers",
+  "result": "skipped"
+ },
+ {
+  "number": 289,
+  "title": "docs(desktop): encoding benchmark 2026-10 — export quality without FFmpeg",
+  "state": "open",
+  "head": "docs/encoding-benchmark-2026-10",
+  "result": "skipped"
+ },
+ {
+  "number": 290,
+  "title": "feat(desktop): quality tiers encode AVC in quantizer mode at 24 fps (NIW2-218)",
+  "state": "closed",
+  "head": "feat/NIW2-218-quantizer-encoding",
+  "result": "skipped"
+ },
+ {
+  "number": 291,
+  "title": "fix(desktop): capture panel opens over full-screen apps on the current Space",
+  "state": "closed",
+  "head": "fix/capture-panel-fullscreen-space",
+  "result": "skipped"
+ },
+ {
+  "number": 293,
+  "title": "feat(roadmap): refresh the public roadmap (2026-10-14)",
+  "state": "closed",
+  "head": "feat/roadmap-refresh-2026-10-14",
+  "result": "skipped"
+ },
+ {
+  "number": 294,
+  "title": "docs(backlog): features page proposal and its Claude Design prompt",
+  "state": "closed",
+  "head": "docs/features-page-design-prompt",
+  "result": "skipped"
+ },
+ {
+  "number": 295,
+  "title": "test(desktop): editor blocker test no longer races the autosave on slow runners",
+  "state": "closed",
+  "head": "fix/video-editor-blocker-test-timeout",
+  "result": "skipped"
+ },
+ {
+  "number": 296,
+  "title": "feat(web): /features page, the full catalogue of what Kaipu ships",
+  "state": "closed",
+  "head": "feat/features-page",
+  "result": "skipped"
+ },
+ {
+  "number": 297,
+  "title": "feat(desktop): New in the Editor opens a pasted image in the image editor",
+  "state": "closed",
+  "head": "feat/paste-image-editor",
+  "result": "skipped"
+ },
+ {
+  "number": 298,
+  "title": "feat(desktop): land quality tiers and quantizer encoding on main (NIW2-218)",
+  "state": "closed",
+  "head": "feat/NIW2-218-background-export",
+  "result": "skipped"
+ },
+ {
+  "number": 299,
+  "title": "feat(desktop): Editor home v2 — start from the clipboard, continue what you worked on",
+  "state": "closed",
+  "head": "feat/editor-recent-pagination",
+  "result": "skipped"
+ },
+ {
+  "number": 301,
+  "title": "docs(audits): pre-deploy audit 2026-10-15 — feature map, findings, report and fix plans",
+  "state": "closed",
+  "head": "docs/code-audit-2026-10-15",
+  "result": "unchanged"
+ },
+ {
+  "number": 302,
+  "title": "fix(desktop): every /editor route shares the editor window preset",
+  "state": "closed",
+  "head": "fix/editor-routes-share-window-preset",
+  "result": "skipped"
+ },
+ {
+  "number": 303,
+  "title": "docs(design): screenshot capture modes and the Windows release",
+  "state": "closed",
+  "head": "design/screenshot-capture-modes",
+  "result": "skipped"
+ },
+ {
+  "number": 304,
+  "title": "chore(main): release desktop 0.12.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 305,
+  "title": "ci(desktop): Windows release build, shared publish job, and the app's Windows behaviours",
+  "state": "closed",
+  "head": "feat/windows-release",
+  "result": "skipped"
+ },
+ {
+  "number": 306,
+  "title": "feat(desktop): screenshot capture modes — Area, Screen and Frame on macOS and Windows",
+  "state": "closed",
+  "head": "feat/screenshot-capture-modes",
+  "result": "skipped"
+ },
+ {
+  "number": 308,
+  "title": "docs(design): screenshot modes v2 — Frame absorbs Area, Window mode, quiet capture with a toast",
+  "state": "closed",
+  "head": "design/screenshot-modes-v2",
+  "result": "skipped"
+ },
+ {
+  "number": 309,
+  "title": "feat(desktop): screenshot modes v2 — Frame absorbs Area, Window mode, in-overlay picker, quiet capture with a toast",
+  "state": "closed",
+  "head": "feat/screenshot-modes-v2",
+  "result": "skipped"
+ },
+ {
+  "number": 310,
+  "title": "chore(main): release desktop 0.13.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 311,
+  "title": "fix(desktop): disable Window screenshot mode behind WINDOW_MODE_ENABLED",
+  "state": "closed",
+  "head": "fix/disable-window-mode",
+  "result": "skipped"
+ },
+ {
+  "number": 312,
+  "title": "fix(desktop): one selection toolbar for modes and actions; the inside of the frame is never tinted",
+  "state": "closed",
+  "head": "fix/selection-toolbar",
+  "result": "skipped"
+ },
+ {
+  "number": 313,
+  "title": "feat(web): catalogue the screenshot modes, quiet capture and the 0.11–0.13 desktop features",
+  "state": "closed",
+  "head": "feat/web-feature-catalogue-update",
+  "result": "skipped"
+ },
+ {
+  "number": 314,
+  "title": "fix(desktop): Windows key names and copy, plus a platform parity table",
+  "state": "closed",
+  "head": "fix/windows-platform-copy",
+  "result": "skipped"
+ },
+ {
+  "number": 316,
+  "title": "feat(web): roadmap with a state per platform",
+  "state": "closed",
+  "head": "feat/roadmap-per-platform",
+  "result": "skipped"
+ },
+ {
+  "number": 317,
+  "title": "docs(legal): cover paid plans, uploaded media and age in the privacy policy",
+  "state": "closed",
+  "head": "docs/privacy-policy-paid-plans",
+  "result": "skipped"
+ },
+ {
+  "number": 318,
+  "title": "feat(web): Download for Windows (beta) with the SmartScreen note",
+  "state": "closed",
+  "head": "feat/web-windows-download",
+  "result": "skipped"
+ },
+ {
+  "number": 319,
+  "title": "feat(desktop): let users turn off diagnostics",
+  "state": "closed",
+  "head": "feat/desktop-diagnostics-toggle",
+  "result": "skipped"
+ },
+ {
+  "number": 320,
+  "title": "chore(main): release desktop 0.14.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 322,
+  "title": "docs(legal): review SignPath eligibility and AGPL Cloud obligations",
+  "state": "open",
+  "head": "docs/signpath-agpl-review",
+  "result": "skipped"
+ },
+ {
+  "number": 323,
+  "title": "feat(server-hono): NIW2-215 optional Google OAuth provider and explicit BETTER_AUTH_URL",
+  "state": "closed",
+  "head": "feature/niw2-215-google-oauth-config",
+  "result": "skipped"
+ },
+ {
+  "number": 324,
+  "title": "feat(web-hono): /dashboard as the signed-in home",
+  "state": "closed",
+  "head": "feature/niw2-470-web-dashboard-as-the-signed-in-home-every-web-sign-in-email",
+  "result": "skipped"
+ },
+ {
+  "number": 325,
+  "title": "feat(web-hono): NIW2-470 /dashboard hub with profile, settings and recordings",
+  "state": "closed",
+  "head": "feature/niw2-470-web-dashboard",
+  "result": "skipped"
+ },
+ {
+  "number": 327,
+  "title": "chore(main): release api 0.5.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--api",
+  "result": "skipped"
+ },
+ {
+  "number": 328,
+  "title": "feat: NIW2-219 Continue with Google and safe account linking",
+  "state": "closed",
+  "head": "feature/niw2-219-google-sign-in",
+  "result": "skipped"
+ },
+ {
+  "number": 329,
+  "title": "docs(legal): privacy policy and terms for Google sign-in",
+  "state": "closed",
+  "head": "chore/legal-google-sign-in",
+  "result": "skipped"
+ },
+ {
+  "number": 330,
+  "title": "chore(auth): NIW2-471 upgrade better-auth to 1.7",
+  "state": "closed",
+  "head": "feature/niw2-471-better-auth-1-7",
+  "result": "skipped"
+ },
+ {
+  "number": 331,
+  "title": "design: desktop sign-in through the browser (ADR 0025)",
+  "state": "closed",
+  "head": "docs/niw2-471-desktop-browser-sign-in-design",
+  "result": "skipped"
+ },
+ {
+  "number": 332,
+  "title": "feat(desktop): NIW2-471 sign in through the browser",
+  "state": "closed",
+  "head": "feature/niw2-471-desktop-browser-sign-in",
+  "result": "skipped"
+ },
+ {
+  "number": 333,
+  "title": "feat: NIW2-471 desktop sign-in through the browser (server + web)",
+  "state": "closed",
+  "head": "feature/niw2-471-electron-server-web",
+  "result": "skipped"
+ },
+ {
+  "number": 335,
+  "title": "feat: NIW2-471 land desktop sign-in through the browser on main (#333 + #332)",
+  "state": "closed",
+  "head": "feature/niw2-471-better-auth-1-7",
+  "result": "skipped"
+ },
+ {
+  "number": 336,
+  "title": "chore(main): release web 0.11.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 337,
+  "title": "feat(web-hono): Google sign-in button always on (remove VITE_GOOGLE_AUTH_ENABLED)",
+  "state": "closed",
+  "head": "feature/niw2-471-dev-loopback-and-easy-code",
+  "result": "skipped"
+ },
+ {
+  "number": 338,
+  "title": "docs(backlog): user dashboard design and its Claude Design prompt",
+  "state": "closed",
+  "head": "docs/user-dashboard-design-prompt",
+  "result": "skipped"
+ },
+ {
+  "number": 339,
+  "title": "test(desktop): fix the flaky editor-open stamp test that blocks PRs",
+  "state": "closed",
+  "head": "fix/flaky-editor-routes-test",
+  "result": "skipped"
+ },
+ {
+  "number": 340,
+  "title": "feat(web-hono): sign-in and sign-up from the Kaipu Web Auth design, email verification by link",
+  "state": "closed",
+  "head": "feature/web-auth-redesign",
+  "result": "skipped"
+ },
+ {
+  "number": 341,
+  "title": "feat(web-hono): dashboard from the Kaipu Dashboard design (NIW2-475)",
+  "state": "closed",
+  "head": "feature/web-dashboard-redesign",
+  "result": "skipped"
+ },
+ {
+  "number": 342,
+  "title": "fix(api): close ticket-window races left by the NIW2-323 WIP [NIW2-323]",
+  "state": "closed",
+  "head": "feature/niw2-323-close-api-upload-abuse-paths",
+  "result": "skipped"
+ },
+ {
+  "number": 343,
+  "title": "fix(web): rebalance the auth split so the form gets more room",
+  "state": "closed",
+  "head": "fix/auth-split-proportions",
+  "result": "skipped"
+ },
+ {
+  "number": 344,
+  "title": "feat(web): add Sign in / Dashboard link to the landing nav",
+  "state": "closed",
+  "head": "feat/landing-nav-account-link",
+  "result": "skipped"
+ },
+ {
+  "number": 345,
+  "title": "chore(env): generate local .env files once instead of at every dev start",
+  "state": "closed",
+  "head": "chore/env-pull-local-dotenv",
+  "result": "skipped"
+ },
+ {
+  "number": 346,
+  "title": "feat(web): cookieless PostHog analytics for auth pages and download clicks, Windows on the home (NIW2-477)",
+  "state": "closed",
+  "head": "feature/niw2-477-web-analytics",
+  "result": "skipped"
+ },
+ {
+  "number": 347,
+  "title": "design: environment schema without varlock (ADR 0026)",
+  "state": "closed",
+  "head": "design/niw2-478-env-schema-without-varlock",
+  "result": "skipped"
+ },
+ {
+  "number": 349,
+  "title": "ci: macOS E2E only on release-please PRs; verify stacked PRs",
+  "state": "closed",
+  "head": "ci/verify-stacked-prs",
+  "result": "skipped"
+ },
+ {
+  "number": 350,
+  "title": "ci: verify only release candidates; ordinary pull requests pass at once (ADR 0027)",
+  "state": "closed",
+  "head": "ci/release-only-verification",
+  "result": "skipped"
+ },
+ {
+  "number": 351,
+  "title": "ci(release): deploy Workers through one pinned script, dry-run it on release PRs (NIW2-479)",
+  "state": "closed",
+  "head": "fix/release-api-wrangler-version",
+  "result": "skipped"
+ },
+ {
+  "number": 352,
+  "title": "fix(desktop): capture overlay keeps keyboard focus and opens at once",
+  "state": "closed",
+  "head": "fix/capture-overlay-focus",
+  "result": "skipped"
+ },
+ {
+  "number": 353,
+  "title": "chore(main): release desktop 0.14.1",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 354,
+  "title": "fix(desktop): save every capture, open Capture in the editor, autosave edits",
+  "state": "closed",
+  "head": "fix/capture-flow",
+  "result": "skipped"
+ },
+ {
+  "number": 355,
+  "title": "ci: add an advisory Claude review on pull requests",
+  "state": "closed",
+  "head": "ci/claude-pr-review",
+  "result": "unchanged"
+ },
+ {
+  "number": 356,
+  "title": "docs(secrets): reconcile the dev variable inventory",
+  "state": "closed",
+  "head": "docs/secrets-layout-refresh",
+  "result": "skipped"
+ },
+ {
+  "number": 357,
+  "title": "chore(repro): reproduce Infisical CLI rate limiting under a normal dev workload",
+  "state": "open",
+  "head": "chore/infisical-rate-limit-repro",
+  "result": "skipped"
+ },
+ {
+  "number": 358,
+  "title": "fix(desktop): tag registry imports once and is never overwritten when untrusted (audit LIB-A4, LIB-B6, LIB-B7)",
+  "state": "closed",
+  "head": "fix/audit-07-tags-registry-integrity",
+  "result": "unchanged"
+ },
+ {
+  "number": 359,
+  "title": "fix(desktop): never lose a finished recording when the vault is unreachable (audit REC-B6, REC-A8)",
+  "state": "closed",
+  "head": "fix/audit-02-recording-finalize-recovery",
+  "result": "unchanged"
+ },
+ {
+  "number": 360,
+  "title": "fix(desktop): screenshot editor save races (audit SHOT-B1/B4/B8/B9)",
+  "state": "closed",
+  "head": "fix/audit-05-screenshot-editor-save-races",
+  "result": "unchanged"
+ },
+ {
+  "number": 361,
+  "title": "chore(main): release desktop 0.15.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 362,
+  "title": "Cmd+Tab disappearance and audit plan follow-ups (session handoff)",
+  "state": "open",
+  "head": "wip/cmd-tab-and-audit-followups",
+  "result": "skipped"
+ },
+ {
+  "number": 363,
+  "title": "fix(deps): move @kaipu/domain to dependencies where runtime code needs it",
+  "state": "closed",
+  "head": "chore/dependency-manifest-hygiene",
+  "result": "unchanged"
+ },
+ {
+  "number": 364,
+  "title": "feat(api): scheduled jobs, R2 purge on account deletion, committed migrations (NIW2-328)",
+  "state": "open",
+  "head": "feature/niw2-328-scheduled-jobs-r2-purge-on-account-deletion-and-committed",
+  "result": "skipped"
+ },
+ {
+  "number": 365,
+  "title": "fix(ci): let the owner's @claude comments start the on-demand review",
+  "state": "closed",
+  "head": "fix/claude-review-on-demand-owner",
+  "result": "unchanged"
+ },
+ {
+  "number": 366,
+  "title": "fix(desktop): keep Kaipu in the Dock and Cmd+Tab after recording and camera toggles",
+  "state": "closed",
+  "head": "fix/dock-lost-after-floating-panels",
+  "result": "unchanged"
+ },
+ {
+  "number": 367,
+  "title": "fix(desktop): serialize and harden vault writes (audit LIB-B1/B8/B10, SHOT-B3)",
+  "state": "closed",
+  "head": "feature/niw2-390-04-sidecar-write-serialization",
+  "result": "unchanged"
+ },
+ {
+  "number": 368,
+  "title": "fix(desktop): trim handles track the pointer, respect bounds and end once (audit VID-B1/B2/B7/B8)",
+  "state": "closed",
+  "head": "feature/niw2-399-19-trim-drag",
+  "result": "unchanged"
+ },
+ {
+  "number": 369,
+  "title": "perf(desktop): timeline thumbnails read by Range, cached per recording (audit VID-A3)",
+  "state": "closed",
+  "head": "feature/niw2-403-28-video-thumbnails-by-range",
+  "result": "unchanged"
+ },
+ {
+  "number": 370,
+  "title": "fix(desktop): label delete targets the right shape; annotation drags no longer re-render the page (audit SHOT-A10, SHOT-B5)",
+  "state": "closed",
+  "head": "feature/niw2-409-35-annotation-layer-memo",
+  "result": "unchanged"
+ },
+ {
+  "number": 371,
+  "title": "perf(desktop): pooled canvases in the export workers (audit VID-A5)",
+  "state": "closed",
+  "head": "feature/niw2-404-29-export-canvas-pool",
+  "result": "unchanged"
+ },
+ {
+  "number": 372,
+  "title": "perf(desktop): composite a screenshot once per scene state (audit SHOT-A1)",
+  "state": "closed",
+  "head": "feature/niw2-406-31-screenshot-composite-once",
+  "result": "unchanged"
+ },
+ {
+  "number": 373,
+  "title": "perf(desktop): PDF export off the main thread (audit SHOT-A2)",
+  "state": "closed",
+  "head": "feature/niw2-407-32-pdf-export-off-the-main-thread",
+  "result": "unchanged"
+ },
+ {
+  "number": 374,
+  "title": "fix(desktop): screenshot shortcut during a take notifies instead of toasting a hidden window (audit SHOT-B7)",
+  "state": "closed",
+  "head": "feature/niw2-410-36-screenshot-toast-window",
+  "result": "unchanged"
+ },
+ {
+  "number": 375,
+  "title": "ci: review pull requests through niway-dev/agent-review's reusable workflow",
+  "state": "closed",
+  "head": "ci/agent-review-reusable-workflow",
+  "result": "fetched"
+ },
+ {
+  "number": 376,
+  "title": "design: record capture modes — a display or an area through the capture overlay",
+  "state": "closed",
+  "head": "design/record-capture-modes",
+  "result": "unchanged"
+ },
+ {
+  "number": 377,
+  "title": "feat(desktop): record an area or a display from the capture overlay",
+  "state": "closed",
+  "head": "feat/record-capture-modes",
+  "result": "skipped"
+ },
+ {
+  "number": 379,
+  "title": "chore(env): explain why a generated env file can be missing",
+  "state": "closed",
+  "head": "chore/require-env-message",
+  "result": "unchanged"
+ },
+ {
+  "number": 380,
+  "title": "feat(desktop): camera bubble shape and size controls",
+  "state": "closed",
+  "head": "feat/camera-bubble-controls",
+  "result": "fetched"
+ },
+ {
+  "number": 381,
+  "title": "feat(desktop): add a Record submenu to the tray menu",
+  "state": "closed",
+  "head": "feat/tray-record-submenu",
+  "result": "fetched"
+ },
+ {
+  "number": 382,
+  "title": "feat(desktop): persist recording capture metadata and label it in the library",
+  "state": "closed",
+  "head": "feat/recording-capture-metadata",
+  "result": "fetched"
+ },
+ {
+  "number": 383,
+  "title": "feat(desktop): record modes UI — selector chrome, region countdown and Record page",
+  "state": "closed",
+  "head": "feat/record-modes-ui",
+  "result": "fetched"
+ },
+ {
+  "number": 384,
+  "title": "feat(desktop): record modes, camera bubble controls, capture metadata and tray submenu (integration)",
+  "state": "closed",
+  "head": "feat/record-modes-integration",
+  "result": "unchanged"
+ },
+ {
+  "number": 385,
+  "title": "refactor(desktop): drop the Recent row from the Record page",
+  "state": "closed",
+  "head": "chore/record-page-drop-recent",
+  "result": "unchanged"
+ },
+ {
+  "number": 386,
+  "title": "fix(desktop): show the shared pink countdown on Frame recordings",
+  "state": "closed",
+  "head": "fix/frame-countdown-reuse",
+  "result": "unchanged"
+ },
+ {
+  "number": 387,
+  "title": "fix(desktop): start the take when Screen records a single display",
+  "state": "closed",
+  "head": "fix/screen-mode-recording",
+  "result": "unchanged"
+ },
+ {
+  "number": 388,
+  "title": "fix(desktop): drag the camera bubble again and turn the camera off from it",
+  "state": "closed",
+  "head": "fix/camera-bubble-drag-and-off",
+  "result": "unchanged"
+ },
+ {
+  "number": 389,
+  "title": "refactor(desktop): drop the Record button from the screenshot bar",
+  "state": "closed",
+  "head": "refactor/screenshot-bar-drop-record",
+  "result": "unchanged"
+ },
+ {
+  "number": 390,
+  "title": "fix(desktop): size and crop recordings from the frames the capture delivers",
+  "state": "closed",
+  "head": "fix/area-crop-real-frame-size",
+  "result": "unchanged"
+ },
+ {
+  "number": 391,
+  "title": "fix(desktop): start the region countdown's clock once the 3 is on screen",
+  "state": "closed",
+  "head": "fix/countdown-wait-for-shade",
+  "result": "unchanged"
+ },
+ {
+  "number": 392,
+  "title": "fix(desktop): a cancelled or failed record start never strands the app",
+  "state": "closed",
+  "head": "fix/record-cancel-never-strands",
+  "result": "unchanged"
+ },
+ {
+  "number": 393,
+  "title": "perf(desktop): cut the wait before a recording starts",
+  "state": "closed",
+  "head": "perf/record-start-latency",
+  "result": "fetched"
+ },
+ {
+  "number": 394,
+  "title": "fix(ci): drop the scripts test step that has no tests left",
+  "state": "closed",
+  "head": "fix/verify-no-script-tests",
+  "result": "unchanged"
+ },
+ {
+  "number": 395,
+  "title": "fix(desktop): reset the control bar on start, configurable countdown, and start/stop race fixes",
+  "state": "closed",
+  "head": "fix/record-start-bar-and-countdown",
+  "result": "unchanged"
+ },
+ {
+  "number": 396,
+  "title": "fix(record): release cancelled, closed and crashed takes; stop encoding at stop; no orphan media",
+  "state": "closed",
+  "head": "fix/record-hub-audit",
+  "result": "unchanged"
+ },
+ {
+  "number": 397,
+  "title": "docs(adr): amend ADR 0028 now that the review script and its tests are gone",
+  "state": "closed",
+  "head": "docs/adr-0028-no-script-tests",
+  "result": "unchanged"
+ },
+ {
+  "number": 398,
+  "title": "feat(verify): add on-demand proof scenarios and a verify skill",
+  "state": "closed",
+  "head": "feat/verify-skill",
+  "result": "unchanged"
+ },
+ {
+  "number": 399,
+  "title": "feat(desktop): fix a quiet mic, background noise and loud system audio from the Record row",
+  "state": "closed",
+  "head": "feature/recording-mic-audio-settings",
+  "result": "skipped"
+ },
+ {
+  "number": 400,
+  "title": "ci: keep the PR review running after its engine moved to wachi-reviewer",
+  "state": "closed",
+  "head": "ci/wachi-reviewer-rename",
+  "result": "unchanged"
+ },
+ {
+  "number": 401,
+  "title": "ci: pin the PR review to wachi-reviewer v1.2.0 instead of the floating v1",
+  "state": "closed",
+  "head": "ci/pin-wachi-reviewer-v1.2.0",
+  "result": "unchanged"
+ },
+ {
+  "number": 402,
+  "title": "perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown",
+  "state": "closed",
+  "head": "perf/instant-record-start",
+  "result": "unchanged"
+ },
+ {
+  "number": 403,
+  "title": "fix(desktop): Record page settings open under the row instead of clipping off the window",
+  "state": "closed",
+  "head": "fix/record-page-settings-drawers",
+  "result": "unchanged"
+ },
+ {
+  "number": 404,
+  "title": "feat(desktop): turn off the camera mirror so text reads correctly with a rear camera",
+  "state": "closed",
+  "head": "feat/camera-bubble-mirror",
+  "result": "unchanged"
+ },
+ {
+  "number": 405,
+  "title": "feat(desktop): zoom and reposition the camera image to frame yourself in the bubble",
+  "state": "closed",
+  "head": "feat/camera-bubble-framing",
+  "result": "unchanged"
+ },
+ {
+  "number": 407,
+  "title": "fix(desktop): keep every capture-panel drawer under 600 px",
+  "state": "closed",
+  "head": "fix/compact-camera-panel",
+  "result": "unchanged"
+ },
+ {
+  "number": 408,
+  "title": "fix(desktop): remember the picked mic, and fall back to the system's input",
+  "state": "closed",
+  "head": "fix/remember-microphone",
+  "result": "unchanged"
+ },
+ {
+  "number": 409,
+  "title": "chore(desktop): log countdown ticks and every cancel of a pending take",
+  "state": "closed",
+  "head": "chore/record-start-diagnostics",
+  "result": "unchanged"
+ },
+ {
+  "number": 410,
+  "title": "perf(desktop): stop re-reading preferences.json on every IPC call (audit LIB-A3)",
+  "state": "closed",
+  "head": "feature/niw2-394-11-vault-directory-cache",
+  "result": "unchanged"
+ },
+ {
+  "number": 411,
+  "title": "fix(desktop): multi-tag paste and quick chip edits keep every change (audit LIB-B2)",
+  "state": "closed",
+  "head": "feature/niw2-397-17-tag-chip-editing",
+  "result": "unchanged"
+ },
+ {
+  "number": 412,
+  "title": "fix(desktop): drag-out never copies the file and never deletes a drag in progress (audit LIB-B12)",
+  "state": "closed",
+  "head": "feature/niw2-398-18-drag-out-across-volumes",
+  "result": "unchanged"
+ },
+ {
+  "number": 413,
+  "title": "fix(desktop): main-side recording resources end with the take (audit REC-A2/B3/B4/B5)",
+  "state": "closed",
+  "head": "feature/niw2-400-21-recording-main-side-resources",
+  "result": "unchanged"
+ },
+ {
+  "number": 414,
+  "title": "fix(desktop): stop the app freezing forever at start recording (uiohook-napi deadlock)",
+  "state": "closed",
+  "head": "fix/uiohook-start-deadlock",
+  "result": "fetched"
+ },
+ {
+  "number": 415,
+  "title": "perf(desktop): compositor draws at the capture rate and pauses (audit REC-A7)",
+  "state": "open",
+  "head": "feature/niw2-401-25-compositor-cadence",
+  "result": "unchanged"
+ },
+ {
+  "number": 416,
+  "title": "fix(desktop): cursor track keeps its last samples (audit REC-B8)",
+  "state": "closed",
+  "head": "feature/niw2-402-26-cursor-track-tail",
+  "result": "unchanged"
+ },
+ {
+  "number": 417,
+  "title": "fix: keep the screenshot editor's capture title readable",
+  "state": "closed",
+  "head": "feature/niw2-351-screenshot-editor-title-input-is-too-narrow-and-truncates",
+  "result": "unchanged"
+ },
+ {
+  "number": 418,
+  "title": "fix(desktop): resend a spare overlay its state once its listener is attached",
+  "state": "closed",
+  "head": "fix/overlay-spare-state-race",
+  "result": "unchanged"
+ },
+ {
+  "number": 419,
+  "title": "fix(desktop): raising the floating windows never brings a hidden bar back",
+  "state": "closed",
+  "head": "fix/countdown-raise-never-shows-hidden-bar",
+  "result": "unchanged"
+ },
+ {
+  "number": 420,
+  "title": "fix(desktop): keep the editor toolbar in one row once the capture title has a minimum width",
+  "state": "closed",
+  "head": "fix/release-e2e-editor-toolbar-and-quit-hang",
+  "result": "unchanged"
+ },
+ {
+  "number": 421,
+  "title": "docs(stylex): record where the migration stands on 2026-10-28",
+  "state": "closed",
+  "head": "docs/stylex-state-2026-10-28",
+  "result": "unchanged"
+ },
+ {
+  "number": 422,
+  "title": "test(e2e): bound the quit hang to 15 s and attach the main process's stack",
+  "state": "closed",
+  "head": "fix/e2e-quit-hang-evidence",
+  "result": "unchanged"
+ },
+ {
+  "number": 423,
+  "title": "fix(desktop): shut down explicitly, newest first, with a deadline",
+  "state": "closed",
+  "head": "fix/niw2-548-explicit-shutdown",
+  "result": "unchanged"
+ },
+ {
+  "number": 425,
+  "title": "fix(desktop): the capture overlay hears keys from the commit that paints it",
+  "state": "closed",
+  "head": "fix/overlay-enter-listener-race",
+  "result": "unchanged"
+ },
+ {
+  "number": 426,
+  "title": "chore(main): release desktop 0.15.1",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 427,
+  "title": "fix: show Kai the fox, not the retired play-mark, on Windows icons, the watermark and link previews",
+  "state": "closed",
+  "head": "replace-legacy-kaipu-icons",
+  "result": "skipped"
+ },
+ {
+  "number": 428,
+  "title": "fix(desktop): run the dev app alongside the installed one, without sharing its session",
+  "state": "closed",
+  "head": "fix/desktop-dev-own-user-data",
+  "result": "fetched"
+ },
+ {
+  "number": 429,
+  "title": "chore(main): release web 0.11.1",
+  "state": "open",
+  "head": "release-please--branches--main--components--web",
+  "result": "skipped"
+ },
+ {
+  "number": 430,
+  "title": "chore(main): release desktop 0.16.0",
+  "state": "closed",
+  "head": "release-please--branches--main--components--desktop",
+  "result": "skipped"
+ },
+ {
+  "number": 431,
+  "title": "design: several workspaces",
+  "state": "closed",
+  "head": "design/multiple-workspaces",
+  "result": "unchanged"
+ },
+ {
+  "number": 432,
+  "title": "feat(desktop): point to macOS Center Stage when the camera follows your face (NIW2-559)",
+  "state": "open",
+  "head": "feature/niw2-559-camera-settings-explain-macos-center-stage-when-the-image",
+  "result": "skipped"
+ },
+ {
+  "number": 433,
+  "title": "ci: review pull requests with Claude Opus 5.5",
+  "state": "closed",
+  "head": "ci/review-opus-5-5",
+  "result": "unchanged"
+ },
+ {
+  "number": 434,
+  "title": "fix(desktop): move Start recording into the record widget (NIW2-562)",
+  "state": "closed",
+  "head": "fix/niw2-562-start-recording-in-widget",
+  "result": "unchanged"
+ },
+ {
+  "number": 435,
+  "title": "feat(desktop): renaming an item renames its file, so users find it in the folder (NIW2-560)",
+  "state": "closed",
+  "head": "feature/niw2-560-renaming-a-library-item-renames-its-file-on-disk-with",
+  "result": "unchanged"
+ },
+ {
+  "number": 436,
+  "title": "feat(export): YouTube preset exports 1440p or 4K (NIW2-564)",
+  "state": "closed",
+  "head": "feat/niw2-564-youtube-1440-4k",
+  "result": "unchanged"
+ },
+ {
+  "number": 437,
+  "title": "design: webcam as its own track above the zoom (NIW2-565)",
+  "state": "closed",
+  "head": "design/niw2-565-webcam-track",
+  "result": "unchanged"
+ },
+ {
+  "number": 438,
+  "title": "chore(legal): NIW2-566 AGPL-3.0-only license text, commercial use in terms, trademark policy and CLA",
+  "state": "closed",
+  "head": "feature/niw2-566-licensing-hygiene-agpl-30-only-commercial-use-in-terms",
+  "result": "fetched"
+ },
+ {
+  "number": 439,
+  "title": "fix(desktop): a sidecar read error never mints a new assetId (NIW2-568)",
+  "state": "closed",
+  "head": "feature/niw2-568-sidecar-read-hardening",
+  "result": "unchanged"
+ },
+ {
+  "number": 440,
+  "title": "spike: content-protect the camera bubble from creation (NIW2-570, do not merge)",
+  "state": "open",
+  "head": "spike/niw2-570-bubble-exclusion",
+  "result": "skipped"
+ },
+ {
+  "number": 441,
+  "title": "feat(desktop): record the webcam as its own file on the screen's clock (NIW2-571)",
+  "state": "closed",
+  "head": "feature/niw2-571-webcam-recorder",
+  "result": "unchanged"
+ },
+ {
+  "number": 442,
+  "title": "feat(desktop): keep the webcam file paired in the library and serve it to the editor (NIW2-572)",
+  "state": "closed",
+  "head": "feature/niw2-572-webcam-vault",
+  "result": "unchanged"
+ },
+ {
+  "number": 443,
+  "title": "feat(desktop): give the editor a webcam layer model seeded from where the bubble was recorded (NIW2-573)",
+  "state": "closed",
+  "head": "feature/niw2-573-webcam-scene",
+  "result": "unchanged"
+ },
+ {
+  "number": 444,
+  "title": "feat(desktop): the editor shows the webcam as its own layer above the zoom, draggable and hideable (NIW2-574)",
+  "state": "closed",
+  "head": "feature/niw2-574-webcam-preview",
+  "result": "unchanged"
+ },
+ {
+  "number": 445,
+  "title": "feat(desktop): exports keep the face above the zoom, even over a still screen (NIW2-575)",
+  "state": "closed",
+  "head": "feature/niw2-575-webcam-export",
+  "result": "unchanged"
+ },
+ {
+  "number": 446,
+  "title": "feat(desktop): the bubble leaves the recording when the face is recorded apart, and Share includes it (NIW2-576)",
+  "state": "closed",
+  "head": "feature/niw2-576-webcam-share-protect",
+  "result": "unchanged"
+ },
+ {
+  "number": 447,
+  "title": "feat(desktop): import a video into the Library (NIW2-579)",
+  "state": "closed",
+  "head": "feature/niw2-579-import-video",
+  "result": "unchanged"
+ },
+ {
+  "number": 448,
+  "title": "feat(desktop): Prepare screen — where is your video going? (NIW2-578)",
+  "state": "closed",
+  "head": "feature/niw2-578-prepare-screen",
+  "result": "fetched"
+ },
+ {
+  "number": 449,
+  "title": "feat(desktop): workspaces part 1 — registry, migration, switch and switcher (NIW2-580)",
+  "state": "closed",
+  "head": "feature/niw2-580-workspaces-part-1",
+  "result": "unchanged"
+ },
+ {
+  "number": 452,
+  "title": "fix(desktop): webcam track recorder and library follow-ups (NIW2-581)",
+  "state": "closed",
+  "head": "feature/niw2-581-webcam-recorder-followups",
+  "result": "fetched"
+ },
+ {
+  "number": 453,
+  "title": "fix(desktop): no pink border on the camera bubble in recordings (NIW2-588)",
+  "state": "closed",
+  "head": "fix/niw2-588-camera-bubble-no-pink-border",
+  "result": "unchanged"
+ },
+ {
+  "number": 454,
+  "title": "feat(desktop): the webcam lane shows the face, plus editor and export follow-ups (NIW2-582)",
+  "state": "closed",
+  "head": "feature/niw2-582-webcam-lane-thumbnails",
+  "result": "fetched"
+ },
+ {
+  "number": 455,
+  "title": "feat(desktop): \"Your video is ready\" toast after recording (NIW2-584)",
+  "state": "closed",
+  "head": "feature/niw2-584-post-recording-toast",
+  "result": "fetched"
+ },
+ {
+  "number": 456,
+  "title": "feat(desktop): background copy toasts, Library badge and \"copy ready\" (NIW2-586)",
+  "state": "closed",
+  "head": "feature/niw2-586-background-toasts",
+  "result": "fetched"
+ },
+ {
+  "number": 457,
+  "title": "feat(desktop): recording page — Send to…, master tag, copies from this master (NIW2-585)",
+  "state": "closed",
+  "head": "feature/niw2-585-send-to-master",
+  "result": "fetched"
+ },
+ {
+  "number": 458,
+  "title": "feat(desktop): Prepare screen two-column layout (NIW2-583)",
+  "state": "closed",
+  "head": "feature/niw2-583-prepare-two-column",
+  "result": "unchanged"
+ },
+ {
+  "number": 459,
+  "title": "feat(desktop): drop a video into Prepare (NIW2-587)",
+  "state": "closed",
+  "head": "feature/niw2-587-prepare-drop-zone",
+  "result": "fetched"
+ },
+ {
+  "number": 460,
+  "title": "feat(desktop): Check and fix files reconciles the library with its folder",
+  "state": "closed",
+  "head": "feature/niw2-561-reconcile-the-library-with-its-folder",
+  "result": "unchanged"
+ },
+ {
+  "number": 461,
+  "title": "chore: add Pullfrog workflow file",
+  "state": "closed",
+  "head": "pullfrog/add-workflow-1793405729246",
+  "result": "unchanged"
+ },
+ {
+  "number": 463,
+  "title": "fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "closed",
+  "head": "feature/webcam-camera-toggle-mid-take",
+  "result": "fetched"
+ },
+ {
+  "number": 464,
+  "title": "feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "closed",
+  "head": "feature/ready-copy-in-library",
+  "result": "fetched"
+ },
+ {
+  "number": 465,
+  "title": "feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "closed",
+  "head": "feature/recording-detail-title-and-copies",
+  "result": "fetched"
+ },
+ {
+  "number": 466,
+  "title": "feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "closed",
+  "head": "feature/floating-ready-window",
+  "result": "fetched"
+ },
+ {
+  "number": 467,
+  "title": "feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "closed",
+  "head": "feature/export-screen",
+  "result": "fetched"
+ },
+ {
+  "number": 468,
+  "title": "fix(desktop): the Library player shows the recorded face over the original",
+  "state": "closed",
+  "head": "feature/webcam-library-player-face",
+  "result": "fetched"
+ },
+ {
+  "number": 469,
+  "title": "design: editor timeline v2 — tracks on demand, camera sections, media overlays",
+  "state": "closed",
+  "head": "design/editor-timeline-v2",
+  "result": "unchanged"
+ },
+ {
+  "number": 470,
+  "title": "docs(desktop): record what NIW2-560/561 shipped, decided and learned",
+  "state": "closed",
+  "head": "docs/niw2-561-check-and-fix-files-record",
+  "result": "skipped"
+ },
+ {
+  "number": 471,
+  "title": "fix(desktop): address review findings across the Export stack",
+  "state": "closed",
+  "head": "fix/stack-review-findings",
+  "result": "unchanged"
+ },
+ {
+  "number": 472,
+  "title": "docs(desktop): record what the webcam track shipped and learned; pin hook binaries, check ADR numbers",
+  "state": "closed",
+  "head": "docs/niw2-565-webcam-track-record",
+  "result": "unchanged"
+ },
+ {
+  "number": 473,
+  "title": "docs: drop the remaining hand-kept indexes",
+  "state": "closed",
+  "head": "docs/drop-hand-kept-indexes",
+  "result": "unchanged"
+ },
+ {
+  "number": 474,
+  "title": "ci: move the agent review to niway-dev/wachiman v1.3.0",
+  "state": "closed",
+  "head": "ci/wachiman-rename",
+  "result": "unchanged"
+ },
+ {
+  "number": 475,
+  "title": "feat(camera): adjustable corner radius and a 3:4 portrait rectangle (NIW2-596)",
+  "state": "closed",
+  "head": "feature/niw2-596-camera-shapes-adjustable-corner-radius-and-a-portrait",
+  "result": "fetched"
+ },
+ {
+  "number": 476,
+  "title": "feat(library): group Check and fix findings and let the user choose what to fix (NIW2-598)",
+  "state": "closed",
+  "head": "feature/niw2-598-reconcile-dialog-groups",
+  "result": "fetched"
+ },
+ {
+  "number": 477,
+  "title": "ci(agent-review): review every push to a ready pull request",
+  "state": "closed",
+  "head": "ci/agent-review-on-push",
+  "result": "fetched"
+ },
+ {
+  "number": 478,
+  "title": "feat(workspaces): New workspace dialog, edit name and color, brand color for Default (NIW2-599)",
+  "state": "closed",
+  "head": "feature/niw2-599-workspaces-part-1b",
+  "result": "fetched"
+ },
+ {
+  "number": 479,
+  "title": "feat(workspaces): part 2, Move to (NIW2-600)",
+  "state": "closed",
+  "head": "feature/niw2-600-workspaces-part-2-move-to",
+  "result": "fetched"
+ },
+ {
+  "number": 481,
+  "title": "ci: bump the agent review to wachiman v1.4.0",
+  "state": "closed",
+  "head": "ci/wachiman-v1.4.0",
+  "result": "fetched"
+ },
+ {
+  "number": 482,
+  "title": "feat(settings): per-workspace settings with inheritance (NIW2-601)",
+  "state": "closed",
+  "head": "feature/niw2-601-workspaces-part-3-settings",
+  "result": "fetched"
+ },
+ {
+  "number": 483,
+  "title": "feat(workspaces): part 4 — per-workspace cloud, Assign to workspace, synced-folder safety (NIW2-602)",
+  "state": "closed",
+  "head": "feature/niw2-602-workspaces-part-4-cloud",
+  "result": "fetched"
+ },
+ {
+  "number": 484,
+  "title": "fix(library): a near miss on a Check and fix row toggles it instead of expanding it (NIW2-604)",
+  "state": "closed",
+  "head": "fix/niw2-604-reconcile-row-hit-target",
+  "result": "fetched"
+ },
+ {
+  "number": 485,
+  "title": "fix(desktop): the workspaces hint sits in the header row, off the page",
+  "state": "closed",
+  "head": "fix/e2e-rename-header-overlap",
+  "result": "fetched"
+ },
+ {
+  "number": 486,
+  "title": "design: capture preview card (NIW2-606)",
+  "state": "open",
+  "head": "design/niw2-606-capture-preview",
+  "result": "fetched"
+ }
+]

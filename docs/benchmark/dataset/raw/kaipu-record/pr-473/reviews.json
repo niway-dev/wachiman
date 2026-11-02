@@ -1,0 +1,110 @@
+[
+ {
+  "id": 5724039381,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c2b15b8a2ed91813ad508b53ebf9aa4fc15c5589",
+  "submitted_at": "2026-10-31T17:23:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724039381",
+  "body": "**Agent review** of the whole pull request, at `c2b15b8`: all 11 files reviewed.\n\n2 finding(s): 2 to fix; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis PR removes the hand-kept documentation indexes: the changelog, the ADR table and the audit-plan status tables. It also switches the Desktop App and Backlog sidebar groups to autogenerate. Nothing still links to the deleted `/changelog` page except older plans, which are history.\n\nI found two problems, neither blocking:\n- **Committed build cache:** the PR adds two Swift Package Manager cache files under `.build/`. The repository has no Swift package and doesn't ignore `.build/`, so they look like local build output staged by accident.\n- **Sidebar rule in `CLAUDE.md` is not quite true:** it now says every content folder autogenerates, but the Stack and Authentication groups are still listed by hand in `astro.config.mjs`. A new page in either folder would not show up in the sidebar.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 11 | 363 | 4 | reviewed | 10 | $0.24 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.24</sub>\n\n<!-- agent-review sha=c2b15b8a2ed91813ad508b53ebf9aa4fc15c5589 -->"
+ },
+ {
+  "id": 5724042871,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c2b15b8a2ed91813ad508b53ebf9aa4fc15c5589",
+  "submitted_at": "2026-10-31T17:24:13Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724042871",
+  "body": "> ℹ️ No blocking issues. Two stray build files and one leftover status line are worth fixing before merge.\n\n**Reviewed changes**\n\nI reviewed the one commit that removes the docs site's hand-kept indexes and moves the last two manual sidebar groups to autogeneration.\n\n- **Sidebar:** Desktop App and Backlog now use `autogenerate`, and the Changelog group is gone. Neither folder has subdirectories or a `backlog/index*` page, so nothing is lost.\n- **ADR index:** the table is replaced by a pointer to the generated sidebar.\n- **Audit fix plans:** `00-index.md` loses its status line, its batch tables, the Shipped table and the coverage check. Shipping status now lives in Linear.\n- **Changelog removal:** `changelog.mdx` is deleted, and the `briefings/index.md` link to it is replaced. The changelog template and step 7 are removed from the `feature-docs` skill and `/save-feature`. No link to `/changelog` remains outside the historical `plans/`.\n- **`CLAUDE.md`:** the Sidebar rule now says every folder autogenerates.\n\n### ℹ️ `report.md` still has a hand-kept status line and a mapping claim the index no longer backs\n\nThe PR removes \"12 of 36 plans shipped\" from `00-index.md`. But `audits/2026-10-15/report.md:10` still says **\"🟡 Fixes in progress — 11 of 36 plans shipped\"**. That count is the same kind of hand-kept status, and it is already out of date. Line 12 still says \"Every finding maps to one implementation plan: [fix plans index]\", but the index no longer maps findings to plans: the coverage check and the per-plan `Closes` columns are gone. Both lines are outside the diff, so I couldn't comment on them inline.\n\n<details><summary>Technical details</summary>\n\n````markdown\n# Leftover hand-kept status in the audit report\n\n## Affected sites\n- apps/documentation/src/content/docs/audits/2026-10-15/report.md:10 — \"Fixes in progress — 11 of 36 plans shipped\" is a hand-kept count; it is stale (the removed index said 12) and contradicts the PR's goal\n- apps/documentation/src/content/docs/audits/2026-10-15/report.md:12 — \"Every finding maps to one implementation plan: [fix plans index]\" — the index no longer holds the finding → plan mapping\n\n## Required outcome\n- No hand-kept shipped count in report.md; status points to Linear (NIW2-381 to NIW2-422) like line 96 now does\n- The line 12 sentence describes where the finding → plan mapping actually lives (each plan page lists the findings it retires)\n````\n\n</details>\n\n<!--\nPullfrog review metadata. These findings were written against c2b15b8;\nif commits have landed on docs/drop-hand-kept-indexes since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 11\n- Commits reviewed: 1\n- Base: main (e088a24)\n- Head: docs/drop-hand-kept-indexes (c2b15b8)\n- Reviewed commits:\n  - c2b15b8 — docs: drop the remaining hand-kept indexes\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/473?action=fix&review_id=5724042871) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/473?action=fix-approved&review_id=5724042871) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41224220709/job/124604881714) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5724080525,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "submitted_at": "2026-10-31T17:36:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724080525",
+  "body": ""
+ },
+ {
+  "id": 5724080615,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "submitted_at": "2026-10-31T17:36:10Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724080615",
+  "body": ""
+ },
+ {
+  "id": 5724080731,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "submitted_at": "2026-10-31T17:36:12Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724080731",
+  "body": ""
+ },
+ {
+  "id": 5724080831,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "submitted_at": "2026-10-31T17:36:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724080831",
+  "body": ""
+ },
+ {
+  "id": 5724086778,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "submitted_at": "2026-10-31T17:37:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724086778",
+  "body": ""
+ },
+ {
+  "id": 5724086936,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "submitted_at": "2026-10-31T17:37:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724086936",
+  "body": ""
+ },
+ {
+  "id": 5724087858,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "submitted_at": "2026-10-31T17:37:55Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724087858",
+  "body": "> ✅ No new issues found. Both earlier threads are fixed, and I've resolved them.\n\n**Reviewed changes**\n\nI reviewed the three commits pushed since the last review. They fix both earlier threads and switch the last two hand-listed sidebar groups to autogenerate.\n\n- **Swift PM cache removed:** `.build/` is untracked and added to `.gitignore` under `# Build outputs`.\n- **Stack and Authentication autogenerate:** this makes the new `CLAUDE.md` rule true. `authentication.mdx` moves to `authentication/index.mdx`, so its URL stays `/authentication/`. Its links are absolute, so the move doesn't break them.\n- **Desktop App order kept:** `desktop/product-philosophy.mdx` sets `sidebar.order: 1`. `CLAUDE.md` now says that order inside a group comes from frontmatter and never from a list.\n\nOne minor point from the last review is still open: `audits/2026-10-15/report.md:10` still has the hand-kept \"11 of 36 plans shipped\" count. It doesn't block merging.\n\n<!--\nPullfrog review metadata. These findings were written against a88fa45;\nif commits have landed on docs/drop-hand-kept-indexes since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 12\n- Commits reviewed: 4\n- Base: main (e088a24)\n- Head: docs/drop-hand-kept-indexes (a88fa45)\n- Reviewed commits:\n  - 9ae0a65 — chore: untrack the Swift Package Manager .build cache and ignore it\n  - 8fff305 — docs: Stack and Authentication autogenerate too, so the sidebar rule holds\n  - a88fa45 — docs: keep Product Philosophy first in the generated Desktop App group\n- Prior pullfrog review: c2b15b8 (https://github.com/niway-dev/kaipu-record/pull/473#pullrequestreview-5724042871)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41225321987/job/124608150622) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ }
+]

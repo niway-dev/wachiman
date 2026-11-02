@@ -1,0 +1,16 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:47:39Z",
+  "databaseId": 41348669756,
+  "displayTitle": "[replay r2] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "667f03c3ea655d55b8267c598b5ed38623a20fa9",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:50:26Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41348669756",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

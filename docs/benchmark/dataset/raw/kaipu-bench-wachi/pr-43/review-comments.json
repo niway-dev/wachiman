@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4438739211,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.tsx",
+  "line": 189,
+  "original_line": 189,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 65,
+  "original_position": 65,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731883986,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:04Z",
+  "updated_at": "2026-11-02T03:45:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/43#discussion_r4438739211",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: \"Where is it going?\" can flash back when a copy's export finishes (confidence medium)**\n\n`hasCopies` is `exports.length > 0 || running !== null` (l.189), and `running` comes from `runningCopyOf`, which is non-null only while `status === \"exporting\"` (master-copies-panel.tsx:35). When the export finishes, `running` goes to null at once. `exports` only fills after the `readyId` effect's async `refresh()` (l.146-148) returns. In that gap `hasCopies` is false, so `showDestinations` is true and the DestinationsPanel reappears. The \"Export a copy\" button disappears with it, and the page layout jumps until the re-list lands. A short-lived state, but it is a visible flicker on the happy path. Consider treating a ready copy for this asset as \"has copies\" until the list catches up, for example by also checking `runner.ready?.recording.derivedFromAssetId`, or whatever field links the new recording to its source.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739218,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/master-copies-panel.test.tsx",
+  "line": 100,
+  "original_line": 100,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 102,
+  "original_position": 102,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731883986,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:05Z",
+  "updated_at": "2026-11-02T03:45:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/43#discussion_r4438739218",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: Drag test overwrites the global `electronAPI.startFileDrag` and never restores it (confidence high)**\n\n`window.electronAPI.startFileDrag = startFileDrag` replaces the shared stub from test/setup.ts:153 for the rest of the file. The sibling test in export-status-cards.test.tsx:143-152 uses `vi.spyOn(...)` and `mockRestore()`. Use `vi.spyOn(window.electronAPI, \"startFileDrag\")` with a restore, so a later test in this file cannot read a leaked mock.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739227,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/master-copies-panel.test.tsx",
+  "line": 74,
+  "original_line": 74,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 75,
+  "original_position": 75,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731883986,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:05Z",
+  "updated_at": "2026-11-02T03:45:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/43#discussion_r4438739227",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: The GitHub row's size assertion is loose and skips its picture size (confidence medium)**\n\n`getByText(\"9.0 MB\", { exact: false })` matches any element whose text contains \"9.0 MB\". The YouTube row asserts the full `\"2560 × 1440 · 22 MB\"`, but the Light row does not assert its derived dimensions. The `resolveExportTarget(preset, probe, …)` branch in `factsOf` (master-copies-panel.tsx:109) is therefore only checked for the YouTube canvas preset. Assert the exact facts string for the Light row too, which checks the tier path.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739231,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "packages/i18n/messages/en.json",
+  "line": 778,
+  "original_line": 778,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 23,
+  "original_position": 23,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731883986,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:05Z",
+  "updated_at": "2026-11-02T03:45:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/43#discussion_r4438739231",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: The page says \"Export\"; the screen it opens says \"Prepare\" (confidence medium)**\n\nThe recording page now labels the action \"Export a copy\" (line 778), \"Open in Export →\" (786) and \"Export a copy for {destination}\" (785). Those all open the screen whose own strings still read \"Prepare for {destination} · {size}\" (878-879) and \"Prepare another video\" (806). The heavy-to-send banner (766) also still says \"Prepare a light copy →\". The same page can show \"Export a copy\" and \"Prepare a light copy →\" at once, and both go to the same screen. The Spanish file repeats this: \"Exportar una copia\" and \"Abrir en Exportar →\" against that screen's \"Preparar…\" strings. `backlog/prepare-screen.md` calls it Prepare throughout, and `backlog/export-presets` calls the editor's own sheet Export. Pick one name for the screen, or say in the doc why the page names it differently.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739238,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.test.tsx",
+  "line": 269,
+  "original_line": 269,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 84,
+  "original_position": 84,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731883986,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:05Z",
+  "updated_at": "2026-11-02T03:45:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/43#discussion_r4438739238",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: No test for a file that can't be read: the cards keep \"…\" with no error (confidence medium)**\n\n`useSourceProbe` turns an unreadable file into `status: \"error\", probe: null` (`use-prepare-copy.ts:51-58`), and the page keeps only `.probe` (`library-detail-page.tsx:142`). In `DestinationsPanel`, a null probe makes every non-archive card show \"…\" (`destinations-panel.tsx:43,91`). A failed read looks the same as a read in progress, and the \"…\" never goes away. Clicking a card still works, and Prepare then shows its own \"Couldn't read this recording\" toast. Before this PR the page read the file only for heavy recordings; now every local recording is read, so this failure is on the common path. The new card-size test only covers a successful probe (`probe` mock at lines 12-21). Add a case where `probe` resolves to an unusable result. Decide whether the cards should show nothing, or a dash, instead of \"…\" once the read has failed.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739244,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.test.tsx",
+  "line": 757,
+  "original_line": 757,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 246,
+  "original_position": 246,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731883986,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:05Z",
+  "updated_at": "2026-11-02T03:45:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/43#discussion_r4438739244",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: The doc's \"heavy master with copies keeps the banner\" case has no test (confidence medium)**\n\n`prepare-screen.md` says \"A heavy copy, or a heavy master with copies, keeps the banner\". The page's rule is `heavy && !showDestinations` (`library-detail-page.tsx:517`). The tests cover a heavy master with no copies (the hint folds into the panel, line 712) and the banner on a heavy item (line 741). None puts a heavy master together with an existing copy. The Drag handle and the running row are also not exercised through the page. Add one heavy-master-plus-copy test so the `!showDestinations` condition is pinned.\n\n<!-- wachi:finding -->"
+ }
+]

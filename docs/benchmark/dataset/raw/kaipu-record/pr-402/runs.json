@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T21:58:45Z",
+  "databaseId": 40591163909,
+  "displayTitle": "perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown",
+  "event": "pull_request",
+  "headBranch": "perf/instant-record-start",
+  "headSha": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "status": "completed",
+  "updatedAt": "2026-10-27T21:58:51Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40591163909",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T21:47:35Z",
+  "databaseId": 40589702966,
+  "displayTitle": "perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "a25424dfd3dc7a697ad6f85f8807ea15a653cd56",
+  "status": "completed",
+  "updatedAt": "2026-10-27T21:48:36Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40589702966",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T21:46:40Z",
+  "databaseId": 40589581441,
+  "displayTitle": "perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown",
+  "event": "pull_request",
+  "headBranch": "perf/instant-record-start",
+  "headSha": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "status": "completed",
+  "updatedAt": "2026-10-27T21:46:58Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40589581441",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

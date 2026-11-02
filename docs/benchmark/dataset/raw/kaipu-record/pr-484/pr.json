@@ -1,0 +1,29 @@
+{
+ "number": 484,
+ "title": "fix(library): a near miss on a Check and fix row toggles it instead of expanding it (NIW2-604)",
+ "body": "Fixes [NIW2-604](https://linear.app/niway/issue/NIW2-604). The owner reported it with screenshots.\n\n## What was wrong\nIn \"Check and fix files\", a slightly off-target press on a row's checkbox expanded the row (the note wrapped to two lines), and the checkbox didn't toggle.\n\nThe cause was `.row:focus-within`, which un-truncated the row's text.\n1. A mousedown on the box focused it.\n2. The row reflowed taller, and the 16 px box moved out from under the cursor.\n3. The mouseup landed off the input, so no `click` fired and nothing toggled.\n4. The row stayed expanded for as long as focus remained.\n\n## Fix\n- Row text expands only for keyboard focus: `.row:has(:focus-visible)`. A mouse press no longer changes the layout under the cursor.\n- A click anywhere on a selectable row toggles it (`cursor: pointer`). The box's own click still toggles exactly once.\n\n## Verification\n- A new test clicks the row's padding and its text, then the box itself. All three toggle, and each toggles once.\n- The reconcile suite passes (15 tests), as do the web typecheck, oxlint and oxfmt.\n- Electron was not launched on this machine.\n\n## How to test it yourself\n1. Settings → Workspaces → **Check and fix files** on a library that has findings, then expand a group.\n2. Press just beside a row's checkbox, or on its text. The row toggles, and nothing expands or jumps.\n3. Press the checkbox itself. It toggles once.\n4. Tab to a row's checkbox with the keyboard. The full name and note show, wrapped.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n<!-- coderabbit-ai-generated:v1 -->\n\n## Summary by CodeRabbit\n\n* **Bug Fixes**\n  * Selectable finding rows now toggle their checkbox when clicked on row padding or labels. Clicking the checkbox toggles it only once, and clicking selected text does not change its state.\n  * Filename expansion now responds specifically to keyboard-visible focus, rather than any focus within a row.\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T05:48:27Z",
+ "updated_at": "2026-11-02T06:14:39Z",
+ "closed_at": "2026-11-02T06:14:34Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/484",
+ "base": {
+  "ref": "main",
+  "sha": "c01796bb717af2f23151b5e3a8cf65abc31f1004"
+ },
+ "head": {
+  "ref": "fix/niw2-604-reconcile-row-hit-target",
+  "sha": "59f6d481c8eb4f9121a006952736b60f06278b9b",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 3,
+ "additions": 54,
+ "deletions": 5,
+ "labels": []
+}

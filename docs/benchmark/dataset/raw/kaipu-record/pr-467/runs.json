@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T01:08:18Z",
+  "databaseId": 41153836694,
+  "displayTitle": "feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "event": "pull_request",
+  "headBranch": "feature/export-screen",
+  "headSha": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "status": "completed",
+  "updatedAt": "2026-10-31T01:11:25Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41153836694",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T08:19:20Z",
+  "databaseId": 41184117007,
+  "displayTitle": "feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "61136a6b68fc2713bc4a41f1714f7d0b787a1929",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:19:20Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41184117007",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4385533282,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/record-timing.ts",
+  "line": 39,
+  "original_line": 39,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 39,
+  "original_position": 39,
+  "commit_id": "679a01ddb89c4f0dec18de0ded8f2b920c94c6b6",
+  "original_commit_id": "4725456134cb3c10840eaea85f7a5439c55c5234",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5662809913,
+  "subject_type": "line",
+  "created_at": "2026-10-27T05:54:03Z",
+  "updated_at": "2026-10-27T05:54:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/393#discussion_r4385533282",
+  "body": "🟡🔐 **Consider · security: Renderer-supplied label is logged with control characters intact**\n\n`receiveRecordTiming` truncates the label to 80 characters but leaves newlines and other control characters in it. A compromised renderer, or any frame that can reach `recording:timing`, can forge extra `[record-timing]` lines in the main-process log. It can also send `begin` at will, which resets main's clock. The impact is low. Strip control characters, for example `label.replace(/[\\^@-\\^_\\u007f]/g, \" \")`, before logging.\n\nThe handler also does not check the IPC sender. That matches the neighbouring handlers, so I am not asking for a change there."
+ },
+ {
+  "id": 4385533288,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/index.ts",
+  "line": 198,
+  "original_line": 198,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 33,
+  "original_position": 33,
+  "commit_id": "679a01ddb89c4f0dec18de0ded8f2b920c94c6b6",
+  "original_commit_id": "4725456134cb3c10840eaea85f7a5439c55c5234",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5662809913,
+  "subject_type": "line",
+  "created_at": "2026-10-27T05:54:03Z",
+  "updated_at": "2026-10-27T05:54:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/393#discussion_r4385533288",
+  "body": "🟡🧹 **Consider · cleanup: New constant is placed between the two BASE_MIN_* constants**\n\n`OVERLAY_PREWARM_AFTER_LAUNCH_MS` sits between `BASE_MIN_WIDTH` and `BASE_MIN_HEIGHT`, which splits a pair of related window-size constants. Move it above them or below `BASE_MIN_HEIGHT`."
+ }
+]

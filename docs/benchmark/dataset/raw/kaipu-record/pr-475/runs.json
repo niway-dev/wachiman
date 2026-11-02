@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T21:08:48Z",
+  "databaseId": 41242198280,
+  "displayTitle": "feat(camera): adjustable corner radius and a 3:4 portrait rectangle (NIW2-596)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-596-camera-shapes-adjustable-corner-radius-and-a-portrait",
+  "headSha": "9d3575885bb841735c70a5afd1d83298c977c7a9",
+  "status": "completed",
+  "updatedAt": "2026-10-31T21:10:07Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41242198280",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T21:09:01Z",
+  "databaseId": 41242215562,
+  "displayTitle": "feat(camera): adjustable corner radius and a 3:4 portrait rectangle (NIW2-596)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "3648f2a1375d69408c33235390d91399d8ee6231",
+  "status": "completed",
+  "updatedAt": "2026-10-31T21:09:02Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41242215562",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T21:44:15Z",
+  "databaseId": 41244968575,
+  "displayTitle": "feat(camera): adjustable corner radius and a 3:4 portrait rectangle (NIW2-596)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "3648f2a1375d69408c33235390d91399d8ee6231",
+  "status": "completed",
+  "updatedAt": "2026-10-31T21:44:25Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41244968575",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T21:55:14Z",
+  "databaseId": 41245805631,
+  "displayTitle": "feat(camera): adjustable corner radius and a 3:4 portrait rectangle (NIW2-596)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "3648f2a1375d69408c33235390d91399d8ee6231",
+  "status": "completed",
+  "updatedAt": "2026-10-31T21:55:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41245805631",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

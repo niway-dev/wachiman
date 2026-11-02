@@ -1,0 +1,134 @@
+[
+ {
+  "id": 5722043338,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "450c910079c5692c55a314de82f77fc798135608",
+  "submitted_at": "2026-10-31T08:46:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722043338",
+  "body": "**Agent review** of the whole pull request, at `450c910`: all 54 files reviewed.\n\n3 finding(s): 1 to fix, 2 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 of 2: I reviewed all 38 files in this part and found no blockers. The new `exportDestination` field is checked against the known IDs in main before it is written and again when it is read back. The `recording-ready:show` handler now answers only the main window's renderer, which narrows who can float a card rather than widening it. `src/shared` adds only plain code and type imports, none from a workspace package. The new show-and-wait logic for the floating window settles correctly on ready, a newer card, a timeout, a failed load, a closed window and quit. Two findings, both in `use-floating-ready-card.ts`: the hook's JSDoc is now orphaned above the new `askedKeys` block (fix), and moving the asked-keys set to module scope means an in-app fallback card disappears when the page remounts on the same history entry (consider).\n\n**Batch 2 of 2.** Part 2 holds tests, stylesheets, docs and messages, and it is in good shape. I checked that nothing still uses the removed i18n keys: `prepare.dropBody`, `export.barLabel`, `recordingReady.openHint`. The `barLabel` match in `capacity-card.tsx` belongs to another namespace. The new `importDropNoPath` and `railBadge` strings match the code and tests that use them. The test mocks of `useExportRunner` wrap the real hook correctly, and spying on `pathForFile` works because the test setup defines it. The doc rewrites match `use-prepare-import.ts` and `use-import-videos.ts`, with one small exception: after leaving Export, the Open action is offered only when a single video came in.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 38 | 951 | 6 | reviewed | 6 | $0.36 |\n| Batch 2 of 2 | 16 | 385 | 4 | reviewed | 9 | $0.24 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.60</sub>\n\n<!-- agent-review sha=450c910079c5692c55a314de82f77fc798135608 -->"
+ },
+ {
+  "id": 5722058141,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "450c910079c5692c55a314de82f77fc798135608",
+  "submitted_at": "2026-10-31T08:50:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722058141",
+  "body": ""
+ },
+ {
+  "id": 5722058219,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0f88cb3e295770ce3226f501dd3cc5972667e7f3",
+  "submitted_at": "2026-10-31T08:50:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722058219",
+  "body": ""
+ },
+ {
+  "id": 5722058308,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0f88cb3e295770ce3226f501dd3cc5972667e7f3",
+  "submitted_at": "2026-10-31T08:50:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722058308",
+  "body": ""
+ },
+ {
+  "id": 5722058892,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "450c910079c5692c55a314de82f77fc798135608",
+  "submitted_at": "2026-10-31T08:50:22Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722058892",
+  "body": "> ℹ️ No critical issues. Two small suggestions inline. One is the Email-tag fix, which stops short of two screens.\n\n**Reviewed changes**\n\nI reviewed all 24 commits: the review-comment fixes across the Export stack.\n\n- **Floating ready window**: `show()` now resolves only once the card has painted. It answers false on a failed load, a dead renderer or a 3 s timeout, and destroys that window. `recording-ready:show` refuses any sender but the main window.\n- **Floating card in the renderer**: the asked history keys are now kept module-wide, so Back does not float a second card. The in-app card drops Open. The floating card gets a shadow that fits its 16 px padding.\n- **Import queue**: a drop during a running import waits in a promise queue instead of being discarded. Videos with no path on disk get their own toast. Leaving Export mid-import shows a toast instead of navigating.\n- **Export screen**: it re-lists when a background copy lands and shows the loader only on the first load (the recording page too). The 1440p / 4K and Fill / Fit groups get arrow keys and a roving tabindex. The size card is plain text. Pick from Library is disabled while importing. The picker moves focus in and back out.\n- **Ready to upload cards**: only cards that were actually on screen (`shown`) retire on leaving the Library. Show in Finder or a drag (`actedOn`) forgets the copy then. Drag on the master page marks the copy seen.\n- **Destination in the sidecar**: `exportDestination` is written by the runner and persisted by `RecordingWriter`. `LibraryVault` reads it back, and `copyDestinationOf` prefers it.\n- **Accessibility and copy**: drag-only buttons leave the Tab order. The progress pill's name starts with its visible text. Unused i18n keys are removed, and the backlog docs are updated.\n\n<!--\nPullfrog review metadata. These findings were written against 450c9100;\nif commits have landed on fix/stack-review-findings since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 54\n- Commits reviewed: 24\n- Base: feature/ready-copy-in-library (da6d41ba)\n- Head: fix/stack-review-findings (450c9100)\n- Reviewed commits:\n  - 450c9100 — docs(desktop): import-video and prepare-screen describe the Export screen as it is\n  - c1c7c01a — fix(desktop): an Email copy keeps its tag after it is opened or the app relaunches\n  - 4cfd2f0c — fix(desktop): the minimized export pill's name includes what it shows\n  - 7f28eb97 — fix(desktop): only Ready to upload cards that were on screen retire, and acting on one counts as seen\n  - 84afb264 — fix(desktop): Back to a fresh recording does not float its ready card twice\n  - 1ff66f1b — fix(desktop): the floating ready card reports whether it really showed\n  - 878c2c7e — chore(desktop): verify test and Spanish drag label match the current copy\n  - 2d147f63 — fix(desktop): drag-only copy buttons leave the Tab order\n  - cfb5a07f — fix(desktop): the master tag over the player shows its hint on hover\n  - 50c98b40 — fix(desktop): the in-app ready card drops its Open button\n  - e2e6e238 — fix(desktop): Drag on the master page marks the copy seen; tighten its tests\n  - f63feea9 — style(desktop): drop the orphaned drop-strip comment in the Library CSS\n  - a7af8b48 — test(desktop): the Library drop test and the sidebar tests check what they claim\n  - 89c33804 — fix(desktop): the Export video picker moves focus in and back out\n  - 588f737e — fix(desktop): the running row in Recent exports uses the finished rows' slots\n  - 1b10b4d6 — fix(desktop): the recording page keeps its content during a re-list\n  - 3f7a3557 — fix(desktop): Export re-reads the Library when a copy lands, without resetting the screen\n  - 53179191 — fix(desktop): arrow keys inside Export's 1440p/4K and Fill/Fit choices; Enter test proves preventDefault\n  - 8d32e282 — fix(desktop): screen readers read the Export size bar's verdict\n  - f7e0ec86 — fix(desktop): Pick from Library is disabled while an import runs\n  - ac52d18e — fix(desktop): the Export drop zone names every importable format\n  - 6c444e55 — fix(desktop): an import that ends after leaving Export no longer pulls the user back\n  - d1d24c29 — fix(desktop): queue drops during an import and name path-less videos apart\n  - 7a3aac00 — docs(desktop): drop stale Prepare branch note, removed copy keys and off-scale effort\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/471?action=fix&review_id=5722058892) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/471?action=fix-approved&review_id=5722058892) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41185870255/job/124492566125) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5722060702,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0f88cb3e295770ce3226f501dd3cc5972667e7f3",
+  "submitted_at": "2026-10-31T08:51:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722060702",
+  "body": ""
+ },
+ {
+  "id": 5722061812,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0f88cb3e295770ce3226f501dd3cc5972667e7f3",
+  "submitted_at": "2026-10-31T08:51:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722061812",
+  "body": "> ℹ️ The two new commits have no issues. My earlier comment on the Recent exports row and the master copies panel still stands. They still read an Email copy as chat.\n\n**Reviewed changes**\n\nThis pass covers the two commits pushed since my last review.\n\n- **In-app fallback survives Back**: `use-floating-ready-card.ts` now records which history entries fell back in a module-wide `fellBackKeys` set, and `inApp` reads from it. A remount on the same entry shows the in-app card again without asking main twice. A new hook test covers this. The hook's JSDoc sits on the hook again, so I resolved that thread.\n- **Import doc wording**: `import-video.md` now says that after leaving Export mid-import, one video gets a toast with **Open** and several get a count. This matches `use-prepare-import.ts`.\n\n<!--\nPullfrog review metadata. These findings were written against 0f88cb3e;\nif commits have landed on fix/stack-review-findings since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 54\n- Commits reviewed: 26\n- Base: feature/ready-copy-in-library (da6d41ba)\n- Head: fix/stack-review-findings (0f88cb3e)\n- Reviewed commits:\n  - 0f88cb3e — docs(desktop): the leave-mid-import toast offers Open only for one video\n  - 059807d1 — fix(desktop): the in-app ready card survives Back to its recording\n- Prior pullfrog review: 450c9100 (https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722058892)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix it ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/471?action=fix&review_id=5722061812) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41185870255/job/124492566125) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5722068987,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0f88cb3e295770ce3226f501dd3cc5972667e7f3",
+  "submitted_at": "2026-10-31T08:54:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722068987",
+  "body": ""
+ },
+ {
+  "id": 5722069075,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "54a08d374a5e061a2fb57887696874be955b6be1",
+  "submitted_at": "2026-10-31T08:54:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722069075",
+  "body": ""
+ },
+ {
+  "id": 5722072421,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "54a08d374a5e061a2fb57887696874be955b6be1",
+  "submitted_at": "2026-10-31T08:55:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722072421",
+  "body": ""
+ },
+ {
+  "id": 5722072993,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "54a08d374a5e061a2fb57887696874be955b6be1",
+  "submitted_at": "2026-10-31T08:55:45Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722072993",
+  "body": "> ✅ No new issues found. The new commit fixes the Email-tag gap I raised in my last review, so I resolved that thread.\n\n**Reviewed changes**\n\nThis pass covers the one commit pushed since my last review, `54a08d37`.\n\n- **Recent exports reads the stored destination**: finished rows now call `copyDestinationOf(copy)` and fall back to the preset only when it returns null. An Email copy keeps its name and logo after it finishes.\n- **Master copies panel reads the stored destination**: `destinationName` and `CopyIcon` now take a `DestinationId`. Finished copies resolve it through `copyDestinationOf`, and the running row uses the job's `destination`. YouTube's 1440p / 4K suffix still comes from the preset. `CopyIcon` still shows the plain tile in exactly the cases it did before, because `copyDestinationOf` is null only when `copyPresetOf` is null.\n- **Tests**: new cases in `master-copies-panel.test.tsx` and `export-page.test.tsx` render a Balanced copy whose sidecar stores `destination: \"email\"`. They check that it is named Email and that no Slack label appears.\n\n<!--\nPullfrog review metadata. These findings were written against 54a08d3;\nif commits have landed on fix/stack-review-findings since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 4\n- Commits reviewed: 1\n- Base: feature/ready-copy-in-library\n- Head: fix/stack-review-findings (54a08d3)\n- Reviewed commits:\n  - 54a08d37 — fix(desktop): Recent exports and the master page read a copy's stored destination\n- Prior pullfrog review: 0f88cb3 (https://github.com/niway-dev/kaipu-record/pull/471#pullrequestreview-5722061812)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41186466055/job/124494288072) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ }
+]

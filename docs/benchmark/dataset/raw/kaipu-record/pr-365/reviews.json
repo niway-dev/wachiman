@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5603995474,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c989b9b5f4902a595a7e5e858e8037dd021e16b5",
+  "submitted_at": "2026-10-21T17:57:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/365#pullrequestreview-5603995474",
+  "body": "**Claude review** of the whole pull request, at `c989b9b`: all 1 files reviewed.\n\n1 finding(s), 0 to fix; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change swaps the `on-demand` gate from `author_association == 'OWNER'` to `comment.user.login == 'csdev19'`. This fixes the case where org-owned repos report the owner as `MEMBER`. It restricts runs to one account, so it does not weaken the trust boundary. I found no correctness or security problems, only a note about the hardcoded login.\n\n<sub>Claude Sonnet 5.5 · $0.05</sub>\n\n<!-- claude-review sha=c989b9b5f4902a595a7e5e858e8037dd021e16b5 -->"
+ }
+]

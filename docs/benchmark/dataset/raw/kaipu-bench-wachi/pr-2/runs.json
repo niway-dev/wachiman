@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "failure",
+  "createdAt": "2026-11-01T20:36:45Z",
+  "databaseId": 41347749488,
+  "displayTitle": "[replay] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "event": "pull_request",
+  "headBranch": "replay/pr-464/head",
+  "headSha": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:36:45Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41347749488",
+  "workflowName": "Agent review",
+  "log": "not-found"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:36:45Z",
+  "databaseId": 41347749757,
+  "displayTitle": "[replay] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "event": "pull_request",
+  "headBranch": "replay/pr-464/head",
+  "headSha": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:37:01Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41347749757",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:41:20Z",
+  "databaseId": 41348133444,
+  "displayTitle": "[replay] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "667f03c3ea655d55b8267c598b5ed38623a20fa9",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:42:33Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41348133444",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

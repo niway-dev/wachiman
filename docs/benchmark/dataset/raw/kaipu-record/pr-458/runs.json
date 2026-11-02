@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T08:23:33Z",
+  "databaseId": 41184419249,
+  "displayTitle": "feat(desktop): Prepare screen two-column layout (NIW2-583)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-583-prepare-two-column",
+  "headSha": "7e71f7a10955403195c5898583233048bc800720",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:23:48Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41184419249",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T08:08:46Z",
+  "databaseId": 41183386785,
+  "displayTitle": "feat(desktop): Prepare screen two-column layout (NIW2-583)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-583-prepare-two-column",
+  "headSha": "7e71f7a10955403195c5898583233048bc800720",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:09:02Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41183386785",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T21:05:15Z",
+  "databaseId": 41128313651,
+  "displayTitle": "feat(desktop): Prepare screen two-column layout (NIW2-583)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-583-prepare-two-column",
+  "headSha": "1a35ba1854c9d45725531f5e6a20393944130e13",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:07:18Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41128313651",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T21:05:14Z",
+  "databaseId": 41128313126,
+  "displayTitle": "feat(desktop): Prepare screen two-column layout (NIW2-583)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-583-prepare-two-column",
+  "headSha": "1a35ba1854c9d45725531f5e6a20393944130e13",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:05:34Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41128313126",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

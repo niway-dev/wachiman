@@ -1,0 +1,74 @@
+[
+ {
+  "id": 5678648474,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b8e9022ef9edb1c9fc966c65c992c8baa91cb6c1",
+  "submitted_at": "2026-10-28T06:25:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#pullrequestreview-5678648474",
+  "body": "**Agent review** of the whole pull request, at `b8e9022`: all 14 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is sound overall: sanitizing, the `loaded` gate, and the tests cover the stated behavior. I found one design concern. The automatic first-launch default gets saved as a remembered mic, so the app stops following later changes to the system default input.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 14 | 181 | 6 | reviewed | 4 | $0.07 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.07</sub>\n\n<!-- agent-review sha=b8e9022ef9edb1c9fc966c65c992c8baa91cb6c1 -->"
+ },
+ {
+  "id": 5678669730,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4d183449b3213ac3f9b75c84e196535a055af9e8",
+  "submitted_at": "2026-10-28T06:28:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#pullrequestreview-5678669730",
+  "body": ""
+ },
+ {
+  "id": 5678673740,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4d183449b3213ac3f9b75c84e196535a055af9e8",
+  "submitted_at": "2026-10-28T06:29:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#pullrequestreview-5678673740",
+  "body": "**Agent review** of changes since `b8e9022`, at `4d18344`: all 5 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no issues in this part. The change moves persistence of the microphone from the hub to the renderer, so only an explicit pick is saved and the automatic default is not. The new hook tests cover both cases, and the hub test and the doc match the new behaviour. The earlier thread about the first-launch default being persisted is addressed.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 5 | 54 | 5 | reviewed | 5 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=4d183449b3213ac3f9b75c84e196535a055af9e8 -->"
+ },
+ {
+  "id": 5678673851,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4d183449b3213ac3f9b75c84e196535a055af9e8",
+  "submitted_at": "2026-10-28T06:29:04Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#pullrequestreview-5678673851",
+  "body": ""
+ },
+ {
+  "id": 5678713149,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8c5c69e2b9beb6bbac7665940339016e329ed08b",
+  "submitted_at": "2026-10-28T06:34:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#pullrequestreview-5678713149",
+  "body": "**Agent review** of changes since `4d18344`, at `8c5c69e`: all 3 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. The effect that picks the mic waits for settings and for an idle recorder. It prefers the stored pick while that device is connected, and otherwise uses the first device in the list. Only `selectMicrophone` persists a choice. The doc matches the code, including the camera bubble `deviceId` fallback. The tests cover the remembered pick, unplug and replug, and no switching during a take. I did not run the tests.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 3 | 111 | 4 | reviewed | 5 | $0.07 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.07</sub>\n\n<!-- agent-review sha=8c5c69e2b9beb6bbac7665940339016e329ed08b -->"
+ },
+ {
+  "id": 5678713259,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8c5c69e2b9beb6bbac7665940339016e329ed08b",
+  "submitted_at": "2026-10-28T06:34:31Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#pullrequestreview-5678713259",
+  "body": ""
+ }
+]

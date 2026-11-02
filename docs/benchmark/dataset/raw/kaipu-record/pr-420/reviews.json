@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5692327159,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "937d5138696c0390bb51ee7a3bfd7c604aa5f4db",
+  "submitted_at": "2026-10-29T02:57:54Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/420#pullrequestreview-5692327159",
+  "body": "**Agent review** of the whole pull request, at `937d513`: all 4 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is sound. `useCompactRow` measures with compact switched off (use-compact-row.ts:28), so releasing the title's min-width once the row is compact cannot make the row oscillate. The e2e and doc changes match the CSS behaviour. The one note is a minor leftover timer in `closeOrKill`.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 4 | 125 | 4 | reviewed | 6 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=937d5138696c0390bb51ee7a3bfd7c604aa5f4db -->"
+ },
+ {
+  "id": 5692527241,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f3dc20dff3aca2e8f0c1e7a7857bced2bd7fb047",
+  "submitted_at": "2026-10-29T03:32:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/420#pullrequestreview-5692527241",
+  "body": ""
+ }
+]

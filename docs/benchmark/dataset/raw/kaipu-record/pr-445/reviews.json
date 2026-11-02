@@ -1,0 +1,62 @@
+[
+ {
+  "id": 5710617631,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "77ec29f2c14d69f8e95a8572be44adb01dc0f4f2",
+  "submitted_at": "2026-10-30T09:51:19Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/445#pullrequestreview-5710617631",
+  "body": "**Agent review** of the whole pull request, at `77ec29f`: all 25 files reviewed.\n\n4 finding(s): 4 to consider; 4 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 3.** Part 1 covers the export side of the webcam layer: the composer, the lockstep cursor, gap fills over a still screen, the second decoder and the fetch. The design holds together. Fill timing, cursor monotonicity, pool sizes and the GIF zip of screen and webcam frames all look consistent. Two optional points (consider), nothing blocking: a webcam fetch that throws still fails the whole MP4 or GIF export, and fill frames read the camera scale at the fill time while the crop stays on the held frame.\n\n**Batch 2 of 3.** Part 2 covers the `webcamRect` side clamp, the new `webcamSourceRect` and `WEBCAM_SHADOW` helpers, passing `webcamTrack` from the editor page into both export paths, and the new and extended tests. I read the composer's `clip`/`slide` path to check the tests' ordering and placement assertions. They match the implementation: the webcam is drawn last on the final canvas, after the framer, and slides draw no webcam and always frame \"fit\". The `useCallback` dependency on `source.webcam` was added correctly. The `webcamRect` change also affects the preview's `webcam-layer.tsx`, but the clamp only kicks in when the bubble would be wider than the frame, so landscape previews are unchanged. The one finding is a \"consider\": the source-regex test that is meant to keep the MP4 and GIF workers on the shared composer is brittle.\n\n**Batch 3 of 3.** I read both test files in this part in full and checked them against `webcam-source.ts`, `webcam-lockstep.ts`, `webcam-sync.ts` and `webcam-layout.ts`.\n\n**`webcam-source.test.ts`:** every expected value matches the code:\n- the decode window of 0.4–0.6 s, from the 0.1 s lead and the 0.5 s offset;\n- the GIF lookup at times 0.2, 1, 2.4 and 2.6 s;\n- the cursor failing at the fourth pull when `decodeAfter` is 3;\n- `NO_FRAMES` for later clips;\n- one `null` per remaining time on the GIF path;\n- the Input being disposed when opening fails.\n\n**`webcam-layout.test.ts`:** I worked out the `webcamSourceRect` cases by hand: centred cover, zoom 2, panning to the edge, the mirrored x pan, and a portrait image. I also checked the portrait `webcamRect` clamp (1152 px capped to 1080 px, with the bottom edge at 1920). All the asserted values are exact.\n\nThere is one minor gap. The edge-pan test's name says the window never goes past the square's edge, but no case passes a pan beyond ±1, so the clamp in `webcamSourceRect` is never exercised.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 3 | 14 | 988 | 4 | reviewed | 3 | $0.32 |\n| Batch 2 of 3 | 9 | 925 | 4 | reviewed | 6 | $0.24 |\n| Batch 3 of 3 | 2 | 229 | 2 | reviewed | 7 | $0.18 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 3 batches · $0.75</sub>\n\n<!-- agent-review sha=77ec29f2c14d69f8e95a8572be44adb01dc0f4f2 -->"
+ },
+ {
+  "id": 5710640780,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "77ec29f2c14d69f8e95a8572be44adb01dc0f4f2",
+  "submitted_at": "2026-10-30T09:53:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/445#pullrequestreview-5710640780",
+  "body": ""
+ },
+ {
+  "id": 5710641130,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "77ec29f2c14d69f8e95a8572be44adb01dc0f4f2",
+  "submitted_at": "2026-10-30T09:53:45Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/445#pullrequestreview-5710641130",
+  "body": ""
+ },
+ {
+  "id": 5710641550,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f4c162b146157362e0589121ed521e653a730520",
+  "submitted_at": "2026-10-30T09:53:47Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/445#pullrequestreview-5710641550",
+  "body": ""
+ },
+ {
+  "id": 5710641802,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f4c162b146157362e0589121ed521e653a730520",
+  "submitted_at": "2026-10-30T09:53:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/445#pullrequestreview-5710641802",
+  "body": ""
+ }
+]

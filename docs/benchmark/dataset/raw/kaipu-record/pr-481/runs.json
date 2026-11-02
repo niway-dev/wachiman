@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T04:01:27Z",
+  "databaseId": 41386148850,
+  "displayTitle": "ci: bump the agent review to wachiman v1.4.0",
+  "event": "pull_request",
+  "headBranch": "ci/wachiman-v1.4.0",
+  "headSha": "4b5439fdb5051df171f6fd7552a70f3de75c849a",
+  "status": "completed",
+  "updatedAt": "2026-11-02T04:02:02Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41386148850",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-11-02T04:01:41Z",
+  "databaseId": 41386169411,
+  "displayTitle": "ci: bump the agent review to wachiman v1.4.0",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "ef2ba136006c08682e52c81ce6094f7feeb35112",
+  "status": "completed",
+  "updatedAt": "2026-11-02T04:01:42Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41386169411",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T04:04:22Z",
+  "databaseId": 41386405511,
+  "displayTitle": "ci: bump the agent review to wachiman v1.4.0",
+  "event": "pull_request",
+  "headBranch": "ci/wachiman-v1.4.0",
+  "headSha": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "status": "completed",
+  "updatedAt": "2026-11-02T04:05:02Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41386405511",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T04:04:33Z",
+  "databaseId": 41386423111,
+  "displayTitle": "ci: bump the agent review to wachiman v1.4.0",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "ef2ba136006c08682e52c81ce6094f7feeb35112",
+  "status": "completed",
+  "updatedAt": "2026-11-02T04:04:54Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41386423111",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T04:06:51Z",
+  "databaseId": 41386633968,
+  "displayTitle": "ci: bump the agent review to wachiman v1.4.0",
+  "event": "pull_request",
+  "headBranch": "ci/wachiman-v1.4.0",
+  "headSha": "0dbca02fd27e197ae79bab726028696975cb104b",
+  "status": "completed",
+  "updatedAt": "2026-11-02T04:07:30Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41386633968",
+  "workflowName": "Agent review",
+  "log": "ok"
+ }
+]

@@ -1,0 +1,62 @@
+[
+ {
+  "id": 5709751506,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "1486d87fc6a62ce58b99e74adc4a072adff70a91",
+  "submitted_at": "2026-10-30T08:22:08Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/441#pullrequestreview-5709751506",
+  "body": "**Agent review** of the whole pull request, at `1486d87`: all 29 files reviewed.\n\n4 finding(s): 1 to fix, 3 to consider; 4 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 3.** Part 1 has nothing that blocks the merge. I'm suggesting two small optional changes:\n\n- **Unused capture group:** `PART_RE` in `stranded-recordings.ts` now captures the id, but nothing reads it.\n- **Missing `--vault` value:** in the CLI script, a `--vault` flag with no value after it crashes the script instead of printing the usage message.\n\nWhat I checked:\n- **Imports in `src/shared`:** the new files take a value import only from the relative `./camera-bubble`, which has no imports of its own. `ipc.ts` and `electron-api.ts` gain type imports only. The preload bundle is safe.\n- **The new `kind` argument across IPC:** the preload passes it through unchanged. The main process never trusts it: `recordingWriterKind` maps anything other than \"webcam\" to \"screen\", and the kind only picks between two fixed file suffixes. The webcam meta from the renderer is cleaned by `sanitizeWebcamTrackMeta` before it reaches the sidecar.\n- **Finalize, strand, take-back, salvage and abort:** they handle the screen and webcam sessions consistently, and a webcam that fails or can't be moved never fails the take.\n- **Recovery sweep:** it pairs each webcam part with its screen part and deletes a webcam part whose screen part is gone.\n- **Tests:** the new tests check what their names say.\n\n**Batch 2 of 3.** Part 2 covers the webcam track's renderer side: the engine's second Output, open timeout, end/pause/stop handling, the store's webcam session and finalize meta, the recording setup's webcam input, and the bubble preview lines. It also covers the tests for all of these and for the writer and stranded-recovery behaviour. I followed the cleanup paths: a camera that fails to open, times out, cannot start, or is unplugged or turned off, plus discard ordering between the two writer sessions. All are handled as the comments describe, and the tests check them. The one finding is a stale doc comment in use-camera-preview.ts: it says 480 lines is the ceiling, but the bubble now always asks for at least 720.\n\n**Batch 3 of 3.** Part 3: I found one suggestion and nothing that needs fixing.\\n\\n**`webcam-track-check.md`** matches `scripts/webcam-track-check.ts` and `src/shared/webcam-track-report.ts`:\\n- the finding codes and their levels\\n- the 500 ms duration tolerance and the 1 fps tolerance\\n- exit codes 0, 1 and 2\\n- the fallback when `ffprobe` is missing\\n\\nThe links to ADR 0032 and to section 2 of the design spec both resolve.\\n\\n**`ipc-contract.mdx`** matches `recording-hub.ts`:\\n- the optional `kind` on create, write and stat\\n- abort and finalize using the shared session id\\n- a failed webcam write never stopping the take\\n\\nThe preload signatures match too.\\n\\n**`recorder-store.test.ts`**: the new webcam tests match the store code (the start offset, the second session, abort waiting for both sessions to exist, ending the webcam mid-take). The one gap: the test named \\\"turned on or off during the countdown\\\" only covers turning the camera off.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 3 | 15 | 930 | 8 | reviewed | 5 | $0.29 |\n| Batch 2 of 3 | 11 | 996 | 4 | reviewed | 6 | $0.40 |\n| Batch 3 of 3 | 3 | 246 | 2 | reviewed | 10 | $0.27 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 3 batches · $0.96</sub>\n\n<!-- agent-review sha=1486d87fc6a62ce58b99e74adc4a072adff70a91 -->"
+ },
+ {
+  "id": 5709760857,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9ab51d9729a0ddabf2c228956c14d2fe31118f2d",
+  "submitted_at": "2026-10-30T08:23:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/441#pullrequestreview-5709760857",
+  "body": ""
+ },
+ {
+  "id": 5709761159,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9ab51d9729a0ddabf2c228956c14d2fe31118f2d",
+  "submitted_at": "2026-10-30T08:23:20Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/441#pullrequestreview-5709761159",
+  "body": ""
+ },
+ {
+  "id": 5709761478,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9ab51d9729a0ddabf2c228956c14d2fe31118f2d",
+  "submitted_at": "2026-10-30T08:23:22Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/441#pullrequestreview-5709761478",
+  "body": ""
+ },
+ {
+  "id": 5709761822,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9ab51d9729a0ddabf2c228956c14d2fe31118f2d",
+  "submitted_at": "2026-10-30T08:23:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/441#pullrequestreview-5709761822",
+  "body": ""
+ }
+]

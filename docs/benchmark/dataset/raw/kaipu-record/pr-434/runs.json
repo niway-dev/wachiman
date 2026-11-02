@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:35:41Z",
+  "databaseId": 41124470185,
+  "displayTitle": "fix(desktop): move Start recording into the record widget (NIW2-562)",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-562-start-recording-in-widget",
+  "headSha": "c8eb395a98ce40295f66601945f1b38948694717",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:35:49Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41124470185",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T00:22:22Z",
+  "databaseId": 40979266992,
+  "displayTitle": "fix(desktop): move Start recording into the record widget (NIW2-562)",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-562-start-recording-in-widget",
+  "headSha": "c8eb395a98ce40295f66601945f1b38948694717",
+  "status": "completed",
+  "updatedAt": "2026-10-30T00:23:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40979266992",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T00:22:22Z",
+  "databaseId": 40979266501,
+  "displayTitle": "fix(desktop): move Start recording into the record widget (NIW2-562)",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-562-start-recording-in-widget",
+  "headSha": "c8eb395a98ce40295f66601945f1b38948694717",
+  "status": "completed",
+  "updatedAt": "2026-10-30T00:22:38Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40979266501",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

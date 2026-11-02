@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4439379600,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-shade-window.ts",
+  "line": 187,
+  "original_line": 187,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 178,
+  "original_position": 178,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732674753,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:20Z",
+  "updated_at": "2026-11-02T06:08:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/56#discussion_r4439379600",
+  "body": "👮 **Wachiman** · 🟠🐛 **Fix · bug: A crashed shade renderer is reused for every later take and paints nothing (confidence medium)**\n\nThe shade window now lives for the whole session. `ensureWindow` only replaces it on `closed` (lines 187-193), and nothing listens for `webContents` `render-process-gone`. When the shade renderer crashes, the BrowserWindow stays open and `ready` stays true. Every later `show` sends state to a dead page, calls `showInactive` on an empty transparent window and fires `onShown`, so the hub marks the countdown as shown (recording-hub.ts:546-551). From then until the app restarts, the user gets no dim, no 3-2-1 number and no REC border, and nothing says why. Before this change each take loaded a new window, so a crash lasted for one take only. The overlay windows in this same PR guard against this case (capture-overlay-windows.ts:655-660). Suggested fix: on `render-process-gone`, destroy the window (or set `this.window = null` and `ready = false`) so the next `show` or `prewarm` loads a new one.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439379606,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-shade-window.test.ts",
+  "line": 191,
+  "original_line": 191,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 191,
+  "original_position": 191,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732674753,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:20Z",
+  "updated_at": "2026-11-02T06:08:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/56#discussion_r4439379606",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: \"(crash, closed)\" test only covers destroy (confidence high)**\n\nThe test calls `destroy()`, which goes through the `closed` path. A renderer crash leaves the window open and never fires `closed`, so the crash case in the test's name is not exercised. The fake window has no `webContents.on` to simulate it either. Either add a `render-process-gone` case with the fix above, or rename the test.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439379612,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-shade-window.ts",
+  "line": 126,
+  "original_line": 126,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 132,
+  "original_position": 132,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732674753,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:20Z",
+  "updated_at": "2026-11-02T06:08:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/56#discussion_r4439379612",
+  "body": "👮 **Wachiman** · 🟡❓ **Consider · question: Can a reused shade briefly show the previous take's frame? (confidence low)**\n\n`hide()` hides the window first and only then sends `idle` (line 114, then line 115). While the window is hidden, Chromium may not produce a composited frame for that state. `present()` sends the new state and calls `showInactive()` straight away (lines 126-127), without waiting for the renderer to receive or paint it. So when the window comes back, can the OS show the last frame it composited, which is the previous take's REC border or dim, for a frame or two? The PR claims \"a reused window never repaints the previous take\" and lists the Retina ↔ non-Retina move as a manual check. Has this ordering been checked on macOS and Windows? An ack from the renderer after it paints, or `webContents.invalidate()` before the show, would close the gap.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439379617,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 89,
+  "original_line": 89,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 33,
+  "original_position": 33,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732674753,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:08:20Z",
+  "updated_at": "2026-11-02T06:08:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/56#discussion_r4439379617",
+  "body": "👮 **Wachiman** · 🟡❓ **Consider · question: Is 50 ms enough to keep the app window out of the first encoded frame? (confidence low)**\n\nBefore this change, `recordingStart` hid the main window and only then did the screen capture open. That took about a second, so the app's window was long gone before the first frame. Now, on the Record page, the capture opens during the countdown while the window is still on screen. `hideAppForTake` hides the window and then waits only `WINDOW_HIDE_SETTLE_MS` (50 ms) before `prepared.begin()` starts the output (recorder-store.ts:380-389, 525-535). The comment's estimate is one 30 fps frame plus one display refresh. That leaves no margin for the OS capture pipeline's latency (ScreenCaptureKit / DXGI delivery) or for the compositor canvas still holding the last frame it drew. If that latency goes over 50 ms on some machines, the app shows up in the first frame of the video and no error says so. Has the 50 ms been checked on real macOS and Windows captures? A safer option would be to wait for the first capture frame that arrives after the hide, for example via `requestVideoFrameCallback`, instead of a fixed delay.\n\n<!-- wachi:finding -->"
+ }
+]

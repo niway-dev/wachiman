@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5730802425,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "submitted_at": "2026-11-01T23:35:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/5#pullrequestreview-5730802425",
+  "body": "> [!IMPORTANT]\n> Actions on the floating card most likely won't bring Kaipu to the front when the user is in another app. That is the main case this PR exists for.\n\n**Reviewed changes**\n\nI reviewed the whole PR: the new `RecordingReadyWindow` manager, its IPC contract and preload bridge, the card window's renderer entry, the main-window hand-off routing, the recording page's ask-or-fall-back logic, and the hub's new `lastTakeDisplayId()`.\n\n- **Floating window manager**: `main/recording/recording-ready-window.ts` copies the capture toast's lifecycle. It creates the window lazily, presents it once the renderer reports ready, accepts IPC only from its own sender, and uses `destroy()` at quit. Unlike the toast, it is focusable, has no timer, and resizes to the height the card reports.\n- **Contract**: `shared/types/recording-ready.ts` defines the payload, actions and hand-off, and parses everything that crosses IPC. A `satisfies` pins its destinations to Prepare's `DestinationId`.\n- **Recording page**: `useFloatingReadyCard` asks main once per `location.key`, after the probe settles. The in-app card shows only when main answers `false` or the invoke rejects.\n- **Hand-off routing**: `useRecordingReadyHandOffs` in `AppRoot` maps a hand-off to `preparePath`, `editorPathFor` or the library detail route.\n- **Display choice**: the hub records the take's display from the area, the countdown region or the screen source. The window falls back to the display under the cursor.\n\n<!--\nPullfrog review metadata. These findings were written against b2705a9;\nif commits have landed on replay/pr-466/head since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 28\n- Commits reviewed: 2\n- Base: replay/pr-466/base (13b7ff5)\n- Head: replay/pr-466/head (b2705a9)\n- Reviewed commits:\n  - db49e4b — feat(desktop): float \"Your video is ready\" outside the app window\n  - b2705a9 — docs(backlog): \"Your video is ready\" floats on the desktop\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-bench-pullfrog-v2/5?action=fix&review_id=5730802425) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-bench-pullfrog-v2/5?action=fix-approved&review_id=5730802425) ｜ [View workflow run](https://github.com/niway-dev/kaipu-bench-pullfrog-v2/actions/runs/41362567509/job/125015871110) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5730803003,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "submitted_at": "2026-11-01T23:35:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/5#pullrequestreview-5730803003",
+  "body": ""
+ }
+]

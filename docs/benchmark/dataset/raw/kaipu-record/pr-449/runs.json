@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:54:01Z",
+  "databaseId": 41126838353,
+  "displayTitle": "feat(desktop): workspaces part 1 — registry, migration, switch and switcher (NIW2-580)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-580-workspaces-part-1",
+  "headSha": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:54:07Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41126838353",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:38:53Z",
+  "databaseId": 41124864415,
+  "displayTitle": "feat(desktop): workspaces part 1 — registry, migration, switch and switcher (NIW2-580)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-580-workspaces-part-1",
+  "headSha": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:40:55Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41124864415",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T19:34:42Z",
+  "databaseId": 41116385127,
+  "displayTitle": "feat(desktop): workspaces part 1 — registry, migration, switch and switcher (NIW2-580)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-580-workspaces-part-1",
+  "headSha": "1eb063895218166441f8306d551ad15527dc8c9e",
+  "status": "completed",
+  "updatedAt": "2026-10-30T19:38:46Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41116385127",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T19:34:42Z",
+  "databaseId": 41116384003,
+  "displayTitle": "feat(desktop): workspaces part 1 — registry, migration, switch and switcher (NIW2-580)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-580-workspaces-part-1",
+  "headSha": "1eb063895218166441f8306d551ad15527dc8c9e",
+  "status": "completed",
+  "updatedAt": "2026-10-30T19:35:03Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41116384003",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

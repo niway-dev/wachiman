@@ -1,0 +1,170 @@
+[
+ {
+  "id": 5717776432,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "1eb063895218166441f8306d551ad15527dc8c9e",
+  "submitted_at": "2026-10-30T19:38:39Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5717776432",
+  "body": "**Agent review** of the whole pull request, at `1eb0638`: all 74 files reviewed.\n\n13 finding(s): 2 to fix, 11 to consider; 13 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 6.** I found no blockers in part 1. Shared types use only type imports from packages: `STALE_WORKSPACE` is a local const, not a value import from a workspace package. Item-scoped IPC calls are stamped consistently in the preload and gated in main, and the vault-folder channels that were removed are gone from both sides of the bridge. I raised three items, all at \\\"consider\\\": 1. The preload's switching guard is cleared by every `workspaces:changed` broadcast, not only by the one that ends a switch. 2. The `kaipu-media://` workspace check covers only screenshot and thumb URLs, so a cached video URL can still play an item from another workspace. 3. A question: a stamp rebind inside a scoped Save might make a save that succeeded reject as stale, which could lead to a duplicate item. Budget limits kept me from tracing every helper in workspaces/ in depth.\n\n**Batch 2 of 6.** I reviewed the three files in this part: gate.ts, identity.ts and index.ts under `src/main/workspaces/`. Nothing blocks the merge. I found two edge cases in index.ts, both rated \"consider\" with topic \"bug\".\\n\\n1. **Wrong gate rebind (index.ts:109).** The check for an adopted id compares the probed id with the gate's current stamp. If a switch lands while the probe is running, that comparison can point the gate back at the old workspace. The same timing problem exists in `listState`, during the registry write that saves the new active workspace.\\n2. **120-second wait (index.ts:196).** If a window closes partway through a switch, nothing answers the prepare request. The switch then waits the full 120-second timeout before it is cancelled, and no other switch can start during that time.\\n\\nI found nothing to flag in gate.ts or identity.ts. Their draining, generation and id/name checks behave as their comments describe.\n\n**Batch 3 of 6.** Part 3 (the registry, the switch transaction, the title and view helpers, and the updated main-process tests) generally holds up. The downgrade contract, the strict preferences read and the read-only fallback agree with the old writer's behaviour, and the old writer's removed tests confirm it. I found two things worth a look, both at \"consider\". `update()` keeps an in-memory change after a failed write, so `add` and `remove` can report failure even though the change already shows in the list. `switchWorkspace` drops pending captures before the persist step, which can still fail and abort the switch. The tests I read assert what their names say.\n\n**Batch 4 of 6.** Part 4 of 6: I found one minor test-naming issue and nothing that blocks the merge. In `registry.test.ts`, the test \"refuses the active and the last workspace\" only ever checks the `active` refusal. The `last` refusal looks unreachable, because `registry.remove` checks `active` first. I also checked these and found nothing to flag: the renderer side of the switch in `prepare-switch.ts`, the `onPrepare` wiring in the router (main gives up on a window after 120 s), how `reportError` treats stale-workspace errors, the toast labels, the not-connected notice, and the gate, switch-transaction and window-title tests.\n\n**Batch 5 of 6.** I reviewed the 14 files in part 5: the switcher, the context, the settings page, the page wiring and the tests. The switch preparation is wired up in router.tsx through `onPrepare`, and the editor's autosave flush is registered for it. I found one fix and three considers:\n\n- **Fix:** the switcher menu says \\\"Saving to: Here\\\" while the active workspace is disconnected and captures are paused.\n- **Consider:** Show in Finder stays enabled for a disconnected active workspace.\n- **Consider:** a global Escape listener dismisses the one-time hint for good, even when the Escape was meant for something else.\n- **Consider:** a refused Remove in Settings closes the dialog with no message.\n\nNo security or rules problems in this part.\n\n**Batch 6 of 6.** Part 6 (tests, stylesheets and messages): I found one problem. The `workspaces.thisMac` label (\"This Mac\") is used as the location of every workspace that has no volume, on every operating system. So on Windows the switcher shows \"This Mac\", even though the same component already chooses Finder or Explorer depending on the system. The rest checks out:\n- **Messages:** the keys this PR adds are used by the code, and no remaining code uses the keys it removes. `readyToRecord` moved within `record` and is still there, which matters because the web app uses it.\n- **Stylesheets:** pulling the tag palette out into a global `tag-palette.css` is safe, because both `tag-chip.tsx` and `workspace-switcher.tsx` import it.\n- **Tests:** the test stubs and the record-page and settings-layout assertions match the current components.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 6 | 20 | 981 | 8 | reviewed | 3 | $0.33 |\n| Batch 2 of 6 | 3 | 597 | 5 | reviewed | 6 | $0.22 |\n| Batch 3 of 6 | 12 | 915 | 5 | reviewed | 4 | $0.23 |\n| Batch 4 of 6 | 13 | 944 | 4 | reviewed | 4 | $0.24 |\n| Batch 5 of 6 | 14 | 989 | 4 | reviewed | 7 | $0.26 |\n| Batch 6 of 6 | 12 | 723 | 2 | reviewed | 7 | $0.22 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 6 batches · $1.50</sub>\n\n<!-- agent-review sha=1eb063895218166441f8306d551ad15527dc8c9e -->"
+ },
+ {
+  "id": 5718382622,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718382622",
+  "body": ""
+ },
+ {
+  "id": 5718383099,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:08Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718383099",
+  "body": ""
+ },
+ {
+  "id": 5718383620,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718383620",
+  "body": ""
+ },
+ {
+  "id": 5718383949,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:13Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718383949",
+  "body": ""
+ },
+ {
+  "id": 5718384285,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718384285",
+  "body": ""
+ },
+ {
+  "id": 5718384632,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718384632",
+  "body": ""
+ },
+ {
+  "id": 5718385062,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718385062",
+  "body": ""
+ },
+ {
+  "id": 5718385362,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718385362",
+  "body": ""
+ },
+ {
+  "id": 5718385689,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718385689",
+  "body": ""
+ },
+ {
+  "id": 5718385989,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718385989",
+  "body": ""
+ },
+ {
+  "id": 5718386361,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718386361",
+  "body": ""
+ },
+ {
+  "id": 5718386690,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718386690",
+  "body": ""
+ },
+ {
+  "id": 5718386996,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "791af90244401ac5d6e78512b1b02d0c4bc0f660",
+  "submitted_at": "2026-10-30T20:39:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/449#pullrequestreview-5718386996",
+  "body": ""
+ }
+]

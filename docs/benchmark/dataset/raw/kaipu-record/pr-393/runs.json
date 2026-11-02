@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:53:13Z",
+  "databaseId": 40457856436,
+  "displayTitle": "perf(desktop): cut the wait before a recording starts",
+  "event": "pull_request",
+  "headBranch": "perf/record-start-latency",
+  "headSha": "4725456134cb3c10840eaea85f7a5439c55c5234",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:54:07Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40457856436",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-27T05:55:39Z",
+  "databaseId": 40458093697,
+  "displayTitle": "perf(desktop): cut the wait before a recording starts",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "ad4874d5d7ed44ccfd701e26b2226a3b2773e774",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:55:47Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40458093697",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

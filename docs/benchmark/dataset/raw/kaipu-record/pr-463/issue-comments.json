@@ -1,0 +1,24 @@
+[
+ {
+  "id": 6537077803,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T01:19:42Z",
+  "updated_at": "2026-10-31T01:19:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#issuecomment-6537077803",
+  "body": "## Review ledger\n\n| id | severity | outcome |\n| --- | --- | --- |\n| S1 | should | fixed: 8609fabf. Each camera turned on mid-take carries a request number in the store; only the newest on closes the gap. The superseded on's \"ok\" no longer closes it while a later on is still opening, and a later on that fails closes the gap where the file ends. Tested: on/off/on with a slow open, and the second on failing. |\n| S2 | should | fixed: 7155941a. `feed(camera, onLost)`: the relay reports a camera it lost after its first frame (a failed read, a failed write, a camera that ended), but not one it was told to leave (cut, a later feed, stop). The engine then calls `endWebcam()`, which reports webcam-ended. The take's own first feed now gets a `WEBCAM_OPEN_TIMEOUT_MS` deadline from the moment the take begins, and the webcam file ends if no first frame arrives. Relay and engine tests cover both. |\n| S3 | should | fixed: 29395c37. Seeded gap segments get the id `gap-<start ms>`, which is unique because segments are apart. Pinned by tests: seeding twice gives an equal layer and the same `wholeFingerprint`. |\n| S4 | should | fixed: b0f028c9. New `bubbleRejoinsCapture`, used by `recordingWebcamEnded` and by the webcam write-failure path: during an active take, with the camera on and a protected, unparked window, it calls `CameraBubbleWindow.replace()` (destroy, then a new window at the same place, its protection decided again). A bubble hidden for a screenshot is not shown until the restore. Before the capture starts, or when parked, only `applyProtection` runs, as before. Hub and window tests. ADR 0032 and the spec updated in b2219de3. |\n| N1 | nit | fixed: 7155941a. One `WEBCAM_OPEN_TIMEOUT_MS` deadline covers both the re-open and the first frame. Tested: a 2 s open followed by no frame gives up at 3 s, not 5. |\n| N2 | nit | fixed: 8609fabf. The comment now says that an off is not queued, and that the engine drops a camera still opening. |\n| N3 | nit | fixed: a5e31ece. `useCameraOn` starts off until main answers, and falls back to on only if the read fails. Tested: a window parked before reading the toggle never opens the camera. |\n| N4 | nit | fixed: 4e58bc69. `reconcileWebcam` takes the recording's duration, and both editor call sites pass it. Tested. |\n| N5 | nit | declined. A gap can only open after the take begins, so this is limited to an off within the first few frames, before the first media timestamp resolves, and the drift is tens of ms. The seeded hidden segment is stretched to at least the 1 s segment minimum anyway. Converting the open time later would need the gap log to keep performance.now() stamps and re-base them once `videoClock` exists. That is not trivial for that effect. |\n\nVerification: `vitest run` (apps/kaipu-record) 328 files / 3408 tests passed; `check-types` node + web clean; `oxlint` 0 errors (the 7 warnings in video-editor-page.tsx were already there). No Electron or E2E run, so the window replacement and the relay failure paths are covered by unit tests only.\n\n### How to test it yourself\n\n1. Start a take with the camera on. Turn the camera off, then on, then off, then on, quickly. In the editor, the camera-off stripe should cover the whole time until the face moves again.\n2. Start a take with the camera on. Turn it off, unplug the camera (or have another app take it), then turn it on. The face should appear in the screen recording from that moment, with the bubble where it was.\n3. Share a take that has camera-off gaps twice. The second Share should reuse the first export instead of exporting again.\n4. Start a take with the camera on and turn it off and on right away. The camera light should not blink on while the bubble is parked.\n"
+ },
+ {
+  "id": 6537117250,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T01:23:26Z",
+  "updated_at": "2026-10-31T01:23:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#issuecomment-6537117250",
+  "body": "## Confirmation review\n\nFresh Opus 5.5 reviewer on 3ec7a138..b2219de3: **approved, only nits remain**. S1–S4 and N1–N4 fixed, each pinned by a test. Two nits left as follow-ups:\n\n- F1: a webcam write failure that lands after `recordingFinalize` (or from a stale session) can run `replace()` once at the end of the take: a flicker, nothing wrong captured. Fix later by replacing only when `BubbleProtection.webcamEnded` changed the current take.\n- F2 (pre-existing): a webcam lost during the countdown, after the capture stream started, still uses the protection-only path. Narrow window, documented.\n"
+ }
+]

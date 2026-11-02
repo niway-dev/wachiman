@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T07:08:27Z",
+  "databaseId": 41404351813,
+  "displayTitle": "fix(desktop): the workspaces hint sits in the header row, off the page",
+  "event": "pull_request",
+  "headBranch": "fix/e2e-rename-header-overlap",
+  "headSha": "a1d6f81764389b8451e7a36a62a15eab49362d20",
+  "status": "completed",
+  "updatedAt": "2026-11-02T07:09:13Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41404351813",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-11-02T07:08:43Z",
+  "databaseId": 41404380055,
+  "displayTitle": "fix(desktop): the workspaces hint sits in the header row, off the page",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "6583deae76feac15f187e3d583d7e7c9f75e9f67",
+  "status": "completed",
+  "updatedAt": "2026-11-02T07:08:44Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41404380055",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T07:15:53Z",
+  "databaseId": 41405165458,
+  "displayTitle": "fix(desktop): the workspaces hint sits in the header row, off the page",
+  "event": "pull_request",
+  "headBranch": "fix/e2e-rename-header-overlap",
+  "headSha": "90ea5d1c7bdbc854a0fc268a610c820d2f5ecc62",
+  "status": "completed",
+  "updatedAt": "2026-11-02T07:17:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41405165458",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T07:23:23Z",
+  "databaseId": 41405982940,
+  "displayTitle": "fix(desktop): the workspaces hint sits in the header row, off the page",
+  "event": "pull_request",
+  "headBranch": "fix/e2e-rename-header-overlap",
+  "headSha": "614171893c22e4dddaf0b78379c2c5954039471c",
+  "status": "completed",
+  "updatedAt": "2026-11-02T07:25:03Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41405982940",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-11-02T07:33:11Z",
+  "databaseId": 41407031628,
+  "displayTitle": "fix(desktop): the workspaces hint sits in the header row, off the page",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "6583deae76feac15f187e3d583d7e7c9f75e9f67",
+  "status": "completed",
+  "updatedAt": "2026-11-02T07:33:19Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41407031628",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

@@ -1,0 +1,29 @@
+{
+ "number": 365,
+ "title": "fix(ci): let the owner's @claude comments start the on-demand review",
+ "body": "## What\n\nThe `on-demand` job in `.github/workflows/claude-review.yml` now starts when the comment's author **login** is `csdev19`. Before, it started only when `author_association == 'OWNER'`.\n\n## Why\n\nThis repository belongs to the `niway-dev` organization. On an organization repository, GitHub reports the owner's comments as `MEMBER`, not `OWNER`. As a result, **every `@claude` comment was skipped**. Example: run [39648100277](https://github.com/niway-dev/kaipu-record/actions/runs/39648100277), triggered by a `@claude review …` comment on [#364](https://github.com/niway-dev/kaipu-record/pull/364), finished as `skipped`.\n\nMatching the login keeps the documented rule (\"only the owner's `@claude` comment starts a run\", ADR 0028). It is stricter than accepting `MEMBER`, which would let any organization member start a paid run. `scripts/claude-review.ts` already trusts `OWNER`, `MEMBER` and `COLLABORATOR` replies inside threads, so nothing else changes.\n\n`issue_comment` workflows always run the version of the file on `main`. That means this fix only takes effect after it merges. The review kit was copied from `niway-dev/pr-review-engine`, so the same check probably needs fixing there too. I have not checked that repository.\n\n## How to test it yourself\n\n1. Merge this PR.\n2. On [#364](https://github.com/niway-dev/kaipu-record/pull/364), comment with the scoped review command. That PR is too large for a full review: about 3,000 of its lines are Drizzle snapshots.\n   ```\n   @claude review apps packages/application packages/infra-db/src/schema packages/infra-db/src/repositories packages/infra-db/src/integration packages/infra-db/src/migrations/0000_baseline.sql packages/infra-db/src/migrations/0001_integrity.sql packages/infra-db/src/migrations/0002_account_provider_unique.sql packages/infra-db/drizzle.config.ts scripts .github package.json CLAUDE.md README.md\n   ```\n3. In Actions → \"Claude PR review\", the `Claude on demand` job must **run**, not show as skipped. A review from `github-actions` must then appear on #364.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-21T17:56:51Z",
+ "updated_at": "2026-10-21T18:56:01Z",
+ "closed_at": "2026-10-21T18:55:57Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/365",
+ "base": {
+  "ref": "main",
+  "sha": "a181d1a30f2b5bff3286c0e634b62c0cb85c3fb8"
+ },
+ "head": {
+  "ref": "fix/claude-review-on-demand-owner",
+  "sha": "c989b9b5f4902a595a7e5e858e8037dd021e16b5",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 1,
+ "additions": 4,
+ "deletions": 1,
+ "labels": []
+}

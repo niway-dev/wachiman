@@ -1,0 +1,29 @@
+{
+ "number": 381,
+ "title": "feat(desktop): add a Record submenu to the tray menu",
+ "body": "## What changed\n\nThe tray's right-click menu now follows \"Kaipu Record Modes v2\", section 5.\n\n- Idle: Open Kaipu Record, Record (Record screen, Record area, Record window...), Take screenshot, Library, Settings..., Quit.\n- While recording or paused: Stop recording appears right after Record; the three Record items are disabled. Pause keeps Stop enabled.\n- Left click still toggles the capture panel. Locale change still rebuilds the menu. Tray icon logic is untouched.\n\nHow:\n- New `main/tray-menu.ts`: a pure template builder, testable without Electron.\n- `tray.ts` builds the menu from main's translator and rebuilds it on locale change and on recording state change.\n- `recording-hub.ts`: `registerRecordingHub` takes an optional `onActivityChange` callback, called from `broadcastActivity`; `index.ts` uses it to call `setTrayRecording`.\n- i18n: new `tray.*` keys in en and es.\n- Docs: `backlog/tray-record-submenu.md` (Ready to validate), backlog index row and sidebar entry.\n\n## Decisions and deviations\n\n- Accelerators are display-only (`registerAccelerator: false`), taken from the configured shortcuts (`startRecording`, `recordArea`, `stopRecording`, `captureScreenshot`). \"Open\" shows `CommandOrControl+O`, also display-only.\n- \"Record window...\" reuses the capture panel's \"Change\" path: it opens the Record page with the source picker. Main has no trigger for a window-only thumbnail picker.\n- Library and Settings: main has no navigation channel to the renderer, so it sets the main window's URL hash (the renderer uses a hash router). A recreated window gets the hash after `did-finish-load`.\n- \"Highlighted\" Stop is not possible on a native menu; it is just the extra item.\n- No renderer, overlay, capture panel or Record page files were touched.\n\n## How to verify manually (not yet done)\n\n1. macOS and Windows: right-click the tray idle and check the items and shown shortcuts.\n2. Start a recording, right-click: Stop present, Record items grey. Pause and resume: Stop stays enabled. Stop from the menu.\n3. Change the language in Settings, right-click: labels follow.\n4. Library and Settings from the tray with the main window open, hidden, and closed.\n5. Record screen / Record area / Record window... / Take screenshot each do what their shortcut does.\n\n## Not verified\n\n- Nothing was run in a real Electron session or on Windows. Native menu rendering, accelerator display and the hash navigation are untested at runtime.\n- Checks run: `bun run test` in apps/kaipu-record (270 files, 2378 tests pass), `check-types`, lint (0 errors), pre-push `verify:local` passes.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": false,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-26T23:03:33Z",
+ "updated_at": "2026-10-27T00:45:53Z",
+ "closed_at": "2026-10-27T00:45:53Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/381",
+ "base": {
+  "ref": "main",
+  "sha": "a6d1c8953490beb0e644df9b762d87b95072064e"
+ },
+ "head": {
+  "ref": "feat/tray-record-submenu",
+  "sha": "f7a16e69a54336765caeb31e3a031cd675ada226",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 10,
+ "additions": 496,
+ "deletions": 115,
+ "labels": []
+}

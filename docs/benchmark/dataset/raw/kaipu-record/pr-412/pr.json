@@ -1,0 +1,29 @@
+{
+ "number": 412,
+ "title": "fix(desktop): drag-out never copies the file and never deletes a drag in progress (audit LIB-B12)",
+ "body": "## What changed and why\n\nThis fixes audit finding **LIB-B12** (library lens B). Before this PR, dragging a titled recording out of Kaipu created a hard link in `<os-temp>/kaipu-drag/`. That caused two problems:\n\n1. **Cross-volume copy.** When the vault is on another volume (an external disk or a custom folder), the temp dir is on a different device. `link()` then fails with `EXDEV`, and the whole video was **copied** before the drag could start.\n2. **A second drag deleted the first.** Every drag wiped the entire `kaipu-drag` folder. A drop target still reading the first file (a Finder copy or an upload) could lose it mid-read.\n\nThe new behavior follows the approved spec `specs/2026-10-28-niw2-398-drag-out-volumes.md`:\n\n- The per-drag folder is now `<vault>/.kaipu/drag/<uuid>/`. It is always on the vault's own volume, so the titled file is a hard link (no bytes copied) on APFS, NTFS and ext4.\n- On `EXDEV` (a mount point inside the vault), the vault file itself is dragged under its id name. Nothing is copied and no folder is left behind.\n- Any other link failure (exFAT and FAT have no hard links) falls back to `copyFile`, which keeps the title at the cost of a copy. If that copy fails with `ENOSPC`, the drag still fails with a logged error.\n- If `mkdir` fails (read-only vault), the vault file itself is dragged.\n- Each drag prunes only drag folders older than `DRAG_COPY_MAX_AGE_MS` (60 min), instead of wiping everything.\n- Startup and quit wipe the current vault's `.kaipu/drag`. Startup also removes the legacy `<temp>/kaipu-drag` left by older builds.\n- `drag-copies.ts` no longer imports `electron`. It takes the vault dir as an argument, and its tests use real temp dirs.\n\n**Trade-off (the spec asks for it here):** on exFAT we copy the file to keep the title. The one-line alternative is to return `vaultFile` for every link error: it never copies, but on exFAT the dragged file is then named by id.\n\n**Known limitation (accepted in the spec):** if the user changes the vault folder, the old vault's `.kaipu/drag` is no longer pruned. Hard links take no space.\n\n`.kaipu/drag/` never shows up in the library. `LibraryVault.list()` reads the vault non-recursively and filters by media extension, and the other `.kaipu` readers only list their own `<id>.assets` folders.\n\nThis PR also deletes the plan file `plans/audit-2026-10-15/18-drag-out-volumes.md` and its row in `00-index.md`.\n\n## How I verified it\n\n- `bun run test src/main/library/drag-copies.test.ts` (from `apps/kaipu-record`) failed 9/9 before the rewrite and passes 9/9 after. The tests cover the five Review Focus points:\n  - the dragged file has the same inode and `nlink === 2` under `.kaipu/drag`\n  - `EXDEV` returns the vault file without copying\n  - a second drag keeps the first file\n  - pruning goes by age\n  - cleanup leaves sidecars alone\n- I ran `bun run verify` twice. The workflows check, lint, `oxfmt --check`, build and `check-types` all pass.\n- In the tests, 2882 passed and **5 failed in both runs**. They are in `library-service.test.ts`, `recording-writer.test.ts` and `screenshots/export/export.test.ts`. None of those files touch drag code, and **the same 5 fail on the base commit `5af11515`** without this change. The cause: this Mac mini has no `node`, so vitest runs under Bun's Node shim. CI runs real Node and is the gate for those tests.\n- Not run: the Playwright desktop E2E suite (CI runs it) and a manual drag in the real app.\n\n## How to test it yourself\n\n1. Export an MP4, then drag the status-card thumbnail into Finder. The file carries the title, and `ls -li \"<vault>/.kaipu/drag/\"*/` shows the same inode as `<vault>/<id>.mp4`.\n2. Drag twice quickly. The first dropped file is still there.\n3. Put the vault on an exFAT USB stick. The drag still works (a copy is made).\n4. Quit. `<vault>/.kaipu/drag` is gone. A `$TMPDIR/kaipu-drag` left by an older build is gone after the next launch.\n\nRefs NIW2-398\n\nRun: agent-runner attempt 1, session dcbe51eb-506e-4a28-8ffb-9ba61227b60c, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T16:04:50Z",
+ "updated_at": "2026-10-29T01:45:10Z",
+ "closed_at": "2026-10-29T01:45:07Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/412",
+ "base": {
+  "ref": "main",
+  "sha": "3c68bacffd344663ce7801928597f7616b17381e"
+ },
+ "head": {
+  "ref": "feature/niw2-398-18-drag-out-across-volumes",
+  "sha": "fc4b4db66a216c95feec2d1aaa1872498e521eb2",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 6,
+ "additions": 228,
+ "deletions": 27,
+ "labels": []
+}

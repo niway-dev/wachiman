@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T03:33:45Z",
+  "databaseId": 40812823983,
+  "displayTitle": "fix(desktop): keep the editor toolbar in one row once the capture title has a minimum width",
+  "event": "pull_request",
+  "headBranch": "fix/release-e2e-editor-toolbar-and-quit-hang",
+  "headSha": "f3dc20dff3aca2e8f0c1e7a7857bced2bd7fb047",
+  "status": "completed",
+  "updatedAt": "2026-10-29T03:33:53Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40812823983",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T03:32:00Z",
+  "databaseId": 40812670817,
+  "displayTitle": "fix(desktop): keep the editor toolbar in one row once the capture title has a minimum width",
+  "event": "pull_request",
+  "headBranch": "fix/release-e2e-editor-toolbar-and-quit-hang",
+  "headSha": "f3dc20dff3aca2e8f0c1e7a7857bced2bd7fb047",
+  "status": "completed",
+  "updatedAt": "2026-10-29T03:32:17Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40812670817",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T02:57:31Z",
+  "databaseId": 40809386191,
+  "displayTitle": "fix(desktop): keep the editor toolbar in one row once the capture title has a minimum width",
+  "event": "pull_request",
+  "headBranch": "fix/release-e2e-editor-toolbar-and-quit-hang",
+  "headSha": "937d5138696c0390bb51ee7a3bfd7c604aa5f4db",
+  "status": "completed",
+  "updatedAt": "2026-10-29T02:57:58Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40809386191",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T02:57:30Z",
+  "databaseId": 40809385770,
+  "displayTitle": "fix(desktop): keep the editor toolbar in one row once the capture title has a minimum width",
+  "event": "pull_request",
+  "headBranch": "fix/release-e2e-editor-toolbar-and-quit-hang",
+  "headSha": "937d5138696c0390bb51ee7a3bfd7c604aa5f4db",
+  "status": "completed",
+  "updatedAt": "2026-10-29T02:57:46Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40809385770",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

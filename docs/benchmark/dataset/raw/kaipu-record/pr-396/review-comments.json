@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4393634440,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-writer.ts",
+  "line": 280,
+  "original_line": 273,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 106,
+  "original_position": 99,
+  "commit_id": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "original_commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5673670075,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:14:43Z",
+  "updated_at": "2026-10-27T20:14:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#discussion_r4393634440",
+  "body": "🟠🐛 **Fix · bug: releaseAll is never called, so the handle leak it targets remains**\n\nThe doc comment says `releaseAll` closes every open session when a take's renderer is gone (crash, window closed mid-take). A grep of `apps/kaipu-record/src` finds no caller outside the tests. Neither the `closed` handler nor `render-process-gone` in `main/index.ts` calls it. A renderer crash or window close mid-recording therefore still leaves the file handle open. Call it from those two handlers, or remove it until something uses it."
+ },
+ {
+  "id": 4393634450,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-writer.ts",
+  "line": null,
+  "original_line": 229,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 62,
+  "commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "original_commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5673670075,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:14:43Z",
+  "updated_at": "2026-10-27T20:14:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#discussion_r4393634450",
+  "body": "🟡🐛 **Consider · bug: A failed take-back is reported as a salvageable FinalizeMoveError**\n\nIf `takeBack` cannot move the file back, it returns silently. The media then stays in the vault with no sidecar, and `session.tempPath` no longer exists. The caller still gets `FinalizeMoveError(session.tempPath, cause)`, so the save dialog will offer a salvage that fails. In that case, either don't throw `FinalizeMoveError`, or point it at `dest`, where the media actually is."
+ },
+ {
+  "id": 4393883761,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-writer.ts",
+  "line": 280,
+  "original_line": 273,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 106,
+  "original_position": 99,
+  "commit_id": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "original_commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "in_reply_to_id": 4393634440,
+  "pull_request_review_id": 5673990578,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:38:42Z",
+  "updated_at": "2026-10-27T20:38:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#discussion_r4393883761",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian**\n\nFixed in 1ace9f4f: the hub's `forceReset` now calls `writer.releaseAll()`. Both the window's `closed` handler and `render-process-gone` in `main/index.ts` go through it, so one call covers both. Test: \"a forced reset releases the writer's open takes, so no file handle outlives the renderer\" (failed before: called 0 times)."
+ },
+ {
+  "id": 4393884438,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-writer.ts",
+  "line": null,
+  "original_line": 229,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 62,
+  "commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "original_commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "in_reply_to_id": 4393634450,
+  "pull_request_review_id": 5673991504,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:38:45Z",
+  "updated_at": "2026-10-27T20:38:45Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#discussion_r4393884438",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian**\n\nFixed in a743ca0f, with the first option. `takeBack` now reports whether the media is back in staging. When it is not, the session is dropped and the original error is thrown, not a `FinalizeMoveError`, so no salvage is offered. The media stays in the vault, and `describe` lists it without a sidecar. Pointing the salvage at `dest` was rejected: it would move the only copy out of the library. Test: \"a metadata failure whose take-back also fails keeps the media in the vault and offers no salvage\" (failed before: it was a FinalizeMoveError)."
+ },
+ {
+  "id": 4393915076,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-writer.ts",
+  "line": 280,
+  "original_line": 273,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 106,
+  "original_position": 99,
+  "commit_id": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "original_commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "in_reply_to_id": 4393634440,
+  "pull_request_review_id": 5674030599,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:41:45Z",
+  "updated_at": "2026-10-27T20:41:46Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#discussion_r4393915076",
+  "body": "> [!NOTE]\n> 🤖 **Claude responding on behalf of Cristian**\n\nAgreed, and the miss was mine. Commit `679568c3` said the hub's `forceReset` called `writer.releaseAll()`, but the hub file was never written to disk, so the call was not there. The branch is correct now: `1ace9f4f` adds the call, and the recording suites pass (358/358).\n"
+ },
+ {
+  "id": 4393915456,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-writer.ts",
+  "line": null,
+  "original_line": 229,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 62,
+  "commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "original_commit_id": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "in_reply_to_id": 4393634450,
+  "pull_request_review_id": 5674031022,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:41:48Z",
+  "updated_at": "2026-10-27T20:41:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/396#discussion_r4393915456",
+  "body": "> [!NOTE]\n> 🤖 **Claude responding on behalf of Cristian**\n\nAgreed with the option taken in `a743ca0f`: no salvage is offered when staging has nothing left, and I agree with not pointing it at `dest` (that would move the only copy out of the library).\n\nOne trade-off to keep in view: if the move back also fails, the `.mp4` stays in the vault without its sidecar. That is the orphan from the finalize fix, still possible only in this double-failure case. Accepting it is a choice for the reviewers.\n"
+ }
+]

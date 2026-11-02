@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T17:42:55Z",
+  "databaseId": 41225861591,
+  "displayTitle": "docs: drop the remaining hand-kept indexes",
+  "event": "pull_request",
+  "headBranch": "docs/drop-hand-kept-indexes",
+  "headSha": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "status": "completed",
+  "updatedAt": "2026-10-31T17:43:00Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41225861591",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T17:36:04Z",
+  "databaseId": 41225321527,
+  "displayTitle": "docs: drop the remaining hand-kept indexes",
+  "event": "pull_request",
+  "headBranch": "docs/drop-hand-kept-indexes",
+  "headSha": "a88fa45493675405a93a3bf11b1e1d38cbc7d460",
+  "status": "completed",
+  "updatedAt": "2026-10-31T17:36:19Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41225321527",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T17:22:27Z",
+  "databaseId": 41224217493,
+  "displayTitle": "docs: drop the remaining hand-kept indexes",
+  "event": "pull_request",
+  "headBranch": "docs/drop-hand-kept-indexes",
+  "headSha": "c2b15b8a2ed91813ad508b53ebf9aa4fc15c5589",
+  "status": "completed",
+  "updatedAt": "2026-10-31T17:23:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41224217493",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T17:22:27Z",
+  "databaseId": 41224217215,
+  "displayTitle": "docs: drop the remaining hand-kept indexes",
+  "event": "pull_request",
+  "headBranch": "docs/drop-hand-kept-indexes",
+  "headSha": "c2b15b8a2ed91813ad508b53ebf9aa4fc15c5589",
+  "status": "completed",
+  "updatedAt": "2026-10-31T17:22:43Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41224217215",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

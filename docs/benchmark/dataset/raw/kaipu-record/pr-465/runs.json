@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T01:06:53Z",
+  "databaseId": 41153716355,
+  "displayTitle": "feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "event": "pull_request",
+  "headBranch": "feature/recording-detail-title-and-copies",
+  "headSha": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "status": "completed",
+  "updatedAt": "2026-10-31T01:08:16Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41153716355",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T08:19:21Z",
+  "databaseId": 41184118151,
+  "displayTitle": "feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "61136a6b68fc2713bc4a41f1714f7d0b787a1929",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:19:21Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41184118151",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

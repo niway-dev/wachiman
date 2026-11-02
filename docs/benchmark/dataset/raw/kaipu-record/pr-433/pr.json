@@ -1,0 +1,29 @@
+{
+ "number": 433,
+ "title": "ci: review pull requests with Claude Opus 5.5",
+ "body": "## Summary\n\nSets `model: claude-opus-5-5` in the Wachi Reviewer caller workflow, replacing the Sonnet 5.5 default.\n\n## Why\n\nRecent reviews on Sonnet 5.5 cost $0.03–0.15 each. Opus 5.5 is twice the per-token price ($4 / $20 per MTok against $2 / $10), so a similar review should land around $0.06–0.30. That estimate assumes Opus uses a similar number of tokens, which is not measured yet. The default caps are unchanged and still bound every run: $0.75 per batch and $3 per review.\n\n## Verification\n\nThis pull request runs its own automatic review with the edited workflow, because `pull_request` uses the head's workflow file. The review footer should read \"Claude Opus 5.5\" and show the cost.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-29T22:49:26Z",
+ "updated_at": "2026-10-29T23:42:07Z",
+ "closed_at": "2026-10-29T23:42:02Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/433",
+ "base": {
+  "ref": "main",
+  "sha": "16cd8d80e04f2b30c9b7f3eadddc9d72f6bfdf72"
+ },
+ "head": {
+  "ref": "ci/review-opus-5-5",
+  "sha": "cd82f7a2748dabeb2441c480b8ed2a3b676ad432",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 1,
+ "additions": 3,
+ "deletions": 0,
+ "labels": []
+}

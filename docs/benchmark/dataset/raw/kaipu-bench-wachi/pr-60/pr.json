@@ -1,0 +1,31 @@
+{
+ "number": 60,
+ "title": "[replay r3] feat(video-editor): make text labels editable and multi-line",
+ "body": "> **Replay of [niway-dev/kaipu-record#184](https://github.com/niway-dev/kaipu-record/pull/184), run 3** for the code-review benchmark. Same base and head commits as the round-1 replay (a second branch name on the same commit, so the reviewer sees a fresh pull request). Never merged. Method: [wachiman/docs/benchmark](https://github.com/niway-dev/wachiman/tree/main/docs/benchmark).\n\n---\n\n## What was wrong\n\nA text label in the video editor was **write-once and single-line**. Fixing a typo meant deleting the overlay and typing it again, which lost its timeline window, and there was no way to break a line at all.\n\nThe screenshot editor solved both a while ago. This ports that behaviour rather than inventing a second one.\n\n## The part worth knowing\n\nThe line break had to be honoured in **three places, not one**, and missing any of them would have been worse than not shipping it. A break that survives editing, draws correctly in the preview, and then collapses in the exported video is discovered only after the export.\n\n| Where | Before | After |\n| --- | --- | --- |\n| Editing | `<input>`, single line, new labels only | `<textarea>`, reopens existing labels |\n| Preview | one flat `<text>` | one `<tspan>` per line |\n| Export SVG | one flat `<text>` | one `<tspan>` per line |\n\nSVG `<text>` neither wraps nor honours a newline on its own, which is why both renderers needed it.\n\n## Editing\n\nDouble-click reopens a label in place, prefilled, on the select tool only so it never collides with a drawing tool's click. Committing a reopened label replaces its text and keeps everything else — above all `start` and `end`, so retyping does not move when the label appears.\n\nPlain Enter commits. Shift or Alt + Enter fall through to the textarea's own newline, the way a spreadsheet cell behaves. The box grows with its content so every line stays visible while typing.\n\n## A bug found on the way\n\nThe selection rect was sized from `text.length` times a hand-copied `0.55`. A two-line label therefore drew an outline twice as wide as the text and only one line tall, so half of it was not selectable.\n\nIt now uses `textBoxPx`, which **already existed** in the screenshot editor's tools for exactly this and measures the longest line by the line count. `textLines`, `TEXT_LINE_HEIGHT` and `textBoxPx` are re-exported from that package, which `overlay-raster.ts` was already importing `TEXT_PX` and `HAND_FONT` from — so sharing is the established pattern here, not an exception.\n\n## No migration\n\n`text` is a plain string in the persisted scene and a newline is just data. Nothing to migrate.\n\n## Tests\n\nEach of the three surfaces fails silently on its own, so each is covered separately: the export SVG per line and its escaping, the shared box helper the preview now trusts, and the reopen-and-commit interaction — including that Shift+Enter does not commit and that the timeline window survives a retype.\n\nThe export fixture carries no `as VideoOverlay` cast, deliberately: the real type is what guards it, and it immediately caught two invented field names.\n\n`bun run verify` green: 186 files, 1235 tests. The pre-push hook ran the full desktop E2E, also green.\n\n## Out of scope, deliberately\n\nText size, colour, and the annotation inspector are untouched.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "open",
+ "merged": false,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T06:04:57Z",
+ "updated_at": "2026-11-02T06:06:39Z",
+ "closed_at": null,
+ "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/60",
+ "base": {
+  "ref": "replay/pr-184/base",
+  "sha": "06388e643ec804bbaf721d184e6adc3d50994a1e"
+ },
+ "head": {
+  "ref": "replay/pr-184/head-r3",
+  "sha": "2c33d5b87c2d87a4f8706486e49009513da51d3a",
+  "repo": "niway-dev/kaipu-bench-wachi"
+ },
+ "changed_files": 7,
+ "additions": 238,
+ "deletions": 24,
+ "labels": [
+  "replay"
+ ]
+}

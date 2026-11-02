@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5641358871,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "6810f795c6e92bf278142a14215f8d5f6fb2a69f",
+  "submitted_at": "2026-10-25T03:33:41Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/369#pullrequestreview-5641358871",
+  "body": "**Claude review** of the whole pull request, at `6810f79`: all 5 files reviewed.\n\n0 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no correctness or security problems in this PR. The cache and LRU eviction work as intended. Cleanup revokes the object URLs and disposes the input on both normal and cancelled paths. The new `access-control-expose-headers` header on `kaipu-media://` only exposes size and range headers. It adds no new IPC surface and no workspace value imports under `shared/`.\n\n<sub>Claude Sonnet 5.5 · $0.05</sub>\n\n<!-- claude-review sha=6810f795c6e92bf278142a14215f8d5f6fb2a69f -->"
+ }
+]

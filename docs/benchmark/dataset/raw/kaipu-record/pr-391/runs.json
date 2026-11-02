@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T18:44:49Z",
+  "databaseId": 40562811790,
+  "displayTitle": "fix(desktop): start the region countdown's clock once the 3 is on screen",
+  "event": "pull_request",
+  "headBranch": "fix/countdown-wait-for-shade",
+  "headSha": "55588d9489ceca6a614590a3fb78207b4573e5ad",
+  "status": "completed",
+  "updatedAt": "2026-10-27T18:44:58Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40562811790",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:32:10Z",
+  "databaseId": 40455865992,
+  "displayTitle": "fix(desktop): start the region countdown's clock once the 3 is on screen",
+  "event": "pull_request",
+  "headBranch": "fix/countdown-wait-for-shade",
+  "headSha": "55588d9489ceca6a614590a3fb78207b4573e5ad",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:32:41Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40455865992",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:32:10Z",
+  "databaseId": 40455865577,
+  "displayTitle": "fix(desktop): start the region countdown's clock once the 3 is on screen",
+  "event": "pull_request",
+  "headBranch": "fix/countdown-wait-for-shade",
+  "headSha": "55588d9489ceca6a614590a3fb78207b4573e5ad",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:32:30Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40455865577",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,29 @@
+{
+ "number": 385,
+ "title": "refactor(desktop): drop the Recent row from the Record page",
+ "body": "## What\n\nRemoves the Recent row (four recent recording thumbnails) from the Record page. Owner decision: the page is already full.\n\n## Removed\n\n- `RecentRecordings` and `useRecentRecordings` (`features/recording/components/recent-recordings.tsx`) and its CSS module\n- The usage in `record-page.tsx` and the matching test in `record-page.test.tsx`\n- i18n keys `record.recent` and `record.recentMeta` in en and es (no other reader; checked with grep)\n- Doc lines saying the Record page lists recent recordings (capture modes spec, capture metadata backlog doc)\n\n## Stays\n\n- The Recent row on the Screenshots page (`recent-screenshots.tsx` and its styles), because that page would be empty otherwise\n- `RecordingCaptureTag`, still used by the library cards\n\n## Verification\n\n- `check-types:web` and `check-types:node`: clean\n- `oxlint`: 0 errors (17 pre-existing warnings)\n- `vitest run`: 280 files, 2552 tests pass. One earlier run had a single unrelated failure (a space-key test); the two reruns were green.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T04:33:35Z",
+ "updated_at": "2026-10-27T04:54:23Z",
+ "closed_at": "2026-10-27T04:54:20Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/385",
+ "base": {
+  "ref": "main",
+  "sha": "3f7abe482d6b5a267b1544deb3bfb966bcb3e721"
+ },
+ "head": {
+  "ref": "chore/record-page-drop-recent",
+  "sha": "02802ccfe1d0a9407df9e8c9d178c0e0523f458c",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 8,
+ "additions": 7,
+ "deletions": 166,
+ "labels": []
+}

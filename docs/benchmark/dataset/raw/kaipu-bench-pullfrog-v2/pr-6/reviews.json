@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5730802385,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-11-01T23:35:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/6#pullrequestreview-5730802385",
+  "body": "> [!IMPORTANT]\n> Removing the Library's window drop handling likely lets a dropped video navigate the whole Electron window away from the app. Recent exports also labels editor exports as destination copies.\n\n**Reviewed changes**\n\nI reviewed the full diff: the new Export screen and rail entry, the Prepare removal, the routing and redirects, the Email destination, the Library cleanup, and the i18n changes.\n\n- **Export screen** — `pages/export/*` replaces `pages/prepare/*` with a fixed header, a stage that scrolls on its own, a fixed destination row, and document-level Enter / ←→ handling.\n- **Routes** — adds `/export/:assetId` and `/export`. Legacy `/prepare*` URLs redirect there and keep `?to=`. `preparePath` / `prepareNewPath` now return Export URLs.\n- **Email destination** — a new `DestinationId` that uses chat's `balanced` preset. `usePrepareCopy` accepts a `destination` override so the cards can name it.\n- **Rail** — a new EXPORT entry sits under Editor. The copy badge moves there from Library and now also counts the export that is running.\n- **Library** — the drop strip, the Import / Prepare buttons and the window-wide `useFileDrop` are removed, and `ImportDropZone` is deleted.\n\n<!--\nPullfrog review metadata. These findings were written against b12d760;\nif commits have landed on replay/pr-467/head since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 47\n- Commits reviewed: 2\n- Base: replay/pr-467/base (13b7ff5)\n- Head: replay/pr-467/head (b12d760)\n- Reviewed commits:\n  - 36646c14 — feat(desktop): Export screen with its own rail entry (replaces Prepare)\n  - b12d760b — docs(desktop): backlog page for the Export screen\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-bench-pullfrog-v2/6?action=fix&review_id=5730802385) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-bench-pullfrog-v2/6?action=fix-approved&review_id=5730802385) ｜ [View workflow run](https://github.com/niway-dev/kaipu-bench-pullfrog-v2/actions/runs/41362578203/job/125015904071) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ }
+]

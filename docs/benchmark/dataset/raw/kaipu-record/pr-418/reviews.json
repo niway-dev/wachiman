@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5690697390,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "afd007dff9ec288a29c67da01841421de7d9fd77",
+  "submitted_at": "2026-10-28T22:46:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/418#pullrequestreview-5690697390",
+  "body": "**Agent review** of the whole pull request, at `afd007d`: all 8 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. The new `screenshotOverlayStateRequest` channel carries no payload. The main-process handler ignores the call outside a pick and answers only a sender that is one of its own live overlay windows, so the Electron boundary is not widened. The renderer calls `requestState()` after `onState` is attached, and the renderer test checks that order. The main-process tests cover both resending the state during a pick and doing nothing outside one. I did not run the tests.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 8 | 120 | 8 | reviewed | 4 | $0.05 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.05</sub>\n\n<!-- agent-review sha=afd007dff9ec288a29c67da01841421de7d9fd77 -->"
+ }
+]

@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6517447806,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-30T07:33:25Z",
+  "updated_at": "2026-10-30T07:33:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#issuecomment-6517447806",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of @csdev19**\n\nOn the outside-the-diff finding (open-source.md checklist): fixed in aec93d1e. The section is now \"Open-time checklist\", and the intro says what is known: public since 2026-10-05 with items 5–7 done. Item 3 is verifiably still open, because the monetization ADR is in Spanish. Items without a date are to be treated as open. I did not mark 1, 2, 4 or 8 done, because nothing in the repo records their outcome. The \"before the day it happens\" wording now describes the decision in the past."
+ }
+]

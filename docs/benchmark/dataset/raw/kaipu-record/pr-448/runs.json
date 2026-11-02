@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T18:46:08Z",
+  "databaseId": 41109707991,
+  "displayTitle": "feat(desktop): Prepare screen — where is your video going? (NIW2-578)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-578-prepare-screen",
+  "headSha": "0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd",
+  "status": "completed",
+  "updatedAt": "2026-10-30T18:49:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41109707991",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T08:21:29Z",
+  "databaseId": 41184270498,
+  "displayTitle": "feat(desktop): Prepare screen — where is your video going? (NIW2-578)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "61136a6b68fc2713bc4a41f1714f7d0b787a1929",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:21:35Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41184270498",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

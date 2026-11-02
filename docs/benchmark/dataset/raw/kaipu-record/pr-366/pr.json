@@ -1,0 +1,29 @@
+{
+ "number": 366,
+ "title": "fix(desktop): keep Kaipu in the Dock and Cmd+Tab after recording and camera toggles",
+ "body": "## What\n\nOn macOS, Kaipu dropped out of the Dock and ⌘-Tab after the first recording of a session and after every camera toggle. The app kept working; only toggling **Show in Dock & app switcher** off and on brought it back. Reported on desktop 0.14.1.\n\n## Why\n\nTwo defects together (full chain in ADR 0029):\n\n1. `control-bar-window.ts` and `camera-bubble-window.ts` called `setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })` without `skipTransformProcessType`. Electron 39 then runs `app.dock.hide()` (`Browser::DockHide` → `TransformProcessType(kProcessTransformToUIElementApplication)`) to get a plain window over a full-screen app. That removes the Dock icon and the ⌘-Tab entry.\n2. Since #255 (2026-10-07, \"apply the macOS activation policy only on an actual transition\") the policy setter skips any call that matches its cache. The cache said `regular` the whole time, so `forceRegularPolicy()` at start, `applyDockPolicy()` at stop, after the camera toggle and from `⌘⌃O` were all no-ops. Before that fix the bug was masked by accident: `app.dock.show()` ran under a second before the bar was created, and Electron ignores a `DockHide` that lands within a second of a `DockShow`.\n\n## Fix\n\n- Both recording panels are `type: \"panel\"` on macOS and pass `skipTransformProcessType: true` — the recipe the capture panel, overlays and toast already use.\n- The setter treats a call as unchanged only when its cache **and** `app.dock.isVisible()` (Electron reads the real `NSRunningApplication.activationPolicy`) agree. A Dock dropped behind its back is restored at the next re-assertion; a matching re-assertion still touches no AppKit state, so the blur fix stays intact.\n\n## Docs\n\n- ADR 0029 — floating windows never change the activation policy, and the policy setter checks AppKit before skipping (with reopen conditions).\n- Backlog page `bug-app-lost-from-app-switcher` (🟢 Ready to validate) with owner validation steps; follow-up note on `bug-main-window-hides-on-blur`; both pages added to the sidebar.\n\n## Verification\n\n- New tests: `floating-window-policy.test.ts`, plus cases in `settings-store.test.ts` and `recording-hub.test.ts`. All five fail on the previous sources and pass now.\n- Desktop suite: 258 files, 2239 tests green. `check-types`, `oxlint`, `oxfmt` clean on touched files. Docs site builds.\n\n## Owner QA (packaged build)\n\n1. Record once and stop; repeat with the camera on/off. Kaipu stays in ⌘-Tab and the Dock.\n2. Put another app in full screen and record it: the bar and bubble float over it, drag, and the bar's buttons respond without pulling the main window forward. This is the one behaviour I could not verify from here — the panels are now non-activating `NSPanel`s.\n3. With the Dock setting off: record and stop; the app stays menu-bar only.\n4. `⌘⌃O` brings the main window forward in every state above.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T01:08:05Z",
+ "updated_at": "2026-10-25T02:21:29Z",
+ "closed_at": "2026-10-25T02:21:26Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/366",
+ "base": {
+  "ref": "main",
+  "sha": "aeed8269c65a8bcb5dabaede07afdcd097fff7e3"
+ },
+ "head": {
+  "ref": "fix/dock-lost-after-floating-panels",
+  "sha": "bda1ea951b218eaa3abc6a3e445aa0c27c202973",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 12,
+ "additions": 477,
+ "deletions": 10,
+ "labels": []
+}

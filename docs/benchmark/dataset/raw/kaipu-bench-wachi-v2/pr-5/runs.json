@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "failure",
+  "createdAt": "2026-11-01T23:19:56Z",
+  "databaseId": 41361579802,
+  "displayTitle": "[replay] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "event": "pull_request",
+  "headBranch": "replay/pr-467/head",
+  "headSha": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "status": "completed",
+  "updatedAt": "2026-11-01T23:19:56Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi-v2/actions/runs/41361579802",
+  "workflowName": ".github/workflows/agent-review.yml",
+  "log": "not-found"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T23:19:56Z",
+  "databaseId": 41361579860,
+  "displayTitle": "[replay] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "event": "pull_request",
+  "headBranch": "replay/pr-467/head",
+  "headSha": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "status": "completed",
+  "updatedAt": "2026-11-01T23:20:12Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi-v2/actions/runs/41361579860",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

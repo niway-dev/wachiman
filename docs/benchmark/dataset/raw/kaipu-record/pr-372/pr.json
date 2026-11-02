@@ -1,0 +1,29 @@
+{
+ "number": 372,
+ "title": "perf(desktop): composite a screenshot once per scene state (audit SHOT-A1)",
+ "body": "## What changed and why\n\nCloses audit finding SHOT-A1. With auto copy and auto save both on (the defaults), every fresh capture composited the identical scene twice (data URL, decodes, SVG, canvas, PNG encode). Copy then Save on an untouched scene did the same.\n\n- `exportScene` now keeps a single-entry promise memo keyed on `(format, bytes identity, displayedW, sameScene)`. The scene is compared by its inner refs, not by wrapper identity, because the page rebuilds the wrapper on every render. A concurrent second call joins the in-flight composite, and a rejected promise evicts itself so toast Retry recomputes.\n- `clearExportCache()` is called when the screenshot editor unmounts, so the pinned composite PNG is released.\n- The shared buffer is never transferred or mutated: IPC `invoke` clones, and the three call sites (`copyImageToClipboard`, `saveScreenshot`, PDF export) only pass it on.\n- The page test's mock of the export module gains `clearExportCache`.\n\nPlan: `plans/audit-2026-10-15/31-screenshot-composite-once.md`. It is not on `main` yet (PR #301 is still open), so this PR has no plan file or `00-index.md` row to delete; whoever merges #301 should drop plan 31 and its index row.\n\n## How I verified it\n\n- `apps/kaipu-record/node_modules/.bin/vitest run src/renderer/src/features/screenshots/export/export.test.ts` failed before the change and passes after (16/16).\n- `bun run verify` (workflows check, lint, `oxfmt --check`, build, check-types, test) passed twice in a row; the second run was served from the turbo cache.\n\n## How to test it yourself\n\n1. With `screenshotSave` and `screenshotCopy` both \"auto\", temporarily add `console.count(\"composite\")` in `compositeSceneAt`, then take a hotkey capture. The count is 1 before \"Saved & copied\" (was 2).\n2. Annotate, click Copy then Save: 1 composite in total. Edit between them: 2.\n3. Export PDF after a Save: a new composite (3x raster), as expected.\n\nRefs NIW2-406\n\nRun: Gas City session ni-wisp-6xzphth, bead ka-0mc, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T03:50:34Z",
+ "updated_at": "2026-10-25T03:51:19Z",
+ "closed_at": "2026-10-25T03:51:19Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/372",
+ "base": {
+  "ref": "main",
+  "sha": "fadbb2dc02a46f66a287e4b5356d1dd0b537007f"
+ },
+ "head": {
+  "ref": "feature/niw2-406-31-screenshot-composite-once",
+  "sha": "9333491a1fed0e8b35fd890e5f1fb4759011a05c",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 4,
+ "additions": 126,
+ "deletions": 9,
+ "labels": []
+}

@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:42:52Z",
+  "databaseId": 40580485996,
+  "displayTitle": "fix(record): release cancelled, closed and crashed takes; stop encoding at stop; no orphan media",
+  "event": "pull_request",
+  "headBranch": "fix/record-hub-audit",
+  "headSha": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:42:59Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40580485996",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:38:35Z",
+  "databaseId": 40579866191,
+  "displayTitle": "fix(record): release cancelled, closed and crashed takes; stop encoding at stop; no orphan media",
+  "event": "pull_request",
+  "headBranch": "fix/record-hub-audit",
+  "headSha": "a743ca0fa46b4451da3c01e4d4505ef6a59c4d4c",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:38:53Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40579866191",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:14:21Z",
+  "databaseId": 40576235367,
+  "displayTitle": "fix(record): release cancelled, closed and crashed takes; stop encoding at stop; no orphan media",
+  "event": "pull_request",
+  "headBranch": "fix/record-hub-audit",
+  "headSha": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:14:47Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40576235367",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:14:21Z",
+  "databaseId": 40576234979,
+  "displayTitle": "fix(record): release cancelled, closed and crashed takes; stop encoding at stop; no orphan media",
+  "event": "pull_request",
+  "headBranch": "fix/record-hub-audit",
+  "headSha": "335ddd236a1d2651c730d99d04db5450b971b785",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:14:41Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40576234979",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

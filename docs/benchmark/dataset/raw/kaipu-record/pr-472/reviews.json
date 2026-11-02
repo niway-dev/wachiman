@@ -1,0 +1,110 @@
+[
+ {
+  "id": 5723775131,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4ae2e2e52a2febafe43fdb06a9b9af1971c63013",
+  "submitted_at": "2026-10-31T16:31:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723775131",
+  "body": "**Agent review** of the whole pull request, at `4ae2e2e`: all 5 files reviewed.\n\n2 finding(s): 2 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis PR adds a script that checks ADR numbers for collisions, runs it in the pre-push hook through `verify:local`, points the pre-commit hooks at the pinned oxfmt and oxlint binaries, and updates the webcam-track backlog doc. The script does what it says against whatever `origin/main` currently points to. The one gap is that this ref is only as fresh as the last fetch, and the docs promise more than that. The other finding is a small count mismatch in the retrospective doc. No blockers.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 5 | 197 | 7 | reviewed | 4 | $0.14 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.14</sub>\n\n<!-- agent-review sha=4ae2e2e52a2febafe43fdb06a9b9af1971c63013 -->"
+ },
+ {
+  "id": 5723779048,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4ae2e2e52a2febafe43fdb06a9b9af1971c63013",
+  "submitted_at": "2026-10-31T16:32:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723779048",
+  "body": "> ℹ️ No critical issues — two accuracy fixes in the webcam track record.\n\n**Reviewed changes**\n\nI reviewed the webcam track write-up, the pinned pre-commit binaries and the new ADR number check.\n\n- **Webcam track record** — `backlog/webcam-track.md` now covers what shipped, how it was reviewed, what is still unverified, the follow-ups and the lessons, and the backlog row matches it.\n- **Pinned hook binaries** — pre-commit calls `./node_modules/.bin/oxfmt` and `./node_modules/.bin/oxlint` (both root devDependencies), so a worktree without `node_modules` fails instead of downloading another version.\n- **ADR number check** — `scripts/check-adr-numbers.ts` runs first in `verify:local` (pre-push). I ran it: it exits 0 on this branch, and exits 1 with the expected message when a dummy `0032-test.mdx` is added.\n\n<!--\nPullfrog review metadata. These findings were written against 4ae2e2e;\nif commits have landed on docs/niw2-565-webcam-track-record since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 5\n- Commits reviewed: 2\n- Base: main (744a41b)\n- Head: docs/niw2-565-webcam-track-record (4ae2e2e)\n- Reviewed commits:\n  - 69d32ac3 — build: pin the commit hooks to installed binaries and check ADR numbers on push\n  - 4ae2e2e5 — docs(desktop): record what the webcam track shipped, how it was reviewed and what we learned\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/472?action=fix&review_id=5723779048) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/472?action=fix-approved&review_id=5723779048) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41220048279/job/124592540444) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5723834312,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "cd5e9dc096cb10932555ced4d954c0ee0d8cba70",
+  "submitted_at": "2026-10-31T16:47:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723834312",
+  "body": ""
+ },
+ {
+  "id": 5723834492,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "cd5e9dc096cb10932555ced4d954c0ee0d8cba70",
+  "submitted_at": "2026-10-31T16:47:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723834492",
+  "body": ""
+ },
+ {
+  "id": 5723834693,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "cd5e9dc096cb10932555ced4d954c0ee0d8cba70",
+  "submitted_at": "2026-10-31T16:47:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723834693",
+  "body": ""
+ },
+ {
+  "id": 5723834992,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "cd5e9dc096cb10932555ced4d954c0ee0d8cba70",
+  "submitted_at": "2026-10-31T16:47:08Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723834992",
+  "body": ""
+ },
+ {
+  "id": 5723842053,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "cd5e9dc096cb10932555ced4d954c0ee0d8cba70",
+  "submitted_at": "2026-10-31T16:48:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723842053",
+  "body": ""
+ },
+ {
+  "id": 5723842360,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "cd5e9dc096cb10932555ced4d954c0ee0d8cba70",
+  "submitted_at": "2026-10-31T16:48:19Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723842360",
+  "body": ""
+ },
+ {
+  "id": 5723844102,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "cd5e9dc096cb10932555ced4d954c0ee0d8cba70",
+  "submitted_at": "2026-10-31T16:48:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723844102",
+  "body": "> ✅ No new issues found. Both earlier findings are fixed.\n\n**Reviewed changes**\n\nI reviewed the two commits pushed since the last Pullfrog review: the ADR check now fetches before comparing, and the record has accuracy fixes.\n\n- **ADR check fetches `origin/main` first.** `fetchMain()` runs `git fetch --quiet origin main` with a 10s timeout and ignores failures, so an offline push still works with whatever ref is on disk. I ran the script on this branch and it exits 0.\n- **#454 marked as open.** The banner, the What shipped row, the `wc2` mention and the lane-thumbnail bullet now all say #454 has not merged.\n- **Layer count corrected.** The text now says six stacked PRs, which matches the six layers listed and #441–#446.\n- **Review-bot note added.** A new bullet compares the Agent review and Pullfrog findings on this PR. Its claims match the review history.\n\n<!--\nPullfrog review metadata. These findings were written against cd5e9dc;\nif commits have landed on docs/niw2-565-webcam-track-record since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 5\n- Commits reviewed: 4\n- Base: main (744a41b)\n- Head: docs/niw2-565-webcam-track-record (cd5e9dc)\n- Reviewed commits:\n  - cd5e9dc — docs(desktop): the webcam record counts six layer PRs, marks #454 open and notes the review bots\n  - 5341437 — fix(build): the ADR number check fetches origin/main before comparing\n- Prior pullfrog review: 4ae2e2e (https://github.com/niway-dev/kaipu-record/pull/472#pullrequestreview-5723779048)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41221332886/job/124596334903) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ }
+]

@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T18:56:00Z",
+  "databaseId": 39657150336,
+  "displayTitle": "fix(ci): let the owner's @claude comments start the on-demand review",
+  "event": "pull_request",
+  "headBranch": "fix/claude-review-on-demand-owner",
+  "headSha": "c989b9b5f4902a595a7e5e858e8037dd021e16b5",
+  "status": "completed",
+  "updatedAt": "2026-10-21T18:56:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39657150336",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T17:56:54Z",
+  "databaseId": 39648310044,
+  "displayTitle": "fix(ci): let the owner's @claude comments start the on-demand review",
+  "event": "pull_request",
+  "headBranch": "fix/claude-review-on-demand-owner",
+  "headSha": "c989b9b5f4902a595a7e5e858e8037dd021e16b5",
+  "status": "completed",
+  "updatedAt": "2026-10-21T17:57:16Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39648310044",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T17:56:54Z",
+  "databaseId": 39648310043,
+  "displayTitle": "fix(ci): let the owner's @claude comments start the on-demand review",
+  "event": "pull_request",
+  "headBranch": "fix/claude-review-on-demand-owner",
+  "headSha": "c989b9b5f4902a595a7e5e858e8037dd021e16b5",
+  "status": "completed",
+  "updatedAt": "2026-10-21T17:57:18Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39648310043",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ }
+]

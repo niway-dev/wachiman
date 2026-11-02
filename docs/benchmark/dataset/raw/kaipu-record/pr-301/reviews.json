@@ -1,0 +1,122 @@
+[
+ {
+  "id": 5658672892,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "2ec09233397f5ad0c167c345bba8abed1c944686",
+  "submitted_at": "2026-10-26T20:40:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658672892",
+  "body": "**Agent review** of the whole pull request, at `2ec0923`: all 38 files reviewed.\n\n9 finding(s), 0 to fix; 9 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 14.** This part is documentation only: a new \"Audits\" sidebar entry in the Astro config and four English audit pages (feature map, library-a, library-b, record-a). The docs are in the right directory and in English. The one link I checked, `/backlog/recording-compositor-perf/` from the feature map, resolves to an existing page. I found nothing to flag. I did not check the code claims in the audit findings against the source, and I did not open the report or index pages, which belong to other parts.\n\n**Batch 2 of 14.** Part 2 adds five audit findings documents (docs only, English, under the docs content directory). I read the diffs and found no false statements or rule violations worth flagging. I did not check the code claims in them against the source.\n\n**Batch 3 of 14.** The three docs are consistent with each other. The index counts hold: 25 open plans, 11 shipped and 36 in total. The backlog links resolve. One note: the report's findings tables don't mark which findings have shipped.\n\n**Batch 4 of 14.** The plan is internally consistent and has no correctness or security problems. I left one note on exception payloads: they can carry temp paths or stderr, which conflicts with the plan's own \"no paths or error text\" rule.\n\n**Batch 5 of 14.** Both plan docs are internally consistent and match the repo's docs conventions; no findings.\n\n**Batch 6 of 14.** Both plan docs are internally consistent. I checked plan 09's claim about `meta.assetIds` against `video-edit-session.ts`, and the existing code already writes the keep set there (line 159). I found one minor note: plan 08's same-millisecond test can fail by chance (about 1 in 65536) and does not prove what Review Focus 1 says it pins.\n\n**Batch 7 of 14.** I found no issues in plans 10 and 11. I checked the proposed code and tests against each plan's stated goals. I also confirmed that `previous` exists in `doRefresh` in `library-service.ts`, which the proposed `catalogDiffers` call relies on. I did not read the other files the plans modify, such as `use-tags.ts` and `editor-routes.tsx`.\n\n**Batch 8 of 14.** I found nothing to flag in plans 12 and 13. I read both diffs closely but did not open the source files they describe, so the plans' claims about current code are unchecked. These are planning documents only, with no code change. The `mapLimit` helper, the `describe(id, knownExt)` change, the `probeEditState` refactor, `CatalogCache.update` and the per-account refresh map are all internally consistent. The tests the plans propose match the behaviour they describe.\n\n**Batch 9 of 14.** The three plan docs are sound. One note on plan 14: poster freshness is only enforced on the protocol's 404 path, so correctness after an edit rests on every PNG rewrite going through `screenshotSave`. I found nothing else worth flagging in plans 15 and 16.\n\n**Batch 10 of 14.** I found one note across the three plan docs. In the tag-editor plan, a paste that exceeds the per-item tag cap still creates the surplus tags in the registry without assigning them. The drag-out and engine-cleanup plans had nothing I could flag. This was a read-through of the plan text only; I did not run any of the proposed code or tests.\n\n**Batch 11 of 14.** Two plan docs reviewed. The design is coherent and the cross-plan interactions are called out. I found two notes: a weakly-flushed test in plan 21 that can pass without the fix, and a timeout-path reset that can race a slow but live renderer.\n\n**Batch 12 of 14.** Three plan docs reviewed. I found one note: the compositor heartbeat in plan 25 can leave gaps of up to about 2 s, not the 1 s the plan states. The mic-feedback and start-latency plans are consistent about ordering and interfaces. I did not check their file and line references against the code.\n\n**Batch 13 of 14.** The three plan docs are internally consistent. I checked the arithmetic in the cursor-tail tests and the cancel/run-token logic in the export runner plan, and both hold. I found one minor note: the planned `useTimeSelector` resubscribes on every render because its subscribe closure is not stable.\n\n**Batch 14 of 14.** Both plan documents (33 and 34) are internally consistent, and I found nothing to flag. The proposed `readPngSize` stays import-free for the preload-bundle rule. The throttle logic in plan 34 holds up against its own tests. The macOS `availableFormats` gate risk is already stated in the plan with a fallback. I did not run the plans' code or tests.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 14 | 5 | 886 | 4 | reviewed | 3 | $0.13 |\n| Batch 2 of 14 | 5 | 820 | 1 | reviewed | 2 | $0.11 |\n| Batch 3 of 14 | 3 | 383 | 1 | reviewed | 3 | $0.06 |\n| Batch 4 of 14 | 1 | 705 | 1 | reviewed | 2 | $0.06 |\n| Batch 5 of 14 | 2 | 668 | 1 | reviewed | 2 | $0.06 |\n| Batch 6 of 14 | 2 | 768 | 1 | reviewed | 3 | $0.08 |\n| Batch 7 of 14 | 2 | 734 | 1 | reviewed | 3 | $0.08 |\n| Batch 8 of 14 | 2 | 850 | 1 | reviewed | 2 | $0.07 |\n| Batch 9 of 14 | 3 | 960 | 1 | reviewed | 5 | $0.10 |\n| Batch 10 of 14 | 3 | 785 | 1 | reviewed | 2 | $0.08 |\n| Batch 11 of 14 | 2 | 676 | 1 | reviewed | 2 | $0.07 |\n| Batch 12 of 14 | 3 | 949 | 1 | reviewed | 2 | $0.09 |\n| Batch 13 of 14 | 3 | 996 | 1 | reviewed | 2 | $0.09 |\n| Batch 14 of 14 | 2 | 524 | 1 | reviewed | 2 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · 14 batches · $1.13</sub>\n\n<!-- agent-review sha=2ec09233397f5ad0c167c345bba8abed1c944686 -->"
+ },
+ {
+  "id": 5658710740,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658710740",
+  "body": ""
+ },
+ {
+  "id": 5658711121,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:20Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658711121",
+  "body": ""
+ },
+ {
+  "id": 5658711522,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:22Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658711522",
+  "body": ""
+ },
+ {
+  "id": 5658711906,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:24Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658711906",
+  "body": ""
+ },
+ {
+  "id": 5658712286,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658712286",
+  "body": ""
+ },
+ {
+  "id": 5658712623,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658712623",
+  "body": ""
+ },
+ {
+  "id": 5658712958,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658712958",
+  "body": ""
+ },
+ {
+  "id": 5658713336,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658713336",
+  "body": ""
+ },
+ {
+  "id": 5658713738,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "494208bd36d0acd124edc48d45e05ca88e6980ad",
+  "submitted_at": "2026-10-26T20:44:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/301#pullrequestreview-5658713738",
+  "body": ""
+ }
+]

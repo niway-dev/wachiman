@@ -1,0 +1,146 @@
+[
+ {
+  "id": 5720294546,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T01:11:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5720294546",
+  "body": "**Agent review** of the whole pull request, at `b12d760`: all 47 files reviewed.\n\n8 finding(s): 3 to fix, 5 to consider; 8 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 6.** Part 1 of 6. Prepare is now Export, with redirects so the old `/prepare` links keep working. Email becomes a destination that shares chat's preset, and the new `destination` override in `usePrepareCopy` keeps the progress and ready cards saying Email. `destinationOfPreset(\"balanced\")` still returns chat because `DESTINATION_IDS` puts chat before email. The page's hooks run in the same order whatever it shows, and the keyboard rules leave buttons, fields and the picker dialog alone. One small suggestion: disable \\\"Pick from Library\\\" in the drop zone while an import is running, like \\\"Browse files\\\" already is.\n\n**Batch 2 of 6.** I found no blockers and nothing that needs a fix in this part. The deleted `destination-detail.tsx` is replaced by `export-stage.tsx`. The GitHub limit logic agrees with `planCopy`, where `underGithubFreeLimit` comes from `githubPlans().free` (10 MB, `destinations.ts:203`). `destinationOfPreset` covers every preset. In `library-page.tsx`, the removed imports leave no dangling uses, and `Button` is still used. I have three suggestions you can take or leave: the GitHub size bar's accessible label leaves out the fits/over verdict, the picker's dialog doesn't manage focus, and the in-progress row in Recent exports puts the video title where the finished rows show the destination name.\n\n**Batch 3 of 6.** I found nothing to flag in the seven files of part 3.\n\n- **Deleted Prepare files:** nothing in `src` still imports the removed Prepare page, its destination list or its drop zone, or the Library's import drop zone. `isPrimaryEnter` now lives in `export-page.tsx`.\n- **Sidebar:** the Export item matches both `/export` and `/export/:assetId`. Its badge counts the copy being made plus finished copies the user hasn't seen. Opening Export or the Library clears the finished ones. The `export.railBadge` message says \"in progress or ready\", which matches that count.\n- **`use-file-drop.test.tsx`:** it keeps the deleted drop-zone test's checks for `useFileDrop` and drops the ones that were about the component.\n- **`destinations.test.ts`:** it matches `destinations.ts`. Email shares chat's `balanced` preset, and `destinationOfPreset(\"balanced\")` still returns \"chat\".\n\n**Batch 4 of 6.** This part holds the new `export-page.test.tsx` and updates to the Library and Library detail tests. The Export page tests cover the picked-destination flow, keyboard handling, the redirects from the old Prepare URLs, and importing by drag and drop. The Library detail changes swap `/prepare` for `/export` and are correct. I found one problem: the new Library test that says a dropped video isn't taken passes no matter what the page does. It runs with the default empty `pathForFile` stub, so `importVideoFiles` is never called either way.\n\n**Batch 5 of 6.** Part 5 has one test that doesn't check what its name says and one gap in test coverage, both in sidebar.test.tsx. The stylesheets only use CSS variables that are defined in packages/tokens or base.css. The class names used by export-page.tsx exist in the stylesheet. The badge strings the sidebar test expects match en.json.\n\n**Batch 6 of 6.** I reviewed all 11 files in part 6 and found one problem: a stale comment in `library-page.module.css` at line 108.\\n\\n**The finding:** the `.importZone` rule was deleted, but the comment above it about the \\\"Drop a video here\\\" strip was left behind. It now sits on top of the `.stickyBar` comment and reads as if it describes the sticky bar. Deleting that one line fixes it.\\n\\n**What checked out:**\\n- **Stylesheets:** every class `export-stage.tsx` uses still exists in its stylesheet, and the new `data-tone` selectors match the attributes the component sets.\\n- **Removed strings:** none of the deleted message keys (`library.importVideo`, the `importDrop*` keys, `prepare.prepareAVideo`) is referenced anywhere in the renderer any more.\\n- **Scrolling:** the stage comment says it scrolls on its own. `.stage` has no overflow rule itself, but the scroll container in `export-page.module.css` (line 23) provides it.\\n- **`routes.ts`:** it only adds string constants and comments, so it stays free of value imports from workspace packages.\\n- **Messages and docs:** the English and Spanish `export` namespaces have the same keys, and the backlog doc and index entry match what the change does.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 6 | 13 | 777 | 4 | reviewed | 8 | $0.23 |\n| Batch 2 of 6 | 5 | 987 | 4 | reviewed | 11 | $0.31 |\n| Batch 3 of 6 | 7 | 789 | 4 | reviewed | 7 | $0.19 |\n| Batch 4 of 6 | 3 | 603 | 2 | reviewed | 7 | $0.20 |\n| Batch 5 of 6 | 8 | 854 | 2 | reviewed | 10 | $0.21 |\n| Batch 6 of 6 | 11 | 843 | 4 | reviewed | 8 | $0.21 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 6 batches · $1.36</sub>\n\n<!-- agent-review sha=b12d760bd90b1e9619bab115f500f9c1a30cccf3 -->"
+ },
+ {
+  "id": 5720296552,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T01:11:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5720296552",
+  "body": "> [!IMPORTANT]\n> Export now stays on screen after an export starts, but it never re-reads the Library when that copy finishes. The card never turns \"Ready\", and pressing Enter again encodes the same copy a second time. Details inline.\n\n**Reviewed changes**\n\nI reviewed the whole PR: the new Export screen, its rail entry and redirects, the Email destination, and the Library losing its import door.\n\n- **Export screen**: `pages/export/` replaces `pages/prepare/`. It has a fixed header with the video and \"Change video\", a stage for the picked destination, and a fixed row of seven destination cards. Enter and ←/→ work across the whole screen.\n- **Routes**: `/export/:assetId` and `/export` are new. `/prepare*` redirects to them and keeps `?to=`. `preparePath()` / `prepareNewPath()` now return Export URLs.\n- **Rail badge**: the new EXPORT item under Editor counts the export that is running plus finished copies not seen yet. Opening Export or the Library clears it.\n- **Email destination**: `email` uses the same `balanced` preset as chat. `PrepareCopyInput.destination` passes it to the runner job.\n- **Library**: the import button, the drop strip and the window-wide drop are gone. `ImportDropZone` is deleted and its `useFileDrop` coverage moved to `use-file-drop.test.tsx`.\n- **No-video state**: a drop zone, the Library picker, and \"Recent exports\" (the running export plus the newest finished copies).\n\n<!--\nPullfrog review metadata. These findings were written against b12d760;\nif commits have landed on feature/export-screen since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 47\n- Commits reviewed: 2\n- Base: feature/niw2-587-prepare-drop-zone (13b7ff5d)\n- Head: feature/export-screen (b12d760)\n- Reviewed commits:\n  - 36646c14 — feat(desktop): Export screen with its own rail entry (replaces Prepare)\n  - b12d760b — docs(desktop): backlog page for the Export screen\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/467?action=fix&review_id=5720296552) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/467?action=fix-approved&review_id=5720296552) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41153840590/job/124396168587) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5722039262,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:45:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722039262",
+  "body": ""
+ },
+ {
+  "id": 5722039477,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:46:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722039477",
+  "body": ""
+ },
+ {
+  "id": 5722039759,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:46:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722039759",
+  "body": ""
+ },
+ {
+  "id": 5722039979,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:46:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722039979",
+  "body": ""
+ },
+ {
+  "id": 5722040162,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:46:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722040162",
+  "body": ""
+ },
+ {
+  "id": 5722040492,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:46:07Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722040492",
+  "body": ""
+ },
+ {
+  "id": 5722040719,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:46:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722040719",
+  "body": ""
+ },
+ {
+  "id": 5722040957,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:46:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722040957",
+  "body": ""
+ },
+ {
+  "id": 5722041198,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "submitted_at": "2026-10-31T08:46:13Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5722041198",
+  "body": ""
+ },
+ {
+  "id": 5723844519,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "e09883552e97bb437d8dd01a3208256ca5e39797",
+  "submitted_at": "2026-10-31T16:48:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5723844519",
+  "body": "> ✅ No new issues found. The open thread about Export not re-reading the Library is still open here, because the fix landed on #471 (`3f7a3557`) higher up the stack. It will close when that lands.\n\n**Reviewed changes**\n\nSince `b12d760`, two merges of `feature/niw2-587-prepare-drop-zone` came in. Almost all of the delta comes from the base branch: workspaces, vault reconcile and the webcam track. Two parts belong to this PR:\n\n- **Export's \"Ready\" uses the webcam-aware fingerprint**: `ExportScreen` now looks up reusable copies with `prepareFingerprint(prepareScene(video, probe))` instead of `WHOLE_RECORDING_FINGERPRINT`. This matches what `usePrepareCopy.start` writes. For a take with a webcam, an older copy without the face is no longer offered as \"Ready\".\n- **Added a webcam composition test**: `export-page.test.tsx` checks that a take with a webcam passes `webcamTrack` and composes the face at `recordedLayout`. It also checks that the copy is fingerprinted `whole:<hash>`, not `whole`.\n- **Kept the base's Library additions in the merge**: `library-page.tsx` still has `ReconcileBanner` and `WorkspaceNotConnectedNotice`, and the drop strip removed by this PR stays removed.\n\n<!--\nPullfrog review metadata. These findings were written against e098835;\nif commits have landed on feature/export-screen since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 46\n- Commits reviewed: 4\n- Base: feature/niw2-587-prepare-drop-zone\n- Head: feature/export-screen (e098835)\n- Reviewed commits:\n  - e0988355 — Merge feature/niw2-587-prepare-drop-zone into feature/export-screen\n  - 89dabc7b — Merge feature/niw2-587-prepare-drop-zone into feature/export-screen\n- Prior pullfrog review: b12d760 (https://github.com/niway-dev/kaipu-record/pull/467#pullrequestreview-5720296552)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix it ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/467?action=fix&review_id=5723844519) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41221341310/job/124596359291) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ }
+]

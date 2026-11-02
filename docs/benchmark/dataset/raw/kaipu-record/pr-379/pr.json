@@ -1,0 +1,29 @@
+{
+ "number": 379,
+ "title": "chore(env): explain why a generated env file can be missing",
+ "body": "## What\n\n`scripts/require-env.sh` now explains, when a generated env file is missing, that the file comes from Infisical and is gitignored, lists the usual causes (fresh clone, a merge that added a new consumer to `env-pull.sh`, a deleted file), and says what to do when `bun env:pull` itself fails (`infisical login`, retry).\n\n## Why\n\nToday `bun dev` failed on `main` with the desktop app's env file missing. The cause was a stale pull: 50b7f391 added that file to the pull, and the local files predated it. The old message only named the file and the command, so it read like a broken checkout.\n\n## Verification\n\n- Ran the script against a missing file: prints the new message, exit 1.\n- Ran with `CI=1`: exit 0, no output.\n- `bash -n` passes.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-26T22:22:57Z",
+ "updated_at": "2026-10-26T22:23:46Z",
+ "closed_at": "2026-10-26T22:23:41Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/379",
+ "base": {
+  "ref": "main",
+  "sha": "8eac8409fedd117f4a16341a4fce8c7da988e082"
+ },
+ "head": {
+  "ref": "chore/require-env-message",
+  "sha": "0182349cad29e157c24ec55cfe0d39b0970566c5",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 1,
+ "additions": 18,
+ "deletions": 1,
+ "labels": []
+}

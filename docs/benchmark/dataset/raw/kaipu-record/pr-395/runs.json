@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:24:03Z",
+  "databaseId": 40577700326,
+  "displayTitle": "fix(desktop): reset the control bar on start, configurable countdown, and start/stop race fixes",
+  "event": "pull_request",
+  "headBranch": "fix/record-start-bar-and-countdown",
+  "headSha": "0c97034ec82435cc9c9dce95b9ef7bc6b7b93aca",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:24:10Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40577700326",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:19:25Z",
+  "databaseId": 40576994524,
+  "displayTitle": "fix(desktop): reset the control bar on start, configurable countdown, and start/stop race fixes",
+  "event": "pull_request",
+  "headBranch": "fix/record-start-bar-and-countdown",
+  "headSha": "0c97034ec82435cc9c9dce95b9ef7bc6b7b93aca",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:19:43Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40576994524",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:13:44Z",
+  "databaseId": 40576141771,
+  "displayTitle": "fix(desktop): reset the control bar on start, configurable countdown, and start/stop race fixes",
+  "event": "pull_request",
+  "headBranch": "fix/record-start-bar-and-countdown",
+  "headSha": "2212b42faccb008af785ca01ba5c3d094191b262",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:14:19Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40576141771",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:13:43Z",
+  "databaseId": 40576140880,
+  "displayTitle": "fix(desktop): reset the control bar on start, configurable countdown, and start/stop race fixes",
+  "event": "pull_request",
+  "headBranch": "fix/record-start-bar-and-countdown",
+  "headSha": "2212b42faccb008af785ca01ba5c3d094191b262",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:14:01Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40576140880",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

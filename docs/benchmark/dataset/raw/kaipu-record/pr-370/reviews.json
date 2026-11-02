@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5641374985,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c94c8054656db45315e74592baec356a6c3f1e18",
+  "submitted_at": "2026-10-25T03:41:13Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/370#pullrequestreview-5641374985",
+  "body": "**Claude review** of the whole pull request, at `c94c805`: all 8 files reviewed.\n\n0 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no correctness, security or rules problems in this PR. Drags now stay in local state and commit once on release. The scene callbacks the memoized layer reads (`commitAnnotation`, `addAnnotation`, `removeAnnotation`) are stable `useCallback`s. `select` and `tools.setTool` are the only other callbacks the layer calls. I only confirmed that `setTool` is a plain `useState` setter, so it is stable. I did not open `select`'s definition. Removing `removeAnnotation`'s dependence on the current selection fixes the blur-after-reselect case. The changes stay inside the renderer, so the Electron boundary and package import rules are untouched.\n\n<sub>Claude Sonnet 5.5 · $0.15</sub>\n\n<!-- claude-review sha=c94c8054656db45315e74592baec356a6c3f1e18 -->"
+ }
+]

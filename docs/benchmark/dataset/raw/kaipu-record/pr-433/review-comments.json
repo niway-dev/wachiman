@@ -1,0 +1,25 @@
+[
+ {
+  "id": 4418716022,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": ".github/workflows/agent-review.yml",
+  "line": 22,
+  "original_line": 22,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 13,
+  "original_position": 13,
+  "commit_id": "cd82f7a2748dabeb2441c480b8ed2a3b676ad432",
+  "original_commit_id": "cd82f7a2748dabeb2441c480b8ed2a3b676ad432",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5705987137,
+  "subject_type": "line",
+  "created_at": "2026-10-29T22:50:03Z",
+  "updated_at": "2026-10-29T22:50:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/433#discussion_r4418716022",
+  "body": "🟡🏛️ **Consider · adr: Switching to Opus 5.5 contradicts ADR 0028's decision 1 with no amendment**\n\nADR 0028 is accepted, and its decision 1 says \"**Claude Sonnet 5.5 reviews a pull request**\" (`apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx:31`). Its frontmatter description says the same (line 3). This line moves the review to `claude-opus-5-5`, but the PR does not touch the ADR. The ADR already records later engine changes as dated amendments (lines 83–101).\n\nSuggested fix: add an amendment, e.g. \"Amendment: reviews run on Opus 5.5\" dated 2026-10-29. Put the model change and the cost reasoning from this PR's body in it, and update the Status row. The ADR stays append-only, so leave decision 1 as written and let the amendment record the change."
+ }
+]

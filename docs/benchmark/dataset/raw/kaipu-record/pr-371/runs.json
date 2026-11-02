@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:46:08Z",
+  "databaseId": 40159427791,
+  "displayTitle": "perf(desktop): pooled canvases in the export workers (audit VID-A5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-404-29-export-canvas-pool",
+  "headSha": "156f15a3a492bb9d6550c2e7a00495c911e20511",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:46:16Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159427791",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:45:27Z",
+  "databaseId": 40159384804,
+  "displayTitle": "perf(desktop): pooled canvases in the export workers (audit VID-A5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-404-29-export-canvas-pool",
+  "headSha": "156f15a3a492bb9d6550c2e7a00495c911e20511",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:45:54Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159384804",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:45:27Z",
+  "databaseId": 40159384791,
+  "displayTitle": "perf(desktop): pooled canvases in the export workers (audit VID-A5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-404-29-export-canvas-pool",
+  "headSha": "156f15a3a492bb9d6550c2e7a00495c911e20511",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:45:43Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159384791",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

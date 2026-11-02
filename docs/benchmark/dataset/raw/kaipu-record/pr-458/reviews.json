@@ -1,0 +1,74 @@
+[
+ {
+  "id": 5718648430,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "1a35ba1854c9d45725531f5e6a20393944130e13",
+  "submitted_at": "2026-10-30T21:07:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/458#pullrequestreview-5718648430",
+  "body": "**Agent review** of the whole pull request, at `1a35ba1`: all 10 files reviewed.\n\n5 finding(s): 2 to fix, 3 to consider; 5 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 4.** Part 1 covers the new DestinationDetail and DestinationList components. One fix: in SizeBarCard, `role=\"img\"` with a size-only aria-label hides the \"% lighter\" and GitHub 10 MB limit text from screen readers. One consider: the custom radio groups have no arrow-key navigation or roving tabindex.\n\n**Batch 2 of 4.** I found two things worth a look in this part (prepare-page.tsx and its test), neither blocking:\n\n- **Global Enter shortcut is too broad.** It is registered on `document`, so Enter pressed outside the Prepare screen can also start a copy. That includes Enter on non-native controls such as `div role=\"button\"`, and Enter while the onboarding overlay is open over the page. The overlay's own handler sits on `window`, so it runs after this one and can't stop it.\n- **Weak test.** The test for \"Enter doesn't re-select the row\" can't fail as written, because jsdom never fires the click a browser would.\n\nThe rest checks out:\n\n- Defaulting to YouTube, including when `?to=` is unknown.\n- Choosing between opening an existing copy and starting a new one.\n- Keeping the latest action in a ref so the listener is added only once.\n- The other tests, which match the new behaviour.\n\n**Batch 3 of 4.** I found nothing to flag in the two new stylesheets in this part. I checked every class and data-attribute selector against destination-detail.tsx and destination-list.tsx: the components use each one, and the attribute values match what they render (data-group, data-direction, data-active, data-soft). Every custom property the stylesheets use is defined in packages/tokens/css/tokens.css or apps/kaipu-record/src/renderer/src/assets/base.css, for both themes where the token differs.\n\n**Batch 4 of 4.** Part 4 covers the trimmed `prepare-page.module.css`, the backlog doc and the en/es messages. The stylesheet now keeps only the classes `prepare-page.tsx` still uses: `screen`, `detail` and the state classes. Its 900 × 670 sizing note matches `createWindow` (`main/index.ts:265-266`) and the `main` preset's minimum (`shared/window-size.ts:50`). The doc's description of the two-column layout matches `destination-detail.tsx`. One issue: the new message key `sizeBarTitle` is not used by any code.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 4 | 2 | 524 | 4 | reviewed | 5 | $0.15 |\n| Batch 2 of 4 | 2 | 702 | 4 | reviewed | 10 | $0.25 |\n| Batch 3 of 4 | 2 | 591 | 1 | reviewed | 5 | $0.11 |\n| Batch 4 of 4 | 4 | 753 | 1 | reviewed | 11 | $0.23 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 4 batches · $0.74</sub>\n\n<!-- agent-review sha=1a35ba1854c9d45725531f5e6a20393944130e13 -->"
+ },
+ {
+  "id": 5721973595,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "7e71f7a10955403195c5898583233048bc800720",
+  "submitted_at": "2026-10-31T08:21:19Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/458#pullrequestreview-5721973595",
+  "body": ""
+ },
+ {
+  "id": 5721973677,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "7e71f7a10955403195c5898583233048bc800720",
+  "submitted_at": "2026-10-31T08:21:20Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/458#pullrequestreview-5721973677",
+  "body": ""
+ },
+ {
+  "id": 5722035227,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "7e71f7a10955403195c5898583233048bc800720",
+  "submitted_at": "2026-10-31T08:45:20Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/458#pullrequestreview-5722035227",
+  "body": ""
+ },
+ {
+  "id": 5722035551,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "7e71f7a10955403195c5898583233048bc800720",
+  "submitted_at": "2026-10-31T08:45:22Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/458#pullrequestreview-5722035551",
+  "body": ""
+ },
+ {
+  "id": 5722035778,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "7e71f7a10955403195c5898583233048bc800720",
+  "submitted_at": "2026-10-31T08:45:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/458#pullrequestreview-5722035778",
+  "body": ""
+ }
+]

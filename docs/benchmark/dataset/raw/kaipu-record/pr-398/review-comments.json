@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4394017225,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/verify/library.verify.ts",
+  "line": null,
+  "original_line": 11,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 11,
+  "commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "original_commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5674158006,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:52:31Z",
+  "updated_at": "2026-10-27T20:52:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#discussion_r4394017225",
+  "body": "🟠🧪 **Fix · tests: Library scenario never asserts the recording is listed**\n\nThe test is named \"seeded recording lists and opens its detail page\", but it only sleeps 1s (`waitForTimeout(1000)`) and screenshots the list. Nothing checks that the seeded recording (title \"E2E Sample\") is visible. A proof screenshot taken after a fixed sleep can show an empty or half-loaded list and the scenario still passes. Replace the sleep with an assertion on the seeded item, e.g. `await expect(s.page.getByText(\"E2E Sample\")).toBeVisible()`, then take the shot. Also check the locator against the matching e2e spec."
+ },
+ {
+  "id": 4394017242,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/verify/export.verify.ts",
+  "line": null,
+  "original_line": 27,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 27,
+  "commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "original_commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5674158006,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:52:31Z",
+  "updated_at": "2026-10-27T20:52:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#discussion_r4394017242",
+  "body": "🟡🧪 **Consider · tests: Fixed sleep before the final screenshot**\n\n`waitForTimeout(800)` waits for the card to slide in. It is a guess and can be flaky on slow machines. The SKILL says to wait for the element and then pause briefly, so this is consistent with it. If the card has a stable end state, such as a settled bounding box, waiting on that would be more reliable."
+ },
+ {
+  "id": 4394017246,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/verify/helpers.ts",
+  "line": null,
+  "original_line": 37,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 37,
+  "commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "original_commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5674158006,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:52:32Z",
+  "updated_at": "2026-10-27T20:52:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#discussion_r4394017246",
+  "body": "🟡🐛 **Consider · bug: A failed teardown skips video post-processing and masks the test error**\n\nIf `teardown()` throws, for example because `app.close()` fails, the clip rename and cleanup never run. The exception also replaces any error already thrown from the test body, because `finish()` runs in `finally`. This hides the original failure. Consider wrapping teardown in try/finally, or catching and logging its error, so the clips are still finalized and the original failure is reported."
+ },
+ {
+  "id": 4394219640,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/verify/library.verify.ts",
+  "line": null,
+  "original_line": 11,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 11,
+  "commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "original_commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "in_reply_to_id": 4394017225,
+  "pull_request_review_id": 5674423759,
+  "subject_type": "line",
+  "created_at": "2026-10-27T21:13:05Z",
+  "updated_at": "2026-10-27T21:13:06Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#discussion_r4394219640",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian**\n\nFixed in 005b28f0: the sleep is replaced by `expect(getByText(\"E2E Sample\", { exact: true }).first()).toBeVisible()` before the list shot. The matching e2e specs only assert on the detail page (heading / \"Edit video\"), so the locator follows the list card, which renders the title as text (`video-card.tsx`). Not run locally: these scenarios launch Electron."
+ },
+ {
+  "id": 4394220210,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/verify/export.verify.ts",
+  "line": null,
+  "original_line": 27,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 27,
+  "commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "original_commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "in_reply_to_id": 4394017242,
+  "pull_request_review_id": 5674424428,
+  "subject_type": "line",
+  "created_at": "2026-10-27T21:13:09Z",
+  "updated_at": "2026-10-27T21:13:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#discussion_r4394220210",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian**\n\nFixed in 4757bc3c: the 800 ms sleep is replaced by waiting on the card's own animations (`getAnimations({ subtree: true })` → `finished`), so the shot is taken once the slide-in has settled."
+ },
+ {
+  "id": 4394220785,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/verify/helpers.ts",
+  "line": null,
+  "original_line": 37,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 37,
+  "commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "original_commit_id": "6d1e0734b499c8a34fca309541745ec36bcb16dc",
+  "in_reply_to_id": 4394017246,
+  "pull_request_review_id": 5674425275,
+  "subject_type": "line",
+  "created_at": "2026-10-27T21:13:12Z",
+  "updated_at": "2026-10-27T21:13:12Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/398#discussion_r4394220785",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian**\n\nFixed in c1d4c726: `teardown()` is wrapped in a try/catch that logs the failure. The clips are still renamed and listed, and since `finish()` runs in the scenario's `finally`, it no longer replaces the scenario's own error."
+ }
+]

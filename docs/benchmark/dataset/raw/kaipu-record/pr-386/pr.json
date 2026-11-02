@@ -1,0 +1,29 @@
+{
+ "number": 386,
+ "title": "fix(desktop): show the shared pink countdown on Frame recordings",
+ "body": "## Problem\nRecording from Frame mode (area picked on the capture overlay) showed a white countdown; the Record page path shows the pink one.\n\n## Cause\nTwo separate countdowns existed:\n- `CountdownOverlay` (Record page): pink number, own CSS module, Cancel button, Esc listener.\n- `RecordingShade` (the click-through shade window used for Frame/area recordings): its own markup and `.countdown*` CSS with a white `#fff` number.\n\n## Change\n- `RecordingShade` now renders the shared `CountdownOverlay`; its duplicate markup and `.countdown*` styles are deleted.\n- `CountdownOverlay` gains optional props: `region` (confine and border it to the area, dim the rest), `hint` (shown instead of the Cancel button), and `onCancel` is now optional. Without `onCancel` it renders no Cancel button and registers no key listener, because the shade is click-through and unfocusable.\n- Esc is unchanged: it is still the hub's global shortcut (`holdTemporaryShortcut`, commit 86b9aa82), which the shade never handled.\n- Behaviour note: after the last tick the shade now shows the shared spinner (as the Record page does) instead of an empty dimmed region.\n\n## Verification\n- `check-types`, `lint` (0 errors), and the full app test suite (2555 tests) pass.\n- New tests: the shade's countdown is the shared overlay (status role, region geometry, no Cancel button), its number uses the same class as `CountdownOverlay`, and the overlay without `onCancel` has no button.\n\n## Not verified\nNot run visually in the real app. Please check on a Frame recording: pink number centered in the area, blur/dim look over a transparent window, region border, spinner handoff, and Esc cancel.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T04:34:16Z",
+ "updated_at": "2026-10-27T04:47:30Z",
+ "closed_at": "2026-10-27T04:47:30Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/386",
+ "base": {
+  "ref": "main",
+  "sha": "241a2862815a86f8312237aaa89a788ebee81bfb"
+ },
+ "head": {
+  "ref": "fix/frame-countdown-reuse",
+  "sha": "8c329018f237c675384a12e55145f9a382762832",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 6,
+ "additions": 92,
+ "deletions": 103,
+ "labels": []
+}

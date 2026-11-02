@@ -1,0 +1,72 @@
+[
+ {
+  "number": 1,
+  "title": "[replay] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head",
+  "result": "fetched"
+ },
+ {
+  "number": 2,
+  "title": "[replay] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head",
+  "result": "fetched"
+ },
+ {
+  "number": 3,
+  "title": "[replay] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head",
+  "result": "fetched"
+ },
+ {
+  "number": 4,
+  "title": "[replay] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head",
+  "result": "fetched"
+ },
+ {
+  "number": 5,
+  "title": "[replay] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head",
+  "result": "fetched"
+ },
+ {
+  "number": 6,
+  "title": "[replay] perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown",
+  "state": "open",
+  "head": "replay/pr-402/head",
+  "result": "fetched"
+ },
+ {
+  "number": 7,
+  "title": "[replay] Bug: main window disappears when it loses focus (macOS)",
+  "state": "open",
+  "head": "replay/pr-255/head",
+  "result": "fetched"
+ },
+ {
+  "number": 8,
+  "title": "[replay] fix(api): close upload abuse paths [NIW2-323]",
+  "state": "open",
+  "head": "replay/pr-276/head",
+  "result": "fetched"
+ },
+ {
+  "number": 9,
+  "title": "[replay] feat(kaipu): NIW2-218 export presets pipeline and fast start",
+  "state": "open",
+  "head": "replay/pr-269/head",
+  "result": "fetched"
+ },
+ {
+  "number": 10,
+  "title": "[replay] feat(video-editor): make text labels editable and multi-line",
+  "state": "open",
+  "head": "replay/pr-184/head",
+  "result": "fetched"
+ }
+]

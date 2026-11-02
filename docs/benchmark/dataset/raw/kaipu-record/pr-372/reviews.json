@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5641396163,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9333491a1fed0e8b35fd890e5f1fb4759011a05c",
+  "submitted_at": "2026-10-25T03:51:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/372#pullrequestreview-5641396163",
+  "body": "**Claude review** of the whole pull request, at `9333491`: all 4 files reviewed.\n\n0 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no issues in this PR. The cache key uses `sameScene`, which compares the inner `beautify`, `annotations` and `crop` references, so a rebuilt scene wrapper still hits the cache. Any edit produces new inner references and misses it. A failed composite clears its own entry. The editor clears the cache on unmount. The one caller of `exportScene` hands the buffer straight to `copyImageToClipboard`, which goes over IPC. IPC clones the buffer, so the shared result is not transferred or mutated. The diff stays inside the renderer and doesn't touch the Electron boundary or `shared/**`. The tests cover the cache hit, each invalidation, format separation, failure and concurrent calls.\n\n<sub>Claude Sonnet 5.5 · $0.07</sub>\n\n<!-- claude-review sha=9333491a1fed0e8b35fd890e5f1fb4759011a05c -->"
+ }
+]

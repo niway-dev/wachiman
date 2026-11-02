@@ -1,0 +1,29 @@
+{
+ "number": 477,
+ "title": "ci(agent-review): review every push to a ready pull request",
+ "body": "## What changes\n\n- `.github/workflows/agent-review.yml`: `pull_request` types gain `synchronize`. Every push to an open, ready pull request now starts a Wachiman review. The engine (v1.3.0, unchanged) reviews only what changed since the last reviewed commit, using its incremental marker.\n- ADR 0028 gets an amendment: its rejected alternative \"Reviewing on every push\" is reversed, with the reason and the known costs. The Status row links to it.\n\n## Why\n\nOn #475, three of the six valid review findings were on fix commits pushed after the first review, and two were regressions introduced by the fix. Wachiman reviewed only the first commit; Pullfrog and CodeRabbit ran on every push. Analysis: niway-dev/wachiman `docs/benchmark/2026-10-31/pr-475.md` (niway-dev/wachiman#66).\n\n## Known costs until the engine catches up\n\n- A rebase or force-push makes the engine review the whole pull request again (up to the $3 cap).\n- No per-pull-request limit yet. A design for one (default $2 of automatic reviews per pull request) is in progress in niway-dev/wachiman.\n- A newer push cancels a running review (per-PR concurrency group).\n- Thread replies are still read only by the next review run, not answered on their own.\n\n## Checks\n\n- `oxfmt --check` (0.19) on both changed files: passes.\n- Not run: `bun run verify:local`. Docs and workflow trigger only.\n- To verify after merge: push a commit to an open PR and check that an \"Agent review\" run starts on `synchronize` and posts \"review of changes since `<sha>`\".\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n\n<!-- coderabbit-ai-generated:v1 -->\n\n## Summary by CodeRabbit\n\n* **Workflow**\n  * The review workflow now runs when new commits are pushed to an open pull request.\n\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T00:25:11Z",
+ "updated_at": "2026-11-02T02:44:06Z",
+ "closed_at": "2026-11-02T02:43:16Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/477",
+ "base": {
+  "ref": "main",
+  "sha": "f6ffcb861f5f5982fd729671694d99403d61de09"
+ },
+ "head": {
+  "ref": "ci/agent-review-on-push",
+  "sha": "eca331971d6a44d73249382863813a888e51be7a",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 2,
+ "additions": 33,
+ "deletions": 8,
+ "labels": []
+}

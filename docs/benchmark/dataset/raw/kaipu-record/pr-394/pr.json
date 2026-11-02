@@ -1,0 +1,29 @@
+{
+ "number": 394,
+ "title": "fix(ci): drop the scripts test step that has no tests left",
+ "body": "## Summary\n\n`bun run verify` fails on `main` at its first step, and with it every release gate.\n\n534d6c98 moved the Claude review out to `niway-dev/agent-review` and deleted `scripts/claude-review.test.ts`, the only test under `scripts/`. `check-workflows` still ends in `bun test ./scripts/`, and `bun test` exits 1 when its filter matches no files (\"filters did not match any test files\"). So `check-workflows` fails, and so does every caller:\n\n- `bun run verify` (Lefthook pre-push, `release-api.yml`, `release-web.yml`, `release-desktop.yml`)\n- `pr-checks.yml` (`bun run check-workflows`, on release candidates)\n\nThis drops the empty step. The two workflow checks before it are unchanged.\n\n## Verification\n\n- `bun run check-workflows` → exit 0 (\"All workflow eligibility checks passed\", \"Release workflow check passed\").\n- On `main` the same command exits 1 at `bun test ./scripts/`.\n\n## How to test it yourself\n\n1. On `main`, run `bun run check-workflows` from the repo root: it ends with \"filters did not match any test files\" and exit code 1.\n2. On this branch, run the same command: both checks print their tables and it exits 0.\n3. Optional: `bun run verify` now gets past its first step.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T20:13:37Z",
+ "updated_at": "2026-10-27T20:20:54Z",
+ "closed_at": "2026-10-27T20:14:58Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/394",
+ "base": {
+  "ref": "main",
+  "sha": "c8a1519279782f4874bb0a12b6709dbdbcb8ce10"
+ },
+ "head": {
+  "ref": "fix/verify-no-script-tests",
+  "sha": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 1,
+ "additions": 1,
+ "deletions": 1,
+ "labels": []
+}

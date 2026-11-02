@@ -1,0 +1,44 @@
+[
+ {
+  "number": 1,
+  "title": "[setup] register kaipu-record workflows so they can be disabled",
+  "state": "closed",
+  "head": "replay/pr-465/head",
+  "result": "fetched"
+ },
+ {
+  "number": 2,
+  "title": "[replay] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head",
+  "result": "fetched"
+ },
+ {
+  "number": 3,
+  "title": "[replay] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head",
+  "result": "fetched"
+ },
+ {
+  "number": 4,
+  "title": "[replay] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head",
+  "result": "fetched"
+ },
+ {
+  "number": 5,
+  "title": "[replay] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head",
+  "result": "fetched"
+ },
+ {
+  "number": 6,
+  "title": "[replay] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head",
+  "result": "fetched"
+ }
+]

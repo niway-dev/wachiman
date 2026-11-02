@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:54:41Z",
+  "databaseId": 41126925572,
+  "displayTitle": "fix(desktop): no pink border on the camera bubble in recordings (NIW2-588)",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-588-camera-bubble-no-pink-border",
+  "headSha": "b0f9062ba52da42af0022693ac3b9e908e0a4828",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:54:49Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41126925572",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:52:39Z",
+  "databaseId": 41126661531,
+  "displayTitle": "fix(desktop): no pink border on the camera bubble in recordings (NIW2-588)",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-588-camera-bubble-no-pink-border",
+  "headSha": "b0f9062ba52da42af0022693ac3b9e908e0a4828",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:53:30Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41126661531",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:52:39Z",
+  "databaseId": 41126660935,
+  "displayTitle": "fix(desktop): no pink border on the camera bubble in recordings (NIW2-588)",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-588-camera-bubble-no-pink-border",
+  "headSha": "b0f9062ba52da42af0022693ac3b9e908e0a4828",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:52:55Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41126660935",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:56:32Z",
+  "databaseId": 41127165231,
+  "displayTitle": "feat(desktop): the webcam lane shows the face, plus editor and export follow-ups (NIW2-582)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-582-webcam-lane-thumbnails",
+  "headSha": "1b4e075626ccd13f7c04656d94fd1b3d5dd12264",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:57:52Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41127165231",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-30T21:12:12Z",
+  "databaseId": 41129234919,
+  "displayTitle": "feat(desktop): the webcam lane shows the face, plus editor and export follow-ups (NIW2-582)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "5e464c9fe6a773b30a00b4d6aea8defe571d973b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:12:13Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41129234919",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-30T21:14:10Z",
+  "databaseId": 41129481877,
+  "displayTitle": "feat(desktop): the webcam lane shows the face, plus editor and export follow-ups (NIW2-582)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "5e464c9fe6a773b30a00b4d6aea8defe571d973b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:14:17Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41129481877",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

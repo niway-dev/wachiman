@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:20:40Z",
+  "databaseId": 40454781963,
+  "displayTitle": "fix(desktop): size and crop recordings from the frames the capture delivers",
+  "event": "pull_request",
+  "headBranch": "fix/area-crop-real-frame-size",
+  "headSha": "70609fce17ab3cd40b1b35b5a32775fec042354e",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:20:45Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40454781963",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:17:44Z",
+  "databaseId": 40454500775,
+  "displayTitle": "fix(desktop): size and crop recordings from the frames the capture delivers",
+  "event": "pull_request",
+  "headBranch": "fix/area-crop-real-frame-size",
+  "headSha": "70609fce17ab3cd40b1b35b5a32775fec042354e",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:18:00Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40454500775",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:00:48Z",
+  "databaseId": 40452888036,
+  "displayTitle": "fix(desktop): size and crop recordings from the frames the capture delivers",
+  "event": "pull_request",
+  "headBranch": "fix/area-crop-real-frame-size",
+  "headSha": "606828de9fd74812a0de24a0892cec1571c52d21",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:01:19Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40452888036",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:00:48Z",
+  "databaseId": 40452887545,
+  "displayTitle": "fix(desktop): size and crop recordings from the frames the capture delivers",
+  "event": "pull_request",
+  "headBranch": "fix/area-crop-real-frame-size",
+  "headSha": "606828de9fd74812a0de24a0892cec1571c52d21",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:01:09Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40452887545",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4397550377,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/hooks/use-recording-setup.ts",
+  "line": null,
+  "original_line": 128,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 13,
+  "commit_id": "4d183449b3213ac3f9b75c84e196535a055af9e8",
+  "original_commit_id": "b8e9022ef9edb1c9fc966c65c992c8baa91cb6c1",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5678648474,
+  "subject_type": "line",
+  "created_at": "2026-10-28T06:25:27Z",
+  "updated_at": "2026-10-28T06:25:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#discussion_r4397550377",
+  "body": "🟡🐛 **Consider · bug: The automatic first-launch default gets persisted as if the user had picked it**\n\nThe default effect calls `update({ selectedMicrophone: microphones[0] })`. That goes through `updateRecordingSettings`, and the hub (recording-hub.ts:268-274) saves any changed `selectedMicrophone` to `AppSettings.microphone`. After the first launch, the system default at that moment is stored as a user choice. If the user later changes the macOS default input, the app keeps the old device. The doc says the list puts the system default first and 'until something is picked' that one is selected, but the first launch already counts as a pick. Consider keeping the automatic default out of the remembered setting, for example by not persisting when the patch comes from the default effect. If persisting it is intended, say so in the doc."
+ },
+ {
+  "id": 4397566842,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/hooks/use-recording-setup.ts",
+  "line": null,
+  "original_line": 128,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 13,
+  "commit_id": "4d183449b3213ac3f9b75c84e196535a055af9e8",
+  "original_commit_id": "b8e9022ef9edb1c9fc966c65c992c8baa91cb6c1",
+  "in_reply_to_id": 4397550377,
+  "pull_request_review_id": 5678669730,
+  "subject_type": "line",
+  "created_at": "2026-10-28T06:28:28Z",
+  "updated_at": "2026-10-28T06:28:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#discussion_r4397566842",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of csdev19**\n\nFixed in 4d183449: only an explicit pick is remembered. `selectMicrophone` writes `AppSettings.microphone` from the renderer; the automatic default goes only to the in-memory recording settings, and the hub no longer writes anything back, it just reads the remembered mic at launch. Tests cover both sides (a pick is stored, a default is not).\n"
+ },
+ {
+  "id": 4397570196,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/hooks/use-recording-setup.ts",
+  "line": null,
+  "original_line": 128,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 13,
+  "commit_id": "4d183449b3213ac3f9b75c84e196535a055af9e8",
+  "original_commit_id": "b8e9022ef9edb1c9fc966c65c992c8baa91cb6c1",
+  "in_reply_to_id": 4397550377,
+  "pull_request_review_id": 5678673851,
+  "subject_type": "line",
+  "created_at": "2026-10-28T06:29:03Z",
+  "updated_at": "2026-10-28T06:29:04Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#discussion_r4397570196",
+  "body": "**Looks addressed** at `4d18344`: Addressed. The default effect at use-recording-setup.ts:129 now only calls `update(...)`, which sets in-memory settings. Only `selectMicrophone` (line 198) calls `updateSettings({ microphone })`. The hub no longer writes `AppSettings.microphone`; it only reads it at launch. The tests cover both cases, and the doc now says the automatic default is never stored."
+ },
+ {
+  "id": 4397601097,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/hooks/use-recording-setup.ts",
+  "line": null,
+  "original_line": 128,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 13,
+  "commit_id": "4d183449b3213ac3f9b75c84e196535a055af9e8",
+  "original_commit_id": "b8e9022ef9edb1c9fc966c65c992c8baa91cb6c1",
+  "in_reply_to_id": 4397550377,
+  "pull_request_review_id": 5678713259,
+  "subject_type": "line",
+  "created_at": "2026-10-28T06:34:31Z",
+  "updated_at": "2026-10-28T06:34:31Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/408#discussion_r4397601097",
+  "body": "**Looks addressed** at `8c5c69e`: Still addressed. Only `selectMicrophone` writes `AppSettings.microphone`. The fallback effect calls `update()` on the shared recording settings and never calls `updateSettings`. The test 'defaults the mic into shared settings… without remembering it' covers this."
+ }
+]

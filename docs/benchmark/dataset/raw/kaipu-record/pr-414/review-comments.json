@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4403266606,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "scripts/rebuild-native.sh",
+  "line": 41,
+  "original_line": 41,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 46,
+  "original_position": 46,
+  "commit_id": "d6346e5cbe65506a8d4e3bc5c7a47ab8e0fe1c85",
+  "original_commit_id": "b79f83aa0cdf964045c90483fe3ecc61b151bbd9",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5686137501,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:29:09Z",
+  "updated_at": "2026-10-28T16:29:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/414#discussion_r4403266606",
+  "body": "🟡🧹 **Consider · cleanup: Stamp file name no longer describes its content**\n\nThe file `node_modules/.native-deps-electron-version` now holds `<electron>+patches-<hash>`, not an Electron version. The name appears in rebuild-native.sh, setup-dev.sh, release-desktop.yml and the Windows release spec. Renaming it to something like `.native-deps-stamp` would avoid confusing the next reader. This is optional, since the rename touches several files."
+ },
+ {
+  "id": 4403266616,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/click-hook-native-patch.test.ts",
+  "line": 51,
+  "original_line": 51,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 51,
+  "original_position": 51,
+  "commit_id": "d6346e5cbe65506a8d4e3bc5c7a47ab8e0fe1c85",
+  "original_commit_id": "b79f83aa0cdf964045c90483fe3ecc61b151bbd9",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5686137501,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:29:09Z",
+  "updated_at": "2026-10-28T16:29:10Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/414#discussion_r4403266616",
+  "body": "🟡🧪 **Consider · tests: Test only checks patched sources, not the compiled binary**\n\nThe test reads the C sources in node_modules. Those are patched by `bun install` whether or not `rebuild-native.sh` ran, so it cannot detect the failure that CLAUDE.md calls the trap (patched sources next to an unpatched binary). The stamp checks in setup-dev.sh and the Windows release job cover that case. The macOS release job and `build:mac` have no equivalent stamp check, so the macOS release relies only on the rebuild step not being removed. A stamp check in the macOS job would close that gap."
+ },
+ {
+  "id": 4403290218,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "scripts/rebuild-native.sh",
+  "line": 41,
+  "original_line": 41,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 46,
+  "original_position": 46,
+  "commit_id": "d6346e5cbe65506a8d4e3bc5c7a47ab8e0fe1c85",
+  "original_commit_id": "b79f83aa0cdf964045c90483fe3ecc61b151bbd9",
+  "in_reply_to_id": 4403266606,
+  "pull_request_review_id": 5686167785,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:31:21Z",
+  "updated_at": "2026-10-28T16:31:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/414#discussion_r4403290218",
+  "body": "> [!NOTE]\n> 🤖 **Claude Fable 5.1 responding on behalf of csdev19**\n\nOut of scope here: the rename touches five files on a high-risk PR for a name that is still accurate as a location (it lives where the old one did and the setup doctor explains its content). Noted as a follow-up: rename to `.native-deps-stamp` together with the next change to these scripts."
+ },
+ {
+  "id": 4403290521,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/recording/click-hook-native-patch.test.ts",
+  "line": 51,
+  "original_line": 51,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 51,
+  "original_position": 51,
+  "commit_id": "d6346e5cbe65506a8d4e3bc5c7a47ab8e0fe1c85",
+  "original_commit_id": "b79f83aa0cdf964045c90483fe3ecc61b151bbd9",
+  "in_reply_to_id": 4403266616,
+  "pull_request_review_id": 5686168191,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:31:23Z",
+  "updated_at": "2026-10-28T16:31:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/414#discussion_r4403290521",
+  "body": "> [!NOTE]\n> 🤖 **Claude Fable 5.1 responding on behalf of csdev19**\n\nFixed in d6346e5c: the macOS release job now runs the same stamp check as the Windows job right after `rebuild:native` (Electron version + patch hash), so a dropped or skipped rebuild fails there instead of shipping the unpatched prebuild. On the test: agreed, it pins the patched sources only; the binary is covered by the stamp checks (setup doctor, both release jobs), which is stated in the PR body under \"What to review\" 5."
+ }
+]

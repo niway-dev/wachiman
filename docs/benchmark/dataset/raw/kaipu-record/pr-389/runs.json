@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:53:19Z",
+  "databaseId": 40452201274,
+  "displayTitle": "refactor(desktop): drop the Record button from the screenshot bar",
+  "event": "pull_request",
+  "headBranch": "refactor/screenshot-bar-drop-record",
+  "headSha": "617970648f47a1c73f79981d5001d03d3de3dce7",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:53:24Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40452201274",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:51:07Z",
+  "databaseId": 40452000408,
+  "displayTitle": "refactor(desktop): drop the Record button from the screenshot bar",
+  "event": "pull_request",
+  "headBranch": "refactor/screenshot-bar-drop-record",
+  "headSha": "617970648f47a1c73f79981d5001d03d3de3dce7",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:51:41Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40452000408",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:51:07Z",
+  "databaseId": 40452000155,
+  "displayTitle": "refactor(desktop): drop the Record button from the screenshot bar",
+  "event": "pull_request",
+  "headBranch": "refactor/screenshot-bar-drop-record",
+  "headSha": "617970648f47a1c73f79981d5001d03d3de3dce7",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:51:27Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40452000155",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

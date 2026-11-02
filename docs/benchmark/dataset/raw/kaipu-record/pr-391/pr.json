@@ -1,0 +1,29 @@
+{
+ "number": 391,
+ "title": "fix(desktop): start the region countdown's clock once the 3 is on screen",
+ "body": "## Problem\n\nWhen a recording started on a region, the countdown read as \"3.2...1\" instead of \"3..2..1\". The region case covers a Frame recording and a Screen recording on a single display. The 3 flashed and was almost immediately replaced by the 2.\n\n## Root cause\n\nThe recorder's clock and the window that draws the number are separate, and nothing synchronized them.\n\n- The clock is the 1-second `setInterval` in `recorder-store.ts`, which runs in the main window. It started as soon as the recorder reported \"3\".\n- Main creates the recording shade window when it receives that first report (`recording-hub.ts`, `shade.show`). The window becomes visible only on `ready-to-show`, after it has loaded the renderer bundle.\n- The 3 was therefore on screen only for whatever part of the first second remained after the load.\n\nThe countdown used to live on the visible Record page, so it never waited for a window to load. Record modes moved it onto the shade.\n\n## Fix\n\n- New invoke channel `recording:countdown-visible`. Main resolves it once the shade has shown the first tick, which is the shade's `onShown`. It resolves immediately when there is no region, because the Record page's own countdown is already visible. It also resolves when the region is cleared or abandoned.\n- `requestStartRecording` waits for that answer before it starts the interval. The wait is capped at 1.5 s, so a recording never depends on the shade. A cancellation during the wait stays cancelled, guarded by a request token.\n\n## Verification\n\n- Hub tests check that the answer waits for the shade's `onShown`, comes at once without a region, and is released on abandon.\n- Store tests check that the 3 is held until the countdown is visible, that the 1.5 s cap applies, and that a cancellation during the wait never starts the engine. The store tests fail on the previous `recorder-store.ts`.\n- `check-types` is clean, lint is clean, and the full suite passes (281 files, 2578 tests).\n\n**Not verified:** I did not run a real recording. To check it on the MacBook, use Record → Screen → Start recording. The count should read as an even 3, 2, 1, and Esc during the 3 should still cancel.\n\nThis is the first fix of the record start/stop audit. The cancel-hang and performance findings will come in separate PRs.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T05:32:07Z",
+ "updated_at": "2026-10-27T18:44:51Z",
+ "closed_at": "2026-10-27T18:44:45Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/391",
+ "base": {
+  "ref": "main",
+  "sha": "ad4874d5d7ed44ccfd701e26b2226a3b2773e774"
+ },
+ "head": {
+  "ref": "fix/countdown-wait-for-shade",
+  "sha": "55588d9489ceca6a614590a3fb78207b4573e5ad",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 8,
+ "additions": 150,
+ "deletions": 2,
+ "labels": []
+}

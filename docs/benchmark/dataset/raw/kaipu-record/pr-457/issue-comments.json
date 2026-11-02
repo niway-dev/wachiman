@@ -1,0 +1,35 @@
+[
+ {
+  "id": 6533584329,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-30T21:13:35Z",
+  "updated_at": "2026-10-30T21:13:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#issuecomment-6533584329",
+  "body": "Restacked: this PR now targets `feature/niw2-584-post-recording-toast` (#455) instead of `feature/niw2-578-prepare-screen`. The stack is #448 ← #458 ← #455 ← #457 ← #456.\n\nMerge commit 24b4fa2f brings #455 (and, through it, #458) in — merge, no rebase or force push. Conflicts and how they were resolved, keeping both features:\n\n- `library-detail-page.tsx`: #455's top-right \"Your video is ready\" card (`showCard` / `cardDismissedFor`, rendered through `StatusCardPortal`) replaces the inline panel, and the import of the deleted `WhereIsItGoingPanel` is gone. This PR's master tag, \"Where is this going?\" strip, \"Copies from this master\" panel and the shared `runner` stay as they were.\n- `library-detail-page.test.tsx`: #455's card tests (Edit first; Open / Dismiss close it) replace the panel's \"Not now\" test, and now expect this PR's **Send to…** button to remain on the page after the card closes.\n- `backlog/prepare-screen.md`: one description of the merged state (top-right card, master recording page, two-column Prepare) and one \"How to validate\".\n\n`bun run verify` is green on the merged branch.\n"
+ },
+ {
+  "id": 6541089734,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T08:21:27Z",
+  "updated_at": "2026-10-31T08:21:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#issuecomment-6541089734",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nAnswers to the findings in the review summary that have no inline thread:\n\n- **Unused `prepare` messages (`prepareFor`, `prepareForHint`, `quickLabel`, `quickAria`, `quick*`):** obsolete. #456 removed them from `en.json`/`es.json` (merge `8f3eea4a` on `feature/niw2-586-background-toasts`), and none exists at the top of the stack.\n- **`backlog/edit-state-indicators.md:104` still lists `library.originalPlayerNote`:** still applies, and `library.originalLabel` on line 103 is stale too. Both are being fixed on a follow-up branch above #464, and a reply here will name the commit.\n"
+ },
+ {
+  "id": 6541318444,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T08:46:53Z",
+  "updated_at": "2026-10-31T08:46:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#issuecomment-6541318444",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nReview summary finding \"`edit-state-indicators.md:104` lists removed `library.originalPlayerNote`\": fixed in [`7a3aac00`](https://github.com/niway-dev/kaipu-record/commit/7a3aac00ec8b9987055dada42021419946c33bcb) on #471 (top of the stack). The doc now says `library.originalLabel` and `library.originalPlayerNote` no longer exist (NIW2-585, #457), and keeps the rows as the historical copy spec.\n"
+ }
+]

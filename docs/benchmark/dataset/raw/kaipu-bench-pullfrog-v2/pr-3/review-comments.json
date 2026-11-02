@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4437825978,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "packages/i18n/messages/en.json",
+  "line": 1431,
+  "original_line": 1431,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 29,
+  "original_position": 29,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730800570,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:34:26Z",
+  "updated_at": "2026-11-01T23:34:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/3#discussion_r4437825978",
+  "body": "`destinationTag` has no `archive` branch. Archive copies get their label from `other`, so any destination missing from this `select` will be tagged \"Archive copy\" on the poster. The email destination the description mentions (#467) would hit exactly that. The same applies to `es.json:1431`. Name `archive` explicitly and make `other` neutral (or have the TS side enforce that every `DestinationId` is covered), so a new destination can't quietly get the wrong label.\n\n```suggestion\n    \"destinationTag\": \"{destination, select, youtube {For YouTube} vertical {For Reels} square {For LinkedIn} github {For GitHub} chat {For chat} archive {Archive copy} other {Copy}}\",\n```"
+ },
+ {
+  "id": 4437825982,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/export-status-cards.tsx",
+  "line": 202,
+  "original_line": 202,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 129,
+  "original_position": 129,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730800570,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:34:26Z",
+  "updated_at": "2026-11-01T23:34:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/3#discussion_r4437825982",
+  "body": "The button's `aria-label` (\"Show the export's progress\") replaces its visible text, so screen readers never hear \"YouTube copy · 38%\". The nested `role=\"progressbar\"` doesn't make up for it, because ARIA treats a button's children as presentational and the progressbar gets flattened. Drop the `aria-label` so the visible text names the button (maybe move \"Show the export's progress\" to `title`), or put the percent into the label."
+ },
+ {
+  "id": 4437825985,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/ready-copy-in-library.md",
+  "line": 78,
+  "original_line": 78,
+  "start_line": 77,
+  "side": "RIGHT",
+  "position": 78,
+  "original_position": 78,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730800570,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:34:26Z",
+  "updated_at": "2026-11-01T23:34:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/3#discussion_r4437825985",
+  "body": "This validation step makes a GitHub copy and then a chat copy, then expects the cards \"newest first, FOR GITHUB / FOR CHAT\". Newest first means chat leads, and that is what the PR description's step 7 and the `shows one card per finished copy, newest first` test say. QA following this doc would flag correct behaviour as a bug.\n\n```suggestion\n7. Make a GitHub copy and a chat copy back to back, then open the Library: two cards, newest\n   first, FOR CHAT / FOR GITHUB, Drag to Slack / Drag to GitHub. ✕ on one: its regular card returns.\n```"
+ }
+]

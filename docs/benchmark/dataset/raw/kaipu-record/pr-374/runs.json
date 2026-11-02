@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T04:00:33Z",
+  "databaseId": 40160297242,
+  "displayTitle": "fix(desktop): screenshot shortcut during a take notifies instead of toasting a hidden window (audit SHOT-B7)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-410-36-screenshot-toast-window",
+  "headSha": "f095cabb21f3c1084a97825da08b6f4abf132f99",
+  "status": "completed",
+  "updatedAt": "2026-10-25T04:00:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40160297242",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:59:53Z",
+  "databaseId": 40160248289,
+  "displayTitle": "fix(desktop): screenshot shortcut during a take notifies instead of toasting a hidden window (audit SHOT-B7)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-410-36-screenshot-toast-window",
+  "headSha": "f095cabb21f3c1084a97825da08b6f4abf132f99",
+  "status": "completed",
+  "updatedAt": "2026-10-25T04:00:19Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40160248289",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:59:53Z",
+  "databaseId": 40160248195,
+  "displayTitle": "fix(desktop): screenshot shortcut during a take notifies instead of toasting a hidden window (audit SHOT-B7)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-410-36-screenshot-toast-window",
+  "headSha": "f095cabb21f3c1084a97825da08b6f4abf132f99",
+  "status": "completed",
+  "updatedAt": "2026-10-25T04:00:10Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40160248195",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

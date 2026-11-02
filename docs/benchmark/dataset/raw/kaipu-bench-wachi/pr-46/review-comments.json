@@ -1,0 +1,117 @@
+[
+ {
+  "id": 4439334614,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-shade-window.ts",
+  "line": 134,
+  "original_line": 134,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 140,
+  "original_position": 140,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732617567,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:59:29Z",
+  "updated_at": "2026-11-02T05:59:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/46#discussion_r4439334614",
+  "body": "👮 **Wachiman** · 🟠🐛 **Fix · bug: Reused shade has no recovery from a crashed or failed renderer, so one failure lasts the whole session (confidence medium)**\n\nBefore this change, every take created its own shade window, so a renderer that crashed or failed to load affected only that take. Now `ensureWindow` returns the existing window whenever `!isDestroyed()` (line 135). It listens only for `ready-to-show` and `closed` (lines 181-193), not for `render-process-gone`, `did-fail-load` or `unresponsive`.\n\nThis causes two problems:\n- If the prewarmed page fails to load (or the renderer dies before it paints), `ready` stays false forever. Every later `show` sets `wanted` and returns at line 88, waiting for a `ready-to-show` that never comes. The hub's `onShown` (`markCountdownShown`, recording-hub.ts:546-551) never runs, so `recordingCountdownVisible` (recording-hub.ts:558-561) stays pending on every region countdown for the rest of the session.\n- If the renderer crashes after it painted, `ready` stays true. `present` sends state to a dead page, shows an empty window and calls `onShown` at once. Every later countdown and REC border is invisible, with nothing telling the user why.\n\nThe overlay windows guard against exactly this case (capture-overlay-windows.ts:657-670). Suggested fix: on `render-process-gone` and on main-frame `did-fail-load` (ignoring ERR_ABORTED), destroy the window so the `closed` handler resets it and the next `show` loads a fresh one. The new test \"loads a new window when its page is gone (crash, closed)\" only calls `destroy()`, so it does not cover a crash.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439334620,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-shade-window.ts",
+  "line": 80,
+  "original_line": 80,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 85,
+  "original_position": 85,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732617567,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:59:29Z",
+  "updated_at": "2026-11-02T05:59:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/46#discussion_r4439334620",
+  "body": "👮 **Wachiman** · 🟡❓ **Consider · question: Does setBounds size the shade correctly when it moves between displays with different scale factors? (confidence low)**\n\nBefore, the shade was created at the target display's bounds every take. Now one window is created at the primary display's bounds (line 58) and moved with a single `setBounds(display.bounds)`. On Windows, Electron has a known problem: one `setBounds` that moves a window across monitors with different DPI can give the wrong size. If that happens here, the dim and the REC border would sit in the wrong place around the area. Has this been tried on mixed-DPI setups? The PR body lists it as a risk to check by hand. If it does misbehave, calling `setBounds` twice (move, then resize) is the usual workaround.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439334622,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 388,
+  "original_line": 388,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 228,
+  "original_position": 228,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732617567,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:59:29Z",
+  "updated_at": "2026-11-02T05:59:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/46#discussion_r4439334622",
+  "body": "👮 **Wachiman** · 🟡❓ **Consider · question: Does the 50 ms settle wait run on time once the main window is hidden? (confidence low)**\n\n`hideAppForTake` waits `delay(WINDOW_HIDE_SETTLE_MS)` in the main window's renderer right after main has called `mainWindow.hide()` (recording-hub.ts:599-604). The bar, shade, overlay and camera windows all set `backgroundThrottling: false`, but the main window does not set it anywhere in `src/main`. If Chromium throttles timers in this hidden renderer, the 50 ms timer can fire much later, and the clock starts late. Starting on time at the end of the countdown is the whole point of this change. Have you checked that the hidden main window's timers aren't throttled here (for example, because an active capture or AudioContext exempts the page)? Your own `clock started at countdown end +Nms` mark would show it.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439334623,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.test.tsx",
+  "line": 1063,
+  "original_line": 1063,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 119,
+  "original_position": 119,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732617567,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:59:29Z",
+  "updated_at": "2026-11-02T05:59:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/46#discussion_r4439334623",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: Test name says 'when the take begins', but it never calls begin() (confidence high)**\n\n\"a level changed during the countdown is already in effect when the take begins\" calls `prepareEngine` and `setMicLevel(60)` and checks the ramp, but never calls `prepared.begin()`. So nothing checks that `begin` keeps the level set during the countdown (for example, that it doesn't rebuild or reset the gain). Either `await prepared.begin()` and check the gain afterwards, or rename the test to match what it checks.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439334626,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/screenshots/overlay/capture-overlay.test.tsx",
+  "line": 231,
+  "original_line": 231,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 21,
+  "original_position": 21,
+  "commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "original_commit_id": "01dfe73fa65f01171659b9c695e1d751b22d22ed",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732617567,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:59:29Z",
+  "updated_at": "2026-11-02T05:59:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/46#discussion_r4439334626",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: Spare test says the mode comes from the state, but the state's mode matches the query (confidence high)**\n\nThe test is named \"takes the mode and the frame display from the state, not from the loaded query\", but both pushes send `mode: \"frame\"` and the query is also `query(\"frame\", …)`. So the mode half of the claim is never tested. If the overlay kept the query's `ui` for a spare, the test would still pass. The earlier test (line 226) does push `mode: \"screen\"`, but it only checks for `hint-pill`, which renders in every mode (`capture-overlay.tsx:310`). One way to cover it: load the spare with `query(\"frame\", { spare: true })`, push `mode: \"screen\"`, and assert something only Screen mode renders.\n\n<!-- wachi:finding -->"
+ }
+]

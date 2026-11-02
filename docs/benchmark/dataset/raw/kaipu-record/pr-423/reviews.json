@@ -1,0 +1,98 @@
+[
+ {
+  "id": 5693476756,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "ad43588cbc6d854737c0ed7d435a12a3a74f34cc",
+  "submitted_at": "2026-10-29T05:57:54Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/423#pullrequestreview-5693476756",
+  "body": "**Agent review** of the whole pull request, at `ad43588`: all 17 files reviewed.\n\n4 finding(s): 1 to fix, 3 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Outside the diff\n\n- 🟠🐛 **Fix · bug: pick() still opens windows after dispose()** (`apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts:378`): `dispose()` sets `disposed`, and `scheduleWarm` checks it. `pick()` does not. After `before-quit` has run `begin()`, a pick can still arrive (an IPC from the main window while it closes). `pick()` then calls `createOverlay` for every display, or reuses spares. That is the window-created-after-quit case this PR is meant to stop (NIW2-548). Only the `browser-window-created` guard in app-shutdown.ts would catch it, and that guard logs it as a leak. Add `if (this.disposed) return Promise.resolve({ kind: \"cancelled\" })` at the top of `pick()`, and a test for it. The current tests only cover `prewarm()`.\n\n### Summary\n\nThe sequence in shutdown.ts and its wiring are sound, and the tests assert what their names say. I found four gaps, all about creators that can still open a window after the quit began. `CaptureOverlayWindows.pick()` has no `disposed` guard (fix). A lazily created overlay instance is never disposed if none existed at quit (consider). `hub.dispose()` stops at the first throw, and the control bar and camera bubble have no `disposed` flag (consider). ADR 0031 overstates the flag coverage (consider).\"\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 17 | 626 | 5 | reviewed | 9 | $0.15 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.15</sub>\n\n<!-- agent-review sha=ad43588cbc6d854737c0ed7d435a12a3a74f34cc -->"
+ },
+ {
+  "id": 5693494854,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "ad43588cbc6d854737c0ed7d435a12a3a74f34cc",
+  "submitted_at": "2026-10-29T06:00:24Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/423#pullrequestreview-5693494854",
+  "body": ""
+ },
+ {
+  "id": 5693495087,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9",
+  "submitted_at": "2026-10-29T06:00:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/423#pullrequestreview-5693495087",
+  "body": ""
+ },
+ {
+  "id": 5693495330,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9",
+  "submitted_at": "2026-10-29T06:00:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/423#pullrequestreview-5693495330",
+  "body": ""
+ },
+ {
+  "id": 5693498925,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9",
+  "submitted_at": "2026-10-29T06:00:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/423#pullrequestreview-5693498925",
+  "body": "**Agent review** of changes since `ad43588`, at `f46b4fb`: all 8 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. All three earlier threads are addressed: the overlay is disposed even if it was never created, `hub.dispose()` runs each step in its own try/catch, and the control bar and camera bubble gain a `disposed` flag. Tests cover each of these.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 8 | 130 | 5 | reviewed | 4 | $0.04 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.04</sub>\n\n<!-- agent-review sha=f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9 -->"
+ },
+ {
+  "id": 5693499014,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9",
+  "submitted_at": "2026-10-29T06:00:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/423#pullrequestreview-5693499014",
+  "body": ""
+ },
+ {
+  "id": 5693499193,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9",
+  "submitted_at": "2026-10-29T06:00:59Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/423#pullrequestreview-5693499193",
+  "body": ""
+ },
+ {
+  "id": 5693499329,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9",
+  "submitted_at": "2026-10-29T06:01:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/423#pullrequestreview-5693499329",
+  "body": ""
+ }
+]

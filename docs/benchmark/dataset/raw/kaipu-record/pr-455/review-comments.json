@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4428410452,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/post-recording-card.tsx",
+  "line": 110,
+  "original_line": 110,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 110,
+  "original_position": 110,
+  "commit_id": "bcc077d0467ce911e66ce1b98524eb764bdf03af",
+  "original_commit_id": "a23f20165c4133c40838a2ce0911a8bf7f2a7083",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5718563881,
+  "subject_type": "line",
+  "created_at": "2026-10-30T20:58:19Z",
+  "updated_at": "2026-10-30T20:58:19Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/455#discussion_r4428410452",
+  "body": "🟡🧹 **Consider · cleanup: \"Open\" only closes the card, and only the tooltip says so**\n\nThe **Open** button calls `onDismiss`, which does exactly what ✕ does. The page passes `() => setCardDismissedFor(location.key)` (library-detail-page.tsx:253), and the user is already on the recording's page. The only explanation, \"Close this and stay on the recording\", is in a `title` attribute. Keyboard and screen-reader users don't reliably get `title` tooltips, and the accessible name stays \"Open\", which suggests the button opens something. Consider a label that matches what the button does, such as \"Keep it here\" or \"Stay on the recording\". Alternatively, drop the button, since ✕ already covers this."
+ },
+ {
+  "id": 4431129948,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/post-recording-card.tsx",
+  "line": 110,
+  "original_line": 110,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 110,
+  "original_position": 110,
+  "commit_id": "bcc077d0467ce911e66ce1b98524eb764bdf03af",
+  "original_commit_id": "a23f20165c4133c40838a2ce0911a8bf7f2a7083",
+  "in_reply_to_id": 4428410452,
+  "pull_request_review_id": 5722036041,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:45:27Z",
+  "updated_at": "2026-10-31T08:45:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/455#discussion_r4431129948",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nFixed in [`50c98b40`](https://github.com/niway-dev/kaipu-record/commit/50c98b4084683bac5b6cc41f4ccb85f70dd5b40b) on #471 (top of the stack): the in-app card no longer renders Open (it only closed the card, like ✕); Open shows only on the floating window, where `onOpen` opens the recording. The owner can overrule this design call.\n"
+ }
+]

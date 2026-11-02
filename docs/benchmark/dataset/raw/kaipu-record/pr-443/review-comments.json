@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4421936645,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/video-editor/export/export-reuse.ts",
+  "line": null,
+  "original_line": 54,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 6,
+  "commit_id": "5efa2953079a576c8d28b84a41a8dbeb33d5373e",
+  "original_commit_id": "5efa2953079a576c8d28b84a41a8dbeb33d5373e",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5710033259,
+  "subject_type": "line",
+  "created_at": "2026-10-30T08:52:09Z",
+  "updated_at": "2026-10-30T08:52:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/443#discussion_r4421936645",
+  "body": "🟡📝 **Consider · docs: Comment says the export burns in the webcam layer, but nothing draws it yet**\n\nThe comment says \"with one, the layer is part of what the export burns in\". Today that is false. Outside the tests, `webcamAt` and `scene.webcam` are only read by webcam-model.ts, webcam-edits.ts, scene.ts and session.ts. No composer or export worker reads them. So exports made from webcam recordings between this PR and NIW2-575 carry a fingerprint that claims the face is in the file. The PR body says the `ENCODE_REVISION` bump that fixes this is deferred (W4). Consider saying that in the comment too, e.g. \"once the export draws the layer (NIW2-575, which bumps ENCODE_REVISION)\". Then nobody reading this code later assumes interim exports already contain the webcam."
+ },
+ {
+  "id": 4421936657,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/video-editor/webcam/webcam-model.test.ts",
+  "line": 69,
+  "original_line": 69,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 69,
+  "original_position": 69,
+  "commit_id": "3afba3338fd888172c51f83c373bb7d4475879aa",
+  "original_commit_id": "5efa2953079a576c8d28b84a41a8dbeb33d5373e",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5710033259,
+  "subject_type": "line",
+  "created_at": "2026-10-30T08:52:09Z",
+  "updated_at": "2026-10-30T08:52:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/443#discussion_r4421936657",
+  "body": "🟡🧪 **Consider · tests: The DIP-fallback test says \"within the limits\" but never reaches a limit**\n\nBoth cases stay inside `WEBCAM_LIMITS` without being clamped. 270/1080 = 0.25 and 120/1080 ≈ 0.111, and both are already between `minSize` 0.1 and `maxSize` 0.6 (`webcam-model.ts:46-47`). So nothing here checks that the fallback at `webcam-model.ts:114` goes through the clamp. If someone later moved the clamp off that path, this test would still pass. Add a case below 108 DIP that should clamp to the minimum, e.g. `expect(size(60)).toBe(WEBCAM_LIMITS.minSize)`. Or drop \"within the limits\" from the test's name."
+ },
+ {
+  "id": 4421942257,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/video-editor/export/export-reuse.ts",
+  "line": null,
+  "original_line": 54,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 6,
+  "commit_id": "5efa2953079a576c8d28b84a41a8dbeb33d5373e",
+  "original_commit_id": "5efa2953079a576c8d28b84a41a8dbeb33d5373e",
+  "in_reply_to_id": 4421936645,
+  "pull_request_review_id": 5710040397,
+  "subject_type": "line",
+  "created_at": "2026-10-30T08:52:56Z",
+  "updated_at": "2026-10-30T08:52:56Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/443#discussion_r4421942257",
+  "body": "Fixed in 62e4fc23: the comment now says nothing draws the layer until NIW2-575, which bumps ENCODE_REVISION so exports made before it are never reused."
+ },
+ {
+  "id": 4421942464,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/video-editor/webcam/webcam-model.test.ts",
+  "line": 69,
+  "original_line": 69,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 69,
+  "original_position": 69,
+  "commit_id": "3afba3338fd888172c51f83c373bb7d4475879aa",
+  "original_commit_id": "5efa2953079a576c8d28b84a41a8dbeb33d5373e",
+  "in_reply_to_id": 4421936657,
+  "pull_request_review_id": 5710040714,
+  "subject_type": "line",
+  "created_at": "2026-10-30T08:52:58Z",
+  "updated_at": "2026-10-30T08:52:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/443#discussion_r4421942464",
+  "body": "Fixed in 62e4fc23: added `expect(size(60)).toBe(WEBCAM_LIMITS.minSize)`, so the fallback path's clamp is exercised."
+ }
+]

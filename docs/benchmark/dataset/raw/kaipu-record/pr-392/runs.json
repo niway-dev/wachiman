@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T18:46:22Z",
+  "databaseId": 40563057137,
+  "displayTitle": "fix(desktop): a cancelled or failed record start never strands the app",
+  "event": "pull_request",
+  "headBranch": "fix/record-cancel-never-strands",
+  "headSha": "fe7a6932a441679c50cd4f5a7c0a27b0bc49d97a",
+  "status": "completed",
+  "updatedAt": "2026-10-27T18:46:30Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40563057137",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:45:39Z",
+  "databaseId": 40457144989,
+  "displayTitle": "fix(desktop): a cancelled or failed record start never strands the app",
+  "event": "pull_request",
+  "headBranch": "fix/record-cancel-never-strands",
+  "headSha": "fe7a6932a441679c50cd4f5a7c0a27b0bc49d97a",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:46:13Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40457144989",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T05:45:38Z",
+  "databaseId": 40457144193,
+  "displayTitle": "fix(desktop): a cancelled or failed record start never strands the app",
+  "event": "pull_request",
+  "headBranch": "fix/record-cancel-never-strands",
+  "headSha": "fe7a6932a441679c50cd4f5a7c0a27b0bc49d97a",
+  "status": "completed",
+  "updatedAt": "2026-10-27T05:45:53Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40457144193",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

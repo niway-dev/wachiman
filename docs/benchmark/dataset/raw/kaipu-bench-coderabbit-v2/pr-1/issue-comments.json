@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6565428354,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-11-01T23:22:00Z",
+  "updated_at": "2026-11-01T23:22:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-coderabbit-v2/pull/1#issuecomment-6565428354",
+  "body": "Setup done: kaipu-record workflows disabled."
+ }
+]

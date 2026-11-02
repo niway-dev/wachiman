@@ -1,0 +1,29 @@
+{
+ "number": 359,
+ "title": "fix(desktop): never lose a finished recording when the vault is unreachable (audit REC-B6, REC-A8)",
+ "body": "## What was broken\n\n- **REC-B6:** `RecordingWriter.finalize` closed and deleted the session before it created the vault folder and moved the file. If the vault was unreachable (unplugged drive, unwritable folder) or a cross-volume copy failed, the finished take stayed as an invisible `kaipu-rec-*.mp4.part` in `os.tmpdir()`. The renderer showed a generic \"couldn't save\", then `recordingAbort` was a no-op. Nothing ever recovered the file, and a failed copy could leave a partial `<id>.mp4` in the vault.\n- **REC-A8:** the `.part` always lived in `os.tmpdir()`, so a vault on another volume paid a full-file copy during \"Saving...\" and the system disk had to hold the whole take.\n\n## What changed\n\n- The `.part` is now staged in `<vault>/.kaipu/tmp/` (falls back to `os.tmpdir()` if that cannot be created), so the final move is a same-volume rename. An explicit `tempDir` dep still wins (tests).\n- `finalize` resolves and creates the destination before closing the session. A failed move throws `FinalizeMoveError` and marks the session stranded. `abort` leaves a stranded `.part` on disk. A failed copy removes only the half-written destination (`moveFile`, with `COPYFILE_EXCL`).\n- On `FinalizeMoveError` the hub opens a native save dialog from main and `writer.salvage` moves the take there. The rejection carries `[finalize:kept]` or `[finalize:elsewhere]`, and the renderer maps it to a specific toast (new `record.errorSaveKept` / `record.errorSaveElsewhere` / `dialogs.saveRecordingElsewhere` keys in en and es).\n- New launch sweep (`stranded-recordings.ts`, wired in `main/index.ts` before `createWindow()`): moves `kaipu-rec-*.mp4.part` files older than 2 minutes from the vault staging folder and tmp into the vault as \"Recovered recording\"; empty parts are deleted.\n\nTrade-off: a vault inside iCloud/Dropbox now syncs the growing `.part` (the finding proposed this).\n\n## Verification (from `apps/kaipu-record`)\n\n- `bun run test`: 255 files, 2217 tests passed (includes new writer, move-failure, hub, sweep and `finalizeErrorKey` tests).\n- `bun run check-types`: node and web projects clean.\n- `bun run lint`: 0 errors (17 pre-existing warnings).\n- `packages/i18n`: `bun run test` 22 passed, `bun run check-types` clean.\n- Not verified: the parentless save dialog showing in front on macOS while the main window is hidden (manual).\n\n## How to test it yourself\n\n1. Settings > Files: set the vault to a USB volume or mounted disk image. Record 5 s. While recording, `ls \"<vault>/.kaipu/tmp\"` shows `kaipu-rec-session-1.mp4.part`. Stop: the file lands in the vault instantly.\n2. Record again and eject the volume just before Stop. Expect the native \"choose where to save\" dialog. Pick a path: the toast says it was saved where you chose and the file plays.\n3. Repeat but cancel the dialog: the toast says the recording was kept. Re-mount, relaunch: the Library shows \"Recovered recording\".\n4. Confirm the dialog appears in front although the main window was hidden (macOS).\n\n## Findings closed\n\nREC-B6, REC-A8. The plan lives in PR #301 (`docs/code-audit-2026-10-15`, `plans/audit-2026-10-15/02-recording-finalize-recovery.md`).\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-21T05:22:04Z",
+ "updated_at": "2026-10-21T05:38:35Z",
+ "closed_at": "2026-10-21T05:38:32Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/359",
+ "base": {
+  "ref": "main",
+  "sha": "4686d306d4f7ffb2037b2893fa200860c7a636c5"
+ },
+ "head": {
+  "ref": "fix/audit-02-recording-finalize-recovery",
+  "sha": "740b8915fa1a9a345e837034b660ca416d5875a9",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 18,
+ "additions": 670,
+ "deletions": 24,
+ "labels": []
+}

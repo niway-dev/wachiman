@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5709844754,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "220ba48a6e6f59625e37e93f95c3d39f235f5aeb",
+  "submitted_at": "2026-10-30T08:32:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/442#pullrequestreview-5709844754",
+  "body": "**Agent review** of the whole pull request, at `220ba48`: all 17 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nNo findings. The PR exposes the webcam track (ADR 0032) in four places. `describe()` fills `webcam` only while `.kaipu/<id>.webcam.mp4` exists. `probeWebcam` reports present, missing or none. `removeLocalCopy` refuses to delete the local copy while the webcam file exists, because that track is not in the cloud yet. A new `kaipu-media://webcam/<id>` route goes through the same unsafe-id guard and Range-aware `streamFile` as the existing routes. The id still reaches only the fixed `.kaipu/<id>.webcam.mp4` path, so the Electron boundary is no wider. `shared/types/library-storage.ts` only adds a type import, and `shared/webcam-track.ts` only imports relatively within `src/shared`, so nothing new can break the preload bundle. The new reason code is wired through the shared result type, the policy and the renderer switch, with an i18n string in both en and es. Tests cover the policy, the service path (the media file stays on disk after a refusal), describe/rename pairing, the probe states, and the protocol route (200, 206 with Range, 404, 400). The docs match the new behaviour.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 17 | 264 | 6 | reviewed | 6 | $0.17 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.17</sub>\n\n<!-- agent-review sha=220ba48a6e6f59625e37e93f95c3d39f235f5aeb -->"
+ }
+]

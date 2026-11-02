@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4369475619,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/library/library-vault.ts",
+  "line": 382,
+  "original_line": 382,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 155,
+  "original_position": 155,
+  "commit_id": "25ced906c0bb44d8c8a889c35e42239b117c63d6",
+  "original_commit_id": "0be08de9587bda716ac1235271faf1084ba1478d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5641294627,
+  "subject_type": "line",
+  "created_at": "2026-10-25T03:09:49Z",
+  "updated_at": "2026-10-25T03:09:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/367#discussion_r4369475619",
+  "body": "**Note (correctness): Stale temp cleanup no longer matches new temp names**\n\n`remove()` still deletes `<cursorTrack>.tmp`, but writes now use `<target>.<pid>.<uuid>.tmp`. A crash mid-write leaves a uniquely named temp file that nothing removes, so these accumulate in `.kaipu`. The `.tmp` rm is now dead code. Consider a startup sweep or removing the dead line."
+ },
+ {
+  "id": 4369475622,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/library/library-vault.test.ts",
+  "line": null,
+  "original_line": 337,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 57,
+  "commit_id": "0be08de9587bda716ac1235271faf1084ba1478d",
+  "original_commit_id": "0be08de9587bda716ac1235271faf1084ba1478d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5641294627,
+  "subject_type": "line",
+  "created_at": "2026-10-25T03:09:49Z",
+  "updated_at": "2026-10-25T03:09:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/367#discussion_r4369475622",
+  "body": "**Note (other): chmod-based failure test fails when run as root**\n\n`chmod(dir, 0o500)` doesn't block writes for root (e.g. some Docker CI). The test would then see the write succeed and fail. Also skip when `process.getuid?.() === 0`."
+ }
+]

@@ -1,0 +1,29 @@
+{
+ "number": 486,
+ "title": "design: capture preview card (NIW2-606)",
+ "body": "Refs [NIW2-606](https://linear.app/niway/issue/NIW2-606)\n\n## Summary\n\nDesign only, no code. After a screenshot, Kaipu stays out of the way: **Capture and Copy both end in an image-first floating card** at the top-right of the display, instead of Capture opening the editor.\n\n- The card is the existing capture toast window (`CaptureToastWindow`), redrawn: the screenshot fills it.\n- At rest it shows **Saved ✓** and **Copied · ⌘V** on the image.\n- On hover: accent border, the image dims, **Edit** (pencil) in the middle, **✕** in the corner, and the states become buttons — Saved reveals the file, Copy copies (and reads Copied ✓).\n- The editor opens only from Edit or a click on the image. A shot that landed nowhere still opens the editor.\n\n## What this PR adds\n\n- Spec: `apps/documentation/src/content/docs/specs/2026-11-02-capture-preview-card-design.md` (decisions table, failures, acceptance criteria).\n- **ADR 0042** — Capture and Copy both end in the preview card. Supersedes decision 4 of ADR 0024 and reverses the 2026-10-20 capture-flow fix; 0024's status row and `backlog/capture-flow-fixes.md` point to it.\n- Mockup: `apps/documentation/public/mockups/capture-preview.html` — illustrative, hand-written with the app's tokens; the first card reacts to a real hover.\n\nOut of scope on purpose: the main window coming back above the frontmost app after a capture. The owner tests the card first.\n\n## Checks\n\n- `bun run build` in `apps/documentation`: passes, both new pages built.\n- `oxfmt` run on every changed file.\n\n## How to test it yourself\n\n1. `bun run dev` in `apps/documentation` (or open the file directly in a browser).\n2. Open `/mockups/capture-preview.html`. Hover the first card: border turns pink, the image dims, Edit and ✕ appear, the bar at the bottom stops draining. Move off: it drains again.\n3. Open `/specs/2026-11-02-capture-preview-card-design/` and check the decisions table matches what you asked for (11 rows).\n4. Open `/architecture/decisions/0042-capture-ends-in-the-preview-card/`, then ADR 0024: its \"Superseded by\" row now links 0042.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai -->\n<!-- coderabbit-ai-generated:v1 -->\n\n## Summary by CodeRabbit\n\n* **Documentation**\n  * Added a visual mockup showing four capture-card states: a live preview, a pinned card with manual copy, a failed-save state, and a tall-capture preview.\n  * The live preview includes a 10-second progress indicator that pauses on hover, with controls revealed on hover.\n  * The examples illustrate how capture content and status appear in each state.\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->",
+ "state": "open",
+ "merged": false,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T19:25:30Z",
+ "updated_at": "2026-11-02T19:41:49Z",
+ "closed_at": null,
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/486",
+ "base": {
+  "ref": "main",
+  "sha": "c8beb0ad4ffda313c109e2a7b5f644cf37d4e0ad"
+ },
+ "head": {
+  "ref": "design/niw2-606-capture-preview",
+  "sha": "a02f95d872c406732f00c92029dcbf8fcf624947",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 5,
+ "additions": 483,
+ "deletions": 6,
+ "labels": []
+}

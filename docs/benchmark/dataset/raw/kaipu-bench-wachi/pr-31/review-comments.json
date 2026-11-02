@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4438740429,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 938,
+  "original_line": 938,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 105,
+  "original_position": 105,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731885415,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:25Z",
+  "updated_at": "2026-11-02T03:45:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/31#discussion_r4438740429",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: Comment says an off waits on the queue, but off is not queued (confidence high)**\n\nThe comment says the turn-on is queued so that \"an off that follows waits for this camera to open and releases it\". The off branch (lines 924-934) calls `handle.turnWebcamOff()` synchronously and never touches `queue`. It does not wait. What makes it safe is the engine's `cameraRequest` counter: `turnWebcamOff` bumps it, and the late camera is then stopped at `recorder-engine.ts:790-793`. The queue only serialises one turn-on after another. Reword the comment so it names the counter, not the queue, as the guard.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438740430,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.test.ts",
+  "line": 2065,
+  "original_line": 2065,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 185,
+  "original_position": 185,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731885415,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:25Z",
+  "updated_at": "2026-11-02T03:45:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/31#discussion_r4438740430",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: Test name claims the hub reset is covered, but only abort is tested (confidence high)**\n\nThe test is named \"a bubble parked when the take is aborted or the hub reset is destroyed too\", yet it only drives `recordingAbort`. The forced-reset path, where `releaseParkedBubble()` was added at `recording-hub.ts:1022`, has no test. Either add a case for it or drop \"or the hub reset\" from the name.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438740433,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/webcam-relay.test.ts",
+  "line": 69,
+  "original_line": 69,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 69,
+  "original_position": 69,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731885415,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:25Z",
+  "updated_at": "2026-11-02T03:45:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/31#discussion_r4438740433",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: The 'cut camera's frames never get through' test passes without exercising the drop path (confidence medium)**\n\n`relay.cut()` cancels the camera's reader, which closes the underlying stream. The test's own `try/catch` around `first.push(late)` shows that the enqueue throws (the stream is already cancelled), so `late` never reaches the pump. The branch in `webcam-relay.ts:91-94`, which closes and drops a frame delivered after the cut (`current !== reader`), is never run. `late.close` is never asserted either, although the comment says the frame is 'dropped (and closed)'. A regression that relayed a late frame, or leaked it by not closing it, would still pass. To cover the branch, make the fake processor's stream ignore cancellation (a reader whose `read()` resolves with a frame after the cut), then assert `late.close` was called and `written` has no 'a2'.\n\n<!-- wachi:finding -->"
+ }
+]

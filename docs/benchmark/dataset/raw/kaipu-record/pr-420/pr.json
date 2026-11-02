@@ -1,0 +1,29 @@
+{
+ "number": 420,
+ "title": "fix(desktop): keep the editor toolbar in one row once the capture title has a minimum width",
+ "body": "## Summary\n\nThe release PR #361 (desktop 0.15.0) is blocked by `Desktop - E2E tests (macOS)`\n([run 40805912132](https://github.com/niway-dev/kaipu-record/actions/runs/40805912132)):\ntwo deterministic failures in `screenshot-editor.e2e.ts`. This PR fixes them and lands on\n`main` so release-please folds it into #361.\n\n**App change: one CSS rule.** Everything else is the E2E spec and a doc paragraph.\n\n### Editor toolbar: the capture title's minimum width\n\nNIW2-351 (#417) gave the title field a readable 160px minimum so the action labels drop\nbefore the name truncates. Ordinary PRs never run the macOS suite (ADR 0027), so the two\ntoolbar widths it measures only changed on the release PR:\n\n| Width | Before #417 | After #417 (CI) | Now |\n| --- | --- | --- | --- |\n| 900px (below the editor floor) | labels on, title squeezed to \"Scree…\" | compact; test expected labels on → **fail** | compact, title keeps 160px (the spec's rule: title wins) — test updated |\n| 680px (below the floor) | compact, title shrinks to fit | compact, but the title's minimum would not give: Redo/Copy/Save/PDF pushed past the toolbar's edge → **fail** | the minimum is released once the row is compact; one clean row again |\n\nThe CSS change is one rule in `capture-title-input.module.css`: `[data-compact=\"true\"] .field { min-width: 0 }`.\nWith the labels gone the name is the only thing left that can shrink. `useCompactRow`\nmeasures with compact switched off, so releasing the minimum cannot make the row oscillate.\n\nThe test now also polls the toolbar reading (`expect.poll`) instead of taking one the\ninstant `innerWidth` matches: `useCompactRow` re-measures from a ResizeObserver a frame\nlater, and the 680px test had already flaked twice before #417 with the previous width's\n`data-compact` (runs 40638221144, 40645332501).\n\n### Known and not fixed here: the quit hang in teardown\n\nThree release-candidate runs failed a test whose every assertion had passed (library\ndelete, this toolbar, the capture panel). The traces all end in \"Close context\" —\n`app.close()` in `launchApp`'s teardown — unfinished after the 120 s test timeout, and the\nworker teardown then timed out too (the \"1 error was not a part of any test\" line). All of\nthem quit about 3.5–4.5 s after launch, when the overlay windows pre-load\n(`OVERLAY_PREWARM_AFTER_LAUNCH_MS`). The hang lives in the app's quit path, not in the\ntests; the CI retry absorbs it today at a cost of ~4 macOS minutes per occurrence.\n\nA kill-after-15-s in the test teardown was added and then reverted in this branch\n(`937d513` → `f3dc20d`): it was a timer patching the harness over an app defect, not\nneeded for the release, and it would hide the event. The hang keeps its evidence and\ngets its own ticket.\n\n## Verification\n\n- `e2e/screenshot-editor.e2e.ts` against the local build (macOS, this branch): 6 passed.\n- `bun run lint`, `oxfmt --check`, `bun run check-types` (apps/kaipu-record): clean.\n- `capture-title-input.test.tsx`, `use-compact-row.test.tsx`: 12 passed.\n- Toolbar screenshots from the built app at 1440 / 900 / 680px checked by eye: labels on\n  and title readable; icon-only with the title readable; icon-only with nothing past the\n  edge. (Local files, not attached.)\n- The full macOS suite runs on the release PR once this merges and release-please\n  refreshes #361.\n\n## How to test it yourself\n\n1. `bun run dev`, open a screenshot in the editor.\n2. Shrink the window as far as the app allows (1180px): labels stay, title readable.\n3. On a display narrower than that (or via the E2E spec), at ~900px the Copy/Save/PDF\n   labels drop and the title keeps its width; at ~680px nothing overlaps or leaves the bar.\n\nRefs NIW2-351\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-29T02:57:27Z",
+ "updated_at": "2026-10-29T03:33:56Z",
+ "closed_at": "2026-10-29T03:33:41Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/420",
+ "base": {
+  "ref": "main",
+  "sha": "cf478229368d6328e7081077c5cbe00e3f976489"
+ },
+ "head": {
+  "ref": "fix/release-e2e-editor-toolbar-and-quit-hang",
+  "sha": "f3dc20dff3aca2e8f0c1e7a7857bced2bd7fb047",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 3,
+ "additions": 57,
+ "deletions": 21,
+ "labels": []
+}

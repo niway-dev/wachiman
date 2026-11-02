@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5709315914,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "800367db8b9d786618dae86ace6d3de55d26edf8",
+  "submitted_at": "2026-10-30T07:31:11Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#pullrequestreview-5709315914",
+  "body": "**Agent review** of the whole pull request, at `800367d`: all 14 files reviewed.\n\n4 finding(s): 4 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Outside the diff\n\n- 🟡📝 **Consider · docs: Page now says the repo is public, but the \"Pre-open checklist\" still reads as future work** (`apps/documentation/src/content/docs/marketing/open-source.md:76`): This PR rewrites the intro (line 10, \"public since 2026-10-05\") and the Timing section (lines 128–131). It also drops \"what has to happen before the repository goes public\" from the description. The rest of the page still treats opening the repo as a future event:\n\n- \"The monorepo opens as a whole\" (lines 71–74) says \"the cost of that is a security pass on the server before the day it happens\" and calls it \"a hard prerequisite\".\n- The \"Pre-open checklist\" (line 76) says \"Nothing below is optional\". Items 1–4 and 8 (history secret scan, security hardening, docs language, personal references, first signed release) are not marked done, while 5–7 are.\n\nA reader can't tell whether the repo went public with items 1–4 still open, or whether they were finished and never marked. Consider marking each item done or accepted. You could also rename the section (for example \"Open-time checklist\") and change the \"before the day it happens\" wording to describe what happened.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 covers six files: LICENSE (now the verbatim AGPL text), CLA.md, CONTRIBUTING.md, README.md, the docs sidebar entry and the legal version constant. The LICENSE text, the README's version-3-only notice and the sidebar slug are consistent with each other. I found no defects, but three things need a decision. First, the CLA says one owner, Niway S.A.C., can relicense the whole project, while the README names Cristian Sotomayor as copyright holder; is there an assignment between them? Second, the CLA's definition of a Contribution reaches issue attachments from people who never sign it. Third, the bumped `LEGAL_VERSION` constant is never imported anywhere; the version users see is a hard-coded i18n string.\n\n**Batch 2 of 2.** I checked part 2 (the trademark policy, PR template note, backlog docs, open-source page and legal i18n strings) against CLA.md, CONTRIBUTING.md, the package.json license fields and the monetization ADR page. They agree:\\n- Only the root package, application, domain and web-ui declare AGPL-3.0-only.\\n- CLA.md has a \\\"How to sign\\\" section and the AGPL-preservation clause.\\n- Open-work item 6 in legal-documents.md is the payment-provider item that supporter-license.md links to.\\n- The en and es terms changes match.\\n\\nI have one finding, at \\\"consider\\\": open-source.md now says the repo is public, but its \\\"Pre-open checklist\\\" and \\\"before the day it happens\\\" wording still read as future work, with several items not marked done.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 6 | 984 | 4 | reviewed | 10 | $0.34 |\n| Batch 2 of 2 | 8 | 152 | 1 | reviewed | 8 | $0.14 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.48</sub>\n\n<!-- agent-review sha=800367db8b9d786618dae86ace6d3de55d26edf8 -->"
+ },
+ {
+  "id": 5709333547,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "submitted_at": "2026-10-30T07:33:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#pullrequestreview-5709333547",
+  "body": ""
+ },
+ {
+  "id": 5709333875,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "submitted_at": "2026-10-30T07:33:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#pullrequestreview-5709333875",
+  "body": ""
+ },
+ {
+  "id": 5709334181,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "aec93d1e9c63bcee1d85d0a81dd5ba4080bc28db",
+  "submitted_at": "2026-10-30T07:33:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/438#pullrequestreview-5709334181",
+  "body": ""
+ }
+]

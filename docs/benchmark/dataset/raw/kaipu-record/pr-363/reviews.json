@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5603967170,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "fedb69ea9b913db7a05e818f43250f7e8f77b55f",
+  "submitted_at": "2026-10-21T17:54:59Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/363#pullrequestreview-5603967170",
+  "body": "**Claude review** of the whole pull request, at `fedb69e`: all 2 files reviewed.\n\n0 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no issues. Both changes move `@kaipu/domain` from `devDependencies` to `dependencies` in `packages/application` and `packages/infra-db`. Each package imports runtime values from it, so this is correct. It doesn't break the import rules: `application` and `infra-db` may depend on `domain`, and no `infra-*` import is added to `application`. No install scripts are introduced.\n\n<sub>Claude Sonnet 5.5 · $0.04</sub>\n\n<!-- claude-review sha=fedb69ea9b913db7a05e818f43250f7e8f77b55f -->"
+ }
+]

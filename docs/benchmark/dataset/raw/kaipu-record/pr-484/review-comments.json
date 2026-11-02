@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4439288892,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/reconcile/reconcile-dialog.tsx",
+  "line": 213,
+  "original_line": 213,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 11,
+  "original_position": 11,
+  "commit_id": "59f6d481c8eb4f9121a006952736b60f06278b9b",
+  "original_commit_id": "de9134b3af9efb36664ea1e726d3b725dca96ba8",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732559784,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:49:28Z",
+  "updated_at": "2026-11-02T05:49:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/484#discussion_r4439288892",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: Dragging to select a file name now toggles the row (confidence medium)**\n\nThe row's `onClick` fires for any click whose target isn't the input. That includes the click Chromium sends after a drag-select when mousedown and mouseup both land inside the `<li>`. Someone who drags over `.rowNow` or `.rowAfter` to copy a long file name will untick (or re-tick) that row as a side effect. The change does show on screen (dimmed row, strikethrough, a different summary count and button label), but it's easy to miss after a copy. One fix is to skip the toggle when `window.getSelection()?.toString()` is non-empty. Another is to add `user-select: none` to `.rowSelectable`, if copying names isn't something users need.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439371045,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/reconcile/reconcile-dialog.tsx",
+  "line": 213,
+  "original_line": 213,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 11,
+  "original_position": 11,
+  "commit_id": "59f6d481c8eb4f9121a006952736b60f06278b9b",
+  "original_commit_id": "de9134b3af9efb36664ea1e726d3b725dca96ba8",
+  "in_reply_to_id": 4439288892,
+  "pull_request_review_id": 5732664588,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:06:40Z",
+  "updated_at": "2026-11-02T06:06:40Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/484#discussion_r4439371045",
+  "body": "Real, fixed in 59f6d481: the row's click handler returns early when `window.getSelection()` has text, so a drag-select over a name to copy it no longer toggles the row. The test now selects text, clicks the row and checks the box keeps its state. Kept text selectable rather than `user-select: none`, because copying long file names is useful here."
+ },
+ {
+  "id": 4439375563,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/reconcile/reconcile-dialog.tsx",
+  "line": 216,
+  "original_line": 216,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 14,
+  "original_position": 14,
+  "commit_id": "59f6d481c8eb4f9121a006952736b60f06278b9b",
+  "original_commit_id": "59f6d481c8eb4f9121a006952736b60f06278b9b",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732669928,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:07:34Z",
+  "updated_at": "2026-11-02T06:07:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/484#discussion_r4439375563",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: Double-clicking a name to copy it still toggles the row once (confidence medium)**\n\nThe guard reads the selection when `click` fires. That covers a drag-select. A double-click on a word is the other common way to grab part of a file name, and it sends two clicks. On the first click nothing is selected yet, so the row toggles. The word is selected on the second mousedown, so only the second click is skipped. The row ends up toggled once, which the new comment says should not happen. A triple-click behaves the same way. One option is to leave the row alone on `event.detail > 1` and also undo the first toggle in `onDoubleClick`. Another is to accept this, since the dimmed row shows the change. The test at reconcile.test.tsx:369-373 mocks a selection that already exists, so it doesn't cover this sequence.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439375689,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/reconcile/reconcile-dialog.tsx",
+  "line": 213,
+  "original_line": 213,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 11,
+  "original_position": 11,
+  "commit_id": "59f6d481c8eb4f9121a006952736b60f06278b9b",
+  "original_commit_id": "de9134b3af9efb36664ea1e726d3b725dca96ba8",
+  "in_reply_to_id": 4439288892,
+  "pull_request_review_id": 5732670028,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:07:35Z",
+  "updated_at": "2026-11-02T06:07:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/484#discussion_r4439375689",
+  "body": "👮 **Wachiman** · **Looks addressed** at `59f6d48`: Addressed. The row handler returns early when `window.getSelection()` has text (reconcile-dialog.tsx:216), so a drag-select no longer toggles the row, and the test covers it. A double-click still toggles once, because the first click lands before the word is selected. I've raised that as a separate, optional note.\n\n<!-- wachi:reply -->"
+ }
+]

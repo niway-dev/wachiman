@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4438643198,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/components/ready-copy-card.tsx",
+  "line": 80,
+  "original_line": 80,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 80,
+  "original_position": 80,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731773787,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:23:57Z",
+  "updated_at": "2026-11-02T03:23:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/22#discussion_r4438643198",
+  "body": "👮 **Wachiman** · 🟠🐛 **Fix · bug: Show in Finder and the drag on the Library's ready card leave the copy marked unseen (confidence high)**\n\nThe toast's version of these actions calls `markCopySeen(recording.assetId)` before both `revealLocalRecording` and `startFileDrag` (`export-status-cards.tsx:280` and `:293`). The ready-copies store defines that contract: a copy is unseen \"until the user opens it ... or acts on its ready card (Show in Finder, drag it out)\" (`ready-copies.ts:10-11`).\n\nThe new Library card skips that call on Show in Finder (line 80) and on drag start (line 93). Here is what happens: the user drags the YouTube copy from the Library's \"Ready to upload\" card into YouTube Studio, then leaves the Library. `retireReadyCards` removes the card, but the copy is still in `unseenCopyIds`. When the user comes back, the regular card is still outlined and the \"1 copy ready\" chip still counts it, even though the user already uploaded it. Only opening the copy's page clears it.\n\nFix: call `markCopySeen(video.assetId)` in both handlers, as the toast does. That also removes the card right away, which matches the toast's behaviour.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438643207,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library/library-page.test.tsx",
+  "line": 225,
+  "original_line": 225,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 122,
+  "original_position": 122,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731773787,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:23:57Z",
+  "updated_at": "2026-11-02T03:23:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/22#discussion_r4438643207",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: \"opening the copy goes to its page and forgets it\" only checks the navigation (confidence high)**\n\nThe test checks `router.state.location.pathname` but never checks that the copy was forgotten. It doesn't assert that `getReadyCopies().copies` no longer contains `asset-copy`, even though `onOpen` calls `markCopySeen` (`library-page.tsx:416`). If someone removed that call, the test would still pass. Add an assertion on the ready-copies store, or on the absence of the ready card.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438643220,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/background-copy-toasts.md",
+  "line": 16,
+  "original_line": 16,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 4,
+  "original_position": 4,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731773787,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:23:57Z",
+  "updated_at": "2026-11-02T03:23:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/22#discussion_r4438643220",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: Update banner leaves the page's strings and validation steps stale (confidence high)**\n\nThe banner mentions the ✕ → pill change and the move to the bottom right, but it does not cover the renamed strings. Several lines still describe the old copy: the frontmatter description and line 29 (\"Preparing your YouTube copy…\", \"· you can keep working\"), lines 33–36 and 68 (\"Your YouTube copy is ready\", **Drag to upload**), line 37 and validation step 5 at line 67 (\"Preparing your export…\" / \"Your export is ready\"), and step 2 at line 62 (\"Click ✕: the card goes away\"). In `packages/i18n/messages/en.json:1413-1430` these are now \"Exporting for YouTube\", \"YouTube copy ready\", \"Exporting your video\" and \"Drag to YouTube Studio\", and the ✕ is now a − that minimizes. If someone runs this page's steps for owner QA, they fail on wording alone. Either say in the banner that those strings and steps are superseded, or update them.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438643225,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/ready-copy-in-library.md",
+  "line": 30,
+  "original_line": 30,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 30,
+  "original_position": 30,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731773787,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:23:57Z",
+  "updated_at": "2026-11-02T03:23:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/22#discussion_r4438643225",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: Leaving the Library retires cards that were never shown (confidence high)**\n\nThis page says a card stays until the user opens it, closes it, or \"leaves the Library and comes back\". Line 58 adds that only cards the filters show lead the grid, and only in grid view. But `retireReadyCards` (`ready-copies.ts:97-100`) clears `card` on every copy. `useLibraryBadge` calls it on any exit from the Library route (`sidebar.tsx:102`), whether or not the card was rendered. Say a copy finishes while the user is in list view or has a filter that hides it. After they leave, its Ready to upload card never appears, though the copy is still outlined as unseen. If that is intended, say so here. Otherwise only retire the cards that were rendered.\n\n<!-- wachi:finding -->"
+ }
+]

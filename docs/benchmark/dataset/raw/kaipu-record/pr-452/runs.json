@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:47:39Z",
+  "databaseId": 41126011832,
+  "displayTitle": "fix(desktop): webcam track recorder and library follow-ups (NIW2-581)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-581-webcam-recorder-followups",
+  "headSha": "4630a5cbf35ca3fa88d9d2ea8fa9ae5cff16e9b4",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:48:47Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41126011832",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-30T20:55:10Z",
+  "databaseId": 41126989268,
+  "displayTitle": "fix(desktop): webcam track recorder and library follow-ups (NIW2-581)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "5e464c9fe6a773b30a00b4d6aea8defe571d973b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:55:11Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41126989268",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

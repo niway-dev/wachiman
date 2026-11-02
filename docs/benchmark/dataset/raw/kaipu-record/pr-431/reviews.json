@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5702068788,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "aaeb53e14d7082e07313341a4e05c10195a49816",
+  "submitted_at": "2026-10-29T17:22:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/431#pullrequestreview-5702068788",
+  "body": "**Agent review** of the whole pull request, at `aaeb53e`: all 6 files reviewed.\n\n1 finding(s): 1 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Outside the diff\n\n- 🟠📝 **Fix · docs: ADR index not updated for 0032 and 0033** (`apps/documentation/src/content/docs/architecture/decisions/index.mdx:16`): The ADR index (decisions/index.mdx) stops at 0031 (line 16). This PR adds ADRs 0032 and 0033 but does not add rows for them, so they are missing from the index that CLAUDE.md and the review rules treat as the catalogue. Add one row each (title, status 'Proposed', date 2026-10-29). I could not edit this file here since it is not in the diff; the finding is placed on the existing last row.\n\n### Summary\n\nDocs-only PR adding workspace design, ADRs 0032/0033 and a backlog entry. The ADR index (decisions/index.mdx) is not updated and ends at 0031, so 0032 and 0033 are missing from it. I found nothing else I could verify.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 6 | 958 | 4 | reviewed | 4 | $0.14 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.14</sub>\n\n<!-- agent-review sha=aaeb53e14d7082e07313341a4e05c10195a49816 -->"
+ }
+]

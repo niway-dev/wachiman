@@ -1,0 +1,29 @@
+{
+ "number": 397,
+ "title": "docs(adr): amend ADR 0028 now that the review script and its tests are gone",
+ "body": "## Summary\n\nAddresses the agent review on #394: ADR 0028's Consequences still said `bun test ./scripts/` (in `check-workflows`) runs the copied review script's tests. Since 534d6c98 the copy and its tests are gone, and #394 removed the step.\n\nADRs are append-only, so this adds a dated **Amendment** section (the same shape as ADR 0010's) instead of rewriting the line, and links it from the Status row. The Status row also drops \"not yet run in this repository\": the agent review ran on #394 and #395 on 2026-10-27.\n\nDocs only. Pushed with `LEFTHOOK=0`: the pre-push hook type-checks the desktop app, and this worktree has no `node_modules`. `oxfmt --check` passes on the file.\n\n## How to test it yourself\n\n1. Open `apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx`, or run `bun run dev` in `apps/documentation` and open ADR 0028.\n2. The Status row says it first ran on PR #394 and links \"amendment\".\n3. The link jumps to \"Amendment: the review script and its tests left this repository\" at the end. The original Consequences line is unchanged above it.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T20:20:31Z",
+ "updated_at": "2026-10-27T20:43:00Z",
+ "closed_at": "2026-10-27T20:43:00Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/397",
+ "base": {
+  "ref": "main",
+  "sha": "a66ba66c4d870d9e66a8d96524ac75acf94f5612"
+ },
+ "head": {
+  "ref": "docs/adr-0028-no-script-tests",
+  "sha": "9a56bbf03b0123be07573aee3757ec22a7915f01",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 1,
+ "additions": 17,
+ "deletions": 7,
+ "labels": []
+}

@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:19:48Z",
+  "databaseId": 41219150529,
+  "displayTitle": "feat(desktop): the editor shows the webcam as its own layer above the zoom, draggable and hideable (NIW2-574)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-574-webcam-preview",
+  "headSha": "658289a9b3e0ca7288e707f1a61ac3dd92d49b38",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:19:57Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41219150529",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T09:09:14Z",
+  "databaseId": 41187502095,
+  "displayTitle": "feat(desktop): the editor shows the webcam as its own layer above the zoom, draggable and hideable (NIW2-574)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-574-webcam-preview",
+  "headSha": "658289a9b3e0ca7288e707f1a61ac3dd92d49b38",
+  "status": "completed",
+  "updatedAt": "2026-10-31T09:09:32Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41187502095",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T09:15:40Z",
+  "databaseId": 41032130341,
+  "displayTitle": "feat(desktop): the editor shows the webcam as its own layer above the zoom, draggable and hideable (NIW2-574)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-574-webcam-preview",
+  "headSha": "eea52be66f140559206de5b91b060426fbf65fe2",
+  "status": "completed",
+  "updatedAt": "2026-10-30T09:15:59Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41032130341",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T09:12:50Z",
+  "databaseId": 41031776852,
+  "displayTitle": "feat(desktop): the editor shows the webcam as its own layer above the zoom, draggable and hideable (NIW2-574)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-574-webcam-preview",
+  "headSha": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "status": "completed",
+  "updatedAt": "2026-10-30T09:14:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41031776852",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T09:12:49Z",
+  "databaseId": 41031776232,
+  "displayTitle": "feat(desktop): the editor shows the webcam as its own layer above the zoom, draggable and hideable (NIW2-574)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-574-webcam-preview",
+  "headSha": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "status": "completed",
+  "updatedAt": "2026-10-30T09:13:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41031776232",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

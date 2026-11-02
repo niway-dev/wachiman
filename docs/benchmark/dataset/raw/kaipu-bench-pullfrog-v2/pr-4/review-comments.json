@@ -1,0 +1,25 @@
+[
+ {
+  "id": 4437825976,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/destinations-panel.tsx",
+  "line": 91,
+  "original_line": 91,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 91,
+  "original_position": 91,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730800567,
+  "subject_type": "line",
+  "created_at": "2026-11-01T23:34:26Z",
+  "updated_at": "2026-11-01T23:34:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/pull/4#discussion_r4437825976",
+  "body": "If the file can't be read, five of the six cards show `…` forever. `useSourceProbe` returns `{ status: \"error\", probe: null }` for an unusable probe (for example `durationSec === 0`, which the page already guards against with `durationUnreadable`). The page passes only `.probe`, so this panel can't tell \"still reading\" apart from \"failed\". Pass the probe status (or a `probeFailed` flag) through and drop the size line, or show a neutral fallback, once reading has failed.\n\n<details><summary>Technical details</summary>\n\n````markdown\n# Destination cards stay on \"…\" when the probe fails\n\n## Affected sites\n- apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.tsx:142 — `useSourceProbe(...).probe` discards `status`\n- apps/kaipu-record/src/renderer/src/features/prepare/components/destinations-panel.tsx:43 — `if (!probe) return null` is the same for loading and error\n- apps/kaipu-record/src/renderer/src/features/prepare/components/destinations-panel.tsx:91 — `size ?? \"…\"` renders a loading indicator forever\n\n## Required outcome\n- When `useSourceProbe` reports `status: \"error\"`, the non-archive cards no longer show a loading ellipsis; they show nothing or a neutral fallback.\n- The archive card, which uses `sizeBytes` directly, is unaffected.\n````\n\n</details>"
+ }
+]

@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T02:21:29Z",
+  "databaseId": 40154136795,
+  "displayTitle": "fix(desktop): keep Kaipu in the Dock and Cmd+Tab after recording and camera toggles",
+  "event": "pull_request",
+  "headBranch": "fix/dock-lost-after-floating-panels",
+  "headSha": "bda1ea951b218eaa3abc6a3e445aa0c27c202973",
+  "status": "completed",
+  "updatedAt": "2026-10-25T02:21:34Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40154136795",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T01:11:57Z",
+  "databaseId": 40149684984,
+  "displayTitle": "fix(desktop): keep Kaipu in the Dock and Cmd+Tab after recording and camera toggles",
+  "event": "pull_request",
+  "headBranch": "fix/dock-lost-after-floating-panels",
+  "headSha": "bda1ea951b218eaa3abc6a3e445aa0c27c202973",
+  "status": "completed",
+  "updatedAt": "2026-10-25T01:12:11Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40149684984",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T01:08:08Z",
+  "databaseId": 40149430292,
+  "displayTitle": "fix(desktop): keep Kaipu in the Dock and Cmd+Tab after recording and camera toggles",
+  "event": "pull_request",
+  "headBranch": "fix/dock-lost-after-floating-panels",
+  "headSha": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "status": "completed",
+  "updatedAt": "2026-10-25T01:08:23Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40149430292",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T01:08:08Z",
+  "databaseId": 40149430262,
+  "displayTitle": "fix(desktop): keep Kaipu in the Dock and Cmd+Tab after recording and camera toggles",
+  "event": "pull_request",
+  "headBranch": "fix/dock-lost-after-floating-panels",
+  "headSha": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "status": "completed",
+  "updatedAt": "2026-10-25T01:08:39Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40149430262",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ }
+]

@@ -1,0 +1,38 @@
+[
+ {
+  "id": 5721877364,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8a1fcc3976fa8d9d732336cee95695269389987c",
+  "submitted_at": "2026-10-31T07:51:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/468#pullrequestreview-5721877364",
+  "body": "**Agent review** of the whole pull request, at `8a1fcc3`: all 6 files reviewed.\n\n2 finding(s): 2 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe PR draws the take's recorded webcam over the Library's original player. To do this it pulls the editor's sync logic out into a shared `useWebcamSync` hook. It also adds a read-only `WebcamPlaybackLayer` that copies the main video's playback rate. The refactor keeps the editor's behaviour: same seek, gap and play/pause handling, and `path` is null only for the playback layer. `pictureBox` correctly matches `object-fit: contain` inside the 16:9 player. The tests cover where the bubble goes and its shape, gaps, playback rate, and the no-webcam case. I found no defects. There are two points to consider: a comment under the player that now undersells what the player shows, and the overlay's interaction with the native controls and fullscreen.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 6 | 432 | 4 | reviewed | 9 | $0.21 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.21</sub>\n\n<!-- agent-review sha=8a1fcc3976fa8d9d732336cee95695269389987c -->"
+ },
+ {
+  "id": 5721879817,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8a1fcc3976fa8d9d732336cee95695269389987c",
+  "submitted_at": "2026-10-31T07:52:39Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/468#pullrequestreview-5721879817",
+  "body": "> ℹ️ No critical issues. One minor suggestion inline.\n\n**Reviewed changes**\n\nI reviewed the whole PR: the face is now drawn over the Library's original player, and the editor's webcam sync logic moved into a shared hook.\n\n- **`WebcamPlaybackLayer` over the original player**: the webcam file is laid over the screen video at the sidecar's `recordedLayout`, seeded by the editor's own `seedWebcamScene`. It is hidden during `gaps` and stays in step through play, pause and seek.\n- **`useWebcamSync` extracted**: the editor's `WebcamLayer` and the new read-only layer share the per-frame placement and resync logic, through a shared `WebcamMedia` element. `path` is now nullable, and scale falls back to `1` when it is missing.\n- **Playback rate mirrored**: `apply()` copies the main element's `playbackRate`, and a `ratechange` listener applies it right away. This changes the editor too.\n- **`pictureBox` placement**: the layer covers the picture's own letterboxed or pillarboxed rectangle inside the 16:9 player. The read-only bubble uses `data-interactive=\"false\"` and `pointer-events: none`, so clicks still reach the native controls.\n- **Tests**: page tests cover placement and shape, hiding in a gap and coming back after a seek, rate mirroring and a take without a webcam. Unit tests cover the `pictureBox` math.\n\n<!--\nPullfrog review metadata. These findings were written against 8a1fcc3;\nif commits have landed on feature/webcam-library-player-face since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 6\n- Commits reviewed: 1\n- Base: feature/webcam-camera-toggle-mid-take\n- Head: feature/webcam-library-player-face (8a1fcc3)\n- Reviewed commits:\n  - 8a1fcc39 — fix(desktop): the Library player shows the recorded face over the original\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/468?action=fix&review_id=5721879817) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/468?action=fix-approved&review_id=5721879817) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41182198913/job/124481716952) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5722076405,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c397515d0e7fb6059a5a53b17753bfef39306252",
+  "submitted_at": "2026-10-31T08:56:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/468#pullrequestreview-5722076405",
+  "body": "> ℹ️ No new issues in the merge. The earlier fullscreen/PiP thread on `recording-player.tsx` is still open.\n\n**Reviewed changes**\n\nSince the last review, the base branch was merged in (`c397515`). I checked how the conflicts in `recording-player.tsx` and the tests were resolved.\n\n- **Rename restore folded into the webcam player**: the base's NIW2-560 position/paused carry-over (`position`, `restoring`, `useLayoutEffect` on `id`) now sits next to the webcam layer. One `onLoadedMetadata` sets `frame` and restores the position after an `id` change, and neither job is lost.\n- **Media URLs through `mediaUrl`**: the screen and webcam sources are both built with `mediaUrl(\"recording\" | \"webcam\", id)`, so the webcam URL also gets the workspace `w` param. A rename moves `<id>.webcam.mp4` together with the item, so the webcam `src` follows `id` correctly.\n- **ADR citations renumbered**: the comments in `recording-player.tsx` and `webcam-layer.tsx` now cite ADR 0037 instead of 0032.\n- **Tests merged**: `recording-player.test.tsx` keeps the base's rename tests and this PR's `pictureBox` tests. I ran the touched suites locally (21 files, 212 tests) and they pass. Desktop `check-types` is clean.\n\n<!--\nPullfrog review metadata. These findings were written against c397515;\nif commits have landed on feature/webcam-library-player-face since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 6\n- Commits reviewed: 2\n- Base: feature/webcam-camera-toggle-mid-take\n- Head: feature/webcam-library-player-face (c397515)\n- Reviewed commits:\n  - c397515 — Merge feature/webcam-camera-toggle-mid-take into feature/webcam-library-player-face; webcam ADRs cited as 0037 and 0038\n- Prior pullfrog review: 8a1fcc3 (https://github.com/niway-dev/kaipu-record/pull/468#pullrequestreview-5721879817)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix it ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/468?action=fix&review_id=5722076405) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41186483133/job/124494336923) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ }
+]

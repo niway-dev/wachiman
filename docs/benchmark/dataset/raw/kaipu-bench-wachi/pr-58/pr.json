@@ -1,0 +1,31 @@
+{
+ "number": 58,
+ "title": "[replay r3] fix(api): close upload abuse paths [NIW2-323]",
+ "body": "> **Replay of [niway-dev/kaipu-record#276](https://github.com/niway-dev/kaipu-record/pull/276), run 3** for the code-review benchmark. Same base and head commits as the round-1 replay (a second branch name on the same commit, so the reviewer sees a fresh pull request). Never merged. Method: [wachiman/docs/benchmark](https://github.com/niway-dev/wachiman/tree/main/docs/benchmark).\n\n---\n\n## Summary\n\nRemediation for audit findings F-1 (quota released while a presigned upload ticket can still write), F-2 (legacy `/api/v1/recordings` upload flow with no v2 controls and no callers) and F-9 (unvalidated asset-list cursor).\n\nDesign spec: `apps/documentation/src/content/docs/specs/2026-10-12-api-upload-abuse.md`\n\n## State of this branch\n\n- `f34df72` — WIP from an interrupted implementation agent (ticket-window deferral in cancel/delete/retry, legacy upload routes removed, cursor schema). Its message says `bun run verify` was not run; it was run on this commit in a clean worktree on 2026-10-12 and exited 0, but the work has not been reviewed.\n- `f91b56d` — the design spec: current vs target behavior, design per finding with alternatives, interaction with NIW2-328 (scheduled jobs), test plan, acceptance criteria, rollout/backout, and an implementation-status section listing what the WIP already does and the remaining tasks in order.\n\n## Open questions (from the spec)\n\n1. Accept the pending-slot lockout during the ticket window (up to 3 h 05 min after a deferred cancel), or add a `cancelled` revision status?\n2. Ship order with NIW2-328: deferred cancels/deletes only settle once the scheduled handler exists.\n3. Orphan-object sweep: confirm it is designed here and scheduled in NIW2-328, and that legacy `recording` keys are treated as backed until cloud-01 Task 12.\n4. Remove the remaining legacy read/delete routes now, or at Task 12 as planned (the web `/recordings` page uses them)?\n\nRefs: NIW2-323\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "open",
+ "merged": false,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T06:04:41Z",
+ "updated_at": "2026-11-02T06:06:29Z",
+ "closed_at": null,
+ "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/58",
+ "base": {
+  "ref": "replay/pr-276/base",
+  "sha": "400c80e4ff0dcb98338b411aea70a02b63b517d7"
+ },
+ "head": {
+  "ref": "replay/pr-276/head-r3",
+  "sha": "f91b56dec34096ce1b2d29d3dcf3594b7a753f7e",
+  "repo": "niway-dev/kaipu-bench-wachi"
+ },
+ "changed_files": 19,
+ "additions": 641,
+ "deletions": 357,
+ "labels": [
+  "replay"
+ ]
+}

@@ -1,0 +1,29 @@
+{
+ "number": 453,
+ "title": "fix(desktop): no pink border on the camera bubble in recordings (NIW2-588)",
+ "body": "Linear: [NIW2-588](https://linear.app/niway/issue/NIW2-588/camera-bubble-no-pink-border-in-recordings-chrome-only-on-hover)\n\n## Why\n\nRecordings with the camera on show a pink ring around the webcam circle.\n\n## Where the border came from\n\n- **Live bubble window (the cause).** `.bubble` in `camera-bubble.module.css` had a permanent `border: 3px solid var(--accent-primary)`. The bubble is a floating window that sits on the recorded screen, so the screen capture recorded the ring in every take.\n- **Editor / export (not a cause).** On `main` the editor and export never composite a webcam (the webcam track is not merged yet), so nothing there draws a border. The editor's `camera-box` is the zoom camera, unrelated.\n- **Hover chrome (a smaller leak).** The outline, size label, grip and close button were hidden only once the take became `active`. That broadcast reaches the bubble window *after* the capture has started, so a pointer resting on the bubble could leave the chrome in the first frames.\n\n## What changed\n\n- The bubble has no border at rest. The accent outline exists only under the hover-chrome selector.\n- The chrome hides as soon as a take is **pending** (countdown or streams acquiring), not only once it is active. A grip drag in progress ends at that point too and saves the size it reached. A cancelled countdown gives the chrome back.\n- Tests: a component test for the pending state, and a stylesheet test that reads the real CSS (jsdom applies none) and fails if `.bubble` gets a `border` or `outline` again.\n\n`bun run verify` passes locally. No runtime check was done on this machine; that is the QA below.\n\n## How to test it yourself\n\n1. Rebuild/run the desktop app from this branch and turn the camera on.\n2. With the pointer away from the bubble: the webcam shows with **no pink ring**, only the soft shadow.\n3. Hover the bubble: the pink outline, size label (`240 px · M`), resize grip and close (X) button appear. Move the pointer away: all of them disappear.\n4. Leave the pointer resting on the bubble and start a recording with the countdown on. When the countdown appears, the outline, label, grip and X disappear at once, even though the pointer is still on the bubble.\n5. Cancel a countdown with the pointer still on the bubble: the chrome comes back.\n6. Record a few seconds, stop, and open the recording: the webcam circle has no coloured outline in any frame, including the first.\n7. Repeat steps 2 and 6 with the rounded-square shape.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-30T20:52:35Z",
+ "updated_at": "2026-10-30T20:54:41Z",
+ "closed_at": "2026-10-30T20:54:37Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/453",
+ "base": {
+  "ref": "main",
+  "sha": "bbbc0b8015549edee090fe26ee4b846685e9b7e3"
+ },
+ "head": {
+  "ref": "fix/niw2-588-camera-bubble-no-pink-border",
+  "sha": "b0f9062ba52da42af0022693ac3b9e908e0a4828",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 3,
+ "additions": 69,
+ "deletions": 11,
+ "labels": []
+}

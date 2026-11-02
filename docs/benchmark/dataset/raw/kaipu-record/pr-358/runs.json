@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:37:35Z",
+  "databaseId": 39550614479,
+  "displayTitle": "fix(desktop): tag registry imports once and is never overwritten when untrusted (audit LIB-A4, LIB-B6, LIB-B7)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-07-tags-registry-integrity",
+  "headSha": "981630aaf6f9b17eeb4cabaa8350d466da44e3ef",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:37:42Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39550614479",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:33:55Z",
+  "databaseId": 39550269845,
+  "displayTitle": "fix(desktop): tag registry imports once and is never overwritten when untrusted (audit LIB-A4, LIB-B6, LIB-B7)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-07-tags-registry-integrity",
+  "headSha": "981630aaf6f9b17eeb4cabaa8350d466da44e3ef",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:34:11Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39550269845",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:19:18Z",
+  "databaseId": 39548881534,
+  "displayTitle": "fix(desktop): tag registry imports once and is never overwritten when untrusted (audit LIB-A4, LIB-B6, LIB-B7)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-07-tags-registry-integrity",
+  "headSha": "f522276e0600917a0685873135fff37952e789d3",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:19:36Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39548881534",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:19:18Z",
+  "databaseId": 39548881438,
+  "displayTitle": "fix(desktop): tag registry imports once and is never overwritten when untrusted (audit LIB-A4, LIB-B6, LIB-B7)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-07-tags-registry-integrity",
+  "headSha": "f522276e0600917a0685873135fff37952e789d3",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:19:41Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39548881438",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ }
+]

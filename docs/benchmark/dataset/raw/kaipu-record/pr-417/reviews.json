@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5686390577,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9597b871e11b817f6bab73915f0bca80c400894d",
+  "submitted_at": "2026-10-28T16:47:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/417#pullrequestreview-5686390577",
+  "body": "**Agent review** of the whole pull request, at `9597b87`: all 4 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nNo findings. The min-width and padding change fits how useCompactRow measures (it sums offsetWidth, which excludes margins), the tooltip leads with the full name, the new test checks it, and the spec doc is in the right directory. I did not run the tests or check the layout in a browser.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 4 | 98 | 4 | reviewed | 12 | $0.10 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.10</sub>\n\n<!-- agent-review sha=9597b871e11b817f6bab73915f0bca80c400894d -->"
+ }
+]

@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:25:54Z",
+  "databaseId": 41123145804,
+  "displayTitle": "fix(desktop): a sidecar read error never mints a new assetId (NIW2-568)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-568-sidecar-read-hardening",
+  "headSha": "e9c8961c434835ceef2cfa43cc5428b23eb02672",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:26:05Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41123145804",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T20:25:07Z",
+  "databaseId": 41123033465,
+  "displayTitle": "fix(desktop): a sidecar read error never mints a new assetId (NIW2-568)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-568-sidecar-read-hardening",
+  "headSha": "e9c8961c434835ceef2cfa43cc5428b23eb02672",
+  "status": "completed",
+  "updatedAt": "2026-10-30T20:25:32Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41123033465",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T07:33:32Z",
+  "databaseId": 41020817728,
+  "displayTitle": "fix(desktop): a sidecar read error never mints a new assetId (NIW2-568)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-568-sidecar-read-hardening",
+  "headSha": "c59e58fb89d3c5bc3ce2b0e122f8fb93e59c1074",
+  "status": "completed",
+  "updatedAt": "2026-10-30T07:34:22Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41020817728",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T07:33:32Z",
+  "databaseId": 41020817360,
+  "displayTitle": "fix(desktop): a sidecar read error never mints a new assetId (NIW2-568)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-568-sidecar-read-hardening",
+  "headSha": "c59e58fb89d3c5bc3ce2b0e122f8fb93e59c1074",
+  "status": "completed",
+  "updatedAt": "2026-10-30T07:33:50Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41020817360",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

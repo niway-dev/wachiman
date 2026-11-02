@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T01:06:59Z",
+  "databaseId": 41153724626,
+  "displayTitle": "feat(desktop): float \"Your video is ready\" outside the app window",
+  "event": "pull_request",
+  "headBranch": "feature/floating-ready-window",
+  "headSha": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "status": "completed",
+  "updatedAt": "2026-10-31T01:08:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41153724626",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T08:46:58Z",
+  "databaseId": 41185990652,
+  "displayTitle": "feat(desktop): float \"Your video is ready\" outside the app window",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "8aa2c207ee4095dcc94d7e43ed0a879be8494624",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:46:59Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41185990652",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

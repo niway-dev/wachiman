@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:43:03Z",
+  "databaseId": 40580512332,
+  "displayTitle": "docs(adr): amend ADR 0028 now that the review script and its tests are gone",
+  "event": "pull_request",
+  "headBranch": "docs/adr-0028-no-script-tests",
+  "headSha": "9a56bbf03b0123be07573aee3757ec22a7915f01",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:43:10Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40580512332",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:20:35Z",
+  "databaseId": 40577177392,
+  "displayTitle": "docs(adr): amend ADR 0028 now that the review script and its tests are gone",
+  "event": "pull_request",
+  "headBranch": "docs/adr-0028-no-script-tests",
+  "headSha": "9a56bbf03b0123be07573aee3757ec22a7915f01",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:21:05Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40577177392",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T20:20:35Z",
+  "databaseId": 40577176830,
+  "displayTitle": "docs(adr): amend ADR 0028 now that the review script and its tests are gone",
+  "event": "pull_request",
+  "headBranch": "docs/adr-0028-no-script-tests",
+  "headSha": "9a56bbf03b0123be07573aee3757ec22a7915f01",
+  "status": "completed",
+  "updatedAt": "2026-10-27T20:20:52Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40577176830",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

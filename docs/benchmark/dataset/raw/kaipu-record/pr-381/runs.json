@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-26T23:03:36Z",
+  "databaseId": 40417056809,
+  "displayTitle": "feat(desktop): add a Record submenu to the tray menu",
+  "event": "pull_request",
+  "headBranch": "feat/tray-record-submenu",
+  "headSha": "f7a16e69a54336765caeb31e3a031cd675ada226",
+  "status": "completed",
+  "updatedAt": "2026-10-26T23:04:09Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40417056809",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-27T00:45:55Z",
+  "databaseId": 40428463683,
+  "displayTitle": "feat(desktop): add a Record submenu to the tray menu",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "a6d1c8953490beb0e644df9b762d87b95072064e",
+  "status": "completed",
+  "updatedAt": "2026-10-27T00:45:56Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40428463683",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

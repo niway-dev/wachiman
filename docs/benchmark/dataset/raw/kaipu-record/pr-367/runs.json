@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:22:42Z",
+  "databaseId": 40157983675,
+  "displayTitle": "fix(desktop): serialize and harden vault writes (audit LIB-B1/B8/B10, SHOT-B3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-390-04-sidecar-write-serialization",
+  "headSha": "25ced906c0bb44d8c8a889c35e42239b117c63d6",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:22:51Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40157983675",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:21:51Z",
+  "databaseId": 40157930108,
+  "displayTitle": "fix(desktop): serialize and harden vault writes (audit LIB-B1/B8/B10, SHOT-B3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-390-04-sidecar-write-serialization",
+  "headSha": "25ced906c0bb44d8c8a889c35e42239b117c63d6",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:22:09Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40157930108",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:09:25Z",
+  "databaseId": 40157162800,
+  "displayTitle": "fix(desktop): serialize and harden vault writes (audit LIB-B1/B8/B10, SHOT-B3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-390-04-sidecar-write-serialization",
+  "headSha": "0be08de9587bda716ac1235271faf1084ba1478d",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:09:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40157162800",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:09:24Z",
+  "databaseId": 40157162741,
+  "displayTitle": "fix(desktop): serialize and harden vault writes (audit LIB-B1/B8/B10, SHOT-B3)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-390-04-sidecar-write-serialization",
+  "headSha": "0be08de9587bda716ac1235271faf1084ba1478d",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:09:52Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40157162741",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ }
+]

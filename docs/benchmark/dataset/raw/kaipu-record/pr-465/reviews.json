@@ -1,0 +1,86 @@
+[
+ {
+  "id": 5720283119,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "submitted_at": "2026-10-31T01:08:12Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/465#pullrequestreview-5720283119",
+  "body": "**Agent review** of the whole pull request, at `dac8318`: all 14 files reviewed.\n\n2 finding(s): 2 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 (the destinations panel, the copies panel and the library detail page) looks correct. These checks found no problems: `showDestinations` and `hasCopies` gating, the \"Not now\" dismissal keyed by asset id, the saved notice and master note never showing together, the heavy banner now covering masters that have copies, the drag button skipped for copies with no local file, and the use of the existing `startFileDrag` preload API. The preload boundary is not widened. Two test findings, both \"consider\": the Open in Export test never checks the button is absent without the prop, and the drag test overwrites the shared `electronAPI` stub without restoring it.\n\n**Batch 2 of 2.** No findings in part 2. I checked these files against `library-detail-page.tsx`, `destinations-panel.tsx` and `master-copies-panel.tsx`:\n\n- **Stylesheets:** every class the two panel components use exists in the new stylesheets. The classes removed from `master-copies-panel.module.css` (`.empty`, `.list`, `.size`, `.progress`) and the deleted strip stylesheet are no longer used anywhere.\n- **Messages:** the i18n keys that are still used are still present. `sendTo` stays because the Library's card and row components still use it, and `sendToHint` stays because the Export a copy button uses it as its tooltip. The keys that were removed have no remaining callers.\n- **Tests:** the tests match how the page renders now:\n  - The title row really contains only the back link, the title and the tag.\n  - The page shows \"Where is it going?\" only when the recording has no copies, and Export a copy waits until that panel is gone.\n  - The saved notice hides the master note until it is dismissed.\n  - `cleanup()` is now called before the second render. That is why the copy page now correctly expects no master tag at all.\n  - Dropping the \"file isn't read\" assertion matches the page now reading the file for every local recording.\n- **Docs:** the backlog entry and the prepare-screen doc describe what the code does: the metadata line, the destinations panel driven by `DESTINATION_IDS`, the copies list, and where the heavy-to-send hint goes.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 5 | 852 | 4 | reviewed | 7 | $0.24 |\n| Batch 2 of 2 | 9 | 763 | 2 | reviewed | 5 | $0.25 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.48</sub>\n\n<!-- agent-review sha=dac8318b631e64780f65ce94b4aaa57261d7d63d -->"
+ },
+ {
+  "id": 5720287173,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "submitted_at": "2026-10-31T01:09:20Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/465#pullrequestreview-5720287173",
+  "body": "> ℹ️ No critical issues. One minor suggestion inline.\n\n**Reviewed changes**\n\nI reviewed the full relayout of the recording detail page, the new `DestinationsPanel`, the reworked `MasterCopiesPanel`, and the i18n and backlog doc updates.\n\n- **Title row**: `← Library`, the title and the master tag now share the top row, and the metadata, tags and lineage moved under it. The resolution and a copy count were added to the metadata line.\n- **Actions**: the row holds only buttons and wraps. \"Export a copy\" replaces \"Send to…\" and stays hidden while the destinations panel is showing.\n- **`DestinationsPanel`**: replaces `WhereIsThisGoingStrip`. It shows one equal card per `DESTINATION_IDS` entry with its estimate from `planCopy`, and shows only before the first copy. \"Not now\" hides it until the page is left.\n- **`MasterCopiesPanel`**: renders only when copies exist, two to a row. Each row shows the picture size worked out from the probe and the preset, plus a progress bar, a Drag handle (`startFileDrag`) and \"Open in Export →\".\n- **Saved notice**: a dismissable green notice appears on `fromRecording` arrivals and replaces the \"original never changes\" line while it is visible.\n- **Probe**: `useSourceProbe` now reads every preparable recording, not only heavy ones.\n- **Heavy banner**: the condition moved from `!master` to `!showDestinations`, so a heavy master with copies, or one whose panel was dismissed, now shows the banner.\n\n<!--\nPullfrog review metadata. These findings were written against dac8318;\nif commits have landed on feature/recording-detail-title-and-copies since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 14\n- Commits reviewed: 1\n- Base: feature/niw2-587-prepare-drop-zone (13b7ff5d)\n- Head: feature/recording-detail-title-and-copies (dac8318)\n- Reviewed commits:\n  - dac8318 — feat(desktop): recording detail — title on top, destinations, copies from this original\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/465?action=fix&review_id=5720287173) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/465?action=fix-approved&review_id=5720287173) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41153720657/job/124395791467) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5720305192,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4b8352579f3dcaaedcacc35af56206657f0a98e7",
+  "submitted_at": "2026-10-31T01:14:13Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/465#pullrequestreview-5720305192",
+  "body": "> ℹ️ No new code issues. The merge left one doc note stale; see the inline comment.\n\n**Reviewed changes**\n\nSince the last review, the only new commit merges `feature/export-screen` into the branch, and the PR is now based on it.\n\n- **Email destination picked up**: `DESTINATION_IDS` now has seven entries, so `DestinationsPanel` renders an Email card automatically. The card has its logo, copy strings, Balanced preset and teal `keep-light` tone. The page test now checks for seven cards and the `?to=email` row.\n- **Export routes**: `preparePath` now builds `/export/:assetId`, and every navigation assertion in `library-detail-page.test.tsx` moved from `/prepare/asset-b` to `/export/asset-b`.\n- **Backlog index**: the merge added the Export screen row next to this PR's updated Prepare row.\n\nThe earlier thread about the Drag handle not calling `markCopySeen` (`master-copies-panel.tsx:174`) is still open, because this push didn't change that code.\n\n<!--\nPullfrog review metadata. These findings were written against 4b83525;\nif commits have landed on feature/recording-detail-title-and-copies since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 14\n- Commits reviewed: 2\n- Base: feature/export-screen\n- Head: feature/recording-detail-title-and-copies (4b83525)\n- Reviewed commits:\n  - 4b83525 — Merge branch 'feature/export-screen' into feature/recording-detail-title-and-copies\n  - dac8318 — feat(desktop): recording detail — title on top, destinations, copies from this original\n- Prior pullfrog review: dac8318 (https://github.com/niway-dev/kaipu-record/pull/465#pullrequestreview-5720287173)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/465?action=fix&review_id=5720305192) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/465?action=fix-approved&review_id=5720305192) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41154158467/job/124397162487) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5722041371,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4b8352579f3dcaaedcacc35af56206657f0a98e7",
+  "submitted_at": "2026-10-31T08:46:15Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/465#pullrequestreview-5722041371",
+  "body": ""
+ },
+ {
+  "id": 5722041695,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4b8352579f3dcaaedcacc35af56206657f0a98e7",
+  "submitted_at": "2026-10-31T08:46:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/465#pullrequestreview-5722041695",
+  "body": ""
+ },
+ {
+  "id": 5722041870,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4b8352579f3dcaaedcacc35af56206657f0a98e7",
+  "submitted_at": "2026-10-31T08:46:19Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/465#pullrequestreview-5722041870",
+  "body": ""
+ },
+ {
+  "id": 5722042270,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4b8352579f3dcaaedcacc35af56206657f0a98e7",
+  "submitted_at": "2026-10-31T08:46:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/465#pullrequestreview-5722042270",
+  "body": ""
+ }
+]

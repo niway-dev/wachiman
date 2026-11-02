@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4438734406,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/components/ready-copy-card.tsx",
+  "line": 80,
+  "original_line": 80,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 80,
+  "original_position": 80,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731878689,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:43:55Z",
+  "updated_at": "2026-11-02T03:43:56Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/37#discussion_r4438734406",
+  "body": "👮 **Wachiman** · 🟡❓ **Consider · question: Show in Finder / drag on the Library card does not mark the copy seen, unlike the toast (confidence low)**\n\nThe ready toast's Show in Finder and drag handlers call `markCopySeen` first (`export-status-cards.tsx:280` and `:293`). The header of `ready-copies.ts` says a copy is seen when the user \"acts on its ready card (Show in Finder, drag it out)\". The Library card's two actions (`ready-copy-card.tsx:80`, `:93`) do not. After the user reveals or drags the file out, the \"1 copy ready\" chip and the outline on the copy stay until the card is opened or the user leaves the Library. Calling `markCopySeen` on drag start would also remove the card mid-drag, so leaving it out may be intended. If so, say it in the `ready-copies.ts` header, which currently reads as if every ready card clears on action.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438734410,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/export-status-cards.tsx",
+  "line": 216,
+  "original_line": 216,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 143,
+  "original_position": 143,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731878689,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:43:55Z",
+  "updated_at": "2026-11-02T03:43:56Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/37#discussion_r4438734410",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: role=\"progressbar\" nested inside a <button> is dropped by assistive tech (confidence low)**\n\nA button's children are presentational in the accessibility tree. The `progressbar` span inside the pill button (line 216) will not be exposed, so a screen-reader user only hears \"Show the export's progress\" and never the percent. Tests find it by text, so they do not catch this. Put the percent in the button's `aria-label`, for example `t(\"pill\", …)` plus the expand hint, or render the progressbar outside the button.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438734413,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/components/ready-copy-card.module.css",
+  "line": 180,
+  "original_line": 180,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 180,
+  "original_position": 180,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731878689,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:43:55Z",
+  "updated_at": "2026-11-02T03:43:56Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/37#discussion_r4438734413",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: `--bg-hover` is not defined, so the ✕ hover fallback is white-on-light in the light theme (confidence medium)**\n\n`var(--bg-hover, rgba(255, 255, 255, 0.06))` uses a token that exists nowhere in the repo. I searched for a `--bg-hover:` definition in `packages/tokens/css/tokens.css` and the rest of the repo and found none. The fallback therefore always applies. It is a 6% white wash, which is invisible on the light theme's white `--bg-card` (`tokens.css` has a light block at line 61). The tokens do define `--bg-card-hover`, with a dark and a light value. Use that. `tag-editor.module.css:85` has the same undefined-token pattern but is outside this PR.\n\n<!-- wachi:finding -->"
+ }
+]

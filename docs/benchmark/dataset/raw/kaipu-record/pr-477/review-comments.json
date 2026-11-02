@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4437990171,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": ".github/workflows/agent-review.yml",
+  "line": 16,
+  "original_line": 16,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 7,
+  "original_position": 7,
+  "commit_id": "eca331971d6a44d73249382863813a888e51be7a",
+  "original_commit_id": "eca331971d6a44d73249382863813a888e51be7a",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730986043,
+  "subject_type": "line",
+  "created_at": "2026-11-02T00:25:50Z",
+  "updated_at": "2026-11-02T00:25:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/477#discussion_r4437990171",
+  "body": "👮 **Wachiman** · 🟡❓ **Consider · question: Does `synchronize` also start reviews on draft pull requests?**\n\nGitHub sends `synchronize` for pushes to draft pull requests as well as ready ones. This caller has no `if:` that checks `github.event.pull_request.draft`, but the comment above it (line 14) and the ADR amendment (line 107) both say \"every push to a ready pull request\". Does `niway-dev/wachiman/.github/workflows/review.yml@v1.3.0` skip drafts itself? If it doesn't, every push to a draft gets a paid Opus review. Fix that with `if: github.event_name != 'pull_request' || !github.event.pull_request.draft` on the job. If it does, the ADR could say the engine skips drafts, so the claim has a source.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437990176,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx",
+  "line": 123,
+  "original_line": 123,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 53,
+  "original_position": 53,
+  "commit_id": "eca331971d6a44d73249382863813a888e51be7a",
+  "original_commit_id": "eca331971d6a44d73249382863813a888e51be7a",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730986043,
+  "subject_type": "line",
+  "created_at": "2026-11-02T00:25:50Z",
+  "updated_at": "2026-11-02T00:25:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/477#discussion_r4437990176",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: The concurrency-group cost claim depends on the engine, not on this repository**\n\n`.github/workflows/agent-review.yml` declares no `concurrency:` block, so the claim that a newer push cancels a running review depends on the reusable workflow at `v1.3.0` defining one with `cancel-in-progress`. Naming the engine as the source (for example \"the engine's concurrency group\") would keep this claim true if this file ever gets its own block, or if the engine changes its own.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437990182,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx",
+  "line": 106,
+  "original_line": 106,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 36,
+  "original_position": 36,
+  "commit_id": "eca331971d6a44d73249382863813a888e51be7a",
+  "original_commit_id": "eca331971d6a44d73249382863813a888e51be7a",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730986043,
+  "subject_type": "line",
+  "created_at": "2026-11-02T00:25:50Z",
+  "updated_at": "2026-11-02T00:25:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/477#discussion_r4437990182",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: The ADR still records the engine as `niway-dev/wachi-reviewer` pinned to v1.2.0**\n\nThe workflow calls `niway-dev/wachiman/.github/workflows/review.yml@v1.3.0` (`.github/workflows/agent-review.yml:21`). This new amendment also names `niway-dev/wachiman`. But the Status row (line 12) and the previous amendment (lines 94–102) still say `niway-dev/wachi-reviewer` pinned to `v1.2.0`, and no amendment records the rename to wachiman or the bump to v1.3.0. A sentence in this amendment, or a short separate one, would close that gap without rewriting history. The frontmatter `description` (line 3) also still says \"reviews each pull request once when it is ready\", which this amendment no longer matches.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437994884,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx",
+  "line": 124,
+  "original_line": 124,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 54,
+  "original_position": 54,
+  "commit_id": "eca331971d6a44d73249382863813a888e51be7a",
+  "original_commit_id": "eca331971d6a44d73249382863813a888e51be7a",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730991622,
+  "subject_type": "line",
+  "created_at": "2026-11-02T00:27:21Z",
+  "updated_at": "2026-11-02T00:27:22Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/477#discussion_r4437994884",
+  "body": "The known-costs list misses two ways a push can cost far more than its own delta. These are the costs that every-push reviews make routine:\n\n- **Merging `main` into the branch.** The engine diffs `compare/<marker>...<head>`. A merge commit leaves the head `ahead` of the marker, so every file `main` changed since then lands in the review scope, up to the $3 cap. The engine may also comment on code the PR never touched.\n- **A partial review keeps the marker in place.** The marker moves only after a full, unscoped review that covered every file (`if (!scoped && notReviewed.length === 0) parts.push(marker(headSha))` in `src/engine.ts`). So when one review hits the budget, every later push re-reviews everything since the old marker and can hit the cap again.\n\nBoth seem worth listing next to the rebase case."
+ }
+]

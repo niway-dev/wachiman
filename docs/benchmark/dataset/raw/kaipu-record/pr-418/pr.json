@@ -1,0 +1,29 @@
+{
+ "number": 418,
+ "title": "fix(desktop): resend a spare overlay its state once its listener is attached",
+ "body": "## Problem\n\nStarting a Frame recording could leave the app looking stuck with no error. The owner's terminal ended at:\n\n```\n[record-timing] +0ms start clicked (frame mode)\n[record-timing] +37ms overlay spares reused\n[record-timing] +275ms overlay shown on display 1\n```\n\nNo \"overlay answered\" line followed.\n\n## Root cause\n\nSince 11020663, a spare capture overlay loads with a neutral query (`spare=1`). It learns its mode, intent and frame display only from main's first `screenshot:overlay-state` message, and until that message arrives it renders `null`.\n\nIn this case the spare was still loading when its pick opened, and main counted it as \"reused\". Main reveals that spare on `ready-to-show` and sends the state in `reveal()`. That can happen before React's `useEffect` attaches the `onState` listener, so the message was lost.\n\nThe result was a screen-sized, focused, transparent window that painted nothing and swallowed every click and key.\n\n## Reproduced in the built app\n\nI used a throwaway Playwright script with the e2e `launchApp`, the built `out/`, and `KAIPU_DISABLE_SCREEN_CAPTURE=1`. It called `requestRecordSelector(\"frame\")`.\n\n- **Before the fix:** the overlay window was visible and focused, `#root` was empty (`innerHTML.length 0`), and the log stopped at \"overlay shown on display 1\". Resending the state to that window by hand made it paint at once (`innerHTML.length 7605`), which shows that only the first message was lost.\n- **With the fix:** the overlay paints the Frame record UI as soon as it is shown, with the frame, the ratio chips, the side toolbar and \"Start recording\", and no manual resend.\n\n## Fix\n\n- New channel `screenshot:overlay-state-request` (overlay → main).\n- `CaptureOverlay` sends it right after it subscribes to `onState`.\n- Main resends the current pick's state to that window. Outside a pick, main ignores the request.\n\n## Verification\n\n- A new main test checks that a spare that painted before it listened gets the pick's state when it asks. A second test checks that a request outside a pick gets nothing.\n- A new renderer test checks that `requestState` is sent after `onState` subscribes.\n- Both new tests fail without the fix.\n- `check-types` is clean, `oxlint` reports 0 errors, `oxfmt --check` is clean, and the full suite passes (299 files, 2893 tests).\n\n**Not verified:** a real recording. The Playwright run disables screen capture, so it proves that the overlay paints and stops there. To check it on the MacBook, start Frame several times in one session, including right after launching the app. The selector should always appear, and Start recording should begin the countdown.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T22:45:45Z",
+ "updated_at": "2026-10-28T23:04:59Z",
+ "closed_at": "2026-10-28T23:04:42Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/418",
+ "base": {
+  "ref": "main",
+  "sha": "0acb424d0c40da7b3a9ccf5a208f09c742c1a1ae"
+ },
+ "head": {
+  "ref": "fix/overlay-spare-state-race",
+  "sha": "afd007dff9ec288a29c67da01841421de7d9fd77",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 8,
+ "additions": 95,
+ "deletions": 25,
+ "labels": []
+}

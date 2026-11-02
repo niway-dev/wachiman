@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6533266542,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-30T20:55:06Z",
+  "updated_at": "2026-10-30T20:55:06Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/452#issuecomment-6533266542",
+  "body": "## Review ledger\n\nFresh Opus 5.5 reviewer on 4630a5cb: **approved, only nits remain**.\n\n| id | severity | outcome |\n| --- | --- | --- |\n| N1 | nit | fixed: c58b68f4 (an unanswered capability call now takes the legacy path silently, instead of asking main for a session old Windows refuses with a notice) |\n\nThe reviewer re-checked R1 callers, the F4 ordering and cancel paths, the \"webcam not saved\" toast (cannot fire for camera-off, failed-open or old-Windows takes, never doubles with \"webcam unavailable\"), S3 against mediabunny 1.61.4, S5/S6/S8/S9, and V1/V2 staying behaviour-identical.\n"
+ }
+]

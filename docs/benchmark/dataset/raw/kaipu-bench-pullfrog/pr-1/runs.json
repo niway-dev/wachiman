@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "failure",
+  "createdAt": "2026-11-01T20:56:00Z",
+  "databaseId": 41349356848,
+  "displayTitle": "[replay] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "pull_request",
+  "headBranch": "replay/pr-463/head",
+  "headSha": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:56:00Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-pullfrog/actions/runs/41349356848",
+  "workflowName": ".github/workflows/agent-review.yml",
+  "log": "not-found"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:56:00Z",
+  "databaseId": 41349356894,
+  "displayTitle": "[replay] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "pull_request",
+  "headBranch": "replay/pr-463/head",
+  "headSha": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:56:20Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-pullfrog/actions/runs/41349356894",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

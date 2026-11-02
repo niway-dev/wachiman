@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4422100063,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/video-editor/video-editor-page.tsx",
+  "line": null,
+  "original_line": 1299,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 179,
+  "commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "original_commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5710245270,
+  "subject_type": "line",
+  "created_at": "2026-10-30T09:14:25Z",
+  "updated_at": "2026-10-30T09:14:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#discussion_r4422100063",
+  "body": "🟡🐛 **Consider · bug: Bubble reads as selected whenever any webcam segment is selected, including a hidden one**\n\n`selected={selectedWebcamId !== null}` is true for the layer selection and also for any segment id picked in the lane. WebcamLayer uses it for `aria-pressed` and `data-selected` (webcam-layer.tsx:187,195). So if you click a *hidden* segment in the lane, the bubble on screen shows as pressed/selected even though that segment's inspector has no layout controls. The same happens with an override segment while the playhead sits outside it. Consider marking the bubble selected only when `selectedWebcamId === WEBCAM_LAYER_SELECTION`, or when the selected id is the override that covers the current source time (the same check `onSelect` already does)."
+ },
+ {
+  "id": 4422100075,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/video-editor/components/webcam-layer.module.css",
+  "line": 33,
+  "original_line": 33,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 33,
+  "original_position": 33,
+  "commit_id": "658289a9b3e0ca7288e707f1a61ac3dd92d49b38",
+  "original_commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5710245270,
+  "subject_type": "line",
+  "created_at": "2026-10-30T09:14:25Z",
+  "updated_at": "2026-10-30T09:14:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#discussion_r4422100075",
+  "body": "🟡🐛 **Consider · bug: Selecting the bubble drops its shadow**\n\nBoth `[data-shadow=\"true\"]` and `[data-selected=\"true\"]` set `filter`, and the selected rule comes later. So a selected bubble with Shadow on loses its drop shadow, and the preview stops matching the setting while the user is editing it. You could add a combined rule, `.bubble[data-shadow=\"true\"][data-selected=\"true\"]`, that chains the accent outline drop-shadows with the shadow."
+ },
+ {
+  "id": 4422100083,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "packages/i18n/messages/en.json",
+  "line": null,
+  "original_line": 1180,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 27,
+  "commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "original_commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5710245270,
+  "subject_type": "line",
+  "created_at": "2026-10-30T09:14:25Z",
+  "updated_at": "2026-10-30T09:14:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#discussion_r4422100083",
+  "body": "🟡📝 **Consider · docs: Shrink note says the webcam stays \"in its corner\", but the bubble can be anywhere**\n\nThe inspector offers nine presets, including Center and the edge midpoints, and the bubble can be dragged anywhere. \"Stays in its corner\" is wrong for those positions. Something like \"the webcam keeps its position either way\" would be accurate. The same applies to es.json line 1180 (\"se queda en su esquina\")."
+ },
+ {
+  "id": 4422109454,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/video-editor/video-editor-page.tsx",
+  "line": null,
+  "original_line": 1299,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 179,
+  "commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "original_commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "in_reply_to_id": 4422100063,
+  "pull_request_review_id": 5710257523,
+  "subject_type": "line",
+  "created_at": "2026-10-30T09:15:40Z",
+  "updated_at": "2026-10-30T09:15:40Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#discussion_r4422109454",
+  "body": "Fixed in eea52be6: the bubble is outlined only for the layer selection or a selected override (both describe the bubble's look), never for a hidden range. I did not add the 'override covers the current time' check: it would need per-frame state in React, and an override's inspector edits the bubble's look regardless of the playhead."
+ },
+ {
+  "id": 4422109754,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/video-editor/components/webcam-layer.module.css",
+  "line": 33,
+  "original_line": 33,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 33,
+  "original_position": 33,
+  "commit_id": "658289a9b3e0ca7288e707f1a61ac3dd92d49b38",
+  "original_commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "in_reply_to_id": 4422100075,
+  "pull_request_review_id": 5710257834,
+  "subject_type": "line",
+  "created_at": "2026-10-30T09:15:42Z",
+  "updated_at": "2026-10-30T09:15:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#discussion_r4422109754",
+  "body": "Fixed in eea52be6: a combined `[data-selected][data-shadow]` rule chains the accent outline with the shadow."
+ },
+ {
+  "id": 4422109974,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "packages/i18n/messages/en.json",
+  "line": null,
+  "original_line": 1180,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 27,
+  "commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "original_commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "in_reply_to_id": 4422100083,
+  "pull_request_review_id": 5710258101,
+  "subject_type": "line",
+  "created_at": "2026-10-30T09:15:44Z",
+  "updated_at": "2026-10-30T09:15:44Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#discussion_r4422109974",
+  "body": "Fixed in eea52be6: en now reads \"the webcam keeps its position either way\", es \"la cámara mantiene su posición de todos modos\"."
+ }
+]

@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:51:21Z",
+  "databaseId": 40159742243,
+  "displayTitle": "perf(desktop): composite a screenshot once per scene state (audit SHOT-A1)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-406-31-screenshot-composite-once",
+  "headSha": "9333491a1fed0e8b35fd890e5f1fb4759011a05c",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:51:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159742243",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:50:38Z",
+  "databaseId": 40159698415,
+  "displayTitle": "perf(desktop): composite a screenshot once per scene state (audit SHOT-A1)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-406-31-screenshot-composite-once",
+  "headSha": "9333491a1fed0e8b35fd890e5f1fb4759011a05c",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:50:55Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159698415",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:50:38Z",
+  "databaseId": 40159698403,
+  "displayTitle": "perf(desktop): composite a screenshot once per scene state (audit SHOT-A1)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-406-31-screenshot-composite-once",
+  "headSha": "9333491a1fed0e8b35fd890e5f1fb4759011a05c",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:51:09Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159698403",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ }
+]

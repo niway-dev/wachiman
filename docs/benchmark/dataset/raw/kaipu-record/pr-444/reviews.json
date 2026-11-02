@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5710245270,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c5e135387e1dbc473c2a3588ddc2341ba761ff36",
+  "submitted_at": "2026-10-30T09:14:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#pullrequestreview-5710245270",
+  "body": "**Agent review** of the whole pull request, at `c5e1353`: all 23 files reviewed.\n\n3 finding(s): 3 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 3.** Part 1 of 3: no findings in the nine files of this part. Things I checked against the code:\n\n- **Lane edge handles:** a handle only appears where the segment's real start or end is visible. This holds because the exact equality check in `webcam-lane.tsx` lines 125–127 gets the value as computed by `sourceRangeToTimelineBlocks` (`source-time.ts` line 31).\n- **Hide webcam here:** the free-window arguments in `hideAtPlayhead` match what `freeWindowAt` expects (`source-time.ts` lines 103–115).\n- **Layout edits:** they go to the override in force at the target time, or to the global layout outside one.\n- **Bubble drag:** a drag ends cleanly through the same abort path as the camera box, even without a pointerup.\n- **Drawing tools:** a non-interactive bubble lets pointer events through. `webcam-layer.module.css` lines 20–21 set `pointer-events: none` when `data-interactive` is false.\n- **Layer order:** in `PreviewStage`, the webcam slot sits above the content and below the chrome, outside the camera transform. That matches what its doc comment says.\n\n**Batch 2 of 3.** I reviewed all six files in part 2 and found no defects, only one optional suggestion.\n\n**The suggestion (consider):** in `video-editor-page.tsx:1299`, the webcam bubble on the preview shows as selected whenever any webcam segment is selected in the lane. That includes hidden segments, whose inspector has no layout controls, and override segments while the playhead is outside them. Marking the bubble selected only for the layer selection, or for the override under the playhead, would match what the user is looking at.\n\n**What checked out:**\n- **Page wiring:** the webcam layer, lane and inspector only appear when the sidecar has a webcam. Delete and Backspace skip the layer selection. Because the editor allows only one selection at a time, pressing Delete with the layer selected can't remove a clip. The effect that clears a stale segment selection skips the layer selection, so the layer stays selected.\n- **`webcam-sync.ts`:** the time-offset maths matches ADR 0032 as described in the file's own header. Seek targets are clamped to the file's length, and an infinite duration is handled.\n- **Tests:** the expected values in the four test files match what the code does: lane pixel-to-time mapping, edge-drag phases, drift thresholds, clamping during drag, and undo grouping.\n\n**Batch 3 of 3.** Part 3 has no blockers. I checked the layout and sync tests by hand against `webcam-layout.ts` and `webcam-sync.ts`, and they assert what the code does. I could not run them. The page tests cover the no-webcam case, the webcam case, hide/delete, the original-hold visibility and the bubble grab. Two small things: selecting the bubble drops its shadow, and the shrink-note text in both locales says the webcam stays \\\"in its corner\\\", which isn't true for the Center and edge presets.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 3 | 9 | 967 | 4 | reviewed | 4 | $0.20 |\n| Batch 2 of 3 | 6 | 891 | 4 | reviewed | 7 | $0.24 |\n| Batch 3 of 3 | 8 | 495 | 2 | reviewed | 4 | $0.14 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 3 batches · $0.58</sub>\n\n<!-- agent-review sha=c5e135387e1dbc473c2a3588ddc2341ba761ff36 -->"
+ },
+ {
+  "id": 5710257523,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "eea52be66f140559206de5b91b060426fbf65fe2",
+  "submitted_at": "2026-10-30T09:15:40Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#pullrequestreview-5710257523",
+  "body": ""
+ },
+ {
+  "id": 5710257834,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "eea52be66f140559206de5b91b060426fbf65fe2",
+  "submitted_at": "2026-10-30T09:15:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#pullrequestreview-5710257834",
+  "body": ""
+ },
+ {
+  "id": 5710258101,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "eea52be66f140559206de5b91b060426fbf65fe2",
+  "submitted_at": "2026-10-30T09:15:44Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/444#pullrequestreview-5710258101",
+  "body": ""
+ }
+]

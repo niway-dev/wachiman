@@ -1,0 +1,422 @@
+[
+ {
+  "number": 1,
+  "title": "[replay] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head",
+  "result": "fetched"
+ },
+ {
+  "number": 2,
+  "title": "[replay] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head",
+  "result": "fetched"
+ },
+ {
+  "number": 3,
+  "title": "[replay] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head",
+  "result": "fetched"
+ },
+ {
+  "number": 4,
+  "title": "[replay] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head",
+  "result": "fetched"
+ },
+ {
+  "number": 5,
+  "title": "[replay] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head",
+  "result": "fetched"
+ },
+ {
+  "number": 6,
+  "title": "[replay r2] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 7,
+  "title": "[replay r2] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 8,
+  "title": "[replay r2] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 9,
+  "title": "[replay r2] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 10,
+  "title": "[replay r2] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 11,
+  "title": "[replay r3] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 12,
+  "title": "[replay r3] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 13,
+  "title": "[replay r3] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 14,
+  "title": "[replay r3] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 15,
+  "title": "[replay r3] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 16,
+  "title": "[replay r4] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head-r4",
+  "result": "fetched"
+ },
+ {
+  "number": 17,
+  "title": "[replay r4] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head-r4",
+  "result": "fetched"
+ },
+ {
+  "number": 18,
+  "title": "[replay r4] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head-r4",
+  "result": "fetched"
+ },
+ {
+  "number": 19,
+  "title": "[replay r4] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head-r4",
+  "result": "fetched"
+ },
+ {
+  "number": 20,
+  "title": "[replay r4] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head-r4",
+  "result": "fetched"
+ },
+ {
+  "number": 21,
+  "title": "[replay r5] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head-r5",
+  "result": "fetched"
+ },
+ {
+  "number": 22,
+  "title": "[replay r5] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head-r5",
+  "result": "fetched"
+ },
+ {
+  "number": 23,
+  "title": "[replay r5] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head-r5",
+  "result": "fetched"
+ },
+ {
+  "number": 24,
+  "title": "[replay r5] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head-r5",
+  "result": "fetched"
+ },
+ {
+  "number": 25,
+  "title": "[replay r5] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head-r5",
+  "result": "fetched"
+ },
+ {
+  "number": 26,
+  "title": "[replay r6] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head-r6",
+  "result": "fetched"
+ },
+ {
+  "number": 27,
+  "title": "[replay r6] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head-r6",
+  "result": "fetched"
+ },
+ {
+  "number": 28,
+  "title": "[replay r6] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head-r6",
+  "result": "fetched"
+ },
+ {
+  "number": 29,
+  "title": "[replay r6] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head-r6",
+  "result": "fetched"
+ },
+ {
+  "number": 30,
+  "title": "[replay r6] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head-r6",
+  "result": "fetched"
+ },
+ {
+  "number": 31,
+  "title": "[replay r7] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head-r7",
+  "result": "fetched"
+ },
+ {
+  "number": 32,
+  "title": "[replay r7] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head-r7",
+  "result": "fetched"
+ },
+ {
+  "number": 33,
+  "title": "[replay r7] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head-r7",
+  "result": "fetched"
+ },
+ {
+  "number": 34,
+  "title": "[replay r7] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head-r7",
+  "result": "fetched"
+ },
+ {
+  "number": 35,
+  "title": "[replay r7] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head-r7",
+  "result": "fetched"
+ },
+ {
+  "number": 36,
+  "title": "[replay r8] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head-r8",
+  "result": "fetched"
+ },
+ {
+  "number": 37,
+  "title": "[replay r8] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head-r8",
+  "result": "fetched"
+ },
+ {
+  "number": 38,
+  "title": "[replay r8] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head-r8",
+  "result": "fetched"
+ },
+ {
+  "number": 39,
+  "title": "[replay r8] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head-r8",
+  "result": "fetched"
+ },
+ {
+  "number": 40,
+  "title": "[replay r8] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head-r8",
+  "result": "fetched"
+ },
+ {
+  "number": 41,
+  "title": "[replay r9] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "state": "open",
+  "head": "replay/pr-463/head-r9",
+  "result": "fetched"
+ },
+ {
+  "number": 42,
+  "title": "[replay r9] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "state": "open",
+  "head": "replay/pr-464/head-r9",
+  "result": "fetched"
+ },
+ {
+  "number": 43,
+  "title": "[replay r9] feat(desktop): recording detail — title on top, destinations strip, copies from this original",
+  "state": "open",
+  "head": "replay/pr-465/head-r9",
+  "result": "fetched"
+ },
+ {
+  "number": 44,
+  "title": "[replay r9] feat(desktop): float \"Your video is ready\" outside the app window",
+  "state": "open",
+  "head": "replay/pr-466/head-r9",
+  "result": "fetched"
+ },
+ {
+  "number": 45,
+  "title": "[replay r9] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "state": "open",
+  "head": "replay/pr-467/head-r9",
+  "result": "fetched"
+ },
+ {
+  "number": 46,
+  "title": "[replay] perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown",
+  "state": "open",
+  "head": "replay/pr-402/head",
+  "result": "fetched"
+ },
+ {
+  "number": 47,
+  "title": "[replay] Bug: main window disappears when it loses focus (macOS)",
+  "state": "open",
+  "head": "replay/pr-255/head",
+  "result": "fetched"
+ },
+ {
+  "number": 48,
+  "title": "[replay] fix(api): close upload abuse paths [NIW2-323]",
+  "state": "open",
+  "head": "replay/pr-276/head",
+  "result": "fetched"
+ },
+ {
+  "number": 49,
+  "title": "[replay] feat(kaipu): NIW2-218 export presets pipeline and fast start",
+  "state": "open",
+  "head": "replay/pr-269/head",
+  "result": "fetched"
+ },
+ {
+  "number": 50,
+  "title": "[replay] feat(video-editor): make text labels editable and multi-line",
+  "state": "open",
+  "head": "replay/pr-184/head",
+  "result": "fetched"
+ },
+ {
+  "number": 51,
+  "title": "[replay r2] perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown",
+  "state": "open",
+  "head": "replay/pr-402/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 52,
+  "title": "[replay r2] Bug: main window disappears when it loses focus (macOS)",
+  "state": "open",
+  "head": "replay/pr-255/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 53,
+  "title": "[replay r2] fix(api): close upload abuse paths [NIW2-323]",
+  "state": "open",
+  "head": "replay/pr-276/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 54,
+  "title": "[replay r2] feat(kaipu): NIW2-218 export presets pipeline and fast start",
+  "state": "open",
+  "head": "replay/pr-269/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 55,
+  "title": "[replay r2] feat(video-editor): make text labels editable and multi-line",
+  "state": "open",
+  "head": "replay/pr-184/head-r2",
+  "result": "fetched"
+ },
+ {
+  "number": 56,
+  "title": "[replay r3] perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown",
+  "state": "open",
+  "head": "replay/pr-402/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 57,
+  "title": "[replay r3] Bug: main window disappears when it loses focus (macOS)",
+  "state": "open",
+  "head": "replay/pr-255/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 58,
+  "title": "[replay r3] fix(api): close upload abuse paths [NIW2-323]",
+  "state": "open",
+  "head": "replay/pr-276/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 59,
+  "title": "[replay r3] feat(kaipu): NIW2-218 export presets pipeline and fast start",
+  "state": "open",
+  "head": "replay/pr-269/head-r3",
+  "result": "fetched"
+ },
+ {
+  "number": 60,
+  "title": "[replay r3] feat(video-editor): make text labels editable and multi-line",
+  "state": "open",
+  "head": "replay/pr-184/head-r3",
+  "result": "fetched"
+ }
+]

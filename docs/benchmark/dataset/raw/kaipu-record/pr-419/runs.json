@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T00:39:11Z",
+  "databaseId": 40795448647,
+  "displayTitle": "fix(desktop): raising the floating windows never brings a hidden bar back",
+  "event": "pull_request",
+  "headBranch": "fix/countdown-raise-never-shows-hidden-bar",
+  "headSha": "b752d69bae8b9010ef6e235e3cec0d2fb4c476d1",
+  "status": "completed",
+  "updatedAt": "2026-10-29T00:39:18Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40795448647",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T23:40:01Z",
+  "databaseId": 40788922368,
+  "displayTitle": "fix(desktop): raising the floating windows never brings a hidden bar back",
+  "event": "pull_request",
+  "headBranch": "fix/countdown-raise-never-shows-hidden-bar",
+  "headSha": "b752d69bae8b9010ef6e235e3cec0d2fb4c476d1",
+  "status": "completed",
+  "updatedAt": "2026-10-28T23:40:18Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40788922368",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T23:35:39Z",
+  "databaseId": 40788441457,
+  "displayTitle": "fix(desktop): raising the floating windows never brings a hidden bar back",
+  "event": "pull_request",
+  "headBranch": "fix/countdown-raise-never-shows-hidden-bar",
+  "headSha": "4bf11e197bc766276a7a7507a59c69ef7abb5b73",
+  "status": "completed",
+  "updatedAt": "2026-10-28T23:36:12Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40788441457",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T23:35:39Z",
+  "databaseId": 40788440932,
+  "displayTitle": "fix(desktop): raising the floating windows never brings a hidden bar back",
+  "event": "pull_request",
+  "headBranch": "fix/countdown-raise-never-shows-hidden-bar",
+  "headSha": "4bf11e197bc766276a7a7507a59c69ef7abb5b73",
+  "status": "completed",
+  "updatedAt": "2026-10-28T23:35:56Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40788440932",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

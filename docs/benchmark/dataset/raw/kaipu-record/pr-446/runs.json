@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:19:50Z",
+  "databaseId": 41219153408,
+  "displayTitle": "feat(desktop): the bubble leaves the recording when the face is recorded apart, and Share includes it (NIW2-576)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-576-webcam-share-protect",
+  "headSha": "83d4904c7358c5b675f7bc3065b5ed42b62516e1",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:19:56Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41219153408",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T09:16:17Z",
+  "databaseId": 41188007351,
+  "displayTitle": "feat(desktop): the bubble leaves the recording when the face is recorded apart, and Share includes it (NIW2-576)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-576-webcam-share-protect",
+  "headSha": "83d4904c7358c5b675f7bc3065b5ed42b62516e1",
+  "status": "completed",
+  "updatedAt": "2026-10-31T09:16:35Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41188007351",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T10:26:02Z",
+  "databaseId": 41040711588,
+  "displayTitle": "feat(desktop): the bubble leaves the recording when the face is recorded apart, and Share includes it (NIW2-576)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-576-webcam-share-protect",
+  "headSha": "5269f07e51b9dd7beb4445c0ea92275b999c2c2b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T10:27:34Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41040711588",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T10:26:02Z",
+  "databaseId": 41040711227,
+  "displayTitle": "feat(desktop): the bubble leaves the recording when the face is recorded apart, and Share includes it (NIW2-576)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-576-webcam-share-protect",
+  "headSha": "5269f07e51b9dd7beb4445c0ea92275b999c2c2b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T10:26:23Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41040711227",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

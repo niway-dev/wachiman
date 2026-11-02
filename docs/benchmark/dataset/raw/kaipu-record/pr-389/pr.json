@@ -1,0 +1,29 @@
+{
+ "number": 389,
+ "title": "refactor(desktop): drop the Record button from the screenshot bar",
+ "body": "## What was removed\n\nIn the capture overlay opened for a screenshot (capture intent), the action bar no longer has the Record button or the R shortcut. It now shows: P/V switch, mode pills, Capture (Enter), Copy (Cmd+C), Cancel. This applies to every place that bar is drawn in capture intent: the Frame toolbar, the Window picker and the Screen card (they share `ActionButtons`).\n\n## Why\n\nThe P (photo) / V (video) intent switch at the left of the bar already turns the same selection into a recording. A Record button next to Capture duplicated it and competed with the primary action. Owner decision.\n\n## What stays in record intent\n\n- The Window picker still draws this bar opened to record, Record first then Capture (Record stays disabled there, as before: a window cannot be recorded).\n- R still works in record intent (alias of Enter); Cmd/Ctrl+R remain excluded.\n- Frame and Screen record chrome is untouched.\n- No i18n keys were removed: `overlay.record` and the record hints are still used by record intent. The hint pills never mentioned R.\n\n## Docs\n\n- Spec `2026-10-26-record-capture-modes-design.md`: the capture-intent bar has no Record button because P/V covers it (two places).\n- ADR 0024: added a dated note under \"Notes\" that the spec superseded the reserved Record seat; accepted text is not rewritten.\n\n## Verification\n\n- `bun run check-types`, `bun run lint` (0 errors, 17 pre-existing warnings) and the full app `vitest run` pass.\n- Tests: removed the Record click tests in capture intent; added one asserting the capture toolbar has no Record and R answers nothing; added one for the record-intent Window picker still drawing Record first; `actionForKey` tests now assert R is ignored in capture intent and works in record intent.\n\n## Not verified\n\nNot run visually in the real Electron overlay; toolbar width constants were not changed, so the bar is now slightly wider than its content needs (about one button). Worth a quick look.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T04:51:04Z",
+ "updated_at": "2026-10-27T04:53:19Z",
+ "closed_at": "2026-10-27T04:53:16Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/389",
+ "base": {
+  "ref": "main",
+  "sha": "3f7abe482d6b5a267b1544deb3bfb966bcb3e721"
+ },
+ "head": {
+  "ref": "refactor/screenshot-bar-drop-record",
+  "sha": "617970648f47a1c73f79981d5001d03d3de3dce7",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 6,
+ "additions": 60,
+ "deletions": 66,
+ "labels": []
+}

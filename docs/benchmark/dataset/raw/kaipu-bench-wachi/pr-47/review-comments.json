@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4439318001,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+  "line": 82,
+  "original_line": 82,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 21,
+  "original_position": 21,
+  "commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "original_commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732597036,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:55:57Z",
+  "updated_at": "2026-11-02T05:55:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/47#discussion_r4439318001",
+  "body": "👮 **Wachiman** · 🟠🐛 **Fix · bug: The cache also turns the recovery re-assertions into no-ops, so the 'app vanishes from Dock/⌘-Tab after a recording' fix can come back (confidence medium)**\n\n`appliedPolicy` only records what this process last *asked for*. It cannot see the state macOS actually has. The callers of `applyDockPolicy()` were written to repair a state that drifted outside our control:\n- `recording-hub.ts:281-284`: \"Hiding the main window for the recording can drop the app from the Dock / Cmd+Tab on macOS; re-assert the policy\".\n- `roadmap.md:185-187`: this re-assertion on stop is recorded as the fix for \"the app vanishing from the Dock & ⌘-Tab after a recording\".\n- `index.ts:233-237`: the `⌘⌃O` rescue shortcut calls `applyDockPolicy()` to bring a lost app back.\n\n`showInDock` defaults to `true` (`shared/types/ipc.ts:214`). For those users, `registerSettings()` sets `appliedPolicy = \"regular\"` at startup. After that, `forceRegularPolicy()` at recording start (`recording-hub.ts:267`), `applyDockPolicy()` on stop (`recording-hub.ts:284`) and the rescue shortcut (`index.ts:236`) all return at line 82 without touching AppKit. If macOS drops the app after the main window is hidden, the code that used to repair it no longer runs. The user is left with an app missing from the Dock and ⌘-Tab, with no error. The rescue shortcut no longer restores the Dock icon either. It still shows the window and focuses it.\n\nOnly the camera-on call at `recording-hub.ts:157` caused the reported bug. A fix that keeps the guard there but still repairs on the restore paths: let `applyDockPolicy` take a `{ force: true }` that `applyStopWindowState` and `bringAppToFront` pass. Another option is to decide \"unchanged\" from `app.dock?.isVisible()` instead of a module variable. Either way, check on device that a recording with Show in Dock on still leaves the app in ⌘-Tab after stop.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439318003,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.test.ts",
+  "line": 109,
+  "original_line": 109,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 109,
+  "original_position": 109,
+  "commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "original_commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732597036,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:55:57Z",
+  "updated_at": "2026-11-02T05:55:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/47#discussion_r4439318003",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: `mainWindow.hide` not being called proves nothing about the reported bug (confidence high)**\n\nThe backlog doc this test cites says the `hide` came from native code, \"no JavaScript calls `hide()`\" (`bug-main-window-hides-on-blur.md:72-76`). The old code never called `mainWindow.hide()` on the camera path either, so `expect(mainWindow.hide).not.toHaveBeenCalled()` (lines 109 and 128) passes before and after the fix. Only the activation-policy assertions test the regression. The test name and the doc both say \"never hides the main window\" (`bug-main-window-hides-on-blur.md:29-30`), which overstates what a unit test can see here. Consider dropping the `hide` assertion, or renaming the test so it claims only what it checks: the camera toggle leaves the activation policy alone.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439318007,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/bug-main-window-hides-on-blur.md",
+  "line": 100,
+  "original_line": 100,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 43,
+  "original_position": 43,
+  "commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "original_commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732597036,
+  "subject_type": "line",
+  "created_at": "2026-11-02T05:55:57Z",
+  "updated_at": "2026-11-02T05:55:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/47#discussion_r4439318007",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: The doc says hypothesis 1 'held', but the confirming experiment was not run (confidence medium)**\n\nThe heading says \"hypothesis 1 held\", and the Fix section calls the native ordering \"exactly as measured below\" and \"the whole fix\". The experiment the doc itself lays out has not been run: log each policy call with its caller and check that one lands right before each `blur → hide` (lines 102-119). The PR body also says \"manual on-device check still pending\". The only measurement shows `after applyDockPolicy, main visible: true` (line 56). It does not tie each cycle to a policy call. Hypothesis 3 (a dev-only `electron-vite` artefact, line 97) was never ruled out either. Word this as the expected cause until the on-device check confirms it, so whoever validates the 🟢 item knows that hypotheses 2 and 3 are still open.\n\n<!-- wachi:finding -->"
+ }
+]

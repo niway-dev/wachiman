@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T00:16:27Z",
+  "databaseId": 41149260362,
+  "displayTitle": "chore: add Pullfrog workflow file",
+  "event": "pull_request",
+  "headBranch": "pullfrog/add-workflow-1793405729246",
+  "headSha": "adaaa91ed611c94d9e475261a73461ce458dbf2e",
+  "status": "completed",
+  "updatedAt": "2026-10-31T00:16:35Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41149260362",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T00:15:35Z",
+  "databaseId": 41149181358,
+  "displayTitle": "chore: add Pullfrog workflow file",
+  "event": "pull_request",
+  "headBranch": "pullfrog/add-workflow-1793405729246",
+  "headSha": "adaaa91ed611c94d9e475261a73461ce458dbf2e",
+  "status": "completed",
+  "updatedAt": "2026-10-31T00:16:10Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41149181358",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T00:15:35Z",
+  "databaseId": 41149181122,
+  "displayTitle": "chore: add Pullfrog workflow file",
+  "event": "pull_request",
+  "headBranch": "pullfrog/add-workflow-1793405729246",
+  "headSha": "adaaa91ed611c94d9e475261a73461ce458dbf2e",
+  "status": "completed",
+  "updatedAt": "2026-10-31T00:15:50Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41149181122",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

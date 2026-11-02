@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4427297542,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/hooks/use-import-videos.ts",
+  "line": 64,
+  "original_line": 64,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 64,
+  "original_position": 64,
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "original_commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5717097621,
+  "subject_type": "line",
+  "created_at": "2026-10-30T18:41:38Z",
+  "updated_at": "2026-10-30T18:41:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#discussion_r4427297542",
+  "body": "🟠🐛 **Fix · bug: Files dropped while an import runs are silently thrown away**\n\n`run` returns right away when `busy.current` is set (line 64), and nothing tells the user. The header button and the drop zone are disabled while `importing` is true, but `useFileDrop` keeps catching drops on the whole window (`use-file-drop.ts:40-46`). `LibraryPage` sends every drop to `importDropped` (`library-page.tsx:55`), and that calls `run` at line 98. If the user drops a second batch during a long copy (files can be gigabytes), those files are never imported and no toast appears. The `importing` doc at line 27 says \"a second one waits for it\", which the code doesn't do. Either queue the second call behind the running one (chain it on a stored promise), or show a toast such as \"An import is already running\" when `busy.current` is set. Then update the comment to match."
+ },
+ {
+  "id": 4427297562,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/import-video.md",
+  "line": 30,
+  "original_line": 30,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 30,
+  "original_position": 30,
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "original_commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5717097621,
+  "subject_type": "line",
+  "created_at": "2026-10-30T18:41:38Z",
+  "updated_at": "2026-10-30T18:41:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#discussion_r4427297562",
+  "body": "🟠📝 **Fix · docs: Doc says every failed file gets its reason, but the multi-failure toast drops the reasons**\n\nThe doc says \"Every file that failed is named in an error toast with the reason\". `failureMessage` in `use-import-videos.ts:109-121` gives a reason only when exactly one file failed. When two or more fail, it uses `importFailedMany` (\"Couldn’t import {count} files: {fileNames}\"), which lists the names and no reasons. The test at `use-import-videos.test.tsx:95` asserts exactly that. Change the sentence to say that a single failure shows its reason and several failures list only the file names. The other option is to add the reasons to the many-files toast."
+ },
+ {
+  "id": 4427297569,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "packages/i18n/messages/en.json",
+  "line": 624,
+  "original_line": 624,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 33,
+  "original_position": 33,
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "original_commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5717097621,
+  "subject_type": "line",
+  "created_at": "2026-10-30T18:41:38Z",
+  "updated_at": "2026-10-30T18:41:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#discussion_r4427297569",
+  "body": "🟡🐛 **Consider · bug: \"Only videos can be imported\" also names video files that were skipped only because they have no path on disk**\n\n`importDropped` (`use-import-videos.ts:86-93`) puts a file in `skipped` for either of two reasons: its extension isn't importable, or `pathForFile` returns \"\" (for example, a file dragged out of a web page). Both cases get the same message. So a dropped `web.mp4` produces \"Only videos can be imported (MP4, MOV, M4V or WebM). Skipped: notes.pdf, web.mp4\", which tells the user their MP4 isn't a video. The test at `use-import-videos.test.tsx:137` locks this wording in. Consider a separate message for path-less files, such as \"isn’t a file on your computer\", or a more neutral wording for the shared one. The same applies to `es.json:624`."
+ },
+ {
+  "id": 4431131277,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/hooks/use-import-videos.ts",
+  "line": 64,
+  "original_line": 64,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 64,
+  "original_position": 64,
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "original_commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "in_reply_to_id": 4427297542,
+  "pull_request_review_id": 5722038449,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:45:50Z",
+  "updated_at": "2026-10-31T08:45:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#discussion_r4431131277",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nFixed in [`d1d24c29`](https://github.com/niway-dev/kaipu-record/commit/d1d24c29d39690c46bd5a6d2a38f57beb5136fd0) on #471 (top of the stack): a drop during a running import now waits for it instead of being discarded (queued in `useImportVideos.run`, with a test).\n"
+ },
+ {
+  "id": 4431131400,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/import-video.md",
+  "line": 30,
+  "original_line": 30,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 30,
+  "original_position": 30,
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "original_commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "in_reply_to_id": 4427297562,
+  "pull_request_review_id": 5722038693,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:45:52Z",
+  "updated_at": "2026-10-31T08:45:52Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#discussion_r4431131400",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nFixed in [`450c9100`](https://github.com/niway-dev/kaipu-record/commit/450c910079c5692c55a314de82f77fc798135608) on #471 (top of the stack): the doc now says one failed file gets its reason and several failures list the names only.\n"
+ },
+ {
+  "id": 4431131486,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "packages/i18n/messages/en.json",
+  "line": 624,
+  "original_line": 624,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 33,
+  "original_position": 33,
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "original_commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "in_reply_to_id": 4427297569,
+  "pull_request_review_id": 5722038866,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:45:54Z",
+  "updated_at": "2026-10-31T08:45:54Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#discussion_r4431131486",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nFixed in [`d1d24c29`](https://github.com/niway-dev/kaipu-record/commit/d1d24c29d39690c46bd5a6d2a38f57beb5136fd0) on #471 (top of the stack): videos with no path on disk get their own toast (`library.importDropNoPath`: \"not a file on your computer. Save it first, then drop it again.\"), separate from \"Only videos can be imported\".\n"
+ }
+]

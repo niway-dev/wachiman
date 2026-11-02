@@ -1,0 +1,29 @@
+{
+ "number": 404,
+ "title": "feat(desktop): turn off the camera mirror so text reads correctly with a rear camera",
+ "body": "## What this does\n\nAdds a **Mirror image** switch to the camera settings, in both the Record page and the capture panel. It decides whether the camera bubble is flipped horizontally. It is on by default, so nothing changes for anyone who leaves it alone. The setting is saved and applies live, including in the middle of a take.\n\n## Why\n\nThe bubble was always mirrored (`transform: scaleX(-1)`), and the recording captures the bubble as part of the screen. With a camera that faces away from you, such as an iPhone rear camera through Continuity Camera, or with anything that has text in view, the text came out reversed in the exported video. The owner asked for a toggle.\n\n## What changes for you\n\n- **New setting `AppSettings.cameraBubble.mirrored`, default `true`.** Older settings files fall back to `true`, and so does any stored value that is not a boolean.\n- **The camera settings gain one tab stop**, the switch, placed between the size slider and the device select.\n\n## What to review\n\n1. **`apps/kaipu-record/src/renderer/src/features/camera-bubble/camera-bubble.tsx:198` — `data-mirrored` drives the CSS flip.** The bubble reads the same settings subscription as shape and size. Check that a change mid-take really reaches the bubble window. The tests mock `onSettingsChanged`, so only the running app can confirm it (Manual step 2).\n2. **`apps/kaipu-record/src/shared/camera-bubble.ts:112` — sanitizing.** A missing or invalid value falls back to mirrored, which is today's behaviour. Decide whether that default is right for rear cameras. A user who records only with a rear camera has to switch it off once.\n\n**Safe to skim:** fixtures that only add `mirrored: true`, the i18n pair (`cameraSettings.mirrorTitle` / `mirrorHint`), and the backlog doc section.\n\n## Proof\n\n| Criterion | What was done | How to check it | Evidence |\n| --- | --- | --- | --- |\n| A toggle turns mirroring on and off | `SwitchRow` \"Mirror image\" writes `{ mirrored }`; the bubble flips only when it is true | Manual 1–2 | `camera-settings-fields.test.tsx`, `camera-bubble.test.tsx`, `settings.service.test.ts` pass; **not verified in the running app** |\n\n## Decisions\n\n- **Default on.** Options: on (today's selfie view) or off. Taken: on, so this changes nothing for existing users.\n- **`SwitchRow` imported from `audio-settings`** instead of being moved to a shared folder. That keeps the diff small; moving it is a candidate cleanup.\n- **Allowed mid-take.** Like shape and size, the change shows in the recording from that moment on.\n\n## Checks\n\nFrom `apps/kaipu-record`, on this branch rebased onto current `main`:\n\n- `vitest run` → exit 0, 298 files, 2830 tests\n- `bun run check-types` → exit 0\n- `bun run lint` → exit 0, 0 errors, 17 warnings (none from this change)\n- `packages/i18n` tests → exit 0, 22 tests\n- `oxfmt --check` on the 16 touched files → exit 0\n\nThe tests were watched failing before the implementation. This PR does not conflict with #403: `git merge-tree` against its branch is clean.\n\n## Verify it yourself\n\n**Setup:** `git switch feat/camera-bubble-mirror && bun install && bun run dev`\n\n**1. Toggle.** Turn the camera on, open the camera settings, and switch \"Mirror image\" off, then on again. Raise your right hand each time.\nExpect: with it on, your raised hand appears on the right of the bubble, like a mirror. With it off, it appears on the left. The bubble updates instantly.\nBroken if: the bubble does not change, or it changes only after reopening the camera.\n\n**2. In the video.** Hold up text, such as a page or your phone screen, start a recording, and switch Mirror off partway through.\nExpect: in the exported video the text is reversed before the switch and readable after it.\nBroken if: the export does not follow the bubble.\n\n**3. Persisted.** Switch it off and restart the app.\nExpect: it is still off.\n\n## Manual verification\n\n- [ ] Step 1: the toggle flips the live bubble\n- [ ] Step 2: the export follows the switch mid-take\n- [ ] Step 3: the setting survives a restart\n- [ ] The switch row looks right in the capture panel drawer and on the Record page\n\n## What I did not verify\n\n- Nothing was run in the Electron app or with a real or rear camera.\n- That a mid-take change reaches the bubble window; the tests mock that event.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T03:36:01Z",
+ "updated_at": "2026-10-28T05:43:40Z",
+ "closed_at": "2026-10-28T05:26:57Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/404",
+ "base": {
+  "ref": "main",
+  "sha": "c0713fbd79b0b270ee763d021e76626e706a9ba9"
+ },
+ "head": {
+  "ref": "feat/camera-bubble-mirror",
+  "sha": "e93b181e1c111be6d538b33238ab4a123c6ac8f7",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 16,
+ "additions": 157,
+ "deletions": 21,
+ "labels": []
+}

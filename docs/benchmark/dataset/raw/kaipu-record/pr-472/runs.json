@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T17:50:33Z",
+  "databaseId": 41226473946,
+  "displayTitle": "docs(desktop): record what the webcam track shipped and learned; pin hook binaries, check ADR numbers",
+  "event": "pull_request",
+  "headBranch": "docs/niw2-565-webcam-track-record",
+  "headSha": "a32874a4493e4ddf7b92ae21c0b9920f2953ec81",
+  "status": "completed",
+  "updatedAt": "2026-10-31T17:50:39Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41226473946",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T17:47:52Z",
+  "databaseId": 41226255928,
+  "displayTitle": "docs(desktop): record what the webcam track shipped and learned; pin hook binaries, check ADR numbers",
+  "event": "pull_request",
+  "headBranch": "docs/niw2-565-webcam-track-record",
+  "headSha": "a32874a4493e4ddf7b92ae21c0b9920f2953ec81",
+  "status": "completed",
+  "updatedAt": "2026-10-31T17:48:08Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41226255928",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:46:59Z",
+  "databaseId": 41221329296,
+  "displayTitle": "docs(desktop): record what the webcam track shipped and learned; pin hook binaries, check ADR numbers",
+  "event": "pull_request",
+  "headBranch": "docs/niw2-565-webcam-track-record",
+  "headSha": "cd5e9dc096cb10932555ced4d954c0ee0d8cba70",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:47:18Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41221329296",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:30:56Z",
+  "databaseId": 41220043692,
+  "displayTitle": "docs(desktop): record what the webcam track shipped and learned; pin hook binaries, check ADR numbers",
+  "event": "pull_request",
+  "headBranch": "docs/niw2-565-webcam-track-record",
+  "headSha": "4ae2e2e52a2febafe43fdb06a9b9af1971c63013",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:31:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41220043692",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T16:30:55Z",
+  "databaseId": 41220043349,
+  "displayTitle": "docs(desktop): record what the webcam track shipped and learned; pin hook binaries, check ADR numbers",
+  "event": "pull_request",
+  "headBranch": "docs/niw2-565-webcam-track-record",
+  "headSha": "4ae2e2e52a2febafe43fdb06a9b9af1971c63013",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:31:12Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41220043349",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

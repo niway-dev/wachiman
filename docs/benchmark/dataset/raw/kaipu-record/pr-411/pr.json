@@ -1,0 +1,29 @@
+{
+ "number": 411,
+ "title": "fix(desktop): multi-tag paste and quick chip edits keep every change (audit LIB-B2)",
+ "body": "Closes audit finding **LIB-B2** ([library lens B](https://github.com/niway-dev/kaipu-record/blob/main/apps/documentation/src/content/docs/audits/2026-10-15/findings/library-b.md)). Contract: the approved spec `apps/documentation/src/content/docs/specs/2026-10-28-niw2-397-tag-chip-editing.md` (first commit on this branch).\n\nRefs NIW2-397\n\n## What was wrong\n\nThe tag editor built every edit from the `assigned` prop captured at render time. Two things broke because of that:\n\n- **Pasting `design, demo, ` kept only the last tag.** Each piece made its own `onAssign` call. Every call started from the same old list, so each one overwrote the previous one.\n- **Removing two chips quickly brought the first one back.** The second click still saw the list from before the first save landed. With chips `a, b, c`, removing `a` then `b` sent `[b, c]` and then `[a, c]`.\n\n## What changed\n\n- **`TagEditor` builds each edit on the latest list** (`tag-editor.tsx`). It keeps the last list it sent in a ref, plus a count of saves still in flight. While a save is pending, the next edit starts from that list. When every save has settled, the ref goes back to the props, which also undoes the change if the save failed.\n- **A multi-tag paste assigns once.** It looks each piece up (or creates it, one at a time, in order). Duplicates and invalid names are skipped. It stops creating tags once the per-item cap is full, so no orphan tags end up in the registry. Then it makes **one** `onAssign` call with the whole list.\n- **The callers return the save promise** (`tag-panel.tsx`, `library-page.tsx`, `library-detail-page.tsx`). `onAssign` is now typed `void | Promise<void>`, so the editor can tell when a save has landed. Main's `setItemTags` already replaces the whole list, so main is unchanged.\n- **Docs:** this PR deletes the audit plan `plans/audit-2026-10-15/17-tag-chip-editing.md` and removes its row from `00-index.md`.\n\nSix new tests in `tag-editor.test.tsx` give the editor a static `assigned` prop, so a save behaves as if it has not landed yet. Five of them failed before the fix, in the way the plan predicted. The sixth checks that the editor re-syncs with the props after a save; it already passed and guards against a regression. The 5 existing tests pass unchanged.\n\n**Follow-up (optional step C, not done here):** `tag-panel.tsx` `ItemTags.toggle` (the quick-tag buttons) has the same stale-list bug when you click two quick tags fast. The fix would move the ref/pending logic into a shared hook (`use-latest-ids.ts`) and use it there too.\n\n## How I verified it\n\n- `apps/kaipu-record`: `bun run test src/renderer/src/features/library/components/tag-editor.test.tsx`: 5 new tests failed before the fix and all 11 pass after it.\n- `bun run test src/renderer/src/features/library src/renderer/src/pages/library src/renderer/src/pages/library-detail`: 161/161 pass.\n- `bun run check-types`: pass.\n- `bun run verify`, twice in a row: both green (desktop 2884/2884 tests).\n  - This machine's shell had no `node` on PATH, so `bun run` used Bun as `node`. Under Bun, 3 test files this PR doesn't touch fail (`fs.access` resolves `null`; the PDF worker URL doesn't resolve). Both green runs used real Node 22 (`PATH=~/.nvm/versions/node/v22.22.2/bin:$PATH`), which matches CI.\n- I did not run the Playwright E2E suite locally, as the spec says; CI runs it.\n\n## How to test it yourself\n\n1. On a recording's detail page, paste `design, demo, ` into the tag field. Both chips should appear. Reopen the page: both should still be there.\n2. With three tags on a recording, click the × on two chips quickly. Both should disappear and stay gone after a reload.\n3. Type a tag name and press Enter twice quickly. You should get one chip, not a duplicate.\n\n---\nRun: agent-runner attempt 1, session 944fe0b9-47ad-4d50-952b-2e55d49f1d0f, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T15:56:34Z",
+ "updated_at": "2026-10-28T17:40:23Z",
+ "closed_at": "2026-10-28T17:40:19Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/411",
+ "base": {
+  "ref": "main",
+  "sha": "f10e39a47aaa755b7ebe767b16d0745deb23de74"
+ },
+ "head": {
+  "ref": "feature/niw2-397-17-tag-chip-editing",
+  "sha": "83e52345bd088f277986b3380902c0e339382d04",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 7,
+ "additions": 198,
+ "deletions": 26,
+ "labels": []
+}

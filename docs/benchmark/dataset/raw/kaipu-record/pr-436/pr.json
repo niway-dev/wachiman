@@ -1,0 +1,29 @@
+{
+ "number": 436,
+ "title": "feat(export): YouTube preset exports 1440p or 4K (NIW2-564)",
+ "body": "Closes NIW2-564 — https://linear.app/niway/issue/NIW2-564/youtube-export-1440p-4k-upscale-for-sharper-uploads\n\n## Why\nYouTube re-encodes 1440p and 4K uploads far better than 1080p ones, even for viewers watching at 1080p. A 1916×1048 @ 48 fps screen recording looked soft uploaded through the 1080p YouTube preset; the same video upscaled to 2560×1440 (ffmpeg lanczos, CRF 16) and re-uploaded looked clearly sharper. Uploading 1080p to YouTube has no upside, so the YouTube preset now produces 1440p or 4K. Stays on mediabunny/WebCodecs (ADR 0001): no ffmpeg in the build.\n\n## What changed\n- **Presets** (`export-presets.ts`, `shared/types/export-preset.ts`): `youtube` (1920×1080) → `youtube-1440` (2560×1440) and `youtube-4k` (3840×2160). Fit with black padding, source frame rate, 2 s keyframes, fast start. Video bitrate from [YouTube's upload guide](https://support.google.com/youtube/answer/1722171), SDR top of range: 1440p 16 / 24 Mbps, 2160p 45 / 68 Mbps (≤30 / >30 fps). AAC 384 kbps, falling back to 256 / 192 / 128k if the encoder refuses.\n- **Default variant**: `defaultYoutubePreset(source)` → 4K when fitting into 2560×1440 would shrink the source, else 1440p.\n- **Export sheet**: one YouTube row with a 1440p / 4K segmented control (same pattern as Fill / Fit). Collapsed hint shows \"16:9 · 1440p\" / \"16:9 · 4K\". No amber heavy-size styling or chip on this row: bigger than the recording is the point. New microcopy, en + es.\n- **Legacy sidecars**: `youtube` normalizes to `youtube-1440` for display; new `ENCODE_REVISION` entries keep an old export from ever counting as \"already exported\".\n- **Upscale quality**: the Fit/Fill framer and the zoom crop already used `imageSmoothingQuality = \"high\"`; slides (`drawContained`) did not, and now do. This is not what improved the YouTube result — the 1440p/4K upload is.\n- Docs: `backlog/export-presets.md`.\n\n## Product concept\nOne row with a resolution choice instead of two YouTube rows (GPT-6.1 Sol product review, owner-approved): pick the destination first, then the variant.\n\n## Verification\n- `bun run verify` (lint, oxfmt, build, types, unit tests): exit 0, 2976 tests passed.\n- The `/verify` Electron proof scenario and the e2e suite were **not** run locally (owner-machine rule); CI covers e2e on release candidates.\n- **Not verified at runtime**: whether Chromium's AAC encoder accepts 384 kbps (fallback list is unit-tested), and whether VideoToolbox accepts 3840×2160 at 68 Mbps through WebCodecs (the existing encoder probe should fall back).\n\n## How to test it yourself\n1. `bun run dev`, open a recording made on a 1080p monitor (e.g. `recording-2026-10-30-01-01-57`) in the editor → **Export**.\n2. In the Post group there is **one** YouTube row; its hint reads \"16:9 · 1440p\" and the size column shows 2560×1440. No amber size.\n3. Select it: a **Resolution 1440p / 4K** control appears. Switch to 4K → dimensions become 3840×2160 and the MB estimate grows. Switch back.\n4. Export at 1440p. When done: `ffprobe -v error -show_entries stream=codec_type,width,height,avg_frame_rate,bit_rate -of compact=p=0 \"<exported file>\"` → 2560×1440, source fps (48), video ≈ 24 Mbps, audio ≈ 384000 (or a lower fallback — tell me which).\n5. Export the same recording at 4K → 3840×2160 and it finishes without an encoder error.\n6. Upload the 1440p file to YouTube; once the 1440p option appears, compare text sharpness with the old upload.\n7. A Retina/HiDPI recording (larger than 2560×1440) opens the sheet with 4K preselected.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-30T07:20:25Z",
+ "updated_at": "2026-10-31T08:08:35Z",
+ "closed_at": "2026-10-31T08:08:35Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/436",
+ "base": {
+  "ref": "main",
+  "sha": "1d4105f79b75f2d8ef18c3305dd400b2f163e865"
+ },
+ "head": {
+  "ref": "feat/niw2-564-youtube-1440-4k",
+  "sha": "8496ec130c82492efb8a6d8bd6ac221281abbbd2",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 18,
+ "additions": 614,
+ "deletions": 91,
+ "labels": []
+}

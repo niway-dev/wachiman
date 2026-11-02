@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5730200407,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "submitted_at": "2026-11-01T20:48:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/8#pullrequestreview-5730200407",
+  "body": "👮 **Wachiman** · review of the whole pull request, at `dac8318`: all 14 files reviewed.\n\n3 finding(s): 3 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 replaces the \\\"Where is this going?\\\" strip with a DestinationsPanel, which shows until the first copy exists and can be closed with \\\"Not now\\\". It also reworks MasterCopiesPanel into a grid with picture sizes, a Drag handle and \\\"Open in Export\\\", and moves the title and metadata on the recording page above the player. Nothing blocks the merge. One UX gap: when the file can't be read, the size on every destination card except Archive stays at \\\"…\\\" indefinitely. Two small test gaps: the drag test leaves its mock on the shared stub, and the \\\"Open in Export\\\" test never checks that the button is missing without a callback.\n\n**Batch 2 of 2.** I found nothing to flag in the nine files of part 2.\n\n- **Tests:** the updated tests match how the page behaves. The \"Where is it going?\" panel appears only on an original that has no copies and has not been dismissed (`library-detail-page.tsx:190`). The \"Export a copy\" button stays hidden while the panel shows (line 436). The saved notice and the \"This is your original. It never changes.\" note never show at the same time (lines 341 and 394).\n- **Backlog doc:** it agrees with the code. The panel lists what `DESTINATION_IDS` lists, a card opens Prepare through `preparePath`, and \"Not now\" hides the panel until the page is left. The doc also says the page now reads the file on every local recording, which is why the old test that checked the file was not read was dropped.\n- **Messages:** the strings removed from en/es are no longer used anywhere. `sendTo` stays because the Library's cards and rows still use it, and the new strings exist in both languages.\n- **Stylesheets:** the old strip's stylesheet is deleted together with its component.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 5 | 852 | 4 | reviewed | 7 | $0.25 |\n| Batch 2 of 2 | 9 | 763 | 2 | reviewed | 6 | $0.25 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.50</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=dac8318b631e64780f65ce94b4aaa57261d7d63d -->\n\n<!-- wachi:attempt id=64ec1beb-9588-4759-8f98-c5e86c09e22c -->"
+ }
+]

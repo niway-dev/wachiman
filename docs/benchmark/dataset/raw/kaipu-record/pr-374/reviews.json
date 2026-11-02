@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5641417434,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f095cabb21f3c1084a97825da08b6f4abf132f99",
+  "submitted_at": "2026-10-25T04:00:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/374#pullrequestreview-5641417434",
+  "body": "**Claude review** of the whole pull request, at `f095cab`: all 5 files reviewed.\n\n0 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no issues in this PR. The main-process guard routes a capture request to a system notification while a recording is active, and forwards it to the renderer otherwise. The i18n keys exist in both `en.json` and `es.json`, and the existing `screenshots.captureWhileRecording` key is present. The `Notification` and `createMainTranslator` imports were already in `index.ts`. The change adds no new IPC surface and no value imports in `shared/`. I did not run the tests.\n\n<sub>Claude Sonnet 5.5 · $0.05</sub>\n\n<!-- claude-review sha=f095cabb21f3c1084a97825da08b6f4abf132f99 -->"
+ }
+]

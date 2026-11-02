@@ -1,0 +1,29 @@
+{
+ "number": 408,
+ "title": "fix(desktop): remember the picked mic, and fall back to the system's input",
+ "body": "## Summary\n\nTurning the mic on picked the iPhone (Continuity) instead of the Yeti the owner had chosen. The cause is older than the recent PRs: since e1f36936, the recording settings live only in main's memory. Every launch, including every `bun run dev` restart, started with no microphone. The renderer then took `microphones[0]`, the first device the OS enumerates.\n\nThe owner's rule: **remember the instruments, not the states.**\n\n- **Remembered:** the picked microphone and camera devices.\n- **Not remembered:** the mic, system-audio and camera on/off toggles.\n- **Every launch:** starts with the mic on and the camera and system audio off, as before.\n\n**Microphone**\n- **The pick is remembered.** It is stored in `AppSettings.microphone` (`{ deviceId, label } | null`) in `settings.json` and sanitized in `mergeSettings`.\n  - It is written by the renderer only when the user picks a device. Writing it from the hub on any change stored the automatic default as a pick, as the agent review found.\n  - The hub starts `selectedMicrophone` from it.\n- **The take's mic is a coalesce:** the picked one while it is connected, otherwise the system's default input.\n  - `useMicrophones` puts the system default at the head of the list. It matches Chromium's `default` alias by `groupId`, or by name without one.\n  - The choice is recomputed when devices come and go. Unplugging the picked mic falls back to the default, and plugging it back in returns to it.\n  - The fallback is never stored as a pick.\n  - Nothing switches while a take is pending or running.\n- **No race.** `useRecordingSettings` exposes `loaded`. Nothing is chosen before main's settings arrive.\n\n**Camera**\n- No code change. `cameraBubble.deviceId` is already the remembered pick, and the bubble already opens the default camera while that one is unplugged.\n\nDocs: the \"mic and system audio settings\" backlog doc.\n\n## Checks\n\n- `bun run check-types`: pass.\n- `bun run lint`: 0 errors.\n- `bun run test`: 299 files, 2872 tests pass.\n- Pre-push `verify-local`: pass.\n\nNew tests cover:\n- the remembered mic is used when connected;\n- the system default is used while it is unplugged, and the remembered mic returns when it is back;\n- no switch during a take;\n- a fallback or default is never stored, and a pick is;\n- the hub starts with the remembered mic;\n- the system default goes first in the list;\n- invalid stored values are dropped.\n\nNot checked on hardware: Chromium's `default` alias on macOS. Its `groupId` matching is what the tests assume.\n\n## How to test it yourself\n\n1. Pull this branch, run `bun run dev`.\n2. In the Mic settings, pick the **Yeti**, and pick the **iPhone** as the camera.\n3. Quit Kaipu completely and relaunch.\n   - The Yeti is still the mic, and the camera chevron shows the iPhone.\n   - The mic is on, and the camera and system audio are off.\n4. Unplug the Yeti. The mic switches to the macOS default input (Sound → Input), and a take records from it. Plug the Yeti back in: it is selected again.\n5. Start a take, then unplug and replug a mic. The selection does not change during the take.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T06:24:54Z",
+ "updated_at": "2026-10-28T06:37:18Z",
+ "closed_at": "2026-10-28T06:37:14Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/408",
+ "base": {
+  "ref": "main",
+  "sha": "a7b8996f95fea87eb29913cc5c0c6590e0ae63d9"
+ },
+ "head": {
+  "ref": "fix/remember-microphone",
+  "sha": "8c5c69e2b9beb6bbac7665940339016e329ed08b",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 14,
+ "additions": 246,
+ "deletions": 20,
+ "labels": []
+}

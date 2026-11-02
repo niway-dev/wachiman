@@ -1,0 +1,29 @@
+{
+ "number": 374,
+ "title": "fix(desktop): screenshot shortcut during a take notifies instead of toasting a hidden window (audit SHOT-B7)",
+ "body": "## What changed and why\n\nCloses audit finding **SHOT-B7**. During a recording the hub hides the main window, so pressing the screenshot shortcut (⌘⌃X) made the renderer show its \"finish the recording first\" toast inside a hidden window: the user saw nothing.\n\n- New pure `routeCaptureRequest` in `main/screenshots/capture-request.ts`: when `hub.isActive()` it calls `notifyBusy()` and never forwards; otherwise it calls `forwardToRenderer()`.\n- `triggerCaptureScreenshot` in `main/index.ts` uses it. Busy → macOS `Notification` (same approach as the existing already-recording notice). The refusal returns before `createWindow(false)`, so a closed window is not recreated just to refuse. Every capture entry point (the four shortcuts and the panel's \"Capture Screen\") goes through this function.\n- New i18n key `dialogs.captureWhileRecordingTitle` in `en` and `es`; the body reuses `screenshots.captureWhileRecording`.\n- The renderer guard stays as the fallback for the countdown phase (hub not yet active, window still visible).\n\nLimitation (same as the existing notice): if macOS notification permission is denied, the feedback is silent. Repeated presses stack banners; no throttling.\n\nThe plan file (`plans/audit-2026-10-15/36-screenshot-toast-window.md`) and its `00-index.md` row live on `docs/code-audit-2026-10-15` (PR #301), not on `main`, so there is nothing to delete here. Whoever lands #301 should drop that row.\n\n## How I verified it\n\n- Failing test first: `node_modules/.bin/vitest run src/main/screenshots/capture-request.test.ts` failed (module missing), then passed.\n- `bun run verify` from the repo root, twice in a row: exit 0 both times (265 test files, 2296 tests in the desktop app, i18n parity included). The second run was served entirely from the Turbo cache.\n- Not run: the manual steps below (they need a real recording on macOS) and the Playwright desktop E2E suite (CI runs it).\n\n## How to test it yourself\n\n1. Start a recording; press ⌘⌃X → a macOS notification \"Finish the recording first\" appears, no region selector opens, the recording continues.\n2. Stop the recording; press ⌘⌃X → the normal capture works.\n3. Press Record and, during the 3-2-1 countdown, press ⌘⌃X → the in-window toast appears (fallback path).\n\nRefs NIW2-410\n\nRun: Gas City session ni-wisp-ssjd3rv, bead ka-t5u, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T03:59:49Z",
+ "updated_at": "2026-10-25T04:00:48Z",
+ "closed_at": "2026-10-25T04:00:30Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/374",
+ "base": {
+  "ref": "main",
+  "sha": "0bafa06523b2cc5dab803c1d02bf771297620e53"
+ },
+ "head": {
+  "ref": "feature/niw2-410-36-screenshot-toast-window",
+  "sha": "f095cabb21f3c1084a97825da08b6f4abf132f99",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 5,
+ "additions": 70,
+ "deletions": 8,
+ "labels": []
+}

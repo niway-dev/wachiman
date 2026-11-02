@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T05:27:00Z",
+  "databaseId": 40638061671,
+  "displayTitle": "feat(desktop): turn off the camera mirror so text reads correctly with a rear camera",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-mirror",
+  "headSha": "e93b181e1c111be6d538b33238ab4a123c6ac8f7",
+  "status": "completed",
+  "updatedAt": "2026-10-28T05:27:09Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40638061671",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T05:07:15Z",
+  "databaseId": 40636121653,
+  "displayTitle": "feat(desktop): turn off the camera mirror so text reads correctly with a rear camera",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-mirror",
+  "headSha": "e93b181e1c111be6d538b33238ab4a123c6ac8f7",
+  "status": "completed",
+  "updatedAt": "2026-10-28T05:07:35Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40636121653",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T03:36:05Z",
+  "databaseId": 40627615425,
+  "displayTitle": "feat(desktop): turn off the camera mirror so text reads correctly with a rear camera",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-mirror",
+  "headSha": "330adeebc5fcc44ac66fb2cee5641d24a846d1a3",
+  "status": "completed",
+  "updatedAt": "2026-10-28T03:36:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40627615425",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T03:36:05Z",
+  "databaseId": 40627614963,
+  "displayTitle": "feat(desktop): turn off the camera mirror so text reads correctly with a rear camera",
+  "event": "pull_request",
+  "headBranch": "feat/camera-bubble-mirror",
+  "headSha": "330adeebc5fcc44ac66fb2cee5641d24a846d1a3",
+  "status": "completed",
+  "updatedAt": "2026-10-28T03:36:21Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40627614963",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

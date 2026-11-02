@@ -1,0 +1,24 @@
+[
+ {
+  "id": 6541318998,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T08:46:57Z",
+  "updated_at": "2026-10-31T08:46:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/464#issuecomment-6541318998",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nAnswering the github-actions review summary, on #471 (top of the stack):\n\n- **Ready cards are retired when the user leaves the Library even if list view or a filter kept them from being shown**: fixed in [`7f28eb97`](https://github.com/niway-dev/kaipu-record/commit/7f28eb978e3d558381c6d63de188fb09ef2db65f). The Library notes which cards the grid showed, and only those retire.\n\nThe pullfrog findings (the pill's name, Show in Finder / drag not counting as seen, the Email tag) are answered in their inline threads.\n"
+ },
+ {
+  "id": 6546288838,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T16:47:48Z",
+  "updated_at": "2026-10-31T16:47:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/464#issuecomment-6546288838",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nMerged `main` up the stack. Main now fingerprints a whole-recording copy of a take with a webcam as `whole:<face hash>` (NIW2-576), so comparing against `\"whole\"` dropped those copies' destination. 84b1fe55 makes `copyPresetOf` use `isWholeFingerprint` and adds a test. The same fix landed in `master-copies-panel` (0f0896c0), `export-runner`'s `wholeRecording` (0f0896c0), and the Export screen's \"Ready\" lookup, which now uses `prepareFingerprint` (89dabc7b).\n"
+ }
+]

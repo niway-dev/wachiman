@@ -1,0 +1,74 @@
+[
+ {
+  "id": 5718591617,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "e313ec8292732c19fe97ce6be135a4b01ab13f3d",
+  "submitted_at": "2026-10-30T21:01:06Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/456#pullrequestreview-5718591617",
+  "body": "**Agent review** of the whole pull request, at `e313ec8`: all 28 files reviewed.\n\n5 finding(s): 5 to consider; 5 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 looks correct overall. The runner's new `progressHidden` resets when a new export starts and when an export fails. An export that finishes still shows the ready card. The `destination` arg is mapped one-to-one from the preset in `destinationOfPreset`. The ready-copies store's two levels (unseen and announced) behave as their tests describe, and the e2e and verify locators match the new card's names. I have three suggestions, none blocking: the rail badge still counts copies that were deleted, the \\\"Drag to upload\\\" button can get keyboard focus but does nothing when pressed, and the verify test still has its old name.\n\n**Batch 2 of 2.** Part 2: the Rail badge, the backlog docs and the i18n messages all check out. The Rail item already has `position: relative`, so the absolutely positioned badge lands on the item's corner. The badge itself is aria-hidden and the label is in a screen-reader-only span, so the test's accessible-name assertion holds. The `backgroundCopy` select keys match `DESTINATION_IDS`, and an editor export falls through to `other` because the code passes \"export\". None of the removed `videoEditor` keys are still referenced. Two small suggestions, nothing blocking: the Spanish drag label switched to the imperative while the other action labels use the infinitive, and the new backlog row's Effort is \"Small\", which isn't on the table's scale.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 21 | 974 | 4 | reviewed | 5 | $0.30 |\n| Batch 2 of 2 | 7 | 420 | 4 | reviewed | 8 | $0.27 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.56</sub>\n\n<!-- agent-review sha=e313ec8292732c19fe97ce6be135a4b01ab13f3d -->"
+ },
+ {
+  "id": 5721968500,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8f3eea4a75c85f473b7ab618f073cd8942d090fe",
+  "submitted_at": "2026-10-31T08:19:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/456#pullrequestreview-5721968500",
+  "body": ""
+ },
+ {
+  "id": 5722036520,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8f3eea4a75c85f473b7ab618f073cd8942d090fe",
+  "submitted_at": "2026-10-31T08:45:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/456#pullrequestreview-5722036520",
+  "body": ""
+ },
+ {
+  "id": 5722036675,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8f3eea4a75c85f473b7ab618f073cd8942d090fe",
+  "submitted_at": "2026-10-31T08:45:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/456#pullrequestreview-5722036675",
+  "body": ""
+ },
+ {
+  "id": 5722036919,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8f3eea4a75c85f473b7ab618f073cd8942d090fe",
+  "submitted_at": "2026-10-31T08:45:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/456#pullrequestreview-5722036919",
+  "body": ""
+ },
+ {
+  "id": 5722037073,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8f3eea4a75c85f473b7ab618f073cd8942d090fe",
+  "submitted_at": "2026-10-31T08:45:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/456#pullrequestreview-5722037073",
+  "body": ""
+ }
+]

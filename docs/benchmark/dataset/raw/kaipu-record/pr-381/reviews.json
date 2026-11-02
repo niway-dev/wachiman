@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5660259053,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f7a16e69a54336765caeb31e3a031cd675ada226",
+  "submitted_at": "2026-10-26T23:04:04Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/381#pullrequestreview-5660259053",
+  "body": "**Agent review** of the whole pull request, at `f7a16e6`: all 10 files reviewed.\n\n1 finding(s), 0 to fix; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no correctness or security problems. The tray menu template, the recording-state rebuild, the hash navigation, the i18n keys, the tests and the docs all look consistent. The Electron boundary is not widened, and `ROUTES` is a plain constants file. The menu is also rebuilt on every settings change, so the displayed accelerators stay current. My only finding is a note on an empty-object cast in `tray.ts`.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 10 | 611 | 5 | reviewed | 7 | $0.13 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.13</sub>\n\n<!-- agent-review sha=f7a16e69a54336765caeb31e3a031cd675ada226 -->"
+ }
+]

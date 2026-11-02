@@ -1,0 +1,190 @@
+{
+ "unparsed": [],
+ "seen": {
+  "coderabbit:issue-comments:kaipu-bench-coderabbit": 20,
+  "coderabbit:kaipu-bench-coderabbit": 15,
+  "coderabbit:reviews:kaipu-bench-coderabbit": 7,
+  "coderabbit:kaipu-bench-coderabbit-v2": 6,
+  "coderabbit:issue-comments:kaipu-bench-coderabbit-v2": 10,
+  "coderabbit:reviews:kaipu-bench-coderabbit-v2": 3,
+  "pullfrog:kaipu-bench-pullfrog": 7,
+  "pullfrog:reviews:kaipu-bench-pullfrog": 5,
+  "pullfrog:kaipu-bench-pullfrog-v2": 9,
+  "pullfrog:reviews:kaipu-bench-pullfrog-v2": 6,
+  "wachiman:kaipu-bench-wachi": 258,
+  "wachiman:reviews:kaipu-bench-wachi": 60,
+  "wachiman:kaipu-record": 266,
+  "wachiman:reviews:kaipu-record": 146,
+  "pullfrog:kaipu-record": 34,
+  "pullfrog:reviews:kaipu-record": 60,
+  "coderabbit:kaipu-record": 20,
+  "coderabbit:issue-comments:kaipu-record": 14,
+  "coderabbit:reviews:kaipu-record": 41
+ },
+ "aggregate": {
+  "kaipu-bench-wachi": {
+   "prs_with_wachiman_review": 60,
+   "prs_with_any_bot_finding": 60,
+   "reviews": 60,
+   "runs_with_log": 65,
+   "cost_usd": 58.59,
+   "findings": {
+    "wachiman": 282
+   },
+   "wachiman_by_severity": {
+    "fix": 61,
+    "consider": 218,
+    "info": 2,
+    "blocker": 1
+   },
+   "wachiman_by_topic": {
+    "docs": 49,
+    "tests": 78,
+    "bug": 119,
+    "cleanup": 18,
+    "security": 4,
+    "question": 12,
+    "perf": 2
+   },
+   "wachiman_by_placement": {
+    "inline": 258,
+    "body": 24
+   },
+   "contracts": 360,
+   "versions": {
+    "v1.3.0": 15,
+    "v1.4.0": 45
+   },
+   "models": {
+    "claude-opus-5-5": 45,
+    "claude-sonnet-5-5": 15
+   }
+  },
+  "kaipu-record": {
+   "prs_with_wachiman_review": 112,
+   "prs_with_any_bot_finding": 82,
+   "reviews": 146,
+   "runs_with_log": 146,
+   "cost_usd": 46.43,
+   "findings": {
+    "wachiman": 278,
+    "pullfrog": 34,
+    "coderabbit": 27
+   },
+   "wachiman_by_severity": {
+    "note": 34,
+    "fix": 54,
+    "consider": 190
+   },
+   "wachiman_by_topic": {
+    "other": 13,
+    "correctness": 14,
+    "adr": 7,
+    "security": 7,
+    "bug": 103,
+    "cleanup": 21,
+    "rules": 1,
+    "tests": 39,
+    "docs": 64,
+    "question": 8,
+    "perf": 1
+   },
+   "wachiman_by_placement": {
+    "inline": 266,
+    "body": 12
+   },
+   "contracts": 32,
+   "versions": {
+    "v1": 23,
+    "unknown": 16,
+    "v1.2.0": 69,
+    "v1.2.1": 1,
+    "v1.3.0": 21,
+    "v1.4.0": 16
+   },
+   "models": {
+    "claude-sonnet-5-5": 56,
+    "unknown": 16,
+    "claude-opus-5-5": 74
+   }
+  },
+  "kaipu-bench-pullfrog": {
+   "prs_with_wachiman_review": 0,
+   "prs_with_any_bot_finding": 5,
+   "reviews": 0,
+   "runs_with_log": 5,
+   "cost_usd": 0,
+   "findings": {
+    "pullfrog": 7
+   },
+   "wachiman_by_severity": {},
+   "wachiman_by_topic": {},
+   "wachiman_by_placement": {},
+   "contracts": 0,
+   "versions": {},
+   "models": {}
+  },
+  "kaipu-bench-pullfrog-v2": {
+   "prs_with_wachiman_review": 0,
+   "prs_with_any_bot_finding": 5,
+   "reviews": 0,
+   "runs_with_log": 2,
+   "cost_usd": 0,
+   "findings": {
+    "pullfrog": 9
+   },
+   "wachiman_by_severity": {},
+   "wachiman_by_topic": {},
+   "wachiman_by_placement": {},
+   "contracts": 0,
+   "versions": {},
+   "models": {}
+  },
+  "kaipu-bench-wachi-v2": {
+   "prs_with_wachiman_review": 0,
+   "prs_with_any_bot_finding": 0,
+   "reviews": 0,
+   "runs_with_log": 5,
+   "cost_usd": 0,
+   "findings": {},
+   "wachiman_by_severity": {},
+   "wachiman_by_topic": {},
+   "wachiman_by_placement": {},
+   "contracts": 0,
+   "versions": {},
+   "models": {}
+  },
+  "kaipu-bench-coderabbit": {
+   "prs_with_wachiman_review": 0,
+   "prs_with_any_bot_finding": 7,
+   "reviews": 0,
+   "runs_with_log": 0,
+   "cost_usd": 0,
+   "findings": {
+    "coderabbit": 15
+   },
+   "wachiman_by_severity": {},
+   "wachiman_by_topic": {},
+   "wachiman_by_placement": {},
+   "contracts": 0,
+   "versions": {},
+   "models": {}
+  },
+  "kaipu-bench-coderabbit-v2": {
+   "prs_with_wachiman_review": 0,
+   "prs_with_any_bot_finding": 3,
+   "reviews": 0,
+   "runs_with_log": 0,
+   "cost_usd": 0,
+   "findings": {
+    "coderabbit": 6
+   },
+   "wachiman_by_severity": {},
+   "wachiman_by_topic": {},
+   "wachiman_by_placement": {},
+   "contracts": 0,
+   "versions": {},
+   "models": {}
+  }
+ }
+}

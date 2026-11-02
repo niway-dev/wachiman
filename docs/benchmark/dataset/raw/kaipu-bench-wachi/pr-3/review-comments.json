@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4437259107,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/master-copies-panel.test.tsx",
+  "line": 100,
+  "original_line": 100,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 102,
+  "original_position": 102,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730176711,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:42:30Z",
+  "updated_at": "2026-11-01T20:42:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/3#discussion_r4437259107",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: Drag test replaces the shared electronAPI mock and never restores it**\n\n`window.electronAPI.startFileDrag = startFileDrag` overwrites the mock that `test/setup.ts:109` creates once per file. Nothing puts it back, so every later test in this file runs against this `vi.fn()`. The existing drag test in `export-status-cards.test.tsx:143-152` uses `vi.spyOn(window.electronAPI, \"startFileDrag\")` followed by `mockRestore()`. Using the same pattern here keeps the tests independent of each other.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437259109,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/master-copies-panel.test.tsx",
+  "line": 140,
+  "original_line": 140,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 143,
+  "original_position": 143,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730176711,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:42:30Z",
+  "updated_at": "2026-11-01T20:42:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/3#discussion_r4437259109",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: \"Open in Export\" test checks only that the button appears, not that it is hidden**\n\nThe test name says the button \"shows only where there is an export screen to open\", but the test only renders the panel with `onOpenExport` and clicks the button. It should also render without `onOpenExport` and assert that `queryByRole(\"button\", { name: \"Open in Export →\" })` is null. That case covers a page with no preparable recording, where `library-detail-page.tsx:513` passes `undefined`.\n\n<!-- wachi:finding -->"
+ }
+]

@@ -1,0 +1,29 @@
+{
+ "number": 407,
+ "title": "fix(desktop): keep every capture-panel drawer under 600 px",
+ "body": "## Summary\n\nThe capture panel's drawers grew past its height ceiling, so the panel scrolled and the Record button slid out at the top. This happened with the camera drawer when framing was on, and with the mic drawer when a few inputs were listed. This PR keeps every drawer of the panel short. The Record page's drawers are unchanged, because they have room.\n\n**Camera drawer (panel only)**\n- Size section removed (chips + slider). In the panel, the bubble's hover grip sizes it.\n- The Record page keeps Size, because the grip is pointer-only: Size is the keyboard's way to size the bubble.\n- Mirror and Framing hints are switch descriptions and hover tooltips instead of visible lines. `SwitchRow` gains `hintHidden`, and a disabled reason still shows.\n- Framing pad: 80 → 64 px.\n\n**Mic drawer (panel only)**\n- No Input / Input level section labels. The radiogroup and the slider keep their accessible names.\n- One-line device rows, 28 px.\n- The type (USB, Bluetooth…) moves to the row's tooltip, but \"Disconnected\" stays visible.\n- The list scrolls past four devices.\n- The noise hint is a tooltip.\n\n**System audio drawer (panel only)**\n- The ducking hint is a tooltip.\n- The \"One app · Not available yet\" line is gone. The disabled chip's tooltip and accessible name already say it.\n\n**Ceiling**\n- The panel ceiling goes from 640 to 600 px.\n- The value lives in `src/shared/capture-panel.ts`, so main and the E2E check share it.\n\n**Real-height check**\n- New `e2e/capture-panel-height.e2e.ts` opens the real panel window, without focus, as a tray click does.\n- It fakes 8 named microphones and opens each drawer at its tallest (mic list full, camera with framing on).\n- It asserts that the laid-out panel height is ≤ 600 px.\n- jsdom unit tests cannot measure layout, so this is the only test that covers it.\n\n## Checks\n\n- `bun run check-types`: pass.\n- `bun run lint`: 0 errors.\n- `bun run test`: 299 files, 2868 tests pass.\n- Pre-push `verify-local`: pass.\n- New E2E, dispatched through `ci-desktop.yml` on Linux:\n  - First run, before the label/list change, [failed](https://github.com/niway-dev/kaipu-record/actions/runs/40640924927) at 616 px with 8 inputs. That is what led to the four-row cap and the label removal.\n  - At `76e6a964` it [passes](https://github.com/niway-dev/kaipu-record/actions/runs/40641355770).\n  - The same run has two other failures, which also [fail on main](https://github.com/niway-dev/kaipu-record/actions/runs/40641257535) on Linux: `screenshot-editor.e2e.ts:166` and `shortcuts.e2e.ts:15`. They are unrelated to this PR.\n- pr-checks runs the macOS suite on the release PR.\n\nNot covered:\n- The mid-take \"live\" note, because the E2E does not record. It adds about one line to the mic or camera drawer during a take.\n\n## How to test it yourself\n\n1. Pull this branch, run `bun run dev`.\n2. Open the menu-bar panel and the **Mic** chevron.\n   - Each device is one line, and hovering one shows its type.\n   - With more than four inputs, the list scrolls.\n   - There are no INPUT / INPUT LEVEL labels.\n   - The noise hint shows on hover.\n   - The whole panel fits, with the Record button visible at the top.\n3. Open the **Audio** chevron. There is no \"One app\" line, and the ducking hint shows on hover.\n4. Open the **Camera** chevron and turn Framing on with the zoom above 100 %.\n   - There is no Size section.\n   - Everything fits without scrolling.\n5. Hover the camera bubble and drag its corner grip. It resizes.\n6. On the Record page, the three drawers look as before, with type lines, hints and camera Size.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T05:41:22Z",
+ "updated_at": "2026-10-28T06:37:32Z",
+ "closed_at": "2026-10-28T06:37:32Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/407",
+ "base": {
+  "ref": "main",
+  "sha": "a7b8996f95fea87eb29913cc5c0c6590e0ae63d9"
+ },
+ "head": {
+  "ref": "fix/compact-camera-panel",
+  "sha": "76e6a964a692ba1f530fe755dfd7c990335e48b4",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 18,
+ "additions": 324,
+ "deletions": 71,
+ "labels": []
+}

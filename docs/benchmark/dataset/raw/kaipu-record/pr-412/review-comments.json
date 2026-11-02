@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4402993392,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/library/drag-copies.ts",
+  "line": 19,
+  "original_line": 19,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 24,
+  "original_position": 24,
+  "commit_id": "fc4b4db66a216c95feec2d1aaa1872498e521eb2",
+  "original_commit_id": "59d9eaa624447eb9f7d0bcf53ca02e1c293c9365",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5685798703,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:05:29Z",
+  "updated_at": "2026-10-28T16:05:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/412#discussion_r4402993392",
+  "body": "🟡🐛 **Consider · bug: Drag folders of a previous vault location are never cleaned**\n\ncleanupDragCopies only wipes `<current vault>/.kaipu/drag`, and is called with `vaultDirectory().path` at startup and quit. If the user changes the vault directory (setVaultDirectory in vault-location.ts), any drag folder left in the old vault (crash, or a drag made in the last hour before the switch) holds hard links that are never pruned, because pruneDragCopies only runs for the vault being dragged from. They are small (hard links) but keep the file's data alive if the user later deletes the original. Consider cleaning the old vault's drag folder when the location changes."
+ },
+ {
+  "id": 4402998845,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/library/drag-copies.ts",
+  "line": 19,
+  "original_line": 19,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 24,
+  "original_position": 24,
+  "commit_id": "fc4b4db66a216c95feec2d1aaa1872498e521eb2",
+  "original_commit_id": "59d9eaa624447eb9f7d0bcf53ca02e1c293c9365",
+  "in_reply_to_id": 4402993392,
+  "pull_request_review_id": 5685805658,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:05:58Z",
+  "updated_at": "2026-10-28T16:05:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/412#discussion_r4402998845",
+  "body": "Known and accepted in the approved spec (`specs/2026-10-28-niw2-398-drag-out-volumes.md`, Global Constraints): \"if the user changes the vault folder, the old vault's `.kaipu/drag` is never pruned again. Links cost no space; accepted.\" It is also listed under *Known limitation* in the PR description. One nuance worth Cristian's call: a leftover link keeps the bytes alive if the original is later deleted from the old vault. Cleaning the previous vault on `setVaultDirectory` would be a small follow-up, but it's outside this spec, so I left it out."
+ }
+]

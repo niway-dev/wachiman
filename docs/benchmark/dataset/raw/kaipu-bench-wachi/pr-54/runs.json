@@ -1,0 +1,16 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T06:04:22Z",
+  "databaseId": 41397659413,
+  "displayTitle": "[replay r2] feat(kaipu): NIW2-218 export presets pipeline and fast start",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "f00a204b53af23acb396be1456db057ab15c87ff",
+  "status": "completed",
+  "updatedAt": "2026-11-02T06:07:37Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41397659413",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

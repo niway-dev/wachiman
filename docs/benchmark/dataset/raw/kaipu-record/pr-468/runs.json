@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T07:50:44Z",
+  "databaseId": 41182195599,
+  "displayTitle": "fix(desktop): the Library player shows the recorded face over the original",
+  "event": "pull_request",
+  "headBranch": "feature/webcam-library-player-face",
+  "headSha": "8a1fcc3976fa8d9d732336cee95695269389987c",
+  "status": "completed",
+  "updatedAt": "2026-10-31T07:51:37Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41182195599",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T08:01:03Z",
+  "databaseId": 41182858568,
+  "displayTitle": "fix(desktop): the Library player shows the recorded face over the original",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "1d4105f79b75f2d8ef18c3305dd400b2f163e865",
+  "status": "completed",
+  "updatedAt": "2026-10-31T08:01:05Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41182858568",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

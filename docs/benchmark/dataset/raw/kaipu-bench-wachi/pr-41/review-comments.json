@@ -1,0 +1,117 @@
+[
+ {
+  "id": 4438739885,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 943,
+  "original_line": 943,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 110,
+  "original_position": 110,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731884808,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:16Z",
+  "updated_at": "2026-11-02T03:45:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/41#discussion_r4438739885",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: Off→on→off→on quickly closes the camera-off gap before the camera is back (confidence medium)**\n\nThe off branch (`turnWebcamOff`, line 928) runs immediately, but the on branch is queued (line 939). Sequence: on (queued, opening), off (bumps `cameraRequest` in the engine, `webcamOn=false`), on again (`webcamOn=true`, queued behind the first). The first `turnWebcamOn` finishes with `request !== cameraRequest` and returns \"ok\" without a camera feeding the relay (recorder-engine.ts:810). Because `webcamOn` is true again, line 943 calls `gaps.close(takeTimeMs())`. The gap ends while the second open has not started, so the editor shows the held last frame as live for up to the open time. Close the gap only when the engine confirms its camera is feeding, e.g. have `turnWebcamOn` distinguish \"superseded\" from \"fed\". The comment on line 938 is also wrong: the off is not on the queue (line 928 calls the engine directly). It is the engine's `cameraRequest` counter that makes a late camera release itself.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739889,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts",
+  "line": 709,
+  "original_line": 709,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 117,
+  "original_position": 117,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731884808,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:16Z",
+  "updated_at": "2026-11-02T03:45:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/41#discussion_r4438739889",
+  "body": "👮 **Wachiman** · 🟡❓ **Consider · question: Third constructor argument of MediaStreamVideoTrackSource: is it part of mediabunny's API? (confidence low)**\n\n`new MediaStreamVideoTrackSource(track, encodingConfig, { frameRate })` passes a third argument, and the test asserts `args[2]` is `{ frameRate: 30 }` (recorder-engine.test.tsx:1683). `mediabunny` is not installed in this checkout, so I could not check the 1.61.x signature. The tests mock the class, so they cannot show the argument is honoured. If mediabunny ignores it (or `tsc` rejects it), the relay track reports no frame rate and the file no longer repeats the last frame through a camera-off gap, which is the mechanism the comment on lines 706-708 relies on. Can you point to the mediabunny option or doc that reads this argument?\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739893,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts",
+  "line": 438,
+  "original_line": 438,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 57,
+  "original_position": 57,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731884808,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:16Z",
+  "updated_at": "2026-11-02T03:45:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/41#discussion_r4438739893",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: New `releaseWebcam` declaration splits `releaseAll` from its doc comment (confidence high)**\n\nThe existing JSDoc \"Frees everything acquired, for a start that failed or a prepared take released…\" (lines 434-437) now sits above the new `/** Releases the webcam relay… */ let releaseWebcam` declaration, so it documents `releaseWebcam` while `releaseAll` (line 440) has none. Move the `releaseWebcam` declaration and its comment above the `releaseAll` comment.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739896,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.test.ts",
+  "line": 2065,
+  "original_line": 2065,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 185,
+  "original_position": 185,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731884808,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:16Z",
+  "updated_at": "2026-11-02T03:45:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/41#discussion_r4438739896",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: Test title claims the hub reset path is covered, but only abort is exercised (confidence high)**\n\n\"a bubble parked when the take is aborted or the hub reset is destroyed too\" only calls `recordingAbort`. The reset path at recording-hub.ts:1022 (`releaseParkedBubble()` after `bubbleProtection.reset()`) has no test. Add one or drop \"or the hub reset\" from the title.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438739901,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/webcam-relay.test.ts",
+  "line": 79,
+  "original_line": 79,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 79,
+  "original_position": 79,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731884808,
+  "subject_type": "line",
+  "created_at": "2026-11-02T03:45:16Z",
+  "updated_at": "2026-11-02T03:45:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/41#discussion_r4438739901",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: The test never reaches the relay's late-frame drop branch it describes (confidence medium)**\n\nThe comment at line 79 says a frame the old camera still delivers \"is dropped (and closed), not relayed\". `relay.cut()` cancels the reader, which closes the fake stream. The following `first.push(late)` then throws, and the `try/catch` swallows that, so `late` never reaches `webcam-relay.ts:91-93` (`current !== reader` → `value.close()`). The test also never asserts `late.close`. The final `written` equals `[\"a1\",\"b1\"]` check would pass even if that guard were deleted, because the cancelled stream already blocks the frame. To cover the guard, make the fake camera's read resolve with a frame after `cut()`, for example by holding a pending `read` or using a stream whose `cancel` does not close it. Then assert `late.close` was called and `written` excludes it. Otherwise reword the comment to say the cut only cancels the reader.\n\n<!-- wachi:finding -->"
+ }
+]

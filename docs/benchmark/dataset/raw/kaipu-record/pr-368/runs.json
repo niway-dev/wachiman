@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:29:07Z",
+  "databaseId": 40158375465,
+  "displayTitle": "fix(desktop): trim handles track the pointer, respect bounds and end once (audit VID-B1/B2/B7/B8)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-399-19-trim-drag",
+  "headSha": "3f24212c13f3b4592e8f4e4543c466709ae6c068",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:29:14Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40158375465",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:28:21Z",
+  "databaseId": 40158327899,
+  "displayTitle": "fix(desktop): trim handles track the pointer, respect bounds and end once (audit VID-B1/B2/B7/B8)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-399-19-trim-drag",
+  "headSha": "3f24212c13f3b4592e8f4e4543c466709ae6c068",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:28:51Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40158327899",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:28:21Z",
+  "databaseId": 40158327890,
+  "displayTitle": "fix(desktop): trim handles track the pointer, respect bounds and end once (audit VID-B1/B2/B7/B8)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-399-19-trim-drag",
+  "headSha": "3f24212c13f3b4592e8f4e4543c466709ae6c068",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:28:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40158327890",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

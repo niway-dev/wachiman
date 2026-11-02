@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4431004945,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.tsx",
+  "line": 273,
+  "original_line": 245,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 11,
+  "original_position": 11,
+  "commit_id": "71c590eda8d377118f2e858fdffcc8b9c8f94641",
+  "original_commit_id": "8a1fcc3976fa8d9d732336cee95695269389987c",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5721877364,
+  "subject_type": "line",
+  "created_at": "2026-10-31T07:51:32Z",
+  "updated_at": "2026-10-31T07:51:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/468#discussion_r4431004945",
+  "body": "🟡📝 **Consider · docs: Comment says nothing is composited over this player, but it now draws the webcam**\n\nThe comment under the player says the vault file is shown untouched and that anything is \"composited only in the editor's preview and burned in only by an export\". With this PR the same player draws a second `<video>` (the webcam file) on top of the screen recording, at the recorded layout and with the camera-off gaps applied (`recording-player.tsx:81-91`). The file on disk is still untouched, so ADR 0003 still holds. But a reader of this comment would now expect the player to show the bare screen file. Add a sentence that the recorded webcam is overlaid here too (it comes from the take, not from an edit). That way the 'original' note and the overlay don't seem to contradict each other."
+ },
+ {
+  "id": 4431004948,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/components/recording-player.module.css",
+  "line": 21,
+  "original_line": 21,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 8,
+  "original_position": 8,
+  "commit_id": "71c590eda8d377118f2e858fdffcc8b9c8f94641",
+  "original_commit_id": "8a1fcc3976fa8d9d732336cee95695269389987c",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5721877364,
+  "subject_type": "line",
+  "created_at": "2026-10-31T07:51:32Z",
+  "updated_at": "2026-10-31T07:51:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/468#discussion_r4431004948",
+  "body": "🟡🐛 **Consider · bug: Overlay sits outside the <video>: it covers the native controls and is lost in native fullscreen**\n\n`.picture` is a sibling of the `<video controls>`, and the webcam `.slot` inside it has `z-index: 3` (`webcam-layer.module.css:5-10`). Two things follow. (1) The bubble paints over the native control bar. A bottom-corner bubble, which is the usual place, hides the timeline end, the volume and the fullscreen button. Clicks still pass through (`pointer-events: none`), but users can't see what they are clicking. (2) The native controls' fullscreen button puts only the `<video>` element into fullscreen, so the face disappears in fullscreen. The two options are: (a) custom controls, or calling `requestFullscreen` on `.player` instead of the video; or (b) accept and document the limitation. Either is a judgement call, but nothing in the PR mentions it."
+ },
+ {
+  "id": 4431007233,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/library/components/recording-player.tsx",
+  "line": 95,
+  "original_line": 70,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 107,
+  "original_position": 80,
+  "commit_id": "71c590eda8d377118f2e858fdffcc8b9c8f94641",
+  "original_commit_id": "8a1fcc3976fa8d9d732336cee95695269389987c",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5721879817,
+  "subject_type": "line",
+  "created_at": "2026-10-31T07:52:38Z",
+  "updated_at": "2026-10-31T07:52:39Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/468#discussion_r4431007233",
+  "body": "With a webcam take, the native controls' fullscreen button (and Picture-in-Picture in Chromium's overflow menu) shows only this `<video>` element. The face overlay is a sibling outside it, so it disappears exactly when the user enlarges the take. That is the same \"the recording lost the camera\" impression this PR fixes, and it isn't in the PR's out-of-scope list.\n\nA cheap fix: when `webcam` is set, pass `controlsList=\"nofullscreen\"` and `disablePictureInPicture`. A fuller fix: offer a fullscreen action that calls `requestFullscreen()` on `.player`, the way `video-editor-page.tsx` does for the editor."
+ }
+]

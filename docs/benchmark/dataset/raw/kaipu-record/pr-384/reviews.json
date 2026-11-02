@@ -1,0 +1,98 @@
+[
+ {
+  "id": 5660743197,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "8b18ce170cdd3e46b4d84808d2f0bde8e084043f",
+  "submitted_at": "2026-10-27T00:10:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/384#pullrequestreview-5660743197",
+  "body": "**Agent review** of the whole pull request, at `8b18ce1`: all 136 files reviewed.\n\n7 finding(s): 2 to fix, 5 to consider; 7 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 11.** I found nothing to flag in part 1. The new IPC entry points validate renderer input in main. The selector request accepts only a known capture mode. The phase report goes through `parsePhaseReport`. The bubble-size preview is type-checked and then clamped. Recording capture metadata goes through `sanitizeRecordingCapture` before it is written to disk. The new `@shared` imports are only used from main. I did not check the shared modules for value imports of workspace packages. I read this part's diff and checked two callers in the repository: `displayIdForSource` and the renderer's phase reports. I did not read the other parts or run any tests.\n\n**Batch 2 of 11.** Part 2 is test-only. The expected values I recomputed by hand are consistent, and I found no incorrect assertions or tests that miss their stated purpose. I did not run the tests or open the production code they exercise.\n\n**Batch 3 of 11.** No findings in this part. The new `shared/` imports are all relative, so the preload-bundle rule holds. The new tests agree with the implementations I traced.\n\n**Batch 4 of 11.** I read all eight files in this part and found one small bug and two minor cleanups. The bug is in the Size chips' arrow-key navigation. When the size is custom, pressing ← from the Custom chip lands on the second-to-last preset instead of the last. The other two are a misplaced doc comment in `camera-settings-content.tsx` and hardcoded ON/OFF text in `camera-toggle-split.tsx`. I did not read any other part's files, the tests or the stylesheets. I also did not run the app or the tests.\n\n**Batch 5 of 11.** I read the whole diff for this part and found one small issue. A camera setting changed within 60 ms of the settings UI closing is never saved, because the throttle timer is cleared on unmount without flushing. I did not read other files or callers, and I did not run any tests.\n\n**Batch 6 of 11.** The six files are mostly sound: the ratio geometry clamps correctly and the record chrome is well factored. I found one bug in `frame-box.tsx`. After P then V, the ratio is restored but the box is not refit, so a recording can start with a ratio that doesn't match its box.\n\n**Batch 7 of 11.** I read all 10 files in this part and found one minor robustness issue. In record-page.tsx, a pending start can stay armed after the source pick. The new `onRequestChooseSource` payload is typed consistently in the preload and shared types, so I found no Electron-boundary problem. I did not run the tests.\n\n**Batch 8 of 11.** Test-only part; the tests look consistent with the described behavior. One minor note: a test name in capture-panel.test.tsx promises more than it asserts.\n\n**Batch 9 of 11.** I found nothing to flag in part 9, which is mostly tests, test fixtures and stylesheets. I checked the placement tests in `record-chrome.test.ts` against `record-chrome.tsx` by hand, and the expected values follow from the code. The other test and fixture changes are mechanical, adding `capture`, `recordingMode` and `cameraBubble` fields and the new bridge stubs. The CSS changes are self-contained. I did not run the tests.\n\n**Batch 10 of 11.** I found nothing to flag in this part. The `element` slot in `StatusToggleRow` is backward compatible, and its test covers the new path. The CSS additions are consistent. The new IPC channels in `ipc-contract.mdx` match the registrations in `ipc.ts`, `recording-hub.ts` and `index.ts`. The new backlog docs and the index rows agree with each other.\n\n**Batch 11 of 11.** I found nothing to flag in this part. The en and es message files have the same keys and placeholders. I grepped the renderer for the removed overlay keys (`useSelection`, `recordKey` in the hints) and the new keys I spot-checked. `useSelection` has no remaining caller, and `hintFrameRecord` is now called without `recordKey`. The new keys I spot-checked are used (`lastUsedNote`, `startHelper`, `frameCaption`, `recentMeta`, `ratioFree`, `sizeCustomValue`, `bubbleLabelCustom`). I did not check every new key, and I did not verify the spec's claims against the code beyond that.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 11 | 20 | 984 | 8 | reviewed | 4 | $0.17 |\n| Batch 2 of 11 | 14 | 995 | 2 | reviewed | 2 | $0.10 |\n| Batch 3 of 11 | 13 | 809 | 6 | reviewed | 2 | $0.09 |\n| Batch 4 of 11 | 8 | 936 | 4 | reviewed | 2 | $0.08 |\n| Batch 5 of 11 | 18 | 886 | 4 | reviewed | 2 | $0.10 |\n| Batch 6 of 11 | 6 | 972 | 4 | reviewed | 2 | $0.09 |\n| Batch 7 of 11 | 10 | 965 | 4 | reviewed | 3 | $0.10 |\n| Batch 8 of 11 | 14 | 940 | 2 | reviewed | 2 | $0.10 |\n| Batch 9 of 11 | 19 | 931 | 2 | reviewed | 3 | $0.09 |\n| Batch 10 of 11 | 11 | 940 | 4 | reviewed | 4 | $0.14 |\n| Batch 11 of 11 | 3 | 314 | 1 | reviewed | 5 | $0.07 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · 11 batches · $1.13</sub>\n\n<!-- agent-review sha=8b18ce170cdd3e46b4d84808d2f0bde8e084043f -->"
+ },
+ {
+  "id": 5661026953,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "submitted_at": "2026-10-27T00:56:41Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/384#pullrequestreview-5661026953",
+  "body": ""
+ },
+ {
+  "id": 5661027262,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "submitted_at": "2026-10-27T00:56:44Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/384#pullrequestreview-5661027262",
+  "body": ""
+ },
+ {
+  "id": 5661027493,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "submitted_at": "2026-10-27T00:56:46Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/384#pullrequestreview-5661027493",
+  "body": ""
+ },
+ {
+  "id": 5661027710,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "submitted_at": "2026-10-27T00:56:49Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/384#pullrequestreview-5661027710",
+  "body": ""
+ },
+ {
+  "id": 5661027971,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "submitted_at": "2026-10-27T00:56:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/384#pullrequestreview-5661027971",
+  "body": ""
+ },
+ {
+  "id": 5661028160,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "submitted_at": "2026-10-27T00:56:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/384#pullrequestreview-5661028160",
+  "body": ""
+ },
+ {
+  "id": 5661028323,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "725642f7ebfc1adec9b597d8dbb3b2b1ae3f44f4",
+  "submitted_at": "2026-10-27T00:56:55Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/384#pullrequestreview-5661028323",
+  "body": ""
+ }
+]

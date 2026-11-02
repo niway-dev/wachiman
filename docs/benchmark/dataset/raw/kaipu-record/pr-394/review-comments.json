@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4393627783,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "package.json",
+  "line": 42,
+  "original_line": 42,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 5,
+  "original_position": 5,
+  "commit_id": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "original_commit_id": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5673660257,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:14:02Z",
+  "updated_at": "2026-10-27T20:14:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/394#discussion_r4393627783",
+  "body": "🟡🏛️ **Consider · adr: ADR 0028 still says check-workflows runs `bun test ./scripts/`**\n\nThis change removes `bun test ./scripts/` from `check-workflows`. It is consistent with the repo, because no test files remain under `scripts/`. But ADR 0028 (Consequences, lines 68-69) still says that `bun test ./scripts/` in `check-workflows` runs the copied review script's tests. That is no longer true. ADRs are append-only, so don't rewrite the line. Record the change in a follow-up note or amendment, or supersede the ADR. Also check that the review script copy is still tested somewhere. If its tests were deleted on purpose, say so in the PR description."
+ },
+ {
+  "id": 4393692962,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "package.json",
+  "line": 42,
+  "original_line": 42,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 5,
+  "original_position": 5,
+  "commit_id": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "original_commit_id": "824596c3353c6c7c4e5dd1ef06e025eb21b16366",
+  "in_reply_to_id": 4393627783,
+  "pull_request_review_id": 5673744695,
+  "subject_type": "line",
+  "created_at": "2026-10-27T20:20:53Z",
+  "updated_at": "2026-10-27T20:20:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/394#discussion_r4393692962",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian**\n\nAmended in #397 (9a56bbf0): a dated Amendment section at the end of ADR 0028, linked from its Status row. The original Consequences line stays as written. The script's tests were deleted on purpose in 534d6c98, when the review moved to the reusable workflow `niway-dev/agent-review`."
+ }
+]

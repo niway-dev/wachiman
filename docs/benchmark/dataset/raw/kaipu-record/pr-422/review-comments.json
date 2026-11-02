@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4408959940,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/e2e/helpers/quit-watchdog.test.ts",
+  "line": null,
+  "original_line": 65,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 65,
+  "commit_id": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "original_commit_id": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5693208416,
+  "subject_type": "line",
+  "created_at": "2026-10-29T05:20:39Z",
+  "updated_at": "2026-10-29T05:20:39Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/422#discussion_r4408959940",
+  "body": "🟡🧪 **Consider · tests: Deadline-range test only restates the constant**\n\nThis test asserts `QUIT_DEADLINE_MS` is between 10 s and 30 s. It exercises no behaviour, and its name promises a relation to Playwright's 120 s timeout that it never checks (`playwright.config.ts:45`). It fails only when someone edits the constant, and the failure says nothing about the hang. Either delete it, or assert the real relation by importing the timeout. For example, export the 120 s value and check that deadline + sample timeout (20 s in `sampleProcess`) + launch fits inside it."
+ },
+ {
+  "id": 4408971773,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/e2e/helpers/quit-watchdog.test.ts",
+  "line": null,
+  "original_line": 65,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 65,
+  "commit_id": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "original_commit_id": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "in_reply_to_id": 4408959940,
+  "pull_request_review_id": 5693225253,
+  "subject_type": "line",
+  "created_at": "2026-10-29T05:22:51Z",
+  "updated_at": "2026-10-29T05:22:52Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/422#discussion_r4408971773",
+  "body": "Agreed. Fixed in 7de0112e: the budget now lives in `e2e/helpers/test-budget.ts` (`playwright.config.ts` reads it) and the test asserts `QUIT_DEADLINE_MS + SAMPLE_TIMEOUT_MS <= TEST_TIMEOUT_MS / 2`, i.e. a hung quit plus a full-length sample still leaves half of the test's budget to the test body."
+ },
+ {
+  "id": 4408981169,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/e2e/helpers/quit-watchdog.test.ts",
+  "line": null,
+  "original_line": 65,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 65,
+  "commit_id": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "original_commit_id": "61cac59916bbf4ba6cbfa85a9c5a1b68f5974073",
+  "in_reply_to_id": 4408959940,
+  "pull_request_review_id": 5693237676,
+  "subject_type": "line",
+  "created_at": "2026-10-29T05:24:28Z",
+  "updated_at": "2026-10-29T05:24:28Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/422#discussion_r4408981169",
+  "body": "**Looks addressed** at `7de0112`: Addressed in 7de0112. The 120 s value now lives in `test-budget.ts` and `playwright.config.ts` reads it. `sampleProcess` uses the exported `SAMPLE_TIMEOUT_MS`. The test asserts `QUIT_DEADLINE_MS + SAMPLE_TIMEOUT_MS <= TEST_TIMEOUT_MS / 2`, which is 35 s against 60 s. That checks the real relation, so it fails if any of the three values drifts."
+ }
+]

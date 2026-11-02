@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T07:29:56Z",
+  "databaseId": 41020446113,
+  "displayTitle": "chore(legal): NIW2-566 AGPL-3.0-only license text, commercial use in terms, trademark policy and CLA",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-566-licensing-hygiene-agpl-30-only-commercial-use-in-terms",
+  "headSha": "800367db8b9d786618dae86ace6d3de55d26edf8",
+  "status": "completed",
+  "updatedAt": "2026-10-30T07:31:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41020446113",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-30T07:33:28Z",
+  "databaseId": 41020811627,
+  "displayTitle": "chore(legal): NIW2-566 AGPL-3.0-only license text, commercial use in terms, trademark policy and CLA",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "fda05730bce3ac33243af951ebafbc7b7417bbbf",
+  "status": "completed",
+  "updatedAt": "2026-10-30T07:33:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41020811627",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

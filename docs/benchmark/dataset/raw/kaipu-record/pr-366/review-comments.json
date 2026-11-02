@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4369189121,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+  "line": 99,
+  "original_line": 99,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 24,
+  "original_position": 24,
+  "commit_id": "bda1ea951b218eaa3abc6a3e445aa0c27c202973",
+  "original_commit_id": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5640884039,
+  "subject_type": "line",
+  "created_at": "2026-10-25T01:08:35Z",
+  "updated_at": "2026-10-25T01:08:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/366#discussion_r4369189121",
+  "body": "**Note (correctness): isVisible() probe may lag right after dock.show(), risking repeated show**\n\nThe ADR itself notes `app.dock.isVisible()` can lag after `DockShow`. If a re-assertion (e.g. recording stop followed closely by `applyDockPolicy()`/`⌘⌃O`) lands in that window, the probe reports not-regular and the setter calls `app.dock.show()` again on an active app. That is the window-churn this cache was introduced to prevent. The ADR calls this theoretical because `setActivationPolicy` runs synchronously first. It is untested against real AppKit, so keep it on the owner QA list (rapid start/stop and camera toggles)."
+ },
+ {
+  "id": 4369189122,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/index.mdx",
+  "line": null,
+  "original_line": 16,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 4,
+  "commit_id": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "original_commit_id": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5640884039,
+  "subject_type": "line",
+  "created_at": "2026-10-25T01:08:35Z",
+  "updated_at": "2026-10-25T01:08:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/366#discussion_r4369189122",
+  "body": "**Note (adr): ADR 0029 status differs between the index and the ADR page**\n\nThe index lists 0029 as \"Proposed — implemented, owner QA pending\". The ADR page's status row says \"Implemented on `fix/dock-lost-after-floating-panels`; owner QA outstanding\". It also names a branch, which will go stale after merge. Use one status vocabulary in both places and drop the branch name."
+ },
+ {
+  "id": 4369195905,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+  "line": 99,
+  "original_line": 99,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 24,
+  "original_position": 24,
+  "commit_id": "bda1ea951b218eaa3abc6a3e445aa0c27c202973",
+  "original_commit_id": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "in_reply_to_id": 4369189121,
+  "pull_request_review_id": 5640891867,
+  "subject_type": "line",
+  "created_at": "2026-10-25T01:12:01Z",
+  "updated_at": "2026-10-25T01:12:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/366#discussion_r4369195905",
+  "body": "Measured rather than argued, on Electron 39.8.10 against real AppKit (a throwaway script creating the same windows): `app.dock.isVisible()` reads `true` immediately after `app.setActivationPolicy(\"regular\")`, before `app.dock.show()` runs, and stays `true` at 1, 5, 20, 100 and 300 ms. The lag Electron documents is the transform it dispatches 1 ms later inside `DockShow`; the setter calls `setActivationPolicy` first, so a re-assertion landing in that window sees cache and probe agree and touches nothing — a repeated `dock.show()` cannot come from the probe. The same run confirmed the cause (a plain window joining full-screen Spaces without the flag flips the probe to `false` at once) and the recipe (a `panel` with the flag leaves it `true`). Recorded in bda1ea95: the ADR now states the measurement instead of calling the window theoretical, and the backlog QA list gains the rapid start/stop and camera-toggle step you asked for."
+ },
+ {
+  "id": 4369196150,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/index.mdx",
+  "line": null,
+  "original_line": 16,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 4,
+  "commit_id": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "original_commit_id": "9f67c3c7947b9e0ee413a4fa5ec01c1ca481dcea",
+  "in_reply_to_id": 4369189122,
+  "pull_request_review_id": 5640892081,
+  "subject_type": "line",
+  "created_at": "2026-10-25T01:12:05Z",
+  "updated_at": "2026-10-25T01:12:05Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/366#discussion_r4369196150",
+  "body": "Fixed in 17eb1cbf: both the index row and the ADR status row now read \"Proposed — implemented in #366, owner QA pending\"; the branch name is gone."
+ }
+]

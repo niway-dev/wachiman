@@ -1,0 +1,25 @@
+[
+ {
+  "id": 4432887451,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": ".github/workflows/agent-review.yml",
+  "line": null,
+  "original_line": 19,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 14,
+  "commit_id": "ab0d1194ec189a59556e7dcf54453263255810e9",
+  "original_commit_id": "ab0d1194ec189a59556e7dcf54453263255810e9",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5724372188,
+  "subject_type": "line",
+  "created_at": "2026-10-31T18:49:50Z",
+  "updated_at": "2026-10-31T18:49:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/474#discussion_r4432887451",
+  "body": "🟡🏛️ **Consider · adr: ADR 0028 still names niway-dev/wachi-reviewer pinned to v1.2.0**\n\nThis line now calls `niway-dev/wachiman` at `v1.2.1`. ADR 0028 still says otherwise. Its Status row (`architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx:12`) reads \"now consumed through the reusable workflow `niway-dev/wachi-reviewer`\". Its latest amendment (line 93, \"the engine is now niway-dev/wachi-reviewer, pinned to v1.2.0\") names the old repository and tag. The previous rename (`agent-review` → `wachi-reviewer`) got its own dated amendment in that ADR. ADRs here are append-only, so this rename and tag bump could follow the same pattern: add an amendment such as \"the engine is now niway-dev/wachiman, pinned to v1.2.1\" that cites wachiman's ADR 0009, and update the Status line to link to it. Without that, the ADR points readers to a repository that `uses:` can no longer resolve.\n\n<!-- wachi:finding -->"
+ }
+]

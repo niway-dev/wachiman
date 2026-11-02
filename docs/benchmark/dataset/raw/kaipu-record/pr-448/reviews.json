@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5717179920,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd",
+  "submitted_at": "2026-10-30T18:49:03Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#pullrequestreview-5717179920",
+  "body": "**Agent review** of the whole pull request, at `0b27481`: all 37 files reviewed.\n\n3 finding(s): 3 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 5.** Part 1 has no findings. I checked these things:\n- **Deleted code:** nothing in `apps/kaipu-record/src` still references the removed `share-recording.tsx`, `recording-saved-card.tsx` or `SHARE_LIMIT_BYTES`. The `showRecordingSavedCard` setting now controls the new \"Where is it going?\" panel (`library-detail-page.tsx:135`), which matches the panel's doc comment.\n- **Prepare route:** `ROUTES.prepare` (`/prepare/:assetId`) exists in shared/routes.ts, and `preparePath` URL-encodes the asset id.\n- **Library Prepare button:** `library-page.tsx` passes `onPrepare` to the card and the row only when `asPreparable` holds, so recordings that are cloud-only, screenshots or GIFs get no button.\n- **Destinations to presets:** `destinations.ts` maps all six presets, so the non-null assertion in `destinationOfPreset` can't come back undefined.\n- **Framing choice:** `hasFramingChoice` matches `PRESETS`; only `vertical` and `square` have framings.\n- **Comment in `export-presets.ts`:** the updated comment matches the code. `HeavyToSendBanner` still checks `githubFit`, and `planCopy` says \"under the 10 MB limit\" only when `githubPlans(...).free` is true.\n- **Repo rules:** no Electron boundary or `shared/**` import changes in this part.\n\n**Batch 2 of 5.** Part 2 covers the library detail page moving from the Share sheet and saved card to Prepare navigation, the Library card's Prepare action, the new Prepare screen, the deleted Share tests and the new VideoCard test. The wiring holds up. `asPreparable` gates every entry point, and the post-recording panel keeps the once-per-arrival dismissal. The background export is re-listed through `useExportRunner().ready`. The deleted share-recording tests are covered again in prepare-page.test.tsx, including one-at-a-time, the unreadable file, reuse and framing. One minor point: YouTube's Ready badge can disagree with the detail pane when the existing copy is the other resolution.\n\n**Batch 3 of 5.** I reviewed all 10 files in this part and found no blockers or fixes, only one suggestion.\n\n**Suggestion (consider, tests):** the Prepare-page test named \"GitHub promises the 10 MB limit only when the copy fits it\" (`prepare-page.test.tsx:199`) never checks that \"Under the 10 MB limit\" is absent for the 3:02 recording that doesn't fit. Adding a `queryByText(...)` → `toBeNull()` check would make it test what its name says.\n\n**Tests:** the other tests match the components they cover:\n- **Post-recording panel:** the 5 shortcuts, \"More places\" choosing no destination (`null`), Edit first being optional, and the dimensions left out of the meta line until the file is read all match the component's code.\n- **Library-detail page:** it wires \"Edit first\" to the editor and \"Not now\" to dismiss the panel, and the tests assert the routes to `/prepare/:assetId` with `?to=`.\n- **Removed and changed tests:** the deleted test for the old \"Recording saved\" card and the `SHARE_LIMIT_BYTES` assertions go with code that this PR also removes.\n\n**Stylesheets:** every design token used in the new CSS (`--accent-primary-ring`, `--bg-card-hover`, `--border-light`, `--space-sm`, `--font-weight-medium`, `--tone-saving`) is defined in `packages/tokens/css/tokens.css` or `assets/base.css`.\n\n**Batch 4 of 5.** Part 4 covers the route, a window-size test, the Prepare page stylesheet and three backlog docs. `ROUTES.prepare` is a plain string, so there's no value import in `shared/`, and the window-size test covers the new path. Every CSS token the stylesheet uses is defined: `--tone-*` in base.css, the rest in @kaipu/tokens. I checked these doc claims in prepare-screen.md against the code and they hold: the setting \\\"Ask where a new recording is going\\\" stored as `showRecordingSavedCard`, the panel's display rules, the \\\"Under the 10 MB limit\\\" line and size tags, and the generic lucide icons. One small doc wording issue in export-presets.md.\n\n**Batch 5 of 5.** I found nothing to flag in the en/es message changes.\n\n- **Removed keys:** nothing in the renderer still calls the removed keys. These are `library.share`, `shareHint`, `shareTitle` and the `recordingSaved*` keys for the status card.\n- **Reworded keys:**\n  - The `heavyBanner*` text is still used, at `library-detail-page.tsx:516-527`.\n  - `recordingSavedCard` and its description are still used, at `settings-pages.tsx:172-176`.\n- **Settings description:** the new text is accurate. `library-detail-page.tsx:132-136` shows the \"Where is it going?\" panel only after a recording, and only while `showRecordingSavedCard` is on. The panel's shortcuts are YouTube, vertical, GitHub, chat and \"More places\", as the text says.\n- **New keys:** I spot-checked the new `prepare.*` keys used by the panel, the quick chips and the Prepare button, and code uses them. The en and es files carry the same set of keys.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 5 | 14 | 957 | 4 | reviewed | 10 | $0.25 |\n| Batch 2 of 5 | 5 | 983 | 4 | reviewed | 10 | $0.30 |\n| Batch 3 of 5 | 10 | 923 | 2 | reviewed | 9 | $0.26 |\n| Batch 4 of 5 | 6 | 977 | 4 | reviewed | 9 | $0.31 |\n| Batch 5 of 5 | 2 | 264 | 1 | reviewed | 8 | $0.18 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 5 batches · $1.30</sub>\n\n<!-- agent-review sha=0b27481bb2e1bb6e3d4d1d36dfb7799db97f65cd -->"
+ },
+ {
+  "id": 5721973433,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "submitted_at": "2026-10-31T08:21:14Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#pullrequestreview-5721973433",
+  "body": ""
+ },
+ {
+  "id": 5721973514,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "submitted_at": "2026-10-31T08:21:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#pullrequestreview-5721973514",
+  "body": ""
+ },
+ {
+  "id": 5722035041,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4d2f41e4c0ed28f05b077c297c5a3082e30c179a",
+  "submitted_at": "2026-10-31T08:45:17Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/448#pullrequestreview-5722035041",
+  "body": ""
+ }
+]

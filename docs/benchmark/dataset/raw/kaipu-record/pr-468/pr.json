@@ -1,0 +1,29 @@
+{
+ "number": 468,
+ "title": "fix(desktop): the Library player shows the recorded face over the original",
+ "body": "## What was wrong\n\nWith the webcam recorded as its own track (NIW2-565), the camera bubble is kept out of the screen capture and the face goes to `<name>.webcam.mp4`. The Library detail page's original player streamed only the screen file. A take recorded with the camera showed no face there, so it looked as if the recording had lost the camera.\n\n## What changed\n\n- **The Library's original player draws the face.** The webcam file plays as a layer over the screen video. It sits at the bubble's **recorded** layout (shape, size, position and mirroring from the sidecar's `recordedLayout`), so the original shows what was captured. It is hidden during the camera-off `gaps`, honours `startOffsetMs`, and follows play, pause, seek and playback rate.\n- **The editor's drawing code is shared.** The per-frame placement and sync logic in `webcam-layer.tsx` moved into a hook (`useWebcamSync`). The editor's `WebcamLayer` keeps selecting and dragging on top of it. The new read-only `WebcamPlaybackLayer` uses the same hook, with no role, no focus and pointers passing through to the native controls. The scene comes from the editor's own `seedWebcamScene`, so the Library and the editor's first preview put the face in the same place.\n- **Playback rate is mirrored.** This also applies in the editor. Without it, a 2x main video would drift past the 80 ms resync threshold on every frame.\n- **Placed over the picture, not the box.** The layer is laid over the picture's own rectangle inside the 16:9 player (`pictureBox`). A non-16:9 take that gets letterboxed or pillarboxed still puts the face where it was recorded.\n- A take without a webcam file renders exactly as before. The \"ORIGINAL — Your edits are not shown here\" note is still true and is unchanged.\n\n## Out of scope\n\n- **The raw files on disk are untouched (ADR 0003).** If you open the screen `.mp4` in Finder or QuickTime, it still has no face. That is a known follow-up.\n- **The thumbnail still has no face.** The poster is captured from the screen stream in the first frames of the take (`captureThumbnail` in `recorder-engine.ts`), and the bubble is already excluded from that stream. Adding the face would mean compositing the webcam stream there, and the bubble's position is only known when the take ends. That is not a cheap or local change, so it is left as a follow-up. In the player the face appears over the poster once the webcam file's metadata loads.\n- The face sits above the native control bar when the bubble was recorded near the bottom edge. Pointers pass through it, so the controls still work, but part of the scrubber can be hidden under the face.\n\n## Tests\n\n- New page tests in `library-detail-page.test.tsx` cover: the webcam file plays at the recorded spot and shape; it is hidden inside a gap and comes back after seeking out of it; it follows the screen's playback rate; it is not a button; a take without a webcam has no layer.\n- `recording-player.test.tsx` covers the letterbox and pillarbox math.\n- Full desktop vitest suite on the pushed commit: 329 files, 3415 tests passing. `check-types`: clean.\n- Not run: Electron and the Playwright E2E suite (not allowed on this machine).\n\n## How to test it yourself\n\n1. Record a take with the camera on. Partway through, turn the camera off, wait a few seconds, and turn it back on. Stop.\n2. Open the take in the Library.\n3. Play it. The face appears where the bubble was while you recorded, with the same shape and mirroring.\n4. Play through the stretch where the camera was off. The face disappears there and comes back when the camera was turned back on.\n5. Pause, then seek into the camera-off stretch and back out of it. The face hides and comes back, and it stays on the same frame as the screen.\n6. Change the playback speed from the player's menu. The face keeps up with the screen.\n7. Open a take recorded without the camera. The player looks exactly as before.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-31T07:50:40Z",
+ "updated_at": "2026-10-31T16:21:00Z",
+ "closed_at": "2026-10-31T16:19:51Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/468",
+ "base": {
+  "ref": "feature/webcam-camera-toggle-mid-take",
+  "sha": "81b4f016c37ba075134f24f57692e76612545ca2"
+ },
+ "head": {
+  "ref": "feature/webcam-library-player-face",
+  "sha": "71c590eda8d377118f2e858fdffcc8b9c8f94641",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 6,
+ "additions": 374,
+ "deletions": 77,
+ "labels": []
+}

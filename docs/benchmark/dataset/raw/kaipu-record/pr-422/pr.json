@@ -1,0 +1,29 @@
+{
+ "number": 422,
+ "title": "test(e2e): bound the quit hang to 15 s and attach the main process's stack",
+ "body": "## Summary\n\nThe desktop 0.15.0 release candidate (https://github.com/niway-dev/kaipu-record/pull/361) failed its macOS E2E job again after https://github.com/niway-dev/kaipu-record/pull/420 landed ([run 40813058858](https://github.com/niway-dev/kaipu-record/actions/runs/40813058858)). The toolbar fix from #420 held: both failed tests pass every assertion in ~4 s. What never finishes is `app.close()` in `launchApp`'s teardown — the quit hang #420 documented and left open.\n\n**No app code changes.** This PR bounds the hang in the E2E harness and makes the next occurrence carry the evidence the investigation is missing. Ticket: https://linear.app/niway/issue/NIW2-548.\n\n### What the run shows\n\n| | |\n| --- | --- |\n| Tests whose assertions all passed, then hung in `Close context` | 2 (toolbar at 900px, toolbar at 680px) |\n| Cost of each hang | 120 s test timeout + 120 s worker-teardown timeout = **4 min** |\n| E2E step | 10 min, of which 8 min were the two hangs; the suite itself is ~2 min |\n| Exit code 1 came from | the two worker-teardown timeouts (\"2 errors were not a part of any test\"), not from the tests, which passed on retry |\n\nBoth quits landed 4.07 s and 4.59 s after launch. The five occurrences on record (this run, [40805912132](https://github.com/niway-dev/kaipu-record/actions/runs/40805912132) and the two before it) all quit 3.5–4.5 s after launch: the window in which `OVERLAY_PREWARM_AFTER_LAUNCH_MS` fires (`src/main/index.ts`, 3 s after the main window's `ready-to-show`) and the app creates its hidden overlay and shade windows and loads a renderer into them. Tests that quit before or after that window pass.\n\n### What was ruled out\n\nPlaywright's Electron close is \"evaluate `app.quit()` in main, wait for the process to exit\", so the process really never exits. Minimal Electron 39.8.10 scripts do **not** reproduce it — a window created right after `app.quit()`, a window mid-load when the quit lands, windows with the overlay's exact options (`type: \"panel\"`, transparent, screen-saver level) plus a shade-shaped one, with and without Playwright attached: every quit finishes in under 60 ms. The mechanism is in something the real app does during that prewarm, and a stack of the hung main process is the piece of evidence the 120 s timeout never produced.\n\n### The change\n\n`launchApp`'s teardown now runs `closeOrReport` (`e2e/helpers/quit-watchdog.ts`):\n\n- `app.close()` races a 15 s deadline. A healthy quit takes well under a second.\n- On a hang: `sample <pid> 2` captures every thread's stack of the main process while it is still hung; the stack and the Electron stderr tail are attached to the test (`quit-hang-stack`, `quit-hang-stderr`); the process is killed; **the test fails** with a message naming the hang and the ticket.\n- The failure is deliberate. #420 reverted a plain kill-after-15-s because it would hide the defect. Failing keeps the one CI retry (so one hang still does not block a release, as today) and turns a 4-minute silent timeout into a ~20 s failure with a stack attached.\n- `playwright.config.ts`'s retry comment names this second known flake.\n\nExpected effect on the next run with a hang: the E2E step takes ~2.5 min instead of 10, the run ends green with the test marked flaky, and the report carries the stack.\n\n## Verification\n\n- `e2e/helpers/quit-watchdog.test.ts`: 6 passed (close in time; hang → stack + stderr attached, kill, fail; sample failure still kills and fails; attach failure still kills and fails; a rejecting close propagates its own error; deadline inside the test budget).\n- `bun run check-types`, `bun run lint` (0 errors, no warnings in the changed files), `oxfmt --check`: clean.\n- Not run locally: the Playwright suite (ADR 0006: it runs on the candidate). The watchdog's hang path was exercised by the unit test with fakes, not against a real hung Electron.\n\n## How to test it yourself\n\n1. Once this merges, release-please refreshes https://github.com/niway-dev/kaipu-record/pull/361; mark it ready for review and open its `Desktop - E2E tests (macOS)` job.\n2. No hang: the E2E step finishes in ~2 min, 20 passed.\n3. A hang: the step finishes in ~2.5 min; the hung test shows `app.quit() did not finish within 15000 ms` and passes on retry (flaky, run green); the `playwright-report-pr` artifact holds `quit-hang-stack` — the main process's stack to attach to NIW2-548.\n\nRefs NIW2-548\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-29T05:20:03Z",
+ "updated_at": "2026-10-29T06:05:14Z",
+ "closed_at": "2026-10-29T06:05:14Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/422",
+ "base": {
+  "ref": "main",
+  "sha": "e47a043b0f1c2743adace8e88fd55e86bfcdcedd"
+ },
+ "head": {
+  "ref": "fix/e2e-quit-hang-evidence",
+  "sha": "7de0112e41312bc2c9200e4e123790d4bb28dabc",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 5,
+ "additions": 229,
+ "deletions": 5,
+ "labels": []
+}

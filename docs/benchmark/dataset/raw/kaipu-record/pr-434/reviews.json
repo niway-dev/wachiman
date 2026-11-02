@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5706653017,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c8eb395a98ce40295f66601945f1b38948694717",
+  "submitted_at": "2026-10-30T00:23:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/434#pullrequestreview-5706653017",
+  "body": "**Agent review** of the whole pull request, at `c8eb395`: all 8 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThis PR moves Start recording out of the pill under the Frame box and into the record widget. I found nothing to flag in any of the 8 files.\n\n- **Start can't go missing:** the button only renders when `chrome.toggles` is set. That's fine, because `capture-overlay.tsx:265-276` always sets toggles when the intent is record.\n- **Clicks stay put:** the widget root spreads `keepPointer` (`record-chrome.tsx:260`). So the pill's old per-button `keepPointer` is still covered, and `stopPropagation` is kept.\n- **Messages:** the existing `overlay.startRecording` keys give the accessible name the tests expect. The new `startRecordingTitle` key is added in both en.json and es.json.\n- **Cleanup:** removing `StartPill` and `startPillPlacement` leaves no other callers.\n- **Tests:** the updated tests check that Start sits inside the widget, comes last in the widget, follows the disabled state and works across the intent switch.\n- **Spec:** the design doc's change matches the code.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 8 | 186 | 4 | reviewed | 10 | $0.22 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · $0.22</sub>\n\n<!-- agent-review sha=c8eb395a98ce40295f66601945f1b38948694717 -->"
+ }
+]

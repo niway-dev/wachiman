@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4397010970,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/camera-bubble/camera-bubble.test.tsx",
+  "line": 138,
+  "original_line": 138,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 88,
+  "original_position": 94,
+  "commit_id": "7eb431785c3b1b4ef17e87da689c723a39f06ab7",
+  "original_commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5677952918,
+  "subject_type": "line",
+  "created_at": "2026-10-28T04:54:51Z",
+  "updated_at": "2026-10-28T04:54:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#discussion_r4397010970",
+  "body": "🟠🧪 **Fix · tests: Test named \"asks for more lines… and follows live changes\" does not test live changes**\n\nThe test only asserts the initial hook call (1080) and then calls cleanup() and renders a second bubble that receives a pushed settings change. The first `video` is detached and only checked with `expect(video).toBeDefined()`, which always passes. The second bubble starts with the stub settings, where framing is already off, so its empty transform proves nothing about following a push. Render once, push a settings change that turns framing off or lowers the zoom, and assert on that same bubble that the transform clears and the hook's lines change as expected. Alternatively, drop the \"follows live changes\" half from the name."
+ },
+ {
+  "id": 4397010975,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/camera-bubble-shape-and-size.md",
+  "line": 218,
+  "original_line": 218,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 33,
+  "original_position": 33,
+  "commit_id": "7eb431785c3b1b4ef17e87da689c723a39f06ab7",
+  "original_commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5677952918,
+  "subject_type": "line",
+  "created_at": "2026-10-28T04:54:51Z",
+  "updated_at": "2026-10-28T04:54:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#discussion_r4397010975",
+  "body": "🟡📝 **Consider · docs: Doc omits that the capture resolution is frozen during a take**\n\nThe capture-resolution paragraph says the stream is reopened when the line count changes and then holds for 400 ms. It does not mention that CameraBubble keeps the lines from the start of the take until the take ends (camera-bubble.tsx:111-116). Zooming in mid-take therefore shows a softer image in the video, because the stream stays at its old resolution. Document that trade-off, since the doc says framing works \"mid-take\"."
+ },
+ {
+  "id": 4397010980,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/camera-bubble-shape-and-size.md",
+  "line": null,
+  "original_line": 192,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 7,
+  "commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "original_commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5677952918,
+  "subject_type": "line",
+  "created_at": "2026-10-28T04:54:51Z",
+  "updated_at": "2026-10-28T04:54:51Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#discussion_r4397010980",
+  "body": "🟡📝 **Consider · docs: Status banner should be 🟢 per the status legend**\n\nCLAUDE.md defines 🟡 as in progress and 🟢 as \"Ready to validate\", which is what a shipped-but-unvalidated feature should use. This section says \"implemented; pending owner validation\", so 🟢 matches the legend. Also check whether the status row in backlog/index.mdx needs updating."
+ },
+ {
+  "id": 4397068728,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/camera-bubble/camera-bubble.test.tsx",
+  "line": 138,
+  "original_line": 138,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 88,
+  "original_position": 94,
+  "commit_id": "7eb431785c3b1b4ef17e87da689c723a39f06ab7",
+  "original_commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "in_reply_to_id": 4397010970,
+  "pull_request_review_id": 5678023807,
+  "subject_type": "line",
+  "created_at": "2026-10-28T05:06:48Z",
+  "updated_at": "2026-10-28T05:06:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#discussion_r4397068728",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of csdev19**\n\nFixed in 05d709e6: the test now renders one bubble with framing on (zoom 2, asks for 1080 lines), pushes a settings change that turns framing off, and asserts on that same bubble that the transform clears and the camera goes back to 480 lines. The dead second render and the `toBeDefined` check are gone."
+ },
+ {
+  "id": 4397068893,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/camera-bubble-shape-and-size.md",
+  "line": 218,
+  "original_line": 218,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 33,
+  "original_position": 33,
+  "commit_id": "7eb431785c3b1b4ef17e87da689c723a39f06ab7",
+  "original_commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "in_reply_to_id": 4397010975,
+  "pull_request_review_id": 5678024023,
+  "subject_type": "line",
+  "created_at": "2026-10-28T05:06:50Z",
+  "updated_at": "2026-10-28T05:06:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#discussion_r4397068893",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of csdev19**\n\nFixed in 8f05571d: a \"Frozen during a take\" paragraph now says the bubble keeps its start-of-take line count until the take ends (`takeLines` in `camera-bubble.tsx`), why (a reopen blinks the bubble into the video), and the trade-off (a zoom made mid-take looks softer until the take ends)."
+ },
+ {
+  "id": 4397069019,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/camera-bubble-shape-and-size.md",
+  "line": null,
+  "original_line": 192,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 7,
+  "commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "original_commit_id": "1e151b4b01c85ce451312e0ed4ca9eae3700a316",
+  "in_reply_to_id": 4397010980,
+  "pull_request_review_id": 5678024184,
+  "subject_type": "line",
+  "created_at": "2026-10-28T05:06:52Z",
+  "updated_at": "2026-10-28T05:06:52Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/405#discussion_r4397069019",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of csdev19**\n\nFixed in 8f05571d: the Framing section now reads 🟢 Ready to validate, which is what it is once this PR merges (implemented, owner validation pending). The `backlog/index.mdx` row already shows 🟢 for this doc."
+ }
+]

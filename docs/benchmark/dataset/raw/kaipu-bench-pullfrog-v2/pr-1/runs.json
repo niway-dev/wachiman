@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "failure",
+  "createdAt": "2026-11-01T23:20:37Z",
+  "databaseId": 41361642036,
+  "displayTitle": "[setup] register kaipu-record workflows so they can be disabled",
+  "event": "pull_request",
+  "headBranch": "replay/pr-465/head",
+  "headSha": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "status": "completed",
+  "updatedAt": "2026-11-01T23:20:37Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/actions/runs/41361642036",
+  "workflowName": ".github/workflows/agent-review.yml",
+  "log": "not-found"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-11-01T23:20:37Z",
+  "databaseId": 41361642058,
+  "displayTitle": "[setup] register kaipu-record workflows so they can be disabled",
+  "event": "pull_request",
+  "headBranch": "replay/pr-465/head",
+  "headSha": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "status": "completed",
+  "updatedAt": "2026-11-01T23:20:38Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/actions/runs/41361642058",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T23:20:45Z",
+  "databaseId": 41361653652,
+  "displayTitle": "[setup] register kaipu-record workflows so they can be disabled",
+  "event": "pull_request",
+  "headBranch": "replay/pr-465/head",
+  "headSha": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "status": "completed",
+  "updatedAt": "2026-11-01T23:20:53Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-pullfrog-v2/actions/runs/41361653652",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ }
+]

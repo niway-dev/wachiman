@@ -1,0 +1,25 @@
+[
+ {
+  "id": 4437315710,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/status-cards/export-status-cards.tsx",
+  "line": 224,
+  "original_line": 224,
+  "start_line": 202,
+  "side": "RIGHT",
+  "position": 151,
+  "original_position": 151,
+  "commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "original_commit_id": "e45c845143ba72f35fea4fac2f9d62a186dff986",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730236435,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:58:35Z",
+  "updated_at": "2026-11-01T20:58:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog/pull/2#discussion_r4437315710",
+  "body": "Screen readers never get the percent from the minimized pill. ARIA treats a `<button>`'s children as presentational, so the nested `role=\"progressbar\"` is dropped. The button's `aria-label` (\"Show the export's progress\") also replaces its visible text, so assistive tech announces neither \"YouTube copy\" nor \"38%\".\n\n<details><summary>Technical details</summary>\n\n````markdown\n# Pill progress is invisible to assistive tech\n\n## Affected sites\n- apps/kaipu-record/src/renderer/src/features/status-cards/export-status-cards.tsx:202 — `aria-label={t(\"expand\")}` on the `<button>` overrides the content-derived name\n- apps/kaipu-record/src/renderer/src/features/status-cards/export-status-cards.tsx:216-224 — `role=\"progressbar\"` nested inside a button (children presentational per WAI-ARIA)\n\n## Required outcome\n- The pill's accessible name/description includes the destination and percent (e.g. \"YouTube copy · 38%\") while still saying it expands the widget.\n\n## Suggested approach\n- Drop the nested `role=\"progressbar\"`/aria-value* attributes and either let the visible text name the button (with the expand hint via `aria-describedby` or `title`), or build the `aria-label` from both `expand` and `pill` strings. Update the test that queries `{ name: \"Show the export's progress\" }` accordingly.\n````\n\n</details>"
+ }
+]

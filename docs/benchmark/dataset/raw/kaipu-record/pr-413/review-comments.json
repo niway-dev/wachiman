@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4403088290,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/specs/2026-10-28-niw2-400-recording-main-resources.md",
+  "line": 25,
+  "original_line": 17,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 17,
+  "commit_id": "4514e8fe98b1cbfd9327ceca0d8e3bf0a8e6e765",
+  "original_commit_id": "4514e8fe98b1cbfd9327ceca0d8e3bf0a8e6e765",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5685915059,
+  "subject_type": "line",
+  "created_at": "2026-10-28T16:13:32Z",
+  "updated_at": "2026-10-28T16:13:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/413#discussion_r4403088290",
+  "body": "🟡📝 **Consider · docs: Spec describes an implementation that differs from what this PR ships**\n\nThe spec says it is the contract (\"this file wins\"), but the code differs from it. (1) `forceReset` aborts writer sessions via `RecordingWriter.abortAll()` in the spec (lines 17, 54-78, 215-223). The PR adds only `ids()` and keeps `writer.releaseAll()` (recording-hub.ts:862-863), which keeps the partial files on disk. The writer test also covers only `ids`. (2) The spec's `barGeneration` counter and `activity.active` check (lines 203-212) are not in the hub. The bar is already guarded by `take !== takeCount` (recording-hub.ts:691). (3) The `ControlBarWindow` `wanted` flag (Task 3) already exists (control-bar-window.ts:50, 116) and is not part of this diff. As written, the doc describes behaviour that does not exist, and \"Closes: REC-B3, REC-B4\" is not backed by this diff. Update the spec to match the shipped design (releaseAll, existing bar guards) or note the deviations."
+ },
+ {
+  "id": 4407233995,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/specs/2026-10-28-niw2-400-recording-main-resources.md",
+  "line": 25,
+  "original_line": 17,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 17,
+  "commit_id": "4514e8fe98b1cbfd9327ceca0d8e3bf0a8e6e765",
+  "original_commit_id": "4514e8fe98b1cbfd9327ceca0d8e3bf0a8e6e765",
+  "in_reply_to_id": 4403088290,
+  "pull_request_review_id": 5691110677,
+  "subject_type": "line",
+  "created_at": "2026-10-28T23:40:44Z",
+  "updated_at": "2026-10-28T23:40:44Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/413#discussion_r4407233995",
+  "body": "Fixed in 34d46d16: the spec now opens with a dated \"Shipped deviations\" note naming the three differences (`releaseAll` kept instead of `abortAll`, per its own Global Constraints on plan 22; no `barGeneration` because `main` already guards `bar.show` with `takeCount` + `activity.active`; the `wanted` flag predates this PR). The copied plan body stays as approved; \"Closes REC-B3\" is stated as resting on `main` plus this PR's tests, not on this diff alone."
+ }
+]

@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T18:59:04Z",
+  "databaseId": 41232004703,
+  "displayTitle": "ci: move the agent review to niway-dev/wachiman v1.3.0",
+  "event": "pull_request",
+  "headBranch": "ci/wachiman-rename",
+  "headSha": "cdf571257b957e5002b611797b669ff54305ef54",
+  "status": "completed",
+  "updatedAt": "2026-10-31T18:59:11Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41232004703",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T18:53:50Z",
+  "databaseId": 41231610743,
+  "displayTitle": "ci: move the agent review to niway-dev/wachiman v1.3.0",
+  "event": "pull_request",
+  "headBranch": "ci/wachiman-rename",
+  "headSha": "cdf571257b957e5002b611797b669ff54305ef54",
+  "status": "completed",
+  "updatedAt": "2026-10-31T18:54:06Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41231610743",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T18:49:14Z",
+  "databaseId": 41231250182,
+  "displayTitle": "ci: move the agent review to niway-dev/wachiman v1.3.0",
+  "event": "pull_request",
+  "headBranch": "ci/wachiman-rename",
+  "headSha": "ab0d1194ec189a59556e7dcf54453263255810e9",
+  "status": "completed",
+  "updatedAt": "2026-10-31T18:49:54Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41231250182",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T18:49:14Z",
+  "databaseId": 41231249918,
+  "displayTitle": "ci: move the agent review to niway-dev/wachiman v1.3.0",
+  "event": "pull_request",
+  "headBranch": "ci/wachiman-rename",
+  "headSha": "ab0d1194ec189a59556e7dcf54453263255810e9",
+  "status": "completed",
+  "updatedAt": "2026-10-31T18:49:32Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41231249918",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

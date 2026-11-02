@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5717097621,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "submitted_at": "2026-10-30T18:41:37Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#pullrequestreview-5717097621",
+  "body": "**Agent review** of the whole pull request, at `a99ba20`: all 30 files reviewed.\n\n3 finding(s): 2 to fix, 1 to consider; 3 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 looks solid. The main process treats every renderer path as untrusted. It checks that the path is absolute, has a video extension, is a regular file, is readable and is not already in the vault. The copy is staged and probed before it goes in, the id is picked under a lock, and every error path cleans up after itself. `shared/import-video.ts` has only type imports from outside its folder, so it is safe for the preload bundle. Older builds and the sanitizer both handle the new `import` capture mode correctly. One finding: in the renderer hook, files dropped while an import is already running are silently discarded, and the hook's own comment says they wait.\n\n**Batch 2 of 2.** Part 2 covers the tests, styles, docs and i18n messages. I read the hooks behind the tests (`use-file-drop.ts`, `use-import-videos.ts`), and the tests check what their names say. The backlog doc's storage and validation claims match `import-video.ts`: the 50-file limit, the copy-on-write copy, the `.part` staging and the per-vault lock. Two findings. First, the doc says every failed file is reported with its reason, but the toast for several failures lists only the file names. Second, the skipped-drop toast calls a video file with no path on disk \\\"not a video\\\".\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 17 | 974 | 8 | reviewed | 9 | $0.31 |\n| Batch 2 of 2 | 13 | 563 | 2 | reviewed | 5 | $0.18 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.49</sub>\n\n<!-- agent-review sha=a99ba202fe7b55c6a1c393a5f8b80fd1145939ba -->"
+ },
+ {
+  "id": 5722038449,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "submitted_at": "2026-10-31T08:45:50Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#pullrequestreview-5722038449",
+  "body": ""
+ },
+ {
+  "id": 5722038693,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "submitted_at": "2026-10-31T08:45:52Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#pullrequestreview-5722038693",
+  "body": ""
+ },
+ {
+  "id": 5722038866,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a99ba202fe7b55c6a1c393a5f8b80fd1145939ba",
+  "submitted_at": "2026-10-31T08:45:54Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/447#pullrequestreview-5722038866",
+  "body": ""
+ }
+]

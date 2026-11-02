@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5686173038,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9eb4ee2cb271cc49cde5208887f25fd05cb7936a",
+  "submitted_at": "2026-10-28T16:31:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/415#pullrequestreview-5686173038",
+  "body": "**Agent review** of the whole pull request, at `9eb4ee2`: all 7 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe compositor pause/resume/stop logic and the cadence fallback look correct. The tests are consistent with the code, and the engine wiring is in scope at lines 621 and 624. One note: the backlog doc still lacks the measured numbers the spec asks for.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 7 | 390 | 4 | reviewed | 4 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=9eb4ee2cb271cc49cde5208887f25fd05cb7936a -->"
+ },
+ {
+  "id": 5686184140,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9eb4ee2cb271cc49cde5208887f25fd05cb7936a",
+  "submitted_at": "2026-10-28T16:32:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/415#pullrequestreview-5686184140",
+  "body": ""
+ }
+]

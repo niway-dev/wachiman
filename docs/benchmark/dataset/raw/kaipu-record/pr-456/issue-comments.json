@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6533660091,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-30T21:18:06Z",
+  "updated_at": "2026-10-30T21:18:06Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/456#issuecomment-6533660091",
+  "body": "Restacked: this PR now targets `feature/niw2-585-send-to-master` (#457) instead of `feature/niw2-578-prepare-screen`. The stack is #448 ← #458 ← #455 ← #457 ← #456.\n\nMerge commit 8f3eea4a brings #457 (and, through it, #455 and #458) in — merge, no rebase or force push. Conflicts and how they were resolved, keeping both sides:\n\n- `status-card.tsx` / `status-card.module.css`: #455's `plainIcon` and this PR's `bareIcon` were the same option (the icon brings its own tile). One prop remains, `bareIcon`, and the post-recording card now uses it. `StatusCardButton` keeps this PR's `text` variant, `grow`, `onDragStart` and `label`, plus #455's `title` tooltip.\n- `export-runner.ts`: the job keeps both this PR's `destination` (names the copy on the cards) and #457's `wholeRecording` (feeds \"Copies from this master\").\n- `backlog/prepare-screen.md`: the Decisions list keeps #458's entries and this PR's \"progress and ready cards\" line; the flow and \"How to validate\" now use the named cards (\"Preparing your YouTube copy…\", \"Your YouTube copy is ready\"). `background-copy-toasts.md`'s banner names the new base.\n\nAlso in this merge: the 32 `prepare.*` i18n keys nothing references any more (the old one-column page, the quick chips, \"Prepare for…\"), which #458 and #457 left on purpose to keep sibling branches mergeable, are pruned from `en.json` and `es.json`. Each was checked for zero references across `apps/` and `packages/`, including dynamic key building.\n\n`bun run verify` is green on the merged branch.\n"
+ }
+]

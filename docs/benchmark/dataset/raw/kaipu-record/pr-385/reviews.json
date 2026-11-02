@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5662247051,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "045520ad2eb44721b81396262227df427e14e06d",
+  "submitted_at": "2026-10-27T04:34:00Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/385#pullrequestreview-5662247051",
+  "body": "**Agent review** of the whole pull request, at `045520a`: all 8 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this removal of the Record page's Recent row. A repo-wide search turned up no remaining references to `RecentRecordings`, `useRecentRecordings`, the removed CSS module or the `record.recent` and `record.recentMeta` keys. The Screenshots page uses its own `screenshots.recent` key and shared stylesheet, so it is unaffected. `RecordingCaptureTag` is still used by the library `video-card`. The edited docs now describe the code as it is.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 8 | 173 | 4 | reviewed | 4 | $0.05 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.05</sub>\n\n<!-- agent-review sha=045520ad2eb44721b81396262227df427e14e06d -->"
+ }
+]

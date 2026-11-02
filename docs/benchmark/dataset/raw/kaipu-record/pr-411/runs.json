@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T17:40:23Z",
+  "databaseId": 40737933804,
+  "displayTitle": "fix(desktop): multi-tag paste and quick chip edits keep every change (audit LIB-B2)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-397-17-tag-chip-editing",
+  "headSha": "83e52345bd088f277986b3380902c0e339382d04",
+  "status": "completed",
+  "updatedAt": "2026-10-28T17:40:30Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40737933804",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T15:56:39Z",
+  "databaseId": 40721039597,
+  "displayTitle": "fix(desktop): multi-tag paste and quick chip edits keep every change (audit LIB-B2)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-397-17-tag-chip-editing",
+  "headSha": "83e52345bd088f277986b3380902c0e339382d04",
+  "status": "completed",
+  "updatedAt": "2026-10-28T15:57:15Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40721039597",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T15:56:39Z",
+  "databaseId": 40721038692,
+  "displayTitle": "fix(desktop): multi-tag paste and quick chip edits keep every change (audit LIB-B2)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-397-17-tag-chip-editing",
+  "headSha": "83e52345bd088f277986b3380902c0e339382d04",
+  "status": "completed",
+  "updatedAt": "2026-10-28T15:56:58Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40721038692",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

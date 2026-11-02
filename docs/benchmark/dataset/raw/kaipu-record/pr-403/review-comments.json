@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4396570754,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/audio-settings/audio-controls.tsx",
+  "line": 125,
+  "original_line": 125,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 118,
+  "original_position": 118,
+  "commit_id": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "original_commit_id": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5677399890,
+  "subject_type": "line",
+  "created_at": "2026-10-28T03:22:04Z",
+  "updated_at": "2026-10-28T03:22:04Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/403#discussion_r4396570754",
+  "body": "🟡🧹 **Consider · cleanup: Panel-named exports now serve the Record page too**\n\n`MicPanelDrawer`, `SystemAudioPanelDrawer`, `CameraPanelDrawer` and `CameraPanelTile` are now used by the Record page with `variant=\"page\"` / `compact={false}`. Their names still say \"Panel\", which misleads readers of `record-page.tsx`. Consider renaming them (for example `MicDrawer`) or re-exporting under neutral names. The `exclusive` doc comment in `use-settings-disclosure.ts:29-32` also still says it is used by the capture panel only."
+ },
+ {
+  "id": 4396570758,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/audio-settings/audio-controls.tsx",
+  "line": 51,
+  "original_line": 51,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 39,
+  "original_position": 39,
+  "commit_id": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "original_commit_id": "d01c9ec516eaedbcceed4742515c033a4a5e4c19",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5677399890,
+  "subject_type": "line",
+  "created_at": "2026-10-28T03:22:04Z",
+  "updated_at": "2026-10-28T03:22:04Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/403#discussion_r4396570758",
+  "body": "🟡🧹 **Consider · cleanup: Over-long doc comment line**\n\nThe first line of the `MicSettingsBody` doc comment was merged into one very long line when the word \"popover\" was removed. Re-wrap it to match the neighbouring comments."
+ }
+]

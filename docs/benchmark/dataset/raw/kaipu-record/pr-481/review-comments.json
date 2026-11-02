@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4438818272,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx",
+  "line": null,
+  "original_line": 12,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 13,
+  "commit_id": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "original_commit_id": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5731977264,
+  "subject_type": "line",
+  "created_at": "2026-11-02T04:04:58Z",
+  "updated_at": "2026-11-02T04:04:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#discussion_r4438818272",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: The 2026-11-02 entry presents the move to `niway-dev/wachiman` as new, but the workflow was already on it (confidence medium)**\n\nThe new Status text says \"Amended 2026-11-02: the engine is `niway-dev/wachiman`\", and line 126 says \"The engine now lives in `niway-dev/wachiman`\". Both read as if the move from `niway-dev/wachi-reviewer` to `niway-dev/wachiman` happened in this change.\n\nIt did not:\n- The 2026-11-01 amendment already names `niway-dev/wachiman` (lines 113–118).\n- The PR body says the pin moves from `niway-dev/wachiman@v1.3.0`.\n- `.github/workflows/agent-review.yml:21` now uses `niway-dev/wachiman/.github/workflows/review.yml@v1.4.0`.\n\nNo amendment records when or why the engine moved from `wachi-reviewer` to `wachiman`. The 2026-10-27 amendment explains why a repository rename matters here: GitHub does not redirect `uses:`.\n\nThe first clause of the same Status cell still says the review is \"now consumed through the reusable workflow `niway-dev/wachi-reviewer`\", so the cell now names two current engines.\n\nSuggested fix: limit the 2026-11-02 entry to the `v1.4.0` pin, and mention the move to `wachiman` once, as a change that came before it. Also consider fixing the stale \"now consumed through\" clause in the Status row. Status lines may change under the append-only rule.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4438825374,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx",
+  "line": null,
+  "original_line": 12,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 13,
+  "commit_id": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "original_commit_id": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "in_reply_to_id": 4438818272,
+  "pull_request_review_id": 5731986260,
+  "subject_type": "line",
+  "created_at": "2026-11-02T04:06:52Z",
+  "updated_at": "2026-11-02T04:06:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#discussion_r4438825374",
+  "body": "Fixed in 0dbca02f. The Status cell now opens with `niway-dev/wachiman`, and its 2026-11-02 entry only says \"pinned to `v1.4.0`\". The dated paragraph no longer presents the move as new: it says the engine has lived in `niway-dev/wachiman` since the `v1.2.1` pin (2026-10-31, `9ae51c18`) and that the ADR had not recorded it."
+ },
+ {
+  "id": 4438827362,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/architecture/decisions/0028-advisory-claude-review-on-pull-requests.mdx",
+  "line": null,
+  "original_line": 12,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 13,
+  "commit_id": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "original_commit_id": "b18d3d23340de5a77b39b2d8da58c5f955f0e2ee",
+  "in_reply_to_id": 4438818272,
+  "pull_request_review_id": 5731988694,
+  "subject_type": "line",
+  "created_at": "2026-11-02T04:07:25Z",
+  "updated_at": "2026-11-02T04:07:25Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/481#discussion_r4438827362",
+  "body": "👮 **Wachiman** · **Looks addressed** at `0dbca02`: Confirmed in 0dbca02f. The Status cell now names `niway-dev/wachiman` as the current engine, and its 2026-11-02 entry is limited to the `v1.4.0` pin (line 12). The dated paragraph records the move to `wachiman` as an earlier change that the ADR had not written down (lines 126 and 133–134). This matches `.github/workflows/agent-review.yml:21`. I couldn't check the commit hash `9ae51c18` from here.\n\n<!-- wachi:reply -->"
+ }
+]

@@ -1,0 +1,25 @@
+[
+ {
+  "id": 4385189094,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/screenshots/overlay/selection-chrome.tsx",
+  "line": 31,
+  "original_line": 31,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 7,
+  "original_position": 7,
+  "commit_id": "617970648f47a1c73f79981d5001d03d3de3dce7",
+  "original_commit_id": "617970648f47a1c73f79981d5001d03d3de3dce7",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5662348170,
+  "subject_type": "line",
+  "created_at": "2026-10-27T04:51:37Z",
+  "updated_at": "2026-10-27T04:51:37Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/389#discussion_r4385189094",
+  "body": "🟡🧹 **Consider · cleanup: TOOLBAR_BASE_WIDTH_DIP still budgets for the Record button**\n\nIn the capture intent the toolbar no longer draws Record (about one button plus a divider), but the 540 DIP base width is unchanged. The toolbar width feeds `toolbarPlacement` and the `named` threshold, so the bar is placed and centred as if it were wider than it is. The PR description admits this. Either lower the constant, or compute the width by intent so the record-intent Window picker keeps its extra button. The comment above the constant now says 'Record only in the record intent', which makes the fixed 540 look inconsistent."
+ }
+]

@@ -1,0 +1,163 @@
+[
+ {
+  "id": 4429714659,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 956,
+  "original_line": 946,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 119,
+  "original_position": 113,
+  "commit_id": "81b4f016c37ba075134f24f57692e76612545ca2",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5720253880,
+  "subject_type": "line",
+  "created_at": "2026-10-31T01:01:08Z",
+  "updated_at": "2026-10-31T01:01:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#discussion_r4429714659",
+  "body": "🟡🐛 **Consider · bug: When the camera can't reopen, the face goes into the same parked window, not a new one**\n\nSay the camera is turned on again mid-take. The hub sees `takeRecordsWebcam()` still true and calls `show()` on the parked window. That window is protected and left out of the running capture (recording-hub.ts:304-305). If `turnWebcamOn` then returns \"unavailable\", the engine ends the file and main only runs `bubbleProtection.webcamEnded` + `applyProtection()` (recording-hub.ts:456-459). Main's own docs call that best effort: it is unverified whether a running ScreenCaptureKit stream picks up a window that drops its protection (camera-bubble-window.ts:140-144).\n\nThe hub handles the parked case differently. When the file ends while the window is parked, it destroys the window and creates a new one (line 304), because a new unprotected window is \"the one a running capture is known to record\". The reopen-failure path, which this PR adds, gets no such replacement. The face can then be missing from both the webcam file and the screen. Meanwhile this comment says \"main put the bubble back in the capture\", and `webcamReopenFailed` sets `webcamUnavailable`, which tells the user the face is in the screen.\n\nYou could have the `recordingWebcamEnded` handler recreate a visible bubble during a take the same way. Or reword this comment and the user message so they don't promise the face is in the screen."
+ },
+ {
+  "id": 4429714662,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": null,
+  "original_line": 938,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 105,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5720253880,
+  "subject_type": "line",
+  "created_at": "2026-10-31T01:01:09Z",
+  "updated_at": "2026-10-31T01:01:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#discussion_r4429714662",
+  "body": "🟡📝 **Consider · docs: Comment says a following off waits on the queue, but off runs synchronously**\n\nThe comment reads \"On the queue, so an off that follows waits for this camera to open and releases it\". But the off branch (lines 924-934) calls `handle.turnWebcamOff()` synchronously, outside `queue`. What actually releases a camera that was opened late is the engine's `cameraRequest` counter (recorder-engine.ts:790-793 and 810). The behavior is correct; only the explanation is wrong. Suggest rewording it: the on is queued after earlier mic changes, and an off that comes while the camera is still opening supersedes it through the engine's request counter."
+ },
+ {
+  "id": 4429714665,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.test.ts",
+  "line": 2273,
+  "original_line": 2065,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 218,
+  "original_position": 185,
+  "commit_id": "81b4f016c37ba075134f24f57692e76612545ca2",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5720253880,
+  "subject_type": "line",
+  "created_at": "2026-10-31T01:01:09Z",
+  "updated_at": "2026-10-31T01:01:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#discussion_r4429714665",
+  "body": "🟡🧪 **Consider · tests: Test name says it covers the hub reset, but only abort is tested**\n\n\"a bubble parked when the take is aborted or the hub reset is destroyed too\" only calls `recordingAbort`. The reset path (`releaseParkedBubble()` after `bubbleProtection.reset()`, recording-hub.ts:1022) and the stop path (`applyStopWindowState`, line 846) have no test. Either add those cases or rename the test to cover abort only."
+ },
+ {
+  "id": 4429714666,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/webcam-relay.test.ts",
+  "line": 87,
+  "original_line": 79,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 87,
+  "original_position": 79,
+  "commit_id": "81b4f016c37ba075134f24f57692e76612545ca2",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5720253880,
+  "subject_type": "line",
+  "created_at": "2026-10-31T01:01:09Z",
+  "updated_at": "2026-10-31T01:01:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#discussion_r4429714666",
+  "body": "🟡🧪 **Consider · tests: The \"dropped (and closed)\" path for a cut camera's late frame never runs**\n\nThe comment says a frame the old camera still delivers after `cut()` is \"dropped (and closed), not relayed\". In practice `cut()` cancels the reader (`webcam-relay.ts:69`), so `first.push(late)` throws inside the `try` and the frame never reaches the pump. That means the `current !== reader` branch that calls `value.close()` (`webcam-relay.ts:91-93`) is not exercised, and nothing checks `late.close`.\n\nThe `written` assertion passes either way. To cover the branch, have a frame already queued before the cut so it is read after `current` changes, for example by pushing it before calling `relay.cut()` without flushing. Then assert `expect(late.close).toHaveBeenCalled()`. If you'd rather not, change the comment so it doesn't claim a close the test never checks."
+ },
+ {
+  "id": 4429722868,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/video-editor/webcam/webcam-model.ts",
+  "line": null,
+  "original_line": 155,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 64,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5720263597,
+  "subject_type": "line",
+  "created_at": "2026-10-31T01:03:38Z",
+  "updated_at": "2026-10-31T01:03:39Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#discussion_r4429722868",
+  "body": "`crypto.randomUUID()` makes the seeded layer different on every call, and Share's fingerprint hashes that layer, ids included: `wholeFingerprint(scene.webcam)` → `stableStringify(webcam)` in `export-reuse.ts:81`. Each time `ShareRecording` mounts it gets a new `whole:<hash>`, so `findReusableExports` never finds the earlier Share file and re-encodes the take whenever it has a gap. Takes without gaps are not affected, because they seed `segments: []`. The PR body says the fingerprint is \"covered automatically\", but that only holds if seeding is deterministic. The ids only need to be unique within the scene, and `validateWebcamSegment` accepts any string, so ids derived from the gap are enough.\n\n<details><summary>Technical details</summary>\n\n````markdown\n# Seeded gap segments must have deterministic ids\n\n## Affected sites\n- apps/kaipu-record/src/renderer/src/features/video-editor/webcam/webcam-model.ts:155 — `id: crypto.randomUUID()` in `gapSegments`\n- apps/kaipu-record/src/renderer/src/library/components/share-recording.tsx:126-130 — `initialScene(...)` → `wholeFingerprint(scene.webcam)` → reuse lookup at :183\n- apps/kaipu-record/src/renderer/src/features/video-editor/scene.ts:153 — `reconcileWebcam` seeds again for sessions that have no saved webcam layer; the editor's post-export stamp check (`video-editor-page.tsx:712`) compares `editFingerprint` against that reseeded scene\n\n## Required outcome\n- `seedWebcamScene` returns the same ids for the same sidecar, so `wholeFingerprint` is stable across Share mounts and the reuse lookup matches.\n- Add a test: seeding the same `WebcamTrackMeta` twice gives equal `wholeFingerprint` values.\n\n## Suggested approach\n- e.g. `id: `gap-${segments.length}`` (or derive from `gap.startMs`). User-created segments use UUIDs, so these cannot collide.\n````\n\n</details>\n\n```suggestion\n    segments.push({ id: `gap-${segments.length}`, start, end, mode: \"hidden\" });\n```"
+ },
+ {
+  "id": 4429779689,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/video-editor/webcam/webcam-model.ts",
+  "line": null,
+  "original_line": 155,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 64,
+  "commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "original_commit_id": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "in_reply_to_id": 4429722868,
+  "pull_request_review_id": 5720330077,
+  "subject_type": "line",
+  "created_at": "2026-10-31T01:20:44Z",
+  "updated_at": "2026-10-31T01:20:44Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#discussion_r4429779689",
+  "body": "Addressed in 29395c3 — seeded ids now derive from the segment start, with a `wholeFingerprint` stability test.\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41154789953/job/124399098677) ｜ via [Pullfrog](https://pullfrog.com) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 4429785440,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts",
+  "line": 948,
+  "original_line": 944,
+  "start_line": 947,
+  "side": "RIGHT",
+  "position": 111,
+  "original_position": 111,
+  "commit_id": "81b4f016c37ba075134f24f57692e76612545ca2",
+  "original_commit_id": "b2219de398990501afe8885388c075d9fad92ed7",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5720337044,
+  "subject_type": "line",
+  "created_at": "2026-10-31T01:22:39Z",
+  "updated_at": "2026-10-31T01:22:40Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/463#discussion_r4429785440",
+  "body": "Nothing re-checks whether the camera was turned off again before this queued on reaches the engine, and an off is not queued. Take off → on1 (still opening) → off → on2 (queued behind on1) → off. The last off reaches the engine while on1 is still opening, and on2 runs after that. The engine's `cameraWanted` is `false` at that point, so `turnWebcamOn()` opens the camera and feeds the file. The light stays on while the Camera toggle shows off, until the take stops or the camera is turned on again. The gap stays open, so the editor hides those frames, but the user's \"off\" was not honoured. The comment above says the engine drops a camera that is turned off while it opens, but an on still waiting in the store's queue never reached the engine, so it cannot be dropped.\n\n<details><summary>Technical details</summary>\n\n````markdown\n# A queued turn-on must not reach the engine after a newer off\n\n## Affected sites\n- apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:943-944 — the queued closure calls `handle.turnWebcamOn()` without checking `webcamOn` / `request`\n- apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts:829-833 — `turnWebcamOn` treats `cameraWanted === false` as \"open it\", which is correct for its own contract\n\n## Required outcome\n- An on whose request is no longer the newest, or that runs after the camera was turned off again, does not call the engine. The engine already has the newer state: off was applied directly, and a newer on is queued behind this one.\n- Add a store test: `onOffOnWhileOpening()` followed by `broadcast({ isCameraEnabled: false })` before `answers[0]` resolves. Expect `turnWebcamOn` to be called only once, and the gap to stay open until the stop.\n````\n\n</details>\n\n```suggestion\n      queue = queue.then(async () => {\n        // Turned off again, or on again by a newer on, before this one reached the engine: the\n        // engine already has the newer state, and opening the camera would light it.\n        if (!webcamOn || request !== webcamOnRequest) return;\n        const result = await handle.turnWebcamOn();\n```"
+ }
+]

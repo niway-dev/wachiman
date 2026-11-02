@@ -1,0 +1,29 @@
+{
+ "number": 419,
+ "title": "fix(desktop): raising the floating windows never brings a hidden bar back",
+ "body": "## Problem\n\nStart a region recording, let the 3-2-1 run, press Esc before it starts. The control bar stays on screen reading \"Starting…\" with the pause button, over an idle app, until the next take hides it. The owner's log shows it: after an Esc cancel and a new Start, `control bar: stop` arrives while the capture overlay is still open.\n\n## Root cause\n\nTwo things combine:\n\n1. The bar is kept hidden between takes (2d00eb79), not destroyed.\n2. The countdown raises the floating windows before the take (`raiseFloating` → `bar.raise()` → `BrowserWindow.moveTop()`). On macOS `moveTop()` orders a hidden window back on screen.\n\nSo the bar from the last take reappears during the countdown, in its reset \"Starting…\" state. A successful take then calls `bar.show()` anyway, so nobody noticed. A cancel ran `abandonCountdownRegion`, which hid the shade but not the bar.\n\nProbed with a bare Electron window, outside the app: `hide()` → `isVisible() === false`; `moveTop()` → `isVisible() === true`, still true 300 ms later.\n\n## Fix\n\n- `ControlBarWindow.raise()` is a no-op while the bar is not wanted.\n- `CameraBubbleWindow.raise()` is a no-op while the bubble is not visible (same hazard, camera off).\n- `abandonCountdownRegion` hides the bar as well as the shade.\n\n## Verification\n\n- `control-bar-window.test.ts`: `raise()` on a hidden bar never calls `moveTop`; it does once the bar is shown again.\n- `recording-hub.test.ts`: the Esc-cancel test now also asserts `bar.hide()`.\n- Both fail on the previous code (2 failed, 64 passed) and pass with the fix.\n- `check-types` clean, `oxlint` 0 errors, `oxfmt --check` clean, full suite 300 files / 2897 tests.\n\n**Not verified:** on the real app. On the MacBook: record once and stop, then Start again and press Esc during the 3-2-1. No bar should remain; the Record page should come back focused.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T23:35:35Z",
+ "updated_at": "2026-10-29T00:39:13Z",
+ "closed_at": "2026-10-29T00:39:08Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/419",
+ "base": {
+  "ref": "main",
+  "sha": "ca796ff5300fa3abdbee46075203195c00589eba"
+ },
+ "head": {
+  "ref": "fix/countdown-raise-never-shows-hidden-bar",
+  "sha": "b752d69bae8b9010ef6e235e3cec0d2fb4c476d1",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 6,
+ "additions": 110,
+ "deletions": 3,
+ "labels": []
+}

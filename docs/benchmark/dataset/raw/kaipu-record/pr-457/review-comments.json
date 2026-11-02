@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4428462474,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.test.tsx",
+  "line": 453,
+  "original_line": 452,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 124,
+  "original_position": 124,
+  "commit_id": "1ca465b9e8781f85e7b7be7b5c0143166c4c2fcd",
+  "original_commit_id": "2eb861a4e0781957c9f1f6ca741928183458b2b1",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5718629332,
+  "subject_type": "line",
+  "created_at": "2026-10-30T21:05:08Z",
+  "updated_at": "2026-10-30T21:05:08Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#discussion_r4428462474",
+  "body": "🟡🧪 **Consider · tests: \"keeps the copy untagged\" passes only because the earlier render is still mounted**\n\n`renderDetail(\"gh\")` runs while the `renderDetail(\"src\")` tree from line 443 is still in the DOM. The assertion `getAllByText(\"Master · full quality\")).toHaveLength(1)` only holds because the `src` player contributes exactly one tag and the `gh` page contributes none. If the master tag is ever dropped from the src page, or the src render shows it twice, this test fails or passes for reasons unrelated to the copy. Suggested fix: call `cleanup()` (or unmount) before the second render and assert `queryByText(\"Master · full quality\")` is null. Alternatively, move the copy case into its own `it`."
+ },
+ {
+  "id": 4428462477,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.module.css",
+  "line": 137,
+  "original_line": 137,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 39,
+  "original_position": 39,
+  "commit_id": "1ca465b9e8781f85e7b7be7b5c0143166c4c2fcd",
+  "original_commit_id": "2eb861a4e0781957c9f1f6ca741928183458b2b1",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5718629332,
+  "subject_type": "line",
+  "created_at": "2026-10-30T21:05:08Z",
+  "updated_at": "2026-10-30T21:05:08Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#discussion_r4428462477",
+  "body": "🟡🐛 **Consider · bug: pointer-events: none hides the master tag's tooltip on the player**\n\n`.masterTag` sets `pointer-events: none` so clicks reach the video. `pointer-events` is inherited, so the `MasterTag` inside it (library-detail-page.tsx:264-266) gets no hover either. That means its `title={t(\"masterTagHint\")}` (master-tag.tsx:13) never shows on the recording page, which is where the tag is largest. On the Library card and row it still works. If the hint matters here, one option is `pointer-events: auto` on the tag itself. It sits in the corner, clear of the video's controls bar, so it would only block clicks on its own small area. The other option is to accept that the hint doesn't show on this page."
+ },
+ {
+  "id": 4431076785,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.test.tsx",
+  "line": 453,
+  "original_line": 452,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 124,
+  "original_position": 124,
+  "commit_id": "1ca465b9e8781f85e7b7be7b5c0143166c4c2fcd",
+  "original_commit_id": "2eb861a4e0781957c9f1f6ca741928183458b2b1",
+  "in_reply_to_id": 4428462474,
+  "pull_request_review_id": 5721973751,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:21:22Z",
+  "updated_at": "2026-10-31T08:21:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#discussion_r4431076785",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nObsolete: #465 (`feature/recording-detail-title-and-copies`) now calls `cleanup()` before `renderDetail(\"gh\")` and asserts `queryByText(\"Master · full quality\")` is null (`library-detail-page.test.tsx:533-536`). That is the suggested fix.\n"
+ },
+ {
+  "id": 4431130099,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.module.css",
+  "line": 137,
+  "original_line": 137,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 39,
+  "original_position": 39,
+  "commit_id": "1ca465b9e8781f85e7b7be7b5c0143166c4c2fcd",
+  "original_commit_id": "2eb861a4e0781957c9f1f6ca741928183458b2b1",
+  "in_reply_to_id": 4428462477,
+  "pull_request_review_id": 5722036264,
+  "subject_type": "line",
+  "created_at": "2026-10-31T08:45:29Z",
+  "updated_at": "2026-10-31T08:45:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#discussion_r4431130099",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nFixed in [`cfb5a07f`](https://github.com/niway-dev/kaipu-record/commit/cfb5a07faf6cfa403e016227b0cb0dbb143255ea) on #471 (top of the stack): `.masterTag > * { pointer-events: auto }` lets the tag take the pointer so its hint shows; clicks elsewhere on the video still pass through.\n"
+ }
+]

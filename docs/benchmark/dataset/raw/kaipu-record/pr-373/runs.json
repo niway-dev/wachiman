@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:55:46Z",
+  "databaseId": 40160008908,
+  "displayTitle": "perf(desktop): PDF export off the main thread (audit SHOT-A2)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-407-32-pdf-export-off-the-main-thread",
+  "headSha": "f6d77f6408c7672cbabe0c645ebdeb6c765ddc29",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:55:53Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40160008908",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:55:04Z",
+  "databaseId": 40159965022,
+  "displayTitle": "perf(desktop): PDF export off the main thread (audit SHOT-A2)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-407-32-pdf-export-off-the-main-thread",
+  "headSha": "f6d77f6408c7672cbabe0c645ebdeb6c765ddc29",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:55:29Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159965022",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:55:04Z",
+  "databaseId": 40159964973,
+  "displayTitle": "perf(desktop): PDF export off the main thread (audit SHOT-A2)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-407-32-pdf-export-off-the-main-thread",
+  "headSha": "f6d77f6408c7672cbabe0c645ebdeb6c765ddc29",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:55:21Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159964973",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

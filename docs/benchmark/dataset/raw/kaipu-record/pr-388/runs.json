@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:46:26Z",
+  "databaseId": 40451578316,
+  "displayTitle": "fix(desktop): drag the camera bubble again and turn the camera off from it",
+  "event": "pull_request",
+  "headBranch": "fix/camera-bubble-drag-and-off",
+  "headSha": "784044a17bafea4152f172e72901508dce1c7527",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:46:34Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40451578316",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:38:00Z",
+  "databaseId": 40450801508,
+  "displayTitle": "fix(desktop): drag the camera bubble again and turn the camera off from it",
+  "event": "pull_request",
+  "headBranch": "fix/camera-bubble-drag-and-off",
+  "headSha": "784044a17bafea4152f172e72901508dce1c7527",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:38:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40450801508",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:37:59Z",
+  "databaseId": 40450801211,
+  "displayTitle": "fix(desktop): drag the camera bubble again and turn the camera off from it",
+  "event": "pull_request",
+  "headBranch": "fix/camera-bubble-drag-and-off",
+  "headSha": "784044a17bafea4152f172e72901508dce1c7527",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:38:17Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40450801211",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5677492118,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "330adeebc5fcc44ac66fb2cee5641d24a846d1a3",
+  "submitted_at": "2026-10-28T03:36:26Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/404#pullrequestreview-5677492118",
+  "body": "**Agent review** of the whole pull request, at `330adee`: all 16 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. The new `mirrored` setting defaults to `true` and is sanitized in `shared/camera-bubble.ts`, which adds no value import from a workspace package. The setting reaches the bubble through `data-mirrored` and the CSS rule. The Camera settings switch reuses `SwitchRow` from `audio-settings-fields.tsx`. The tests, English and Spanish messages, and backlog doc match the code. I did not run the test suite.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 16 | 178 | 4 | reviewed | 4 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=330adeebc5fcc44ac66fb2cee5641d24a846d1a3 -->"
+ }
+]

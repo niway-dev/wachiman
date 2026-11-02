@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "failure",
+  "createdAt": "2026-11-01T20:37:06Z",
+  "databaseId": 41347779793,
+  "displayTitle": "[replay] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "event": "pull_request",
+  "headBranch": "replay/pr-467/head",
+  "headSha": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:37:06Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41347779793",
+  "workflowName": "Agent review",
+  "log": "not-found"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:37:06Z",
+  "databaseId": 41347779880,
+  "displayTitle": "[replay] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "event": "pull_request",
+  "headBranch": "replay/pr-467/head",
+  "headSha": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:37:24Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41347779880",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:41:24Z",
+  "databaseId": 41348139404,
+  "displayTitle": "[replay] feat(desktop): Export screen with its own rail entry (replaces Prepare)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "667f03c3ea655d55b8267c598b5ed38623a20fa9",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:44:33Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41348139404",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

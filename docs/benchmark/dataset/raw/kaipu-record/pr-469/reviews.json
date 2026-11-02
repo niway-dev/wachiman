@@ -1,0 +1,50 @@
+[
+ {
+  "id": 5721897445,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "173a7af4649bd430a7cb8ab86467a06716c538de",
+  "submitted_at": "2026-10-31T07:57:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/469#pullrequestreview-5721897445",
+  "body": "**Agent review** of the whole pull request, at `173a7af`: all 11 files reviewed.\n\n5 finding(s): 2 to fix, 3 to consider; 5 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** Part 1 has no findings. All ten files are documentation: two new ADRs, the ADR index, two new backlog pages, the backlog index, the sidebar config and cross-links in the webcam pages.\n\n- **ADR 0033 is amended correctly.** 0039 amends decision 2 and the non-goal on animated layout transitions. 0033 only gains a status note pointing to 0039; its history is not rewritten, so it stays append-only.\n- **0039 matches 0033.** It correctly says 0033's reopen condition (a scene where the webcam is the subject) did not trigger this change. Camera-only clips are left to the backlog, which matches that condition.\n- **0040 matches 0033.** Its drawing order (zoom crop → framing → media lanes → camera) keeps 0033's rule that the camera is a viewport layer drawn after the zoom crop and the framing.\n- **Links and status cells agree.** The ADR index rows, the backlog rows, the sidebar slugs and the cross-links all match the new pages.\n\n**Batch 2 of 2.** I reviewed the editor timeline v2 design spec, part 2 and its only file. I found two things to fix. An acceptance criterion depends on a 0.6 s section, which the spec's own 1 s minimum rules out. The `webcamStateAt` duration formula mixes milliseconds and seconds. I also flagged three things to consider: the limit on open export inputs is stated three different ways, splitting a section can change the left half's transition length, and restoring a hidden media lane is not covered by the two-video limit. The ADR links and index entries for 0039 and 0040 match.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 10 | 624 | 4 | reviewed | 5 | $0.30 |\n| Batch 2 of 2 | 1 | 682 | 1 | reviewed | 5 | $0.23 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.53</sub>\n\n<!-- agent-review sha=173a7af4649bd430a7cb8ab86467a06716c538de -->"
+ },
+ {
+  "id": 5721904613,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "173a7af4649bd430a7cb8ab86467a06716c538de",
+  "submitted_at": "2026-10-31T07:59:56Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/469#pullrequestreview-5721904613",
+  "body": "> ℹ️ No critical issues. Four places in the spec contradict themselves or leave a rule out. These lines seed tests, so fixing them now is cheap.\n\n**Reviewed changes**\n\nI reviewed the whole design: the timeline v2 spec, ADRs 0039 and 0040, the two backlog pages, and the index, sidebar and cross-reference edits.\n\n- **Camera sections (ADR 0039, spec §2)**: an `override` segment becomes a section that changes only position and size. It carries an optional Slide or Cut `transition` with CSS easing, capped at 50 % of the section. Hiding fades over 200 ms outside the hidden range. Everything is driven by one pure `webcamStateAt(webcam, t)`.\n- **Tracks on demand (ADR 0040, spec §3)**: `removedTracks` plus a `visibleScene` read by the preview and the export. Activity becomes marks inside Zooms. Detected zooms become suggestions and are no longer applied on open.\n- **Media lanes (ADR 0040, spec §4)**: timeline-anchored image and video items on stackable `mediaLanes`, composed after the zoom crop and below the camera. At most 2 visible videos and 8 images.\n- **Per-source audio and mixing (spec §5)**: one audio lane per media lane. `mixAudio` resamples to 48 kHz, sums and soft-clips.\n- **Session and reuse (spec §6–7)**: every new key is additive inside version 1. The composer revision goes `wc1 → wc2`, Share's whole fingerprint becomes `whole:wc2:<hash>`, and `md1` is added when media is present.\n- **Backlog and cross-references**: new pages for background music and camera-only clips, plus notes on ADR 0033, the webcam spec and `backlog/webcam-track.md`.\n\nThe ADR number collisions with `main` are already called out in the PR body, so this review leaves them out.\n\n<!--\nPullfrog review metadata. These findings were written against 173a7af;\nif commits have landed on design/editor-timeline-v2 since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: Review (initial)\n- Files reviewed: 11\n- Commits reviewed: 2\n- Base: design/niw2-565-webcam-track (199714cf)\n- Head: design/editor-timeline-v2 (173a7af)\n- Reviewed commits:\n  - 173a7af — docs: backlog pages for background music and camera-only clips\n  - c48b902 — docs: design editor timeline v2 with ADRs 0039 and 0040\n- Prior pullfrog review: none\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/469?action=fix&review_id=5721904613) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/469?action=fix-approved&review_id=5721904613) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41182554950/job/124482762723) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5722078957,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "d2ada34817656bbb87ea655e42baf1a88f600fd8",
+  "submitted_at": "2026-10-31T08:57:48Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/469#pullrequestreview-5722078957",
+  "body": "> ℹ️ No critical issues. One note was lost in the merge, and there is a fix inline.\n\n**Reviewed changes**\n\nSince the last review, the only new commit merges the base branch and renumbers the webcam ADRs.\n\n- **Renumbered the webcam ADRs**: every link, description and table cell that cited 0032/0033 now cites 0037/0038. That covers ADRs 0039 and 0040, the spec's decision table and its \"extends or reopens\" list, `camera-only-clips.md` and both index tables. A grep of the docs tree turns up no stale `0032-webcam` or `0033-webcam` links.\n- **Merged main's ADR and backlog rows**: the ADR index gained 0032–0036 (workspaces, rename, reconcile), and the backlog table gained the rename and workspaces rows above this PR's three rows.\n\nThe four spec threads from the prior review are untouched by this commit and stay open. The PR body still says \"ADR 0033\" and talks about collisions as unresolved. It no longer matches the files.\n\n<!--\nPullfrog review metadata. These findings were written against d2ada34;\nif commits have landed on design/editor-timeline-v2 since, treat every specific bug, file, or\nline callout as POTENTIALLY STALE and re-diff before acting on it.\n\n- Mode: IncrementalReview (delta against prior pullfrog review)\n- Files reviewed: 11\n- Commits reviewed: 3\n- Base: design/niw2-565-webcam-track (5a885a7)\n- Head: design/editor-timeline-v2 (d2ada34)\n- Reviewed commits:\n  - d2ada348 — Merge design/niw2-565-webcam-track into design/editor-timeline-v2; webcam ADRs cited as 0037 and 0038\n- Prior pullfrog review: 173a7af (https://github.com/niway-dev/kaipu-record/pull/469#pullrequestreview-5721904613)\n-->\n\n\n<!-- PULLFROG_DIVIDER_DO_NOT_REMOVE_PLZ -->\n<sup><a href=\"https://pullfrog.com\"><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://pullfrog.com/logos/frog-white-full-18px.png\"><img src=\"https://pullfrog.com/logos/frog-green-full-18px.png\" width=\"9px\" height=\"9px\" style=\"vertical-align: middle; \" alt=\"Pullfrog\"></picture></a>&nbsp;&nbsp;｜ [Fix all ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/469?action=fix&review_id=5722078957) ｜ [Fix 👍s ➔](https://pullfrog.com/trigger/niway-dev/kaipu-record/469?action=fix-approved&review_id=5722078957) ｜ [View workflow run](https://github.com/niway-dev/kaipu-record/actions/runs/41186591449/job/124494653645) ｜ Using `claude-opus-5-5` ｜ [𝕏](https://x.com/pullfrogai)</sup>"
+ },
+ {
+  "id": 5724462613,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "c8038cb1fb8273861c7168c3b768f1345d33d254",
+  "submitted_at": "2026-10-31T19:10:21Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/469#pullrequestreview-5724462613",
+  "body": ""
+ }
+]

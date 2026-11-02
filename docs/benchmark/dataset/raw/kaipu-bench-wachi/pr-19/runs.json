@@ -1,0 +1,16 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T03:12:59Z",
+  "databaseId": 41381852783,
+  "displayTitle": "[replay r4] feat(desktop): float \"Your video is ready\" outside the app window",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "efaae4a5679b154bc56c9ea5da864c2daa6b3bbf",
+  "status": "completed",
+  "updatedAt": "2026-11-02T03:16:04Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41381852783",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

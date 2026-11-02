@@ -1,0 +1,94 @@
+[
+ {
+  "id": 4437283455,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/master-copies-panel.test.tsx",
+  "line": 140,
+  "original_line": 140,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 143,
+  "original_position": 143,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730202823,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:49:09Z",
+  "updated_at": "2026-11-01T20:49:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/13#discussion_r4437283455",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: \"shows only where there is an export screen\" never checks that the button is missing**\n\nThe test's name says the button shows *only* when `onOpenExport` is given. It only renders with the handler and clicks the button. It never renders without the handler to check that \"Open in Export →\" is absent. The page relies on that case: `library-detail-page.tsx:513` passes `undefined` for a recording that is not preparable. Add a render without `onOpenExport` and a `queryByRole(...)` check that expects `null`.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437283460,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/features/prepare/components/master-copies-panel.test.tsx",
+  "line": 100,
+  "original_line": 100,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 102,
+  "original_position": 102,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730202823,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:49:09Z",
+  "updated_at": "2026-11-01T20:49:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/13#discussion_r4437283460",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: Drag test replaces the shared electronAPI stub and never restores it**\n\n`window.electronAPI.startFileDrag = startFileDrag` overwrites the stub from `test/setup.ts:109`, and nothing puts the original back. `afterEach` at `setup.ts:99` does not reset `window.electronAPI`. Every later test in this file therefore runs with the mock. `export-status-cards.test.tsx:143-152` handles the same call with `vi.spyOn(window.electronAPI, \"startFileDrag\")` and `mockRestore()`. Using that pattern here keeps the stub intact between tests.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437283463,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "packages/i18n/messages/en.json",
+  "line": 785,
+  "original_line": 785,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 30,
+  "original_position": 30,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730202823,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:49:09Z",
+  "updated_at": "2026-11-01T20:49:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/13#discussion_r4437283463",
+  "body": "👮 **Wachiman** · 🟡🧹 **Consider · cleanup: Archive card's accessible name reads \"Export a copy for Archive copy\"**\n\n`destinationAria` is filled with the destination's display name in `destinations-panel.tsx:81`. For the archive destination that name is \"Archive copy\", so screen readers announce \"Export a copy for Archive copy\". The test pins this name at `library-detail-page.test.tsx:259`. The Spanish string has the same problem. One fix is a separate aria string for the archive card, such as \"Export an archive copy\".\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437283467,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/prepare-screen.md",
+  "line": 183,
+  "original_line": 183,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 56,
+  "original_position": 56,
+  "commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "original_commit_id": "dac8318b631e64780f65ce94b4aaa57261d7d63d",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730202823,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:49:09Z",
+  "updated_at": "2026-11-01T20:49:09Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/13#discussion_r4437283467",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: QA step says to drag the copy's row, but only the Drag button starts a drag**\n\nIn `master-copies-panel.tsx:165-179`, only the **Drag** button is `draggable` and calls `startFileDrag`. The rest of the row is a `<Link>` to the copy's page. Section 2 of this doc describes it correctly as \"a **Drag** handle\", but the validation script says \"Drag the copy's row out of the page into Finder\". A tester who drags the row itself drags a link, not the file. Change this line to say \"the copy's Drag handle\".\n\n<!-- wachi:finding -->"
+ }
+]

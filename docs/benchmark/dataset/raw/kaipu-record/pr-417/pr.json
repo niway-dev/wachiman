@@ -1,0 +1,29 @@
+{
+ "number": 417,
+ "title": "fix: keep the screenshot editor's capture title readable",
+ "body": "## What changed and why\n\nIn the screenshot editor toolbar, the capture title field shrank to \"Scree…\" at a normal window width. The field was `flex: 1; min-width: 0`, so it gave up all its width before `useCompactRow` saw the row overflow. Only after that did the hook hide the action labels.\n\n- **`capture-title-input.module.css`**: `.field` now has `min-width: calc(160px + 2 * var(--space-md))`. That is 160px for the field plus its side spacing. The row now overflows while the name is still readable, so `useCompactRow` hides the Copy / Save / Export labels first. The field then grows back into the space they freed.\n- The field's side spacing changed **from margin to padding**. `useCompactRow` adds up the children's `offsetWidth`, and `offsetWidth` does not include margins. With the old 12px margins, the row could overflow by up to 24px before it compacted. Padding is counted, so the threshold fires when the row actually overflows. It looks the same because the input is `width: 100%` inside the field. The hook itself is not changed.\n- **`capture-title-input.tsx`**: the tooltip now starts with the full name being edited, or the auto title if the field is empty. The existing hint follows on a second line, so a name that does get cut is still readable on hover. No copy was added or changed.\n\nNot changed: the toolbar layout, the field's position, the video editor, the Editor workspace.\n\n## How I verified it\n\n- Wrote the failing test first: `capture-title-input.test.tsx` › \"shows the full name in its tooltip, so a truncated name stays readable\". It failed before the fix (the tooltip was only the hint) and passes after it.\n- `apps/kaipu-record/node_modules/.bin/vitest run` on `features/screenshots/`, `pages/screenshot-editor/` and `ui/use-compact-row.test.tsx`: 415/415 pass.\n- `bun run verify` ran 4 times. Run 1 had one failure, in `features/screenshots/overlay/capture-overlay.test.tsx` (\"Enter starts recording the area…\", a `waitFor` that timed out). That file does not import the title input. Runs 2, 3 and 4 back to back were fully green: 299 files, 2879 tests in `kaipu-record`.\n- Local note: this machine has no `node` on PATH by default. Vitest then runs under bun, and `export.test.ts` fails on its PDF worker on an untouched base too. I ran verify with Node 24 on PATH.\n\n**Layout is not tested automatically.** jsdom cannot measure layout, so no test checks the widths; I did not add a flaky one. I did not run the app either, so the toolbar has not been checked by eye yet. Please check it with the steps below before merging.\n\nRefs NIW2-351\n\n## How to test it yourself\n\n1. `bun run dev`, take a screenshot.\n2. In the editor toolbar, the title field shows the full auto title (e.g. \"Screenshot — 10/13/2026, 9:41:02 AM\") without truncation at the default window size.\n3. Narrow the window. The field may shrink, but toolbar buttons must not overlap or wrap. The Copy / Save / Export labels collapse to icons before the title is cut.\n4. Hover the title: the tooltip's first line is the full name, then the rename hint.\n\n---\nRun: agent-runner attempt 1, session fe77a812-f836-400d-a182-9fb1f408121e, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-28T16:46:41Z",
+ "updated_at": "2026-10-28T17:41:18Z",
+ "closed_at": "2026-10-28T17:41:18Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/417",
+ "base": {
+  "ref": "main",
+  "sha": "f10e39a47aaa755b7ebe767b16d0745deb23de74"
+ },
+ "head": {
+  "ref": "feature/niw2-351-screenshot-editor-title-input-is-too-narrow-and-truncates",
+  "sha": "9597b871e11b817f6bab73915f0bca80c400894d",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 4,
+ "additions": 95,
+ "deletions": 3,
+ "labels": []
+}

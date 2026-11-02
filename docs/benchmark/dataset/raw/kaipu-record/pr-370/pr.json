@@ -1,0 +1,29 @@
+{
+ "number": 370,
+ "title": "fix(desktop): label delete targets the right shape; annotation drags no longer re-render the page (audit SHOT-A10, SHOT-B5)",
+ "body": "## What changed and why\n\nCloses audit findings **SHOT-A10** and **SHOT-B5** (plan 35, batch 6 of NIW2-386).\n\n**SHOT-B5 — clearing a label then clicking another shape deleted the wrong shape.**\n`removeSelected` read `selectedId` from a stale render closure. The sequence \"clear label A, mousedown on box B, blur commits the empty text\" ran `removeSelected()` with `selectedId = B`, so B was deleted. Now:\n- `EditorScene.removeAnnotation(id)` deletes by id and only clears the selection if it removed the selected shape. An unknown id adds no history entry. `removeSelected` delegates to it.\n- `commitText` uses the id captured when the edit started and no longer calls `scene.select(editing.id)`, which stole the user's newer selection.\n\n**SHOT-A10 — every pointermove of a move/resize/crop drag re-rendered the whole editor page.**\n- `AnnotationLayer` keeps `{ id, patch }` in local state (plus a ref) during a move/resize and renders the dragged shape as `{ ...a, ...patch }`. The scene is touched once, on release: one `commitAnnotation`, one history entry, one page render. An aborted drag commits what was shown, as one entry.\n- `Shape` is `React.memo`; `AnnotationLayer` is memoized with `sameLayerProps`, so beautify-slider drags skip it (with a comment that new props must be added to the comparator).\n- `CropOverlay` uses the same pattern (live rect in local state, one `setCrop` on release; a full-frame result commits `undefined`; a no-op commits nothing). `Esc` also clears the live rect.\n- `scene.updateAnnotation` and `scene.setCropLive` lost their last production caller and are deleted.\n\n## Behaviour changes to note\n\n1. Clearing a label's text and then clicking blank canvas now deletes the label (consistent with Enter). Before, blur silently kept the old text.\n2. The options panel's \"custom text size\" highlight updates on release instead of live during a corner drag.\n3. Mid-drag, `scene.annotations` holds the pre-drag geometry, so the page's dirty effect fires once per commit instead of once per move.\n\n## How I verified it\n\n- New/rewritten tests (written first, seen failing): `use-editor-scene.test.ts` (3 `removeAnnotation` cases), `annotation-layer.test.tsx` (B5 regression with the rAF wait before blur, move/resize commit once, click without movement commits nothing, dragged `<g transform>` changes before any commit), new `crop-overlay.test.tsx` (draw commits once, click commits nothing, full-frame result commits `undefined`, rect follows the pointer).\n- `apps/kaipu-record/node_modules/.bin/vitest run src/renderer/src/features/screenshots` — 29 files, 330 tests pass.\n- `bun run verify` from the repo root — passed on two consecutive runs.\n- Not done: the React DevTools Profiler measurement and the zoom 200 % + pan check from plan Task 4. They need the running desktop app, so they are in the checklist below. The Playwright desktop E2E suite was not run locally (CI runs it).\n\n## Plan housekeeping\n\nThe plan (`plans/audit-2026-10-15/35-annotation-layer-memo.md`) and its row in `00-index.md` live on `docs/code-audit-2026-10-15` (PR #301), not on this base, so there is nothing to delete here. Whoever merges #301 should drop that file and index row.\n\n## How to test it yourself\n\n1. Add a text label and a box. Double-click the label, delete all its text, click the box. The label disappears, the box stays and is selected; ⌘Z restores the label in one undo.\n2. Drag and resize shapes with many annotations (try 50, including a few blur boxes): smooth, one undo step per drag. In the React DevTools Profiler, `ScreenshotEditor` shows no commits during the drag and one at release.\n3. Draw and drag a crop: smooth, one undo step; Esc resets it. Zoom to 200 %, pan, then draw/move a shape: it lands under the cursor.\n4. Drag a beautify slider: the frame updates live (unchanged).\n\nRefs NIW2-409\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nRun: Gas City session ni-wisp-uxv80z2, bead ka-11v, Mac mini\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T03:40:37Z",
+ "updated_at": "2026-10-25T03:41:34Z",
+ "closed_at": "2026-10-25T03:41:34Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/370",
+ "base": {
+  "ref": "main",
+  "sha": "fb982c71382366b1241b24d1e4b95eb0de7f00c2"
+ },
+ "head": {
+  "ref": "feature/niw2-409-35-annotation-layer-memo",
+  "sha": "c94c8054656db45315e74592baec356a6c3f1e18",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 8,
+ "additions": 348,
+ "deletions": 100,
+ "labels": []
+}

@@ -1,0 +1,38 @@
+[
+ {
+  "id": 5718629332,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "2eb861a4e0781957c9f1f6ca741928183458b2b1",
+  "submitted_at": "2026-10-30T21:05:07Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#pullrequestreview-5718629332",
+  "body": "**Agent review** of the whole pull request, at `2eb861a`: all 19 files reviewed.\n\n2 finding(s): 2 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 2.** I found no defects in this part of the PR, only one optional test suggestion.\n\nWhat I checked:\n- **Library detail page:** every import that might look unused after the old Exports section and quick chips were removed (`Link`, `relativeDate`, `formatDuration`, `Messages`, `DestinationId`) is still used elsewhere in the file.\n- **Styles:** the new classes it relies on (`player`, `masterTag`, `masterNote`, `masterRow`, `heavyText`) exist in its stylesheet.\n- **`wholeRecording` flag:** in `export-runner.ts` it is computed against the imported `WHOLE_RECORDING_FINGERPRINT`.\n- **Copies panel:** `runningCopyOf` and the panel's time-left text match `exportEtaSeconds`, including its threshold (no estimate below 3% progress or under 2 seconds).\n- **Heavy-file hint:** it moves into the \"Where is this going?\" strip only on a master that can be prepared, and the old banner stays for a heavy copy, so no case ends up with both or neither.\n\nThe one finding:\n- **Test (consider):** in `library-detail-page.test.tsx`, the \"keeps the copy untagged\" check renders a second page without unmounting the first. Its count of master tags only works because the first page's tag is still on screen. Unmounting first, or splitting it into its own test, would make it check what its name says.\n\nFor part 2: several `prepare` messages (`prepareFor`, `prepareForHint`, `quickLabel`, `quickAria`, `quickYoutube` and the other quick-chip labels) appear to be unused now. That should be confirmed in `en.json`/`es.json`.\n\n**Batch 2 of 2.** Part 2 covers the CSS, the docs and the en/es messages, and it looks consistent with the code. Every new `library.*` key has a caller: masterTag, masterTagHint, masterNote, masterEditsNote, sendTo, sendToHint, the where* keys, copiesHeading/Copy, copiesEmpty, copyReady, copyProgress/NoEta and copyRes1440/4k. The removed `exports`, `originalLabel` and `originalPlayerNote` have no remaining renderer callers. `prepare-page.tsx` uses `prepare.originalLabel`, which still exists. The removed CSS classes (`.exports*`, `.quick*`, `.original*`) are no longer used by the page. The new rules `.player`, `.masterTag`, `.masterNote`, `.masterRow` and the flex change on `.heavyText` all match the new markup. The prepare-screen.md text agrees with the page: the heavy hint goes in the strip on a master, and the banner stays only for a heavy copy (`heavy && !master`). It also matches the Send to… button and the copies panel. One finding, a matter of judgement: the tag's tooltip doesn't show on the player. One more thing, not in this PR: `backlog/edit-state-indicators.md:104` still lists the removed `library.originalPlayerNote` key.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 2 | 15 | 982 | 4 | reviewed | 9 | $0.31 |\n| Batch 2 of 2 | 4 | 188 | 1 | reviewed | 9 | $0.18 |\n\n</details>\n\n<sub>Claude Opus 5.5 via Claude Code 2.1.304 · 2 batches · $0.49</sub>\n\n<!-- agent-review sha=2eb861a4e0781957c9f1f6ca741928183458b2b1 -->"
+ },
+ {
+  "id": 5721973751,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "24b4fa2fb690f73bea10fdee0ae9fa7bbc4280c7",
+  "submitted_at": "2026-10-31T08:21:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#pullrequestreview-5721973751",
+  "body": ""
+ },
+ {
+  "id": 5722036264,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "24b4fa2fb690f73bea10fdee0ae9fa7bbc4280c7",
+  "submitted_at": "2026-10-31T08:45:29Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/457#pullrequestreview-5722036264",
+  "body": ""
+ }
+]

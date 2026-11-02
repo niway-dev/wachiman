@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T07:51:57Z",
+  "databaseId": 41182273389,
+  "displayTitle": "feat(desktop): Check and fix files reconciles the library with its folder",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-561-reconcile-the-library-with-its-folder",
+  "headSha": "0a1788f0ee437959e02912ac4100fe3ef8fad131",
+  "status": "completed",
+  "updatedAt": "2026-10-31T07:52:03Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41182273389",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T01:19:53Z",
+  "databaseId": 41154820732,
+  "displayTitle": "feat(desktop): Check and fix files reconciles the library with its folder",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-561-reconcile-the-library-with-its-folder",
+  "headSha": "0a1788f0ee437959e02912ac4100fe3ef8fad131",
+  "status": "completed",
+  "updatedAt": "2026-10-31T01:20:13Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41154820732",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T23:34:39Z",
+  "databaseId": 41145297757,
+  "displayTitle": "feat(desktop): Check and fix files reconciles the library with its folder",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-561-reconcile-the-library-with-its-folder",
+  "headSha": "3f1e2b16c5cfb0af9f11ae855508c67b72285b54",
+  "status": "completed",
+  "updatedAt": "2026-10-30T23:34:59Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41145297757",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T23:23:41Z",
+  "databaseId": 41144206490,
+  "displayTitle": "feat(desktop): Check and fix files reconciles the library with its folder",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-561-reconcile-the-library-with-its-folder",
+  "headSha": "e015f7707f300b570998b91712d874964b3ed816",
+  "status": "completed",
+  "updatedAt": "2026-10-30T23:29:18Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41144206490",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T23:23:41Z",
+  "databaseId": 41144206243,
+  "displayTitle": "feat(desktop): Check and fix files reconciles the library with its folder",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-561-reconcile-the-library-with-its-folder",
+  "headSha": "e015f7707f300b570998b91712d874964b3ed816",
+  "status": "completed",
+  "updatedAt": "2026-10-30T23:24:00Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41144206243",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5641406229,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f6d77f6408c7672cbabe0c645ebdeb6c765ddc29",
+  "submitted_at": "2026-10-25T03:55:27Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/373#pullrequestreview-5641406229",
+  "body": "**Claude review** of the whole pull request, at `f6d77f6`: all 6 files reviewed.\n\n0 finding(s), 0 to fix; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nNo issues found. The worker is created and messaged correctly: the PNG and PDF are transferred, and the worker is terminated on both the success and error paths. The renderer's CSP (`script-src 'self'`) covers a bundled module worker, since `worker-src` falls back to it. The change adds no new preload or IPC surface, and `shared/**` is untouched. I did not run the build or tests, and I did not confirm that the production bundle emits the worker as a same-origin file.\n\n<sub>Claude Sonnet 5.5 · $0.06</sub>\n\n<!-- claude-review sha=f6d77f6408c7672cbabe0c645ebdeb6c765ddc29 -->"
+ }
+]

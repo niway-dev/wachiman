@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-30T21:17:29Z",
+  "databaseId": 41129916092,
+  "displayTitle": "feat(desktop): drop a video into Prepare (NIW2-587)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-587-prepare-drop-zone",
+  "headSha": "01b157c8bc43c7663a141f6c5f65f4280c566c56",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:20:20Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41129916092",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-30T21:23:17Z",
+  "databaseId": 41130671227,
+  "displayTitle": "feat(desktop): drop a video into Prepare (NIW2-587)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "5e464c9fe6a773b30a00b4d6aea8defe571d973b",
+  "status": "completed",
+  "updatedAt": "2026-10-30T21:23:18Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41130671227",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T16:47:50Z",
+  "databaseId": 41221396746,
+  "displayTitle": "feat(desktop): drop a video into Prepare (NIW2-587)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "744a41b736093caae5bf317c0bbb211134ec72db",
+  "status": "completed",
+  "updatedAt": "2026-10-31T16:47:51Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41221396746",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

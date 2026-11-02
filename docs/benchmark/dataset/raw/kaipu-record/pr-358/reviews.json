@@ -1,0 +1,26 @@
+[
+ {
+  "id": 5595271417,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "f522276e0600917a0685873135fff37952e789d3",
+  "submitted_at": "2026-10-21T05:19:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/358#pullrequestreview-5595271417",
+  "body": "**Claude review** of the whole pull request, at `f522276`: all 2 files reviewed.\n\n1 finding(s), 0 to fix; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change correctly refuses to overwrite a corrupt, unreadable or newer-version registry. It also writes the registry before it strips the legacy tags. One note: the one-time import now persists an empty registry even when the vault directory is absent.\n\n<sub>Claude Sonnet 5.5 · $0.09</sub>\n\n<!-- claude-review sha=f522276e0600917a0685873135fff37952e789d3 -->"
+ },
+ {
+  "id": 5595362178,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "981630aaf6f9b17eeb4cabaa8350d466da44e3ef",
+  "submitted_at": "2026-10-21T05:33:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/358#pullrequestreview-5595362178",
+  "body": ""
+ }
+]

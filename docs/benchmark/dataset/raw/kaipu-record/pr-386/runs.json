@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:47:33Z",
+  "databaseId": 40451677066,
+  "displayTitle": "fix(desktop): show the shared pink countdown on Frame recordings",
+  "event": "pull_request",
+  "headBranch": "fix/frame-countdown-reuse",
+  "headSha": "8c329018f237c675384a12e55145f9a382762832",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:47:38Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40451677066",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:34:20Z",
+  "databaseId": 40450464627,
+  "displayTitle": "fix(desktop): show the shared pink countdown on Frame recordings",
+  "event": "pull_request",
+  "headBranch": "fix/frame-countdown-reuse",
+  "headSha": "8c329018f237c675384a12e55145f9a382762832",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:34:55Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40450464627",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-27T04:34:19Z",
+  "databaseId": 40450464207,
+  "displayTitle": "fix(desktop): show the shared pink countdown on Frame recordings",
+  "event": "pull_request",
+  "headBranch": "fix/frame-countdown-reuse",
+  "headSha": "8c329018f237c675384a12e55145f9a382762832",
+  "status": "completed",
+  "updatedAt": "2026-10-27T04:34:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40450464207",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-31T00:59:13Z",
+  "databaseId": 41153055286,
+  "displayTitle": "fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "pull_request",
+  "headBranch": "feature/webcam-camera-toggle-mid-take",
+  "headSha": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "status": "completed",
+  "updatedAt": "2026-10-31T01:01:13Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41153055286",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T01:19:44Z",
+  "databaseId": 41154808596,
+  "displayTitle": "fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "4ca49b85e0dd9db6b0d2000640eaba8a425431b1",
+  "status": "completed",
+  "updatedAt": "2026-10-31T01:19:45Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41154808596",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-10-31T01:23:28Z",
+  "databaseId": 41155122296,
+  "displayTitle": "fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "4ca49b85e0dd9db6b0d2000640eaba8a425431b1",
+  "status": "completed",
+  "updatedAt": "2026-10-31T01:23:36Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41155122296",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ }
+]

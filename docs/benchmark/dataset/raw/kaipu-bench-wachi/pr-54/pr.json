@@ -1,0 +1,31 @@
+{
+ "number": 54,
+ "title": "[replay r2] feat(kaipu): NIW2-218 export presets pipeline and fast start",
+ "body": "> **Replay of [niway-dev/kaipu-record#269](https://github.com/niway-dev/kaipu-record/pull/269), run 2** for the code-review benchmark. Same base and head commits as the round-1 replay (a second branch name on the same commit, so the reviewer sees a fresh pull request). Never merged. Method: [wachiman/docs/benchmark](https://github.com/niway-dev/wachiman/tree/main/docs/benchmark).\n\n---\n\nRefs NIW2-218\n\nStacked on #266 (`feat/NIW2-217-gif-export`). PR 1 of 3 (spec \"Size\" split): pipeline + fast start. Next: #271 (presets UI), #272 (Small-file size check).\n\n## Summary\n- `export/export-presets.ts` (new, pure, worker-safe): one table for Original, YouTube 16:9 (1920×1080), Vertical 9:16 (1080×1920), Square 1:1 (1080×1080), Small file 10/25 MB. `resolveExportTarget()` returns size, framing, bitrates, fps cap, mono downmix, fast start, `maximumPacketCount`s, size estimate and \"achievable\" for the cap. Platform sources in comments.\n- `compose-frame.ts`: pure `framingRect()` (Fit/Fill). `compose-output-frame.ts`: `createFramer()` draws the composed view onto the target canvas, with black or blurred-frame padding.\n- `export-worker.ts`: fixed-canvas presets compose a **source-size view** (frame → redactions → overlays → zoom crop, unchanged) and then frame it; Original and Small file compose straight onto the output. Explicit bitrates (Original keeps `QUALITY_HIGH`), fps cap (drop frames before the next 1/maxFps slot), mono downmix, `canEncodeVideo` check with software fallback, and **`fastStart: 'reserve'` on every export** (never `'in-memory'`).\n- `use-video-export.ts`: `start()` accepts `presetId`/`framing`/`sourceInfo` (defaults to Original, so the editor behaves as before plus fast start). A \"maximum packet count\" error aborts that writer session and retries once with `fastStart: false` (logged via `captureException`). The message now carries `source` and `target`.\n- Backlog doc `backlog/export-presets.md` (🟡) + index/sidebar rows.\n\n**Spec:** `/Users/csdev/.hermes/workspace/specs/kaipu/NIW2-218.md` (Linear NIW2-218), spec draft approved by Cristian 2026-10-09 with defaults.\n\n## Assumed defaults\n- Q1 fast start on every preset, no toggle. Q2 padding: blurred copy of the frame for Vertical/Square Fit, black for YouTube. Q3 Vertical = Fill, Square = Fit. Q7 fixed presets upscale to the exact canvas; only Small file never upscales. Q11 keep source fps on fixed presets (12 Mbps > 30 fps); cap 30 fps only on Small-file rungs below 1080p.\n- Implementation choices: the Small-file bitrate is capped at the fixed-preset rate for its size (a 5 s clip doesn't get 30 Mbps); the moov reservation (~35 B/packet, ≈430 KB on a 2-min export) is subtracted from the Small-file budget; video packet counts never assume < 30 fps without a cap (screen recordings are VFR), and the worker raises them using the source's real packet rate.\n\n## How to try it\nThis slice has no UI change: Export → Video (MP4) still exports the Original preset.\n1. `cd apps/kaipu-record && bun run dev`, open a recording in the editor, add a cut, a zoom, a blur and an arrow.\n2. Export → Video (MP4). Confirm the result looks exactly as before (cuts, zoom, blur, overlay, poster).\n3. Check fast start: `ffprobe -v trace <file> 2>&1 | grep -m2 -E \"type:'(moov|mdat)'\"` shows `moov` before `mdat`, or drag the file into Safari: it should play and seek immediately.\n4. Presets are exercised from the UI in the next PR of the stack.\n\n## Verified\n- `bun run check-types` ✅ · `bun run test` ✅ (kaipu-record 199 files / 1465 tests) · `bun run lint` ✅ (0 errors; 15 pre-existing warnings).\n- New tests: `export-presets.test.ts` (dimensions per preset × 16:9 / 1662×1080 / 4:3 / 32:9 / portrait / 720p sources, even rounding, no upscale on Small file, ladder at 30 s / 2 / 5 / 15 min × 10 / 25 MB, audio / no-audio budgets, packet counts), `framingRect` cases in `compose-frame.test.ts`, hook tests for target pass-through and the fast-start fallback.\n\n## Not verified\n- Real exports in the app (WebCodecs + OffscreenCanvas in the worker can't run in jsdom): output dimensions via ffprobe, moov-before-mdat, `elst` absence, playback in Safari/Chrome/QuickTime, hardware encode of 1080×1920, export-time cost of the composite path.\n- E2E preset fixture checks (spec's desktop e2e tier): not written in this run.\n\n## Where to look first\n- `export-worker.ts` → `runExportWithInput`: the `framed`/`composeSize`/`framer` split, the fps-cap `nextSlot`, and the `maximumPacketCount` block.\n- `export-presets.ts` → `resolveSmallFile`.\n- `use-video-export.ts` → the `launch()` refactor and the `PACKET_RESERVE_ERROR` retry.\n\n## Proposed spec changes\nNone.\n\n## Run\n- **Agent:** Hermes subagent / Claude\n- **Machine:** Mac mini\n- **Branch:** `feat/NIW2-218-export-presets`",
+ "state": "open",
+ "merged": false,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T06:04:15Z",
+ "updated_at": "2026-11-02T06:07:32Z",
+ "closed_at": null,
+ "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/54",
+ "base": {
+  "ref": "replay/pr-269/base",
+  "sha": "58a95f9c38f247339f93806295602448de916a89"
+ },
+ "head": {
+  "ref": "replay/pr-269/head-r2",
+  "sha": "3159fb1c69e4aad0dc853e4f386818b320fe7ac2",
+  "repo": "niway-dev/kaipu-bench-wachi"
+ },
+ "changed_files": 12,
+ "additions": 1198,
+ "deletions": 26,
+ "labels": [
+  "replay"
+ ]
+}

@@ -1,0 +1,29 @@
+{
+ "number": 373,
+ "title": "perf(desktop): PDF export off the main thread (audit SHOT-A2)",
+ "body": "## What changed and why\n\nPDF export rasterised the scene at 3× and then ran pdf-lib's PNG decode, alpha split and deflate synchronously on the renderer main thread. On a 5K shot that froze the editor for 0.6 to 2.1 s (audit SHOT-A2, measured in node with pdf-lib 1.17.1 on a synthetic 5400×3600 image).\n\nOnly the pdf-lib step moves. The SVG draw and the async `toBlob` stay on the main thread because they need a DOM canvas and `new Image()` (`createImageBitmap` does not support SVG in Chromium).\n\n- `build-pdf.ts`: the pure page build (`buildPdf`), no DOM, so it can run in a worker.\n- `pdf-messages.ts`: request/response types.\n- `pdf-worker.ts`: one-shot module worker, same `new Worker(new URL(...), { type: \"module\" })` pattern as the GIF and export workers.\n- `pdf-exporter.ts`: `buildPdfOffThread(png, w, h)` transfers the PNG buffer in and the PDF buffer out, terminates the worker once it answers, rejects on an `error` reply or a worker `onerror`, and runs `buildPdf` inline when `Worker` is undefined (jsdom). Total latency is unchanged: the work moves, it does not shrink. The PNG buffer is detached after the transfer; no caller reuses `frame.png`.\n- No CSP change: there is no `worker-src`, so workers fall back to `default-src 'self'`, as for the two existing workers.\n\nJPEG was evaluated and rejected: the \"None\" background and rounded corners are transparent and would turn black, and 4:2:0 subsampling fringes thin strokes. If ever wanted: JPEG only when `bg !== \"none\"`, with a white fill.\n\nPlan: `plans/audit-2026-10-15/32-pdf-export-offthread.md`, which lives in niway-dev/kaipu-record#301 and is not on `main` yet, so there is no plan file or index row to delete here.\n\n## Verification\n\n- New `pdf-offthread.test.ts` (4 tests) failed first (`buildPdfOffThread` not exported), then passed.\n- `export.test.ts` now imports `buildPdf` from `./build-pdf`; its pdf tests run through the inline fallback and pass unchanged.\n- `bun run verify`: exit 0, 264 test files / 2294 tests. Run twice; the second run was served entirely from the Turborepo cache, so it confirms the result rather than re-executing the tests.\n- `electron-vite build` in `apps/kaipu-record`: a `pdf-worker-*.js` chunk exists, and `embedPng` appears only in that chunk and the lazy `build-pdf-*.js` chunk, not in the main renderer chunk.\n- Not run: Playwright desktop E2E (CI only), and the manual steps below.\n\n## How to test it yourself\n\n1. Open a large capture (1600×1000+ region or a Retina full screen), pick a background with padding, click Export PDF. While it works, zoom, scroll and hover keep responding (before: a 0.6–2 s freeze). The PDF has one page, is sharp at 300 %, and a \"None\" background is still transparent.\n2. DevTools Performance: no long `UPNG`/`pako` task on the main thread during the export.\n3. Temporarily throw inside `pdf-worker.ts`: the existing PDF export error toast appears and Export is usable again.\n\nRefs NIW2-407\n\nRun: Gas City session ni-wisp-azuo963, bead ka-kzh, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T03:55:01Z",
+ "updated_at": "2026-10-25T03:55:43Z",
+ "closed_at": "2026-10-25T03:55:43Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/373",
+ "base": {
+  "ref": "main",
+  "sha": "7c95e464ef5c104a07266d5f888ad26813d2e09c"
+ },
+ "head": {
+  "ref": "feature/niw2-407-32-pdf-export-off-the-main-thread",
+  "sha": "f6d77f6408c7672cbabe0c645ebdeb6c765ddc29",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 6,
+ "additions": 139,
+ "deletions": 13,
+ "labels": []
+}

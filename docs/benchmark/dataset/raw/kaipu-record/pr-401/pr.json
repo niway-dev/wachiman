@@ -1,0 +1,29 @@
+{
+ "number": 401,
+ "title": "ci: pin the PR review to wachi-reviewer v1.2.0 instead of the floating v1",
+ "body": "## What this does\n\nPins the PR review to the exact engine release `v1.2.0` instead of the floating `v1`, and records the engine rename in ADR 0028 and the CI/CD page. Follow-up to #400, which moved `uses:` to `niway-dev/wachi-reviewer`.\n\n## Why\n\nThe engine's ADR 0001 (amended 2026-10-26) recommends exact tags: a moved `v1` would run a new release with this repository's key before anyone read it.\n\n## What changes for you\n\n- A new engine release runs here only after the tag in `.github/workflows/agent-review.yml` is edited. This repository has no Dependabot, so that is a manual edit.\n- The header comment names the new `/wachi review` command; `@agent-review` and `@claude` still work.\n\n## Proof\n\n- `actionlint .github/workflows/agent-review.yml` → exit 0.\n- Tag `v1.2.0` exists at `9528de1` and contains `DEFAULT_MENTION = \"/wachi\"`; `v1` points at the same commit today, so the engine code this PR runs is unchanged.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T21:22:24Z",
+ "updated_at": "2026-10-27T21:24:42Z",
+ "closed_at": "2026-10-27T21:24:38Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/401",
+ "base": {
+  "ref": "main",
+  "sha": "1a50cd2569e47597f21228e5d5b0e83c9988d66d"
+ },
+ "head": {
+  "ref": "ci/pin-wachi-reviewer-v1.2.0",
+  "sha": "4002b6dd9dee271201d76a00fd6e3e616a3f8af0",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 3,
+ "additions": 24,
+ "deletions": 12,
+ "labels": []
+}

@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:41:37Z",
+  "databaseId": 40159150249,
+  "displayTitle": "fix(desktop): label delete targets the right shape; annotation drags no longer re-render the page (audit SHOT-A10, SHOT-B5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-409-35-annotation-layer-memo",
+  "headSha": "c94c8054656db45315e74592baec356a6c3f1e18",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:41:44Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159150249",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:40:40Z",
+  "databaseId": 40159095305,
+  "displayTitle": "fix(desktop): label delete targets the right shape; annotation drags no longer re-render the page (audit SHOT-A10, SHOT-B5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-409-35-annotation-layer-memo",
+  "headSha": "c94c8054656db45315e74592baec356a6c3f1e18",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:41:16Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159095305",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-25T03:40:40Z",
+  "databaseId": 40159095293,
+  "displayTitle": "fix(desktop): label delete targets the right shape; annotation drags no longer re-render the page (audit SHOT-A10, SHOT-B5)",
+  "event": "pull_request",
+  "headBranch": "feature/niw2-409-35-annotation-layer-memo",
+  "headSha": "c94c8054656db45315e74592baec356a6c3f1e18",
+  "status": "completed",
+  "updatedAt": "2026-10-25T03:40:57Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40159095293",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

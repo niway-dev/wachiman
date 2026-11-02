@@ -1,0 +1,38 @@
+[
+ {
+  "id": 5686271024,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "e6f8ea48db86082ce8976e61e66d952e515f3b16",
+  "submitted_at": "2026-10-28T16:38:38Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/416#pullrequestreview-5686271024",
+  "body": "**Agent review** of the whole pull request, at `e6f8ea4`: all 8 files reviewed.\n\n2 finding(s): 2 to consider; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is sound: the stop duration is now measured from the first media sample, and the tests cover the late bar clock, a pause, and the wall-clock fallback. I found two minor points. One is an unwrapped comment line in build-cursor-track.ts. The other is that a pause before the first-media timestamp resolves isn't removed from the video duration. The spec already accepts that gap, but no test pins it. I did not run the tests.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 8 | 185 | 6 | reviewed | 4 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=e6f8ea48db86082ce8976e61e66d952e515f3b16 -->"
+ },
+ {
+  "id": 5691115715,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "93f801b77e4e80c6eac902cec24ec73364e84441",
+  "submitted_at": "2026-10-28T23:41:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/416#pullrequestreview-5691115715",
+  "body": ""
+ },
+ {
+  "id": 5691115945,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "93f801b77e4e80c6eac902cec24ec73364e84441",
+  "submitted_at": "2026-10-28T23:41:32Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/416#pullrequestreview-5691115945",
+  "body": ""
+ }
+]

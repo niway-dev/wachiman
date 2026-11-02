@@ -1,0 +1,29 @@
+{
+ "number": 369,
+ "title": "perf(desktop): timeline thumbnails read by Range, cached per recording (audit VID-A3)",
+ "body": "## What changed and why\n\nOpening the editor read the whole recording into a `Blob` (`fetch(url).blob()`) just to decode 24 timeline thumbnails (audit finding VID-A3). Now only the container index and the keyframe neighbourhoods the decoder asks for are read, via `Range` requests, and re-opening the same recording decodes nothing.\n\n- `renderer/src/lib/open-recording-input.ts` (new): `openRecordingInput(url)` returns a mediabunny `Input` backed by `UrlSource`. `probe-source.ts` now uses it (signature unchanged).\n- `main/media-protocol.ts`: responses add `access-control-expose-headers: content-range, content-length, accept-ranges`. `kaipu-media://` is cross-origin from the page, so CORS hides those headers from `UrlSource`; without `Content-Range` it cannot learn the file size, and a moov-at-end MP4 may degrade to sequential reads. I confirmed by reading the handler that the headers were not exposed before; I did not observe the degradation at runtime.\n- `use-source-thumbnails.ts`: opens the recording through the helper (no `fetch`), keeps the 24 JPEG Blobs per `url|duration` in a module LRU of 8, creates object URLs at publish time and revokes them on unmount, and disposes the `Input` in `finally` and on cleanup (mediabunny's `Input.dispose()` is idempotent, checked in `node_modules/mediabunny/src/input.ts`). An empty result is not cached, so a transient failure does not stick.\n- `SourceThumbnail { sourceTime, url }` is unchanged, so the timeline lanes need no change.\n\nNot in this PR (phase 2, follow-up): the GIF and export workers still take a `Blob`. Gate for it: confirm a Worker can `fetch` `kaipu-media://` with `Range: bytes=0-9` and get a 206.\n\n## Plan file\n\nThe plan (`plans/audit-2026-10-15/28-video-thumbnails-range.md`) and its `00-index.md` row live on `docs/code-audit-2026-10-15` (PR #301), not on `main`, so there is nothing to delete here. Whoever merges #301 should drop that plan file and its index row.\n\n## How I verified it\n\n- `bun run verify` from the repo root, twice in a row: exit 0 both times. The second run was fully cached by Turbo, so it did not re-execute the tests; the first run did.\n- `node_modules/.bin/vitest run src/renderer/src/features/video-editor` (59 files, 591 tests, run before the last formatting-only change) and the new `use-source-thumbnails.test.ts` (6 tests: no `fetch` and 24 timestamps starting at `0.5/24 × duration`; dispose on success and on no video track; cache hit on second mount; revoke count equals create count; duration is part of the key; eviction past 8).\n- Tests mock `mediabunny` and the helper at the boundary, as `generate-thumbnail.test.ts` does, so they cover the orchestration, not real Range traffic.\n\n**Not done:** the DevTools measurement from the plan (Task 3) needs the running Electron app and a long recording. The 15–50 MB figure is the plan's estimate, not a measurement. The Playwright desktop E2E suite was not run locally (CI runs it).\n\n## How to test it yourself\n\n1. Run the desktop app (`bun run dev` in `apps/kaipu-record`) and open a long recording (several hundred MB if you have one) in the editor.\n2. Open DevTools → Network, filter on `kaipu-media`. Expect only 206 responses, no single 200 of file size, and `access-control-expose-headers` on the responses.\n3. Sum the 206 body sizes and compare with the file size. Please report the numbers on this PR.\n4. Close the editor and reopen the same recording: no new thumbnail range requests, and the timeline lanes fill immediately.\n5. Optionally check `chrome://blob-internals` for a file-sized blob (there should be none) and time editor mount to filled lanes against `main`.\n\nRefs NIW2-403\n\nRun: Gas City session ni-wisp-yooa8fp, bead ka-9fi, Mac mini\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-25T03:33:18Z",
+ "updated_at": "2026-10-25T03:34:01Z",
+ "closed_at": "2026-10-25T03:34:01Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/369",
+ "base": {
+  "ref": "main",
+  "sha": "850d72ccceac27a617ddb22cbe9abcae7292c09b"
+ },
+ "head": {
+  "ref": "feature/niw2-403-28-video-thumbnails-by-range",
+  "sha": "6810f795c6e92bf278142a14215f8d5f6fb2a69f",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 5,
+ "additions": 227,
+ "deletions": 28,
+ "labels": []
+}

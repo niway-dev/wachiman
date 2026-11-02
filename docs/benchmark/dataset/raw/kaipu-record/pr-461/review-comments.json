@@ -1,0 +1,25 @@
+[
+ {
+  "id": 4429545046,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": ".github/workflows/pullfrog.yml",
+  "line": 30,
+  "original_line": 30,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 30,
+  "original_position": 30,
+  "commit_id": "adaaa91ed611c94d9e475261a73461ce458dbf2e",
+  "original_commit_id": "adaaa91ed611c94d9e475261a73461ce458dbf2e",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5720039520,
+  "subject_type": "line",
+  "created_at": "2026-10-31T00:16:07Z",
+  "updated_at": "2026-10-31T00:16:07Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/461#discussion_r4429545046",
+  "body": "🟡🔐 **Consider · security: Third-party action on a mutable `@v0` tag gets every provider API key**\n\n`pullfrog/pullfrog@v0` is a third-party action referenced by a tag that can be moved. Lines 35–48 hand it up to 14 provider secrets (Anthropic, OpenAI, Google, xAI, OpenRouter and others), plus an `id-token: write` OIDC token (line 21). If someone retags `v0` upstream or the account is compromised, the next dispatch sends all of these keys to that new code.\n\nThe other workflows also use tags, but mostly for first-party or well-known actions like `actions/*` and `oven-sh/setup-bun`. None of them passes a secret set this broad to a vendor's runner code.\n\nTwo changes would shrink the exposure:\n- Pin to a full commit SHA, e.g. `pullfrog/pullfrog@<sha> # v0.x.y`, and let Dependabot or Renovate bump it.\n- Keep only the env line for the provider you actually configure and delete the rest. An unset secret expands to an empty string, but any key added to the repo later would quietly flow to this action.\n\nThe rest of the setup is sound: `workflow_dispatch`-only, `contents: read`, `persist-credentials: false`, and `inputs.prompt` goes through `with:` rather than a `run:` shell, so it can't be used for shell injection."
+ }
+]

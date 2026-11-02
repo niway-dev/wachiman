@@ -1,0 +1,163 @@
+[
+ {
+  "id": 4437292595,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/export/export-drop-zone.tsx",
+  "line": 40,
+  "original_line": 40,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 40,
+  "original_position": 40,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730212748,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:51:42Z",
+  "updated_at": "2026-11-01T20:51:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/15#discussion_r4437292595",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: \"Pick from Library\" stays enabled while a dropped or browsed file is importing**\n\nThe \"Browse files\" button is disabled while `importing` is true (line 51), but the `VideoPicker` trigger at line 40 is not. If someone picks a Library video during an import, `openVideo` navigates to that video. When the import finishes, `usePrepareImport` navigates again, this time to the imported file, so their pick is replaced without warning. To avoid this, pass `disabled={importing}` to the trigger's `Button` the same way the Browse button does.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437292599,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/export/recent-exports.tsx",
+  "line": 65,
+  "original_line": 65,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 65,
+  "original_position": 65,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730212748,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:51:42Z",
+  "updated_at": "2026-11-01T20:51:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/15#discussion_r4437292599",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: A finished Email export is listed as \"Chat\" in Recent exports**\n\nFinished rows get their destination from `destinationOfPreset(copy.export!.preset)`. Email and chat use the same `balanced` preset (`destinations.ts:69-71`), and `destinationOfPreset(\"balanced\")` returns `\"chat\"` (that module's header says this on purpose). So a copy exported for Email shows the Chat logo and the `cardChat` name here.\n\nThe running row is different: it uses `running.destination` (line 50), so it shows Email while the export runs. When the export finishes, the same item switches to Chat. The fix is either to save the destination with the copy's export metadata, or to show a neutral label for `balanced` copies.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437292605,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/export/export-stage.tsx",
+  "line": 312,
+  "original_line": 312,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 312,
+  "original_position": 312,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730212748,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:51:42Z",
+  "updated_at": "2026-11-01T20:51:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/15#discussion_r4437292605",
+  "body": "👮 **Wachiman** · 🟡🐛 **Consider · bug: Screen readers never hear the GitHub fits/over-limit result**\n\nThe card has `role=\"img\"`, so its children are presentational, and assistive tech reads only `aria-label`. That label is `barLabel` (\"Your recording {from}, the copy {to}\"). The `tag` computed at lines 299-306 (`barFitsLimit` / `barOverLimit` / `barLighter`) and the `barPicture` line are visible on screen but are not in the accessible name.\n\nFor GitHub, the whole point of this card is the 10 MB free-limit result, and screen-reader users lose it. One fix is to add `tag` to the aria-label. Another is to drop `role=\"img\"` and keep only the bar itself `aria-hidden`.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437292612,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library/library-page.test.tsx",
+  "line": 80,
+  "original_line": 80,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 46,
+  "original_position": 46,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730212748,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:51:42Z",
+  "updated_at": "2026-11-01T20:51:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/15#discussion_r4437292612",
+  "body": "👮 **Wachiman** · 🟠🧪 **Fix · tests: \"does not take a video dropped on the window\" would pass even if Library still handled drops**\n\nThis test no longer stubs `pathForFile`, so the default from `src/test/setup.ts:156` applies, and that default returns `\"\"`. `importDropped` in `features/library/hooks/use-import-videos.ts:102-111` treats an empty path as \"skipped\" and returns before it calls `window.electronAPI.importVideoFiles`. So if `LibraryPage` still mounted `useFileDrop` + `importDropped`, which is the regression this test is meant to catch, `importVideoFiles` would still never be called and the test would pass.\n\nFix: stub `window.electronAPI.pathForFile = vi.fn((f: File) => `/Users/me/Movies/${f.name}`)`, as the removed test and `export-page.test.tsx:421` do. You can also assert that `fireEvent.drop(...)` returns `true` (nothing called `preventDefault`), the inverse of `dropFiles` in the Export test. Either change makes the test fail if Library still takes drops.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437292617,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/shell/sidebar.test.tsx",
+  "line": 39,
+  "original_line": 39,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 27,
+  "original_position": 27,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730212748,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:51:42Z",
+  "updated_at": "2026-11-01T20:51:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/15#discussion_r4437292617",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: \"with and without a video\" only renders the with-a-video URL**\n\nThe test says Export is active \"with and without a video\", but it only renders `/export/asset-1`. The case without a video (`ROUTES.exportNew`) is never checked. The router already registers both routes (lines 19–20). Add a second `renderAt(ROUTES.exportNew)` with the same `aria-current` check, or rename the test. The nav item's `to` is `ROUTES.exportNew` and it is matched with `end: false` (`sidebar.tsx:53`, `sidebar.tsx:69`), so the bare route is the one the name claims and the one most likely to break if someone sets `end`.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437292623,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library/library-page.module.css",
+  "line": 108,
+  "original_line": 108,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 3,
+  "original_position": 3,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730212748,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:51:43Z",
+  "updated_at": "2026-11-01T20:51:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/15#discussion_r4437292623",
+  "body": "👮 **Wachiman** · 🟠🧹 **Fix · cleanup: Leftover comment for the deleted `.importZone` rule**\n\nThis PR removes the `.importZone` rule, but its comment `/* NIW2-579: the \"Drop a video here\" strip, between the header and the toolbar. */` is still here. It now sits right above the `.stickyBar` comment, so it reads as though it describes the sticky toolbar. Delete line 108 along with the rule.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4437292630,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/export/export-stage.module.css",
+  "line": 3,
+  "original_line": 3,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 5,
+  "original_position": 5,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730212748,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:51:43Z",
+  "updated_at": "2026-11-01T20:51:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/15#discussion_r4437292630",
+  "body": "👮 **Wachiman** · 🟠📝 **Fix · docs: Comment calls 900 × 670 the default window; it is the minimum**\n\nThe header comment says the stage is sized so YouTube's card and the button fit \"the default 900 × 670 window\". In `src/shared/window-size.ts:50` the `main` preset is `width: 1040, height: 760, minWidth: 900, minHeight: 670`, so 900 × 670 is the smallest the window can be, not its default. Change the wording to \"the minimum 900 × 670 window\" so nobody resizes the stage against the wrong target.\n\n<!-- wachi:finding -->"
+ }
+]

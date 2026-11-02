@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5660208151,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "db61d2658088b27ca233da46e7ac8e38bbb654e6",
+  "submitted_at": "2026-10-26T22:57:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/380#pullrequestreview-5660208151",
+  "body": "**Agent review** of the whole pull request, at `db61d26`: all 49 files reviewed.\n\n2 finding(s), 0 to fix; 2 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\n**Batch 1 of 4.** I found no blocking issues in part 1. The Electron boundary holds: the preload exposes two narrow methods, and the main-process handler type-checks the size it receives. `shared/camera-bubble.ts` has no imports. The geometry maths and the tests agree. I left one note: a grip-drag preview can stay applied if the release doesn't change the persisted size.\n\n**Batch 2 of 4.** I read all 12 files in this part and found no blocking problems. I raised one note. The throttled settings write in `use-camera-settings.ts` is dropped if the component unmounts while it is still pending.\n\n**Batch 3 of 4.** I found no issues in this part. I read the diffs only and did not run the tests. The `StatusToggleRow` `element` slot is implemented correctly and its test covers it. The new tests match the behavior they describe. The one doc claim I checked in code holds: a bubble needs an area of at least 232 px, which matches `area-geometry.ts`. The CSS and the new backlog doc raised nothing.\n\n**Batch 4 of 4.** No findings in this part. The backlog table change is a column-width reflow plus one new row for the camera bubble doc. The spec implementation note is consistent with that row. The en and es `cameraSettings` blocks have identical key sets and matching placeholders. I did not check that every key is used in the renderer files, which belong to other parts.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 4 | 19 | 959 | 8 | reviewed | 2 | $0.11 |\n| Batch 2 of 4 | 12 | 916 | 4 | reviewed | 2 | $0.07 |\n| Batch 3 of 4 | 14 | 937 | 4 | reviewed | 3 | $0.08 |\n| Batch 4 of 4 | 4 | 287 | 1 | reviewed | 2 | $0.07 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · 4 batches · $0.33</sub>\n\n<!-- agent-review sha=db61d2658088b27ca233da46e7ac8e38bbb654e6 -->"
+ }
+]

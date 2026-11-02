@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T15:24:01Z",
+  "databaseId": 40715551493,
+  "displayTitle": "chore(desktop): log countdown ticks and every cancel of a pending take",
+  "event": "pull_request",
+  "headBranch": "chore/record-start-diagnostics",
+  "headSha": "c32f88914b3e270fdae77762c24c4194298282a1",
+  "status": "completed",
+  "updatedAt": "2026-10-28T15:24:10Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40715551493",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T06:57:02Z",
+  "databaseId": 40646980270,
+  "displayTitle": "chore(desktop): log countdown ticks and every cancel of a pending take",
+  "event": "pull_request",
+  "headBranch": "chore/record-start-diagnostics",
+  "headSha": "c32f88914b3e270fdae77762c24c4194298282a1",
+  "status": "completed",
+  "updatedAt": "2026-10-28T06:57:31Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40646980270",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-28T06:57:02Z",
+  "databaseId": 40646979729,
+  "displayTitle": "chore(desktop): log countdown ticks and every cancel of a pending take",
+  "event": "pull_request",
+  "headBranch": "chore/record-start-diagnostics",
+  "headSha": "c32f88914b3e270fdae77762c24c4194298282a1",
+  "status": "completed",
+  "updatedAt": "2026-10-28T06:57:19Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40646979729",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "failure",
+  "createdAt": "2026-11-01T20:36:37Z",
+  "databaseId": 41347738362,
+  "displayTitle": "[replay] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "pull_request",
+  "headBranch": "replay/pr-463/head",
+  "headSha": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:36:37Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41347738362",
+  "workflowName": "Agent review",
+  "log": "not-found"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:36:37Z",
+  "databaseId": 41347738503,
+  "displayTitle": "[replay] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "pull_request",
+  "headBranch": "replay/pr-463/head",
+  "headSha": "3ec7a138c3a878b38284fd13c801ab7226a34abb",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:36:52Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41347738503",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:41:18Z",
+  "databaseId": 41348131171,
+  "displayTitle": "[replay] fix(desktop): turning the camera off and on mid-take keeps the face in its own track",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "667f03c3ea655d55b8267c598b5ed38623a20fa9",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:43:09Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41348131171",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

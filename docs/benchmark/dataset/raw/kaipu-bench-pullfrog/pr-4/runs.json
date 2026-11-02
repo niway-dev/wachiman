@@ -1,0 +1,30 @@
+[
+ {
+  "conclusion": "failure",
+  "createdAt": "2026-11-01T20:56:18Z",
+  "databaseId": 41349381915,
+  "displayTitle": "[replay] feat(desktop): float \"Your video is ready\" outside the app window",
+  "event": "pull_request",
+  "headBranch": "replay/pr-466/head",
+  "headSha": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:56:18Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-pullfrog/actions/runs/41349381915",
+  "workflowName": ".github/workflows/agent-review.yml",
+  "log": "not-found"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:56:18Z",
+  "databaseId": 41349381960,
+  "displayTitle": "[replay] feat(desktop): float \"Your video is ready\" outside the app window",
+  "event": "pull_request",
+  "headBranch": "replay/pr-466/head",
+  "headSha": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:56:39Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-pullfrog/actions/runs/41349381960",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

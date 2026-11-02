@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-26T22:23:44Z",
+  "databaseId": 40412086545,
+  "displayTitle": "chore(env): explain why a generated env file can be missing",
+  "event": "pull_request",
+  "headBranch": "chore/require-env-message",
+  "headSha": "0182349cad29e157c24ec55cfe0d39b0970566c5",
+  "status": "completed",
+  "updatedAt": "2026-10-26T22:23:52Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40412086545",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-26T22:23:01Z",
+  "databaseId": 40411996557,
+  "displayTitle": "chore(env): explain why a generated env file can be missing",
+  "event": "pull_request",
+  "headBranch": "chore/require-env-message",
+  "headSha": "0182349cad29e157c24ec55cfe0d39b0970566c5",
+  "status": "completed",
+  "updatedAt": "2026-10-26T22:23:34Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40411996557",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-26T22:23:00Z",
+  "databaseId": 40411995708,
+  "displayTitle": "chore(env): explain why a generated env file can be missing",
+  "event": "pull_request",
+  "headBranch": "chore/require-env-message",
+  "headSha": "0182349cad29e157c24ec55cfe0d39b0970566c5",
+  "status": "completed",
+  "updatedAt": "2026-10-26T22:23:18Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40411995708",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

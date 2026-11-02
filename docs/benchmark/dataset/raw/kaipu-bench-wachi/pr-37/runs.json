@@ -1,0 +1,16 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T03:41:21Z",
+  "databaseId": 41384449019,
+  "displayTitle": "[replay r8] feat(desktop): ready copy shows up in the Library; minimizable export widget",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "aedb20c83337fa8c4909f807edfa5fbf2bb979f8",
+  "status": "completed",
+  "updatedAt": "2026-11-02T03:44:00Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41384449019",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

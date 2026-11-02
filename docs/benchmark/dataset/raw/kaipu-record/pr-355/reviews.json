@@ -1,0 +1,62 @@
+[
+ {
+  "id": 5592905383,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4668b1c14a2919da5d60d1bedb78029a7cc1eaef",
+  "submitted_at": "2026-10-20T23:06:10Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/355#pullrequestreview-5592905383",
+  "body": "**Claude review** of the whole pull request, at `4668b1c`: all 8 files reviewed.\n\n4 finding(s), 0 to fix; 4 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found no should_fix correctness or security problems in the diff, and I didn't run the tests or the workflow. I left four notes: the prompt names a `docs/adr/` directory that doesn't exist in this repo, the installer script is unpinned, the `review` job runs the PR head's script with the key, and `on-demand` cancels in-progress runs. The package import rules, the `shared/**` rule and the `.env` rules aren't touched by this PR. The docs side is covered: ADR 0028 is new and appended to the index, and the CI doc was updated. It is in English and in the right place.\n\n<sub>Claude Sonnet 5.5 · $0.20</sub>\n\n<!-- claude-review sha=4668b1c14a2919da5d60d1bedb78029a7cc1eaef -->"
+ },
+ {
+  "id": 5592945210,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "988972bcfbef9071b06deb46a83dade45fa06060",
+  "submitted_at": "2026-10-20T23:10:31Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/355#pullrequestreview-5592945210",
+  "body": ""
+ },
+ {
+  "id": 5592945506,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "988972bcfbef9071b06deb46a83dade45fa06060",
+  "submitted_at": "2026-10-20T23:10:33Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/355#pullrequestreview-5592945506",
+  "body": ""
+ },
+ {
+  "id": 5592945746,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "988972bcfbef9071b06deb46a83dade45fa06060",
+  "submitted_at": "2026-10-20T23:10:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/355#pullrequestreview-5592945746",
+  "body": ""
+ },
+ {
+  "id": 5592945974,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "988972bcfbef9071b06deb46a83dade45fa06060",
+  "submitted_at": "2026-10-20T23:10:36Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/355#pullrequestreview-5592945974",
+  "body": ""
+ }
+]

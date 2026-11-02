@@ -1,0 +1,140 @@
+[
+ {
+  "id": 4421349938,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/specs/2026-10-30-webcam-track-design.md",
+  "line": null,
+  "original_line": 457,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 457,
+  "commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "original_commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5709261122,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:24:02Z",
+  "updated_at": "2026-10-30T07:24:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#discussion_r4421349938",
+  "body": "🟠📝 **Fix · docs: Preview sync uses `t + offset`; the rest of the spec uses `t − offset`**\n\nThe spec defines `startOffsetMs = webcamT0 − screenT0` (line 255). With that definition, screen time `t` maps to webcam time `t − offset`. Section 2 says so (line 262: `webcamTs ≤ t − startOffsetMs / 1000`), failure 8 agrees (`timestamp + offset ≤ sourceTs`, line 137), and so does the export iterator window (`[sourceStart − offset, sourceEnd − offset]`, line 486).\n\nThe preview rules have the sign the other way round: the seek at line 457 (`webcam.currentTime = t + offset`), the drift check at line 460, and failure 13 at line 152 (`|webcam.currentTime − (t + offset)| > 80 ms`). If someone implements these as written, a late-started webcam is shifted by twice the offset in the preview only, and the preview disagrees with the export. Change all three to `t − offset`."
+ },
+ {
+  "id": 4421349944,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/specs/2026-10-30-webcam-track-design.md",
+  "line": null,
+  "original_line": 188,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 188,
+  "commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "original_commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5709261122,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:24:02Z",
+  "updated_at": "2026-10-30T07:24:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#discussion_r4421349944",
+  "body": "🟠📝 **Fix · docs: getUserMedia width `lines * 4/3` gives 960×720, not the 1280×720 the decision names**\n\nDecision 4 (line 57) and ADR 0032 decision 1 both specify 1280×720 @ 30 fps, which is 16:9. The constraint at line 188 asks for `width: { ideal: lines * 4/3 }`. For 720 lines that is 960, a 4:3 width. For 1080 lines it is 1440 instead of 1920. Use `lines * 16/9`, or state the width outright, so the requested size matches the decided one."
+ },
+ {
+  "id": 4421349947,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/specs/2026-10-30-webcam-track-design.md",
+  "line": null,
+  "original_line": 120,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 120,
+  "commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "original_commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5709261122,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:24:02Z",
+  "updated_at": "2026-10-30T07:24:02Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#discussion_r4421349947",
+  "body": "🟠📝 **Fix · docs: Failure 2 sends Windows before 10 2004 to \"Plan B's fallback\", but Plan B is macOS-only**\n\nFailure 2 says that on Windows before 10 2004 the `fullDisplayBorderAllowed` rule \"selects Plan B's fallback behaviour\". Section 3.3 (lines 300, 321) and ADR 0032 (consequences, line 107) both say Plan B is a native ScreenCaptureKit module for macOS only, and that \"the Windows path stays Chromium either way\". So no Plan B exists on Windows to fall back to. Section 3.2 (lines 293–296) uses the same gate only to decide whether Plan A works there.\n\nPlease state what the bubble actually does on pre-2004 Windows: for example, it is not shown during a take, or it is captured. Otherwise the test this failure line is supposed to seed has no defined expectation."
+ },
+ {
+  "id": 4421363112,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/specs/2026-10-30-webcam-track-design.md",
+  "line": null,
+  "original_line": 457,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 457,
+  "commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "original_commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "in_reply_to_id": 4421349938,
+  "pull_request_review_id": 5709277937,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:26:13Z",
+  "updated_at": "2026-10-30T07:26:13Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#discussion_r4421363112",
+  "body": "Fixed in df0abc99. The preview seek, the drift check and failure 13 now use `t − offset`, matching `startOffsetMs = webcamT0 − screenT0`, section 2 and the export window."
+ },
+ {
+  "id": 4421363483,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/specs/2026-10-30-webcam-track-design.md",
+  "line": null,
+  "original_line": 188,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 188,
+  "commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "original_commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "in_reply_to_id": 4421349944,
+  "pull_request_review_id": 5709278324,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:26:15Z",
+  "updated_at": "2026-10-30T07:26:15Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#discussion_r4421363483",
+  "body": "Fixed in df0abc99: the request now uses `lines * 16/9`, so 720 lines asks for 1280×720 and 1080 lines for 1920×1080, matching decision 4 and ADR 0032."
+ },
+ {
+  "id": 4421363780,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "path": "apps/documentation/src/content/docs/specs/2026-10-30-webcam-track-design.md",
+  "line": null,
+  "original_line": 120,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 1,
+  "original_position": 120,
+  "commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "original_commit_id": "c03c973bc5917485b761aa711c626c91e2a1fc59",
+  "in_reply_to_id": 4421349947,
+  "pull_request_review_id": 5709278702,
+  "subject_type": "line",
+  "created_at": "2026-10-30T07:26:18Z",
+  "updated_at": "2026-10-30T07:26:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/437#discussion_r4421363780",
+  "body": "Fixed in df0abc99. Plan B is macOS-only, so failure 2 and section 3.2 now state the pre-2004 Windows behaviour outright: the take keeps the legacy path (bubble unprotected and burned into the screen as today, no webcam track recorded), so no take shows a black square."
+ }
+]

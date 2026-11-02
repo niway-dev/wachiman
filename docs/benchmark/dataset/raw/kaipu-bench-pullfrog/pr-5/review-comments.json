@@ -1,0 +1,48 @@
+[
+ {
+  "id": 4437318211,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library/library-page.tsx",
+  "line": 53,
+  "original_line": 53,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 42,
+  "original_position": 42,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730239001,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:59:22Z",
+  "updated_at": "2026-11-01T20:59:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog/pull/5#discussion_r4437318211",
+  "body": "With `useFileDrop` gone, no route other than Export calls `preventDefault` on `dragover`/`drop`. A video dropped on the Library now makes Electron navigate the window to `file://…/clip.mp4` and replaces the app. `use-file-drop.ts` documents exactly this, and `main/index.ts` has no `will-navigate` guard. The Library used to absorb this. The new test at `library-page.test.tsx:80-87` only checks that nothing was imported, so jsdom can't catch it.\n\n<details><summary>Technical details</summary>\n\n\n````markdown\n# Unhandled file drops navigate the Electron window\n\n## Affected sites\n- apps/kaipu-record/src/renderer/src/pages/library/library-page.tsx:53: the Library no longer mounts any window drop handler.\n- apps/kaipu-record/src/renderer/src/pages/library/library-page.test.tsx:80-87: asserts `importVideoFiles` was not called, but not that the drop was `defaultPrevented`.\n- apps/kaipu-record/src/main/index.ts: no `will-navigate` handler on `mainWindow.webContents`.\n\n## Required outcome\n- Dropping a file on the Library (or any non-Export route) leaves the app where it is, with no navigation to the file.\n- A test asserts the drop is `defaultPrevented` on the Library.\n\n## Suggested approach\n- Add an app-wide guard that `preventDefault`s file `dragover`/`drop` at the shell level, or block file navigation in main with `webContents.on(\"will-navigate\", …)`. Then the Library (and Record/Editor) are safe without importing anything.\n````\n\n</details>"
+ },
+ {
+  "id": 4437318217,
+  "user": {
+   "login": "pullfrog[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/renderer/src/pages/library/library-page.module.css",
+  "line": 108,
+  "original_line": 108,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 3,
+  "original_position": 3,
+  "commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "original_commit_id": "b12d760bd90b1e9619bab115f500f9c1a30cccf3",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5730239001,
+  "subject_type": "line",
+  "created_at": "2026-11-01T20:59:22Z",
+  "updated_at": "2026-11-01T20:59:23Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-pullfrog/pull/5#discussion_r4437318217",
+  "body": "This comment described the `.importZone` rule removed just above it. It now sits orphaned on top of `.stickyBar`'s own comment.\n\n```suggestion\n\n```"
+ }
+]

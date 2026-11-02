@@ -1,0 +1,29 @@
+{
+ "number": 387,
+ "title": "fix(desktop): start the take when Screen records a single display",
+ "body": "## Summary\n\n\"Start recording\" with **Screen** selected did nothing on a single-display machine: the app hid, came back, and no countdown or recording started. Frame worked.\n\n## Root cause\n\nOn one display, Screen mode skips the overlay because there is nothing to pick (`wholeDisplay` in `src/main/screenshots/screenshot-capture.ts`, used by both the macOS and Windows providers). For the `record` intent it answered with the `select` action (\"Use selection\"), which only sets the recording target: `applyRecordTarget` stored the display as the source with `start: false`, the capture handler restored the window as for a cancel, and `prepareRegionCountdown` / `triggerStartRecording` were never called.\n\nThat behaviour dates from the first overlay task, when spec decision 8 said \"Screen with one display sets the target at once\". Task 5 changed \"Start recording\" to open the selector, so the record intent is now only ever opened to start a take — and the one-display shortcut kept the old meaning. With several displays the chooser's \"Record this display\" sends `record`, so only the common single-display case broke. The existing test pinned the old `start: false`.\n\n## Fix\n\n- `wholeDisplay` answers `record` (not `select`) for the record intent, so the take starts on that display through the same path as Frame: `selectArea` → whole-display countdown on the shade → `triggerStartRecording({ reveal: false })`.\n- Spec Task 5 notes (decision 8) now state the single-display Screen behaviour.\n\n## Verification\n\n- Regression tests in `screenshot-capture.test.ts` for both `MacProvider` and `WindowsProvider`: Screen + record intent on one display returns `{ kind: \"record\", start: true }` without opening the overlay. Both fail with the fix reverted (`start: false`) and pass with it.\n- `bun run check-types`, `bun run lint` (0 errors; the 17 warnings are pre-existing and none are in touched files), full `bun run test`: 280 files, 2554 tests passing.\n\n## Not verified\n\n- I did not run a real recording in the app. The worktree has no Infisical `.env`, and a real take needs macOS screen-recording permission and someone to watch the countdown. Please QA on a single display: Record page → Screen → Start recording should show the countdown on the display, then record; the file should play.\n- The rest of the Screen path after the start (renderer recorder with `area: null` on a `screen:` source) is the same one a multi-display \"Record this display\" and the old full-screen recordings use; I traced it but did not exercise it end to end.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T04:34:18Z",
+ "updated_at": "2026-10-27T04:46:40Z",
+ "closed_at": "2026-10-27T04:46:37Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/387",
+ "base": {
+  "ref": "main",
+  "sha": "241a2862815a86f8312237aaa89a788ebee81bfb"
+ },
+ "head": {
+  "ref": "fix/screen-mode-recording",
+  "sha": "849cb2ff9d8788cb4a29066a4638932ab2f262c0",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 3,
+ "additions": 20,
+ "deletions": 6,
+ "labels": []
+}

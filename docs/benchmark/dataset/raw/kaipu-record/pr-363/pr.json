@@ -1,0 +1,29 @@
+{
+ "number": 363,
+ "title": "fix(deps): move @kaipu/domain to dependencies where runtime code needs it",
+ "body": "## What\n\n`packages/application` and `packages/infra-db` declared `@kaipu/domain` as a **devDependency** while importing runtime values from it (error classes, constants, mapper functions), not only types. This moves it to `dependencies` in both packages. `packages/infra-storage` imports only types from `@kaipu/domain`, so it stays a devDependency.\n\n## Why\n\nIt only works today because bun workspaces hoist every package into one shared `node_modules` and nothing prunes devDependencies at install time. `bun install --production`, publishing either package, or a stricter installer would leave `@kaipu/domain` missing at runtime and break both packages.\n\n## Status\n\n- The original commit `4c19a94c` is from 2026-09-20. The branch existed only locally until today.\n- `main` was merged in (`fedb69ea`), with no rebase or force push. The only conflict was `bun.lock`: I took `main`'s lock and regenerated it with `bun install`. Against `main`, it now differs only in the `@kaipu/domain` move. It also updates three stale `version` fields (`kaipu-record`, `server-hono`, `web-hono`) that `main`'s lock had left behind the `package.json` files.\n- Verified locally: `bun install --frozen-lockfile`, plus `check-types`, `build` and `test` for `@kaipu/application`, `@kaipu/infra-db` and `server-hono`. All 12 turbo tasks pass.\n\n## How to test it yourself\n\n1. Check out the branch and run `bun install --frozen-lockfile`. It must succeed with no lockfile change.\n2. Run `grep -n '@kaipu/domain' packages/application/package.json packages/infra-db/package.json`. Both lines must be under `\"dependencies\"`.\n3. Run `bun run build` and `bun run test` from the root. Expect the same result as on `main`.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-21T16:18:28Z",
+ "updated_at": "2026-10-21T23:02:50Z",
+ "closed_at": "2026-10-21T23:02:46Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/363",
+ "base": {
+  "ref": "main",
+  "sha": "a181d1a30f2b5bff3286c0e634b62c0cb85c3fb8"
+ },
+ "head": {
+  "ref": "chore/dependency-manifest-hygiene",
+  "sha": "fedb69ea9b913db7a05e818f43250f7e8f77b55f",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 3,
+ "additions": 7,
+ "deletions": 7,
+ "labels": []
+}

@@ -1,0 +1,62 @@
+[
+ {
+  "id": 5595290493,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "4dad2339a3cc04aa0fba23f65da917cba7c418c9",
+  "submitted_at": "2026-10-21T05:22:34Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/359#pullrequestreview-5595290493",
+  "body": "**Claude review** of the whole pull request, at `4dad233`: all 14 files reviewed.\n\n4 finding(s), 1 to fix; 4 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe finalize-failure handling and recovery sweep look sound overall. One real bug: salvage can't overwrite a file the user confirmed in the save dialog. There are also notes on a hard-coded English title, an mtime-based sweep of the shared temp dir, and a missing feature doc.\n\n<sub>Claude Sonnet 5.5 · $0.10</sub>\n\n<!-- claude-review sha=4dad2339a3cc04aa0fba23f65da917cba7c418c9 -->"
+ },
+ {
+  "id": 5595347784,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "740b8915fa1a9a345e837034b660ca416d5875a9",
+  "submitted_at": "2026-10-21T05:31:35Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/359#pullrequestreview-5595347784",
+  "body": ""
+ },
+ {
+  "id": 5595348001,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "740b8915fa1a9a345e837034b660ca416d5875a9",
+  "submitted_at": "2026-10-21T05:31:37Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/359#pullrequestreview-5595348001",
+  "body": ""
+ },
+ {
+  "id": 5595348253,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "740b8915fa1a9a345e837034b660ca416d5875a9",
+  "submitted_at": "2026-10-21T05:31:40Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/359#pullrequestreview-5595348253",
+  "body": ""
+ },
+ {
+  "id": 5595348488,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "740b8915fa1a9a345e837034b660ca416d5875a9",
+  "submitted_at": "2026-10-21T05:31:42Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/359#pullrequestreview-5595348488",
+  "body": ""
+ }
+]

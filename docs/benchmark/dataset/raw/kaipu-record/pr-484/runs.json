@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T05:48:30Z",
+  "databaseId": 41396157087,
+  "displayTitle": "fix(library): a near miss on a Check and fix row toggles it instead of expanding it (NIW2-604)",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-604-reconcile-row-hit-target",
+  "headSha": "de9134b3af9efb36664ea1e726d3b725dca96ba8",
+  "status": "completed",
+  "updatedAt": "2026-11-02T05:49:33Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41396157087",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "skipped",
+  "createdAt": "2026-11-02T05:48:44Z",
+  "databaseId": 41396179300,
+  "displayTitle": "fix(library): a near miss on a Check and fix row toggles it instead of expanding it (NIW2-604)",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "c01796bb717af2f23151b5e3a8cf65abc31f1004",
+  "status": "completed",
+  "updatedAt": "2026-11-02T05:48:45Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41396179300",
+  "workflowName": "Agent review",
+  "log": "skipped"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-02T06:06:44Z",
+  "databaseId": 41397892800,
+  "displayTitle": "fix(library): a near miss on a Check and fix row toggles it instead of expanding it (NIW2-604)",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-604-reconcile-row-hit-target",
+  "headSha": "59f6d481c8eb4f9121a006952736b60f06278b9b",
+  "status": "completed",
+  "updatedAt": "2026-11-02T06:07:40Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/41397892800",
+  "workflowName": "Agent review",
+  "log": "ok"
+ }
+]

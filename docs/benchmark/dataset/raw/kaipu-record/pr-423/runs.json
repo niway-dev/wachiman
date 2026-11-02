@@ -1,0 +1,72 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T06:05:19Z",
+  "databaseId": 40827112583,
+  "displayTitle": "fix(desktop): shut down explicitly, newest first, with a deadline",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-548-explicit-shutdown",
+  "headSha": "f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9",
+  "status": "completed",
+  "updatedAt": "2026-10-29T06:05:26Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40827112583",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T06:00:33Z",
+  "databaseId": 40826634848,
+  "displayTitle": "fix(desktop): shut down explicitly, newest first, with a deadline",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "e47a043b0f1c2743adace8e88fd55e86bfcdcedd",
+  "status": "completed",
+  "updatedAt": "2026-10-29T06:01:05Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40826634848",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T06:00:29Z",
+  "databaseId": 40826626300,
+  "displayTitle": "fix(desktop): shut down explicitly, newest first, with a deadline",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-548-explicit-shutdown",
+  "headSha": "f46b4fbf6d8d9e22c33b79f8fb6a2325a90626d9",
+  "status": "completed",
+  "updatedAt": "2026-10-29T06:00:48Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40826626300",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T05:57:00Z",
+  "databaseId": 40826302081,
+  "displayTitle": "fix(desktop): shut down explicitly, newest first, with a deadline",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-548-explicit-shutdown",
+  "headSha": "ad43588cbc6d854737c0ed7d435a12a3a74f34cc",
+  "status": "completed",
+  "updatedAt": "2026-10-29T05:57:59Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40826302081",
+  "workflowName": "Agent review",
+  "log": "ok"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-29T05:57:00Z",
+  "databaseId": 40826301802,
+  "displayTitle": "fix(desktop): shut down explicitly, newest first, with a deadline",
+  "event": "pull_request",
+  "headBranch": "fix/niw2-548-explicit-shutdown",
+  "headSha": "ad43588cbc6d854737c0ed7d435a12a3a74f34cc",
+  "status": "completed",
+  "updatedAt": "2026-10-29T05:57:17Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/40826301802",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ }
+]

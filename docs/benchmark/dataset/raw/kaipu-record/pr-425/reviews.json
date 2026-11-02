@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5694134553,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "41f0e4b9ba32dc9bb8497f2583e6c01b87ecd68a",
+  "submitted_at": "2026-10-29T07:19:18Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/425#pullrequestreview-5694134553",
+  "body": "**Agent review** of the whole pull request, at `41f0e4b`: all 5 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is sound: it switches the keydown listeners in the overlay, frame box, screen card and window picker from passive effects to layout effects, so they attach in the commit that paints. Each effect's cleanup and dependencies are unchanged. I read `frame-box.tsx` and `capture-overlay.tsx` around the changed hunks, plus the test file's `afterEach`. I did not read `screen-card.tsx`, `window-picker.tsx` or the rest of `capture-overlay.test.tsx`; their diffs are one-line swaps and a new test. The new test spies on `window.addEventListener` and the mock is restored in `afterEach`. Its exact count of 2 keydown listeners is somewhat brittle, but I did not check whether another keydown listener is mounted in frame mode, so I report it as a risk, not a defect.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 5 | 53 | 4 | reviewed | 5 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=41f0e4b9ba32dc9bb8497f2583e6c01b87ecd68a -->"
+ }
+]

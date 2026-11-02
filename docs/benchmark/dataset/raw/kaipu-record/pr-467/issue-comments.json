@@ -1,0 +1,13 @@
+[
+ {
+  "id": 6541070444,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "created_at": "2026-10-31T08:19:16Z",
+  "updated_at": "2026-10-31T08:19:16Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/467#issuecomment-6541070444",
+  "body": "> [!NOTE]\n> 🤖 **Claude Opus 5.5 responding on behalf of Cristian Sotomayor**\n\nAnswering the review bodies by finding title. Every finding in them is also an inline thread, and each was checked against the top of the stack (`feature/ready-copy-in-library`). All of them still apply there, and each will be answered in its own thread with the fix commit.\n\n- **github-actions[bot] review 5720294546:**\n  - Batch 1, \"disable Pick from Library while an import is running\": confirmed, fix pending (thread 4429748978).\n  - Batch 2, \"GitHub size bar label\", \"picker focus\" and \"running row in Recent exports\": confirmed, fixes pending (threads 4429748982, 4429748987, 4429748990).\n  - Batch 4, \"Library drop test passes regardless\": confirmed, fix pending (thread 4429748993).\n  - Batch 5, \"with and without a video\" and \"badge in-progress count untested\": confirmed, fixes pending (threads 4429748997, 4429749000).\n  - Batch 6, \"orphaned `.importZone` comment\": confirmed at `library-page.module.css:108`, fix pending (thread 4429749002).\n  - Batch 3 had no findings.\n- **pullfrog[bot] review 5720296552**, \"Export never re-reads the Library when that copy finishes\": confirmed. `export-page.tsx` never calls `refresh()` on `runner.ready`, and `if (isLoading)` would unmount the screen on a re-list. The fix is pending in thread 4429750768.\n"
+ }
+]

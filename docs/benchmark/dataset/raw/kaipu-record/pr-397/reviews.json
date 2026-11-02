@@ -1,0 +1,14 @@
+[
+ {
+  "id": 5673746146,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9a56bbf03b0123be07573aee3757ec22a7915f01",
+  "submitted_at": "2026-10-27T20:21:01Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/397#pullrequestreview-5673746146",
+  "body": "**Agent review** of the whole pull request, at `9a56bbf`: all 1 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change appends an amendment section and updates the status row of ADR 0028. It appends rather than rewrites, as the ADR rules require. The amendment's account of the Consequences text matches line 68 of the file. I found nothing to flag.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 1 | 24 | 1 | reviewed | 3 | $0.03 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.03</sub>\n\n<!-- agent-review sha=9a56bbf03b0123be07573aee3757ec22a7915f01 -->"
+ }
+]

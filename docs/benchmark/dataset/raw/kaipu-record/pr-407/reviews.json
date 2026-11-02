@@ -1,0 +1,86 @@
+[
+ {
+  "id": 5678289458,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "a9005046b2a3e79f97a5e236d12766ef9010afab",
+  "submitted_at": "2026-10-28T05:42:06Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#pullrequestreview-5678289458",
+  "body": "**Agent review** of the whole pull request, at `a900504`: all 9 files reviewed.\n\n1 finding(s): 1 to consider; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe change is sound. The compact camera drawer drops Size, the Mirror and Framing hints become tooltips with screen-reader descriptions, a disabled reason is still shown, the panel max height goes to 600, and the docs and tests match. The only finding is minor dead code: leftover compact handling in the Size block.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 9 | 182 | 5 | reviewed | 4 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=a9005046b2a3e79f97a5e236d12766ef9010afab -->"
+ },
+ {
+  "id": 5678303691,
+  "user": {
+   "login": "csdev19",
+   "type": "User"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9f1e845e6163cc5a3ff83e8bf10f643ed582aedf",
+  "submitted_at": "2026-10-28T05:43:33Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#pullrequestreview-5678303691",
+  "body": ""
+ },
+ {
+  "id": 5678314730,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9f1e845e6163cc5a3ff83e8bf10f643ed582aedf",
+  "submitted_at": "2026-10-28T05:44:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#pullrequestreview-5678314730",
+  "body": "**Agent review** of changes since `a900504`, at `9f1e845`: all 1 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nThe one-line change passes `compact={false}` to the Size chips, inside the `!compact` block where the value was always false. Behaviour is unchanged, and the earlier cleanup thread is addressed. I have no new findings.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 1 | 2 | 4 | reviewed | 5 | $0.03 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.03</sub>\n\n<!-- agent-review sha=9f1e845e6163cc5a3ff83e8bf10f643ed582aedf -->"
+ },
+ {
+  "id": 5678314823,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "9f1e845e6163cc5a3ff83e8bf10f643ed582aedf",
+  "submitted_at": "2026-10-28T05:44:43Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#pullrequestreview-5678314823",
+  "body": ""
+ },
+ {
+  "id": 5678435345,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "69fdf57c3e018ae24d51e04877369374e373ff0f",
+  "submitted_at": "2026-10-28T05:57:57Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#pullrequestreview-5678435345",
+  "body": "**Agent review** of changes since `9f1e845`, at `69fdf57`: all 11 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. `hintHidden` already exists in `audio-settings-fields.tsx`, and `src/shared/capture-panel.ts` has no imports, so it adds no value import. The `@shared` alias is already used throughout `src/main`. The one open thread is addressed by the code at 9f1e845e.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 11 | 198 | 5 | reviewed | 5 | $0.06 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.06</sub>\n\n<!-- agent-review sha=69fdf57c3e018ae24d51e04877369374e373ff0f -->"
+ },
+ {
+  "id": 5678435416,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "69fdf57c3e018ae24d51e04877369374e373ff0f",
+  "submitted_at": "2026-10-28T05:57:58Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#pullrequestreview-5678435416",
+  "body": ""
+ },
+ {
+  "id": 5678479777,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "state": "COMMENTED",
+  "commit_id": "76e6a964a692ba1f530fe755dfd7c990335e48b4",
+  "submitted_at": "2026-10-28T06:04:30Z",
+  "html_url": "https://github.com/niway-dev/kaipu-record/pull/407#pullrequestreview-5678479777",
+  "body": "**Agent review** of changes since `69fdf57`, at `76e6a96`: all 3 files reviewed.\n\n0 findings; 0 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nI found nothing to flag in this part. The two section labels are now hidden when `compact` is true. The radiogroup keeps its `aria-label` and the slider keeps its `label`, so both still have accessible names. The CSS max-height of `calc(4 * 28px + 3 * 3px)` matches the \"four rows\" comment and the doc text. The one open thread in `threads.json` is on `camera-settings-fields.tsx`, which is not in this part, so I added no reply to it. I read the `.tsx` and `.module.css` files in full. I checked the doc only through its diff and did not open the file.\n\n<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n| Batch 1 of 1 | 3 | 31 | 4 | reviewed | 5 | $0.05 |\n\n</details>\n\n<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · $0.05</sub>\n\n<!-- agent-review sha=76e6a964a692ba1f530fe755dfd7c990335e48b4 -->"
+ }
+]

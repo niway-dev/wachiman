@@ -1,0 +1,29 @@
+{
+ "number": 400,
+ "title": "ci: keep the PR review running after its engine moved to wachi-reviewer",
+ "body": "The engine repository was renamed from `niway-dev/agent-review` to `niway-dev/wachi-reviewer` (its ADR 0005). GitHub does not redirect `uses:` to a renamed repository, so the old path fails with \"repository not found\". Only the repository part of `uses:` changes; the tag stays `v1`. Pinning to an exact release follows in #401.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-10-27T21:13:07Z",
+ "updated_at": "2026-10-27T21:22:34Z",
+ "closed_at": "2026-10-27T21:14:46Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/400",
+ "base": {
+  "ref": "main",
+  "sha": "446f34e08c24f6142ded685a4fc4e77e04aa7ced"
+ },
+ "head": {
+  "ref": "ci/wachi-reviewer-rename",
+  "sha": "67b7ac90386eaca4e11d89c79bdac8f3dd9797e9",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 1,
+ "additions": 1,
+ "deletions": 1,
+ "labels": []
+}

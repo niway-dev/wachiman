@@ -1,0 +1,29 @@
+{
+ "number": 485,
+ "title": "fix(desktop): the workspaces hint sits in the header row, off the page",
+ "body": "## Why\n\nThe 0.16.0 release candidate (https://github.com/niway-dev/kaipu-record/pull/430) is blocked on one red E2E test:\n`e2e/library-actions.e2e.ts › rename persists the new title and renames the file to match`.\nIt failed twice (first attempt and retry) with the same cause:\n\n```\nlocator.click: Timeout 30000ms exceeded.\n- <span>New: workspaces — keep work and personal captures…</span> from <header …> subtree intercepts pointer events\n```\n\nThe one-time \"New: workspaces\" hint floated under the workspace switcher, over the top of the\npage. On the item page that is exactly where the Rename pencil sits, so the hint hid the\npencil and swallowed its click. A real user hit the same thing: Rename did nothing until they\npressed \"Got it\". The spec says the hint \"does not cover … and does not block clicks outside\nitself\". `Merge requirements` and `Release candidate verified` on #430 are red only because\nthey mirror this E2E result.\n\n## What\n\nThe hint moves into the header row, right of the switcher bar, instead of floating under it:\n\n- `workspace-switcher.module.css`: `.anchor` lays the bar and the hint side by side; `.hint` is\n  an in-flow 30 px pill (no absolute position, no z-index, no shadow) that shrinks before the\n  bar does. `.hintText` truncates with an ellipsis, and \"Got it\" never truncates.\n- `workspace-switcher.tsx`: the hint text gets that class plus a `title` tooltip with the full text.\n\nThe first commit tried `pointer-events: none` on the card. Review (Wachiman) pointed out that the\nopaque card still painted over the pencil, so that approach was replaced.\n\nThe E2E test is not changed: it is the regression check for this fix.\n\n## Verification\n\n- `bun run verify` passes locally (workflow rules, lint, format, build, types, all unit tests).\n- Layout checked without Electron: the real `app-shell` and switcher CSS modules plus tokens in\n  headless Chrome at 720 px (window minimum), 1180 px and 1440 px. The hint stays in the header\n  row, never overlaps the item page's title or pencil, and at 720 px it truncates without\n  touching the \"IN · …\" chip.\n- The desktop E2E suite only runs automatically on release-please branches, so it was started by\n  hand with `workflow_dispatch` on this branch (it was not run locally; Electron is not run on the\n  owner machine):\n  - https://github.com/niway-dev/kaipu-record/actions/runs/41405170429 at `90ea5d1c`: the rename\n    test passed, but `export` failed twice and `mute-export` once (see the race below).\n  - https://github.com/niway-dev/kaipu-record/actions/runs/41405986927 at `61417189`: **20 passed,\n    0 failed, 0 flaky**, and every other job in the workflow green.\n\n## Second fix: openEditor raced the editor mount\n\n`e2e/helpers/launch.ts › openEditor` clicked \"Edit video\" and then waited for any `<video>`. The\nrecording's page has its own video preview, so that wait could return before the editor mounted;\nthe export tests then asked for the \"Export\" button and found the page's seven \"Export a copy for …\"\ncards (strict-mode violation). It passed on #430 by timing luck. `openEditor` now waits for the\n`#/editor/video/` route first, and both export tests ask for the toolbar button with `exact: true`.\n\n## How to test it yourself\n\n1. Use a profile where the workspaces hint was never dismissed (fresh userData, or set `hintDismissed` back to false in `preferences.json`).\n2. Open the Library and open any recording. The \"New: workspaces — …\" pill shows in the top bar, right of the workspace switcher, not over the page.\n3. Click the pencil next to the title: it turns into an input right away.\n4. Make the window as narrow as it goes: the pill's text truncates, \"Got it\" stays readable, and nothing overlaps the chip on the right.\n5. Click \"Got it\": the pill disappears and does not come back after a restart.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+ "state": "closed",
+ "merged": true,
+ "draft": false,
+ "user": {
+  "login": "csdev19",
+  "type": "User"
+ },
+ "created_at": "2026-11-02T07:08:23Z",
+ "updated_at": "2026-11-02T07:38:43Z",
+ "closed_at": "2026-11-02T07:38:38Z",
+ "html_url": "https://github.com/niway-dev/kaipu-record/pull/485",
+ "base": {
+  "ref": "main",
+  "sha": "6583deae76feac15f187e3d583d7e7c9f75e9f67"
+ },
+ "head": {
+  "ref": "fix/e2e-rename-header-overlap",
+  "sha": "614171893c22e4dddaf0b78379c2c5954039471c",
+  "repo": "niway-dev/kaipu-record"
+ },
+ "changed_files": 5,
+ "additions": 38,
+ "deletions": 16,
+ "labels": []
+}

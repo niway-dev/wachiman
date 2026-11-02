@@ -1,0 +1,44 @@
+[
+ {
+  "conclusion": "failure",
+  "createdAt": "2026-11-01T20:36:59Z",
+  "databaseId": 41347769431,
+  "displayTitle": "[replay] feat(desktop): float \"Your video is ready\" outside the app window",
+  "event": "pull_request",
+  "headBranch": "replay/pr-466/head",
+  "headSha": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:36:59Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41347769431",
+  "workflowName": "Agent review",
+  "log": "not-found"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:36:59Z",
+  "databaseId": 41347769514,
+  "displayTitle": "[replay] feat(desktop): float \"Your video is ready\" outside the app window",
+  "event": "pull_request",
+  "headBranch": "replay/pr-466/head",
+  "headSha": "b2705a9ce2593b29ae50235312a4226955bbbb36",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:37:15Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41347769514",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-11-01T20:41:22Z",
+  "databaseId": 41348136651,
+  "displayTitle": "[replay] feat(desktop): float \"Your video is ready\" outside the app window",
+  "event": "issue_comment",
+  "headBranch": "main",
+  "headSha": "667f03c3ea655d55b8267c598b5ed38623a20fa9",
+  "status": "completed",
+  "updatedAt": "2026-11-01T20:43:00Z",
+  "url": "https://github.com/niway-dev/kaipu-bench-wachi/actions/runs/41348136651",
+  "workflowName": "Wachi bench review",
+  "log": "ok"
+ }
+]

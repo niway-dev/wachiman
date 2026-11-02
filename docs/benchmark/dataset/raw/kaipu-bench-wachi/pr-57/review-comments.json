@@ -1,0 +1,71 @@
+[
+ {
+  "id": 4439366801,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+  "line": 82,
+  "original_line": 82,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 21,
+  "original_position": 21,
+  "commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "original_commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732659710,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:05:52Z",
+  "updated_at": "2026-11-02T06:05:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/57#discussion_r4439366801",
+  "body": "👮 **Wachiman** · 🟠🐛 **Fix · bug: Memoizing on the last applied policy turns the rescue re-assertions into no-ops (confidence medium)**\n\nEvery caller other than the settings update calls `applyDockPolicy()` to repair a state that macOS changed on its own, not one this module changed. The doc comment right below (lines 88–92) says hide/show cycles and floating panels \"can otherwise drop the app from the switcher\". `applyStopWindowState` (`recording-hub.ts:281-284`) repeats that reason, and so does the ⌘⌃O rescue shortcut `bringAppToFront` (`index.ts:233-237`, \"Bring the app back to the foreground from any state\"). `appliedPolicy` only records what this process last asked for, so it cannot see that kind of drop.\n\nWith `showInDock: true` (the default, see `settings-store.test.ts:68`), startup sets `appliedPolicy = \"regular\"`. After that:\n- `forceRegularPolicy()` at recording start returns early.\n- `applyDockPolicy()` at recording stop returns early.\n- `applyDockPolicy()` in the rescue shortcut returns early.\n\nNone of them reaches `setActivationPolicy`/`dock.show()` for the rest of the session. If the drop those comments describe happens, the stop path and the rescue shortcut no longer bring the app back into the Dock/Cmd+Tab, and nothing tells the user.\n\nThe bug only needed the camera-on path (`recording-hub.ts:157`) to stop re-asserting. Possible fixes:\n- Keep the early return for that path only, e.g. drop the call there or make it memoized.\n- Give `bringAppToFront` and `applyStopWindowState` a forced variant that ignores `appliedPolicy`. Those paths show and focus the window anyway, so a `dock.show()` cycle there is harmless.\n\nIf the drop-from-switcher behaviour turned out not to be real, update the comments at lines 88–92 and in `recording-hub.ts` and `index.ts` to say so. Then the memo is the whole story.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439366817,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/documentation/src/content/docs/backlog/bug-main-window-hides-on-blur.md",
+  "line": 100,
+  "original_line": 100,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 43,
+  "original_position": 43,
+  "commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "original_commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732659710,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:05:52Z",
+  "updated_at": "2026-11-02T06:05:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/57#discussion_r4439366817",
+  "body": "👮 **Wachiman** · 🟡📝 **Consider · docs: Doc says hypothesis 1 \"held\" but no confirming experiment is recorded (confidence high)**\n\nThe heading now says \"hypothesis 1 held\", and line 20 says \"Why that is the whole fix\". But the experiment this section describes (logging every policy call with its caller and checking that one comes before each `blur → hide`) has no recorded result. The PR body says the on-device check is still pending.\n\nHypothesis 3 (a dev-only `electron-vite` artefact, line 97) was also never ruled out. The measured log (lines 47–53) shows a full cycle before the camera was touched, and the doc never says which policy call caused it.\n\nSuggest saying \"hypothesis 1 assumed; to confirm on device\" until the validation in the status banner has actually been done, or recording the log that confirmed it.\n\n<!-- wachi:finding -->"
+ },
+ {
+  "id": 4439366827,
+  "user": {
+   "login": "github-actions[bot]",
+   "type": "Bot"
+  },
+  "path": "apps/kaipu-record/src/main/recording/recording-hub.test.ts",
+  "line": 109,
+  "original_line": 109,
+  "start_line": null,
+  "side": "RIGHT",
+  "position": 109,
+  "original_position": 109,
+  "commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "original_commit_id": "78e20a2530cd0d7eaad647a55b561dee147836bc",
+  "in_reply_to_id": null,
+  "pull_request_review_id": 5732659710,
+  "subject_type": "line",
+  "created_at": "2026-11-02T06:05:52Z",
+  "updated_at": "2026-11-02T06:05:53Z",
+  "html_url": "https://github.com/niway-dev/kaipu-bench-wachi/pull/57#discussion_r4439366827",
+  "body": "👮 **Wachiman** · 🟡🧪 **Consider · tests: `mainWindow.hide` assertion cannot fail (confidence high)**\n\nThe bug doc established that no JavaScript calls `hide()`: the hide was emitted from native code (bug doc lines 72–76). `fakeMainWindow().hide` is a fresh `vi.fn()` that nothing in the camera path ever calls, so `expect(mainWindow.hide).not.toHaveBeenCalled()` passes on both the old and the new code.\n\nThe real regression guard is the activation-policy count. The test name and the doc's claim (\"never hides the main window\") suggest more coverage than the test gives. Consider dropping the assertion, or renaming the test around the policy churn it actually checks.\n\n<!-- wachi:finding -->"
+ }
+]

@@ -1,0 +1,58 @@
+[
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:38:34Z",
+  "databaseId": 39550703532,
+  "displayTitle": "fix(desktop): never lose a finished recording when the vault is unreachable (audit REC-B6, REC-A8)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-02-recording-finalize-recovery",
+  "headSha": "740b8915fa1a9a345e837034b660ca416d5875a9",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:38:41Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39550703532",
+  "workflowName": "Cache cleanup",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:31:29Z",
+  "databaseId": 39550039747,
+  "displayTitle": "fix(desktop): never lose a finished recording when the vault is unreachable (audit REC-B6, REC-A8)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-02-recording-finalize-recovery",
+  "headSha": "740b8915fa1a9a345e837034b660ca416d5875a9",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:31:45Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39550039747",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:22:07Z",
+  "databaseId": 39549149179,
+  "displayTitle": "fix(desktop): never lose a finished recording when the vault is unreachable (audit REC-B6, REC-A8)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-02-recording-finalize-recovery",
+  "headSha": "4dad2339a3cc04aa0fba23f65da917cba7c418c9",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:22:24Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39549149179",
+  "workflowName": "PR checks",
+  "log": "not-requested"
+ },
+ {
+  "conclusion": "success",
+  "createdAt": "2026-10-21T05:22:07Z",
+  "databaseId": 39549149162,
+  "displayTitle": "fix(desktop): never lose a finished recording when the vault is unreachable (audit REC-B6, REC-A8)",
+  "event": "pull_request",
+  "headBranch": "fix/audit-02-recording-finalize-recovery",
+  "headSha": "4dad2339a3cc04aa0fba23f65da917cba7c418c9",
+  "status": "completed",
+  "updatedAt": "2026-10-21T05:22:39Z",
+  "url": "https://github.com/niway-dev/kaipu-record/actions/runs/39549149162",
+  "workflowName": "Claude PR review",
+  "log": "ok"
+ }
+]
