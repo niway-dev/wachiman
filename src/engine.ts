@@ -1395,7 +1395,7 @@ const COMPARE_FILE_LIMIT = 300;
 /** What a rewritten branch (a rebase, a squash, a force-push) changed compared to what was reviewed. */
 export type RebaseDelta =
   | { kind: "unchanged"; removed: string[] }
-  | { kind: "changed"; files: PrFile[]; unchanged: number }
+  | { kind: "changed"; files: PrFile[]; unchanged: number; before: PrFile[] }
   | { kind: "unknown"; reason: string };
 
 /**
@@ -1435,7 +1435,138 @@ export function rebaseDelta(
     const kept = new Set(current.map((f) => f.filename));
     return { kind: "unchanged", removed: old.files.map((f) => f.filename).filter((n) => !kept.has(n)) };
   }
-  return { kind: "changed", files: changed, unchanged: current.length - changed.length };
+  return { kind: "changed", files: changed, unchanged: current.length - changed.length, before: old.files };
+}
+
+/** One row of a patch, at the line it sits on in each side (the next line, on the side it is not on). */
+interface PatchRow {
+  kind: " " | "+" | "-" | "\\";
+  text: string;
+  old: number;
+  new: number;
+}
+
+function parsePatch(patch: string) {
+  const hunks: { tail: string; rows: PatchRow[] }[] = [];
+  let o = 0;
+  let n = 0;
+  for (const row of patch.split("\n")) {
+    const header = row.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
+    if (header) {
+      o = Number(header[1]);
+      n = Number(header[2]);
+      hunks.push({ tail: header[3], rows: [] });
+      continue;
+    }
+    const hunk = hunks.at(-1);
+    const kind = row[0];
+    if (!hunk || (kind !== " " && kind !== "+" && kind !== "-" && kind !== "\\")) continue;
+    hunk.rows.push({ kind, text: row.slice(1), old: o, new: n });
+    if (kind !== "+" && kind !== "\\") o++;
+    if (kind !== "-" && kind !== "\\") n++;
+  }
+  return hunks;
+}
+
+/** Context rows kept around a row of the author's, like git's default. */
+const OWN_CONTEXT = 3;
+
+/**
+ * The part of a file's changes since the last review that is the pull request's own. After a
+ * merge of the base branch (or of a parent branch, in a stack), `compare last...head` shows the
+ * merged branch's lines as added in every file both sides touched; they are not the author's, and
+ * the field run on kaipu-record (#479, #482, #483) paid for and posted findings on them.
+ *
+ * `since` is the file's patch from `compare last...head`, `now` its patch in the pull request
+ * (against the current base), `then` its patch at the last review (`base...last`): "" when the
+ * pull request did not change the file then, undefined when that is not known, and then every
+ * removed row is kept, since it may be the author taking back their own line.
+ * Both new sides of `since` and `now` are the head, so an added row of `since` is the author's
+ * exactly when `now` adds the same line number; otherwise the base already has it, and it is shown
+ * as context. A removed row is the author's when `then` had added that line (the author took back
+ * their own line) or when `now` removes the same text (the author removes a base line); otherwise
+ * the merged branch deleted it, and it is left out. Hunks with no row of the author's are dropped
+ * and long runs of context are cut. The old side's line counts are recomputed; its numbers after a
+ * row turned into context are approximate, and nothing reads them.
+ *
+ * Returns `since` unchanged when nothing was the merged branch's (a plain push), "" when nothing
+ * is the author's, and `since` as it is when a patch is missing (binary, too large): nothing can be
+ * told apart.
+ */
+export function ownChangeSince(since: string | undefined, now: string | undefined, then?: string) {
+  if (!since || !now) return since;
+  const addedNow = new Set<number>();
+  const removedNow = new Map<string, number>();
+  for (const { rows } of parsePatch(now))
+    for (const r of rows) {
+      if (r.kind === "+") addedNow.add(r.new);
+      else if (r.kind === "-") removedNow.set(r.text, (removedNow.get(r.text) ?? 0) + 1);
+    }
+  const addedThen = new Set<number>();
+  for (const { rows } of parsePatch(then ?? ""))
+    for (const r of rows) if (r.kind === "+") addedThen.add(r.new);
+  const takeRemoved = (text: string) => {
+    const left = removedNow.get(text) ?? 0;
+    if (left > 0) removedNow.set(text, left - 1);
+    return left > 0;
+  };
+
+  let foreign = false;
+  const out: string[] = [];
+  for (const hunk of parsePatch(since)) {
+    const rows: (PatchRow & { own: boolean })[] = [];
+    let previousKept = false;
+    for (const r of hunk.rows) {
+      if (r.kind === "+") {
+        const own = addedNow.has(r.new);
+        if (!own) foreign = true;
+        rows.push({ ...r, kind: own ? "+" : " ", own });
+        previousKept = true;
+      } else if (r.kind === "-") {
+        const own = then === undefined || addedThen.has(r.old) || takeRemoved(r.text);
+        if (own) rows.push({ ...r, own });
+        else foreign = true;
+        previousKept = own;
+      } else if (r.kind === "\\") {
+        if (previousKept) rows.push({ ...r, own: false });
+      } else {
+        rows.push({ ...r, own: false });
+        previousKept = true;
+      }
+    }
+    const owned = rows.flatMap((r, i) => (r.own ? [i] : []));
+    const keep = rows.map((_, i) => owned.some((j) => Math.abs(i - j) <= OWN_CONTEXT));
+    // A "no newline" marker belongs to the row before it.
+    rows.forEach((r, i) => {
+      if (r.kind === "\\") keep[i] = i > 0 && keep[i - 1];
+    });
+    for (let i = 0; i < rows.length; ) {
+      if (!keep[i]) {
+        i++;
+        continue;
+      }
+      const run: typeof rows = [];
+      while (i < rows.length && keep[i]) run.push(rows[i++]);
+      const oldCount = run.filter((r) => r.kind === " " || r.kind === "-").length;
+      const newCount = run.filter((r) => r.kind === " " || r.kind === "+").length;
+      out.push(`@@ -${run[0].old},${oldCount} +${run[0].new},${newCount} @@${hunk.tail}`);
+      for (const r of run) out.push(`${r.kind}${r.text}`);
+    }
+  }
+  return foreign ? out.join("\n") : since;
+}
+
+/** `file` (from compare) with only the pull request's own rows, and its counts to match. */
+function withOwnChange(file: PrFile, inPr: PrFile | undefined, then: string | undefined): PrFile {
+  const patch = ownChangeSince(file.patch, inPr?.patch, then);
+  if (patch === file.patch) return file;
+  const rows = (patch ?? "").split("\n");
+  return {
+    ...file,
+    patch,
+    additions: rows.filter((r) => r.startsWith("+")).length,
+    deletions: rows.filter((r) => r.startsWith("-")).length,
+  };
 }
 
 export interface RawThread {
@@ -1732,10 +1863,11 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     }
     if (cmp && cmp.status === "ahead") {
       // New commits on top. `compare` lists everything that changed since `last`, which after a
-      // merge of the base branch into the pull request includes the base's own files: those are
-      // not part of the pull request (GitHub's file list is the diff against the merge base) and
-      // are not reviewed. Of the pull request's files, only those whose change differs from the
-      // one reviewed at `last` are reviewed again.
+      // merge of the base branch (or of a parent branch, in a stack) includes the merged branch's
+      // own files: those are not part of the pull request (GitHub's file list is the diff against
+      // the merge base) and are not reviewed. Of the pull request's files, only those whose change
+      // differs from the one reviewed at `last` are candidates, and of their patch only the rows
+      // the author wrote (`ownChangeSince`) go to the model.
       since = last;
       const inPr = new Map(prFiles.map((f) => [f.filename, f]));
       const own = cmp.files.filter((f) => inPr.has(f.filename));
@@ -1743,10 +1875,8 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
         own.length === 0
           ? ({ kind: "unchanged", removed: [] } as RebaseDelta)
           : rebaseDelta(gh, repo, baseSha(gh, repo, pr), last, own.map((f) => inPr.get(f.filename)!));
-      if (delta.kind === "unchanged") {
-        deps.log(
-          `The ${cmp.files.length} file(s) changed since ${short(last)} are not part of the pull request's own change (a merge of the base branch), or their change is the one already reviewed; nothing to review.`,
-        );
+      const upToDate = (why: string) => {
+        deps.log(why);
         // The marker moves so that the next push is compared with this head, not with the old one.
         postReview(deps, repo, pr, headSha, {
           body: [
@@ -1756,18 +1886,39 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
           ].join("\n\n"),
           comments: [],
         });
+      };
+      if (delta.kind === "unchanged") {
+        upToDate(
+          `The ${cmp.files.length} file(s) changed since ${short(last)} are not part of the pull request's own change (a merge of the base branch), or their change is the one already reviewed; nothing to review.`,
+        );
         return;
       }
-      if (delta.kind === "changed") {
-        const keep = new Set(delta.files.map((f) => f.filename));
-        files = own.filter((f) => keep.has(f.filename));
-      } else {
-        files = own;
+      const keep = delta.kind === "changed" ? new Set(delta.files.map((f) => f.filename)) : null;
+      const candidates = keep ? own.filter((f) => keep.has(f.filename)) : own;
+      // The file's patch at `last`: "" when the pull request did not change it then, undefined when unknown.
+      const before = delta.kind === "changed" ? new Map(delta.before.map((f) => [f.filename, f])) : null;
+      const then = (name: string) => (!before ? undefined : before.has(name) ? before.get(name)!.patch : "");
+      const narrowed = candidates.map((f) => withOwnChange(f, inPr.get(f.filename), then(f.filename)));
+      files = narrowed.filter((f) => f.patch !== "");
+      const trimmed = narrowed.filter((f, i) => f.patch !== "" && f !== candidates[i]).map((f) => f.filename);
+      const foreignOnly = narrowed.filter((f) => f.patch === "").map((f) => f.filename);
+      if (trimmed.length > 0)
+        deps.log(
+          `Rows that are not the pull request's own change (a merged branch's, or now the same as the base) are left out of ${trimmed.length} file(s): ${trimmed.join(", ")}.`,
+        );
+      if (foreignOnly.length > 0)
+        deps.log(
+          `${foreignOnly.length} file(s) changed since ${short(last)} hold only lines that came from the merged branch, not reviewed: ${foreignOnly.join(", ")}.`,
+        );
+      if (files.length === 0) {
+        upToDate(`Every change since ${short(last)} in the pull request's files came from the merged branch; nothing to review.`);
+        return;
       }
       if (files.length < cmp.files.length)
         deps.log(
           `${cmp.files.length - files.length} of the ${cmp.files.length} file(s) changed since ${short(last)} are not reviewed: not in the pull request's own change, or that change is the one already reviewed.`,
         );
+      deps.log(`Reviewed since ${short(last)}: ${files.map((f) => f.filename).join(", ")}.`);
     } else {
       // The branch was rewritten (a rebase, a squash, a force-push). The content decides, not the SHAs.
       const base = baseSha(gh, repo, pr);

@@ -8,6 +8,7 @@ import {
   changeSignature,
   comment,
   lastEngineMarker,
+  ownChangeSince,
   rebaseDelta,
   review,
   SIGNATURE,
@@ -996,6 +997,41 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(hunk.prompts[0]).not.toContain("- src/elsewhere.ts");
     expect(hunk.logs.join("\n")).toContain("not in the pull request's own change");
   });
+
+  test("a merge into a file the pull request also changes sends the author's lines, not the base's", () => {
+    // kaipu-record#483 at 0253fd7: the merge brought main's relocate handler into index.ts, which
+    // the pull request also changes, and the author resolved it with one line of their own. compare
+    // lists index.ts with the base's lines as added; only the author's line may reach the model.
+    const merged = [
+      { ...prFiles[0], additions: 4, patch: "@@ -6,0 +7,4 @@\n+fromBase1\n+fromBase2\n+fromBase3\n+ownFix" },
+    ];
+    const current = oldFiles.map((f) =>
+      f.filename === MANAGER
+        ? { ...f, additions: 7, patch: "@@ -1,4 +1,11 @@\n ctx\n+a\n+b\n+c\n+d\n+e\n fromBase1\n fromBase2\n fromBase3\n+ownFix" }
+        : f,
+    );
+    const r = run({ status: "ahead", old: oldFiles, current, since: merged });
+    expect(r.provider.requests).toHaveLength(1);
+    const diff = r.prompts[0].slice(r.prompts[0].indexOf("<diff>"));
+    expect(diff).toContain("+ownFix");
+    expect(diff).not.toContain("+fromBase");
+    expect(r.prompts[0]).toContain(`- ${MANAGER} +1 −0`);
+
+    // A merge that brought only base lines into that file costs nothing. Here the base had also
+    // reworded the line the pull request replaces (old -> older), so the pull request's rows differ
+    // from the reviewed ones and the file is a candidate, yet the author wrote nothing new in it.
+    const onlyBase = [{ ...prFiles[0], additions: 3, patch: "@@ -2,1 +2,4 @@\n new\n+fromBase1\n+fromBase2\n+fromBase3" }];
+    const edgeOld = oldFiles.map((f) => (f.filename === MANAGER ? { ...f, patch: "@@ -1,2 +1,2 @@\n ctx\n-old\n+new" } : f));
+    const sameOwn = oldFiles.map((f) =>
+      f.filename === MANAGER ? { ...f, patch: "@@ -1,4 +1,4 @@\n ctx\n-older\n+new\n fromBase1\n fromBase2" } : f,
+    );
+    const none = run({ status: "ahead", old: edgeOld, current: sameOwn, since: onlyBase });
+    expect(none.provider.requests).toHaveLength(0);
+    expect(none.posted?.body.split("\n")[0]).toBe(
+      "👮 **Wachiman** · Brought up to date with the base branch, no new changes since `old1111`.",
+    );
+    expect(none.logs.join("\n")).toContain("came from the merged branch");
+  });
 });
 
 describe("changeSignature and rebaseDelta", () => {
@@ -1012,6 +1048,73 @@ describe("changeSignature and rebaseDelta", () => {
     const gh: GhFn = () => JSON.stringify({ status: "ahead", files: prFiles });
     const delta = rebaseDelta(gh, "o/r", BASE, "old1111111", [prFiles[0], prFiles[1], prFiles[3]].map((f) => ({ ...f })));
     expect(delta).toEqual({ kind: "unchanged", removed: [LOGO] });
+  });
+});
+
+describe("ownChangeSince", () => {
+  // An illustrative file. At the last review the pull request had added GUARD at line 3. Then the
+  // base branch appended R1-R3, the author merged it and added FIX under GUARD.
+  // last: a b GUARD c d e f g h i j        head: a b GUARD FIX c d e f g h i j R1 R2 R3
+  const since = [
+    "@@ -1,6 +1,7 @@ function top",
+    " a",
+    " b",
+    " GUARD",
+    "+FIX",
+    " c",
+    " d",
+    " e",
+    "@@ -9,3 +10,6 @@",
+    " h",
+    " i",
+    " j",
+    "+R1",
+    "+R2",
+    "+R3",
+  ].join("\n");
+  /** The pull request's change now, against the current base (which holds R1-R3). */
+  const now = "@@ -1,5 +1,7 @@\n a\n b\n+GUARD\n+FIX\n c\n d\n e";
+  /** The pull request's change at the last review, against the old merge base. */
+  const then = "@@ -1,5 +1,6 @@\n a\n b\n+GUARD\n c\n d\n e";
+
+  test("a push with no merge is sent as it is", () => {
+    const plain = "@@ -1,6 +1,7 @@\n a\n b\n GUARD\n+FIX\n c\n d\n e";
+    expect(ownChangeSince(plain, now, then)).toBe(plain);
+  });
+
+  test("lines the merge brought from the base are not sent", () => {
+    expect(ownChangeSince(since, now, then)).toBe(
+      "@@ -1,6 +1,7 @@ function top\n a\n b\n GUARD\n+FIX\n c\n d\n e",
+    );
+  });
+
+  test("a base line next to the author's own is context, not an addition, and far context is cut", () => {
+    // The base appended R1-R6 right under the author's new last line Z.
+    const mixed = "@@ -9,1 +9,8 @@\n j\n+Z\n+R1\n+R2\n+R3\n+R4\n+R5\n+R6";
+    const zNow = "@@ -8,2 +8,3 @@\n i\n j\n+Z\n R1\n R2\n R3";
+    expect(ownChangeSince(mixed, zNow, "")).toBe("@@ -9,4 +9,5 @@\n j\n+Z\n R1\n R2\n R3");
+  });
+
+  test("removing the author's own line is kept; a line the base deleted is not", () => {
+    // The author removed GUARD (added before the last review); the base removed j.
+    const removals = "@@ -1,6 +1,5 @@\n a\n b\n-GUARD\n c\n d\n e\n@@ -8,4 +7,3 @@\n g\n h\n i\n-j";
+    const other = "@@ -20,0 +20,1 @@\n+unrelated";
+    expect(ownChangeSince(removals, other, then)).toBe("@@ -1,6 +1,5 @@\n a\n b\n-GUARD\n c\n d\n e");
+    // When the change at the last review is unknown, a removed row may be the author's: it is kept.
+    expect(ownChangeSince(removals, other)).toBe(removals);
+    // Removing a base line the pull request now removes is the author's own change.
+    const dropsJ = "@@ -10,1 +9,0 @@\n-j";
+    expect(ownChangeSince(removals, dropsJ, then)).toBe(removals);
+  });
+
+  test("a merge that brought only base lines leaves nothing to send", () => {
+    const onlyBase = "@@ -9,3 +9,5 @@\n h\n i\n j\n+R1\n+R2";
+    expect(ownChangeSince(onlyBase, now, then)).toBe("");
+  });
+
+  test("without both patches nothing can be told apart: the patch is kept", () => {
+    expect(ownChangeSince(since, undefined, then)).toBe(since);
+    expect(ownChangeSince(undefined, now, then)).toBeUndefined();
   });
 });
 
