@@ -106,6 +106,7 @@ Already copied the engine into a repository? That setup still runs, and
 | Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
 | Understand how a review is built | [docs/architecture.md](docs/architecture.md) |
 | Measure false positives | [docs/precision.md](docs/precision.md) |
+| See how it compares with Pullfrog and CodeRabbit | [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks) |
 | See what changed in a release | [CHANGELOG.md](CHANGELOG.md) |
 | Cut a release (maintainers) | [docs/releasing.md](docs/releasing.md) |
 
@@ -138,8 +139,11 @@ LICENSE files. The
 `LICENSE` file inside each release tag says which license that release carries. The reason for the
 change is recorded in [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
-Quoted third-party text under `docs/benchmark/` belongs to its authors and is reproduced for
-research and comparison; it is not covered by the license above.
+Benchmark reports and the review dataset live in
+[niway-dev/wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks); they moved there
+from `docs/benchmark/` on 2026-11-02. Quoted third-party text in them, and in this repository's
+history, belongs to its authors and is reproduced for research and comparison; it is not covered by
+the license above.
 
 ## Commit messages
 
