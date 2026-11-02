@@ -26,7 +26,7 @@ Filter: difficulty >= 4, introducing PR identified with medium/high confidence, 
 | shot-editor-save-marks-dirty-clean-over-new-edit | #360 | #18 | medium | race/ordering | 4 | 7f +164/-14 | Opus auditor (audit 2026-10-15) | Claude Sonnet (Co-Authored-By trailer, no version) | did-not-run |
 | library-exported-badge-compares-clocks | #159 | #156 | high | state machine | 4 | 38f +1760/-20 | User/owner prod review of #156 on the first edited recording | Claude Opus 5 (trailer) | did-not-run |
 | video-label-double-click-edit-broken-by-pointer-capture | #187 | #184 | medium | state machine | 5 | 7f +238/-24 | Owner | Claude Opus 5 (trailer) | did-not-run |
-| drag-out-copies-whole-file-across-volumes | #412 | #269 | high | platform-specific | 4 | 12f +1198/-26 | Opus auditor (audit 2026-10-15) | Claude Opus 5.5 (trailer) | did-not-run |
+| drag-out-copies-whole-file-across-volumes | #412 | #286 (was #269: corrected 2026-11-02, the commit `749df1bc` is not in #269's diff) | high | platform-specific | 4 | see #286 | Opus auditor (audit 2026-10-15) | Claude Opus 5.5 (trailer) | did-not-run |
 
 ## All bugs (difficulty desc)
 
@@ -119,7 +119,7 @@ Filter: difficulty >= 4, introducing PR identified with medium/high confidence, 
 | 85 | cursor-tracker-starts-after-abort |  | #395 | #133 | high (omission) | resource leak | 4 | 29,+1475/-27 | partial | Opus 5.5 audit | Claude Opus 5.5 + Sonnet 5.5 (trailers) | F/F | did-not-run |
 | 86 | renderer-crash-in-countdown-leaves-app-hidden |  | #396 | #384 | medium (omission) | state machine | 4 | 136,+9155/-634 | partial | Opus 5.5 audit | Claude Opus 5.5 (trailer) | F/F | missed |
 | 87 | dead-renderer-take-handles-and-session-id-reuse |  | #396 | #2, #17 | low (omission) | resource leak | 4 | 276,+15860/-1161 | no | Opus 5.5 audit | Claude Opus 5.5 (trailer) | F/F | did-not-run |
-| 88 | drag-out-copies-whole-file-across-volumes | LIB-B12 (a) | #412 | #269 | high | platform-specific | 4 | 12,+1198/-26 | yes | Opus auditor (audit 2026-10-15) | Claude Opus 5.5 (trailer) | F/F | did-not-run |
+| 88 | drag-out-copies-whole-file-across-volumes | LIB-B12 (a) | #412 | #286 (was #269; corrected 2026-11-02) | high | platform-specific | 4 | 12,+1198/-26 | yes | Opus auditor (audit 2026-10-15) | Claude Opus 5.5 (trailer) | F/F | did-not-run |
 | 89 | close-quit-guard-timeout-leaves-hub-recording-and-stale-listener | REC-B5 | #413 | #17, #18 | high | state machine | 4 | 23,+1733/-552 | yes | Opus auditor (audit 2026-10-15) | Claude Opus 5.5 (trailer) | F/F | did-not-run |
 | 90 | dev-run-shares-userdata-with-installed |  | #428 | #305, #333 | low (omission) | config/env | 4 | 45,+1634/-219 | no | Owner (SingletonLock on his machine) | Claude Opus 5.5 (trailer) | F/F | did-not-run |
 | 91 | sidecar-read-error-mints-new-assetid | NIW2-568 (follow-up of LIB-B1/#367) | #439 | #90 | high | data loss | 4 | 91,+10300/-475 | partial | unknown (not in the 2026-10-15 audit docs; related to LIB-B1 evidence and LIB-B6 pattern) | Claude Sonnet 5.5 (trailer) with Claude Opus 5.5 follow-up commit | F/F | did-not-run |
@@ -1225,6 +1225,8 @@ Filter: difficulty >= 4, introducing PR identified with medium/high confidence, 
 - **Prior AI reviewer on intro PR:** did-not-run. #2/#17 predate the AI reviewer. (On the fix PR #396 the reviewer did catch 'releaseAll is never called'.)
 
 ### 88. drag-out-copies-whole-file-across-volumes (LIB-B12 (a))
+
+- **Correction 2026-11-02:** the introducing commit `749df1bc8` is not reachable from PR #269's head (`3159fb1c`); it reached `main` through PR #286 (`feat/NIW2-218-background-export`). The held-out replay of #269 confirmed the diff never touches `drag-copies.ts`. Read "#269" below as "#286".
 
 - **Defect:** createDragCopy hard-linked into os.tmp/kaipu-drag, so a vault on another volume (EXDEV) or exFAT fell back to copyFile of the whole export before startDrag.
 - **User-visible failure:** Dragging a titled export out from an external-drive vault stalls for seconds (or fails on ENOSPC) before the drag begins.
