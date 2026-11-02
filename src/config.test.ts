@@ -19,11 +19,34 @@ describe("loadConfig", () => {
       model: "claude-sonnet-5-5",
       provider: "claude-code",
       effort: "high",
+      maxTurns: 40,
+      callTimeoutS: 900,
       mention: "/wachi",
       operator: "",
       exclude: [],
     });
     expect(warnings).toEqual([]);
+  });
+
+  test("reads AGENT_REVIEW_MAX_TURNS and AGENT_REVIEW_CALL_TIMEOUT_S", () => {
+    const { config } = load({ AGENT_REVIEW_MAX_TURNS: "25", AGENT_REVIEW_CALL_TIMEOUT_S: "600" });
+    expect(config).toMatchObject({ maxTurns: 25, callTimeoutS: 600 });
+  });
+
+  test("rejects a turn cap or a call timeout that is not a positive integer", () => {
+    for (const bad of ["0", "-3", "2.5", "forty", "NaN"]) {
+      expect(() => load({ AGENT_REVIEW_MAX_TURNS: bad })).toThrow(UsageError);
+      expect(() => load({ AGENT_REVIEW_CALL_TIMEOUT_S: bad })).toThrow(UsageError);
+    }
+    expect(() => load({ AGENT_REVIEW_MAX_TURNS: "0" })).toThrow("AGENT_REVIEW_MAX_TURNS must be a positive integer");
+    expect(() => load({ AGENT_REVIEW_CALL_TIMEOUT_S: "x" })).toThrow("AGENT_REVIEW_CALL_TIMEOUT_S");
+  });
+
+  test("an empty value counts as unset", () => {
+    expect(load({ AGENT_REVIEW_MAX_TURNS: "", AGENT_REVIEW_CALL_TIMEOUT_S: "" }).config).toMatchObject({
+      maxTurns: 40,
+      callTimeoutS: 900,
+    });
   });
 
   test("reads AGENT_REVIEW_EFFORT and accepts every documented level", () => {

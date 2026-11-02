@@ -84,6 +84,24 @@ changes cost, a trigger or permission change) is not shipped by moving a tag. It
 major version or as a pull request to each consumer ([releasing.md](releasing.md)). That is the
 maintainer's rule, not something a workflow enforces, so do the comparison above.
 
+### Review on every push (`synchronize`)
+
+Since the release that adds ADR 0011, the templates list `synchronize` and the reusable workflow has
+a `review_on_push` input (default `true`). **Bumping the pin alone does not turn this on.** The
+trigger lives in your caller file, and a reusable workflow cannot add one. A caller written earlier
+lists `types: [opened, ready_for_review]`, so it keeps reviewing only on open and on `/wachi review`
+until you edit it:
+
+```yaml
+on:
+  pull_request: { types: [opened, ready_for_review, synchronize] }
+```
+
+Each push then reviews only the new commits and can spend up to `budget_usd` ([costs.md](costs.md)).
+Pass `review_on_push: false` only after you move to a release that has the input: a workflow that is
+given an input the pinned release does not declare fails. If you copied the files instead, edit the
+`types` list in your copy of the workflow by hand; nothing updates it.
+
 ## Dependabot for the caller file
 
 Dependabot is optional, and it is off until you add a configuration file. Releases do not arrive in
@@ -163,6 +181,8 @@ full on the next run, because the engine finds no review it trusts.
 
 ## Moving from a copied install
 
-Copying the files is a one-time snapshot. To switch to the reusable workflow, add the caller file
+Copying the files is a one-time snapshot. A copy made before ADR 0011 reviews only on open; add
+`synchronize` to its `pull_request` types, and copy the new `src/` as well, because the push review
+needs the engine that compares rebased changes. To switch to the reusable workflow, add the caller file
 from [install.md](install.md), then remove the copied files listed in [uninstall.md](uninstall.md).
 Run only one of the two while you test, or each pull request gets two reviews.

@@ -46,7 +46,7 @@ enough.
 | Features off | `--disable` for apps, browser use (three), computer use, hooks, image generation, in-app browser, multi-agent, plugins, remote plugins, skill dependency install | Network paths, other agents, and code the branch controls | Flags passed; each feature's effect not tested one by one |
 | No web search | `web_search="disabled"` | Network | Flag passed |
 | No rules or session files | `--ignore-rules`, `--ephemeral`, `--ignore-user-config` | Execpolicy files; transcripts left on the runner | Flags passed |
-| Time limit | 15 minutes per call, then `SIGKILL`; reported as `budget` | A call that never ends; Codex has no spend cap | Unit test |
+| Time limit | `AGENT_REVIEW_CALL_TIMEOUT_S` (default 900 s) per call, then `SIGKILL`; reported as `timeout`. There is no turn cap: `codex exec` has no equivalent of `--max-turns`, so `AGENT_REVIEW_MAX_TURNS` is ignored | A call that never ends; Codex has no spend cap | Unit test |
 | Key in output | `leaksSecret`: the exact key or any `sk-…` shape anywhere in the answer | Posting the key | Unit test |
 
 ### Review instructions
@@ -85,7 +85,7 @@ price per million tokens. Reasoning tokens are counted inside output.
 
 **There is no dollar cap on a Codex call.** The engine passes every provider a cap
 (`AGENT_REVIEW_BATCH_BUDGET_USD`, or what is left of `AGENT_REVIEW_BUDGET_USD`), and this adapter does
-not use it. Two things limit spend: the 15 minute time limit on each call (then `SIGKILL`), and the
+not use it. Two things limit spend: the time limit on each call (15 minutes by default, then `SIGKILL`), and the
 engine's running total, which stops new calls once the total budget is used. A single call can cost
 more than the per-batch figure. Only completed turns are counted, so a call killed by the time limit
 can have spent more than it reports. The footer's cost is an estimate from the table below, not an

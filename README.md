@@ -75,7 +75,7 @@ name: Agent review
 # First install: the installing pull request gets only the automatic review. `/wachi review`
 # and thread replies work from the next pull request, because `issue_comment` runs from the default branch.
 on:
-  pull_request: { types: [opened, ready_for_review] }
+  pull_request: { types: [opened, ready_for_review, synchronize] }
   issue_comment: { types: [created] }
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:

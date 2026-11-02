@@ -15,7 +15,8 @@ It is meant for repositories whose pushers you trust, not for untrusted or fork 
 
 | When | What happens | Cost |
 | --- | --- | --- |
-| A pull request opens ready for review, or leaves draft | Full review in batches; afterwards, only what changed since the last reviewed commit | $0.05–0.16 measured for one batch in v1; a large pull request costs several batches, at most `AGENT_REVIEW_BUDGET_USD` ($3) in total |
+| A pull request opens ready for review, or leaves draft | Full review in batches; afterwards, only what changed since the last reviewed commit |
+| A push to an open pull request (`synchronize`) | Review of only the commits new since the last review; a rebase with no change in the pull request's lines posts one line and calls no model. Each push can spend up to `AGENT_REVIEW_BUDGET_USD`; remove `synchronize` from the trigger to opt out | $0.05–0.16 measured for one batch in v1; a large pull request costs several batches, at most `AGENT_REVIEW_BUDGET_USD` ($3) in total |
 | The operator comments `/wachi review` | Review of what changed since the last reviewed commit; the agent answers the operator's replies in its open threads | ~$0.05 measured |
 | `/wachi review <path>…` | Review of those paths only; words that name no changed file are ignored | — |
 | Any other `/wachi …` by the operator | The question is answered as a comment | at most `AGENT_REVIEW_ANSWER_BUDGET_USD` ($1) |

@@ -41,7 +41,7 @@ spent on calls that finished before it.
 | --- | --- | --- |
 | No run at all when the pull request opened | The caller file is not in the pull request's merge result. A pull request opened before the workflow reached the default branch gets no review. | Comment `/wachi review` on it (the comment path reads the file from the default branch), or open the pull request after the file has merged. |
 | No run at all, pull request has a merge conflict | GitHub does not run `pull_request` workflows on a pull request that cannot be merged. This is GitHub's behaviour; this repository does not test it. | Resolve the conflict, then comment `/wachi review`. |
-| No run after a push, a reopen or a new commit | The caller template triggers `pull_request` only on `opened` and `ready_for_review`, and `issue_comment` only on `created`. A push does not start a review. | Comment `/wachi review` to review what changed since the last reviewed commit. To fire the automatic path again, mark the pull request draft and ready again. On an unchanged head that ends at `Already reviewed` (see below). |
+| No run after a push, a reopen or a new commit | The caller's `pull_request` types do not include `synchronize` (a caller written before ADR 0011 lists only `opened` and `ready_for_review`), or `review_on_push` is `false`, or the pull request is a draft, a fork's, Dependabot's or on a skipped branch prefix. A reusable workflow cannot add a trigger, so bumping the pinned release does not fix the first case. | Add `synchronize` to the `pull_request` types ([upgrading.md](upgrading.md#review-on-every-push-synchronize)), or comment `/wachi review` to review what changed since the last reviewed commit. On an unchanged head that ends at `Already reviewed` (see below). |
 | `Agent review` skipped on a `pull_request` event: the pull request is a draft | The job requires `draft == false`. | Mark it ready for review. That event starts the review. |
 | `Agent review` skipped: the pull request is from a fork | The job requires the head repository to equal your repository. Forks are skipped on purpose. See [Fork pull requests](#fork-pull-requests). | See that section. |
 | `Agent review` skipped: the actor is `dependabot[bot]` | Dependabot pull requests are skipped so they cost nothing. | Comment `/wachi review` if you want one reviewed. The comment path has no Dependabot check. |
@@ -221,12 +221,13 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | --- | --- |
 | `reviewed` | The agent accounted for every file in the batch on the first call. |
 | `reviewed after a retry` | The first call left files unaccounted for, or returned nothing, and the single retry covered them. |
-| `N file(s) left after a retry` | The retry also left files out. This is also what a batch whose calls failed shows, when budget remained for the retry. |
+| `N file(s) left after a retry` | The retry also left files out (a retry that again hit `max_turns` shows here). This is also what a batch whose calls failed shows, when budget remained for the retry. |
 | `N file(s) left: budget spent` | Files were left out and less than 0.05 USD remained for a retry. |
+| `N file(s) left: the call timed out` | The call was killed at `call_timeout_s` and is not retried. Raise `call_timeout_s` (keep it under the 30 minute job limit) or lower `batch_lines`. |
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
 
-The source also defines the labels `ran out of its budget`, `the call failed` and `returned no
-review`, but the retry logic replaces them with one of the statuses above whenever a batch has a
+The source also defines the labels `ran out of its budget`, `hit the turn limit`, `timed out`,
+`the call failed` and `returned no review`, but the retry logic replaces them with one of the statuses above whenever a batch has a
 file left over. This is read from the code, not observed in a run. The failure itself is in the
 log: `A batch call failed: ...`, or a JSON line with `"is_error":true`.
 
@@ -280,7 +281,7 @@ is the engine's own sum of what the provider reported.
 
 ### `The agent did not answer (<reason>).`
 
-A question failed. The reason is `budget` when the answer cap ended the call, or `error`. Nothing is
+A question failed. The reason is `budget` when the answer cap ended the call, `turns` when it reached `max_turns`, `timeout` when `call_timeout_s` killed it, or `error`. Nothing is
 posted and the job is red. Narrow the question, or raise `answer_budget_usd`.
 
 ## Output refused: a credential-shaped string

@@ -20,7 +20,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { locatePrompt as locate } from "./locate";
-import type { NeutralTool, ProviderAdapter, ProviderRequest, ProviderResult } from "./types";
+import {
+  DEFAULT_CALL_TIMEOUT_S,
+  type NeutralTool,
+  type ProviderAdapter,
+  type ProviderRequest,
+  type ProviderResult,
+} from "./types";
 
 const BINARY = "codex";
 /** Any OpenAI key shape: `sk-…`, `sk-proj-…`, `sk-svcacct-…`. Also matches other vendors' `sk-` keys, which is fine. */
@@ -211,8 +217,9 @@ export class CodexProvider implements ProviderAdapter {
       priceOverride?: string;
       reasoningEffort?: string;
       /**
-       * The most one call may run. Codex has no spend cap, so time is the only hard bound on a
-       * call; reaching it is reported as "budget", like a cap ending the call. Default 15 minutes.
+       * The most one call may run when the request names none. Codex has no spend cap and no turn
+       * cap, so time is the only hard bound on a call; reaching it is reported as "timeout".
+       * Default `DEFAULT_CALL_TIMEOUT_S`.
        */
       timeoutMs?: number;
       /** For tests: another executable. */
@@ -278,7 +285,7 @@ export class CodexProvider implements ProviderAdapter {
           env: buildChildEnv(process.env, { home, codexHome }),
           encoding: "utf8",
           maxBuffer: 256 * 1024 * 1024,
-          timeout: this.opts.timeoutMs ?? 15 * 60 * 1000,
+          timeout: request.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_CALL_TIMEOUT_S * 1000,
           killSignal: "SIGKILL",
         },
       );
@@ -311,8 +318,9 @@ export class CodexProvider implements ProviderAdapter {
         costUsd,
         turns: commands + 1,
         durationMs,
-        // Codex has no spend cap; only the time limit ends a call early. The engine totals what it spent.
-        terminalReason: timedOut ? "budget" : isError ? "error" : "success",
+        // Codex has no spend or turn cap (`request.maxTurns` is not used: `codex exec` has no such
+        // flag); only the time limit ends a call early. The engine totals what it spent.
+        terminalReason: timedOut ? "timeout" : isError ? "error" : "success",
         isError,
         raw: { status: run.status, timedOut, failure, usage, stderr: run.stderr?.slice(-2000) },
       };

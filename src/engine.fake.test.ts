@@ -1,9 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig } from "./config";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GhError, comment, review, type Deps, type GhFn, type ReviewOutput } from "./engine";
+import {
+  GhError,
+  changeSignature,
+  comment,
+  lastEngineMarker,
+  rebaseDelta,
+  review,
+  type Deps,
+  type GhFn,
+  type ReviewOutput,
+} from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
 /** Plays back one scripted answer per call and records what the engine asked for. */
@@ -221,6 +231,91 @@ describe("the batch loop against a fake provider", () => {
     };
     expect(() => review(deps, "o/r", 7, [])).toThrow("credential");
     expect(posted.review).toBeUndefined();
+  });
+});
+
+describe("the turn cap and the wall-clock kill", () => {
+  const setup = (script: ConstructorParameters<typeof FakeProvider>[0], env: Record<string, string> = {}) => {
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const warnings: string[] = [];
+    const provider = new FakeProvider(script);
+    const deps: Deps = {
+      gh: fakeGh(posted),
+      provider,
+      config: loadConfig({ AGENT_REVIEW_MAX_TURNS: "12", AGENT_REVIEW_CALL_TIMEOUT_S: "60", ...env }),
+      log: () => {},
+      warn: (line) => warnings.push(line),
+    };
+    return { posted, warnings, provider, deps };
+  };
+  const all = [MANAGER, STORE, GUIDE, LOGO];
+
+  test("every call carries the configured turn cap and time limit", () => {
+    const { provider, deps } = setup([() => ({ structuredOutput: out({ files_reviewed: all, summary: "ok" }) })]);
+    review(deps, "o/r", 7, []);
+    expect(provider.requests[0]).toMatchObject({ maxTurns: 12, timeoutMs: 60_000 });
+  });
+
+  test("a batch that hits the turn cap is retried and its files are not lost", () => {
+    const { posted, warnings, provider, deps } = setup([
+      () => ({ terminalReason: "turns", isError: true, turns: 13, costUsd: 0.2 }),
+      () => ({ structuredOutput: out({ files_reviewed: all, summary: "second try" }), turns: 5, costUsd: 0.1 }),
+    ]);
+    review(deps, "o/r", 7, []);
+    expect(provider.requests).toHaveLength(2);
+    expect(provider.requests[1].prompt).toContain("second pass");
+    expect(warnings.some((w) => w.includes("12-turn limit"))).toBe(true);
+    const body = posted.review?.body ?? "";
+    expect(body).toContain("reviewed after a retry");
+    expect(body).toContain("| 18 | $0.30 |");
+  });
+
+  test("files a batch left behind at the turn cap, even after the retry, are reported as not reviewed", () => {
+    const { posted, deps } = setup([
+      () => ({ terminalReason: "turns", isError: true, turns: 13, costUsd: 0.2 }),
+      () => ({
+        structuredOutput: out({ files_reviewed: [MANAGER], summary: "partial" }),
+        turns: 5,
+        costUsd: 0.1,
+      }),
+    ]);
+    review(deps, "o/r", 7, []);
+    const body = posted.review?.body ?? "";
+    expect(body).toContain("Partial review");
+    expect(body).toContain(`\`${STORE}\``);
+    expect(body).not.toContain("agent-review sha=");
+  });
+
+  test("a call killed at the time limit is not retried, and the review still posts", () => {
+    const { posted, warnings, provider, deps } = setup(
+      [
+        // Batch 1 times out with no answer and no cost; batch 2 is fine.
+        () => ({ terminalReason: "timeout", isError: true, turns: 0, costUsd: 0 }),
+        () => ({ structuredOutput: out({ files_reviewed: [GUIDE], summary: "guide ok" }) }),
+      ],
+      { AGENT_REVIEW_BATCH_LINES: "10" },
+    );
+    review(deps, "o/r", 7, []);
+    expect(provider.requests).toHaveLength(2);
+    expect(provider.requests.every((r) => !r.prompt.includes("second pass"))).toBe(true);
+    expect(warnings.some((w) => w.includes("60 s call time limit"))).toBe(true);
+    const body = posted.review?.body ?? "";
+    expect(body).toContain("Partial review");
+    expect(body).toContain("3 file(s) left: the call timed out");
+    expect(body).toContain(`\`${MANAGER}\``);
+  });
+
+  test("when every batch stops at a limit, a notice says so instead of throwing", () => {
+    const turns = setup([
+      () => ({ terminalReason: "turns", isError: true }),
+      () => ({ terminalReason: "turns", isError: true }),
+    ]);
+    review(turns.deps, "o/r", 7, []);
+    expect(turns.posted.review?.body).toContain("hit its turn limit (12 turns a call)");
+    const late = setup([() => ({ terminalReason: "timeout", isError: true })]);
+    review(late.deps, "o/r", 7, []);
+    expect(late.posted.review?.body).toContain("was killed at the 60 s time limit on a call");
+    expect(late.provider.requests).toHaveLength(1);
   });
 });
 
@@ -476,4 +571,305 @@ describe("comment with an operator that is not a real login", () => {
       expect(provider.requests).toHaveLength(0);
     });
   }
+});
+
+describe("a push after a review (incremental, rebase-aware)", () => {
+  const LAST = "old1111111";
+  const HEAD = "head1234567";
+  const PRIOR_BODY = `👮 **Wachiman** · review of the whole pull request, at \`old1111\`: all 4 files reviewed.\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=${LAST} -->\n\n<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->`;
+
+  /** The same added lines as `prFiles`, over a different base: other context rows and other line numbers. */
+  const rebasedFiles: typeof prFiles = [
+    { ...prFiles[0], patch: "@@ -40,1 +40,6 @@\n other context\n+a\n+b\n+c\n+d\n+e" },
+    { ...prFiles[1], patch: "@@ -0,0 +1,3 @@\n+x\n+y\n+z" },
+    { ...prFiles[2], sha: "logo-blob" },
+    { ...prFiles[3], patch: "@@ -0,0 +1,4 @@\n+w\n+x\n+y\n+z" },
+  ];
+  /** The logo has no patch (binary): only its blob says whether it changed. */
+  const withLogoBlob = (files: typeof prFiles, sha: string | undefined) =>
+    files.map((f) => (f.filename === LOGO ? { ...f, sha } : f));
+  const oldFiles = withLogoBlob(prFiles, "logo-blob");
+
+  interface World {
+    status: string | "throws";
+    /** What `base...last` lists; "throws" for a commit GitHub no longer has. */
+    old: typeof prFiles | "throws";
+    current: typeof prFiles;
+    /** What `last...head` lists (everything that changed since the last review); `current` by default. */
+    since?: typeof prFiles;
+  }
+
+  function run(world: World) {
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const calls: string[] = [];
+    const base = fakeGh(posted, {}, world.current);
+    const gh: GhFn = (args, input) => {
+      const line = args.join(" ");
+      calls.push(line);
+      if (line.includes("/pulls/7/reviews") && !args.includes("POST"))
+        return JSON.stringify({ body: PRIOR_BODY, submitted_at: "2026-10-30T00:00:00Z" });
+      if (line.startsWith("api graphql"))
+        return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
+      const compare = line.match(/compare\/(\S+?)\.\.\.(\S+)/);
+      if (compare) {
+        if (compare[1] === LAST) {
+          if (world.status === "throws") throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
+          return JSON.stringify({ status: world.status, files: world.since ?? world.current });
+        }
+        if (compare[1] === BASE && compare[2] === LAST) {
+          if (world.old === "throws") throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
+          return JSON.stringify({ status: "ahead", files: world.old });
+        }
+        throw new Error(`unexpected compare: ${line}`);
+      }
+      return base(args, input);
+    };
+    const prompts: string[] = [];
+    const provider = new FakeProvider([
+      (req) => {
+        prompts.push(req.prompt);
+        return {
+          costUsd: 0.1,
+          structuredOutput: out({
+            files_reviewed: world.current.map((f) => f.filename),
+            summary: "ok",
+          }),
+        };
+      },
+    ]);
+    const logs: string[] = [];
+    const deps: Deps = { gh, provider, config: loadConfig({}), log: (l) => void logs.push(l), warn: () => {} };
+    review(deps, "o/r", 7, []);
+    return { posted: posted.review, provider, prompts, logs, calls };
+  }
+
+  test("a rebase with the same lines posts only a marker and calls no model", () => {
+    for (const status of ["diverged", "behind"]) {
+      const r = run({ status, old: oldFiles, current: rebasedFiles });
+      expect(r.provider.requests).toHaveLength(0);
+      expect(r.posted?.comments).toEqual([]);
+      expect(r.posted?.body.split("\n")[0]).toBe(
+        `👮 **Wachiman** · Rebased onto \`bbbbbbb\`, no new changes since \`old1111\`.`,
+      );
+      expect(r.logs.join("\n")).toContain("rebased with no content change, nothing to review");
+      // The marker moved to the new head, in the shape the next push reads.
+      expect(lastEngineMarker([{ body: r.posted?.body ?? "" }])).toBe(HEAD);
+    }
+  });
+
+  test("a rebase where one file changed reviews only that file, and says so", () => {
+    const edited = rebasedFiles.map((f) =>
+      f.filename === STORE ? { ...f, additions: 4, patch: "@@ -0,0 +1,4 @@\n+x\n+y\n+z\n+extra" } : f,
+    );
+    const r = run({ status: "diverged", old: oldFiles, current: edited });
+    expect(r.provider.requests).toHaveLength(1);
+    const prompt = r.prompts[0];
+    expect(prompt).toContain(`- ${STORE} +4 −0`);
+    expect(prompt).not.toContain(`- ${MANAGER} +6 −0`);
+    expect(prompt).toContain("the branch was rebased since");
+    const first = r.posted?.body.split("\n")[0] ?? "";
+    expect(first).toBe(
+      `👮 **Wachiman** · review of the changes since \`old1111\` (after a rebase), at \`head123\`: all 1 files reviewed.`,
+    );
+    expect(r.posted?.body).toContain(`<!-- agent-review sha=${HEAD} -->`);
+  });
+
+  test("a new file after a rebase is reviewed; the unchanged ones are not", () => {
+    const added = [...rebasedFiles, { filename: "src/new.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+n" }];
+    const r = run({ status: "diverged", old: oldFiles, current: added });
+    expect(r.prompts[0]).toContain("- src/new.ts +1 −0");
+    expect(r.prompts[0]).not.toContain(`- ${LOGO}`);
+    expect(r.prompts[0]).not.toContain(`- ${MANAGER}`);
+  });
+
+  test("a file with no patch is reviewed again unless its blob is the same", () => {
+    // Same lines everywhere, but the logo's blob changed: only the logo goes to the model.
+    const r = run({ status: "diverged", old: oldFiles, current: withLogoBlob(rebasedFiles, "logo-blob-2") });
+    expect(r.provider.requests).toHaveLength(1);
+    expect(r.prompts[0]).toContain(`- ${LOGO} +0 −0`);
+    expect(r.prompts[0]).not.toContain(`- ${STORE}`);
+    // GitHub sent no blob for either side: nothing proves the logo is the same.
+    const unknown = run({ status: "diverged", old: withLogoBlob(prFiles, undefined), current: withLogoBlob(rebasedFiles, undefined) });
+    expect(unknown.provider.requests).toHaveLength(1);
+  });
+
+  test("when the old commit is gone, the change cannot be compared: full review, no crash", () => {
+    const r = run({ status: "throws", old: "throws", current: rebasedFiles });
+    expect(r.provider.requests).toHaveLength(1);
+    expect(r.logs.join("\n")).toContain("cannot be compared");
+    expect(r.prompts[0]).toContain("the whole pull request");
+    expect(r.posted?.body.split("\n")[0]).toContain("review of the whole pull request");
+  });
+
+  test("a list that may be cut short is not trusted: full review", () => {
+    const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}.ts`, additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+x" }));
+    const r = run({ status: "diverged", old: many, current: rebasedFiles });
+    expect(r.provider.requests).toHaveLength(1);
+    expect(r.prompts[0]).toContain("the whole pull request");
+  });
+
+  test("new commits on top (ahead) review the pull request's files whose change differs from the reviewed one", () => {
+    // The old change cannot be read: every file compare lists that is in the pull request is reviewed.
+    const r = run({ status: "ahead", old: "throws", current: rebasedFiles });
+    expect(r.provider.requests).toHaveLength(1);
+    const first = r.posted?.body.split("\n")[0] ?? "";
+    expect(first).toContain("review of the changes since `old1111`, at `head123`");
+    expect(first).not.toContain("after a rebase");
+    // The old change is known and one file's change differs: only that file is reviewed.
+    const edited = rebasedFiles.map((f) =>
+      f.filename === STORE ? { ...f, additions: 4, patch: "@@ -0,0 +1,4 @@\n+x\n+y\n+z\n+extra" } : f,
+    );
+    const one = run({ status: "ahead", old: oldFiles, current: edited, since: edited });
+    expect(one.provider.requests).toHaveLength(1);
+    expect(one.prompts[0]).toContain(`- ${STORE} +4 −0`);
+    expect(one.prompts[0]).not.toContain(`- ${MANAGER}`);
+  });
+
+  test("a merge of the base branch into the pull request reviews none of the base's files", () => {
+    // Since the last review the branch gained only the base's commits: compare lists files the
+    // pull request does not touch, and the pull request's own change is the one already reviewed.
+    const fromBase = [
+      { filename: "src/elsewhere.ts", additions: 9, deletions: 2, patch: "@@ -1,2 +1,9 @@\n-old\n+new" },
+      { filename: "docs/changelog.md", additions: 3, deletions: 0, patch: "@@ -0,0 +1,3 @@\n+a\n+b\n+c" },
+    ];
+    const r = run({ status: "ahead", old: oldFiles, current: oldFiles, since: fromBase });
+    expect(r.provider.requests).toHaveLength(0);
+    expect(r.posted?.body.split("\n")[0]).toBe(
+      "👮 **Wachiman** · Brought up to date with the base branch, no new changes since `old1111`.",
+    );
+    expect(lastEngineMarker([{ body: r.posted?.body ?? "" }])).toBe(HEAD);
+    // The merge also touched a file the pull request changes, without changing the pull request's
+    // own hunks in it: compare lists it, and it is still not reviewed.
+    const touched = run({ status: "ahead", old: oldFiles, current: oldFiles, since: [...fromBase, oldFiles[0]] });
+    expect(touched.provider.requests).toHaveLength(0);
+    // When the pull request's hunks in that file did change, only that file is reviewed.
+    const changed = oldFiles.map((f) => (f.filename === MANAGER ? { ...f, additions: 7, patch: `${f.patch}\n+more` } : f));
+    const hunk = run({ status: "ahead", old: oldFiles, current: changed, since: [...fromBase, changed[0]] });
+    expect(hunk.provider.requests).toHaveLength(1);
+    expect(hunk.prompts[0]).toContain(`- ${MANAGER} +7`);
+    expect(hunk.prompts[0]).not.toContain("- src/elsewhere.ts");
+    expect(hunk.logs.join("\n")).toContain("not in the pull request's own change");
+  });
+});
+
+describe("changeSignature and rebaseDelta", () => {
+  test("context rows, hunk headers and line numbers do not matter; added and removed rows do", () => {
+    const a = "@@ -1,3 +1,3 @@\n keep\n-old\n+new\n keep2";
+    const moved = "@@ -90,3 +95,3 @@\n different\n-old\n+new\n context";
+    expect(changeSignature(a)).toBe(changeSignature(moved));
+    expect(changeSignature(a)).not.toBe(changeSignature("@@ -1,3 +1,3 @@\n keep\n-old\n+newer\n keep2"));
+    expect(changeSignature(undefined)).toBeNull();
+    expect(changeSignature("")).toBeNull();
+  });
+
+  test("a file that left the pull request is reported, not reviewed", () => {
+    const gh: GhFn = () => JSON.stringify({ status: "ahead", files: prFiles });
+    const delta = rebaseDelta(gh, "o/r", BASE, "old1111111", [prFiles[0], prFiles[1], prFiles[3]].map((f) => ({ ...f })));
+    expect(delta).toEqual({ kind: "unchanged", removed: [LOGO] });
+  });
+});
+
+describe("call-site evidence reaches the batch", () => {
+  const NEW = "src/master-copies-panel.tsx";
+  const files = [
+    {
+      filename: NEW,
+      additions: 2,
+      deletions: 0,
+      patch: "@@ -0,0 +1,2 @@\n+const drag = () => {\n+  window.electronAPI.startFileDrag(item.path);",
+    },
+  ];
+  const SIBLING = "src/export-status-cards.tsx";
+
+  const run = (git: Deps["git"]) => {
+    const headDir = mkdtempSync(join(tmpdir(), "head-"));
+    mkdirSync(join(headDir, "src"));
+    writeFileSync(
+      join(headDir, SIBLING),
+      "const onDrag = () => {\n  markCopySeen(id);\n  window.electronAPI.startFileDrag(path);\n};\n",
+    );
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: [NEW], summary: "ok" }) })]);
+    const warnings: string[] = [];
+    const logs: string[] = [];
+    const deps: Deps = {
+      gh: fakeGh(posted, {}, files),
+      provider,
+      config: loadConfig({}),
+      repoDir: headDir,
+      log: (l) => void logs.push(l),
+      warn: (l) => void warnings.push(l),
+      git,
+    };
+    review(deps, "o/r", 7, []);
+    return { provider, posted, warnings, logs };
+  };
+
+  test("evidence.json is written to the run dir and the prompt carries the slice and the comparison task", () => {
+    const git: Deps["git"] = (args) => {
+      expect(args[args.indexOf("-e") + 1]).toBe("startFileDrag");
+      return {
+        status: 0,
+        stdout: `${SIBLING}:3:  window.electronAPI.startFileDrag(path);\n${NEW}:2:  window.electronAPI.startFileDrag(item.path);`,
+      };
+    };
+    const r = run(git);
+    const request = r.provider.requests[0];
+    const runDir = request.addDirs[0];
+    const doc = JSON.parse(readFileSync(join(runDir, "evidence.json"), "utf8"));
+    expect(doc.provenance).toBe("text_match");
+    expect(doc.symbols).toHaveLength(1);
+    expect(doc.symbols[0].call_sites.map((c: { file: string }) => c.file)).toEqual([SIBLING]);
+
+    const prompt = request.prompt;
+    expect(prompt).toContain("compare\nthe new call site with the sibling call sites listed");
+    expect(prompt).toContain("not a verdict");
+    expect(prompt).toContain("markCopySeen(id);");
+    expect(prompt).toContain(`Full list: ${runDir}/evidence.json`);
+    // After the file-accounting paragraph, before the rules.
+    expect(prompt.indexOf("<evidence")).toBeGreaterThan(prompt.indexOf("Review every file of this part"));
+    expect(prompt.indexOf("<evidence")).toBeLessThan(prompt.indexOf("<diff>"));
+    expect(r.logs.some((l) => /^evidence: 1 symbol\(s\) found, 1 call site\(s\), \d+ bytes, \d+ ms, complete$/.test(l))).toBe(true);
+    expect(request.allowedTools).toEqual(["read", "glob", "grep"]);
+  });
+
+  test("a failing git never fails the review: a warning, an empty file, no evidence in the prompt", () => {
+    const r = run(() => ({ status: 128, stdout: "", error: "fatal: not a git repository" }));
+    const request = r.provider.requests[0];
+    expect(r.posted.review).toBeDefined();
+    expect(r.warnings.join("\n")).toContain("Call-site evidence skipped");
+    const doc = JSON.parse(readFileSync(join(request.addDirs[0], "evidence.json"), "utf8"));
+    expect(doc.symbols).toEqual([]);
+    expect(doc.status).toBe("truncated");
+    expect(request.prompt).not.toContain("<evidence");
+    expect(request.prompt).not.toContain("sibling call sites");
+  });
+
+  test("a git that throws is also survived", () => {
+    const r = run(() => {
+      throw new Error("boom");
+    });
+    expect(r.posted.review).toBeDefined();
+    expect(r.warnings.join("\n")).toContain("boom");
+    expect(r.provider.requests[0].prompt).not.toContain("<evidence");
+  });
+
+  test("a batch with no call-like added lines runs no git at all", () => {
+    const quiet = [{ filename: NEW, additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+const a = 1;" }];
+    const headDir = mkdtempSync(join(tmpdir(), "head-"));
+    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: [NEW], summary: "ok" }) })]);
+    const deps: Deps = {
+      gh: fakeGh({}, {}, quiet),
+      provider,
+      config: loadConfig({}),
+      repoDir: headDir,
+      log: () => {},
+      warn: () => {},
+      git: () => {
+        throw new Error("git must not run");
+      },
+    };
+    review(deps, "o/r", 7, []);
+    expect(provider.requests[0].prompt).not.toContain("<evidence");
+  });
 });

@@ -60,7 +60,11 @@ All names are in `src/engine.ts` unless a file is given.
    signature (`readSignedMarker`); one anywhere else is ignored. Reviews posted before signatures
    existed (marker right after `</sub>`) are read only while they come before the first signed
    review and were created before `LEGACY_CUTOFF` (2026-11-01); if that commit is behind the head, `compareFiles` narrows the review to what
-   changed since (`status === "ahead"`), otherwise it reviews the whole pull request. `resolveScope`
+   changed since (`status === "ahead"`). Otherwise the branch was rewritten, and `rebaseDelta` compares
+   the pull request's own change at that commit (`base...last`) with the head's, per file, by the
+   rows that add or remove a line (`changeSignature`) or by an identical blob: no change posts a
+   one-line review that only moves the marker, some change reviews only those files, and a change
+   that cannot be compared reviews the whole pull request. `resolveScope`
    turns `review <paths>` words into paths: a word counts only if it is the exact name of a
    changed file or a directory prefix of one (there is no glob expansion), and any other word is
    ignored with a log line. If every word misses, the scope is empty and the request runs as an
@@ -94,7 +98,8 @@ All names are in `src/engine.ts` unless a file is given.
 
 4. **Prompt assembly.** `buildBatchPrompt` writes, in order: the pull request and commit, the
    pointer to the ADRs, the list of every selected file for orientation (excluded files are only
-   counted), the batch's own file list, the line-number convention, the review instruction, the thread
+   counted), the batch's own file list, the line-number convention, the review instruction, the call-site
+   evidence (when there is any; see [Call-site evidence](#call-site-evidence-evidencejson)), the thread
    instruction when open threads exist, the label rules (`RULES`: each severity with the test a
    finding must pass, each topic, the combination rules, and the instruction not to report that a
    decision record is edited, since the engine does that, and the evidence rules: cite the line
@@ -114,7 +119,7 @@ All names are in `src/engine.ts` unless a file is given.
    [precision](precision.md). *Why of the no-rationing sentence:* the model reasons about effort it cannot see; the harness owns the budget, so
    the model should not trade coverage for it.
 
-5. **The provider call.** `reviewBatch` writes `pr.json` and `threads.json` to a scratch directory
+5. **The provider call.** `reviewBatch` writes `pr.json`, `threads.json` and `evidence.json` to a scratch directory
    and calls `deps.provider.run` asking for the neutral read tools (`read`, `glob`, `grep`;
    Claude Code gets exactly those three, Codex reads through shell commands in a read-only
    sandbox), `SCHEMA` as the output schema (files reviewed, files skipped with a closed reason, findings, thread replies,
@@ -150,7 +155,7 @@ All names are in `src/engine.ts` unless a file is given.
    cap is enforced depends on the adapter. Claude Code receives `--max-budget-usd`, a soft cap that
    can be overshot, so `spent` can exceed the total slightly. The Codex adapter is handed the cap
    but does not enforce it: it estimates cost from token events using a built-in or overridden
-   price, and only a 15-minute `SIGKILL` timeout (reported as `budget`) ends a runaway call. A dry
+   price, and only the per-call `SIGKILL` timeout (15 minutes by default, reported as `timeout`) ends a runaway call. A dry
    run still calls the provider and spends. If no batch returned a result and a call ended on its
    budget, the review is a short body saying so; if none returned a result for another reason, the
    run fails with an error and posts nothing. *Why:* money, not pull request size, bounds the run,
@@ -224,13 +229,64 @@ All names are in `src/engine.ts` unless a file is given.
    path. The engine never resolves a thread. *Why:* the operator gate is enforced twice (workflow
    and CLI) because only one of them can fail loudly.
 
+## Call-site evidence (`evidence.json`)
+
+Implements the floor of decision 4 and decision 5 of the
+[flow-questions spec](specs/2026-10-31-flow-questions-and-evidence-design.md); the model-side
+half of that spec (`contracts`, `confidence`, admitted investigation, ADR 0009) is separate work.
+Code: `src/evidence.ts`; `gatherEvidence` in `src/engine.ts` calls it once per provider call.
+
+*Why:* in the [2026-11-01 benchmark](benchmark/2026-11-01/README.md) the bugs Wachiman missed
+sat in sibling callers outside the diff. On kaipu-record #465 the new Drag handle called
+`startFileDrag` without `markCopySeen`; the sibling caller in `export-status-cards.tsx` pairs the
+two, and the model never opened it. The same class: #464 and #467.
+
+Before each provider call the engine:
+
+1. takes the added lines of the batch's source files (`ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `go`,
+   `py`, `rs`, `java`, `kt`, `swift`, `vue`, `svelte`) and extracts call-like names with regular
+   expressions: `foo(`, `.foo(`, qualified calls such as `window.electronAPI.startFileDrag(`, and
+   string literals that name a channel or event (`"recording-ready:show"` given to `invoke`,
+   `send`, `on`, `emit` and similar, or assigned to a `*CHANNEL*` or `*EVENT*` constant). A small
+   stop list drops keywords, builtins, test helpers, React hooks and generic verbs, and any name
+   the batch's own added lines define (`extractCalledSymbols`, `planEvidence`);
+2. ranks them (qualified calls and channel strings first, then by how many of the batch's files use
+   the name) and keeps 12;
+3. runs one `git grep -n -I -w -F` per name in the head, over source extensions, skipping
+   `node_modules`, `dist`, `build`, `vendor`, `.next`, minified files and `.d.ts`, and drops matches
+   in the batch's own files, imports and comment lines. It keeps at most 6 call sites per name,
+   production code before tests and calls before mere mentions, each with 4 lines of context on
+   each side cut to 100 characters, and a best-effort `definition_guess` (`collectEvidence`);
+4. writes `evidence.json` (at most 16 KB; detail is cut before names are dropped) next to
+   `pr.json`, and inlines a slice of at most 6 KB in the prompt: per name, the counts, the
+   definition guess and the first two call sites with their excerpts, with a pointer to the file
+   (`renderEvidenceSlice`). A short paragraph tells the model to compare each new call with the
+   siblings listed. With no name that has another call site, nothing is added to the prompt.
+
+Every entry carries `provenance: "text_match"` and `status: "complete"` or `"truncated"` (set when a
+cap cut its results); the file has a `status` too. The step has a 20-second wall clock; names not
+searched when it runs out are listed in `not_searched`. It never fails the review: if `git` fails
+or throws, the engine warns, writes an empty file and goes on. One log line per call reports
+names found, call sites kept, bytes and milliseconds.
+
+**What it is not.** It is a text search, not name resolution: it misses aliased imports and
+renamed handlers (`libraryChanged` and `onLibraryChanged`), and it can list a local variable that
+shares a name with the symbol. The list is evidence for the model, not a verdict, and the prompt
+says so. A tree-sitter layer for those misses is decision 14 of the spec and is not built.
+
+**Trust.** The head is untrusted: excerpts are repository text, the slice is wrapped in an
+`<evidence>` element whose closing tag is escaped inside excerpts, and the prompt calls them
+content, not instructions. The engine runs `git` with the head as its working directory but with a
+minimal environment (no token) and `core.fsmonitor` off; the git configuration is the checkout's
+own, which a pull request cannot change. It reads excerpts only from regular files inside the head.
+
 ## The execution harness
 
 `.github/workflows/review.yml` is a reusable workflow (`workflow_call`) with two jobs.
 
 | Job | Runs when | What it does |
 | --- | --- | --- |
-| `review` | `pull_request`, not a draft, head repository equals the calling repository, actor is not Dependabot | Checks the operator input, skips branches with a prefix in `skip_branch_prefixes`, then runs `cli.ts review` |
+| `review` | `pull_request` (opened, ready for review, and each push when the caller lists `synchronize` and `review_on_push` is not `false`), not a draft, head repository equals the calling repository, actor is not Dependabot | Checks the operator input, skips branches with a prefix in `skip_branch_prefixes`, then runs `cli.ts review` |
 | `on-demand` | `issue_comment` on a pull request, commenter login equals `operator`, body contains the mention input, `@agent-review` or `@claude` | Checks the operator input, refuses a pull request whose head repository is not the calling repository, then runs `cli.ts comment` |
 
 Both have a 30-minute timeout and their own concurrency group per pull request with
@@ -239,9 +295,11 @@ never cancels a review; a newer run of the same job for the same pull request ca
 one). Both run with `contents: read` and `pull-requests: write` (`issues: read` for `on-demand`).
 
 When a run starts is decided by the caller. The caller template listens for `pull_request` of
-type `opened` and `ready_for_review`, and `issue_comment` of type `created`, so a pull request
-gets one automatic review when it is opened or marked ready, and later pushes are reviewed when the
-operator asks for it.
+type `opened`, `ready_for_review` and `synchronize`, and `issue_comment` of type `created`, so a
+pull request gets an automatic review when it is opened or marked ready and one for each push, which
+covers only the commits new since the last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)).
+The reusable workflow cannot add a trigger: a caller that does not list `synchronize` gets no push
+reviews, whatever the pinned release is.
 
 **The command gate.** The parser accepts `/wachiman` as an alias, but the workflow's `if:` only
 tests that the comment body contains the `mention` input, `@agent-review` or `@claude`. With the
@@ -326,7 +384,7 @@ and the assumption that everyone who can push is trusted is what holds it togeth
 | `preflight()` | Throws before any call is paid for when the binary, settings or credential is missing |
 | `modelLabel()` | Text for the review footer |
 | `leaksSecret(texts)` | True when any text holds a credential of this provider; the engine throws and posts nothing |
-| `run(request)` | One call to completion: returns structured output or text, cost, turns, duration and a terminal reason (`success`, `budget`, `error`); throws when there is no result at all |
+| `run(request)` | One call to completion: returns structured output or text, cost, turns, duration and a terminal reason (`success`, `budget`, `turns`, `timeout`, `error`); throws when there is no result at all |
 
 The request carries the prompt, the head's directory (which an adapter must not use as the agent's working directory), extra readable directories, neutral tool
 names (`read`, `glob`, `grep`), the spend cap (a soft one), an optional output schema and whether the prompt
@@ -357,6 +415,8 @@ deprecated `CLAUDE_REVIEW_X` with a notice. Full descriptions are in [cli.md](cl
 | `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | `src/config.ts`; input `answer_budget_usd` |
 | `AGENT_REVIEW_BATCH_LINES` | `1000` | `src/config.ts`; input `batch_lines` |
 | `AGENT_REVIEW_BATCH_CHARS` | `140000` | `src/config.ts`; input `batch_chars` |
+| `AGENT_REVIEW_MAX_TURNS` | `40` | `DEFAULT_MAX_TURNS` in `src/providers/types.ts`, read in `src/config.ts`; input `max_turns` |
+| `AGENT_REVIEW_CALL_TIMEOUT_S` | `900` | `DEFAULT_CALL_TIMEOUT_S` in `src/providers/types.ts`, read in `src/config.ts`; input `call_timeout_s` |
 | `AGENT_REVIEW_MODEL` | the provider's default: `claude-sonnet-5-5` (`claude-code`), `gpt-6.1-sol` (`codex`) | `DEFAULT_MODELS` in `src/providers/index.ts`; the workflow input `model` defaults to `claude-sonnet-5-5` |
 | `AGENT_REVIEW_PROVIDER` | `claude-code` | `src/config.ts` and `DEFAULT_PROVIDER` in `src/providers/index.ts`; input `provider` |
 | `AGENT_REVIEW_MENTION` | `/wachi` | `src/config.ts` and `DEFAULT_MENTION`; input `mention`; `/wachiman`, `@agent-review` and `@claude` are `MENTION_ALIASES` (see the command gate above for which the workflow routes) |
@@ -392,7 +452,8 @@ and the copy-the-files install. The two sets must stay equal.
   at or after it is treated as another workflow's imitation. Delete the branches once the date has
   passed.
 - The reviewed head is never the engine's working directory, and the engine never executes
-  anything from it.
+  anything from it. The one exception is `git grep` for call-site evidence, which uses the head as
+  its working directory and reads, never runs, its files ([Call-site evidence](#call-site-evidence-evidencejson)).
 - The agent gets no GitHub token and an allowlisted environment. Claude Code gets read tools only;
   Codex reads through shell commands inside a read-only sandbox (the reusable workflow does not
   install Codex).

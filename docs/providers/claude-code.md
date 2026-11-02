@@ -51,6 +51,8 @@ on its install step to pin the hash. The script installs only the binary; it doe
 | --- | --- |
 | Tools `read`, `glob`, `grep` | `--tools Read,Glob,Grep` and `--allowedTools Read,Glob,Grep` |
 | A spend cap | `--max-budget-usd <n>` |
+| A turn cap | `--max-turns <AGENT_REVIEW_MAX_TURNS>` (default 40). Hidden from `claude --help` but accepted; a call that reaches it exits with `subtype: "error_max_turns"` and no answer, which the adapter reports as `turns` |
+| A wall-clock limit | Not a flag: the adapter ends the process with `SIGKILL` after `AGENT_REVIEW_CALL_TIMEOUT_S` (default 900) and reports `timeout`. The call is synchronous, so a grace period with `SIGTERM` first is not possible, and `claude -p` prints its result only when it ends |
 | The head and extra directories | `--add-dir <head>` and `--add-dir <dir>` for each; the process itself starts in an empty scratch directory (see "Start outside the head") |
 | An output schema | `--output-format json --json-schema <schema>` |
 | The prompt via stdin | The prompt, preceded by the absolute paths of the head and the scratch files, on stdin, never as an argument (a large diff would exceed Linux's 128 KB limit) |
