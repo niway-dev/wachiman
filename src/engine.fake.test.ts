@@ -1222,3 +1222,46 @@ describe("call-site evidence reaches the batch", () => {
     expect(provider.requests[0].prompt).not.toContain("<evidence");
   });
 });
+
+describe("data-path questions reach the batch the added lines select them for", () => {
+  const MOVE = "apps/api/src/main/move-item.ts";
+  const STYLE = "apps/web/src/panel.css";
+  const files = [
+    {
+      filename: MOVE,
+      additions: 3,
+      deletions: 0,
+      patch: "@@ -0,0 +1,3 @@\n+function heal(path: string) {\n+  unlinkSync(path);\n+}",
+    },
+    { filename: STYLE, additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+.panel { color: red; }" },
+  ];
+
+  const run = (prFilesForRun: typeof files) => {
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const logs: string[] = [];
+    const provider = new FakeProvider([
+      () => ({ structuredOutput: out({ files_reviewed: prFilesForRun.map((f) => f.filename), summary: "ok" }) }),
+    ]);
+    review(
+      { gh: fakeGh(posted, {}, prFilesForRun), provider, config: loadConfig({}), log: (l) => void logs.push(l), warn: () => {} },
+      "o/r",
+      7,
+      [],
+    );
+    return { prompt: provider.requests[0].prompt, logs };
+  };
+
+  test("a batch with a destructive call gets that question and logs its id", () => {
+    const r = run(files);
+    expect(r.prompt).toContain("## Risks this part's added lines show");
+    expect(r.prompt).toContain("### Destructive steps that do not re-verify their target");
+    expect(r.prompt).not.toContain("### An unreadable file treated as empty");
+    expect(r.logs).toContain("Data-path questions for part 1 of 1: destructive-step");
+  });
+
+  test("a batch without any pattern gets no section and logs none", () => {
+    const r = run([files[1]]);
+    expect(r.prompt).not.toContain("Risks this part's added lines show");
+    expect(r.logs).toContain("Data-path questions for part 1 of 1: none");
+  });
+});
