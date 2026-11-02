@@ -8,7 +8,7 @@
 - **Creates:** ADR 0009 (investigation requested by the model, admitted by the engine).
   Reuses ADR 0001 (budgets in the workflow, no hosted service), ADR 0003 (labels), ADR 0006
   (repository policy from base).
-- **Refs:** #43; [field benchmark](../benchmark/2026-10-31/README.md);
+- **Refs:** #43; [field benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/README.md);
   [Sol's critique](../research/2026-10-31-sol-critique-risk-map-and-depth.md);
   [harness options](../research/2026-10-31-harness-options.md);
   [multi-language mapping](../research/2026-10-31-multi-language-mapping-deep.md)
@@ -157,7 +157,7 @@ from these reviews does not count as prior knowledge on these PRs.
 
 ## Sources and unverified claims
 
-- All #46x facts: [field benchmark](../benchmark/2026-10-31/README.md) and per-PR files.
+- All #46x facts: [field benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/README.md) and per-PR files.
 - `Bun.Transpiler.scan()` returns imports and export names only (verified locally, Bun 1.4.2).
 - `--max-turns` exists in Claude Code 2.1.316, hidden from `--help`; not yet verified on the pinned
   2.1.304. `--max-budget-usd` is soft.

@@ -2,7 +2,7 @@
 
 - **Status:** proposed 2026-10-31
 - **Spec:** [Flow questions and evidence](../specs/2026-10-31-flow-questions-and-evidence-design.md)
-- **Evidence:** [field benchmark 2026-10-31](../benchmark/2026-10-31/README.md),
+- **Evidence:** [field benchmark 2026-10-31](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/README.md),
   [Sol's critique](../research/2026-10-31-sol-critique-risk-map-and-depth.md)
 
 ## Context

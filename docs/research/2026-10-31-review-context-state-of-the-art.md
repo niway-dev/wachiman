@@ -3,7 +3,7 @@
 - **Date:** 2026-10-31
 - **Method:** web search on vendor docs, comparison posts and 2026 papers. Paper findings come
   from abstracts and search snippets; the full papers were not read.
-- **Why:** the [2026-10-31 field benchmark](../benchmark/2026-10-31/README.md) showed Wachi
+- **Why:** the [2026-10-31 field benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/README.md) showed Wachi
   missing bugs whose precedent or contract lives in unchanged files.
 
 ## In one minute
