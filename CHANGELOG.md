@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/niway-dev/wachiman/compare/v1.3.0...v1.4.0) (2026-11-02)
+
+
+### Features
+
+* make the model's reasoning effort an explicit, logged input ([#56](https://github.com/niway-dev/wachiman/issues/56)) ([e15e5cc](https://github.com/niway-dev/wachiman/commit/e15e5ccf7dc6e5402315c08eb998950664823fa3))
+
 ## [1.3.0](https://github.com/niway-dev/wachiman/compare/v1.2.1...v1.3.0) (2026-10-31)
 
 
