@@ -1,13 +1,17 @@
 # ADR 0016: Data-path questions are chosen by the engine from the added lines
 
-- **Status:** proposed 2026-11-02. Implemented by the pull request that adds this file
-  (`src/questions/`, `buildBatchPrompt`). **Not measured in a replay yet:** the only measurement is
-  how often the triggers fire on real pull requests (below), not whether the questions find bugs
-  or what they cost in model calls.
+- **Status:** accepted 2026-11-03. Implemented by the pull request that adds this file
+  (`src/questions/`, `buildBatchPrompt`).
 - **Date:** 2026-11-02
-- **Evidence:** [field run 2026-11-02](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-field/README.md), section "What to
-  improve in Wachiman", items 1 to 5. That page is on branch `docs/field-run-kaipu-workspaces`
-  (pull request #87) and links here once both are merged.
+- **Evidence:**
+  - [Field run 2026-11-02](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-field/README.md),
+    section "What to improve in Wachiman", items 1 to 5: the bugs these questions target.
+  - [Batch-level A/B 2026-11-03](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-03-data-path-questions-ab/README.md):
+    on the five batches that held the 10 missed bugs, two runs per arm, Opus 5.5, the questions
+    took the bugs found at least once from 2 to 7 of 10. Invalid findings stayed at 0, and the cost
+    per batch fell from $0.59 to $0.52, with fewer turns. **The questions were written from the same
+    10 bugs**, so this shows they reach their targets, not that they generalise. Held-out bugs
+    decide that (see the reopen condition).
 - **Numbering:** 0014 and 0015 are taken by the open design pull request #80, so this record is
   0016.
 
