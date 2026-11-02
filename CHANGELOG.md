@@ -5,6 +5,26 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.5.0](https://github.com/niway-dev/wachiman/compare/v1.4.0...v1.5.0) (2026-11-02)
+
+
+### Features
+
+* ask data-path questions only where the added lines show the pattern ([3246663](https://github.com/niway-dev/wachiman/commit/3246663ed0ab5551ae5a89b54b6d0105bde4e99b))
+* cap automatic runs per pull request and answer thread replies without a push ([c24be7a](https://github.com/niway-dev/wachiman/commit/c24be7a08d6172b68eb3cd64f1c5359f9de40ee0))
+* measure question firing, skip tests in read-error-as-empty, ADR 0016 ([bc15d40](https://github.com/niway-dev/wachiman/commit/bc15d4075c4b748572043adf7d9f5b8b7251b096))
+* **questions:** add the bounded-wait data-path question ([7c69df8](https://github.com/niway-dev/wachiman/commit/7c69df898fa32de1d5116bf6410d9a44adc4b2d3))
+* **questions:** ask what a write-back does to another writer's change ([41727a1](https://github.com/niway-dev/wachiman/commit/41727a1b832d3e708ef81554e2168c8f283267fd))
+* **questions:** ask what two overlapping calls do to shared state ([c42b1f7](https://github.com/niway-dev/wachiman/commit/c42b1f7922f473e46a97ea1b11d83892fe336ce1))
+* **questions:** ask whether an unreadable file is treated as empty and written back ([bf87115](https://github.com/niway-dev/wachiman/commit/bf87115229500c2258df7a96adc252898eb6cfd3))
+* **questions:** ask whether destructive steps re-verify their target ([1f9bdc6](https://github.com/niway-dev/wachiman/commit/1f9bdc633aa5a545eda7d7b64baee6999e25076d))
+* select data-path questions per batch from the added lines ([0102135](https://github.com/niway-dev/wachiman/commit/010213552ad798d0896bfdbfe17a5f8e9be24308))
+
+
+### Bug Fixes
+
+* a merge into a re-reviewed file sends only the author's rows ([17bfb19](https://github.com/niway-dev/wachiman/commit/17bfb19bc9d449be60ccff5bce0cfc9aea86aa1d))
+
 ## [1.4.0](https://github.com/niway-dev/wachiman/compare/v1.3.0...v1.4.0) (2026-11-02)
 
 
