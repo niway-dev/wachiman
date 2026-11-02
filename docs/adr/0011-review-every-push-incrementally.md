@@ -87,7 +87,7 @@ base and the old head fetched with a token, and would not be testable without a 
 
 ## Amendment 2026-11-02: a merge sends only the author's rows
 
-The field run on kaipu-record ([report](https://github.com/niway-dev/wachiman/blob/docs/field-run-kaipu-workspaces/docs/benchmark/2026-11-02-field/README.md#the-review-loop))
+The field run on kaipu-record ([report](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-field/README.md#the-review-loop))
 showed the file-level filter above is not enough. On #479 (`413ee15`), #482 (`ad0fa5c`) and #483
 (`0253fd7`), each a merge of a parent branch or of `main`, the files the engine chose were right
 (8, 2 and 1 of 28, 33 and 33): the author had changed them while resolving the merge. But the
