@@ -4,7 +4,7 @@ Every measurement of Wachiman against Pullfrog and CodeRabbit, in one place, wit
 and the runs behind each number. Newest first. Each line links to the full report; this page makes
 no claim the reports do not.
 
-- **Last updated:** 2026-11-02.
+- **Last updated:** 2026-11-02 (field run added).
 - **The five PRs:** kaipu-record #463–#467, replayed at their exact commits
   ([method](../specs/2026-10-31-review-benchmark-design.md)). Every finding in a replay was
   checked against the code by reading, not by running the app.
@@ -57,6 +57,29 @@ Real bugs found outside the 14, by v1.4.0 (#466):
   1/3, Sonnet 3/3.
 - On Windows before build 19041 the card can land in the video as a black box: Opus 2/3, Sonnet
   0/3.
+
+## Field run: the kaipu-record workspaces chain (2026-11-02, live, not replayed)
+
+Seven live PRs (kaipu-record #439, #449, #478, #479, #482, #483, #484), about 24,000 added lines,
+mostly reviewed by Wachiman v1.3.0. Only one of the eight v1.4.0 runs was a full review. On the
+three PRs all three bots reviewed (#478, #479, #482), with 11 distinct real Medium+ bugs:
+
+| | Wachiman (v1.3.0, re-review on every push) | Pullfrog | CodeRabbit |
+| --- | --- | --- | --- |
+| Findings posted | 44 | 9 | 17 |
+| Invalid findings | 0 | 0 | 0 |
+| Real Medium+ bugs found (of 11) | 2 | 4 | **6** |
+| The one High bug (#479) | missed | found | found |
+| Cost on the 7 commits both reviewed | **$4.31** | $8.83 | $0 (public repo) |
+| Total on these three PRs | $9.03 (10 runs after Pullfrog was turned off) | $8.83 (stopped early) | $0 |
+
+- **Wachiman's misses cluster on data paths:** destructive recovery steps that don't re-verify
+  their target, read errors treated as empty and written back, overlapping calls, unbounded
+  waits, and cached state written over another machine's change.
+- **Re-reviews on every push cost $7.23 (49 % of Wachiman's bill)** and found one real Medium+ bug.
+  An engine bug inflates them: a merge from `main` is re-reviewed as if the author wrote it.
+- These PRs are a held-out set for v1.4.0. Replaying them is the next measurement.
+- Report: [2026-11-02-field](2026-11-02-field/README.md).
 
 ## What each experiment showed
 
