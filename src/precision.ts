@@ -7,7 +7,7 @@
  * A maintainer tool, not part of the review: it only reads GitHub. For each of the last `n` pull
  * requests (default 50) of each repository, it pairs every inline finding the reviewer posted with
  * the first reply in its thread that starts with "Verdict:" and prints, per severity, topic and
- * model, how many findings were judged correct, partly correct or wrong. A finding with no verdict
+ * model and confidence, how many findings were judged correct, partly correct or wrong. A finding with no verdict
  * reply is counted as unjudged, not as correct.
  *
  * The verdict convention the owner writes in a finding's thread:
@@ -25,17 +25,22 @@ export type Verdict = "correct" | "partial" | "wrong" | "unjudged";
 export interface ParsedLabel {
   severity: string;
   topic: string;
+  /** `high`, `medium` or `low`, from `(confidence high)` in the label; absent on findings from before it existed. */
+  confidence?: string;
 }
 
 /**
  * The severity and topic of a finding comment's first line. Reads the current label
- * (`🟠🐛 **Fix · bug: …**`) and the one used before v1.1.0 (`**Should fix (correctness): …**`),
+ * (`🟠🐛 **Fix · bug: … (confidence high)**`) and the one used before v1.1.0 (`**Should fix (correctness): …**`),
  * so older reviews still count; the old ones keep their old names.
  */
 export function parseLabel(body: string): ParsedLabel | null {
   const first = body.split("\n", 1)[0];
   const current = first.match(/\*\*(Blocker|Fix|Consider|Info) · ([a-z]+):/);
-  if (current) return { severity: current[1].toLowerCase(), topic: current[2] };
+  if (current) {
+    const confidence = first.match(/\(confidence (high|medium|low)\)\*\*\s*$/)?.[1];
+    return { severity: current[1].toLowerCase(), topic: current[2], ...(confidence ? { confidence } : {}) };
+  }
   const old = first.match(/\*\*(Should fix|Note) \(([a-z]+)\):/);
   if (old) return { severity: old[1] === "Should fix" ? "should_fix (old)" : "note (old)", topic: old[2] };
   return null;
@@ -72,6 +77,8 @@ export interface RawComment {
 export interface Judged {
   severity: string;
   topic: string;
+  /** Absent for a finding posted before the label carried it. */
+  confidence?: string;
   model: string;
   verdict: Verdict;
 }
@@ -107,6 +114,10 @@ export function report(rows: Judged[]): string {
   const dims: [string, (r: Judged) => string][] = [
     ["Severity", (r) => r.severity],
     ["Topic", (r) => r.topic],
+    // Only once some finding carries it: older reviews would make the table a single "unlabelled" row.
+    ...(rows.some((r) => r.confidence)
+      ? [["Confidence", (r: Judged) => r.confidence ?? "unlabelled"] as [string, (r: Judged) => string]]
+      : []),
     ["Model", (r) => r.model],
   ];
   const tables = dims.map(([name, key]) => {

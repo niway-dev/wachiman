@@ -14,7 +14,7 @@ approves, never requests changes and never blocks a merge, including when a find
 | What you do | What happens |
 | --- | --- |
 | Open a pull request, or mark a draft ready for review | The automatic review runs. |
-| Push more commits | Nothing. A push does not start a review. |
+| Push more commits | If your caller lists `synchronize` (the templates do), a review of only the commits that are new since the last complete review. See [Reviews on push](#reviews-on-push). Otherwise nothing. |
 | Comment `/wachi review` (as the operator) | A review of what is new since the last complete review, or of the whole pull request if there is none. |
 | Comment `/wachi review <path> [path…]` | A review of only those paths. See [Limit a review to some paths](#limit-a-review-to-some-paths). |
 | Comment `/wachi` followed by anything else | The comment is treated as a question and answered. See [Ask a question](#ask-a-question). |
@@ -68,6 +68,8 @@ content and amounts are invented. It is not a recorded review.
 
 …
 
+▸ What the change connects to (1 closed, 1 open)  (collapsed: the flow questions answered)
+
 ▸ Coverage by batch (collapsed table: batch, files, lines, highest risk, status, turns, cost)
 
 Claude Sonnet 5.5 via Claude Code 2.1.304 · 2 batches · $0.42
@@ -76,7 +78,7 @@ Claude Sonnet 5.5 via Claude Code 2.1.304 · 2 batches · $0.42
 An inline finding, on its line in the diff, looks like this:
 
 ```text
-👮 **Wachiman** · 🟠🐛 **Fix · bug: Zero limit breaks the page count**
+👮 **Wachiman** · 🟠🐛 **Fix · bug: Zero limit breaks the page count (confidence high)**
 
 …the reasoning, citing the lines it rests on…
 ```
@@ -109,6 +111,11 @@ the contract is in [cli.md](cli.md#finding-labels).
 These are the only labels. A repository's instructions cannot add one
 ([review-policy.md](review-policy.md)).
 
+A finding also shows how sure the reviewer is, after its title: `(confidence high)`, `medium` or
+`low`. Severity says how bad the finding is if it is true; confidence says how sure the reviewer
+is that it is true. A finding the reviewer is not sure of at Fix or above is posted as a ❓
+question. Definitions: [cli.md](cli.md#finding-labels).
+
 ### Where each finding appears
 
 - **Inline, on its line.** A "Blocker", "Fix" or "Consider" finding on a line that is part of the
@@ -121,6 +128,12 @@ These are the only labels. A repository's instructions cannot add one
 - **If GitHub refuses the inline comments**, the engine posts them in the body under "On their
   lines (GitHub refused them inline)" instead, and says so. That only happens for a validation
   error. Other failures stop the run and post nothing.
+
+- **"What the change connects to", in the review body.** A collapsed block after the summary: the
+  questions the reviewer answered about what the change does to the running product. Open ones are
+  listed as questions with the files that would answer them; closed ones take one line each, with
+  the lines they rest on. The engine checks that those lines exist, not that the answers are true.
+  It is the first thing cut when the body is too long.
 
 Two reports of the same problem on the same file, line and topic are shown once, at the higher
 severity.
@@ -135,6 +148,17 @@ via Claude Code 2.1.304 · 2 batches · $0.42`). The batch count appears only wh
 one batch. Inline comments carry no footer and no cost. The cost is what the provider reported
 for the calls of that run (for Codex, an estimate from token counts), and a call that died
 without a result is counted at its cap. See [costs.md](costs.md).
+
+## What the model sees besides the diff
+
+Each batch's prompt holds the batch's diff, the repository's instructions and, when the added
+lines call code defined elsewhere, a short list of **other call sites of the same symbols** found
+by a text search of the head (for example, who else calls `startFileDrag`, with a few lines
+around each call). The model is told to compare the new call with those siblings, because the
+step a sibling takes and the new code skips is a bug the diff alone cannot show. The list is
+textual evidence, not a verdict: it can be incomplete and misses renamed or aliased uses. The
+full list is in the run's scratch directory as `evidence.json`; caps and limits are in
+[architecture.md](architecture.md#call-site-evidence-evidencejson).
 
 ## Coverage: what "reviewed" means
 
@@ -199,6 +223,40 @@ files into **batches** and makes one provider call per batch, one after another.
   The order matters when the budget runs out: the batches that did not run are the lowest-scoring
   ones.
 
+## Reviews on push
+
+With `synchronize` in the caller's `pull_request` types (both templates have it) and
+`review_on_push` left at `true`, every push to an open pull request starts the automatic review
+job. It is the same incremental review as `/wachi review`, so it covers only what is new since the
+last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). It still skips
+drafts, forks, Dependabot and the skipped branch prefixes. A burst of pushes runs once: the job's
+concurrency group cancels the older run, and the cancelled run posts nothing.
+
+| The push… | …and the engine does |
+| --- | --- |
+| Adds commits on top of the last reviewed one | Reviews only the files changed since it. The first line says "review of the changes since `…`". |
+| Rebases or force-pushes with no change in the pull request's own lines (also a stacked pull request after its parent merged) | Calls no model. Posts one line, "Rebased onto `…`, no new changes since `…`", so the marker moves to the new head and the next push is compared with it. |
+| Rebases and changes some files | Reviews only the files whose added or removed lines differ from the last review, and every file that is new or has no diff. The first line says "(after a rebase)". |
+| Rebases and the old commit cannot be compared (GitHub no longer has it, or the old change lists 300 or more files) | Reviews the whole pull request. |
+
+How "no change" is decided: the engine reads the pull request's change at the last reviewed commit
+(`base...last` on GitHub's compare API) and at the head, and compares, per file, the rows that add
+or remove a line, ignoring the context rows and line numbers a rebase moves. This is `git
+patch-id` over a diff without context, done on the patches GitHub sends. A file whose blob is
+identical counts as unchanged even without a patch (a binary file).
+
+What this does not catch: a rebase onto a base that changes what the unchanged lines mean (the base
+renamed a function the pull request calls) looks unchanged and is not reviewed again.
+
+A merge of the base branch into the pull request is a push on top, and GitHub's compare lists the
+base's files. Those are not part of the pull request (its file list is the diff against the merge
+base) and are not reviewed. Of the pull request's own files, only the ones whose change differs
+from the reviewed one are reviewed again; a merge that changes none of them posts a one-line
+"Brought up to date with the base branch" marker and calls no model.
+
+To turn it off, remove `synchronize` from the caller's types, or pass `review_on_push: false` to the
+reusable workflow. Each push can spend up to `budget_usd` ([costs.md](costs.md)).
+
 ## Re-review: what a second `/wachi review` covers
 
 | The operator comments… | …and the engine does |
@@ -206,7 +264,7 @@ files into **batches** and makes one provider call per batch, one after another.
 | `/wachi review`, a complete review exists, the head moved ahead of it | Reviews only the files that changed since the commit of the last complete review. The first line says "changes since `…`". |
 | `/wachi review`, no complete review yet | Reviews the whole pull request. |
 | `/wachi review`, head unchanged since the last complete review | Posts "Already reviewed at `…`. Push changes, or ask `/wachi review <paths>`." No model call. |
-| `/wachi review`, the last reviewed commit is no longer behind the head (for example after a force-push that rewrote it) | Reviews the whole pull request again. |
+| `/wachi review`, the branch was rewritten since the last complete review (a rebase, a force-push) | Compares the pull request's lines as in [Reviews on push](#reviews-on-push): no model call if they are the same, only the files that differ otherwise, the whole pull request if that cannot be compared. |
 | `/wachi review`, but every changed file is excluded | Posts "Nothing to review at `…`", saying the files are lockfiles, build output, generated, or outside the requested paths. |
 
 Only a **complete, unscoped** review moves the starting point for the next one. A partial review
@@ -241,8 +299,9 @@ first line gives the command, with the files it did not reach.
 Each inline finding is a normal review thread. You can reply to it, and Wachiman can answer, but
 **a reply does not start anything by itself.**
 
-- The caller workflow listens to `pull_request` (opened, ready for review) and `issue_comment`
-  (created). A reply inside a review thread is neither, so nothing runs when you post it.
+- The caller workflow listens to `pull_request` (opened, ready for review, and each push) and
+  `issue_comment` (created). A reply inside a review thread is neither, so nothing runs when you
+  post it.
 - Wachiman reads threads only **during a later review that has work to do**: a `/wachi review` that
   reaches the model, either because new reviewable files changed since the last complete review or
   because you named paths in the pull request. It also needs a previous complete review to exist.

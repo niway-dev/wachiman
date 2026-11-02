@@ -79,6 +79,8 @@ Settings, all optional:
 | `AGENT_REVIEW_PROVIDER` | `claude-code` | Which adapter runs the agent: `claude-code` (docs/providers/claude-code.md) or `codex` (docs/providers/codex.md). Any other value is a usage error that lists the accepted ones |
 | `AGENT_REVIEW_PRICE_PER_MTOK` | unset | `codex` only: `"input,cached_input,output"` in USD per million tokens, for a model without a built-in price |
 | `AGENT_REVIEW_EFFORT` | `high` | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max`. Passed as `--effort` (Claude Code) or `model_reasoning_effort` (Codex), never translated, so pick a value your provider and model accept. An unknown value stops the run at startup. Printed in every review footer |
+| `AGENT_REVIEW_MAX_TURNS` | `40` | Most agent turns one provider call may take. Passed as `--max-turns` (Claude Code); Codex has no such flag and ignores it. Normal batches take 5–12 turns; the cap only stops a looping run |
+| `AGENT_REVIEW_CALL_TIMEOUT_S` | `900` | Wall-clock seconds one provider call may run. Past it the process is killed (`SIGKILL`) and the call ends as `timeout`, with cost reported as 0 because the CLI prints nothing before it ends. Applies to both providers |
 | `AGENT_REVIEW_REASONING_EFFORT` | unset | Deprecated alias of `AGENT_REVIEW_EFFORT` (logs a warning); `AGENT_REVIEW_EFFORT` wins when both are set |
 | `AGENT_REVIEW_MENTION` | `/wachi` | The keyword `comment` looks for. `@agent-review` and `@claude` always work as aliases. The keyword must start a word, so `docs/wachi` is not a command |
 | `AGENT_REVIEW_OPERATOR` | unset | The login allowed to command the tool. `comment` requires it: empty, `your-github-login` and anything starting with `EDIT` are refused. The workflow checks it first; the CLI checks it again when the comment author is known (see below) |
@@ -89,7 +91,7 @@ The defaults in `src/config.ts` and the defaults of the reusable workflow's inpu
 [install.md](install.md)) are kept in sync by hand; change both together. CI pins Bun
 separately (in `.github/workflows/ci.yml`) from the workflow's `bun_version` input.
 
-Budgets and sizes must be positive numbers; batch lines and chars, positive integers. Anything
+Budgets and sizes must be positive numbers; batch lines and chars, the turn cap and the call timeout, positive integers. Anything
 else is a usage error.
 
 ### Deprecated names
@@ -132,8 +134,53 @@ Every finding is labelled on two axes, each an emoji followed by its word, for e
 | `cleanup` | 🧹 | Duplication, dead code, a misleading name |
 | `question` | ❓ | Something the reviewer could not determine and asks the author |
 
+Two tests settle a severity that feels uncertain, and apply before the list above:
+
+- If the only thing wrong is a comment, docstring, name or documentation, the severity is
+  `consider` or lower, never `fix`. The exception is a document that makes users do something
+  harmful.
+- If a user can lose data or see a wrong result silently, the severity is `fix` or higher even
+  when the trigger is rare.
+
+A finding also carries a **confidence**, separate from severity: severity says how bad the finding
+is if it is true, confidence says how sure the reviewer is that it is true, given what it read.
+It is shown after the title, for example `🟠🐛 **Fix · bug: Face is lost (confidence high)**`.
+
+| Confidence | Meaning |
+| --- | --- |
+| `high` | The reviewer read the lines that establish every premise, and the failure follows from them |
+| `medium` | The argument holds, but a premise rests on code the reviewer did not read or a condition it could not confirm |
+| `low` | Plausible, not established |
+
+A `low` confidence finding at `fix` or above is posted with the topic `question`, worded as a
+question to the author. The engine does not enforce this; it is a rule in the prompt, and
+[precision](precision.md) tabulates verdicts by confidence so the rule can be checked. A finding
+without a confidence (the engine's own notices, reviews from before the field existed) shows none. The decision
+is in the [flow questions spec](specs/2026-10-31-flow-questions-and-evidence-design.md), decision 9.
+
 A repository's focus file (`.github/agent-review.md`) may say what to look for, but it may not add
-severities or topics: a label means the same thing in every repository that runs the reviewer.
+severities, topics or confidence levels: a label means the same thing in every repository that
+runs the reviewer.
+
+### The "What the change connects to" block
+
+Each batch also answers the **flow questions** (what a new action or call changes, which existing
+path does the same and what it does before and after, how the result reaches the user, what
+happens when background work finishes or the user goes Back, and what happens when the call
+fails) as `contracts`: one entry per question, with `action`, `location`, `equivalent_path`,
+`before_after`, `visible_effect`, `failure_mode`, a `status` (`closed` or `open`), `evidence`
+(`path:line` or `path:from-to`), and for an open entry an `open_question` and `candidates`, the
+files that would answer it. The review body shows them in a collapsed block after the summary and
+before the coverage table: open entries as questions with their candidate files, closed ones one
+line each.
+
+The engine checks the shape of each entry, and that every cited file exists in the checked-out
+head and every cited line is within it (the engine reads only inside the head). A citation that
+does not resolve prints a warning on stderr and marks the entry `evidence_checked: false`, which
+the block shows as "A citation did not resolve in the head"; the entry is not removed. The engine
+does not check that an answer is true. Contracts from several batches are merged: one entry per
+action and location. When the body would exceed its size limit, the contracts block is cut first:
+shrunk to what fits, or dropped, before the coverage table and the summary are touched.
 
 ## Exit codes
 

@@ -1,6 +1,6 @@
 /** The `AGENT_REVIEW_*` settings, read once, with the old `CLAUDE_REVIEW_*` names as a fallback. */
 import { DEFAULT_MODELS } from "./providers";
-import { DEFAULT_EFFORT, EFFORTS, type Effort } from "./providers/types";
+import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, DEFAULT_MAX_TURNS, EFFORTS, type Effort } from "./providers/types";
 
 export class UsageError extends Error {}
 
@@ -22,6 +22,16 @@ export interface EngineConfig {
    * alter reviews. Passed as `--effort` (Claude Code) or `model_reasoning_effort` (Codex).
    */
   effort: Effort;
+  /**
+   * `AGENT_REVIEW_MAX_TURNS`: the most agent turns one provider call may take. Passed as
+   * `--max-turns` (Claude Code); Codex has no equivalent and ignores it.
+   */
+  maxTurns: number;
+  /**
+   * `AGENT_REVIEW_CALL_TIMEOUT_S`: wall-clock limit on one provider call, in seconds. The call is
+   * killed when it passes and ends as `timeout`.
+   */
+  callTimeoutS: number;
   mention: string;
   /** Login allowed to command the tool. `comment` refuses to run when it is empty or a placeholder. */
   operator: string;
@@ -94,6 +104,8 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     provider,
     pricePerMTok: get("PRICE_PER_MTOK"),
     effort,
+    maxTurns: number("MAX_TURNS", DEFAULT_MAX_TURNS, true),
+    callTimeoutS: number("CALL_TIMEOUT_S", DEFAULT_CALL_TIMEOUT_S, true),
     mention: get("MENTION") ?? "/wachi",
     operator: get("OPERATOR") ?? "",
     exclude: (get("EXCLUDE") ?? "").split(",").filter(Boolean),

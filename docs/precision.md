@@ -66,7 +66,8 @@ For example, `bun src/precision.ts my-org/my-repo --prs 50`.
 
 ## 4. Read the tables
 
-It prints one table per severity, topic and model. In each row, precision is correct divided by
+It prints one table per severity, topic and model, and one per confidence once any finding in the
+sample carries a confidence (findings posted before the field existed are grouped as `unlabelled`). In each row, precision is correct divided by
 judged, where a partly correct finding counts as half (it found something real and also asked for
 something wrong) and unjudged findings are left out of the denominator. A group with nothing
 judged shows `n/a`. Labels from before v1.1.0 (`Should fix`, `Note`) appear under their old names,

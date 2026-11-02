@@ -10,6 +10,7 @@ import {
   findEngineSettings,
   leaksKey,
   prettyModel,
+  terminalReasonOf,
   toolNames,
 } from "./claude-code";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./index";
@@ -39,6 +40,15 @@ describe("buildClaudeArgs", () => {
     expect(after("--max-budget-usd")).toBe("0.6");
     expect(after("--output-format")).toBe("json");
     expect(after("--json-schema")).toBe('{"type":"object"}');
+  });
+
+  test("passes --max-turns only when a cap is given", () => {
+    const base = { addDirs: [], budgetUsd: 1, model: "m", effort: "high" as const, settings: "s", tools: ["read" as const] };
+    const capped = buildClaudeArgs({ ...base, maxTurns: 40 });
+    expect(capped[capped.indexOf("--max-turns") + 1]).toBe("40");
+    expect(buildClaudeArgs(base)).not.toContain("--max-turns");
+    // The spend cap stays: the two belts are independent.
+    expect(capped).toContain("--max-budget-usd");
   });
 
   test("leaves the prompt to stdin: no prompt argument follows -p", () => {
@@ -176,6 +186,54 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
     );
     const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary });
     expect(provider.run(request)).toMatchObject({ terminalReason: "budget", isError: true });
+  });
+
+  test("the turn cap reaches the CLI as --max-turns, and its ending is reported as turns", () => {
+    // Real shape, observed with Claude Code 2.1.316 and --max-turns 1: num_turns counts one past the cap.
+    const binary = stubBinary(
+      `cat >/dev/null; echo "{\\"is_error\\":true,\\"subtype\\":\\"error_max_turns\\",\\"terminal_reason\\":\\"max_turns\\",\\"num_turns\\":41,\\"total_cost_usd\\":0.31,\\"duration_ms\\":9,\\"errors\\":[\\"$*\\"]}"`,
+    );
+    const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary });
+    const result = provider.run({ ...request, maxTurns: 40 });
+    expect(result).toMatchObject({ terminalReason: "turns", isError: true, turns: 41, costUsd: 0.31 });
+    expect(JSON.stringify(result.raw)).toContain("--max-turns 40");
+  });
+
+  test("maps the three ways a call can end, plus an ordinary error", () => {
+    expect(terminalReasonOf({ subtype: "success", is_error: false })).toBe("success");
+    expect(terminalReasonOf({ subtype: "error_max_budget_usd", is_error: true })).toBe("budget");
+    expect(terminalReasonOf({ subtype: "error_max_turns", is_error: true })).toBe("turns");
+    // A future subtype name does not hide the turn cap while the terminal reason still says so.
+    expect(terminalReasonOf({ subtype: "error", is_error: true, terminal_reason: "max_turns" })).toBe("turns");
+    expect(terminalReasonOf({ subtype: "error_during_execution", is_error: true })).toBe("error");
+    expect(terminalReasonOf({ subtype: "success", is_error: true })).toBe("error");
+  });
+
+  test("a call that outlives the wall-clock limit is killed and ends as timeout, not as a crash", () => {
+    const binary = stubBinary("cat >/dev/null; sleep 30");
+    const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary, timeoutMs: 150 });
+    const started = Date.now();
+    const result = provider.run(request);
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(result).toMatchObject({ terminalReason: "timeout", isError: true, costUsd: 0, turns: 0 });
+    expect(result.durationMs).toBeGreaterThanOrEqual(100);
+  });
+
+  test("the request's timeout wins over the adapter's, and a fast call is not touched", () => {
+    const slow = stubBinary("cat >/dev/null; sleep 30");
+    const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: slow, timeoutMs: 60_000 });
+    expect(provider.run({ ...request, timeoutMs: 150 })).toMatchObject({ terminalReason: "timeout" });
+    const fast = stubBinary(`cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":1}'`);
+    const quick = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: fast });
+    expect(quick.run({ ...request, timeoutMs: 5_000 })).toMatchObject({ terminalReason: "success" });
+  });
+
+  test("a process that ignores SIGTERM is still ended", () => {
+    const binary = stubBinary("trap '' TERM; cat >/dev/null; sleep 30");
+    const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary, timeoutMs: 150 });
+    const started = Date.now();
+    expect(provider.run(request).terminalReason).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(10_000);
   });
 
   test("preflight fails fast on a missing binary or credential", () => {

@@ -8,6 +8,16 @@ describe("parseLabel", () => {
       topic: "bug",
     });
   });
+  test("reads the confidence the label carries, and none when it carries none", () => {
+    expect(parseLabel("🟠🐛 **Fix · bug: Face is lost (confidence high)**\n\nbody")).toEqual({
+      severity: "fix",
+      topic: "bug",
+      confidence: "high",
+    });
+    expect(parseLabel("🟡❓ **Consider · question: Deliberate? (confidence low)**")?.confidence).toBe("low");
+    expect(parseLabel("🟠🐛 **Fix · bug: a (confidence high) in the middle**")?.confidence).toBeUndefined();
+    expect(parseLabel("🟠🐛 **Fix · bug: no confidence**")).toEqual({ severity: "fix", topic: "bug" });
+  });
   test("reads the label used before v1.1.0", () => {
     expect(parseLabel("**Note (other): Stale cell**")).toEqual({ severity: "note (old)", topic: "other" });
     expect(parseLabel("**Should fix (correctness): x**")).toEqual({ severity: "should_fix (old)", topic: "correctness" });
@@ -80,6 +90,25 @@ describe("judge and report", () => {
       new Map(),
     );
     expect(found).toEqual([{ severity: "fix", topic: "bug", model: "unknown", verdict: "unjudged" }]);
+  });
+
+  test("carries the confidence of a finding into its row, and tabulates precision by confidence", () => {
+    const withConfidence = judge(
+      [
+        { id: 1, pull_request_review_id: 9, user: bot, body: "🟠🐛 **Fix · bug: a (confidence high)**\n\n<!-- wachi:finding -->" },
+        { id: 2, pull_request_review_id: 9, user: bot, body: "🟠🐛 **Fix · bug: b (confidence low)**\n\n<!-- wachi:finding -->" },
+        { id: 3, in_reply_to_id: 1, user: owner, body: "**Verdict: correct.**" },
+        { id: 4, in_reply_to_id: 2, user: owner, body: "**Verdict: wrong.**" },
+      ],
+      new Map(),
+    );
+    expect(withConfidence.map((r) => r.confidence)).toEqual(["high", "low"]);
+    const text = report(withConfidence);
+    expect(text).toContain("### By confidence");
+    expect(text).toContain("| high | 1 | 1 | 0 | 0 | 0 | 100% |");
+    expect(text).toContain("| low | 1 | 0 | 0 | 1 | 0 | 0% |");
+    // Reviews from before the field existed produce no confidence table.
+    expect(report(rows)).not.toContain("By confidence");
   });
 
   test("precision counts only judged findings, a partial one as half", () => {

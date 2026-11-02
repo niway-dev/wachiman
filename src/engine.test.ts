@@ -3,8 +3,11 @@ import {
   adrNotices,
   annotateDiff,
   attempt,
+  checkOutput,
+  CONTRACTS_SUMMARY,
   countLine,
   dedupeFindings,
+  FLOW_QUESTIONS,
   label,
   lastReviewedSha,
   lastEngineMarker,
@@ -30,6 +33,7 @@ import {
   fileKind,
   mergeOutputs,
   planBatches,
+  renderContracts,
   riskScore,
   marker,
   moveCommentsToBody,
@@ -46,6 +50,7 @@ import {
   type Review,
 } from "./engine";
 import { loadConfig } from "./config";
+import type { Contract } from "./contracts";
 
 // Synthetic pull requests only: these tests never call GitHub or an agent.
 const file = (filename: string, additions: number, deletions = 0, patch = ""): PrFile => ({
@@ -401,6 +406,27 @@ describe("mergeOutputs", () => {
     expect(merged.findings).toHaveLength(2);
   });
 
+  test("merges the contracts of every batch, one per action and location", () => {
+    const c = (over: Partial<Contract> = {}): Contract => ({
+      action: "drag a ready copy",
+      location: "src/panel.ts:174",
+      status: "open",
+      evidence: [],
+      open_question: "Does the toast mark it seen first?",
+      ...over,
+    });
+    const merged = mergeOutputs([
+      { label: "Batch 1 of 2", output: output({ contracts: [c(), c({ action: "Back", location: "src/card.ts:9" })] }) },
+      { label: "Batch 2 of 2", output: output({ contracts: [c({ status: "closed", evidence: ["src/toast.ts:20"] })] }) },
+      { label: "Batch 2 of 2, retry", output: output() },
+    ]);
+    expect(merged.contracts?.map((x) => `${x.action}:${x.status}`)).toEqual(["drag a ready copy:closed", "Back:open"]);
+  });
+
+  test("has no contracts when no batch gave any", () => {
+    expect(mergeOutputs([{ label: "Batch 1 of 1", output: output() }]).contracts).toEqual([]);
+  });
+
   test("keeps a single batch's summary as it is", () => {
     expect(mergeOutputs([{ label: "Batch 1 of 1", output: output() }]).summary).toBe("Looks fine.");
   });
@@ -494,6 +520,19 @@ describe("label", () => {
     expect(label(f("info", "adr", "Edits a record"))).toBe("⚪🏛️ **Info · adr: Edits a record**");
   });
 
+  test("shows the confidence after the title, inside the bold label", () => {
+    expect(label({ ...f("fix", "bug", "Face is lost"), confidence: "high" })).toBe(
+      "🟠🐛 **Fix · bug: Face is lost (confidence high)**",
+    );
+    expect(label({ ...f("consider", "question", "Is it deliberate?"), confidence: "low" })).toBe(
+      "🟡❓ **Consider · question: Is it deliberate? (confidence low)**",
+    );
+  });
+
+  test("shows no confidence when the model gave none", () => {
+    expect(label(f("fix", "bug", "Old output"))).toBe("🟠🐛 **Fix · bug: Old output**");
+  });
+
   test("has an emoji and a word for every severity and topic", () => {
     for (const entry of [...Object.values(SEVERITY), ...Object.values(TOPIC)]) {
       expect(entry.emoji.length).toBeGreaterThan(0);
@@ -534,7 +573,7 @@ describe("SCHEMA", () => {
   const finding = SCHEMA.properties.findings.items;
 
   test("asks for a severity and a topic from the label tables, and nothing else", () => {
-    expect(finding.required).toEqual(["path", "line", "severity", "topic", "title", "body"]);
+    expect(finding.required).toEqual(["path", "line", "severity", "topic", "confidence", "title", "body"]);
     expect(finding.properties.severity.enum).toEqual(["blocker", "fix", "consider", "info"]);
     expect(finding.properties.topic.enum).toEqual([
       "bug",
@@ -547,6 +586,18 @@ describe("SCHEMA", () => {
       "cleanup",
       "question",
     ]);
+  });
+
+  test("asks for a confidence on every finding, separate from severity", () => {
+    expect(finding.properties.confidence.enum).toEqual(["high", "medium", "low"]);
+  });
+
+  test("asks for the contracts list, with every contract field required", () => {
+    expect(SCHEMA.required).toContain("contracts");
+    const contract = SCHEMA.properties.contracts.items;
+    expect(contract.properties.status.enum).toEqual(["closed", "open"]);
+    for (const key of ["action", "location", "evidence", "open_question", "candidates", "failure_mode"])
+      expect(contract.required).toContain(key);
   });
 });
 
@@ -1084,6 +1135,322 @@ describe("buildBatchPrompt", () => {
     expect(RULES).toContain("No escape clauses");
     expect(text).toContain("read that file in full");
     expect(RULES).not.toMatch(/should_fix|"note"|"other"|correctness/);
+  });
+
+  test("asks the flow questions, in their own paragraph before the rules", () => {
+    const text = prompt();
+    expect(text).toContain(FLOW_QUESTIONS);
+    expect(text.indexOf(FLOW_QUESTIONS)).toBeGreaterThan(text.indexOf("Review every file of this part"));
+    expect(text.indexOf(FLOW_QUESTIONS)).toBeLessThan(text.indexOf(RULES));
+    expect(text.indexOf(RULES)).toBe(text.indexOf(FLOW_QUESTIONS) + FLOW_QUESTIONS.length + 2);
+    // Action to effect, the existing path before and after, and what happens when the work finishes.
+    expect(FLOW_QUESTIONS).toContain("new user action");
+    expect(FLOW_QUESTIONS).toContain("Which existing path does the same thing");
+    expect(FLOW_QUESTIONS).toContain("what does that path do before and after");
+    expect(FLOW_QUESTIONS).toContain("How does the result reach what the user sees");
+    expect(FLOW_QUESTIONS).toContain("when that work finishes");
+    expect(FLOW_QUESTIONS).toContain("browser or router Back");
+    expect(FLOW_QUESTIONS).toContain("dropped on the window");
+  });
+
+  test("asks the failure-path question for async calls, handlers, windows and file reads", () => {
+    for (const phrase of [
+      "Failure path",
+      "async call, IPC handler, window or process creation, or file read",
+      "rejects, times out or never delivers",
+      "the sender is not who is",
+      "visible to the user or silent",
+    ])
+      expect(FLOW_QUESTIONS.replace(/\s+/g, " ")).toContain(phrase);
+  });
+
+  test("calls the pull request body the author's claim to verify, not a summary", () => {
+    const flat = FLOW_QUESTIONS.replace(/\s+/g, " ");
+    expect(flat).toContain("author's claim");
+    expect(flat).toContain("never take it as a summary");
+  });
+
+  test("tells the model how to fill contracts: citations, closed only when read, nothing invented", () => {
+    const flat = FLOW_QUESTIONS.replace(/\s+/g, " ");
+    expect(flat).toContain("\`contracts\`");
+    expect(flat).toContain("repository-relative");
+    expect(flat).toContain('"closed" only when you read the code');
+    expect(flat).toContain("not that your answer is true");
+  });
+
+  test("defines confidence apart from severity, and makes a low-confidence fix a question", () => {
+    expect(RULES).toContain("Confidence is separate from severity");
+    for (const level of ["high", "medium", "low"]) expect(RULES).toContain(`- "${level}":`);
+    expect(RULES.replace(/\s+/g, " ")).toContain('confidence "low" at severity "fix" or above is posted with topic "question"');
+  });
+
+  test("calibrates severity: a comment-only problem is never a fix, a silent loss of data always is", () => {
+    const flat = RULES.replace(/\s+/g, " ");
+    expect(flat).toContain('only thing wrong is a comment, docstring, name or documentation, the severity is "consider" or lower, never "fix"');
+    expect(flat).toContain('lose data or see a wrong result silently');
+    expect(flat).toContain('"fix" or higher even when the trigger is rare');
+    expect(flat).toContain("no shell output pasted in and no restating the diff");
+  });
+});
+
+describe("renderContracts", () => {
+  const closed: Contract = {
+    action: "Back from the card's page",
+    location: "src/card.ts:12",
+    visible_effect: "the card is not shown again",
+    failure_mode: "loadURL rejects and the card is lost for the session",
+    status: "closed",
+    evidence: ["src/card.ts:12", "src/router.ts:40-44"],
+    evidence_checked: true,
+  };
+  const open: Contract = {
+    action: "export finishes",
+    location: "src/export.ts:88",
+    status: "open",
+    evidence: [],
+    open_question: "Who re-lists the Library?",
+    candidates: ["src/library.ts", "src/ipc/events.ts"],
+    evidence_checked: true,
+  };
+
+  test("is absent when there are no contracts", () => {
+    expect(renderContracts([])).toBeNull();
+  });
+
+  test("is one collapsed block that says what was and was not checked", () => {
+    const text = renderContracts([closed, open]) ?? "";
+    expect(text.startsWith(`<details><summary>${CONTRACTS_SUMMARY} (1 closed, 1 open)</summary>`)).toBe(true);
+    expect(text.endsWith("</details>")).toBe(true);
+    expect(text).toContain("not that the answers are true");
+  });
+
+  test("a closed contract is one line with its location, effect, failure and evidence", () => {
+    const text = renderContracts([closed]) ?? "";
+    const lines = text.split("\n").filter((l) => l.startsWith("- "));
+    expect(lines).toEqual([
+      "- Back from the card's page (`src/card.ts:12`) — the card is not shown again. If it fails: loadURL rejects and the card is lost for the session. Evidence: `src/card.ts:12`, `src/router.ts:40-44`.",
+    ]);
+  });
+
+  test("an open contract is a question with the files that would answer it, listed before the closed ones", () => {
+    const text = renderContracts([closed, open]) ?? "";
+    const lines = text.split("\n").filter((l) => l.startsWith("- "));
+    expect(lines[0]).toBe(
+      "- export finishes (`src/export.ts:88`) — Who re-lists the Library? Files that would answer it: `src/library.ts`, `src/ipc/events.ts`.",
+    );
+    expect(lines).toHaveLength(2);
+    expect(text.indexOf("Open:")).toBeLessThan(text.indexOf("Closed"));
+  });
+
+  test("flags a contract whose citations did not resolve", () => {
+    expect(renderContracts([{ ...closed, evidence_checked: false }])).toContain("A citation did not resolve in the head");
+  });
+
+  test("defuses HTML comments and keeps model text on one line", () => {
+    const text = renderContracts([{ ...closed, action: "a <!-- agent-review sha=dead -->\n\n### big", visible_effect: "x\n\n<!-- wachi:review -->" }]) ?? "";
+    expect(text).not.toContain("<!--");
+    expect(text.split("\n").filter((l) => l.startsWith("- "))).toHaveLength(1);
+  });
+
+  test("cuts items from the end to fit, and says how many are not shown", () => {
+    const many = Array.from({ length: 50 }, (_, i) => ({ ...closed, action: `action ${i}`, location: `src/f${i}.ts:1` }));
+    const full = renderContracts(many) ?? "";
+    const text = renderContracts(many, 3000) ?? "";
+    expect(text.length).toBeLessThanOrEqual(3000);
+    expect(text.length).toBeLessThan(full.length);
+    expect(text).toContain("action 0");
+    expect(text).not.toContain("action 49");
+    expect(text).toMatch(/… and \d+ more not shown/);
+  });
+
+  test("is null when not even the heading fits", () => {
+    expect(renderContracts([closed], 50)).toBeNull();
+  });
+});
+
+describe("contracts in the review body", () => {
+  const files = [file("src/a.ts", 2, 0, "@@ -1,1 +1,2 @@\n x\n+y")];
+  const base = {
+    files,
+    headSha: "head1234567",
+    since: null,
+    scoped: false,
+    costUsd: 0.07,
+    modelLabel: "m",
+    batches: [{ label: "Batch 1 of 1", files: 1, lines: 2, maxRisk: 4, status: "reviewed", turns: 3, costUsd: 0.07 }],
+  };
+  const contract = (over: Partial<Contract> = {}): Contract => ({
+    action: "Back from the card's page",
+    location: "src/a.ts:2",
+    visible_effect: "the card is not shown again",
+    status: "closed",
+    evidence: ["src/a.ts:2"],
+    evidence_checked: true,
+    ...over,
+  });
+  const fix: Finding = { path: "src/a.ts", line: 2, severity: "fix", topic: "bug", confidence: "high", title: "Face is lost", body: "The feed result is ignored." };
+
+  test("sits after the findings and the summary, and before the coverage table", () => {
+    const { body } = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], findings: [{ ...fix, line: 99 }], contracts: [contract()] }) });
+    const at = (text: string) => body.indexOf(text);
+    expect(at("### Outside the diff")).toBeGreaterThan(-1);
+    expect(at(CONTRACTS_SUMMARY)).toBeGreaterThan(at("### Summary"));
+    expect(at(CONTRACTS_SUMMARY)).toBeLessThan(at("<summary>Coverage by batch"));
+    expect(at("<summary>Coverage by batch")).toBeLessThan(at("<sub>"));
+  });
+
+  test("is left out when the batches gave none", () => {
+    const { body } = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"] }) });
+    expect(body).not.toContain(CONTRACTS_SUMMARY);
+  });
+
+  test("shows the confidence in the header of an inline comment and of a listed finding", () => {
+    const { comments, body } = buildReview({
+      ...base,
+      output: output({ files_reviewed: ["src/a.ts"], findings: [fix, { ...fix, line: 99, confidence: "low", title: "Outside" }] }),
+    });
+    expect(comments[0].body.split("\n")[0]).toBe("👮 **Wachiman** · 🟠🐛 **Fix · bug: Face is lost (confidence high)**");
+    expect(body).toContain("🟠🐛 **Fix · bug: Outside (confidence low)** (`src/a.ts:99`)");
+  });
+
+  test("a body over the limit loses its contracts down to what fits, never a finding", () => {
+    const many = Array.from({ length: 2000 }, (_, i) => contract({ action: `action ${i}`, location: `src/f${i}.ts:1`, visible_effect: "x".repeat(250) }));
+    const { body, comments } = buildReview({
+      ...base,
+      output: output({ files_reviewed: ["src/a.ts"], findings: [fix, { ...fix, line: 99, title: "Outside" }], contracts: many }),
+    });
+    expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+    expect(body).toContain(CONTRACTS_SUMMARY);
+    expect(body).toMatch(/… and \d+ more not shown \(size limit\)/);
+    expect(body).toContain("Outside");
+    expect(comments).toHaveLength(1);
+    expect(body).toContain("<summary>Coverage by batch");
+    expect(body.endsWith(marker("head1234567"))).toBe(true);
+  });
+
+  test("when even the findings leave no room, the contracts go and the rest stays", () => {
+    const outside = Array.from({ length: 400 }, (_, i) => ({ ...fix, line: 100 + i, title: `Outside ${i}`, body: "z".repeat(140) }));
+    const { body } = buildReview({
+      ...base,
+      output: output({ files_reviewed: ["src/a.ts"], findings: outside, contracts: [contract()] }),
+    });
+    const withoutContracts = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], findings: outside }) }).body;
+    if (withoutContracts.length > MAX_BODY_CHARS - 600) expect(body).not.toContain(CONTRACTS_SUMMARY);
+    expect(body).toContain("Outside 399");
+  });
+
+  describe("when GitHub refuses the inline comments", () => {
+    const comments = [{ path: "src/a.ts", line: 2, side: "RIGHT" as const, body: `Title\n\n${"x".repeat(400)}\n\n${SIGNATURE.finding}` }];
+    const block = renderContracts([contract()]) ?? "";
+    const coverage = "<details><summary>Coverage by batch</summary>\n\n| Batch |\n\n</details>";
+    const body = (summary: string) =>
+      [
+        "👮 **Wachiman** · review of the whole pull request, at `abc1234`: all 1 files reviewed.",
+        "1 finding(s): 1 to fix; 1 on their lines. Reply in a comment's thread to answer it.",
+        `### Summary\n\n${summary}`,
+        block,
+        coverage,
+        "<sub>m · $0.07</sub>",
+        SIGNATURE.review,
+        marker("abc1234def"),
+      ].join("\n\n");
+
+    test("trims the contracts first: a small overflow costs the contracts, not the coverage table or the summary", () => {
+      const roomy = body("Ok.");
+      // About 50 characters under the limit: the moved list's heading and note push it over.
+      const input = body(`Ok.${"y".repeat(MAX_BODY_CHARS - roomy.length - 50)}`);
+      expect(input.length).toBeLessThan(MAX_BODY_CHARS);
+      const moved = moveCommentsToBody({ body: input, comments });
+      expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+      expect(moved.body).not.toContain(CONTRACTS_SUMMARY);
+      expect(moved.body).toContain("<summary>Coverage by batch");
+      expect(moved.body).toContain("yyyy");
+      expect(moved.body).toContain("1 listed below");
+      expect(moved.body).toContain(SIGNATURE.review);
+    });
+
+    test("a bigger overflow takes the coverage table next, then the summary, and keeps the footer", () => {
+      const roomy = body("Ok.");
+      const input = body(`Ok.${"y".repeat(MAX_BODY_CHARS - roomy.length + (block.length + coverage.length + 300))}`);
+      const moved = moveCommentsToBody({ body: input, comments });
+      expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+      expect(moved.body).not.toContain(CONTRACTS_SUMMARY);
+      expect(moved.body).not.toContain("<summary>Coverage by batch");
+      expect(moved.body).toContain("all 1 files reviewed");
+      expect(moved.body).toContain("(Trimmed: this review is at GitHub's size limit.)");
+      expect(moved.body).toContain(SIGNATURE.review);
+      expect(moved.body.endsWith(marker("abc1234def"))).toBe(true);
+    });
+
+    test("keeps the contracts when the body has room", () => {
+      const moved = moveCommentsToBody({ body: body("Ok."), comments });
+      expect(moved.body).toContain(CONTRACTS_SUMMARY);
+      expect(moved.body).toContain("<summary>Coverage by batch");
+    });
+  });
+});
+
+describe("checkOutput", () => {
+  const found = (over: Partial<Finding> = {}): Finding => ({
+    path: "src/a.ts",
+    line: 1,
+    severity: "fix",
+    topic: "bug",
+    title: "t",
+    body: "b",
+    ...over,
+  });
+  const lines = (path: string) => (path === "src/a.ts" ? 10 : null);
+  const raw = (over: Record<string, unknown> = {}) => ({
+    action: "a",
+    location: "src/a.ts:1",
+    equivalent_path: "",
+    before_after: "",
+    visible_effect: "v",
+    failure_mode: "",
+    status: "closed",
+    evidence: ["src/a.ts:3"],
+    open_question: "",
+    candidates: [],
+    ...over,
+  });
+
+  test("keeps a valid confidence and drops one outside high, medium, low, with a warning", () => {
+    const warnings: string[] = [];
+    const checked = checkOutput(
+      output({ findings: [found({ confidence: "high" }), found({ line: 2, confidence: "certain" as never }), found({ line: 3 })] }),
+      lines,
+      (w) => warnings.push(w),
+    );
+    expect(checked.findings.map((f) => f.confidence)).toEqual(["high", undefined, undefined]);
+    expect(warnings).toHaveLength(1);
+  });
+
+  test("marks the contracts whose citations resolve, and warns for those whose do not", () => {
+    const warnings: string[] = [];
+    const checked = checkOutput(
+      output({
+        contracts: [
+          raw(),
+          raw({ action: "missing", evidence: ["src/gone.ts:3"] }),
+          raw({ action: "range", evidence: ["src/a.ts:11"] }),
+          raw({ action: "broken", status: "maybe" }),
+        ] as never,
+      }),
+      lines,
+      (w) => warnings.push(w),
+    );
+    expect(checked.contracts?.map((c) => [c.action, c.evidence_checked])).toEqual([
+      ["a", true],
+      ["missing", false],
+      ["range", false],
+    ]);
+    // Two unverified citations and one malformed entry; the review itself goes on.
+    expect(warnings).toHaveLength(3);
+  });
+
+  test("a batch with no contracts stays without any", () => {
+    expect(checkOutput(output(), lines, () => {}).contracts).toEqual([]);
   });
 });
 

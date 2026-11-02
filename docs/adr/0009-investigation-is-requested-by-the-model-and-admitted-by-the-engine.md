@@ -58,6 +58,23 @@ that a score understands semantics.
 - Each batch's output grows a `contracts` list the engine can verify for shape and reference
   existence, not for truth.
 
+## Implementation
+
+Status stays "proposed": whether to accept the ADR is the owner's call, and most of its decision is
+not built. What exists (branch `feat/flow-questions-and-contracts`; spec decisions 1, 2, 3 and 9):
+
+- The flow questions and the failure-path question are in every batch prompt (`FLOW_QUESTIONS`),
+  and the pull request body is named as the author's claim to verify.
+- `contracts[]` is in the batch output schema. The engine checks shape and that every cited line
+  exists in the checked-out head (`src/contracts.ts`), warns and marks `evidence_checked: false`
+  when it does not, merges contracts across batches, and renders them in a collapsed "What the
+  change connects to" block.
+- `confidence` is a field of each finding, shown in its label.
+
+Not built: the risk map (decisions 4 and 5), `needs_investigation`, the reserve and the admission
+policy, including observation mode (decisions 6 to 8). Open contracts are listed in the review
+and nothing acts on them yet.
+
 ## Non-goals
 
 - Automatic resolution of anything the model investigated.

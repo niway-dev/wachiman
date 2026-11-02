@@ -59,17 +59,29 @@ decides. Keep each rule in one place.
 Above all of them sit the engine's own rules, which the instructions are told never to change:
 
 - the **severity tests** (a Blocker must name the input, state or trust boundary that fails;
-  a Fix must be specific; Consider is judgement; Info asks for no reply),
+  a Fix must be specific; Consider is judgement; Info asks for no reply; a problem that is only
+  in a comment, docstring, name or document is never a Fix; a silent loss of data or a silently
+  wrong result is a Fix or higher even when rare),
+- the **confidence definition** (`high`, `medium`, `low`, separate from severity; a `low`
+  confidence finding at Fix or above is posted as a question),
+- the **flow questions** (what a new action or call changes, what the existing equivalent path
+  does, how the result reaches the user, what happens when background work finishes or the user
+  goes Back, what happens when a new async call, handler, window or file read fails), and the
+  rule that the pull request body is the author's claim to verify, not a summary,
 - the **evidence rules** (cite the line behind every premise of a Blocker or a Fix; suggest a fix
   only for the failure shown; check all callers of a shared contract),
 - the **output format**, a fixed schema.
 
-Only one part of that is held by code:
+Only two parts of that are held by code:
 
-- **Held by the schema:** the label set. The output schema allows four severities and nine topics
-  ([reviews.md](reviews.md)), and the engine's label tables have no others. A rule saying "use
-  severity `critical`" or "add a `style` topic" cannot work.
-- **Not enforced:** everything else. The prompt tells the model that instructions do not change
+- **Held by the schema:** the label set. The output schema allows four severities, nine topics
+  and three confidence levels ([reviews.md](reviews.md)), and the engine's label tables have no
+  others. A rule saying "use severity `critical`" or "add a `style` topic" cannot work.
+- **Held by the engine, for contracts:** each answer to a flow question has the right shape, and
+  every `file:line` it cites exists in the checked-out head. That checks existence, not truth: an
+  answer can cite real lines and still be wrong, and the engine does not judge it.
+- **Not enforced:** everything else, including that a `low` confidence finding at Fix or above is
+  posted as a question. The prompt tells the model that instructions do not change
   the severity tests or the evidence rules, but no code checks that the model obeys. A rule such
   as "never report anything about tests" is an instruction the model may follow; the engine does
   not verify it, and it does not mark the review when the model followed it. The proposal that

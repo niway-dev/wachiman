@@ -113,9 +113,11 @@ the temporary files described above.
 
 ### Why did it not review my latest push?
 
-A push never starts a review. The automatic review runs when a pull request is opened or marked
-ready for review. For later commits, the operator comments `/wachi review`. See
-[reviews.md](reviews.md).
+If the caller listed `synchronize`, it does: each push is reviewed, only the commits new since the
+last review ([reviews.md](reviews.md#reviews-on-push)). A caller written before that default lists
+only `opened` and `ready_for_review`; add `synchronize` to its `pull_request` types, or comment
+`/wachi review` for one push. Also check that the pull request is not a draft, a fork's, Dependabot's
+or on a skipped branch prefix, and that `review_on_push` is not `false`.
 
 ### Does it read every changed line?
 

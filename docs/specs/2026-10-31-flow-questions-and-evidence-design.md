@@ -1,7 +1,10 @@
 # Flow questions, evidence and admitted investigation
 
-- **Status:** proposed 2026-10-31. Nothing implemented. Written on Claude Fable 5.1 after an
-  adversarial review by GPT-6.1 Sol and two research notes.
+- **Status:** proposed 2026-10-31. Written on Claude Fable 5.1 after an adversarial review by
+  GPT-6.1 Sol and two research notes. **Implemented: decisions 1, 2, 3 and 9** (flow questions and
+  failure-path question in the prompt, `contracts[]` with a citation check, the PR body as a claim
+  to verify, `confidence` on findings). Nothing else is built: decisions 4 to 8 and 10 to 14, and
+  the ablation and replay under Measurement, have not been done.
 - **Creates:** ADR 0009 (investigation requested by the model, admitted by the engine).
   Reuses ADR 0001 (budgets in the workflow, no hosted service), ADR 0003 (labels), ADR 0006
   (repository policy from base).
