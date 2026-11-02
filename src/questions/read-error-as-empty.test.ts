@@ -340,7 +340,7 @@ describe("read-error-as-empty: never matches", () => {
     }
   });
 
-  test("test files: they read and write fixtures on purpose (2 of the 5 firings on the kaipu-record data PRs)", () => {
+  test("test files: they read and write fixtures on purpose (2 of the 4 firings on the kaipu-record data PRs)", () => {
     const text = ["try { x = readFileSync(f); } catch { x = []; }", "writeFile(f, x);"];
     for (const f of [
       "apps/kaipu-record/src/main/workspaces/move-item.test.ts",

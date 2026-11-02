@@ -25,7 +25,7 @@ import type { DataPathQuestion } from "./types";
 
 const CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/i;
 /**
- * Tests read and write fixtures on purpose. On the seven kaipu-record data PRs two of the five
+ * Tests read and write fixtures on purpose. On the seven kaipu-record data PRs two of the four
  * firings were test files; the question is about production data paths, so they are excluded.
  */
 const TEST_FILE = /(?:\.(?:test|spec)\.[a-z]+$|(?:^|\/)(?:__tests__|__mocks__|tests?|e2e|fixtures?)\/)/i;
