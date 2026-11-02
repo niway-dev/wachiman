@@ -340,6 +340,19 @@ describe("read-error-as-empty: never matches", () => {
     }
   });
 
+  test("test files: they read and write fixtures on purpose (2 of the 5 firings on the kaipu-record data PRs)", () => {
+    const text = ["try { x = readFileSync(f); } catch { x = []; }", "writeFile(f, x);"];
+    for (const f of [
+      "apps/kaipu-record/src/main/workspaces/move-item.test.ts",
+      "src/store.spec.ts",
+      "test/store.ts",
+      "src/__tests__/store.ts",
+      "tests/e2e/store.ts",
+    ])
+      expect(applies(text, f)).toBe(false);
+    expect(applies(text, "src/main/latest.ts")).toBe(true);
+  });
+
   test("UI lines without a file read", () => {
     expect(
       applies([

@@ -15,6 +15,8 @@ import type { DataPathQuestion } from "./types";
  *  2. that catch does not rethrow, check an error code (ENOENT…), or return an error result; and
  *  3. the same added lines also call a write (`writeFile`, `atomicWriteFile`, `save…`, `this.write(`…).
  *
+ * Test files never trigger it (see TEST_FILE).
+ *
  * Trade-off for (3): the write must be in the same added lines, in any order. A catch added to an
  * existing store whose write is unchanged context is missed, which is the price of not sending
  * this question with every config loader that falls back to defaults and never writes. Widening
@@ -22,6 +24,11 @@ import type { DataPathQuestion } from "./types";
  */
 
 const CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/i;
+/**
+ * Tests read and write fixtures on purpose. On the seven kaipu-record data PRs two of the five
+ * firings were test files; the question is about production data paths, so they are excluded.
+ */
+const TEST_FILE = /(?:\.(?:test|spec)\.[a-z]+$|(?:^|\/)(?:__tests__|__mocks__|tests?|e2e|fixtures?)\/)/i;
 
 const READ =
   /\b(?:read[A-Za-z]*|load[A-Z][A-Za-z]*|getItem)\s*\(|\bBun\.file\s*\(|\b(?:fs|fsp|promises)\.[a-z]*[Rr]ead[A-Za-z]*\s*\(/;
@@ -123,7 +130,7 @@ export const QUESTION: DataPathQuestion = {
   title: "An unreadable file treated as empty, then written back",
   text: `For each new or changed read of a file, store or cache whose value is written back later: does the failure handling tell a missing file (ENOENT: empty is right) from one that exists but cannot be read (EACCES, EIO, EBUSY, a cloud placeholder not yet downloaded, a lock, a timeout)? If a \`catch\` or \`.catch\` returns an empty default for every error, find the write that persists that value (an update, save or copy) and say what it overwrites. Unreadable must refuse or retry, never become the empty value. Handling corrupt JSON does not cover this. When it fails, report a finding naming the read, the write and the data lost.`,
   applies(addedLines, filename) {
-    if (!CODE_FILE.test(filename)) return false;
+    if (!CODE_FILE.test(filename) || TEST_FILE.test(filename)) return false;
     const lines = addedLines.map(stripComments);
     if (!lines.some((l) => WRITE.test(l))) return false;
     return readFailureDefaults(lines);

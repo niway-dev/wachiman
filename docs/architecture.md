@@ -128,6 +128,13 @@ All names are in `src/engine.ts` unless a file is given.
    the prompt never asked; the reasoning is in the
    [spec](specs/2026-10-31-flow-questions-and-evidence-design.md) and
    [ADR 0009](adr/0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md).
+   *Data-path questions.* When the added lines of a part show a pattern, `buildBatchPrompt` adds a section
+   right after `FLOW_QUESTIONS` with the questions for it (a delete that does not re-verify its target, a read error
+   treated as empty and written back, two calls in flight on one store, a wait with no total bound, cached state
+   written back over another writer's change). `selectQuestions` in `src/questions/` chooses them from the batch's
+   added lines with one regex trigger per question; a part where none applies gets the prompt it had
+   before, and the engine logs which ids it selected. Not measured in a replay yet; the reasoning and the
+   known trigger misses are in [ADR 0016](adr/0016-data-path-questions-chosen-by-the-engine.md).
    *Why of the evidence rules:* in a real review the model stated a premise as fact
    that a line outside the diff's hunks disproved, and extended a correct fix to a code path whose
    comment said why it must not change; both cost the owner more than the extra reading costs.
