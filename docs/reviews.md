@@ -42,8 +42,8 @@ Rules that apply to all of them:
 - **A new comment cancels an unfinished one.** Two on-demand runs on the same pull request do
   not run side by side: starting the second cancels the first if it is still running.
 - **First install.** The pull request that adds the caller file gets only the automatic review.
-  Commands and thread replies start working from the next pull request. See
-  [install.md](install.md).
+  Commands become available once the caller file is on the default branch, including on existing
+  open pull requests. See [install.md](install.md).
 
 ## Read a review
 
@@ -70,7 +70,7 @@ content and amounts are invented. It is not a recorded review.
 
 ▸ Coverage by batch (collapsed table: batch, files, lines, highest risk, status, turns, cost)
 
-Claude Sonnet 5.5 via Claude Code 2.1.304 · 2 batches · $0.42
+Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · 2 batches · $0.42
 ```
 
 An inline finding, on its line in the diff, looks like this:
@@ -130,9 +130,9 @@ severity.
 The count line says how many findings there are and how many are Blockers, to fix or to consider.
 "Info" findings are in the total but have no group of their own.
 
-The **model, number of batches and cost are in the footer of the review body** (`Claude Sonnet 5.5
-via Claude Code 2.1.304 · 2 batches · $0.42`). The batch count appears only when there was more than
-one batch. Inline comments carry no footer and no cost. The cost is what the provider reported
+The **model, effort, number of batches and cost are in the footer of the review body** (`Claude
+Sonnet 5.5 via Claude Code 2.1.304 · effort high · 2 batches · $0.42`). Releases up to v1.3.0 do
+not print the effort. The batch count appears only when there was more than one batch. Inline comments carry no footer and no cost. The cost is what the provider reported
 for the calls of that run (for Codex, an estimate from token counts), and a call that died
 without a result is counted at its cap. See [costs.md](costs.md).
 

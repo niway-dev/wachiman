@@ -55,7 +55,7 @@ on its install step to pin the hash. The script installs only the binary; it doe
 | An output schema | `--output-format json --json-schema <schema>` |
 | The prompt via stdin | The prompt, preceded by the absolute paths of the head and the scratch files, on stdin, never as an argument (a large diff would exceed Linux's 128 KB limit) |
 | The model | `--model <AGENT_REVIEW_MODEL>` |
-| The reasoning effort | `--effort <AGENT_REVIEW_EFFORT>` (default `high`, always passed; Claude Code's own default changed in 2.1.94) |
+| The reasoning effort | `--effort <AGENT_REVIEW_EFFORT>` (default `high`, always passed; Claude Code's own default changed in 2.1.94; not in v1.3.0, the latest release when this page was written) |
 
 Always added by the adapter, whatever the engine asks: `--restricted`, `--strict-mcp-config`,
 `--settings <claude-code.settings.json>` and `--disallowedTools

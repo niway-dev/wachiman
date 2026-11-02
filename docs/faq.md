@@ -50,7 +50,7 @@ The engine's code contains no network calls of its own. It talks to GitHub throu
 and to the model through the provider's CLI (`claude`, or `codex`). The only download its scripts
 make is the pinned Claude Code binary, fetched from the publisher and checked against a SHA-256
 ([providers/claude-code.md](providers/claude-code.md)); the workflow also uses GitHub's checkout
-and Bun setup actions. Your key stays in your repository secrets. A search of the engine's source
+and Bun setup actions. GitHub stores the key as a secret and supplies it to the provider CLI during the run. A search of the engine's source
 found no analytics or telemetry sender. That says nothing about the project's website, GitHub or
 your model provider, which have their own policies.
 

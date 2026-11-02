@@ -348,28 +348,14 @@ the second adapter does not fit.
 ## Configuration
 
 Settings are read once by `loadConfig` in `src/config.ts`; each `AGENT_REVIEW_X` falls back to the
-deprecated `CLAUDE_REVIEW_X` with a notice. Full descriptions are in [cli.md](cli.md) and [configuration](configuration.md).
-
-| Variable | Default | Where the default lives |
-| --- | --- | --- |
-| `AGENT_REVIEW_BUDGET_USD` | `3` | `src/config.ts`; workflow input `budget_usd` |
-| `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | `src/config.ts`; input `batch_budget_usd` |
-| `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | `src/config.ts`; input `answer_budget_usd` |
-| `AGENT_REVIEW_BATCH_LINES` | `1000` | `src/config.ts`; input `batch_lines` |
-| `AGENT_REVIEW_BATCH_CHARS` | `140000` | `src/config.ts`; input `batch_chars` |
-| `AGENT_REVIEW_MODEL` | the provider's default: `claude-sonnet-5-5` (`claude-code`), `gpt-6.1-sol` (`codex`) | `DEFAULT_MODELS` in `src/providers/index.ts`; the workflow input `model` defaults to `claude-sonnet-5-5` |
-| `AGENT_REVIEW_PROVIDER` | `claude-code` | `src/config.ts` and `DEFAULT_PROVIDER` in `src/providers/index.ts`; input `provider` |
-| `AGENT_REVIEW_MENTION` | `/wachi` | `src/config.ts` and `DEFAULT_MENTION`; input `mention`; `/wachiman`, `@agent-review` and `@claude` are `MENTION_ALIASES` (see the command gate above for which the workflow routes) |
-| `AGENT_REVIEW_OPERATOR` | none (required by `comment`) | no default; validated by `operatorProblem`; input `operator` is required |
-| `AGENT_REVIEW_EXCLUDE` | none | `src/config.ts`; no workflow input |
-| `AGENT_REVIEW_DRY_RUN` | off | `src/config.ts`; no workflow input |
-| `AGENT_REVIEW_PRICE_PER_MTOK` | none | `src/config.ts`; `codex` only; no workflow input |
-| `AGENT_REVIEW_REASONING_EFFORT` | none | `src/config.ts`; `codex` only; no workflow input |
-| `AGENT_REVIEW_COMMENT_AUTHOR` | none | read in `src/cli.ts`; set by the `on-demand` job |
+deprecated `CLAUDE_REVIEW_X` with a notice. The variables, their defaults and the workflow inputs
+that set them are listed in [configuration.md](configuration.md), the one home for defaults, and
+[cli.md](cli.md) describes the command line. This page does not repeat them.
 
 The built-in exclude list (`DEFAULT_EXCLUDE`), risk rules (`RISK_RULES`), label rules (`RULES`,
-`SEVERITY`, `TOPIC`),
-the output schema (`SCHEMA`) and `MIN_BATCH_USD` are constants in `src/engine.ts`, not settings.
+`SEVERITY`, `TOPIC`), the output schema (`SCHEMA`) and `MIN_BATCH_USD` are constants in
+`src/engine.ts`, not settings.
+
 When the engine runs through the reusable workflow, the workflow always passes its inputs, so the
 workflow defaults are the ones consumers get; the `src/config.ts` defaults apply to direct CLI use
 and the copy-the-files install. The two sets must stay equal.

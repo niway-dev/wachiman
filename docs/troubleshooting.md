@@ -272,7 +272,8 @@ Check these before you assume a bug:
   footer total can therefore be higher or lower than the real bill.
 - `budget_usd` limits one invocation. An automatic review and a `/wachi review` use separate
   concurrency groups, so they can run at once on the same pull request and each spends its own
-  budget. Each retry, each question and each re-run is a new invocation.
+  budget. Each question and rerun starts a new invocation. Batch retries consume the existing
+  invocation's budget.
 - A cancelled or timed-out run keeps what its finished calls cost.
 
 The Anthropic Console shows what you were billed. The number in the review footer, `<sub>… · $0.00</sub>`,
@@ -398,8 +399,10 @@ available from the command line only; see [providers/codex.md](providers/codex.m
 ## Cancelled and timed-out runs
 
 - Each job has a 30-minute limit. Batches run one after another, and the review is posted only
-  after the last one, so a timeout or a cancellation posts nothing, and the calls that finished
-  were paid. A re-run starts again from the beginning. To shorten a run, review a part with
+  after the last one, so a timeout or a cancellation during the batches posts nothing, and the
+  calls that finished were paid. Cancellation before posting leaves no review; cancellation after
+  posting may leave the review and some replies, because the thread replies are separate requests
+  sent after it. Check the pull request before rerunning. A re-run starts again from the beginning. To shorten a run, review a part with
   `/wachi review <paths>` or lower the batch size.
 - A second `/wachi review` on the same pull request cancels the first run that is still in progress
   (concurrency is per pull request and per job, with `cancel-in-progress`). The automatic review has

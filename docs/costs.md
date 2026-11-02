@@ -127,9 +127,10 @@ and spends again.
   that already has a complete review stops with "Already reviewed" before any provider call.
 - **Overlapping jobs.** The automatic job and the on-demand job use separate concurrency groups
   (`agent-review-<pr>` and `agent-review-on-demand-<pr>`), so one cannot cancel the other. If both are
-  running, both spend. Within one job a newer run cancels the older one (`cancel-in-progress`). The
-  cancelled run posts nothing and its footer never appears. Whether the provider bills the calls
-  that were in flight at cancellation is not verified here.
+  running, both spend. Within one job a newer run cancels the older one (`cancel-in-progress`). Cancellation
+  before posting leaves no review; cancellation after posting may leave the review and some replies.
+  Check the pull request before rerunning. Whether the provider bills the calls that were in flight
+  at cancellation is not verified here.
 - **Large single files.** A file bigger than a batch's line or character limit becomes a batch of its
   own and is not split. The limits are not a ceiling on how much the model reads, because it can read
   more of the head through its read tools.
@@ -148,15 +149,17 @@ workflow has no dry-run input; the setting exists for the command line and the c
 Every review ends with a line like this one (illustrative):
 
 ```
-Claude Sonnet 5.5 via Claude Code 2.1.304 · 4 batches · $1.87
+Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · 4 batches · $1.87
 ```
 
 - **The model label** is the model, the CLI that ran it and that CLI's version.
+- **`effort high`** is the reasoning effort the run used. Releases up to v1.3.0 do not print it, so
+  their footers read `... via Claude Code 2.1.304 · 4 batches · $1.87`.
 - **`N batches`** appears only when the review used more than one batch.
 - **The dollar figure** is the engine's `spent`: the sum of what each call reported, plus the cap for
   any call that failed without a result. It includes retries. It is formatted to two decimals, so
   a small cost can show as `$0.00`.
-- An answer to a question ends with the model and the cost of its one call, with no batch count.
+- An answer to a question ends with the model, the effort and the cost of its one call, with no batch count.
 
 Open **Coverage by batch** in the review for one row per batch:
 
@@ -201,6 +204,8 @@ against one.
 - For Codex, it is an estimate from token counts and the price table in the code.
 - A failed call is counted at its cap, which may differ from what the provider charged.
 - A cancelled run, or a run that failed before posting, shows no footer at all, but may have spent.
+  Cancellation before posting leaves no review; cancellation after posting may leave the review and
+  some replies. Check the pull request before rerunning.
 - It does not include GitHub runner minutes.
 
 To see what you were actually charged, use the provider's console (the Anthropic Console for the

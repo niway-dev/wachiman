@@ -106,9 +106,14 @@ with Codex 0.153.4 and a ChatGPT account, `gpt-6.1-sol` and `gpt-6-sol` were ref
 when using Codex with a ChatGPT account"), and `gpt-5.6-sol` worked. An API key is expected to
 serve them; this is part of the CI check above.
 
-`AGENT_REVIEW_EFFORT` (default `high`) sets `model_reasoning_effort`. It is passed through as is:
-Codex may refuse `xhigh` or `max` for some models, so choose a value the model accepts.
-`AGENT_REVIEW_REASONING_EFFORT` still works as a deprecated alias.
+`AGENT_REVIEW_EFFORT` sets `model_reasoning_effort`. It is not in v1.3.0, the latest release when
+this page was written; from the release that includes it, the setting works for both providers,
+defaults to `high` and is always passed, so the model's own default no longer applies. It accepts
+`low`, `medium`, `high`, `xhigh` or `max`, and any other value stops the run at startup. A value
+from that list is still passed through as is: Codex may refuse `xhigh` or `max` for some models, so
+choose one the model accepts. `AGENT_REVIEW_REASONING_EFFORT` is a deprecated alias that logs a
+warning; `AGENT_REVIEW_EFFORT` wins when both are set. Before this change, the old variable was
+Codex-only, was not validated, and left the model's default in place when unset.
 
 ## Verified run
 
