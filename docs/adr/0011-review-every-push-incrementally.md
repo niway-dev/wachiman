@@ -17,7 +17,7 @@ remembered to comment `/wachi review`.
 The benchmark shows what that costs. On kaipu-record #463 the author pushed fixes after the first
 review. Pullfrog's re-review of those commits found a High bug (a queued camera-on reopens the
 camera after a newer off) that is still open on `main`. Wachiman never ran again on that pull
-request ([benchmark](../benchmark/2026-10-31/README.md)). Pullfrog and CodeRabbit both re-review on
+request ([benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/README.md)). Pullfrog and CodeRabbit both re-review on
 push, so a reader comparing the tools sees the gap.
 
 The engine already reviews incrementally. `review()` reads the last reviewed commit from the signed
