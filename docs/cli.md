@@ -1,7 +1,9 @@
 # Command-line contract
 
 `agent-review` is one command with two subcommands. The reusable workflow and the copied caller
-workflow both run exactly this; anything else that wants to drive a review can too.
+workflow both run exactly this; anything else that wants to drive a review can too. Every setting
+it reads is listed in [configuration.md](configuration.md); this page covers the commands, what
+they post and how they exit.
 
 ```sh
 bun src/cli.ts review <pr> [paths…] [--repo-dir <dir>]
@@ -12,13 +14,28 @@ bun src/cli.ts --version
 
 `package.json` declares `"bin": {"agent-review": "src/cli.ts"}` and the file starts with
 `#!/usr/bin/env bun`, so an installed copy can be run as `agent-review …`. Bun is required (the
-engine uses `Bun.Glob`).
+engine uses `Bun.Glob`), and so are the `gh` CLI and the provider's binary on the `PATH`.
+
+Argument rules, as implemented:
+
+- The command (`review` or `comment`) must be the first argument. `--help`/`-h` and
+  `--version`/`-v` are recognised only as the first argument too.
+- `<pr>` must be digits only and greater than 0.
+- `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
+  rest are read, so it is never taken for a path.
+- `comment` takes no paths: `comment takes no paths.` exits 2.
 
 ## Options
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `--repo-dir <dir>` (or `--repo-dir=<dir>`) | `.` | The checked-out pull request head. The engine starts the agent with it as working directory; it reads nothing from it itself, and nothing else from the current directory. A directory that does not exist is a usage error. |
+| `--repo-dir <dir>` (or `--repo-dir=<dir>`) | `.` | The checked-out pull request head. The engine reads no file from it itself: it gets the diff and file list from GitHub through `gh`. It gives the head's absolute path to the agent, which reads files there, and uses it to turn paths the agent reports into repository-relative ones. A directory that does not exist is a usage error. |
+
+Neither adapter starts the agent inside the head. Each starts it in an empty scratch directory and
+tells it where the head is, so that a `CLAUDE.md`, `AGENTS.md` or settings file in the reviewed
+branch is not loaded as instructions (see [providers/claude-code.md](providers/claude-code.md) and
+[providers/codex.md](providers/codex.md)). The engine process itself runs in whatever directory
+you launch it from.
 
 The reusable workflow runs the engine from its own checkout (`engine/`) and passes the head
 (`head/`) here, so the process's working directory is never the reviewed code. Run it the same way:
@@ -31,30 +48,105 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 
 | Command | What it does |
 | --- | --- |
-| `review <pr> [paths…]` | Reviews the pull request. After the first review, only what changed since the last reviewed commit. With paths, only those paths (words that name no changed file are ignored). Posts one GitHub review with inline comments, and replies in its own open threads. |
-| `comment <pr>` | Fails with exit 1 when `AGENT_REVIEW_OPERATOR` is empty or a template placeholder (`EDIT…`, `your-github-login`). Reads the comment from `REQUEST`. If it mentions the tool (`AGENT_REVIEW_MENTION`, default `/wachi`, or the aliases `@agent-review` and `@claude`): `review [paths…]` runs a review, anything else is a question answered as a pull request comment. A comment without a mention does nothing. |
+| `review <pr> [paths…]` | Reviews the pull request and posts one GitHub review with inline comments, then replies in its own open threads when there is work to do. See "Incremental reviews" and "Scope" below. |
+| `comment <pr>` | Routes the operator's comment (from `REQUEST`) to a review, an answer or nothing. See "What `comment` does" below. |
+
+### Incremental reviews
+
+- First review of a pull request: every changed file that is not [excluded](configuration.md#excluded-files).
+- Later unscoped `review`: only what changed since the last reviewed commit, when that commit is an
+  ancestor of the head. If it is not (after a force-push or rebase), the whole pull request is
+  reviewed again, and the engine logs that it fell back to a full review.
+- The last reviewed commit is the one recorded by the engine's own most recent complete, unscoped
+  review. A scoped review, or one that left files unreviewed, does not move it. The marker is read
+  only from reviews by `github-actions[bot]` that carry the engine's signature; an unsigned legacy
+  marker counts only on reviews from before 2026-11-01 and before the first signed review.
+- If the head is the last reviewed commit and no path was given, the review is skipped with an
+  `Already reviewed` notice. A request with a path that matches a changed file always runs.
+
+### Scope
+
+`review src docs/api` limits the review to changed files that are exactly those paths or lie under
+them. Words are paths or directory prefixes, never globs, and words that name no changed file are
+ignored.
+
+**A scope that matches nothing is not an error.** If every word is ignored, the engine behaves as if
+no path had been given: on a head that has not been reviewed it runs a normal (possibly full) paid
+review, and on an already-reviewed head it posts `Already reviewed`. Today a mistyped path can
+therefore widen a review instead of narrowing it. Details and the exact matching rules:
+[configuration.md](configuration.md#scope-words).
+
+### What `comment` does
+
+The checks run in this order:
+
+1. If `AGENT_REVIEW_OPERATOR` is empty or a template placeholder (`EDIT…`, `your-github-login`),
+   `comment` fails with exit 1. This is checked before anything else, including before it looks at
+   the comment.
+2. If `AGENT_REVIEW_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
+   notice and exits 0 without doing anything. If it is unset, the engine does no author check: a
+   caller that runs `comment` directly decides who may reach it.
+3. If the comment contains no command word (`AGENT_REVIEW_MENTION`, default `/wachi`, or the
+   aliases `/wachiman`, `@agent-review`, `@claude`), nothing happens and it exits 0.
+4. If the first word after the command word is `review`, it runs `review` with the remaining words
+   as paths.
+5. Otherwise the whole comment is a question, and one agent call answers it as a pull request
+   comment.
+
+The workflow's own filter for which comments start a job is looser than the parser used in step 3,
+and for custom mentions the two accept different words. That is documented, with examples, under
+[Mentions and commands](configuration.md#mentions-and-commands).
+
+Because the provider check runs before `comment` reads the request (see [Exit codes](#exit-codes)),
+even a comment that would do nothing needs a working provider binary and credential.
 
 ## What it posts
 
-- `review`: one review (event `COMMENT`, never an approval or a change request) whose first line
-  says whether coverage is complete or partial, with a "Coverage by batch" table and a footer
-  `<sub>{model label} · {n} batches · ${cost}</sub>`; the `· {n} batches` part appears only when
-  the review ran more than one batch. The footer names the provider and model, for
-  example "Claude Sonnet 5.5 via Claude Code 2.1.304". A complete, unscoped review ends with
-  `<!-- agent-review sha=<head> -->`; the next review starts from that commit. The older
-  `<!-- claude-review sha=… -->` marker is still read, never written.
-- `review` when nothing changed: a short review body saying so ("Already reviewed", "Nothing to
-  review").
-- `comment` with a question: one pull request comment holding the answer and a footer with the
-  model label and cost (no batch count, since an answer is one call). The `answer` path has
-  limits: it puts the whole diff in one call (no batching), reads only the first 100 review
-  threads of the pull request, and at most 30 comments per thread.
+- `review`: one GitHub review with the event `COMMENT`, never an approval or a change request. Its
+  first line says whether coverage is complete or partial, and it ends with a "Coverage by batch"
+  table and a footer `<sub>{model label} · effort {effort} · {n} batches · ${cost}</sub>`; the
+  `· {n} batches` part appears only when the review ran more than one batch. The footer names the
+  provider and model, for example "Claude Sonnet 5.5 via Claude Code 2.1.304", and the reasoning
+  effort the run used (`low`, `medium`, `high`, `xhigh` or `max`, [configuration.md](configuration.md#reasoning-effort)).
+  The `· effort {effort}` part is **new in the release after v1.3.0**: the footer of a v1.3.0
+  review is `<sub>{model label} · {n} batches · ${cost}</sub>` and has no effort field. A finding on a line of the diff is an
+  inline comment on that line; one on a line outside the diff goes in the body under "Outside the
+  diff". Coverage is reported by the agent per file, not measured line by line.
+- A complete, unscoped review also ends with `<!-- agent-review sha=<head> -->`; the next
+  unscoped review starts from that commit. The older `<!-- claude-review sha=… -->` marker is still
+  read, never written (see "Incremental reviews" for the cutoff).
+- `review` when nothing is to be done: a short review body. `Already reviewed at <sha>` when the
+  head was already reviewed, `Nothing to review at <sha>` when every changed file is excluded or
+  outside the requested paths.
+- `review` when the agent ran out of its budget before finishing any batch: a short review body
+  saying nothing was reviewed reliably and suggesting a review by path. The process exits 0. If
+  some batches did finish, their findings are posted with the unfinished files listed as not
+  reviewed.
+- Replies in threads: when a review has work to do and an earlier complete, unscoped review left a marker, the engine looks
+  at the tool's own unresolved threads on the pull request and may post a reply in each ("Looks
+  addressed" or "Still open"). Only the first 100 review threads of the pull request are fetched,
+  at most 30 comments per thread, and only replies by an `OWNER`, `MEMBER` or `COLLABORATOR` reach
+  the agent. The engine never resolves a thread. These limits belong to `review`, not to answers.
+  Threads are not read when a review ends early as `Already reviewed` or `Nothing to review`, and
+  nothing starts a run when someone replies in a thread, so a reply on an unchanged head waits for
+  a later review that has work (a push, or a request with a path that matches). That is today's
+  behaviour.
+- `comment` with a question: one pull request comment (not a review) holding the answer, written in
+  English, and a footer `<sub>{model label} · effort {effort} · ${cost}</sub>` (no batch count,
+  since an answer is one call). As with a review, the `· effort {effort}` part is new in the
+  release after v1.3.0; v1.3.0 prints `<sub>{model label} · ${cost}</sub>`. The answer is one call over the whole diff, with no batching, no coverage check and no
+  thread context, capped by `answer_budget_usd`.
 - With `AGENT_REVIEW_DRY_RUN=1` it reads GitHub but prints instead of posting. It still calls the
-  agent, so it costs money.
+  agent, so it still costs money.
+
+Before posting, the engine refuses to post anything that contains something shaped like a provider
+credential, and exits 1 with `The output contains something shaped like a provider credential; not
+posting it.` This is a check for the provider's key and key-shaped strings, not a general secret
+scanner. See [SECURITY.md](../SECURITY.md).
 
 ## Environment
 
-Required:
+Required for both commands:
 
 | Variable | Meaning |
 | --- | --- |
@@ -63,51 +155,30 @@ Required:
 | `REQUEST` | `comment` only: the comment text. Pass it through the environment, never interpolated into a shell command. |
 | Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`. For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. |
 
-The `gh` CLI and the provider's binary (`claude` for `claude-code`) must be on the `PATH`.
+The `gh` CLI and the provider's binary (`claude` for `claude-code`, `codex` for `codex`) must be on
+the `PATH`.
 
-Settings, all optional:
-
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `AGENT_REVIEW_BUDGET_USD` | `3` | Total for all batches (and retries) of one review |
-| `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | Cap for one batch call, further limited by what is left of the total |
-| `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | Cap for one question answered by `comment` |
-| `AGENT_REVIEW_BATCH_LINES` | `1000` | Changed lines per batch |
-| `AGENT_REVIEW_BATCH_CHARS` | `140000` | Characters of diff per batch (about 40k tokens at 3.5 characters a token) |
-| `AGENT_REVIEW_DRY_RUN` | unset | `1`: read GitHub, print the review instead of posting. The reusable workflow has no input for it; it works only in the copy-the-files install |
-| `AGENT_REVIEW_MODEL` | `claude-sonnet-5-5` for `claude-code`, `gpt-6.1-sol` for `codex` | The reviewer model, passed to the provider |
-| `AGENT_REVIEW_PROVIDER` | `claude-code` | Which adapter runs the agent: `claude-code` (docs/providers/claude-code.md) or `codex` (docs/providers/codex.md). Any other value is a usage error that lists the accepted ones |
-| `AGENT_REVIEW_PRICE_PER_MTOK` | unset | `codex` only: `"input,cached_input,output"` in USD per million tokens, for a model without a built-in price |
-| `AGENT_REVIEW_EFFORT` | `high` | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max`. Passed as `--effort` (Claude Code) or `model_reasoning_effort` (Codex), never translated, so pick a value your provider and model accept. An unknown value stops the run at startup. Printed in every review footer |
-| `AGENT_REVIEW_REASONING_EFFORT` | unset | Deprecated alias of `AGENT_REVIEW_EFFORT` (logs a warning); `AGENT_REVIEW_EFFORT` wins when both are set |
-| `AGENT_REVIEW_MENTION` | `/wachi` | The keyword `comment` looks for. `@agent-review` and `@claude` always work as aliases. The keyword must start a word, so `docs/wachi` is not a command |
-| `AGENT_REVIEW_OPERATOR` | unset | The login allowed to command the tool. `comment` requires it: empty, `your-github-login` and anything starting with `EDIT` are refused. The workflow checks it first; the CLI checks it again when the comment author is known (see below) |
-| `AGENT_REVIEW_EXCLUDE` | unset | Extra globs to drop, comma-separated, on top of lockfiles, build output and generated files. The reusable workflow has no input for it; it works only in the copy-the-files install |
-| `AGENT_REVIEW_COMMENT_AUTHOR` | unset | `comment` only: the comment author's login. A different author than `AGENT_REVIEW_OPERATOR` makes `comment` do nothing and exit 0 |
-
-The defaults in `src/config.ts` and the defaults of the reusable workflow's inputs (see
-[install.md](install.md)) are kept in sync by hand; change both together. CI pins Bun
-separately (in `.github/workflows/ci.yml`) from the workflow's `bun_version` input.
-
-Budgets and sizes must be positive numbers; batch lines and chars, positive integers. Anything
-else is a usage error.
+All optional settings (`AGENT_REVIEW_BUDGET_USD`, `AGENT_REVIEW_MODEL`, `AGENT_REVIEW_PROVIDER`,
+`AGENT_REVIEW_DRY_RUN`, `AGENT_REVIEW_EXCLUDE`, `AGENT_REVIEW_COMMENT_AUTHOR` and the rest) are in
+[configuration.md](configuration.md#engine-settings), with their types, defaults, valid values and
+which provider they apply to. Two things hold for every one of them: budgets and sizes must be
+positive numbers (lines and chars, whole numbers), and anything else is a usage error.
 
 ### Deprecated names
 
-Each `AGENT_REVIEW_X` falls back to the old `CLAUDE_REVIEW_X` when the new one is unset or empty,
-with one line on stderr per variable (`CLAUDE_REVIEW_X is deprecated; use AGENT_REVIEW_X.`).
-Installed copies can migrate one variable at a time. The new name wins when both are set.
+`AGENT_REVIEW_X` settings fall back to the old `CLAUDE_REVIEW_X` names, with a notice on stderr.
+Installed copies can migrate one variable at a time; the new name wins when both are set. The
+fallback covers the engine settings only: [configuration.md](configuration.md#deprecated-names).
 
 ### Repository files
 
-| File | Meaning |
-| --- | --- |
-| `.github/agent-review.md` | Optional. The repository's review focus, read from the pull request's base commit and appended to the rules. A pull request that edits it is reviewed under the base version. |
-| `.github/claude-review.md` | The old name. Read, from the base commit, when the new file is absent, with a notice on stderr. `CLAUDE.md` and `AGENTS.md` are read from the base commit the same way. |
+The engine reads `.github/agent-review.md` (the review focus), the old `.github/claude-review.md`
+name, `CLAUDE.md` and `AGENTS.md` from the pull request's base commit, so a pull request cannot
+change the rules it is reviewed under. Details, size limits and what these files cannot do:
+[configuration.md](configuration.md#repository-files). A YAML configuration file is not
+implemented.
 
-A YAML configuration file is not implemented.
-
-### Finding labels
+## Finding labels
 
 Every finding is labelled on two axes, each an emoji followed by its word, for example
 `🟠📝 **Fix · docs: stale 'Read by' cell**`. The decision is
@@ -119,6 +190,10 @@ Every finding is labelled on two axes, each an emoji followed by its word, for e
 | `fix` | 🟠 Fix | Wrong today; fix it in this pull request; does not block the merge | Inline, or "Outside the diff" |
 | `consider` | 🟡 Consider | Would be better; the author may decline | Inline, or "Outside the diff" |
 | `info` | ⚪ Info | Nothing to change; awareness only | Always the body, under "For your information" |
+
+A severity is advice, not a status. "Blocker" is the reviewer's recommendation that the author
+act before merging; Wachiman never approves, requests changes or blocks a merge, and nothing it
+posts can fail a required check.
 
 | Topic | Emoji | Covers |
 | --- | --- | --- |
@@ -139,12 +214,41 @@ severities or topics: a label means the same thing in every repository that runs
 
 | Code | Meaning |
 | --- | --- |
-| `0` | A review or answer was posted, or there was nothing to do (no mention, not the operator, nothing to review, already reviewed). `--help` and `--version` also exit 0. |
-| `1` | Engine error; nothing was posted. Includes a missing provider binary or credential (checked before any call is paid for), a failed `gh` call, and no batch returning a review. |
-| `2` | Usage error: unknown command, missing or invalid pull request number, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid setting, or an unknown provider. |
+| `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help` and `--version` also exit 0. |
+| `1` | Engine error. **Not the same as "nothing was posted"**: see below. |
+| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` given paths, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
+
+Exit 1 covers:
+
+- Before any call is paid for: a missing provider binary, settings file or credential, a Codex model
+  with no known price, an empty or placeholder operator in `comment`, and a malformed
+  `AGENT_REVIEW_PRICE_PER_MTOK`. The malformed price is raised as an ordinary error, so it exits 1
+  although it is a bad setting. Nothing has been posted.
+- During a review: a failed `gh` call, no batch returning a review (when no call hit its cap),
+  output refused because it looked like a credential, and an answer the agent did not give.
+  Normally nothing has been posted, but exit 1 is not a promise of that.
+- **After the review was posted:** the review is posted first and the thread replies after it. If a
+  reply fails, the process exits 1 although the review is already on the pull request. A review
+  whose last attempt to post failed in an unclear way (for example a network error after GitHub
+  accepted it) may also have landed; the engine checks for that before it retries, but if retries
+  run out the outcome is unknown.
+
+Before re-running after exit 1, look at the pull request: a review may already be there. A complete,
+unscoped review that was posted moves the incremental marker, so running again on the same head
+says `Already reviewed` instead of repeating the replies that failed.
 
 A batch that fails or overruns does not end the review: the batches that ran are posted and the
 rest are listed as not reviewed.
+
+Which exit code you get follows the order of the checks in `main`:
+
+1. Arguments: `--help` and `--version` exit 0; an unknown command, a bad pull request number,
+   `comment` with paths, or a bad `--repo-dir` exit 2.
+2. Settings: an invalid numeric setting exits 2, then an unknown provider exits 2, then a malformed
+   Codex price exits 1.
+3. `GH_TOKEN`, `GITHUB_REPOSITORY`, then (for `comment`) `REQUEST`: each missing one exits 2.
+4. The provider's preflight: any failure exits 1.
+5. Only then does `review` or `comment` run.
 
 ## Providers
 
@@ -153,6 +257,8 @@ The engine (`src/engine.ts`) is provider-neutral. It asks a `ProviderAdapter`
 duration and a terminal reason. Filtering, risk, batches, retries, coverage, budgets, posting and
 threads stay in the engine.
 
-Two adapters exist: [Claude Code](providers/claude-code.md), the default, and
-[Codex](providers/codex.md) (ADR 0004). Each brings its own sandbox story (what the agent may read
-or run), its own structured-output path and its own cost accounting. There is no plugin system.
+Two adapters exist: [Claude Code](providers/claude-code.md), the default and the only one the
+reusable workflow installs, and [Codex](providers/codex.md) (ADR 0004), which is available from the
+CLI only. Each brings its own sandbox story (what the agent may read or run), its own
+structured-output path and its own cost accounting; the differences that affect settings are in
+[configuration.md](configuration.md#providers-and-models). There is no plugin system.
