@@ -79,6 +79,8 @@ Settings, all optional:
 | `AGENT_REVIEW_PROVIDER` | `claude-code` | Which adapter runs the agent: `claude-code` (docs/providers/claude-code.md) or `codex` (docs/providers/codex.md). Any other value is a usage error that lists the accepted ones |
 | `AGENT_REVIEW_PRICE_PER_MTOK` | unset | `codex` only: `"input,cached_input,output"` in USD per million tokens, for a model without a built-in price |
 | `AGENT_REVIEW_EFFORT` | `high` | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max`. Passed as `--effort` (Claude Code) or `model_reasoning_effort` (Codex), never translated, so pick a value your provider and model accept. An unknown value stops the run at startup. Printed in every review footer |
+| `AGENT_REVIEW_MAX_TURNS` | `40` | Most agent turns one provider call may take. Passed as `--max-turns` (Claude Code); Codex has no such flag and ignores it. Normal batches take 5–12 turns; the cap only stops a looping run |
+| `AGENT_REVIEW_CALL_TIMEOUT_S` | `900` | Wall-clock seconds one provider call may run. Past it the process is killed (`SIGKILL`) and the call ends as `timeout`, with cost reported as 0 because the CLI prints nothing before it ends. Applies to both providers |
 | `AGENT_REVIEW_REASONING_EFFORT` | unset | Deprecated alias of `AGENT_REVIEW_EFFORT` (logs a warning); `AGENT_REVIEW_EFFORT` wins when both are set |
 | `AGENT_REVIEW_MENTION` | `/wachi` | The keyword `comment` looks for. `@agent-review` and `@claude` always work as aliases. The keyword must start a word, so `docs/wachi` is not a command |
 | `AGENT_REVIEW_OPERATOR` | unset | The login allowed to command the tool. `comment` requires it: empty, `your-github-login` and anything starting with `EDIT` are refused. The workflow checks it first; the CLI checks it again when the comment author is known (see below) |
@@ -89,7 +91,7 @@ The defaults in `src/config.ts` and the defaults of the reusable workflow's inpu
 [install.md](install.md)) are kept in sync by hand; change both together. CI pins Bun
 separately (in `.github/workflows/ci.yml`) from the workflow's `bun_version` input.
 
-Budgets and sizes must be positive numbers; batch lines and chars, positive integers. Anything
+Budgets and sizes must be positive numbers; batch lines and chars, the turn cap and the call timeout, positive integers. Anything
 else is a usage error.
 
 ### Deprecated names

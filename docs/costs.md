@@ -72,7 +72,8 @@ no batches and no retry.
 | | Claude Code (the reusable workflow's provider) | Codex (CLI only) |
 | --- | --- | --- |
 | Per-call dollar cap | `--max-budget-usd`, checked by Claude Code itself. **Soft**: a call can overshoot it | **None.** The adapter receives the cap and does not use it |
-| Other bound on a call | None in the adapter; the 30 minute job timeout ends it | 15 minute timeout, then `SIGKILL`; the engine treats this like a budget stop |
+| Turn cap | `--max-turns` (`max_turns`, default 40), checked by Claude Code itself; reaching it ends the call as `turns` | **None.** `codex exec` has no such flag |
+| Wall-clock limit on a call | `call_timeout_s` (default 900), then `SIGKILL`; ends the call as `timeout` | Same limit and signal |
 | Where the reported cost comes from | The cost Claude Code reports for the call (`total_cost_usd`) | Computed by the adapter from token counts times a price table in the code |
 | Available from the reusable workflow | Yes | **No.** The workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY` |
 
@@ -84,7 +85,7 @@ What this means in practice:
 - With Claude, the caps keep ordinary runs small, but nothing here proves a call cannot overshoot.
   The engine charges what Claude Code reports afterwards and then refuses to start more calls once
   `budget_usd` is reached.
-- With Codex, only the engine's running total and the 15 minute timeout limit spend. A single call can
+- With Codex, only the engine's running total and the call timeout (15 minutes by default) limit spend. A single call can
   cost more than `batch_budget_usd`. Tokens are priced from a table in `src/providers/codex.ts`
   (`gpt-6.1-sol` and `gpt-6-sol`, both $2 input, $0.10 cached input and $10 output per million tokens),
   and any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`. Those figures are what the code holds, not
@@ -103,10 +104,18 @@ The engine does not stop the review early with an error. It posts what it has:
 - A batch whose call ended on its cap without a usable result has no review for its files. The
   engine retries it if at least $0.05 is left; otherwise the table shows
   `N file(s) left: budget spent`.
+- A batch whose call stopped at the **turn cap** (`max_turns`) has no review either, because Claude Code
+  prints no answer when it stops there. It is handled like a spent budget: one retry for its files if
+  at least $0.05 is left, the table shows `hit the turn limit`, and files still missing are listed as
+  not reviewed.
+- A batch whose call was **killed at the wall-clock limit** (`call_timeout_s`) is not retried, because
+  the same files would probably run into the same limit and a second full timeout could exhaust the
+  30 minute job. The table shows `N file(s) left: the call timed out`. The killed call reports a cost
+  of 0, since the CLI prints nothing before it ends, so the total can understate what it spent.
 - If at least one batch produced a review, it is posted with a first line that begins
   "Partial review": how many files were reviewed, which were not, and the command to ask for the rest.
-- If no batch produced a review and at least one call ran out of budget, the review is a short body
-  saying so, with `/wachi review <path>` as the way to review part of the pull request. If nothing
+- If no batch produced a review and at least one call ran out of budget (or hit the turn cap or the
+  time limit), the review is a short body saying so, with `/wachi review <path>` as the way to review part of the pull request. If nothing
   came back and no call ran out of budget, the run fails with "The agent did not return a review for
   any batch."
 

@@ -53,6 +53,8 @@ The reusable workflow takes these `with:` inputs. Only `operator` is required.
 | `batch_chars` | `140000` | Diff characters per batch |
 | `model` | `claude-sonnet-5-5` | Model the agent uses |
 | `effort` | `high` | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max`; printed in every review footer |
+| `max_turns` | `40` | Most agent turns one call may take (`--max-turns`); a call that reaches it is reported and its files get one retry |
+| `call_timeout_s` | `900` | Wall-clock seconds one call may run before it is killed; keep it well under the 30 minute job limit |
 | `provider` | `claude-code` | Agent provider |
 | `claude_code_version` | `2.1.304` | Pinned Claude Code version |
 | `claude_code_sha256` | empty | Optional SHA-256 of the Claude Code binary for the runner platform; empty reads it from the publisher manifest (see [providers/claude-code.md](providers/claude-code.md)) |

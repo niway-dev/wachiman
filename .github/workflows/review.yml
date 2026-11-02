@@ -67,6 +67,14 @@ on:
         description: Reasoning effort the model runs at (low, medium, high, xhigh or max); printed in every review footer
         type: string
         default: high
+      max_turns:
+        description: Most agent turns one call may take (Claude Code --max-turns); a call that reaches it is reported, and its files are retried once
+        type: number
+        default: 40
+      call_timeout_s:
+        description: Wall-clock seconds one call may run before it is killed; keep it well under the 30 minute job limit
+        type: number
+        default: 900
       provider:
         description: Agent provider; only claude-code exists
         type: string
@@ -214,6 +222,8 @@ jobs:
           AGENT_REVIEW_BATCH_CHARS: ${{ inputs.batch_chars }}
           AGENT_REVIEW_MODEL: ${{ inputs.model }}
           AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
+          AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
+          AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
@@ -329,6 +339,8 @@ jobs:
           AGENT_REVIEW_BATCH_CHARS: ${{ inputs.batch_chars }}
           AGENT_REVIEW_MODEL: ${{ inputs.model }}
           AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
+          AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
+          AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}

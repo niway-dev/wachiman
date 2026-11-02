@@ -224,6 +224,91 @@ describe("the batch loop against a fake provider", () => {
   });
 });
 
+describe("the turn cap and the wall-clock kill", () => {
+  const setup = (script: ConstructorParameters<typeof FakeProvider>[0], env: Record<string, string> = {}) => {
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const warnings: string[] = [];
+    const provider = new FakeProvider(script);
+    const deps: Deps = {
+      gh: fakeGh(posted),
+      provider,
+      config: loadConfig({ AGENT_REVIEW_MAX_TURNS: "12", AGENT_REVIEW_CALL_TIMEOUT_S: "60", ...env }),
+      log: () => {},
+      warn: (line) => warnings.push(line),
+    };
+    return { posted, warnings, provider, deps };
+  };
+  const all = [MANAGER, STORE, GUIDE, LOGO];
+
+  test("every call carries the configured turn cap and time limit", () => {
+    const { provider, deps } = setup([() => ({ structuredOutput: out({ files_reviewed: all, summary: "ok" }) })]);
+    review(deps, "o/r", 7, []);
+    expect(provider.requests[0]).toMatchObject({ maxTurns: 12, timeoutMs: 60_000 });
+  });
+
+  test("a batch that hits the turn cap is retried and its files are not lost", () => {
+    const { posted, warnings, provider, deps } = setup([
+      () => ({ terminalReason: "turns", isError: true, turns: 13, costUsd: 0.2 }),
+      () => ({ structuredOutput: out({ files_reviewed: all, summary: "second try" }), turns: 5, costUsd: 0.1 }),
+    ]);
+    review(deps, "o/r", 7, []);
+    expect(provider.requests).toHaveLength(2);
+    expect(provider.requests[1].prompt).toContain("second pass");
+    expect(warnings.some((w) => w.includes("12-turn limit"))).toBe(true);
+    const body = posted.review?.body ?? "";
+    expect(body).toContain("reviewed after a retry");
+    expect(body).toContain("| 18 | $0.30 |");
+  });
+
+  test("files a batch left behind at the turn cap, even after the retry, are reported as not reviewed", () => {
+    const { posted, deps } = setup([
+      () => ({ terminalReason: "turns", isError: true, turns: 13, costUsd: 0.2 }),
+      () => ({
+        structuredOutput: out({ files_reviewed: [MANAGER], summary: "partial" }),
+        turns: 5,
+        costUsd: 0.1,
+      }),
+    ]);
+    review(deps, "o/r", 7, []);
+    const body = posted.review?.body ?? "";
+    expect(body).toContain("Partial review");
+    expect(body).toContain(`\`${STORE}\``);
+    expect(body).not.toContain("agent-review sha=");
+  });
+
+  test("a call killed at the time limit is not retried, and the review still posts", () => {
+    const { posted, warnings, provider, deps } = setup(
+      [
+        // Batch 1 times out with no answer and no cost; batch 2 is fine.
+        () => ({ terminalReason: "timeout", isError: true, turns: 0, costUsd: 0 }),
+        () => ({ structuredOutput: out({ files_reviewed: [GUIDE], summary: "guide ok" }) }),
+      ],
+      { AGENT_REVIEW_BATCH_LINES: "10" },
+    );
+    review(deps, "o/r", 7, []);
+    expect(provider.requests).toHaveLength(2);
+    expect(provider.requests.every((r) => !r.prompt.includes("second pass"))).toBe(true);
+    expect(warnings.some((w) => w.includes("60 s call time limit"))).toBe(true);
+    const body = posted.review?.body ?? "";
+    expect(body).toContain("Partial review");
+    expect(body).toContain("3 file(s) left: the call timed out");
+    expect(body).toContain(`\`${MANAGER}\``);
+  });
+
+  test("when every batch stops at a limit, a notice says so instead of throwing", () => {
+    const turns = setup([
+      () => ({ terminalReason: "turns", isError: true }),
+      () => ({ terminalReason: "turns", isError: true }),
+    ]);
+    review(turns.deps, "o/r", 7, []);
+    expect(turns.posted.review?.body).toContain("hit its turn limit (12 turns a call)");
+    const late = setup([() => ({ terminalReason: "timeout", isError: true })]);
+    review(late.deps, "o/r", 7, []);
+    expect(late.posted.review?.body).toContain("was killed at the 60 s time limit on a call");
+    expect(late.provider.requests).toHaveLength(1);
+  });
+});
+
 describe("the ADR notice", () => {
   const ADR = "docs/adr/0003-two-axis-finding-labels.md";
   const withAdr = [...prFiles, { filename: ADR, additions: 2, deletions: 0, patch: "@@ -1,1 +1,2 @@\n x\n+y" }];

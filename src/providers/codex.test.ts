@@ -212,10 +212,20 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
     expect(result).toMatchObject({ isError: true, terminalReason: "error", text: "not json\n" });
   });
 
-  test("a call that runs past the time limit ends as budget", () => {
+  test("a call that runs past the time limit ends as timeout", () => {
     const binary = stubBinary("cat >/dev/null; sleep 5");
     const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary, timeoutMs: 200 }).run(request);
-    expect(result).toMatchObject({ terminalReason: "budget", isError: true });
+    expect(result).toMatchObject({ terminalReason: "timeout", isError: true });
+  });
+
+  test("the request's time limit wins over the adapter's, and a turn cap is accepted but unused", () => {
+    const binary = stubBinary("cat >/dev/null; sleep 5");
+    const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary, timeoutMs: 60_000 }).run({
+      ...request,
+      timeoutMs: 200,
+      maxTurns: 3,
+    });
+    expect(result.terminalReason).toBe("timeout");
   });
 
   test("refuses any tool beyond reads", () => {

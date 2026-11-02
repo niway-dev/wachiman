@@ -1339,6 +1339,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   // Below this a batch cannot read its prompt, so it is not started.
   const MIN_BATCH_USD = 0.05;
   let budgetError = false;
+  let limitError: "turns" | "timeout" | undefined;
 
   batches.forEach((batch, i) => {
     const label = `Batch ${i + 1} of ${batches.length}`;
@@ -1367,19 +1368,26 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     spent += first.costUsd;
     if (first.output) parts.push({ label, output: first.output });
     if (first.budget) budgetError = true;
+    if (first.stopped) limitError = first.stopped;
     let status = first.output
       ? "reviewed"
       : first.budget
         ? "ran out of its budget"
-        : first.failed
-          ? "the call failed"
-          : "returned no review";
+        : first.stopped === "turns"
+          ? "hit the turn limit"
+          : first.stopped === "timeout"
+            ? "timed out"
+            : first.failed
+              ? "the call failed"
+              : "returned no review";
     let turns = first.turns;
     let cost = first.costUsd;
 
     // One retry with only the files the first pass left unaccounted for.
     const gaps = batchGaps(batch.files, first.output);
-    if (gaps.length > 0 && remaining() >= MIN_BATCH_USD) {
+    // After a wall-clock kill the same files would likely run into the same limit, and another
+    // full timeout could exhaust the job's own limit: they are reported as not reviewed instead.
+    if (gaps.length > 0 && first.stopped !== "timeout" && remaining() >= MIN_BATCH_USD) {
       const retry = reviewBatch(
         deps,
         context,
@@ -1396,7 +1404,10 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       status =
         left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
     } else if (gaps.length > 0) {
-      status = `${gaps.length} file(s) left: budget spent`;
+      status =
+        first.stopped === "timeout"
+          ? `${gaps.length} file(s) left: the call timed out`
+          : `${gaps.length} file(s) left: budget spent`;
     }
     reports.push({
       label,
@@ -1410,6 +1421,16 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   });
 
   if (parts.length === 0) {
+    if (limitError && !budgetError) {
+      const why =
+        limitError === "turns"
+          ? `hit its turn limit (${config.maxTurns} turns a call)`
+          : `was killed at the ${config.callTimeoutS} s time limit on a call`;
+      bodyOnly(
+        `**The agent ${why}** before finishing any batch: nothing here was reviewed reliably. Review part of it: \`${config.mention} review <path> [path…]\`.`,
+      );
+      return;
+    }
     if (budgetError) {
       bodyOnly(
         `**The agent ran out of its budget** ($${batchBudget} a batch, $${totalBudget} the pull request) before finishing any batch: nothing here was reviewed reliably. Review part of it: \`${config.mention} review <path> [path…]\`.`,
@@ -1600,14 +1621,22 @@ function reviewBatch(
   const call = attempt(() => runProvider(deps, prompt, dir, budgetUsd, SCHEMA), budgetUsd);
   if (!call.ok) {
     deps.warn(`A batch call failed: ${call.error}`);
-    return { output: undefined, budget: false, turns: 0, costUsd: call.costUsd, failed: true };
+    return { output: undefined, budget: false, stopped: undefined, turns: 0, costUsd: call.costUsd, failed: true };
   }
   const result = call.value;
   const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
   const output = raw && relativisePaths(raw, deps.repoDir ?? process.cwd());
+  const stopped =
+    result.terminalReason === "turns" || result.terminalReason === "timeout" ? result.terminalReason : undefined;
+  if (stopped === "turns")
+    deps.warn(`Batch ${part.index} of ${part.total} hit the ${deps.config.maxTurns}-turn limit after ${result.turns} turns.`);
+  if (stopped === "timeout")
+    deps.warn(`Batch ${part.index} of ${part.total} was killed after the ${deps.config.callTimeoutS} s call time limit.`);
   return {
     output,
     budget: result.terminalReason === "budget",
+    /** Ended by the turn cap or the wall-clock kill, not by money or by its own answer. */
+    stopped,
     turns: result.turns,
     costUsd: result.costUsd,
     failed: false,
@@ -1622,6 +1651,8 @@ function runProvider(deps: Deps, prompt: string, dir: string, budgetUsd: number,
     addDirs: [dir],
     allowedTools: ["read", "glob", "grep"],
     maxBudgetUsd: budgetUsd,
+    maxTurns: deps.config.maxTurns,
+    timeoutMs: deps.config.callTimeoutS * 1000,
     outputSchema: schema,
     promptViaStdin: true,
   });

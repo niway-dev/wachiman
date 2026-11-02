@@ -20,6 +20,15 @@ export type Effort = (typeof EFFORTS)[number];
 /** Explicit on purpose: Claude Code's own default moved from medium to high in 2.1.94 and may move again. */
 export const DEFAULT_EFFORT: Effort = "high";
 
+/**
+ * Default cap on the agent's turns per call (`AGENT_REVIEW_MAX_TURNS`). Wachiman's batches take
+ * 5–12 turns and an external agent's whole-PR reviews took 19–46, so 40 never cuts a normal batch;
+ * it only stops a run that is looping.
+ */
+export const DEFAULT_MAX_TURNS = 40;
+/** Default wall-clock limit on one provider call, in seconds (`AGENT_REVIEW_CALL_TIMEOUT_S`). */
+export const DEFAULT_CALL_TIMEOUT_S = 900;
+
 /** Tool names the engine may ask for. Each adapter maps them to its own names. */
 export type NeutralTool = "read" | "glob" | "grep";
 
@@ -33,6 +42,16 @@ export interface ProviderRequest {
   allowedTools: NeutralTool[];
   /** The most this call may spend, in USD. A soft cap: a provider may overshoot it. */
   maxBudgetUsd: number;
+  /**
+   * The most agent turns this call may take. Claude Code passes it as `--max-turns`; Codex has no
+   * such flag, so that adapter ignores it. Omit it for no cap.
+   */
+  maxTurns?: number;
+  /**
+   * Wall-clock limit for this call, in milliseconds. The adapter kills the CLI when it passes and
+   * returns `terminalReason: "timeout"`. Omit it to use the adapter's own default.
+   */
+  timeoutMs?: number;
   /** JSON schema for the structured answer. Omit it to get free text in `text`. */
   outputSchema?: object;
   /** Send the prompt through stdin instead of an argument (a large diff would exceed argv limits). */
@@ -47,7 +66,10 @@ export interface ProviderResult {
   costUsd: number;
   turns: number;
   durationMs: number;
-  /** `success`, `budget` (the spend cap ended the call) or `error`; a provider may add more. */
+  /**
+   * `success`; `budget` (the spend cap ended the call); `turns` (the turn cap ended it);
+   * `timeout` (the wall-clock limit killed it); or `error`. A provider may add more.
+   */
   terminalReason: string;
   isError: boolean;
   /** The provider's own result, kept for debugging. Never posted. */

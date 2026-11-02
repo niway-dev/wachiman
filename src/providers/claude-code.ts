@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { locatePrompt } from "./locate";
-import { DEFAULT_EFFORT, type Effort, type NeutralTool, type ProviderAdapter, ProviderRequest, ProviderResult } from "./types";
+import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, type Effort, type NeutralTool, type ProviderAdapter, ProviderRequest, ProviderResult } from "./types";
 
 const BINARY = "claude";
 const SETTINGS_FILE = "claude-code.settings.json";
@@ -88,6 +88,8 @@ export function findEngineSettings(dir: string) {
 export function buildClaudeArgs(opts: {
   addDirs: string[];
   budgetUsd: number;
+  /** `--max-turns`, omitted when undefined. Print mode only; exits with `error_max_turns` when reached. */
+  maxTurns?: number;
   model: string;
   /** Always passed: Claude Code's own default effort has changed between releases (`--effort` since 2.1.72). */
   effort: Effort;
@@ -105,6 +107,7 @@ export function buildClaudeArgs(opts: {
     opts.effort,
     "--max-budget-usd",
     String(opts.budgetUsd),
+    ...(opts.maxTurns === undefined ? [] : ["--max-turns", String(opts.maxTurns)]),
     "--restricted",
     "--strict-mcp-config",
     "--tools",
@@ -126,11 +129,25 @@ export function buildClaudeArgs(opts: {
 interface ClaudeResult {
   is_error: boolean;
   subtype: string;
+  /** Claude Code 2.1.316 also sends this (`max_turns` for the turn cap). */
+  terminal_reason?: string;
   num_turns: number;
   total_cost_usd: number;
   duration_ms: number;
   result?: string;
   structured_output?: unknown;
+}
+
+/**
+ * How a `claude -p` result ended. The spend cap and the turn cap are separate subtypes
+ * (`error_max_budget_usd`, `error_max_turns`); Claude Code 2.1.316 also reports
+ * `terminal_reason: "max_turns"` for the second, which is accepted as a fallback.
+ */
+export function terminalReasonOf(raw: Pick<ClaudeResult, "subtype" | "is_error"> & { terminal_reason?: string }) {
+  const subtype = raw.subtype ?? "";
+  if (/budget/i.test(subtype)) return "budget";
+  if (/max_turns/i.test(subtype) || raw.terminal_reason === "max_turns") return "turns";
+  return subtype === "success" && !raw.is_error ? "success" : "error";
 }
 
 export class ClaudeCodeProvider implements ProviderAdapter {
@@ -144,6 +161,8 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       model: string;
       requireApiKey: boolean;
       effort?: Effort;
+      /** Wall-clock limit per call when the request names none. Default `DEFAULT_CALL_TIMEOUT_S`. */
+      timeoutMs?: number;
       /** For tests: another executable, and another folder for the settings file. */
       binary?: string;
       settingsDir?: string;
@@ -189,6 +208,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     const args = buildClaudeArgs({
       addDirs: [request.cwd, ...request.addDirs],
       budgetUsd: request.maxBudgetUsd,
+      maxTurns: request.maxTurns,
       model: this.opts.model,
       effort: this.opts.effort ?? DEFAULT_EFFORT,
       settings: findEngineSettings(this.settingsDir),
@@ -196,6 +216,8 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       schema: request.outputSchema,
       prompt: request.promptViaStdin ? undefined : prompt,
     });
+    const timeoutMs = request.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_CALL_TIMEOUT_S * 1000;
+    const started = Date.now();
     let run: ReturnType<typeof spawnSync<string>>;
     try {
       run = spawnSync(this.binary, args, {
@@ -204,9 +226,26 @@ export class ClaudeCodeProvider implements ProviderAdapter {
         env: childEnv,
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
+        // The call is synchronous, so the kill cannot wait for a graceful exit and escalate: a
+        // process that ignored SIGTERM would block this call forever. `claude -p` prints its result
+        // only when it ends, so a SIGTERM grace period would save nothing either.
+        timeout: timeoutMs,
+        killSignal: "SIGKILL",
       });
     } finally {
       rmSync(workDir, { recursive: true, force: true });
+    }
+    const durationMs = Date.now() - started;
+    if ((run.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") {
+      // Nothing was printed, so the spend is unknown: report 0 rather than invent a figure.
+      return {
+        costUsd: 0,
+        turns: 0,
+        durationMs,
+        terminalReason: "timeout",
+        isError: true,
+        raw: { timedOut: true, timeoutMs, stderr: run.stderr?.slice(-2000) },
+      };
     }
     if (run.error || !run.stdout) {
       throw new Error(`claude did not run (status ${run.status}): ${run.error ?? run.stderr}`);
@@ -218,11 +257,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       costUsd: raw.total_cost_usd ?? 0,
       turns: raw.num_turns ?? 0,
       durationMs: raw.duration_ms ?? 0,
-      terminalReason: /budget/i.test(raw.subtype ?? "")
-        ? "budget"
-        : raw.subtype === "success" && !raw.is_error
-          ? "success"
-          : "error",
+      terminalReason: terminalReasonOf(raw),
       isError: Boolean(raw.is_error),
       raw,
     };

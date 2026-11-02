@@ -221,12 +221,13 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | --- | --- |
 | `reviewed` | The agent accounted for every file in the batch on the first call. |
 | `reviewed after a retry` | The first call left files unaccounted for, or returned nothing, and the single retry covered them. |
-| `N file(s) left after a retry` | The retry also left files out. This is also what a batch whose calls failed shows, when budget remained for the retry. |
+| `N file(s) left after a retry` | The retry also left files out (a retry that again hit `max_turns` shows here). This is also what a batch whose calls failed shows, when budget remained for the retry. |
 | `N file(s) left: budget spent` | Files were left out and less than 0.05 USD remained for a retry. |
+| `N file(s) left: the call timed out` | The call was killed at `call_timeout_s` and is not retried. Raise `call_timeout_s` (keep it under the 30 minute job limit) or lower `batch_lines`. |
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
 
-The source also defines the labels `ran out of its budget`, `the call failed` and `returned no
-review`, but the retry logic replaces them with one of the statuses above whenever a batch has a
+The source also defines the labels `ran out of its budget`, `hit the turn limit`, `timed out`,
+`the call failed` and `returned no review`, but the retry logic replaces them with one of the statuses above whenever a batch has a
 file left over. This is read from the code, not observed in a run. The failure itself is in the
 log: `A batch call failed: ...`, or a JSON line with `"is_error":true`.
 
@@ -280,7 +281,7 @@ is the engine's own sum of what the provider reported.
 
 ### `The agent did not answer (<reason>).`
 
-A question failed. The reason is `budget` when the answer cap ended the call, or `error`. Nothing is
+A question failed. The reason is `budget` when the answer cap ended the call, `turns` when it reached `max_turns`, `timeout` when `call_timeout_s` killed it, or `error`. Nothing is
 posted and the job is red. Narrow the question, or raise `answer_budget_usd`.
 
 ## Output refused: a credential-shaped string
