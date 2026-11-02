@@ -80,9 +80,39 @@ base and the old head fetched with a token, and would not be testable without a 
   files. Only files in the pull request's own change (its diff against the merge base) are
   candidates, and of those only the ones whose change differs from the reviewed one are reviewed;
   a merge that brings nothing of the pull request's own posts a one-line marker, like a rebase.
+  Amended 2026-11-02, see below: of a candidate file, only the rows the author wrote are sent.
 - A cancelled run (a newer push) posts nothing; what it had spent is not verified.
 - Callers on an old pin do not get push reviews until they edit their trigger; a copied install
   must edit its copy by hand ([upgrading.md](../upgrading.md)).
+
+## Amendment 2026-11-02: a merge sends only the author's rows
+
+The field run on kaipu-record ([report](https://github.com/niway-dev/wachiman/blob/docs/field-run-kaipu-workspaces/docs/benchmark/2026-11-02-field/README.md#the-review-loop))
+showed the file-level filter above is not enough. On #479 (`413ee15`), #482 (`ad0fa5c`) and #483
+(`0253fd7`), each a merge of a parent branch or of `main`, the files the engine chose were right
+(8, 2 and 1 of 28, 33 and 33): the author had changed them while resolving the merge. But the
+patch it sent for each was compare's `last...head`, which also carries every line the merged
+branch added to that file. The model reviewed part 1b's relocate code as if the author had written
+it and posted findings on it, and GitHub refused those inline comments because the lines are not in
+the pull request's diff. Replayed on the same commits, the sent patches shrink from 52, 27 and 6 KB
+to 24, 7 and 0.8 KB, and what is left is the author's merge resolution.
+
+Decision: in the `ahead` case, `ownChangeSince` keeps from compare's patch only the rows the author
+wrote. An added row is the author's when the pull request's patch adds the same head line; a
+removed row when the pull request at `last` had added that line, or the pull request now removes the
+same text. Other added rows become context, other removed rows are dropped, context is cut to three
+rows around the author's. A merge whose candidate files keep no row of the author's posts the
+marker and calls no model, like the merge that touches none of them. A push without a merge is sent
+unchanged.
+
+Rejected: sending the file's whole diff against the base, as the rebased path does. It holds no
+base code, but it would make every ordinary push pay for the file's entire change again (a two-line
+fix in a new 500-line file would send 500 lines). Still open, for the owner: sending only the delta
+on the rebased path too (see the pull request that adds this amendment).
+
+Status: unit and fake-`gh` tests, and a replay of `ownChangeSince` on the field run's commits. It has
+not run in a real workflow yet. The rest of this ADR has run since 2026-11-01 (v1.4.0 on
+kaipu-record).
 
 ## Non-goals
 
