@@ -2,10 +2,10 @@
 
 - **Status:** proposed 2026-10-31. The bug catalogue exists; no benchmark repository has been
   created and no bug has been verified by hand yet. Side-by-side observations on live PRs are
-  recorded under `docs/benchmark/<date>/`.
+  recorded under `<date>/` in [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks).
 - **Date:** 2026-10-31
 - **Creates:** no ADR.
-- **Refs:** #43; [bug catalogue](../benchmark/kaipu-record-bug-catalogue.md)
+- **Refs:** #43; [bug catalogue](https://github.com/niway-dev/wachiman-benchmarks/blob/main/kaipu-record-bug-catalogue.md)
 
 ## In one minute
 
@@ -57,8 +57,8 @@ own bugs before the run.
 145 real bugs from about 90 fix PRs, mined read-only on 2026-10-30. By difficulty: 36 at level
 5, 56 at level 4, 40 at level 3. Most common classes: state machines (33), ordering races (28),
 data loss (16), cross-file contracts (15). Full table and per-bug details:
-[kaipu-record-bug-catalogue.md](../benchmark/kaipu-record-bug-catalogue.md). Mining scripts and
-the brief given to the mining agents: [mining/](../benchmark/mining/).
+[kaipu-record-bug-catalogue.md](https://github.com/niway-dev/wachiman-benchmarks/blob/main/kaipu-record-bug-catalogue.md). Mining scripts and
+the brief given to the mining agents: [mining/](https://github.com/niway-dev/wachiman-benchmarks/tree/main/mining/).
 
 **Claude Fable** appears as finder, fixer and source:
 
@@ -96,14 +96,14 @@ PRs are large (#402: 26 files, +1,820 lines).
 ## Field observations
 
 Live PRs where Wachi and Pullfrog reviewed the same head are recorded outside the controlled
-benchmark, one folder per day: [2026-10-31](../benchmark/2026-10-31/README.md) (kaipu-record
+benchmark, one folder per day: [2026-10-31](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/README.md) (kaipu-record
 #463–#467). They are not blind and have no seeded ground truth, but they show where the two
 reviewers differ and feed the benchmark's cross-file class.
 
 ## Exhibition replay
 
 A public, side-by-side demonstration on the PRs of the
-[2026-10-31 field benchmark](../benchmark/2026-10-31/README.md), run after the improvements it
+[2026-10-31 field benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/README.md), run after the improvements it
 ranks (contract check, peer call sites, focus-file memory, ADR path) ship in a Wachi release.
 
 **Method.** For each PR, push two branches that point at the commits both reviewers saw: a base
@@ -131,7 +131,7 @@ fixes answer both bots at once.
 
 **Where.** Three public repositories created on 2026-10-31, one per reviewer, each with the
 ten `replay/pr-<n>/{base,head}` branches already pushed (script and files under
-[`docs/benchmark/replay/`](../benchmark/replay/)):
+[`replay/` in wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks/tree/main/replay/)):
 [kaipu-bench-wachi](https://github.com/niway-dev/kaipu-bench-wachi),
 [kaipu-bench-pullfrog](https://github.com/niway-dev/kaipu-bench-pullfrog),
 [kaipu-bench-coderabbit](https://github.com/niway-dev/kaipu-bench-coderabbit). Wachi runs on
@@ -155,4 +155,4 @@ did each reviewer find it. Several Wachi runs per PR, since one run can be lucky
 - [Should we trust AI code review benchmarks?](https://dev.to/izgorodin/should-we-trust-ai-code-review-benchmarks-3p6n)
 - [Tenki benchmark](https://tenki.cloud/benchmarks/code-reviewer) ·
   [Entelligence benchmark-maxxing](https://github.com/Entelligence-AI/benchmark-maxxing)
-- Pullfrog and Wachi run logs: see the [field benchmark](../benchmark/2026-10-31/README.md).
+- Pullfrog and Wachi run logs: see the [field benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/README.md).
