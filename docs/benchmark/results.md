@@ -4,7 +4,7 @@ Every measurement of Wachiman against Pullfrog and CodeRabbit, in one place, wit
 and the runs behind each number. Newest first. Each line links to the full report; this page makes
 no claim the reports do not.
 
-- **Last updated:** 2026-11-02.
+- **Last updated:** 2026-11-02, after the held-out set.
 - **The five PRs:** kaipu-record #463–#467, replayed at their exact commits
   ([method](../specs/2026-10-31-review-benchmark-design.md)). Every finding in a replay was
   checked against the code by reading, not by running the app.
@@ -133,15 +133,31 @@ naming the bug, and count how many of the five losses it reopens and at what cos
 at about $0.20 per pull request would be the design's first real evidence. Fewer would confirm that
 the reader caps recall. This is gate 2 of #80.
 
+## Held-out set (2026-11-02, [#86](https://github.com/niway-dev/wachiman/pull/86)): four PRs nobody tuned for
+
+Five kaipu-record PRs that introduced catalogued bugs, none used to design v1.4.0; one (#269) turned
+out not to carry its bug (catalogue error: the commit came in #286). Judged blind. Pullfrog absent
+(key out of credit). Full report: [2026-11-02-heldout](2026-11-02-heldout/README.md).
+
+| | Wachiman 1.4.0 · Opus (3 runs) | CodeRabbit (1 run) |
+| --- | --- | --- |
+| Catalogued bugs found, distinct (of 4) | **2** (#255 3/3, #276 1/3) | **3** (#402, #255, #276) |
+| Catalogued bugs per run | 2, 1, 1 → 1.33 | 3 |
+| Posted / valid / invalid | 49 / 40 / 1 | 12 / 7 / 0 |
+| Message quality (0–5) | 4.17 | 3.22 |
+| Cost per run | $4.14 | $0 (public repo) |
+
+**Reading.** Wachiman's hypothesis (at least 2 of the catalogued bugs) was met, so the v1.4.0 gain
+is not only memorisation. CodeRabbit found more of these bugs, including the cross-file ordering
+race on #402 that every Wachiman run missed. On the exhibition set the order was the reverse (7.3
+against 2.5 per run). Four PRs and one CodeRabbit run cannot rank the two; they can say the lead
+is not general.
+
 ## What is not proven yet
 
-1. **Held-out pull requests.** The 14 bugs were known when v1.4.0 was designed. The controlled set
-   ([catalogue](kaipu-record-bug-catalogue.md)) has 15 hard bugs, each traced to the PR that
-   introduced it and the commit that fixed it later. None of them was used to design v1.4.0.
-   Replaying those PRs on all three reviewers, with the prediction registered first and the
-   author's fix as ground truth, is what turns "the targeted gap closed" into a general claim.
-2. **Blind judging.** The verifiers knew which reviewer wrote each finding. Next time they get the
-   findings mixed and unlabelled.
+1. **More held-out pull requests.** The first held-out set (above) has four usable PRs and no
+   Pullfrog run. The catalogue has ten more candidates; its #269 row must be corrected to #286.
+2. **Blind judging** was used on the held-out set; the exhibition verdicts were not blind.
 3. **Which change did it.** Pinning `review.yml@4842d98` (#69's evidence without #70's questions)
    separates the two.
 4. **Equal runs.** Pullfrog and CodeRabbit have two runs each against Wachiman's three.
