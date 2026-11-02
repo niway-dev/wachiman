@@ -1,191 +1,230 @@
-# Benchmark 2026-11-02: does v1.4.0 find the bugs v1.3.0 missed?
+# Field run 2026-11-02: the kaipu-record "workspaces" chain (draft, analysis pending)
 
-- **Status:** hypothesis registered before any run (commit `0c2274b`, merged in #75); results
-  below, added after three runs on 2026-11-02. Every finding was checked against the code at the
-  head and `origin/main` by five Claude Sonnet 5.5 subagents, one per PR, by reading only:
-  [`prs/`](prs/). Raw reviews and comments: [`raw/`](raw/). Runs: PRs #16–#30 in
-  kaipu-bench-wachi (W4 = #16–#20, W5 = #21–#25, W6 = #26–#30).
-- **Baseline:** [2026-11-01 replay](../2026-11-01/README.md), Wachiman v1.3.0, three runs on
-  kaipu-record #463–#467. Per-issue analysis in [`../2026-11-01/prs/`](../2026-11-01/prs/).
-- **Same setup as the baseline:** same five PRs at the same commits, in
-  [kaipu-bench-wachi](https://github.com/niway-dev/kaipu-bench-wachi), three runs on new
-  `head-r<k>` branches, Claude Opus 5.5, effort `high`, started with `/wachi review`. Only the
-  pinned engine version changes, from `v1.3.0` to `v1.4.0`. Every posted finding is checked against
-  the code with the same method as the baseline.
+> **Status: draft.** This page collects the raw context of a real, unreplayed run while it is
+> fresh. The cost/benefit analysis is not done yet: the [instructions](#how-to-analyse-this-run)
+> at the end say how to do it. Numbers marked *approx.* come from a quick scrape of review bodies
+> and must be re-counted before anything here is quoted.
 
-## What changed from v1.3.0 to v1.4.0
+## In one minute
 
-| PR | Change | Touches what the model reviews? |
-| --- | --- | --- |
-| #56 | Reasoning effort is an explicit input (`high`, as before by default) | No: same level as the baseline |
-| #67 | Turn cap (`--max-turns 40`) and a 900 s wall-clock kill per call | Only if a batch hits a limit |
-| #68 | Review every push incrementally; a rebase with no content change costs nothing | No: the replays have no pushes |
-| #69 | **Call-site evidence:** each batch gets the other call sites of the symbols its new lines call | **Yes** |
-| #70 | **Flow and failure questions**, `contracts[]` with checked citations, `confidence`, severity calibration in `RULES` | **Yes** |
-| #73 | The engine posts a low-confidence `fix` or `blocker` as a `question` | Labels only |
+- **What:** seven kaipu-record PRs that shipped one feature (several workspaces, NIW2-370) between
+  2026-10-30 and 2026-11-02. They were written mostly by agents (Claude Opus 5.5 and Sonnet 5.5),
+  and a human owner tested each part in the real app. Wachiman (v1.3.x, re-review on every push
+  since kaipu-record#477) reviewed all of them. Pullfrog reviewed four, and CodeRabbit five.
+- **Why it matters:** this is the largest live run so far. ~23,000 added lines, three
+  data-integrity-heavy PRs (a file-move engine, a settings store with sync confirmation, and
+  synced-folder safety), and a stacked chain where every push re-triggered three reviewers.
+- **First impressions (to be checked):**
+  - Wachiman posted the most findings at the lowest cost, and had no confirmed false positive.
+  - **Its three misses are the point of this run.** On the two PRs that move or store user data,
+    the **most severe** finding came from Pullfrog or CodeRabbit:
+    - kaipu-record#479: the recovery step deleted an unverified source;
+    - kaipu-record#482: an unreadable machine settings file was overwritten as empty;
+    - kaipu-record#478: a deferred colour upgrade overwrote a rename made on another Mac.
+  - Two shipped UI bugs were caught by **no bot**, only by the owner testing (see
+    [misses](#bugs-no-reviewer-caught)).
+  - Re-review on every push created a **review loop**. Agents fixed a round, pushed, got a new
+    round of mostly-minor findings, and pushed again. Part 3 went through five rounds.
 
-## Baseline (v1.3.0, three runs)
+## The PRs
 
-| Metric | Value |
-| --- | --- |
-| Real Medium+ bugs found per run (of 14) | 0, 3, 1 (mean 1.3) |
-| Distinct real Medium+ bugs over the three runs | 3 |
-| Expected issues found per run (of 26) | 10, 10, 11 |
-| Invalid findings per run | 0 |
-| Cost per run, five PRs | $3.80, $3.59, $4.17 (mean $3.85) |
-| Message quality, mean (0–5) | 4.87; points lost on Signal: comment-only issues labelled `Fix` |
+All are in [niway-dev/kaipu-record](https://github.com/niway-dev/kaipu-record), and all are
+merged.
 
-For comparison: Pullfrog 3.5 real Medium+ bugs per run at $7.15; CodeRabbit 2.5.
-
-## Predictions
-
-### Per bug, from the change that targets it
-
-| PR | Bug (from the [baseline table](../2026-11-01/README.md#the-real-bugs-severity-medium-or-high)) | Targeted by | v1.3.0 | Predicted v1.4.0 |
-| --- | --- | --- | --- | --- |
-| #464 | Show in Finder and drag skip `markCopySeen` | #69: the toast's call site pairs `markCopySeen` with `startFileDrag` | 0/3 | **≥ 2/3** |
-| #465 | The new Drag handle skips `markCopySeen` | #69, same sibling call site | 0/3 | **≥ 2/3** |
-| #467 | Export never re-lists the Library when an export finishes | #69 (library-detail's refresh) and #70 (background work finishes) | 0/3 | **≥ 1/3** |
-| #466 | Back re-floats the always-on-top card | #70 (Back, remount with the same history entry) | 0/3 | **≥ 1/3** |
-| #467 | A file dropped on the Library navigates the window to `file://` | #70 (what the removed path did before) | 0/3 | **≥ 1/3** |
-| #466 | `show()` returns true before the card renders; a failed load loses the card | #70 (failure paths) | 0/3 | **≥ 2/3** |
-| #463 | The take's first relay feed is ignored | #70 (failure paths: never delivers) | 0/3 | **≥ 1/3** |
-| #463 | A queued camera-on reopens the camera after a newer off | #70 (failure paths: superseded request) | 0/3 | **≥ 1/3** |
-| #467 | Orphaned CSS comment | #70 severity test: comment-only is never `Fix` | `Fix` 3/3 | **`Fix` 0/3** |
-
-### Overall
-
-| Metric | v1.3.0 | Hypothesis | Failure if |
+| PR | What | +/− lines, files | Reviewers present |
 | --- | --- | --- | --- |
-| Real Medium+ bugs per run (of 14) | 1.3 | **≥ 3.0** | < 2.0 |
-| Distinct real Medium+ bugs over three runs | 3 | **≥ 7** | ≤ 4 |
-| Expected issues per run (of 26) | 10–11 | **≥ 9** | < 8 |
-| Invalid findings per run | 0 | **≤ 1** | ≥ 3 |
-| Cost per run | $3.85 | **$4.50–$6.00** | > $7.15 (Pullfrog's) |
+| [#439](https://github.com/niway-dev/kaipu-record/pull/439) | Sidecar read errors never mint a new asset id (data integrity) | +442/−27, 17 | Wachiman |
+| [#449](https://github.com/niway-dev/kaipu-record/pull/449) | Workspaces part 1: registry, migration, switch transaction, switcher | +5338/−593, 92 | Wachiman |
+| [#478](https://github.com/niway-dev/kaipu-record/pull/478) | Part 1b: New/Edit workspace, colours, "Change folder…" (relocate) | +3767/−97, 41 | Wachiman, Pullfrog, CodeRabbit |
+| [#479](https://github.com/niway-dev/kaipu-record/pull/479) | Part 2: Move to (rename/link or copy+sha256+delete, journal, crash recovery) | +4473/−93, 65 | Wachiman, Pullfrog, CodeRabbit |
+| [#482](https://github.com/niway-dev/kaipu-record/pull/482) | Part 3: per-workspace settings with inheritance and sync confirmation | +4518/−117, 47 | Wachiman, Pullfrog, CodeRabbit |
+| [#483](https://github.com/niway-dev/kaipu-record/pull/483) | Part 4: per-workspace cloud, synced-folder safety (Drive/OneDrive/iCloud) | +5489/−157, 104 | Wachiman, CodeRabbit (Pullfrog did not run) |
+| [#484](https://github.com/niway-dev/kaipu-record/pull/484) | Check-and-fix row: a near miss expanded the row instead of toggling | +54/−5, 3 | Wachiman |
 
-Reaching 3.0 at 60–80 % of Pullfrog's cost, without losing the test findings, would mean
-competing on the bugs a user feels while keeping the coverage the baseline already had.
+## Raw counts (approx.)
 
-### How to tell why, if it fails
+These are top-level inline comments per bot, scraped on 2026-11-02, with replies excluded.
+"Wachiman reviews" counts every review object it posted, including the per-push incremental
+reviews and the "Looks addressed" follow-ups. "Cost" sums the `$` cells in the review bodies'
+coverage tables. That can double-count or miss runs, so re-derive it from the workflow logs.
 
-The new `contracts[]` output records what the model answered, so a miss can be placed:
-
-1. **The evidence did not hold the sibling call.** `evidence.json` in the batch log lacks the
-   pairing call site: the extractor or its caps are wrong.
-2. **The evidence held it and no contract used it.** The model did not read the evidence: the
-   prompt placement or wording is wrong.
-3. **A contract states the gap and no finding was posted.** The model saw it and decided not to
-   publish: the publication rules (`RULES`, confidence) are wrong.
-4. **Expected issues drop below 9.** More questions took attention from the test findings.
-
-### Not measured here
-
-Review on push (#68) and the turn cap (#67) do not show on a replay without pushes. They are
-tested live on kaipu-record with a push to an already reviewed pull request.
-
-## Results
-
-**The hypothesis holds on every quality metric and misses on cost.** v1.4.0 found 7.3 real
-Medium+ bugs per run, against 1.3 on v1.3.0, and 11 of the 14 over three runs, with no invalid
-finding. It cost $6.96 per run, above the predicted $4.50–$6.00 and below the $7.15 failure line.
-
-### Overall
-
-| Metric | v1.3.0 | Hypothesis | v1.4.0 (W4, W5, W6) | |
-| --- | --- | --- | --- | --- |
-| Real Medium+ bugs per run (of 14) | 0, 3, 1 (mean 1.3) | ≥ 3.0 | **7, 7, 8 (mean 7.3)** | met |
-| Distinct real Medium+ bugs over three runs | 3 | ≥ 7 | **11** | met |
-| Expected issues per run (of 26) | 10, 10, 11 | ≥ 9 | **12, 11, 12** | met |
-| Invalid findings per run | 0 | ≤ 1 | **0, 0, 0** | met |
-| Cost per run, five PRs | $3.80, $3.59, $4.17 | $4.50–$6.00 | **$6.95, $7.05, $6.87** (mean $6.96) | **not met** (below the failure line) |
-| Message quality, mean (0–5) | 4.87 (45 scored) | — | 4.75 (63 scored) | slightly lower: under-called labels cost the Signal point |
-
-For comparison, on the same 14 bugs: Pullfrog 3.5 per run at $7.15, CodeRabbit 2.5.
-
-Posted per run: 27, 26, 27. Partly valid: 1, 2, 3. Unconfirmed: 3, 1, 1. Invalid: none.
-
-### Per prediction
-
-| PR | Bug | Predicted | v1.4.0 | | Cause of a miss |
+| PR | Wachiman findings (Fix / Consider) | Wachiman reviews | Wachiman cost (approx.) | Pullfrog inline | CodeRabbit inline |
 | --- | --- | --- | --- | --- | --- |
-| #464 | Show in Finder and drag skip `markCopySeen` | ≥ 2/3 | **3/3** | met | — |
-| #465 | The new Drag handle skips `markCopySeen` | ≥ 2/3 | **2/3**, plus 1 seen only in the contracts block | met | W5: seen, not published (cause 3) |
-| #467 | Export never re-lists the Library | ≥ 1/3 | 0/3, one partial (W6, wrong mechanism) | **not met** | the finalize handler sends no `library:changed`; W6 guessed it does |
-| #466 | Back re-floats the always-on-top card | ≥ 1/3 | **3/3** | met | — |
-| #467 | A Library drop navigates the window to `file://` | ≥ 1/3 | **3/3**, always `Fix` | met | — |
-| #466 | `show()` true before render; a failed load loses the card | ≥ 2/3 | **2/3**, plus 1 seen only in the contracts block | met | W5: seen, not published (cause 3) |
-| #463 | The take's first relay feed is ignored | ≥ 1/3 | 0/3 | **not met** | not reached in any run |
-| #463 | A queued camera-on reopens the camera after a newer off | ≥ 1/3 | **2/3**, `Fix` | met | — |
-| #467 | Orphaned CSS comment labelled `Fix` | 0/3 | **0/3** (`Consider · cleanup` 3/3) | met | — |
+| #439 | 2 (0 / 2) | 1 | $0.21 | — | — |
+| #449 | 13 (2 / 11) | 1 | $1.50 | — | — |
+| #478 | 16 (3 / 13) | 50 | $3.41 | 2 | 3 |
+| #479 | 12 (6 / 6) | 21 | $2.32 | 1 | 5 |
+| #482 | 10 (2 / 8) | 24 | $3.31 | 3 | 3 (+ more in review bodies) |
+| #483 | 15 (3 / 12) | 16 | $3.49 | did not run | 2 |
+| #484 | 2 (0 / 2) | 3 | $0.41 | — | — |
+| **Total** | **70** | **116** | **≈ $14.65** | **6** | **13+** |
 
-**Seven of nine per-bug predictions met.** The biggest gains are on bugs no Wachiman run had ever found: Back re-float (difficulty 5) 0/3 → 3/3, both `markCopySeen` cases 0/3 → 5/6, the `file://` drop 0/3 → 3/3.
+Pullfrog's cost is not in its comments; it is printed in each run's log (`pullfrog.yml`). The
+earlier comparison (kaipu-record #463–#478, 16 PRs) measured **$37.81 for Pullfrog against
+$7.83 for Wachiman** on the same PRs. CodeRabbit runs on its own service and is free on public
+repositories. It skips PRs whose base is not `main`, so on a stack it reviewed only after an
+`@coderabbitai review` request.
 
-### The 14 real bugs, by run
+## Verdicts recorded by the fixing agents
 
-| PR | Bug | v1.3.0 | W4 | W5 | W6 |
-| --- | --- | --- | --- | --- | --- |
-| #463 | Camera cannot reopen: the face is in no file | 1/3 | ✓ | | |
-| #463 | A queued camera-on reopens the camera after a newer off | 0/3 | | ✓ | ✓ |
-| #463 | The take's first relay feed is ignored | 0/3 | | | |
-| #463 | Random gap ids break Share's reuse | 0/3 | | | |
-| #463 | A superseded camera-on closes the gap too early | 0/3 | | | ✓ |
-| #464 | Ready card skips `markCopySeen` | 0/3 | ✓ | ✓ | ✓ |
-| #465 | Drag handle skips `markCopySeen` | 0/3 | ✓ | ~ | ✓ |
-| #465 | A failed probe leaves the cards at "…" | 1/3 | ✓ | ✓ | ✓ |
-| #466 | `show()` / failed load loses the card | 0/3 | ✓ | ~ | ✓ |
-| #466 | Back re-floats the card | 0/3 | ✓ | ✓ | ✓ |
-| #467 | Export never re-lists the Library | 0/3 | | | ~ |
-| #467 | Email copy listed as "Slack · Discord" | 2/3 | | ✓ | |
-| #467 | A Library drop navigates to `file://` | 0/3 | ✓ | ✓ | ✓ |
-| #467 | Editor exports labelled as destination copies | 0/3 | | ✓ | |
-| | **Found** | 0, 3, 1 | **7** | **7** | **8** |
+Each fixing agent recorded a verdict per finding when it answered the thread, after checking it
+against the code. They are first-hand but **unaudited**.
 
-"~" means seen in the contracts block or summary but not posted, or posted with the wrong mechanism.
+### #479: Move to
 
-Still missed by every v1.4.0 run: the ignored first relay feed and the random gap ids (#463), and
-Export's re-list (#467). Two of these three were Pullfrog's or CodeRabbit's catches.
+| Bot | Finding | Bot severity | Verdict |
+| --- | --- | --- | --- |
+| Wachiman | Healing empties all of `.kaipu/drag/` (could delete a drag in progress) | Fix | **Real, data** |
+| Pullfrog | Healing deletes the source's user edits; journal dropped when `unlink` fails | Important | **Real, data loss**. Most severe of the PR |
+| CodeRabbit | Healing deletes a different item that took the source's stem | Major | **Real, data loss** (same family) |
+| Wachiman | Every group-move error reported as "stale" | Fix | Real |
+| Wachiman | Enter/Space in the Move menu opens the item | Fix | Real |
+| Wachiman | Spanish strings say "workspace" | Fix | Real (cosmetic) |
+| Wachiman | `skipped` doc contradicts code | Fix | Minor |
+| Wachiman | Stop before any move reads "Moved 0 items" | Fix | Real, minor |
+| Wachiman | Failed post-commit heal reported as `io`; `mode` always "copied" | Consider | Real |
+| Wachiman | Rejected device-id promise cached for the process | Consider | Real, minor |
+| Wachiman | `ensureByName` mints tags past the cap | Consider | Real, minor |
+| Wachiman | `orderForMove` reverses exports | Consider | Real, minor |
+| Wachiman | IPC error shown as "stale" | Consider | Real, minor |
+| Wachiman (round 2) | After a lost IPC reply, the `io` text says "original untouched" | Consider | Real, minor |
+| CodeRabbit | Item id not validated (path traversal, not exploitable) | Minor | Hardening |
+| CodeRabbit | Select-mode cards lack `aria-pressed` | Minor | Minor |
+| CodeRabbit | Focus not managed in the portaled menu | Minor | Minor |
+| CodeRabbit (round 2) | `chmod` tests fail on Windows/root | Minor | Minor |
 
-**New real bugs, outside the 14** (verified by reading, not run):
+### #482: per-workspace settings
 
-- #466: a press on the floating card during the next take shows the main window mid-recording.
-  Medium; W4; still open on `origin/main`.
-- #466: on Windows before build 19041 the card is never closed at take start and can land in the
-  video as a black box. Medium; W5 and W6.
+| Bot | Count | Notable |
+| --- | --- | --- |
+| Wachiman | 10 | Hash recorded after the write leaves own overrides "pending" (medium); a pending file blocks clearing `uploadMode` (medium); three refresh/write race variants (minor) |
+| Pullfrog | 3 | The capture-start refresh does not bound the availability probe (**medium**, real) |
+| CodeRabbit | 7 | **An unreadable `workspace-settings.json` treated as empty and overwritten (major)**; **`copyToAll` proceeds from an unreadable source (major)**; two writes of the same workspace can interleave (medium); one declined |
 
-### What is still wrong
+20 findings in total, 19 fixed and 1 declined. No false positives.
 
-- **Under-called labels: 13.** Real Medium+ bugs were posted as `Consider`: 6 on #466, 4 on #465.
-  The calibration rule against over-calling worked (no comment-only `Fix`). The rule for the other
-  direction ("a silent wrong result is `Fix` or higher") did not move these cases. Message quality
-  fell from 4.87 to 4.75 on the Signal point.
-- **Duplicates.** The same defect was posted on two or three lines in one run:
-  - the `file://` drop: 7 postings across 3 runs;
-  - Back re-float: twice in W5 and twice in W6;
-  - the superseded camera-on: twice in W6.
+### #483: cloud and synced folders
 
-  `dedupeFindings` matches on file and line, so a defect cited on its source and its test is posted
-  twice.
-- **Seen, not published: 3.** W5 on #465 (`markCopySeen`) and #466 (failed load), and W4 on #467
-  (the Email label). Each described the defect in the contracts block or the summary and posted
-  nothing. This is cause 3 of the diagnosis, and it is now measurable.
-- **Cost +81 %.** $6.96 against $3.85. The longer prompt (call-site evidence, flow questions,
-  contracts) and longer outputs (contracts) explain it. Per real Medium+ bug found, cost fell from
-  $2.89 to **$0.95**.
+| Bot | Count | Notable |
+| --- | --- | --- |
+| Wachiman | 13 over three rounds | A failed `cloudState()` leaves "Loading…" forever (Fix); out-of-order answers show the previous workspace; the main process does not refuse an evicted source before a move reads it; the probe deadline was not a hard bound. Two migration-journal findings were **declined**: the files come from another open PR, kaipu-record#364. |
+| CodeRabbit | 3 | **The evicted-file check during listing has no overall time limit (major)**; **the media protocol reused a cached "local" answer (major)** |
+| Pullfrog | 0 | did not run |
 
-### Reading
+The fixing agent also found, **without any reviewer**, that part 2's same-volume hard-link
+move is unsafe inside Google Drive. Hard links there rename or unsync the cloud item, which is
+the same mechanism as kaipu-record NIW2-577.
 
-1. **The two changes did what they were designed for.** The bugs whose evidence lived in a sibling
-   call site (`markCopySeen` ×2) or in a question nobody asked (Back, `file://`, failed load) went
-   from never found to found in most runs. The breadth findings held (12, 11, 12 expected issues),
-   and precision held (0 invalid).
-2. **Against the competition on these five PRs:** 7.3 real bugs per run at $6.96, against
-   Pullfrog's 3.5 at $7.15. This is five PRs, three runs, and verdicts by reading. It also has a
-   bias: the 14 bugs were known when the changes were designed. Read it as "the targeted gap
-   closed", not as a general ranking; it needs held-out PRs.
-3. **What to fix next is concrete, and cheap to try:**
-   - under-called labels (a prompt and engine change);
-   - duplicates across a source and its test (an engine change);
-   - "seen, not published" (a contract that states a defect should become a finding or a
-     question).
+### #478: part 1b
 
-   Cost is the open question for E1, the same run with Sonnet on every batch.
+- **CodeRabbit, Major:** the deferred "Default → brand colour" upgrade overwrote a rename or
+  recolour made on another Mac. The agent reproduced it and fixed it. Pullfrog had flagged the
+  same family earlier in the PR; Wachiman did not.
+- **Wachiman, Fix:** the empty-folder refusal mentioned a "Move to" button that did not exist in
+  this part. Also: "Change folder…" refused the moved folder of a `pendingInit` workspace. And
+  picking the current folder showed "now points to the new folder".
+- **Declined:** relocating the active workspace drops a pending quiet capture. That is by design,
+  and the order is pinned by a test.
+
+### #449: workspaces part 1 (Wachiman only)
+
+13 findings: 2 Fix and 11 Consider. All 13 were addressed in one round. They include:
+- the preload switching guard cleared by every broadcast;
+- a cached video URL that could play another workspace's item;
+- a gate rebind race during a probe;
+- a 120 s wait when a window closes mid-switch;
+- a registry write failure leaving in-memory state changed.
+
+The owner's manual test found no bug Wachiman had missed on this PR.
+
+## Bugs no reviewer caught
+
+1. **Every workspace tile rendered grey, and every tag chip rendered rose** (kaipu-record#449,
+   which merged; fixed in #478). Part 1 moved the tag palette into a global
+   `[data-color="…"] { --tag: … }` stylesheet imported *before* each CSS module. `.tile` and
+   `.chip` declared their own `--tag` default with equal specificity, so they won on source order
+   and overrode every colour. The diff showed both files. No bot reasoned about cascade order,
+   and the owner found it by looking at the app.
+2. **A near miss on a checkbox expanded its row instead of toggling it** (Check-and-fix dialog,
+   from kaipu-record#476; fixed in #484). The cause was `.row:focus-within { white-space: normal }`:
+   the mousedown focused the box, the row reflowed taller, the box moved out from under the
+   cursor, and the mouseup missed it. A reviewer would need to connect a focus style with a
+   layout shift under the pointer.
+
+Both are CSS interaction bugs that a unit test cannot see. Measure how often this category
+appears before deciding whether Wachiman should look for it (cascade order, layout-shifting
+focus/hover styles).
+
+## Process observations
+
+- **The review loop.**
+  - With re-review on every push, a fix-and-push round produced a new round of mostly-minor
+    findings. In #482 the agent went through five rounds (heads 75698b79 → 1fb4fd6c → d9accc88 →
+    543053c4 → ad0fa5cc).
+  - The orchestrator ended the loop by telling agents to make at most one fix-and-push round,
+    then reply without pushing unless a finding was a data-loss bug.
+  - **Question:** should Wachiman's incremental review lower its finding threshold, or cap
+    Consider-level findings on re-reviews?
+- **Stacked PRs.** CodeRabbit ignores non-`main` bases. Wachiman and Pullfrog reviewed stacked
+  PRs normally. Retargeting after a lower merge produced conflicts that no reviewer comments on.
+- **Agents cannot wait for checks.** The orchestration runtime forbids polling. Several agents
+  stopped with "reviews pending", and the orchestrator had to start a new agent to answer the
+  late threads. A review that arrives after the author agent stops costs a second agent run.
+- **Severity labels.**
+  - Wachiman's "Fix / Consider" matched the agents' verdicts well: no "Fix" was judged false.
+  - Its two data-loss misses were not mislabelled findings. Wachiman never raised them at all.
+
+## How to analyse this run
+
+Do this in a fresh session. Give it this page and nothing else.
+
+1. **Re-count every number above** from the GitHub API, for each PR and each bot. List the
+   inline comments (`pulls/<n>/comments`, top-level only), the review bodies (`pulls/<n>/reviews`)
+   and the issue comments (`issues/<n>/comments`).
+   - Identify Wachiman by `github-actions[bot]` and the `<!-- wachi:finding -->` marker.
+   - Identify Pullfrog by `pullfrog[bot]` and CodeRabbit by `coderabbitai[bot]`.
+   - Keep findings that only appear in a review body; CodeRabbit and Pullfrog do this.
+2. **Cost.**
+   - Wachiman: read each run's cost from the workflow logs of `review / Agent review`
+     (`gh run view --log`). Don't trust the review-body tables, which the scrape above may have
+     double-counted. Split the full first review, incremental re-reviews and "Looks addressed"
+     runs.
+   - Pullfrog: read each run's log of `pullfrog.yml` for its cost table.
+   - CodeRabbit: $0 on this public repository. Note its list price for private repositories.
+3. **Verdict, per finding.** Classify each one as real bug (Medium+), minor, nit, or false
+   positive, by reading the code at the PR head and the fix commit. Start from the agents'
+   verdicts above, but audit at least every Medium+ one and every decline. Mark whether it was
+   fixed, and whether another bot found the same issue.
+4. **Benefit metrics.** Report these per bot:
+   - real Medium+ bugs found;
+   - data-loss bugs found;
+   - unique real bugs (that no other bot found);
+   - false positives;
+   - cost per real Medium+ bug;
+   - rounds triggered (pushes caused by its findings).
+5. **Cost/benefit questions to answer:**
+   - On data-moving PRs (#479, #482, #483), what would a second reviewer have caught that
+     Wachiman did not, and at what cost? Is that a case for running a second engine only on
+     PRs whose files match a data-path rule (`main/library/**`, `main/workspaces/**`)?
+   - What did the per-push re-reviews cost, and how many real bugs did they find that the first
+     review missed? Did that pay for the loop they caused?
+   - Which Wachiman blind spot do the two misses and the three data-loss findings point to?
+     Candidates: crash-recovery and cleanup paths that delete files; read-then-write races in a
+     cache; CSS cascade and layout shifts. Can a prompt or a risk-ordering change target it, and
+     how would we test it in the replay benchmark (`../replay`)?
+   - Using the earlier figures ($37.81 against $7.83 on 15 PRs, and the 2026-11-01 replay),
+     should kaipu-record keep Pullfrog at all, keep it only on data-path PRs, or replace it with
+     a Wachiman Opus pass on those PRs?
+6. **Write the result** as a "Results" section on this page, with a one-minute summary first.
+   Then turn every recommendation that changes the engine into an issue or ADR in this
+   repository. Kaipu-specific decisions (which bots kaipu-record keeps) go to kaipu-record's
+   ADR 0028, not here.
+
+## Sources
+
+- The PRs above, their review threads and the fixing commits named in the threads.
+- Earlier evidence: [2026-10-31 field benchmark](../2026-10-31/README.md),
+  [2026-11-01 replay](../2026-11-01/README.md), and the
+  [kaipu-record bug catalogue](../kaipu-record-bug-catalogue.md).
+- The verdict tables come from the reports of the agents that answered the threads on
+  2026-11-01/02. They are first-hand but unaudited.
