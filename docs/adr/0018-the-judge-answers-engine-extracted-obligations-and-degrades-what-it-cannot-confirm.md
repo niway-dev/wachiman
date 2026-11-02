@@ -7,7 +7,7 @@
   [ADR 0009](0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md).
 - **Spec:** [review depth, model tiers and memory](../specs/2026-11-02-review-depth-model-tiers-and-memory-design.md),
   part B.
-- **Evidence:** [E1](../benchmark/2026-11-02-e1-sonnet/README.md#why-sonnet-lost-what-opus-found);
+- **Evidence:** [E1](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-e1-sonnet/README.md#why-sonnet-lost-what-opus-found);
   the live workspaces chain (#87); the held-out set (#86);
   [ideas from Anthropic's post](../research/2026-10-26-ideas-from-anthropic-code-review.md), idea 1.
 

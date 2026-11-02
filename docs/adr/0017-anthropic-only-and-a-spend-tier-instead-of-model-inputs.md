@@ -4,8 +4,8 @@
   [ADR 0004](0004-codex-provider.md)** (the Codex provider).
 - **Spec:** [review depth, model tiers and memory](../specs/2026-11-02-review-depth-model-tiers-and-memory-design.md)
 - **Issue:** #79
-- **Evidence:** [results so far](../benchmark/results.md),
-  [E1](../benchmark/2026-11-02-e1-sonnet/README.md)
+- **Evidence:** [results so far](https://github.com/niway-dev/wachiman-benchmarks/blob/main/results.md),
+  [E1](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-e1-sonnet/README.md)
 
 ## Context
 

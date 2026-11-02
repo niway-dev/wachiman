@@ -16,8 +16,8 @@
   (#88, draft: five data-path questions the engine selects per batch from the added lines; its
   `destructive-step` and `stale-write-back` questions are the ones this spec turns into
   obligations).
-- **Evidence:** [results so far](../benchmark/results.md); [v1.4.0 on Opus](../benchmark/2026-11-02/README.md);
-  [E1, v1.4.0 on Sonnet](../benchmark/2026-11-02-e1-sonnet/README.md); the held-out set (#86); the
+- **Evidence:** [results so far](https://github.com/niway-dev/wachiman-benchmarks/blob/main/results.md); [v1.4.0 on Opus](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02/README.md);
+  [E1, v1.4.0 on Sonnet](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-e1-sonnet/README.md); the held-out set (#86); the
   live workspaces chain on kaipu-record (#87); the census of `Verdict:` replies (part C);
   [ideas from Anthropic's code review post](../research/2026-10-26-ideas-from-anthropic-code-review.md).
 - **Written on:** Claude Fable 5.1, from a design conversation with the owner on 2026-11-02.
@@ -119,7 +119,7 @@ This spec decides three things:
   `open`.
 - [ ] E2 (offline): given only the Sonnet contracts, the obligation ledger and the cited code of
   the E1 runs, an Opus judge reopens at least 3 of the 5 losses listed in
-  [results.md](../benchmark/results.md#would-sonnet-reports-opus-judges-have-found-what-sonnet-lost),
+  [results.md](https://github.com/niway-dev/wachiman-benchmarks/blob/main/results.md#would-sonnet-reports-opus-judges-have-found-what-sonnet-lost),
   at about $0.20 per pull request.
 - [ ] A test shows a reader `fix` the judge cannot confirm is posted as `consider` with the
   unconfirmed note, never dropped.
@@ -257,7 +257,7 @@ records why.
 ### What the live run on #478 and #479 adds to the benchmarks
 
 The findings of both PRs, with each reviewer's label, a verdict by reading and the fixing commit,
-are audited in #87 (`docs/benchmark/2026-11-02-field/prs/pr-478.md` and `pr-479.md`). Three
+are audited in #87 ([`2026-11-02-field/prs/pr-478.md`](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-field/prs/pr-478.md) and [`pr-479.md`](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-02-field/prs/pr-479.md)). Three
 observations from the same run feed this spec and are not in #87:
 
 - **Per-call floor.** On #478 a 23-line CSS delta cost $0.17 (7 turns) and a 30-line delta $0.14,

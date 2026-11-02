@@ -9,7 +9,7 @@
 > | # | Idea | Status | Where |
 > | --- | --- | --- | --- |
 > | 1 | Verify every "should fix" before posting | adopted, with "degrade, never delete" | ADR 0018, spec [B3](../specs/2026-11-02-review-depth-model-tiers-and-memory-design.md) |
-> | 2 | Incidents and misses become an eval set | done in substance: `docs/benchmark/`, the bug catalogue, the held-out set | spec B8 makes it a rule |
+> | 2 | Incidents and misses become an eval set | done in substance: [niway-dev/wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks), the bug catalogue, the held-out set | spec B8 makes it a rule |
 > | 3 | Tag pre-existing findings; never repeat a posted one | adopted | spec B6 |
 > | 4 | Measure noise by what the author did | partly: `src/precision.ts` reads verdicts; "Fixed in <sha>" is proposed as a verdict | spec C2 |
 > | 5 | A template for the focus file, partly enforced | partly: the policy folder (ADR 0006), the evidence rule and `confidence` (#70) | — |
