@@ -14,7 +14,7 @@ One line in your caller file, usually `.github/workflows/agent-review.yml`:
 ```yaml
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.3.0
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0
 ```
 
 The part after `@` is the ref. The reusable workflow checks the engine out at the same commit as
@@ -23,7 +23,7 @@ writes `Engine niway-dev/wachiman@<sha>, run from engine/ ...` into its job summ
 tag that is, compare the SHA with the tag's commit:
 
 ```sh
-git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.3.0'
+git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.5.0'
 ```
 
 The template in this repository may name an older tag than the latest release, so take the tag from
@@ -33,8 +33,8 @@ the [Releases page](https://github.com/niway-dev/wachiman/releases), not from th
 
 | Ref | What it is | Consequence |
 | --- | --- | --- |
-| Exact tag, `@v1.3.0` | A release tag. The project's recommendation ([install.md](install.md)). | Readable in your file. It changes only when you edit the file. See the limits below. |
-| Full commit SHA, `@<40 characters>` | A commit. GitHub accepts it. | Does not depend on any tag rule. Unreadable by itself, so keep the version in a trailing comment, such as `# v1.3.0`. |
+| Exact tag, `@v1.5.0` | A release tag. The project's recommendation ([install.md](install.md)). | Readable in your file. It changes only when you edit the file. See the limits below. |
+| Full commit SHA, `@<40 characters>` | A commit. GitHub accepts it. | Does not depend on any tag rule. Unreadable by itself, so keep the version in a trailing comment, such as `# v1.5.0`. |
 | Floating tag, `@v1` | A tag the maintainer moves to each compatible release. | Not recommended. A release reaches your repository, and runs with your key, before you have read it. |
 
 ### What an exact tag guarantees, and what it does not
@@ -68,10 +68,10 @@ the floating `v1` tag ([releasing.md](releasing.md)). So:
    in the workflow and the template. In a clone of this repository:
 
    ```sh
-   git diff v1.2.1 v1.3.0 -- .github/workflows/review.yml templates/agent-review-caller.yml
+   git diff v1.4.0 v1.5.0 -- .github/workflows/review.yml templates/agent-review-caller.yml
    ```
 
-   Or open `https://github.com/niway-dev/wachiman/compare/v1.2.1...v1.3.0`. Engine defaults are in
+   Or open `https://github.com/niway-dev/wachiman/compare/v1.4.0...v1.5.0`. Engine defaults are in
    `src/config.ts`. Look for a changed default budget, a new input, a different `permissions` block
    or a changed trigger, because those change what the review costs or what it can touch.
 3. **Change the ref** in your caller file to the new tag, through your normal review process.
