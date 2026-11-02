@@ -1,0 +1,7 @@
+# Held-out replay manifest (2026-11-02): five kaipu-record pull requests that introduced catalogued bugs.
+# None of these was used to design Wachiman v1.4.0. Columns: PR number, base SHA, head SHA, original title.
+402	a25424dfd3dc7a697ad6f85f8807ea15a653cd56	01dfe73fa65f01171659b9c695e1d751b22d22ed	perf(record): start recording instantly — preloaded overlays and shade, devices acquired during the countdown
+255	400c80e4ff0dcb98338b411aea70a02b63b517d7	78e20a2530cd0d7eaad647a55b561dee147836bc	Bug: main window disappears when it loses focus (macOS)
+276	400c80e4ff0dcb98338b411aea70a02b63b517d7	f91b56dec34096ce1b2d29d3dcf3594b7a753f7e	fix(api): close upload abuse paths [NIW2-323]
+269	58a95f9c38f247339f93806295602448de916a89	3159fb1c69e4aad0dc853e4f386818b320fe7ac2	feat(kaipu): NIW2-218 export presets pipeline and fast start
+184	06388e643ec804bbaf721d184e6adc3d50994a1e	2c33d5b87c2d87a4f8706486e49009513da51d3a	feat(video-editor): make text labels editable and multi-line
