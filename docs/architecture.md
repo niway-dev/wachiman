@@ -124,7 +124,7 @@ All names are in `src/engine.ts` unless a file is given.
    read, what happens when it rejects, times out, never delivers or the sender is not who is
    expected, and whether the failure is visible. The pull request body is named as the author's
    claim to verify, not a summary to inherit. *Why:* in the
-   [2026-11-01 benchmark](benchmark/2026-11-01/README.md) the bugs Wachiman missed were questions
+   [2026-11-01 benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-01/README.md) the bugs Wachiman missed were questions
    the prompt never asked; the reasoning is in the
    [spec](specs/2026-10-31-flow-questions-and-evidence-design.md) and
    [ADR 0009](adr/0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md).
@@ -284,7 +284,7 @@ Implements the floor of decision 4 and decision 5 of the
 half of that spec (`contracts`, `confidence`, admitted investigation, ADR 0009) is separate work.
 Code: `src/evidence.ts`; `gatherEvidence` in `src/engine.ts` calls it once per provider call.
 
-*Why:* in the [2026-11-01 benchmark](benchmark/2026-11-01/README.md) the bugs Wachiman missed
+*Why:* in the [2026-11-01 benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-01/README.md) the bugs Wachiman missed
 sat in sibling callers outside the diff. On kaipu-record #465 the new Drag handle called
 `startFileDrag` without `markCopySeen`; the sibling caller in `export-status-cards.tsx` pairs the
 two, and the model never opened it. The same class: #464 and #467.

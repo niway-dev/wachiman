@@ -8,7 +8,7 @@
   first real install. Amends ADR 0001 decision 5. Builds on ADR 0011 (review every push, #68), merged.
   The spec's part C (fix checks) is not part of this ADR and is not implemented.
 - **Spec:** [Re-review on push, thread replies and fix checks](../specs/2026-11-01-re-review-on-push-design.md)
-- **Evidence:** [kaipu-record#475](../benchmark/2026-10-31/pr-475.md)
+- **Evidence:** [kaipu-record#475](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/pr-475.md)
 
 ## Context
 

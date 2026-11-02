@@ -10,7 +10,7 @@
   merged.
 - **Creates:** ADR 0012 (automatic answers to thread replies, one ceiling per pull request).
   Reuses ADR 0001, 0003, 0008, 0009, 0011.
-- **Refs:** #71, #43. Evidence: [kaipu-record#475](../benchmark/2026-10-31/pr-475.md). Part C
+- **Refs:** #71, #43. Evidence: [kaipu-record#475](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/pr-475.md). Part C
   was critiqued and redesigned with GPT-6.1 Sol (2026-11-01).
 - Written on Claude Opus 5.5.
 
@@ -99,7 +99,7 @@ tested here.
 - [ ] With `fix_check: true` on an incremental run, the batch prompt contains the previous-version
       section, the commit messages labelled as claims and the three questions; with `false`, or on
       a first review, none of them.
-- [ ] The measurement below is run and written to `docs/benchmark/` before `fix_check` defaults
+- [ ] The measurement below is run and written to [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks) before `fix_check` defaults
       to on.
 
 ## Detail
