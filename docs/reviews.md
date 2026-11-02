@@ -255,7 +255,9 @@ from the reviewed one are reviewed again; a merge that changes none of them post
 "Brought up to date with the base branch" marker and calls no model.
 
 To turn it off, remove `synchronize` from the caller's types, or pass `review_on_push: false` to the
-reusable workflow. Each push can spend up to `budget_usd` ([costs.md](costs.md)).
+reusable workflow. Each push can spend up to `budget_usd`, and all automatic runs on the pull request
+together up to `auto_budget_usd` ([costs.md](costs.md#the-ceiling-per-pull-request)): at the ceiling the
+push posts one "Automatic reviews paused" notice and no review, and `/wachi review` still works.
 
 ## Re-review: what a second `/wachi review` covers
 
@@ -296,21 +298,34 @@ first line gives the command, with the files it did not reach.
 
 ## Reply to a finding
 
-Each inline finding is a normal review thread. You can reply to it, and Wachiman can answer, but
-**a reply does not start anything by itself.**
+Each inline finding is a normal review thread. You can reply to it, and Wachiman answers, in two ways.
 
-- The caller workflow listens to `pull_request` (opened, ready for review, and each push) and
-  `issue_comment` (created). A reply inside a review thread is neither, so nothing runs when you
-  post it.
-- Wachiman reads threads only **during a later review that has work to do**: a `/wachi review` that
-  reaches the model, either because new reviewable files changed since the last complete review or
-  because you named paths in the pull request. It also needs a previous complete review to exist.
-- If the head has not moved and you ask for a plain `/wachi review`, you get "Already reviewed"
-  and the replies wait. If there is nothing reviewable in the change, you get "Nothing to review"
-  and they wait as well. There is no command that only answers replies; the closest is a scoped
-  review of a small file, which carries the open threads along with it.
+**Without a push: a thread-reply run.** The caller listens to `pull_request_review_comment`
+(created) as well as `pull_request` and `issue_comment` ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)).
+When **you** (the `operator`) reply in a thread, a short job starts:
 
-When a review does read threads:
+- It starts only for the operator's reply, on a head in the same repository, never for a bot. A
+  collaborator's or a stranger's reply starts nothing, and the Actions list shows the job skipped.
+  (Their replies are still read inside runs you start.)
+- It acts only when the head was **already reviewed**. If you reply seconds after a push, the
+  push's review has not posted yet, reads the same replies and answers them; the thread run exits
+  without a model call so you do not get two answers.
+- It answers **every** Wachiman thread that waits for an answer, not only the one you replied in:
+  threads whose latest comment is a reply by someone with `OWNER`, `MEMBER` or `COLLABORATOR`
+  access, with fewer than two Wachiman replies.
+- It makes one small model call (default cap $0.25, `threads_budget_usd`) that counts against the
+  pull request's ceiling (`auto_budget_usd`, [costs.md](costs.md)). At the ceiling you get the one
+  "Automatic reviews paused" notice and no answer.
+- It has its own concurrency group and never cancels: a reply cannot cancel the review of a push.
+
+Each answer is a reply in the thread: `👮 **Wachiman** · **Appears addressed in `src/a.ts:42`** at
+`e4f5a6b`: …` or `👮 **Wachiman** · **Still applies** at `e4f5a6b`: …`. The cited `path:line` is
+checked against the head, and a reply whose citation does not exist is not posted. The reply says
+"read", never "tested". The second and last reply in a thread ends with what Wachiman waits for from
+you; after it, Wachiman stays silent in that thread.
+
+**During a review.** A `/wachi review` or a push review that reaches the model also reads the open
+threads and may answer them ("Looks addressed" or "Still open"), as before:
 
 - **Which threads.** The pull request's first 100 review threads, with at most 30 comments each,
   that are unresolved and whose first comment is a Wachiman finding. Threads on files outside the
@@ -319,14 +334,12 @@ When a review does read threads:
   `COLLABORATOR`. A stranger's reply on a public repository is dropped before the model reads
   anything. See [SECURITY.md](../SECURITY.md).
 - **What it does with them.** The model decides, for each thread, whether the current code
-  addresses the finding, and may post a short reply, "Looks addressed" or "Still open", with the
-  commit it checked. It does so even for a thread nobody replied to, and it may leave a thread
-  without a reply. It can answer only threads the engine handed over.
-- **What it never does: resolve a thread.** You resolve threads yourself. A resolved thread is
-  not read again, which is also how you stop it from coming back.
+  addresses the finding, and may post a short reply with the commit it checked. It can answer only
+  threads the engine handed over.
 
-Replies posted after the review itself appear in the thread as
-`👮 **Wachiman** · **Still open** at `e4f5a6b`: …`.
+**What it never does: resolve a thread.** You resolve threads yourself ([ADR 0008](adr/0008-thread-follow-up-authority.md):
+the model reports, it does not resolve). A resolved thread is not read again, which is also how you
+stop it from coming back.
 
 **Why the timeline can show empty reviews.** The review itself is one submission: its body and
 every inline comment go in a single request. Each thread reply is a separate request, and GitHub
@@ -337,10 +350,11 @@ the same happens with replies from people and from other review bots (seen on
 `niway-dev/kaipu-record#467`). [Issue #17](https://github.com/niway-dev/wachiman/issues/17)
 tracks whether to batch replies.
 
-[ADR 0008](adr/0008-thread-follow-up-authority.md) proposes more (the operator's `Verdict:` reply
-resolving a thread, a cap of two replies per thread, follow-up even when no file changed). It is
-marked proposed and is not implemented. None of that happens today. The `Verdict:` replies that
-[precision.md](precision.md) counts are read by that script only, not by the engine.
+Not implemented from ADR 0008: the operator's `Verdict:` reply resolving a thread. The `Verdict:`
+replies that [precision.md](precision.md) counts are read by that script only, not by the engine.
+
+If your caller was written before ADR 0012 it lacks the `pull_request_review_comment` trigger and a
+reply starts nothing; see [upgrading.md](upgrading.md#answering-thread-replies-without-a-push).
 
 ## Ask a question
 

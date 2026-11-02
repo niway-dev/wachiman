@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { loadConfig, operatorProblem, UsageError } from "./config";
+import { isAutomatic, loadConfig, operatorProblem, UsageError } from "./config";
 
 const load = (env: Record<string, string>) => {
   const warnings: string[] = [];
@@ -11,6 +11,9 @@ describe("loadConfig", () => {
     const { config, warnings } = load({});
     expect(config).toEqual({
       budgetUsd: 3,
+      autoBudgetUsd: 6,
+      threadsBudgetUsd: 0.25,
+      trigger: undefined,
       batchBudgetUsd: 0.75,
       answerBudgetUsd: 1,
       batchLines: 1000,
@@ -26,6 +29,31 @@ describe("loadConfig", () => {
       exclude: [],
     });
     expect(warnings).toEqual([]);
+  });
+
+  test("reads the per-pull-request ceiling and the thread run's budget", () => {
+    const { config } = load({ AGENT_REVIEW_AUTO_BUDGET_USD: "0.5", AGENT_REVIEW_THREADS_BUDGET_USD: "0.1" });
+    expect(config).toMatchObject({ autoBudgetUsd: 0.5, threadsBudgetUsd: 0.1 });
+  });
+
+  test("rejects a ceiling or a thread budget that is not a positive number", () => {
+    for (const bad of ["0", "-1", "two", "NaN", "Infinity"]) {
+      expect(() => load({ AGENT_REVIEW_AUTO_BUDGET_USD: bad })).toThrow(UsageError);
+      expect(() => load({ AGENT_REVIEW_THREADS_BUDGET_USD: bad })).toThrow(UsageError);
+    }
+    expect(() => load({ AGENT_REVIEW_AUTO_BUDGET_USD: "abc" })).toThrow("AGENT_REVIEW_AUTO_BUDGET_USD");
+  });
+
+  test("a run is automatic unless the trigger is absent or the operator's comment", () => {
+    expect(load({}).config.trigger).toBeUndefined();
+    expect(load({ AGENT_REVIEW_TRIGGER: "synchronize" }).config.trigger).toBe("synchronize");
+    expect(isAutomatic(undefined)).toBe(false);
+    expect(isAutomatic("comment")).toBe(false);
+    for (const t of ["opened", "ready_for_review", "synchronize", "reopened", "thread"]) expect(isAutomatic(t)).toBe(true);
+  });
+
+  test("rejects a trigger that is not an event action", () => {
+    expect(() => load({ AGENT_REVIEW_TRIGGER: "Sync Now!" })).toThrow(UsageError);
   });
 
   test("reads AGENT_REVIEW_MAX_TURNS and AGENT_REVIEW_CALL_TIMEOUT_S", () => {

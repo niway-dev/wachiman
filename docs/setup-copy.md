@@ -161,8 +161,8 @@ The CLI contract (commands, environment, exit codes) is in [cli.md](cli.md). The
 5. **Open the pull request that adds the files, ready for review.** A `pull_request` workflow
    runs from the pull request's own branch, so it reviews itself. The comment job runs from the
    default branch, so `/wachi review` can only be tried once the workflow is merged. The pull
-   request that installs the files gets only the automatic review; a reply in a review thread
-   never starts a run.
+   request that installs the files gets only the automatic review. A reply you write in a review
+   thread starts the `threads` job once the file is on the default branch too.
 
 ### Things that will surprise you
 

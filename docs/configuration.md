@@ -5,7 +5,8 @@ first install read [install.md](install.md) instead; this page is for looking th
 
 This page describes the code on the `main` branch. The latest release is v1.3.0, and some settings
 here are newer than it: [reasoning effort](#reasoning-effort), the turn cap and call timeout, and
-`review_on_push`, each marked **new in the release after v1.3.0**. Everything else on this page is
+`review_on_push`, the per-pull-request ceiling (`auto_budget_usd`) and the thread-reply run
+(`threads_budget_usd`), each marked **new in the release after v1.3.0**. Everything else on this page is
 the same in v1.3.0. If your caller pins a tag, check
 `src/config.ts` and `.github/workflows/review.yml` at that tag. Wachiman is advisory: no setting
 here makes a review approve, request changes or block a merge.
@@ -45,8 +46,9 @@ Rules that hold everywhere:
 ## Reusable workflow
 
 `.github/workflows/review.yml`, called from your caller file (the template is
-[`templates/agent-review-caller.yml`](../templates/agent-review-caller.yml)). It has two jobs: an
-automatic review (`review`) and an on-demand run started by a comment (`on-demand`).
+[`templates/agent-review-caller.yml`](../templates/agent-review-caller.yml)). It has three jobs: an
+automatic review (`review`), a thread-reply run started by the operator's reply in a review thread
+(`threads`) and an on-demand run started by a comment (`on-demand`).
 
 ### Inputs
 
@@ -58,7 +60,9 @@ engine through the environment variable in the third column; those variables are
 | --- | --- | --- | --- | --- |
 | `operator` | string, required | `AGENT_REVIEW_OPERATOR` | none | The one GitHub login whose comments can start an on-demand run. Both jobs fail early while it is empty or a template placeholder (`EDIT…`, `your-github-login`, compared case-insensitively, whitespace removed). This is true of the automatic job too, even though it never compares the operator to anyone. |
 | `mention` | string | `AGENT_REVIEW_MENTION` | `/wachi` | The command word the on-demand job listens for. See [Mentions and commands](#mentions-and-commands): the workflow's check and the engine's parser accept different sets of words. |
-| `budget_usd` | number | `AGENT_REVIEW_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit. See [Budgets](#budgets). |
+| `budget_usd` | number | `AGENT_REVIEW_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit: that is `auto_budget_usd`. See [Budgets](#budgets). |
+| `auto_budget_usd` | number | `AGENT_REVIEW_AUTO_BUDGET_USD` | `6` | The most **all automatic runs on one pull request** may spend together: the first review, push reviews and thread-reply runs ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)). **New in the release after v1.3.0; not in v1.3.0.** The engine sums it from the cost line of its own signed review footers marked automatic, so it needs no server. A run starts with at most what is left; at the ceiling it posts one notice and stops. The operator's `/wachi review` is not limited by it. A number greater than 0. See [Budgets](#budgets). |
+| `threads_budget_usd` | number | `AGENT_REVIEW_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in the release after v1.3.0; not in v1.3.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
 | `batch_budget_usd` | number | `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
 | `answer_budget_usd` | number | `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | The cap given to the one call that answers a question. Separate from `budget_usd`. |
 | `batch_lines` | number | `AGENT_REVIEW_BATCH_LINES` | `1000` | Changed lines (additions plus deletions) per batch. A whole number. |
@@ -72,7 +76,7 @@ engine through the environment variable in the third column; those variables are
 | `claude_code_sha256` | string | installer `CLAUDE_CODE_SHA256` | empty | SHA-256 of the Claude Code binary for the runner's platform (`linux-x64` on `ubuntu-latest`). Empty means the installer reads the expected hash from the publisher's manifest. |
 | `bun_version` | string | `oven-sh/setup-bun` | `1.3.4` | The Bun version the engine runs on. Not an engine setting. CI in this repository pins Bun separately. |
 | `skip_branch_prefixes` | string | the automatic job's first gate step | `release-please--` | Comma-separated head-branch prefixes whose pull requests the automatic job does not review. Spaces are removed; empty entries are ignored, so an empty value skips nothing. It has no effect on the on-demand job. |
-| `review_on_push` | boolean | the automatic job's `if:` condition | `true` | Review each push (`synchronize`) to an open pull request, only the commits new since the last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). **New in the release after v1.3.0; not in v1.3.0.** It needs `synchronize` in the caller's `pull_request` types (the templates have it); the workflow cannot add a trigger. Each push can spend up to `budget_usd`. Set `false` to review only on open, ready for review and `/wachi review`. It has no effect on the on-demand job. See [reviews.md](reviews.md#reviews-on-push). |
+| `review_on_push` | boolean | the automatic job's `if:` condition | `true` | Review each push (`synchronize`) to an open pull request, only the commits new since the last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). **New in the release after v1.3.0; not in v1.3.0.** It needs `synchronize` in the caller's `pull_request` types (the templates have it); the workflow cannot add a trigger. Each push can spend up to `budget_usd`. Set `false` to review only on open, ready for review and `/wachi review`. It has no effect on the on-demand job or the thread-reply job. Each push also counts against `auto_budget_usd`. See [reviews.md](reviews.md#reviews-on-push). |
 
 Numeric inputs that the engine rejects (zero, negative, not a number, a fraction for `batch_lines`,
 `batch_chars`, `max_turns` or `call_timeout_s`) fail the run with the message shown under
@@ -100,23 +104,29 @@ to run the job.
 | Job | `contents` | `pull-requests` | `issues` |
 | --- | --- | --- | --- |
 | `review` (automatic) | read | write | not requested |
+| `threads` (thread replies) | read | write | not requested |
 | `on-demand` | read | write | read |
 
 ### When each job runs
 
-| | `review` (automatic) | `on-demand` |
-| --- | --- | --- |
-| Event | `pull_request` | `issue_comment` on a pull request |
-| Runs when | The pull request is not a draft, its head is in the same repository (not a fork), and the actor is not `dependabot[bot]`. The caller's `on:` decides which activity types arrive; the templates list `opened`, `ready_for_review` and `synchronize`. For a `synchronize` (a push) the input `review_on_push` must also be `true`. | The commenter's login equals `operator` and the comment body contains `mention`, `@agent-review` or `@claude` (a substring check, see [Mentions and commands](#mentions-and-commands)). |
-| Skips | A head branch starting with a `skip_branch_prefixes` entry. The job still starts and fails first if `operator` is invalid. | A fork pull request: the job stops with an error before reading the head. It has no draft, Dependabot or branch-prefix gate. |
-| Checks `operator` | Only that it is set | That it is set, and the login match above |
-| Time limit | 30 minutes | 30 minutes |
-| Concurrency | One group per pull request; a new run cancels the earlier run of this job | One group per pull request; a new run cancels the earlier run of this job |
+| | `review` (automatic) | `threads` (thread replies) | `on-demand` |
+| --- | --- | --- | --- |
+| Event | `pull_request` | `pull_request_review_comment` (created) | `issue_comment` on a pull request |
+| Runs when | The pull request is not a draft, its head is in the same repository (not a fork), and the actor is not `dependabot[bot]`. The caller's `on:` decides which activity types arrive; the templates list `opened`, `ready_for_review` and `synchronize`. For a `synchronize` (a push) the input `review_on_push` must also be `true`. | The comment is a reply (`in_reply_to_id` is set), its author's login equals `operator` and is not a bot, and the pull request's head is in the same repository. Anyone else's reply starts a job that GitHub shows as skipped, before any paid step. | The commenter's login equals `operator` and the comment body contains `mention`, `@agent-review` or `@claude` (a substring check, see [Mentions and commands](#mentions-and-commands)). |
+| Then the engine | Reviews, within `auto_budget_usd` for the pull request. | Exits without a model call unless the head was already reviewed; then answers every Wachiman thread that waits for an answer. Counts against `auto_budget_usd`. | Reviews or answers, never limited by `auto_budget_usd`. |
+| Skips | A head branch starting with a `skip_branch_prefixes` entry. The job still starts and fails first if `operator` is invalid. | A fork pull request (by its `if:`). It has no draft, Dependabot or branch-prefix gate: a head that was never reviewed has nothing to answer, and the engine exits. | A fork pull request: the job stops with an error before reading the head. It has no draft, Dependabot or branch-prefix gate. |
+| Checks `operator` | Only that it is set | That it is set, the login match above, and again in the engine | That it is set, and the login match above |
+| Time limit | 30 minutes | 30 minutes | 30 minutes |
+| Concurrency | One group per pull request; a new run cancels the earlier run of this job | One group per pull request, **never cancelling**: a reply must not cancel the review of a push. GitHub keeps one pending run per group, and a run answers every pending thread, so a dropped pending run loses nothing | One group per pull request; a new run cancels the earlier run of this job |
 
-The two jobs use separate concurrency groups. A comment-started run does not cancel an automatic
+The three jobs use separate concurrency groups. A comment-started run does not cancel an automatic
 review, and an automatic review does not cancel a comment-started run, so both can run at once on
 the same pull request, each with its own budgets. A cancelled run posts nothing further, but calls
-it had already made may have spent money.
+it had already made may have spent money; that spend is in no footer, so `auto_budget_usd` does not
+count it.
+
+The `threads` job exists only if the caller listens to `pull_request_review_comment: created`. The
+templates do; a caller written earlier must add it ([upgrading.md](upgrading.md)).
 
 ## Engine settings
 
@@ -129,6 +139,9 @@ applies.
 | `AGENT_REVIEW_OPERATOR` | string | empty | A GitHub login | Who may command the tool. Only `comment` uses it, and `comment` refuses to run (exit 1) while it is empty or a placeholder. `review` never checks it. | both |
 | `AGENT_REVIEW_MENTION` | string | `/wachi` | Any non-empty string | The command word `comment` looks for, in addition to `/wachiman`, `@agent-review` and `@claude`. An empty value counts as unset. | both |
 | `AGENT_REVIEW_BUDGET_USD` | number | `3` | Finite, greater than 0 | Total for one `review` invocation. See [Budgets](#budgets). | both |
+| `AGENT_REVIEW_AUTO_BUDGET_USD` | number | `6` | Finite, greater than 0 | Ceiling for all automatic runs on one pull request, summed from the engine's own signed review footers. **New in the release after v1.3.0.** Applies only when `AGENT_REVIEW_TRIGGER` names an automatic run; `/wachi review` (`comment`) ignores it. See [Budgets](#budgets). | both |
+| `AGENT_REVIEW_THREADS_BUDGET_USD` | number | `0.25` | Finite, greater than 0 | Cap for the one provider call of a `threads` run. **New in the release after v1.3.0.** | same as the batch cap |
+| `AGENT_REVIEW_TRIGGER` | string | unset | A lowercase event action: `opened`, `ready_for_review`, `synchronize`, `comment`, `thread`… | Why the run started. **New in the release after v1.3.0.** `comment` is the operator's command and is never limited by the ceiling; any other value is an automatic run that is. Unset means a person ran the CLI by hand, which is not limited either. The workflow sets it (`github.event.action`, `comment`, `thread`); the `comment` and `threads` commands set it themselves, whatever the environment says. A value that is not a lowercase word is a usage error (exit 2). | both |
 | `AGENT_REVIEW_BATCH_BUDGET_USD` | number | `0.75` | Finite, greater than 0 | Cap passed with each provider call in a review, limited by what is left of the total. | Claude: sent as `--max-budget-usd`, a soft cap. Codex: used for accounting only, never enforced. |
 | `AGENT_REVIEW_ANSWER_BUDGET_USD` | number | `1` | Finite, greater than 0 | Cap for the one call that answers a `comment` question. | same as above |
 | `AGENT_REVIEW_BATCH_LINES` | integer | `1000` | Whole number, greater than 0 | Changed lines per batch. | both |
@@ -327,15 +340,42 @@ How to use these commands day to day is in [reviews.md](reviews.md).
 
 ## Budgets
 
-There are three dollar settings and they bound different things. All of them are per invocation: one
-automatic run, one comment, or one CLI call. Nothing adds up across invocations, days or pull
-requests. A re-run, a second comment, or two jobs at once each start from the full budget.
+There are five dollar settings and they bound different things. Four of them are per invocation: one
+automatic run, one comment, one thread-reply run, or one CLI call. A re-run, a second comment, or two
+jobs at once each start from the full budget. The fifth, `auto_budget_usd`, adds the automatic runs
+of one pull request together.
 
 | Setting | Bounds |
 | --- | --- |
 | `budget_usd` / `AGENT_REVIEW_BUDGET_USD` | The sum of what one `review` invocation spends over all its calls, first calls and retries together. |
+| `auto_budget_usd` / `AGENT_REVIEW_AUTO_BUDGET_USD` | What all **automatic** runs on one pull request spend together (the first review, push reviews, thread-reply runs), default $6: one full review (`budget_usd`, $3) plus room for push reviews. See below. |
 | `batch_budget_usd` / `AGENT_REVIEW_BATCH_BUDGET_USD` | The cap handed to each single provider call. |
+| `threads_budget_usd` / `AGENT_REVIEW_THREADS_BUDGET_USD` | The cap handed to the one call of a thread-reply run (default $0.25). |
 | `answer_budget_usd` / `AGENT_REVIEW_ANSWER_BUDGET_USD` | The cap handed to the one call that answers a question. An answer does not touch `budget_usd`, and a review does not touch this. |
+
+### The ceiling per pull request
+
+Before an automatic run plans its batches, the engine lists the pull request's reviews and its own
+inline replies. It keeps those signed by this engine whose footer carries the automatic flag
+(`<!-- wachi:auto -->`, written between the cost line and the signature) and adds up the dollar
+amount on their cost line. Model text cannot forge either part: `<!--` is defused in everything a
+model writes, and the footer is read only at the very end of the body.
+
+- If `auto_budget_usd` minus that sum is less than $0.05 (a batch's minimum), the run posts one
+  notice, "Automatic reviews paused: $X of $Y spent on this pull request. Comment `/wachi review`
+  to review now.", and starts no model call. A second notice for the same ceiling is not posted:
+  later pushes post nothing. Raising `auto_budget_usd` lets the next push run.
+- Otherwise the run's budget is the smaller of `budget_usd` (or `threads_budget_usd`) and what is
+  left, so the pull request cannot go far past the ceiling (Claude's per-call cap is still soft).
+- The first review counts. A large first review can use most of the default $2.
+- `/wachi review` and `/wachi <question>` are not limited and not counted. A rebase or merge with
+  no change in the pull request's lines is still posted at the ceiling: it costs nothing and moves
+  the marker.
+- **What is not counted.** A run cancelled by a newer push posts nothing, so its spend is in no
+  footer. A thread-reply run whose replies were all dropped (its citations did not check out, or a
+  push landed meanwhile) leaves its cost in the job log only. Footers show cents, so a very small
+  cost rounds down. The ceiling is a guard rail on the engine's own accounting, not an invoice
+  ([costs.md](costs.md)).
 
 What one review does, in order:
 
@@ -485,6 +525,7 @@ Each of these is a fixed behaviour of the engine at this release:
 | Message or symptom | Cause | Exit |
 | --- | --- | --- |
 | `AGENT_REVIEW_X must be a positive number, got "…".` (or `positive integer`) | A numeric setting is zero, negative, not finite, or (for lines and chars) not whole. | 2 |
+| `AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "…".` | The trigger has capitals, digits, spaces or punctuation. | 2 |
 | `AGENT_REVIEW_EFFORT must be one of low, medium, high, xhigh, max, got "…".` | The effort (new after v1.3.0) is not one of the five names. With only the deprecated variable set, the message names `AGENT_REVIEW_REASONING_EFFORT`. | 2 |
 | `Unknown provider "…". Accepted values: claude-code, codex.` | `AGENT_REVIEW_PROVIDER` is something else. | 2 |
 | `GH_TOKEN is not set`, `GITHUB_REPOSITORY is not set`, `REQUEST is not set` | A required variable is missing or empty. | 2 |

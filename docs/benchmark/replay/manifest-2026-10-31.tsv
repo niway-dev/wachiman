@@ -1,8 +1,0 @@
-# Replay manifest for the 2026-10-31 exhibition: five kaipu-record pull requests.
-# Columns (tab-separated): kaipu-record PR number, base SHA, head SHA, original title.
-# Blank lines and lines starting with # are ignored. Used by bench.sh create/open/rounds.
-463	c58b68f437293377f0188e6c460ad782a313dbb1	3ec7a138c3a878b38284fd13c801ab7226a34abb	fix(desktop): turning the camera off and on mid-take keeps the face in its own track
-464	13b7ff5da65f3d0b59d0542132babf328ce373b3	e45c845143ba72f35fea4fac2f9d62a186dff986	feat(desktop): ready copy shows up in the Library; minimizable export widget
-465	13b7ff5da65f3d0b59d0542132babf328ce373b3	dac8318b631e64780f65ce94b4aaa57261d7d63d	feat(desktop): recording detail — title on top, destinations strip, copies from this original
-466	13b7ff5da65f3d0b59d0542132babf328ce373b3	b2705a9ce2593b29ae50235312a4226955bbbb36	feat(desktop): float "Your video is ready" outside the app window
-467	13b7ff5da65f3d0b59d0542132babf328ce373b3	b12d760bd90b1e9619bab115f500f9c1a30cccf3	feat(desktop): Export screen with its own rail entry (replaces Prepare)

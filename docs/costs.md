@@ -5,7 +5,7 @@ provider bills your account. This project runs no service and takes no payment. 
 what bounds the spend of one run, where those bounds are weaker than they sound, and how to read
 the cost a review reports.
 
-**The budgets limit one run, not a month and not a pull request's lifetime.** For the supported
+**Most budgets limit one run. One limit covers a pull request's automatic runs together: `auto_budget_usd` (default $6).** Nothing limits a month. For the supported
 Claude workflow the per-call cap is soft: a call can spend more than its cap. For Codex there is no
 per-call dollar cap at all. Treat the settings as guard rails, and set a spend limit at the provider
 if you need a hard ceiling.
@@ -23,6 +23,26 @@ or blocks a merge, and neither does running out of budget.
 
 A dry run (`AGENT_REVIEW_DRY_RUN=1`) is not free: it only skips posting to GitHub. It still calls
 the agent. See [Dry runs](#dry-runs).
+
+## The ceiling per pull request
+
+Reviewing every push and answering thread replies means a pull request pays for many runs. All
+**automatic** runs on one pull request (the first review, push reviews and thread-reply runs) share
+`auto_budget_usd`, default **$6**, which leaves room for one full review (`budget_usd`, $3) and several push reviews. There is no server: before each automatic run the engine adds up
+the cost lines of its own signed review footers that carry the automatic flag
+(`<!-- wachi:auto -->`), and the run gets at most what is left. When less than $0.05 is left, it
+posts one "Automatic reviews paused" notice and does nothing else, and later pushes post nothing
+until you raise the limit or ask yourself.
+
+- `/wachi review` and `/wachi <question>` are not limited and not counted.
+- The first review counts. A large first review ($1.36 on a big pull request) can use most of $2;
+  the notice then tells you how to continue.
+- A run cancelled by a newer push posts nothing, so what it spent is in no footer and is not
+  counted; a thread-reply run that posted no reply is not counted either. The ceiling can
+  under-count them. Footers show cents. [ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)
+  says when this is reopened.
+- It bounds the engine's own accounting. For Claude the per-call cap is soft, so a pull request can
+  still go past $2 by a call's overshoot.
 
 ## How the budgets work
 
@@ -132,7 +152,8 @@ and spends again.
 
 - **Retries.** Described above: a second call, with its own cap, for files the first call missed.
 - **Pushes.** With `synchronize` in the caller (the templates have it), every push to an open pull
-  request starts a review with its own `budget_usd`. It reads only what is new since the last
+  request starts a review with its own `budget_usd`, until the pull request's automatic runs reach
+  `auto_budget_usd` ([above](#the-ceiling-per-pull-request)). It reads only what is new since the last
   complete review, so a small fix costs a small review, but a pull request that gets ten pushes pays
   for ten reviews, and a push that changes many files can spend the whole budget again. A rebase
   with no change in the pull request's lines costs no model call (one runner job of a few seconds and
@@ -143,8 +164,12 @@ and spends again.
 - **Repeated runs.** A new `/wachi review` after a change, a pull request that leaves draft,
   and a scoped review on an unchanged head each start a full budget. A plain `/wachi review` on a head
   that already has a complete review stops with "Already reviewed" before any provider call.
-- **Overlapping jobs.** The automatic job and the on-demand job use separate concurrency groups
-  (`agent-review-<pr>` and `agent-review-on-demand-<pr>`), so one cannot cancel the other. If both are
+- **Thread replies.** Each reply of the operator's in a thread can start a run (`threads`) that makes one
+  call capped at `threads_budget_usd` (default $0.25), once the head is reviewed. It counts against
+  `auto_budget_usd`. A reply by anyone else, or on an unreviewed head, starts no model call.
+- **Overlapping jobs.** The automatic job, the thread-reply job and the on-demand job use separate
+  concurrency groups (`agent-review-<pr>`, `agent-review-threads-<pr>` and
+  `agent-review-on-demand-<pr>`), so one cannot cancel the other. If both are
   running, both spend. Within one job a newer run cancels the older one (`cancel-in-progress`). Cancellation
   before posting leaves no review; cancellation after posting may leave the review and some replies.
   Check the pull request before rerunning. Whether the provider bills the calls that were in flight

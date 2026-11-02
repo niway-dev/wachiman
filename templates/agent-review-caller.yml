@@ -7,15 +7,19 @@ name: Agent review
 # Updates reach you only when you change this line, by hand or through a Dependabot pull request you
 # enable and read. A bad release is undone by editing the pin back.
 # First install: the installing pull request can get the automatic review. `/wachi review` works once
-# this file is on the default branch, because `issue_comment` runs from there. A reply in a review
-# thread starts no run by itself; ask for a review (docs/install.md, "Ask for a review").
+# this file is on the default branch, because `issue_comment` runs from there. A reply you write in a
+# review thread (`pull_request_review_comment`) gets an answer without a push, once the head has been
+# reviewed; replies from anyone else start nothing.
 # `synchronize` reviews every push to an open pull request, only the commits that are new since the
 # last review (a rebase with no change in content only moves the marker and costs no model call).
-# Each push can spend up to `budget_usd`. To review only on open and on `/wachi review`, remove
-# `synchronize` here, or keep it and pass `review_on_push: false` below. The trigger lives in this
-# file: bumping the pinned release does not add it to a caller that already exists.
+# Each push can spend up to `budget_usd`, and all automatic runs on one pull request together up to
+# `auto_budget_usd` (default $2; `/wachi review` is not limited by it). To review only on open and on
+# `/wachi review`, remove `synchronize` here, or keep it and pass `review_on_push: false` below.
+# Remove `pull_request_review_comment` to stop answering thread replies. The triggers live in this
+# file: bumping the pinned release does not add them to a caller that already exists.
 on:
   pull_request: { types: [opened, ready_for_review, synchronize] }
+  pull_request_review_comment: { types: [created] }
   issue_comment: { types: [created] }
 permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
@@ -24,5 +28,6 @@ jobs:
     with:
       operator: EDIT-THIS-github-login
       # review_on_push: false   # review only on open, ready for review and `/wachi review`
+      # auto_budget_usd: 2      # most all automatic runs on one pull request may spend together
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

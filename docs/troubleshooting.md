@@ -111,12 +111,21 @@ them.
 The built-in exclude list (lockfiles, build output, generated files) removed every file, or your
 paths matched only excluded files. `AGENT_REVIEW_EXCLUDE` adds patterns where it can be set. See [configuration.md](configuration.md).
 
-**7. A reply in a review thread got no answer.** The engine does not run when you reply. It reads
-open threads only while it is reviewing something: a later `/wachi review` or a scoped one. On an
-unchanged head, an unscoped `/wachi review` stops at `Already reviewed` before it looks at
-threads, so the reply stays unanswered. Push a change, or comment `/wachi review <file>` with the
-path the thread is on. Only replies from `OWNER`, `MEMBER` and `COLLABORATOR` are passed to the
-agent. See [reviews.md](reviews.md).
+**7. A reply in a review thread got no answer.** Check, in this order: (a) your caller lists
+`pull_request_review_comment: { types: [created] }` (a caller written before ADR 0012 does not, and
+bumping the pin does not add it, see [upgrading.md](upgrading.md)); (b) you are the `operator`: a
+reply by anyone else starts a skipped job; (c) the head was reviewed: if you replied within seconds
+of a push, the push's review answers instead, and if that review has not posted, the `Agent thread
+replies` log says `Unreviewed push`; (d) the pull request is under `auto_budget_usd`: at the ceiling
+there is one "Automatic reviews paused" notice and no answer; (e) the thread has fewer than two
+Wachiman replies, since after two Wachiman stays silent there. A scoped `/wachi review <file>` also
+answers open threads. Only replies from `OWNER`, `MEMBER` and `COLLABORATOR` are passed to the
+agent. See [reviews.md](reviews.md#reply-to-a-finding).
+
+**7b. "Automatic reviews paused: $X of $Y spent on this pull request."** The pull request's automatic
+runs (first review, push reviews, thread replies) reached `auto_budget_usd`. Comment `/wachi review`
+to review now (it is not limited), or raise `auto_budget_usd` in your caller. See
+[costs.md](costs.md#the-ceiling-per-pull-request).
 
 ## Fork pull requests
 

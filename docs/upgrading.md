@@ -102,6 +102,28 @@ Pass `review_on_push: false` only after you move to a release that has the input
 given an input the pinned release does not declare fails. If you copied the files instead, edit the
 `types` list in your copy of the workflow by hand; nothing updates it.
 
+### Answering thread replies without a push (`pull_request_review_comment`)
+
+Since the release that adds ADR 0012, the templates also list `pull_request_review_comment` and the
+reusable workflow has a `threads` job, so your reply in a review thread gets an answer without a
+push. **Bumping the pin alone does not turn this on**: add the trigger to your caller.
+
+```yaml
+on:
+  pull_request: { types: [opened, ready_for_review, synchronize] }
+  pull_request_review_comment: { types: [created] }
+  issue_comment: { types: [created] }
+```
+
+Only the `operator`'s replies start the job, and it answers only once the head was reviewed. The
+same release adds two inputs, `auto_budget_usd` (default `2`: the most all automatic runs on one
+pull request may spend together; `/wachi review` is not limited by it) and `threads_budget_usd`
+(default `0.25`). **This changes cost behaviour on a pull request with many pushes:** after $2 of
+automatic runs the pushes stop being reviewed and one notice is posted. Raise `auto_budget_usd` in
+your caller if that is too low. Pass either input only after you move to a release that has it: a
+workflow given an input the pinned release does not declare fails. A copied install must copy the
+new `src/` and add the `threads` job from `templates/caller-workflow.yml`.
+
 ## Dependabot for the caller file
 
 Dependabot is optional, and it is off until you add a configuration file. Releases do not arrive in
@@ -182,7 +204,8 @@ full on the next run, because the engine finds no review it trusts.
 ## Moving from a copied install
 
 Copying the files is a one-time snapshot. A copy made before ADR 0011 reviews only on open; add
-`synchronize` to its `pull_request` types, and copy the new `src/` as well, because the push review
+`synchronize` to its `pull_request` types, and copy the new `src/` as well (and the
+`pull_request_review_comment` trigger and `threads` job for thread replies), because the push review
 needs the engine that compares rebased changes. To switch to the reusable workflow, add the caller file
 from [install.md](install.md), then remove the copied files listed in [uninstall.md](uninstall.md).
 Run only one of the two while you test, or each pull request gets two reviews.

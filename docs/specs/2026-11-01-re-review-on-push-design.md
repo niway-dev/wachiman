@@ -1,11 +1,16 @@
 # Re-review on push: a ceiling, thread replies and fix checks
 
-- **Status:** proposed 2026-11-01. Nothing here is implemented. It builds on three open pull
-  requests: #68 (review every push, rebase-aware; ADR 0011), #69 (sibling call sites in
-  `evidence.json`) and #70 (flow and failure questions, `contracts[]`, `confidence`).
+- **Status:** proposed 2026-11-01. **Parts A (the ceiling) and B (thread replies without a push)
+  are implemented** by the pull request that adds this line, `feat/auto-ceiling-and-thread-replies`
+  (`ceilingRoom`, `automaticSpend`, `threadReplies`, the `threads` job, the `pull_request_review_comment`
+  trigger in both templates). They have unit and workflow-text tests and have **not run in a real
+  workflow yet** (open question 4 is still unverified). **Part C (fix checks, `fix_check`) is not
+  implemented.** It builds on #68 (review every push, rebase-aware; ADR 0011), #69 (sibling call
+  sites in `evidence.json`) and #70 (flow and failure questions, `contracts[]`, `confidence`), all
+  merged.
 - **Creates:** ADR 0012 (automatic answers to thread replies, one ceiling per pull request).
   Reuses ADR 0001, 0003, 0008, 0009, 0011.
-- **Refs:** #71, #43. Evidence: [kaipu-record#475](../benchmark/2026-10-31/pr-475.md). Part C
+- **Refs:** #71, #43. Evidence: [kaipu-record#475](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/pr-475.md). Part C
   was critiqued and redesigned with GPT-6.1 Sol (2026-11-01).
 - Written on Claude Opus 5.5.
 
@@ -14,7 +19,7 @@
 On kaipu-record#475, three of six valid findings were on fix commits pushed after the first
 review, two of them regressions introduced by a fix, and the author's replies to Wachiman's threads
 got no answer. #68 makes every push reviewed and makes a content-free rebase free. Three things are
-still missing, and this spec designs them. A ceiling ($2 by default) on what all automatic runs on
+still missing, and this spec designs them. A ceiling ($6 by default; $2 at first, raised on review because it was below one full review's $3) on what all automatic runs on
 one pull request may spend (A). A small thread-only run that answers the operator's replies
 without waiting for a push (B). And a fix check: every incremental review asks what the new
 commits can break, not only whether they fix something, using the previous version of the changed
@@ -22,7 +27,7 @@ code and the call sites #69 already collects (C).
 
 | # | Decision | Why | ADR |
 | --- | --- | --- | --- |
-| A1 | All automatic runs on one pull request (first review, push reviews, thread runs) share a ceiling, input `auto_budget_usd`, default **$2**. A run gets at most what is left; at the ceiling the engine posts one notice and stops. `/wachi review` is not limited | #68 bounds each run ($3) but a pull request now pays per push. The owner sets the limit in dollars | 0012 (new) |
+| A1 | All automatic runs on one pull request (first review, push reviews, thread runs) share a ceiling, input `auto_budget_usd`, default **$6** (first $2, raised on review: below one full review's `budget_usd` of $3). A run gets at most what is left; at the ceiling the engine posts one notice and stops. `/wachi review` is not limited | #68 bounds each run ($3) but a pull request now pays per push. The owner sets the limit in dollars | 0012 (new) |
 | A2 | Spend is summed from the cost line of the engine's signed footers marked `<!-- wachi:auto -->`; model text cannot forge either (`neutralise`, signed-footer rule) | The pull request is the only state between runs (ADR 0001: no server) | 0012 |
 | B1 | Callers listen to `pull_request_review_comment: created`. The job starts only for a reply by the `operator`, on a same-repository head, never for a bot | The author's answers arrive on that event. The gate runs before any paid step | 0012 |
 | B2 | Thread-only mode (`cli.ts threads`) answers every pending Wachiman thread and acts only when the head is already reviewed; otherwise it exits without a model call | The author's agent replies about 13 s after it pushes; the push's review reads the same replies. No duplicate answers | 0012 |
@@ -74,22 +79,27 @@ code and the call sites #69 already collects (C).
 
 ## Acceptance criteria
 
-- [ ] With `auto_budget_usd: 0.5` and $0.50 of recorded automatic spend, the next push posts the
+Checked items are covered by tests in the pull request that implements parts A and B (engine tests
+with a fake `gh` and a fake provider, and textual checks of `review.yml` and the templates). None
+has run in a real workflow; Actions behaviour (a skipped job, a pending concurrency run) is not
+tested here.
+
+- [x] With `auto_budget_usd: 0.5` and $0.50 of recorded automatic spend, the next push posts the
       ceiling notice once and starts no batch; a later push posts nothing.
-- [ ] A run started with $0.30 left under the ceiling is given a budget of at most $0.30.
-- [ ] `/wachi review` runs normally on a pull request at its ceiling.
-- [ ] A reply by a user who is not the operator starts no job (skipped in the Actions list).
-- [ ] An operator reply on a reviewed head gets one Wachiman reply in that thread citing
+- [x] A run started with $0.30 left under the ceiling is given a budget of at most $0.30.
+- [x] `/wachi review` runs normally on a pull request at its ceiling.
+- [x] A reply by a user who is not the operator starts no job (skipped in the Actions list).
+- [x] An operator reply on a reviewed head gets one Wachiman reply in that thread citing
       `path:line` at the head; the thread stays unresolved.
-- [ ] An operator reply posted within 30 s after a push gets exactly one Wachiman answer, from
+- [x] An operator reply posted within 30 s after a push gets exactly one Wachiman answer, from
       the push review.
-- [ ] A third operator reply in a thread with two Wachiman replies gets no answer.
-- [ ] Engine tests cover: the ceiling sum read only from signed footers marked automatic, a forged
+- [x] A third operator reply in a thread with two Wachiman replies gets no answer.
+- [x] Engine tests cover: the ceiling sum read only from signed footers marked automatic, a forged
       marker or cost line in model text, the reviewed-head gate of the thread mode.
 - [ ] With `fix_check: true` on an incremental run, the batch prompt contains the previous-version
       section, the commit messages labelled as claims and the three questions; with `false`, or on
       a first review, none of them.
-- [ ] The measurement below is run and written to `docs/benchmark/` before `fix_check` defaults
+- [ ] The measurement below is run and written to [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks) before `fix_check` defaults
       to on.
 
 ## Detail

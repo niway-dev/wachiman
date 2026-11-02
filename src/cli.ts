@@ -6,6 +6,8 @@
  *                                       since the last reviewed commit
  *   agent-review comment <pr>           route the operator's comment, read from $REQUEST, to a
  *                                       review or an answer
+ *   agent-review threads <pr>           answer the pending Wachiman threads, with no review; only
+ *                                       when the head was already reviewed
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error.
  * The settings are documented in docs/cli.md.
@@ -13,12 +15,13 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { loadConfig, UsageError } from "./config";
-import { comment, defaultGh, review, type Deps } from "./engine";
+import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 
 export const USAGE = `Usage:
   agent-review review <pr> [paths…] [--repo-dir <dir>]   Review a pull request (or only the given paths)
   agent-review comment <pr> [--repo-dir <dir>]           Handle the comment in $REQUEST (a review or an answer)
+  agent-review threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
   agent-review --help | --version
 
 Options:
@@ -29,6 +32,7 @@ Environment:
   GH_TOKEN, GITHUB_REPOSITORY        required
   ANTHROPIC_API_KEY                  required by the claude-code provider (not in a dry run)
   REQUEST                            the comment text, for \`comment\`
+  AGENT_REVIEW_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
   AGENT_REVIEW_*                     optional settings; see docs/cli.md
 
 Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.`;
@@ -90,15 +94,18 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
   try {
     const { repoDir, rest: args } = extractRepoDir(argv);
     const [, prArg, ...rest] = args;
-    if (mode !== "review" && mode !== "comment") {
+    if (mode !== "review" && mode !== "comment" && mode !== "threads") {
       throw new UsageError(mode ? `Unknown command "${mode}".` : "No command given.");
     }
     const pr = Number(prArg);
     if (!/^\d+$/.test(prArg ?? "") || pr <= 0) {
       throw new UsageError(`${mode} needs a pull request number.`);
     }
-    if (mode === "comment" && rest.length > 0) throw new UsageError("comment takes no paths.");
-    const config = loadConfig(env);
+    if (mode !== "review" && rest.length > 0) throw new UsageError(`${mode} takes no paths.`);
+    // The mode decides who started the run, whatever the environment says: the operator's
+    // command is never held to the automatic ceiling, and a thread run always is (ADR 0012).
+    const loaded = loadConfig(env);
+    const config = mode === "comment" ? { ...loaded, trigger: "comment" } : mode === "threads" ? { ...loaded, trigger: "thread" } : loaded;
     const provider = getProvider(config.provider, config);
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
@@ -119,6 +126,7 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
       return 1;
     }
     if (mode === "review") review(deps, repo, pr, rest);
+    else if (mode === "threads") threadReplies(deps, repo, pr, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
     else comment(deps, repo, pr, request, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
     return 0;
   } catch (error) {

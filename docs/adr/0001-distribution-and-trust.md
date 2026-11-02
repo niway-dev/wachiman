@@ -6,7 +6,8 @@
   the copy-the-files template remains supported. **Still unbuilt:** the policy-versioning
   mechanism of decision 4. Severity rules live in `src/engine.ts`, and the only consumer input is
   the focus file. **Decision 5 amended** by [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md)
-  (proposed 2026-11-01): the operator's thread replies also start an automatic run.
+  (proposed 2026-11-01): the operator's thread replies also start an automatic run. **Decision 8 amended** by
+  [ADR 0013](0013-license-fsl-1-1-alv2.md) (2026-11-01): the license is now FSL-1.1-ALv2.
 - **Date:** 2026-10-25. **Amended 2026-10-26:** decision 3 now recommends an exact release tag;
   the floating major tag is kept but no longer recommended. See "Amendment" below.
 
@@ -59,7 +60,8 @@ on it being one.
    its own sandbox (no shell, no network beyond the model, no credentials in its environment),
    its own structured output and its own cost accounting before it can be added; the engine does
    not assume that another agent CLI offers these.
-8. **License: GNU AGPL-3.0-only.**
+8. **License: GNU AGPL-3.0-only.** *(Superseded by [ADR 0013](0013-license-fsl-1-1-alv2.md): from
+   the license change on, FSL-1.1-ALv2. Releases up to v1.3.0 stay AGPL.)*
 
 ## Alternatives rejected
 
@@ -134,3 +136,11 @@ and is no longer offered; removing it is a later decision.
   default.
 - Tests show that `--restricted` does not hold the properties this design relies on: shrink the
   security claims to what the tests show.
+
+## Amendment 2026-11-01: license
+
+Decision 8 no longer holds. The code stays public, but the license is the Functional Source
+License (FSL-1.1-ALv2), which allows every use except a competing commercial product or service.
+The reasons, the rejected alternatives and the condition that reopens it are in
+[ADR 0013](0013-license-fsl-1-1-alv2.md). Nothing else in this decision changes: the trust model,
+the tag policy and the non-goals stand.

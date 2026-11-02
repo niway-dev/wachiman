@@ -124,7 +124,7 @@ All names are in `src/engine.ts` unless a file is given.
    read, what happens when it rejects, times out, never delivers or the sender is not who is
    expected, and whether the failure is visible. The pull request body is named as the author's
    claim to verify, not a summary to inherit. *Why:* in the
-   [2026-11-01 benchmark](benchmark/2026-11-01/README.md) the bugs Wachiman missed were questions
+   [2026-11-01 benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-01/README.md) the bugs Wachiman missed were questions
    the prompt never asked; the reasoning is in the
    [spec](specs/2026-10-31-flow-questions-and-evidence-design.md) and
    [ADR 0009](adr/0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md).
@@ -244,19 +244,31 @@ All names are in `src/engine.ts` unless a file is given.
    with `AGENT_REVIEW_ANSWER_BUDGET_USD`, free-text output, the pull request metadata, file list
    and full diff in a scratch directory, the same leak check, posted as a pull request comment. It
    has no batching, no coverage check and no thread handling.
-   *Thread replies.* They are handled only inside a `review` run, not as a conversation. With a
-   previous marker, `openThreads` fetches the tool's unresolved threads (first 100 threads, first
-   30 comments each; first comment by `github-actions` and carrying the finding signature, or,
-   before `LEGACY_CUTOFF`, an unsigned comment in the old label format created before that date)
-   and `openBotThreads` keeps only replies from `OWNER`, `MEMBER` or `COLLABORATOR`, so a
-   stranger's reply on a public repository never reaches the model. `assignThreads` hands each
+   *Thread replies.* Two paths, both under ADR 0008 (the model reports, the engine never resolves).
+   Inside a `review` run: with a previous marker, `openThreads` fetches the tool's unresolved threads
+   (first 100 threads, first 30 comments each; first comment by `github-actions` and carrying the
+   finding signature, or, before `LEGACY_CUTOFF`, an unsigned comment in the old label format created
+   before that date) and `openBotThreads` keeps only replies from `OWNER`, `MEMBER` or `COLLABORATOR`,
+   so a stranger's reply on a public repository never reaches the model. `assignThreads` hands each
    thread to the batch that holds its file, and the model may answer with "Looks addressed" or
-   "Still open". Nothing triggers on a thread reply itself (the caller listens to
-   `issue_comment`, not to review comments), and a `review` on a head that was already reviewed
-   returns "Already reviewed" before threads are read. So a reply in a thread gets an answer only
-   at the next review run that has work: a new commit since the last marker, or an explicit
-   path. The engine never resolves a thread. *Why:* the operator gate is enforced twice (workflow
-   and CLI) because only one of them can fail loudly.
+   "Still open". A `review` on a head that was already reviewed returns "Already reviewed" before
+   threads are read. Without a push (`threadReplies`, `cli.ts threads`, ADR 0012): the caller's
+   `pull_request_review_comment` starts a `threads` job only for the operator's reply; the engine
+   exits without a model call unless the last reviewed commit is the head, then `pendingThreads`
+   keeps the threads whose latest comment is a trusted reply and where fewer than two replies carry
+   the reply signature. One call (`THREAD_SCHEMA`, no files, no findings) sees each thread, its
+   replies and the head's lines (`codeAround`); every cited `path:line` is checked with
+   `citationProblem`, the head and the threads are rechecked, and the first posted reply carries the
+   run's cost line and the automatic flag. *Why:* the operator gate is enforced twice (workflow and
+   CLI) because only one of them can fail loudly.
+
+   *The ceiling.* An automatic run (`AGENT_REVIEW_TRIGGER` other than `comment`) calls `ceilingRoom`
+   after the rebase exits and before any batch: `automaticSpend` lists the pull request's reviews and
+   inline replies and sums `readAutoCost` over the engine's signed footers, `<sub>…$cost</sub>` then
+   `<!-- wachi:auto -->` then the review or reply signature, anchored at the end of the body. Model
+   text cannot forge it (`neutralise`). The run's budget is the smaller of `budget_usd` and what is
+   left; below `MIN_BATCH_USD` it posts one signed notice per ceiling (`readCeilingNotice`) and stops.
+   *Why:* the pull request is the only state between runs (ADR 0001: no server).
 
 ## Call-site evidence (`evidence.json`)
 
@@ -265,7 +277,7 @@ Implements the floor of decision 4 and decision 5 of the
 half of that spec (`contracts`, `confidence`, admitted investigation, ADR 0009) is separate work.
 Code: `src/evidence.ts`; `gatherEvidence` in `src/engine.ts` calls it once per provider call.
 
-*Why:* in the [2026-11-01 benchmark](benchmark/2026-11-01/README.md) the bugs Wachiman missed
+*Why:* in the [2026-11-01 benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-01/README.md) the bugs Wachiman missed
 sat in sibling callers outside the diff. On kaipu-record #465 the new Drag handle called
 `startFileDrag` without `markCopySeen`; the sibling caller in `export-status-cards.tsx` pairs the
 two, and the model never opened it. The same class: #464 and #467.
@@ -311,24 +323,28 @@ own, which a pull request cannot change. It reads excerpts only from regular fil
 
 ## The execution harness
 
-`.github/workflows/review.yml` is a reusable workflow (`workflow_call`) with two jobs.
+`.github/workflows/review.yml` is a reusable workflow (`workflow_call`) with three jobs.
 
 | Job | Runs when | What it does |
 | --- | --- | --- |
 | `review` | `pull_request` (opened, ready for review, and each push when the caller lists `synchronize` and `review_on_push` is not `false`), not a draft, head repository equals the calling repository, actor is not Dependabot | Checks the operator input, skips branches with a prefix in `skip_branch_prefixes`, then runs `cli.ts review` |
+| `threads` | `pull_request_review_comment` that is a reply (`in_reply_to_id`), author login equals `operator` and is not a bot, head repository equals the calling repository | Checks the operator input, then runs `cli.ts threads` (answers pending Wachiman threads, only on an already reviewed head, counted against `auto_budget_usd`) |
 | `on-demand` | `issue_comment` on a pull request, commenter login equals `operator`, body contains the mention input, `@agent-review` or `@claude` | Checks the operator input, refuses a pull request whose head repository is not the calling repository, then runs `cli.ts comment` |
 
-Both have a 30-minute timeout and their own concurrency group per pull request with
-`cancel-in-progress: true` (the groups are per job, not per workflow, so a skipped `on-demand`
-never cancels a review; a newer run of the same job for the same pull request cancels the older
-one). Both run with `contents: read` and `pull-requests: write` (`issues: read` for `on-demand`).
+All have a 30-minute timeout and their own concurrency group per pull request. `review` and
+`on-demand` use `cancel-in-progress: true`; `threads` uses `false`, so a reply never cancels the
+review of a push (GitHub keeps one pending run per group, and a run answers every pending thread).
+The groups are per job, not per workflow, so a skipped `on-demand` never cancels a review. All run
+with `contents: read` and `pull-requests: write` (`issues: read` for `on-demand`).
 
 When a run starts is decided by the caller. The caller template listens for `pull_request` of
-type `opened`, `ready_for_review` and `synchronize`, and `issue_comment` of type `created`, so a
+type `opened`, `ready_for_review` and `synchronize`, `pull_request_review_comment` of type `created`
+and `issue_comment` of type `created`, so a
 pull request gets an automatic review when it is opened or marked ready and one for each push, which
 covers only the commits new since the last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)).
 The reusable workflow cannot add a trigger: a caller that does not list `synchronize` gets no push
-reviews, whatever the pinned release is.
+reviews, and one that does not list `pull_request_review_comment` gets no thread replies, whatever the
+pinned release is.
 
 **The command gate.** The parser accepts `/wachiman` as an alias, but the workflow's `if:` only
 tests that the comment body contains the `mention` input, `@agent-review` or `@claude`. With the

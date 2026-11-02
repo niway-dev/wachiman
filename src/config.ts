@@ -4,9 +4,32 @@ import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, DEFAULT_MAX_TURNS, EFFORTS, typ
 
 export class UsageError extends Error {}
 
+/**
+ * Why a run started. `comment` is the operator's command; every other value (`opened`,
+ * `ready_for_review`, `synchronize`, `thread`, …) is an automatic run and counts against
+ * `autoBudgetUsd` (ADR 0012).
+ */
+export type Trigger = string;
+
+/** Whether a run started by `trigger` spends from the pull request's automatic ceiling. */
+export const isAutomatic = (trigger: Trigger | undefined) => trigger !== undefined && trigger !== "comment";
+
 export interface EngineConfig {
-  /** Total per pull request, USD. */
+  /** Total per review invocation, USD. */
   budgetUsd: number;
+  /**
+   * `AGENT_REVIEW_AUTO_BUDGET_USD`: the most all automatic runs on one pull request may spend
+   * together (the first review, push reviews, thread runs), summed from the engine's own signed
+   * footers. The operator's `comment` is not limited by it.
+   */
+  autoBudgetUsd: number;
+  /** `AGENT_REVIEW_THREADS_BUDGET_USD`: the one provider call of a thread-only run. */
+  threadsBudgetUsd: number;
+  /**
+   * `AGENT_REVIEW_TRIGGER`: why this run started (see `Trigger`). Unset means a person ran the
+   * CLI by hand: not automatic, so the ceiling does not apply. `comment` mode ignores it.
+   */
+  trigger?: Trigger;
   batchBudgetUsd: number;
   answerBudgetUsd: number;
   batchLines: number;
@@ -93,8 +116,15 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   };
   const effort = readEffort(env, warn);
   const provider = get("PROVIDER") ?? "claude-code";
+  const trigger = get("TRIGGER")?.trim();
+  if (trigger !== undefined && !/^[a-z_]+$/.test(trigger)) {
+    throw new UsageError(`AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "${trigger}".`);
+  }
   return {
     budgetUsd: number("BUDGET_USD", 3),
+    autoBudgetUsd: number("AUTO_BUDGET_USD", 6),
+    threadsBudgetUsd: number("THREADS_BUDGET_USD", 0.25),
+    trigger: trigger || undefined,
     batchBudgetUsd: number("BATCH_BUDGET_USD", 0.75),
     answerBudgetUsd: number("ANSWER_BUDGET_USD", 1),
     batchLines: number("BATCH_LINES", 1000, true),

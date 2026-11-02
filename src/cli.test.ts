@@ -34,6 +34,18 @@ describe("cli", () => {
     expect(run(["comment", "1"], { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r" }).code).toBe(2); // no REQUEST
   });
 
+  test("threads is a command: it needs a pull request number and takes no paths", () => {
+    expect(run(["--help"]).stdout).toContain("agent-review threads <pr>");
+    expect(run(["threads"]).code).toBe(2);
+    expect(run(["threads", "abc"]).code).toBe(2);
+    expect(run(["threads", "7", "a.ts"]).code).toBe(2);
+    expect(run(["threads", "7"]).code).toBe(2); // GH_TOKEN is not set
+  });
+
+  test("a trigger that is not an event action is a usage error", () => {
+    expect(run(["review", "1"], { AGENT_REVIEW_TRIGGER: "Not An Action" }).code).toBe(2);
+  });
+
   test("an unknown provider is a usage error naming the accepted values", () => {
     const out = run(["review", "1"], { AGENT_REVIEW_PROVIDER: "other" });
     expect(out.code).toBe(2);

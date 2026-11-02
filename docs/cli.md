@@ -1,6 +1,6 @@
 # Command-line contract
 
-`agent-review` is one command with two subcommands. The reusable workflow and the copied caller
+`agent-review` is one command with three subcommands. The reusable workflow and the copied caller
 workflow both run exactly this; anything else that wants to drive a review can too. Every setting
 it reads is listed in [configuration.md](configuration.md); this page covers the commands, what
 they post and how they exit.
@@ -8,6 +8,7 @@ they post and how they exit.
 ```sh
 bun src/cli.ts review <pr> [paths…] [--repo-dir <dir>]
 bun src/cli.ts comment <pr> [--repo-dir <dir>]   # the comment text comes from $REQUEST
+bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman threads, no review
 bun src/cli.ts --help
 bun src/cli.ts --version
 ```
@@ -18,12 +19,12 @@ engine uses `Bun.Glob`), and so are the `gh` CLI and the provider's binary on th
 
 Argument rules, as implemented:
 
-- The command (`review` or `comment`) must be the first argument. `--help`/`-h` and
+- The command (`review`, `comment` or `threads`) must be the first argument. `--help`/`-h` and
   `--version`/`-v` are recognised only as the first argument too.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
   rest are read, so it is never taken for a path.
-- `comment` takes no paths: `comment takes no paths.` exits 2.
+- `comment` and `threads` take no paths: `comment takes no paths.` exits 2.
 
 ## Options
 
@@ -50,6 +51,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | --- | --- |
 | `review <pr> [paths…]` | Reviews the pull request and posts one GitHub review with inline comments, then replies in its own open threads when there is work to do. See "Incremental reviews" and "Scope" below. |
 | `comment <pr>` | Routes the operator's comment (from `REQUEST`) to a review, an answer or nothing. See "What `comment` does" below. |
+| `threads <pr>` | Answers the Wachiman threads that wait for an answer, with no review, and only when the pull request's head was already reviewed. See "What `threads` does" below. |
 
 ### Incremental reviews
 
@@ -100,6 +102,30 @@ and for custom mentions the two accept different words. That is documented, with
 Because the provider check runs before `comment` reads the request (see [Exit codes](#exit-codes)),
 even a comment that would do nothing needs a working provider binary and credential.
 
+### What `threads` does
+
+`threads` is an automatic run (`AGENT_REVIEW_TRIGGER` is forced to `thread`): it counts against
+`AGENT_REVIEW_AUTO_BUDGET_USD` ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)).
+The checks run in this order, and each "exits 0" ends the run without a model call:
+
+1. An empty or placeholder `AGENT_REVIEW_OPERATOR` is an error (exit 1).
+2. If `AGENT_REVIEW_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
+   notice and exits 0.
+3. If the last reviewed commit (the signed marker) is not the head, it exits 0: the review of that
+   push reads the same replies and answers them. The same when no review exists.
+4. It keeps the tool's own open threads whose latest comment is a reply by an `OWNER`, `MEMBER` or
+   `COLLABORATOR` and where Wachiman has written fewer than two replies. None: exit 0.
+5. If the pull request's automatic spend has reached the ceiling, it posts the one notice for that
+   ceiling (never twice) and exits 0.
+6. One provider call, capped by the smaller of `AGENT_REVIEW_THREADS_BUDGET_USD` and what is left
+   under the ceiling, sees each thread's finding, its replies and the head's lines at the finding.
+   Each answer is "appears addressed in `path:line`" or "still applies because …"; every cited
+   `path:line` must exist in the head, and a reply whose citation does not is dropped. The engine
+   rechecks the head and each thread before posting, and posts the replies. The first one carries
+   the run's cost line and the automatic flag for the ceiling. It never resolves a thread.
+
+Like `comment`, `threads` needs a working provider binary and credential before it checks anything.
+
 ## What it posts
 
 - `review`: one GitHub review with the event `COMMENT`, never an approval or a change request. Its
@@ -127,10 +153,9 @@ even a comment that would do nothing needs a working provider binary and credent
   addressed" or "Still open"). Only the first 100 review threads of the pull request are fetched,
   at most 30 comments per thread, and only replies by an `OWNER`, `MEMBER` or `COLLABORATOR` reach
   the agent. The engine never resolves a thread. These limits belong to `review`, not to answers.
-  Threads are not read when a review ends early as `Already reviewed` or `Nothing to review`, and
-  nothing starts a run when someone replies in a thread, so a reply on an unchanged head waits for
-  a later review that has work (a push, or a request with a path that matches). That is today's
-  behaviour.
+  Threads are not read when a review ends early as `Already reviewed` or `Nothing to review`. A
+  reply on an unchanged head is answered by `threads`, which the workflow starts when the operator
+  replies (see "What `threads` does").
 - `comment` with a question: one pull request comment (not a review) holding the answer, written in
   English, and a footer `<sub>{model label} · effort {effort} · ${cost}</sub>` (no batch count,
   since an answer is one call). As with a review, the `· effort {effort}` part is new in the
@@ -146,13 +171,14 @@ scanner. See [SECURITY.md](../SECURITY.md).
 
 ## Environment
 
-Required for both commands:
+Required for all commands:
 
 | Variable | Meaning |
 | --- | --- |
 | `GH_TOKEN` | Token for `gh`. It is never given to the agent. |
 | `GITHUB_REPOSITORY` | `owner/name` of the repository. |
 | `REQUEST` | `comment` only: the comment text. Pass it through the environment, never interpolated into a shell command. |
+| `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs. |
 | Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`. For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. |
 
 The `gh` CLI and the provider's binary (`claude` for `claude-code`, `codex` for `codex`) must be on
@@ -264,7 +290,7 @@ shrunk to what fits, or dropped, before the coverage table and the summary are t
 | --- | --- |
 | `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help` and `--version` also exit 0. |
 | `1` | Engine error. **Not the same as "nothing was posted"**: see below. |
-| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` given paths, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
+| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `AGENT_REVIEW_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
 
 Exit 1 covers:
 

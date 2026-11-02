@@ -83,6 +83,19 @@ is soft, so a call can exceed it a little; the Codex adapter has no dollar cap a
 gives no typical price: it depends on the size of the change and the model. See
 [costs.md](costs.md) and [configuration.md](configuration.md).
 
+### Can my company use it? Can I sell it?
+
+Yes to using it, including inside a company: the license allows every use except a Competing Use.
+Running Wachiman on your own repositories, forking it for internal use, and giving professional
+services to a client who may also use it are permitted. What needs a commercial license from
+NIWAY (Niway S.A.C.) is making it available to others as a commercial product or service that
+does what Wachiman does, hosted or packaged. The definition also covers substitutes for NIWAY
+products or services using it that existed when that version was made available. Each version
+published under FSL-1.1-ALv2 also becomes available under Apache 2.0 two years after that version
+is made available. It is source available, not open source. The `LICENSE` file is the authority;
+this answer summarizes it. To ask about a specific case or to buy a commercial license, write to
+contact@niway.com.
+
 ### Which models can it use?
 
 The default is `claude-sonnet-5-5`, run through Claude Code. The `model` input is passed to Claude
@@ -130,8 +143,11 @@ to the model in an order based on their paths, which is a heuristic. See
 
 ### Why did my reply in a thread get no answer?
 
-A reply starts nothing. Wachiman reads threads only during a later review that has work to do.
-See [reviews.md](reviews.md).
+If your caller lists `pull_request_review_comment` (the templates do), your reply starts a short
+thread-reply run, but only when you are the `operator`, only once the head was reviewed (a reply
+within seconds of a push is answered by that push's review), and only while the pull request is under
+`auto_budget_usd`. A collaborator's or a stranger's reply starts nothing. A caller written earlier
+has to add the trigger ([upgrading.md](upgrading.md)). See [reviews.md](reviews.md#reply-to-a-finding).
 
 ### What does a dry run cost?
 

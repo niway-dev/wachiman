@@ -20,9 +20,11 @@ record, goes in the review body. Every comment opens with "👮 **Wachiman**".
   requests changes or blocks a merge, and "Blocker" is a label on a comment, not a status
   GitHub enforces.
 - **It starts on a pull request and on request.** It reviews when a pull request opens or leaves
-  draft. After that, the operator you name comments `/wachi review` to ask for another review of
-  what changed, or any other `/wachi …` text to ask a question. A push alone does not start a
-  review. Details: [docs/reviews.md](docs/reviews.md).
+  draft, and, if your caller lists `synchronize`, on each push (only the new commits). The operator
+  you name can comment `/wachi review` to ask for another review of what changed, or any other
+  `/wachi …` text to ask a question, and a reply the operator writes in a review thread gets an
+  answer without a push. All automatic runs on one pull request together stop at $6 by default
+  (`auto_budget_usd`); `/wachi review` is not limited. Details: [docs/reviews.md](docs/reviews.md).
 - **Large pull requests are reviewed in batches**, riskiest files first (the risk is a score
   computed from file paths, not a reading of the code). Each batch is one agent call with a
   spend limit. What that limit does and does not guarantee, and what "all files reviewed"
@@ -104,6 +106,7 @@ Already copied the engine into a repository? That setup still runs, and
 | Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
 | Understand how a review is built | [docs/architecture.md](docs/architecture.md) |
 | Measure false positives | [docs/precision.md](docs/precision.md) |
+| See how it compares with Pullfrog and CodeRabbit | [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks) |
 | See what changed in a release | [CHANGELOG.md](CHANGELOG.md) |
 | Cut a release (maintainers) | [docs/releasing.md](docs/releasing.md) |
 
@@ -113,7 +116,34 @@ Design decisions are recorded as ADRs in [docs/adr/](docs/adr/), starting with
 
 ## License
 
-GNU Affero General Public License v3.0 only. See [LICENSE](LICENSE).
+Wachiman is **source available**, not open source. It is licensed under the
+[Functional Source License, Version 1.1, ALv2 Future License](LICENSE) (`FSL-1.1-ALv2`), a
+[Fair Source](https://fair.io/) license. Copyright 2026 Niway S.A.C.
+
+- **You may** use it for any purpose except a Competing Use: run it on your own repositories and
+  in your company, read and modify it, fork it for internal use, use it for non-commercial
+  education and research, and use it to give professional services to a client who may also
+  use it.
+- **You may not**, without a commercial license, make it available to others as a commercial
+  product or service that does what Wachiman does, hosted or packaged.
+- **Each version published under FSL-1.1-ALv2 also becomes available under Apache 2.0 two years
+  after that version is made available.** The license says so under "Grant of Future License".
+- **Commercial license:** write to contact@niway.com. There is no price list.
+- **Name and logo:** the license grants no rights to them. See [TRADEMARKS.md](TRADEMARKS.md).
+
+### Licensing history
+
+Everything published before the commit that replaced LICENSE, including releases through v1.3.0,
+remains available under GNU AGPL version 3 or any later version, as stated in those versions'
+LICENSE files. The
+`LICENSE` file inside each release tag says which license that release carries. The reason for the
+change is recorded in [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
+
+Benchmark reports and the review dataset live in
+[niway-dev/wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks); they moved there
+from `docs/benchmark/` on 2026-11-02. Quoted third-party text in them, and in this repository's
+history, belongs to its authors and is reproduced for research and comparison; it is not covered by
+the license above.
 
 ## Commit messages
 
