@@ -1,0 +1,47 @@
+## review by github-actions[bot] at 2026-11-02T05:56:14Z
+
+👮 **Wachiman** · review of the whole pull request, at `2c33d5b`: all 7 files reviewed.
+
+5 finding(s): 4 to fix, 1 to consider; 2 on their lines. Reply in a comment's thread to answer it.
+
+### Outside the diff
+
+- 🟠🐛 **Fix · bug: Text hit-test still treats a label as one line, so lines after the first can't be clicked or double-clicked (confidence high)** (`apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:488`): `hitTest` still sizes a text overlay as `o.text.length * fs * 0.55` wide and `fs * 1.3` tall (lines 488-489). Now that labels can span lines, that box is one line tall and as wide as the whole string. A click or double-click on the second or a later line misses, so the user can't select, move or reopen the label from there, even though the new selection outline (overlay-shapes.tsx:144-145) and the handles (handles.ts:79-84, via `textBoxPx`) now draw around every line. The comment at overlay-shapes.tsx:137-139 says this PR fixes "half of it was not selectable", but selectability comes from this function, and it hasn't changed. The comment at lines 482-484 ("matches the rendered bounds in overlay-shapes.tsx") is now wrong too. Fix: build the box from `textBoxPx(o.text, fs)` here, the same way the outline does. A test that double-clicks the second line of a two-line label would cover it.
+
+- 🟠🐛 **Fix · bug: Label being re-edited is still drawn under the editor, so the old and new text overlap (confidence high)** (`apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:389`): The SVG still renders every visible overlay, including the one in `editingText.id` (lines 382-397). The textarea sits at the same x/y with a nearly transparent background (`rgba(0,0,0,0.04)`, video-annotation-layer.module.css:37). The old text therefore shows through what the user types, often at a different size and color (see the previous finding). The screenshot sibling skips the label being edited for exactly this reason (annotation-layer.tsx:351-354, "Hide the label being re-edited — the inline editor sits on top of it"). Return `null` for `o.id === editingText?.id`.
+
+- 🟠🐛 **Fix · bug: Reopened multi-line label shows only its first line until the user types (confidence high)** (`apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:165`): The textarea starts with `rows={1}` and `overflow: hidden`, and its height only changes in `onInput` (lines 424-429). When a multi-line label is reopened, the prefilled `defaultValue` fires no input event, so the editor is one line tall and the other lines are clipped. Focusing also leaves the caret at position 0, so typing goes in front of the existing text. The screenshot sibling sizes the box and moves the caret to the end in the open effect (annotation-layer.tsx:117-122). Add the same lines after `focus()` here.
+
+### Summary
+
+Multi-line labels now render and export line by line, and the export code is correct. Re-editing a video label by double-click works, but it leaves out four things the screenshot editor's version does: (1) the hit-test is still one line tall, so lines after the first can't be clicked or double-clicked, even though the new outline draws around them; (2) the edit box uses the toolbar's color and size instead of the label's; (3) the label being edited stays drawn under the box, so old and new text overlap; (4) a reopened multi-line label shows only its first line, with the caret at the start. Separately, clearing the text keeps the old label instead of deleting it, which differs from the screenshot editor.
+
+<details><summary>What the change connects to (5 closed, 0 open)</summary>
+
+Questions the reviewer answered about what this change does to the running product. The engine checked that the cited lines exist, not that the answers are true.
+
+**Closed, with the lines they rest on**
+- Double-click a text overlay with the select tool to reopen it for editing (`apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:179`) — The textarea opens over the label, prefilled. The old label is still visible under it, the box uses the toolbar's color/size, and a multi-line label shows only its first line until the user types. If it fails: Hit-test is single-line (line 488), so a double-click on the second or a later line does nothing. Evidence: `apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:179-187`, `apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:382-397`, `apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:412-429`, `apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:485-489`, `apps/kaipu-record/src/renderer/src/features/screenshots/annotations/annotation-layer.tsx:117-122`, `apps/kaipu-record/src/renderer/src/features/screenshots/annotations/annotation-layer.tsx:142-150`, `apps/kaipu-record/src/renderer/src/features/screenshots/annotations/annotation-layer.tsx:351-354`, `apps/kaipu-record/src/renderer/src/features/screenshots/annotations/annotation-layer.tsx:374-376`.
+- Commit a re-edited label (Enter or blur) (`apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:338`) — The label's text changes in place, and its timeline window and position are kept. If it fails: If the text is cleared, nothing is committed and the old label stays. Evidence: `apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:332-363`, `apps/kaipu-record/src/renderer/src/features/screenshots/annotations/annotation-layer.tsx:302-312`.
+- Keyboard shortcuts while the new textarea has focus (`apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:402`) — Typing in the label editor doesn't trigger editor shortcuts. Evidence: `apps/kaipu-record/src/renderer/src/pages/video-editor/video-editor-page.tsx:164`.
+- Multi-line text overlay rendered in preview and in export (`apps/kaipu-record/src/renderer/src/features/video-editor/export/overlay-raster.ts:97`) — Lines in the export match the preview. Evidence: `apps/kaipu-record/src/renderer/src/features/video-editor/export/overlay-raster.ts:91-103`, `apps/kaipu-record/src/renderer/src/features/video-editor/annotations/overlay-shapes.tsx:113-135`, `apps/kaipu-record/src/renderer/src/features/screenshots/annotations/tools.ts:69-78`.
+- Selection outline sized by textBoxPx (`apps/kaipu-record/src/renderer/src/features/video-editor/annotations/overlay-shapes.tsx:116`) — The outline covers every line, but only the first line responds to clicks. If it fails: Clicks inside the outline below the first line miss. Evidence: `apps/kaipu-record/src/renderer/src/features/video-editor/annotations/overlay-shapes.tsx:136-146`, `apps/kaipu-record/src/renderer/src/features/screenshots/annotations/handles.ts:79-84`, `apps/kaipu-record/src/renderer/src/features/video-editor/annotations/video-annotation-layer.tsx:485-495`.
+
+</details>
+
+<details><summary>Coverage by batch</summary>
+
+| Batch | Files | Lines | Highest risk | Status | Turns | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| Batch 1 of 1 | 7 | 262 | 4 | reviewed | 12 | $0.49 |
+
+</details>
+
+<sub>Claude Opus 5.5 via Claude Code 2.1.304 · effort high · $0.49</sub>
+
+<!-- wachi:review -->
+
+<!-- agent-review sha=2c33d5b87c2d87a4f8706486e49009513da51d3a -->
+
+<!-- wachi:attempt id=aaf87363-5f38-45a8-86f1-d148ffc8288d -->
+

@@ -1,0 +1,57 @@
+## review by github-actions[bot] at 2026-11-02T06:05:54Z
+
+👮 **Wachiman** · review of the whole pull request, at `f91b56d`: all 19 files reviewed.
+
+3 finding(s): 3 to consider; 2 on their lines. Reply in a comment's thread to answer it.
+
+### Outside the diff
+
+- 🟡🧪 **Consider · tests: Older cancel/delete tests now depend on the wall clock being past the window (confidence high)** (`packages/application/src/cloud/cloud.test.ts:320`): `cancelUpload`, `deleteCloudCopy` and `retryPendingDeletes` now read `new Date()` when no `now` is passed. Several existing tests pass none: lines 163, 320, 594, 640, 831, 842, 849 and 860. They reserve against the fixture `NOW` (2026-09-10, line 26), so they only take the immediate release/delete path because today is more than 3 h 05 min after `NOW`. For example, "deleteCloudCopy removes the object at once" (line 856) would silently start testing the deferred path if `NOW` were ever moved forward. Pass an explicit post-window `now`, like the new `AFTER` constant. The spec already lists this for the cancel test only; the delete and retry tests have the same dependency.
+
+### Summary
+
+I found no defects that need fixing before merge; the three findings below are all optional ("consider").
+
+**What I checked against the code**
+- **Ticket window (F-1):** cancel and delete no longer release quota or delete the object while the upload ticket can still write. They hold off until ticket expiry plus the grace period has passed. That limit lines up with the sweep's own listing limit, and the `release`-first claim ordering is kept.
+- **Legacy upload removal (F-2):** a search of `apps/` and `packages/` found no remaining callers of the removed routes, use cases, schemas or errors.
+- **Cursor validation (F-9):** the contract and the repository now reject the same malformed shapes.
+
+**Findings (all "consider")**
+1. `retry-pending-deletes.ts:21`: skipped rows that are still inside their window stay at the front of the `updated_at`-ordered `listDeleting` page. Enough of them can hold back real failed-storage retries for up to 3 h 05 min.
+2. Spec line 157 says the sweep's limit and `ticketWindowClosed` agree "and vice versa". Lines 392-394 of the same spec, and the code, show they differ by one millisecond at the exact boundary.
+3. Several older cloud tests call cancel, delete or retry without passing `now`. They only exercise the immediate path because today is past the fixture date plus the window. The spec flags this for the cancel test only.
+
+**Already in the spec as open questions or remaining work**
+- Until the scheduled jobs are wired (NIW2-328), a cancelled upload holds its quota and its pending slot.
+- The router logs `cloud.delete.ok` for a deferred delete.
+
+<details><summary>What the change connects to (5 closed, 0 open)</summary>
+
+Questions the reviewer answered about what this change does to the running product. The engine checked that the cited lines exist, not that the answers are true.
+
+**Closed, with the lines they rest on**
+- cancelUpload defers the release while the ticket window is open (`packages/application/src/cloud/cancel-upload.ts:36`) — The router returns `{ released: false }` to the client unchanged. It can't tell a deferral from 'not reserved'. Usage keeps the bytes and the pending slot until the sweep runs. If it fails: No new async call. If the scheduled sweep never runs (it isn't wired yet; the spec names NIW2-328 as the dependency), the reservation and its pending slot stay held for good. The spec raises this as… Evidence: `packages/application/src/cloud/cancel-upload.ts:33-45`, `packages/application/src/cloud/sweep-expired-reservations.ts:22-41`, `packages/infra-db/src/repositories/cloud-asset.repository.ts:519-531`, `apps/server-hono/src/modules/cloud/cloud.router.ts:104-114`, `packages/application/src/cloud/ticket-window.ts:9-11`.
+- deleteCloudCopy skips the physical delete while the window is open (`packages/application/src/cloud/delete-cloud-copy.ts:29`) — The router returns `{ deleted: true }`. The asset disappears from the list, and its bytes stay counted as used until the retry job finishes the delete. If it fails: The router logs `cloud.delete.ok` even for a deferral; the spec plans a separate deferral event. If the retry job never runs, the bytes stay counted. Evidence: `packages/application/src/cloud/delete-cloud-copy.ts:24-40`, `packages/infra-db/src/repositories/cloud-asset.repository.ts:366-386`, `apps/server-hono/src/modules/cloud/cloud.router.ts:143-164`.
+- retryPendingDeletes skips in-window deleting revisions (`packages/application/src/cloud/retry-pending-deletes.ts:21`) — Bytes are released later. If it fails: Head-of-line blocking within `limit` (reported as a finding). Evidence: `packages/infra-db/src/repositories/cloud-asset.repository.ts:534-541`, `packages/application/src/cloud/retry-pending-deletes.ts:16-35`. ⚠️ A citation did not resolve in the head.
+- Asset-list cursor validated by assetCursorSchema at the contract (`apps/server-hono/src/contract/cloud.contract.ts:47`) — The client gets a 400 for a bad cursor. Valid cursors behave as before. Evidence: `packages/domain/src/schemas/cloud-asset.ts:276-294`, `packages/infra-db/src/repositories/cloud-asset.repository.ts:95-108`, `apps/server-hono/src/modules/cloud/cloud.router.ts:116-124`.
+- Legacy POST /recordings and /recordings/{id}/confirm removed (`apps/server-hono/src/contract/recording.contract.ts:12`) — The routes return 404. The list, download-url and delete routes remain. Evidence: `apps/server-hono/src/contract/recording.contract.ts:1-25`, `apps/server-hono/src/modules/recording/recording.router.ts:1-20`.
+
+</details>
+
+<details><summary>Coverage by batch</summary>
+
+| Batch | Files | Lines | Highest risk | Status | Turns | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| Batch 1 of 1 | 19 | 998 | 4 | reviewed | 14 | $0.54 |
+
+</details>
+
+<sub>Claude Opus 5.5 via Claude Code 2.1.304 · effort high · $0.54</sub>
+
+<!-- wachi:review -->
+
+<!-- agent-review sha=f91b56dec34096ce1b2d29d3dcf3594b7a753f7e -->
+
+<!-- wachi:attempt id=14849647-6f79-40f9-8e7e-86995a71c4a5 -->
+

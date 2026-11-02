@@ -1,0 +1,65 @@
+## review by github-actions[bot] at 2026-11-02T05:59:29Z
+
+👮 **Wachiman** · review of the whole pull request, at `01dfe73`: all 26 files reviewed.
+
+5 finding(s): 1 to fix, 4 to consider; 5 on their lines. Reply in a comment's thread to answer it.
+
+### Summary
+
+**Batch 1 of 3.** Part 1 has one confirmed regression and one open question, both in `recording-shade-window.ts`. Everything else in the part looked right.
+
+**Fix: the reused shade window never recovers from a crashed or failed renderer** (`recording-shade-window.ts:134`, medium confidence). Each take used to create its own shade window, so a renderer failure affected only that take. Now one prewarmed window serves every take, and it only reacts to `ready-to-show` and `closed`. The overlay windows also handle `render-process-gone` and `did-fail-load`. Its effect depends on when the failure happens:
+- **Page fails before it paints:** every later region countdown waits forever for `onShown`.
+- **Renderer crashes after it painted:** the countdown and REC border are silently invisible for the rest of the session.
+
+The new crash test only calls `destroy()`, so it does not cover a real renderer crash.
+
+**Question: moving the shade between displays with different scale factors** (`recording-shade-window.ts:80`, low confidence). The single `setBounds` may size the window wrongly on Windows. The PR lists this as a risk to check by hand.
+
+**Checked, nothing to flag:**
+- **Hide-main-window handler:** if the call fails, the renderer waits anyway, and stop brings the window back.
+- **Overlay spare reuse:** spares are now matched only on the display set. A reused spare gets its mode and intent as state before it is shown, and a language or theme change still reloads the spares.
+- **Engine split:** cancel releases every device whether it lands before or after `begin`.
+
+**Batch 2 of 3.** Part 2 review found no defects. The new start path in the recorder store holds up: it acquires the take during the countdown and starts it when the countdown ends. Each exit releases what was acquired: a cancel during the countdown, a cancel while starting, a timeout, an input that changed, and an engine error during the countdown. Spare capture overlays and the prop-less recording shade get their real state before they paint. Two minor points to consider. First, a question: is the 50 ms settle delay throttled in the hidden main window? It is the one window that doesn't disable background throttling. Second, one recorder-engine test name says the level holds 'when the take begins', but the test never calls begin().
+
+**Batch 3 of 3.** Part 3 holds the tests and the recording-pipeline doc. I checked the reworked recorder-store tests against `recorder-store.ts` and `recorder-engine.ts`. They match the new behaviour: the take is acquired during the countdown, and it is released on cancel, on a changed input or a mic switch, and on a failure. The app is hidden before `begin`, with a 50 ms wait when the window was on screen, and the clock starts at the end of the countdown. The new doc section describes the same steps, names and edge cases as the code. The overlay-query tests and the `setup.ts` addition are correct. One test-quality note: the spare-overlay test says the mode comes from main's state, but its state's mode is the same as the query's, so that half of the claim is never tested. I read the code only; I did not run the tests.
+
+<details><summary>What the change connects to (9 closed, 1 open)</summary>
+
+Questions the reviewer answered about what this change does to the running product. The engine checked that the cited lines exist, not that the answers are true.
+
+**Open: the reviewer could not close these**
+- Ask main whether it hid a visible main window, then wait 50 ms before encoding (`apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:380`) — Does a hidden main window throttle the 50 ms delay? Files that would answer it: `apps/kaipu-record/src/main/index.ts`.
+
+**Closed, with the lines they rest on**
+- New IPC `recording:hide-main-window`: the main renderer asks main to hide the main window before `recordingStart` (`apps/kaipu-record/src/main/recording/recording-hub.ts:599`) — The main window disappears at the end of the countdown. The renderer waits WINDOW_HIDE_SETTLE_MS before encoding. If it fails: If the invoke rejects, the renderer treats the window as visible and waits anyway (`.catch(() => true)`). `recordingStop` brings the window back. Main does not check the sender, but `recordingStart`… Evidence: `apps/kaipu-record/src/main/recording/recording-hub.ts:599-604`, `apps/kaipu-record/src/main/recording/recording-hub.ts:650-654`, `apps/kaipu-record/src/main/recording/recording-hub.ts:694-717`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:380-389`.
+- Shade window prewarmed once after launch and reused by every take (`apps/kaipu-record/src/main/recording/recording-shade-window.ts:57`) — Countdown and REC border are painted by the reused window. If it fails: A crashed or failed renderer is never replaced: the countdown hangs waiting for `onShown`, or a blank shade shows for the rest of the session (reported as a finding). Evidence: `apps/kaipu-record/src/main/recording/recording-shade-window.ts:134-195`, `apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts:657-670`, `apps/kaipu-record/src/main/recording/recording-hub.ts:540-561`.
+- Overlay spares keyed only on displays; mode, intent and frame display sent as state before show (`apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts:404`) — The overlay opens without loading a new renderer when the displays are unchanged. If it fails: A spare that never paints is covered by the session watchdog and the did-fail-load handlers. Locale or theme changes call refreshSpares. Evidence: `apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts:399-426`, `apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts:684-700`, `apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:80-88`.
+- Engine split into prepareEngine/begin/release; devices held during the countdown (`apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts:205`) — The timer starts right at the end of the countdown. If it fails: If the screen track ends during the countdown, `onError` fires. Release sets `teardownStarted`, so it does not fire `onError` itself. Evidence: `apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts:530-542`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts:657-712`.
+- Acquire the take (session file, prepareEngine, cursor track) while the countdown runs (`apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:266`) — The take starts recording when the countdown ends instead of after about 1 s of 'Starting…'; the mic/screen are open during the countdown. If it fails: An acquisition that fails during the countdown keeps its error in start.failure, or rejects start.acquired; beginTake then fails the usual way (toast, recordingStop restores the window). One that han… Evidence: `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:311-344`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:398-408`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:425-509`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:577-598`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts:690-699`, `apps/kaipu-record/src/main/recording/recording-hub.ts:347-351`.
+- A spare capture overlay paints nothing until main's first state message arrives (`apps/kaipu-record/src/renderer/src/features/screenshots/overlay/capture-overlay.tsx:101`) — A preloaded overlay shows the right mode and intent at once. Evidence: `apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts:689-691`, `apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts:729-740`, `apps/kaipu-record/src/renderer/src/features/screenshots/overlay/capture-overlay.tsx:145-170`, `apps/kaipu-record/src/renderer/src/features/screenshots/overlay/capture-overlay.tsx:422`.
+- main.tsx renders <RecordingShade /> without props (`apps/kaipu-record/src/renderer/src/main.tsx:57`) — The preloaded shade paints nothing until it gets a state. Evidence: `apps/kaipu-record/src/renderer/src/features/recording-shade/recording-shade.tsx:28-41`.
+- Recorder-store tests: an acquisition made during the countdown is released on cancel, on a changed input, and on a failure (`apps/kaipu-record/src/renderer/src/features/recording/recorder-store.test.ts:726`) — The status goes back to idle. Main reads the idle phase report as an abandoned countdown. If it fails: An acquisition that rejects during the countdown is held. beginTake rethrows it when the countdown ends, discards the start, reports errorStart with a retry and calls recordingStop. The test at line… Evidence: `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:398-408`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:658-666`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:577-598`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:330-335`.
+- Doc: Start-sequence section describes the hide-main-window invoke, WINDOW_HIDE_SETTLE_MS, and begin/release semantics (`apps/documentation/src/content/docs/desktop/recording-pipeline.mdx:420`) — On the Record page the take starts about 50 ms after the countdown ends. For a region countdown it starts at once. If it fails: If the invoke rejects, the renderer treats the window as visible and waits the margin (recorder-store.ts:388). Evidence: `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:380-389`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-store.ts:89`, `apps/kaipu-record/src/main/recording/recording-hub.ts:599-602`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts:675-683`, `apps/kaipu-record/src/renderer/src/features/recording/recorder-engine.ts:695-698`.
+
+</details>
+
+<details><summary>Coverage by batch</summary>
+
+| Batch | Files | Lines | Highest risk | Status | Turns | Cost |
+| --- | --- | --- | --- | --- | --- | --- |
+| Batch 1 of 3 | 15 | 998 | 8 | reviewed | 12 | $0.67 |
+| Batch 2 of 3 | 6 | 701 | 4 | reviewed | 17 | $0.68 |
+| Batch 3 of 3 | 5 | 625 | 2 | reviewed | 11 | $0.54 |
+
+</details>
+
+<sub>Claude Opus 5.5 via Claude Code 2.1.304 · effort high · 3 batches · $1.89</sub>
+
+<!-- wachi:review -->
+
+<!-- agent-review sha=01dfe73fa65f01171659b9c695e1d751b22d22ed -->
+
+<!-- wachi:attempt id=da744006-01d3-496c-9008-e8fd813b7953 -->
+
