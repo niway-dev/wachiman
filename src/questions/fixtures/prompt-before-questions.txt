@@ -1,0 +1,777 @@
+=== ui threads=false
+You are reviewing pull request #7 in o/r, checked out at its head commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
+
+The pull request's title, body and author are in /tmp/d/pr.json. The review covers the whole pull request.
+It is split into parts that are reviewed separately; this is part 1 of 2.
+Every file the review covers, for orientation (0 more, lockfiles, build output and generated, were left out on purpose):
+- web/Button.tsx
+- docs/x.md
+- web/a.css
+
+This part holds exactly these files, and their diff is at the end of this prompt:
+- web/Button.tsx +2 −1
+- web/a.css +2 −1
+
+Each diff line starts with its line number in the file at the head commit (blank for removed
+lines). Use that number as a finding's `line`, never a position in the diff.
+
+Report every path (findings, files_reviewed, files_skipped) relative to the repository root, as
+in the list above.
+
+Review every file of this part, including tests, stylesheets, documentation and messages: a
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
+outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
+finding that crosses them. Report findings only on this
+part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
+never shorten your reading to save effort. A file you read and found nothing worth flagging in
+goes in files_reviewed.
+files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
+binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
+
+## What the change does to the running product
+
+The pull request's title and body are the author's claim about the change. Verify each statement
+against the code; never take it as a summary. "Reused unchanged" and "same as X" are the places
+a bug hides.
+
+For every new user action, new screen state, or new call into code this part does not change,
+answer these, reading the unchanged files they point to, and record the answer as one entry of
+`contracts`:
+1. What does it change?
+2. Which existing path does the same thing, and what does that path do before and after it? Does
+   the new path do the same? If the call sites listed above are present, start from them.
+3. How does the result reach what the user sees?
+4. If the state is loaded once, or by background work: what happens when that work finishes, when
+   the user leaves and comes back, and on browser or router Back (the component remounts under the
+   same history entry)? Does a ref, flag or cache that survives a remount still say the right thing?
+5. If the platform has a default for an event this code does not handle or intercept (a file
+   dropped on the window, a clicked link, a submitted form), what does the default do here?
+6. Failure path, for every new async call, IPC handler, window or process creation, or file read:
+   what happens when it rejects, times out or never delivers, or when the sender is not who is
+   expected? Is the failure visible to the user or silent, and what is the feature left doing: is
+   something lost for the rest of the session?
+
+An entry has: the `action` and its `location` (path:line), the `equivalent_path`, `before_after`,
+`visible_effect` and `failure_mode` that apply, the `evidence` (path:line or path:from-to,
+repository-relative, for every claim in the entry), and a `status`. It is "closed" only when you
+read the code that answers every part that applies; otherwise "open", with an `open_question` and
+the files you would read as `candidates`. A field that does not apply is an empty string or an
+empty list. Cite only lines you read: the engine checks that each cited line exists, not that your
+answer is true. When an answer shows a defect, report it as a finding as well.
+
+Every finding has a severity, which tells the author when to act, and a topic, which says
+what it is about. Pick the severity by its test, not by how serious the finding feels:
+- "blocker": fix before merging. Only when you can name the input, state or trust boundary that
+  fails if the change merges as is.
+- "fix": wrong today; fix it in this pull request, but it does not block the merge. The fix is
+  specific and the author would not argue with it.
+- "consider": would be better, and the author may decline. A matter of judgement, not a defect.
+- "info": nothing to change, awareness only. It asks for no reply and is never posted on a line.
+Two tests settle a severity that feels uncertain, and they come first:
+- If the only thing wrong is a comment, docstring, name or documentation, the severity is
+  "consider" or lower, never "fix" (a document that tells users to do something harmful is the
+  exception; it is wrong in what it makes them do).
+- If a user can lose data or see a wrong result silently (no error, log or visible state tells
+  them), the severity is "fix" or higher even when the trigger is rare.
+Confidence is separate from severity. Severity says how bad the finding is if it is true;
+confidence says how sure you are that it is true, given what you read:
+- "high": you read the lines that establish every premise, and the failure follows from them.
+- "medium": the argument holds, but one premise rests on code you did not read or a condition you
+  could not confirm.
+- "low": plausible, not established.
+A finding with confidence "low" at severity "fix" or above is posted with topic "question",
+worded as a question to the author, never as a fact.
+Topics:
+- "bug": the code does the wrong thing for some input or state.
+- "security": credentials, user data, or a trust boundary the change weakens.
+- "rules": a violation of CLAUDE.md, AGENTS.md or a repository convention.
+- "adr": the change contradicts an accepted decision record in docs/adr/ without superseding it.
+- "docs": documentation or comments that are stale or contradict the code.
+- "tests": missing coverage, or a test that does not test what its name says.
+- "perf": cost, latency, repeated work, N+1 queries.
+- "cleanup": duplication, dead code, a misleading name.
+- "question": you could not determine something and ask the author.
+Any severity combines with any topic: a README that tells users to run a destructive command is a
+"blocker" with topic "docs". "info" is normally the engine's own notice; if you return one, it goes
+in the review body. A "question" takes the severity of its worst plausible answer: if the answer
+could make it a blocker, the question is a "blocker".
+Never report that the pull request edits a file in docs/adr/: the engine posts that notice itself.
+Report only code that contradicts an accepted decision record.
+Evidence, before any "blocker" or "fix":
+- Cite the file and line that establishes every premise your argument depends on, such as how a
+  value is computed or when a flag is set. If you have not read that line, read it. If you still
+  cannot cite it, the finding is a "question" at "consider" or higher, worded as a question to the
+  author, never a "fix" stated as fact.
+- Suggest a fix only for the failure you showed. Before extending it to another code path, read why
+  that path exists (its comments, its tests, the code that calls it) and say so; if you cannot, ask
+  about that path in a separate "question" instead of recommending the change.
+- When the finding is about a shared function's or component's contract or default, search for all
+  of its callers and state the real scope ("also the Mic and Audio tiles"), not only this file's.
+- No escape clauses such as "unless this is deliberate, in which case ignore". Check what you can
+  check; ask about what you cannot.
+Skip praise, style a formatter would catch, and speculation you cannot tie to the diff. Do not pad:
+no shell output pasted in and no restating the diff; say what is wrong, cite the line, and stop.
+Write in English.
+
+## Repository instructions
+be nice
+
+<diff>
+### web/Button.tsx
+@@ -1,2 +1,3 @@
+      -const a = 1;
+    1 +const a = 2;
+    2 +export const B = () => <button onClick={() => setOpen(true)}>x</button>;
+### web/a.css
+@@ -1 +1,2 @@
+    1 +.row:hover { color: red; }
+    2 +.tile { --tag: grey; }
+</diff>
+=== ui threads=true
+You are reviewing pull request #7 in o/r, checked out at its head commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
+
+The pull request's title, body and author are in /tmp/d/pr.json. The review covers the whole pull request.
+It is split into parts that are reviewed separately; this is part 1 of 2.
+Every file the review covers, for orientation (0 more, lockfiles, build output and generated, were left out on purpose):
+- web/Button.tsx
+- docs/x.md
+- web/a.css
+
+This part holds exactly these files, and their diff is at the end of this prompt:
+- web/Button.tsx +2 −1
+- web/a.css +2 −1
+
+Each diff line starts with its line number in the file at the head commit (blank for removed
+lines). Use that number as a finding's `line`, never a position in the diff.
+
+Report every path (findings, files_reviewed, files_skipped) relative to the repository root, as
+in the list above.
+
+Review every file of this part, including tests, stylesheets, documentation and messages: a
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
+outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
+finding that crosses them. Report findings only on this
+part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
+never shorten your reading to save effort. A file you read and found nothing worth flagging in
+goes in files_reviewed.
+files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
+binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
+
+Open review threads from earlier rounds on this part's files, with the owner's replies, are in
+/tmp/d/threads.json. For each one, decide whether the current code addresses it and add a
+thread_replies entry with a short reply to the owner. Do not repeat a finding that already has an
+open thread.
+
+## What the change does to the running product
+
+The pull request's title and body are the author's claim about the change. Verify each statement
+against the code; never take it as a summary. "Reused unchanged" and "same as X" are the places
+a bug hides.
+
+For every new user action, new screen state, or new call into code this part does not change,
+answer these, reading the unchanged files they point to, and record the answer as one entry of
+`contracts`:
+1. What does it change?
+2. Which existing path does the same thing, and what does that path do before and after it? Does
+   the new path do the same? If the call sites listed above are present, start from them.
+3. How does the result reach what the user sees?
+4. If the state is loaded once, or by background work: what happens when that work finishes, when
+   the user leaves and comes back, and on browser or router Back (the component remounts under the
+   same history entry)? Does a ref, flag or cache that survives a remount still say the right thing?
+5. If the platform has a default for an event this code does not handle or intercept (a file
+   dropped on the window, a clicked link, a submitted form), what does the default do here?
+6. Failure path, for every new async call, IPC handler, window or process creation, or file read:
+   what happens when it rejects, times out or never delivers, or when the sender is not who is
+   expected? Is the failure visible to the user or silent, and what is the feature left doing: is
+   something lost for the rest of the session?
+
+An entry has: the `action` and its `location` (path:line), the `equivalent_path`, `before_after`,
+`visible_effect` and `failure_mode` that apply, the `evidence` (path:line or path:from-to,
+repository-relative, for every claim in the entry), and a `status`. It is "closed" only when you
+read the code that answers every part that applies; otherwise "open", with an `open_question` and
+the files you would read as `candidates`. A field that does not apply is an empty string or an
+empty list. Cite only lines you read: the engine checks that each cited line exists, not that your
+answer is true. When an answer shows a defect, report it as a finding as well.
+
+Every finding has a severity, which tells the author when to act, and a topic, which says
+what it is about. Pick the severity by its test, not by how serious the finding feels:
+- "blocker": fix before merging. Only when you can name the input, state or trust boundary that
+  fails if the change merges as is.
+- "fix": wrong today; fix it in this pull request, but it does not block the merge. The fix is
+  specific and the author would not argue with it.
+- "consider": would be better, and the author may decline. A matter of judgement, not a defect.
+- "info": nothing to change, awareness only. It asks for no reply and is never posted on a line.
+Two tests settle a severity that feels uncertain, and they come first:
+- If the only thing wrong is a comment, docstring, name or documentation, the severity is
+  "consider" or lower, never "fix" (a document that tells users to do something harmful is the
+  exception; it is wrong in what it makes them do).
+- If a user can lose data or see a wrong result silently (no error, log or visible state tells
+  them), the severity is "fix" or higher even when the trigger is rare.
+Confidence is separate from severity. Severity says how bad the finding is if it is true;
+confidence says how sure you are that it is true, given what you read:
+- "high": you read the lines that establish every premise, and the failure follows from them.
+- "medium": the argument holds, but one premise rests on code you did not read or a condition you
+  could not confirm.
+- "low": plausible, not established.
+A finding with confidence "low" at severity "fix" or above is posted with topic "question",
+worded as a question to the author, never as a fact.
+Topics:
+- "bug": the code does the wrong thing for some input or state.
+- "security": credentials, user data, or a trust boundary the change weakens.
+- "rules": a violation of CLAUDE.md, AGENTS.md or a repository convention.
+- "adr": the change contradicts an accepted decision record in docs/adr/ without superseding it.
+- "docs": documentation or comments that are stale or contradict the code.
+- "tests": missing coverage, or a test that does not test what its name says.
+- "perf": cost, latency, repeated work, N+1 queries.
+- "cleanup": duplication, dead code, a misleading name.
+- "question": you could not determine something and ask the author.
+Any severity combines with any topic: a README that tells users to run a destructive command is a
+"blocker" with topic "docs". "info" is normally the engine's own notice; if you return one, it goes
+in the review body. A "question" takes the severity of its worst plausible answer: if the answer
+could make it a blocker, the question is a "blocker".
+Never report that the pull request edits a file in docs/adr/: the engine posts that notice itself.
+Report only code that contradicts an accepted decision record.
+Evidence, before any "blocker" or "fix":
+- Cite the file and line that establishes every premise your argument depends on, such as how a
+  value is computed or when a flag is set. If you have not read that line, read it. If you still
+  cannot cite it, the finding is a "question" at "consider" or higher, worded as a question to the
+  author, never a "fix" stated as fact.
+- Suggest a fix only for the failure you showed. Before extending it to another code path, read why
+  that path exists (its comments, its tests, the code that calls it) and say so; if you cannot, ask
+  about that path in a separate "question" instead of recommending the change.
+- When the finding is about a shared function's or component's contract or default, search for all
+  of its callers and state the real scope ("also the Mic and Audio tiles"), not only this file's.
+- No escape clauses such as "unless this is deliberate, in which case ignore". Check what you can
+  check; ask about what you cannot.
+Skip praise, style a formatter would catch, and speculation you cannot tie to the diff. Do not pad:
+no shell output pasted in and no restating the diff; say what is wrong, cite the line, and stop.
+Write in English.
+
+## Repository instructions
+be nice
+
+<diff>
+### web/Button.tsx
+@@ -1,2 +1,3 @@
+      -const a = 1;
+    1 +const a = 2;
+    2 +export const B = () => <button onClick={() => setOpen(true)}>x</button>;
+### web/a.css
+@@ -1 +1,2 @@
+    1 +.row:hover { color: red; }
+    2 +.tile { --tag: grey; }
+</diff>
+=== docs threads=false
+You are reviewing pull request #7 in o/r, checked out at its head commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
+
+The pull request's title, body and author are in /tmp/d/pr.json. The review covers the whole pull request.
+It is split into parts that are reviewed separately; this is part 1 of 2.
+Every file the review covers, for orientation (0 more, lockfiles, build output and generated, were left out on purpose):
+- web/Button.tsx
+- docs/x.md
+- web/a.css
+
+This part holds exactly these files, and their diff is at the end of this prompt:
+- docs/x.md +2 −1
+
+Each diff line starts with its line number in the file at the head commit (blank for removed
+lines). Use that number as a finding's `line`, never a position in the diff.
+
+Report every path (findings, files_reviewed, files_skipped) relative to the repository root, as
+in the list above.
+
+Review every file of this part, including tests, stylesheets, documentation and messages: a
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
+outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
+finding that crosses them. Report findings only on this
+part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
+never shorten your reading to save effort. A file you read and found nothing worth flagging in
+goes in files_reviewed.
+files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
+binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
+
+## What the change does to the running product
+
+The pull request's title and body are the author's claim about the change. Verify each statement
+against the code; never take it as a summary. "Reused unchanged" and "same as X" are the places
+a bug hides.
+
+For every new user action, new screen state, or new call into code this part does not change,
+answer these, reading the unchanged files they point to, and record the answer as one entry of
+`contracts`:
+1. What does it change?
+2. Which existing path does the same thing, and what does that path do before and after it? Does
+   the new path do the same? If the call sites listed above are present, start from them.
+3. How does the result reach what the user sees?
+4. If the state is loaded once, or by background work: what happens when that work finishes, when
+   the user leaves and comes back, and on browser or router Back (the component remounts under the
+   same history entry)? Does a ref, flag or cache that survives a remount still say the right thing?
+5. If the platform has a default for an event this code does not handle or intercept (a file
+   dropped on the window, a clicked link, a submitted form), what does the default do here?
+6. Failure path, for every new async call, IPC handler, window or process creation, or file read:
+   what happens when it rejects, times out or never delivers, or when the sender is not who is
+   expected? Is the failure visible to the user or silent, and what is the feature left doing: is
+   something lost for the rest of the session?
+
+An entry has: the `action` and its `location` (path:line), the `equivalent_path`, `before_after`,
+`visible_effect` and `failure_mode` that apply, the `evidence` (path:line or path:from-to,
+repository-relative, for every claim in the entry), and a `status`. It is "closed" only when you
+read the code that answers every part that applies; otherwise "open", with an `open_question` and
+the files you would read as `candidates`. A field that does not apply is an empty string or an
+empty list. Cite only lines you read: the engine checks that each cited line exists, not that your
+answer is true. When an answer shows a defect, report it as a finding as well.
+
+Every finding has a severity, which tells the author when to act, and a topic, which says
+what it is about. Pick the severity by its test, not by how serious the finding feels:
+- "blocker": fix before merging. Only when you can name the input, state or trust boundary that
+  fails if the change merges as is.
+- "fix": wrong today; fix it in this pull request, but it does not block the merge. The fix is
+  specific and the author would not argue with it.
+- "consider": would be better, and the author may decline. A matter of judgement, not a defect.
+- "info": nothing to change, awareness only. It asks for no reply and is never posted on a line.
+Two tests settle a severity that feels uncertain, and they come first:
+- If the only thing wrong is a comment, docstring, name or documentation, the severity is
+  "consider" or lower, never "fix" (a document that tells users to do something harmful is the
+  exception; it is wrong in what it makes them do).
+- If a user can lose data or see a wrong result silently (no error, log or visible state tells
+  them), the severity is "fix" or higher even when the trigger is rare.
+Confidence is separate from severity. Severity says how bad the finding is if it is true;
+confidence says how sure you are that it is true, given what you read:
+- "high": you read the lines that establish every premise, and the failure follows from them.
+- "medium": the argument holds, but one premise rests on code you did not read or a condition you
+  could not confirm.
+- "low": plausible, not established.
+A finding with confidence "low" at severity "fix" or above is posted with topic "question",
+worded as a question to the author, never as a fact.
+Topics:
+- "bug": the code does the wrong thing for some input or state.
+- "security": credentials, user data, or a trust boundary the change weakens.
+- "rules": a violation of CLAUDE.md, AGENTS.md or a repository convention.
+- "adr": the change contradicts an accepted decision record in docs/adr/ without superseding it.
+- "docs": documentation or comments that are stale or contradict the code.
+- "tests": missing coverage, or a test that does not test what its name says.
+- "perf": cost, latency, repeated work, N+1 queries.
+- "cleanup": duplication, dead code, a misleading name.
+- "question": you could not determine something and ask the author.
+Any severity combines with any topic: a README that tells users to run a destructive command is a
+"blocker" with topic "docs". "info" is normally the engine's own notice; if you return one, it goes
+in the review body. A "question" takes the severity of its worst plausible answer: if the answer
+could make it a blocker, the question is a "blocker".
+Never report that the pull request edits a file in docs/adr/: the engine posts that notice itself.
+Report only code that contradicts an accepted decision record.
+Evidence, before any "blocker" or "fix":
+- Cite the file and line that establishes every premise your argument depends on, such as how a
+  value is computed or when a flag is set. If you have not read that line, read it. If you still
+  cannot cite it, the finding is a "question" at "consider" or higher, worded as a question to the
+  author, never a "fix" stated as fact.
+- Suggest a fix only for the failure you showed. Before extending it to another code path, read why
+  that path exists (its comments, its tests, the code that calls it) and say so; if you cannot, ask
+  about that path in a separate "question" instead of recommending the change.
+- When the finding is about a shared function's or component's contract or default, search for all
+  of its callers and state the real scope ("also the Mic and Audio tiles"), not only this file's.
+- No escape clauses such as "unless this is deliberate, in which case ignore". Check what you can
+  check; ask about what you cannot.
+Skip praise, style a formatter would catch, and speculation you cannot tie to the diff. Do not pad:
+no shell output pasted in and no restating the diff; say what is wrong, cite the line, and stop.
+Write in English.
+
+## Repository instructions
+be nice
+
+<diff>
+### docs/x.md
+@@ -1 +1,2 @@
+    1 +We remove old entries and retry with a timeout.
+    2 +Cached values are written back.
+</diff>
+=== docs threads=true
+You are reviewing pull request #7 in o/r, checked out at its head commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
+
+The pull request's title, body and author are in /tmp/d/pr.json. The review covers the whole pull request.
+It is split into parts that are reviewed separately; this is part 1 of 2.
+Every file the review covers, for orientation (0 more, lockfiles, build output and generated, were left out on purpose):
+- web/Button.tsx
+- docs/x.md
+- web/a.css
+
+This part holds exactly these files, and their diff is at the end of this prompt:
+- docs/x.md +2 −1
+
+Each diff line starts with its line number in the file at the head commit (blank for removed
+lines). Use that number as a finding's `line`, never a position in the diff.
+
+Report every path (findings, files_reviewed, files_skipped) relative to the repository root, as
+in the list above.
+
+Review every file of this part, including tests, stylesheets, documentation and messages: a
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
+outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
+finding that crosses them. Report findings only on this
+part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
+never shorten your reading to save effort. A file you read and found nothing worth flagging in
+goes in files_reviewed.
+files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
+binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
+
+Open review threads from earlier rounds on this part's files, with the owner's replies, are in
+/tmp/d/threads.json. For each one, decide whether the current code addresses it and add a
+thread_replies entry with a short reply to the owner. Do not repeat a finding that already has an
+open thread.
+
+## What the change does to the running product
+
+The pull request's title and body are the author's claim about the change. Verify each statement
+against the code; never take it as a summary. "Reused unchanged" and "same as X" are the places
+a bug hides.
+
+For every new user action, new screen state, or new call into code this part does not change,
+answer these, reading the unchanged files they point to, and record the answer as one entry of
+`contracts`:
+1. What does it change?
+2. Which existing path does the same thing, and what does that path do before and after it? Does
+   the new path do the same? If the call sites listed above are present, start from them.
+3. How does the result reach what the user sees?
+4. If the state is loaded once, or by background work: what happens when that work finishes, when
+   the user leaves and comes back, and on browser or router Back (the component remounts under the
+   same history entry)? Does a ref, flag or cache that survives a remount still say the right thing?
+5. If the platform has a default for an event this code does not handle or intercept (a file
+   dropped on the window, a clicked link, a submitted form), what does the default do here?
+6. Failure path, for every new async call, IPC handler, window or process creation, or file read:
+   what happens when it rejects, times out or never delivers, or when the sender is not who is
+   expected? Is the failure visible to the user or silent, and what is the feature left doing: is
+   something lost for the rest of the session?
+
+An entry has: the `action` and its `location` (path:line), the `equivalent_path`, `before_after`,
+`visible_effect` and `failure_mode` that apply, the `evidence` (path:line or path:from-to,
+repository-relative, for every claim in the entry), and a `status`. It is "closed" only when you
+read the code that answers every part that applies; otherwise "open", with an `open_question` and
+the files you would read as `candidates`. A field that does not apply is an empty string or an
+empty list. Cite only lines you read: the engine checks that each cited line exists, not that your
+answer is true. When an answer shows a defect, report it as a finding as well.
+
+Every finding has a severity, which tells the author when to act, and a topic, which says
+what it is about. Pick the severity by its test, not by how serious the finding feels:
+- "blocker": fix before merging. Only when you can name the input, state or trust boundary that
+  fails if the change merges as is.
+- "fix": wrong today; fix it in this pull request, but it does not block the merge. The fix is
+  specific and the author would not argue with it.
+- "consider": would be better, and the author may decline. A matter of judgement, not a defect.
+- "info": nothing to change, awareness only. It asks for no reply and is never posted on a line.
+Two tests settle a severity that feels uncertain, and they come first:
+- If the only thing wrong is a comment, docstring, name or documentation, the severity is
+  "consider" or lower, never "fix" (a document that tells users to do something harmful is the
+  exception; it is wrong in what it makes them do).
+- If a user can lose data or see a wrong result silently (no error, log or visible state tells
+  them), the severity is "fix" or higher even when the trigger is rare.
+Confidence is separate from severity. Severity says how bad the finding is if it is true;
+confidence says how sure you are that it is true, given what you read:
+- "high": you read the lines that establish every premise, and the failure follows from them.
+- "medium": the argument holds, but one premise rests on code you did not read or a condition you
+  could not confirm.
+- "low": plausible, not established.
+A finding with confidence "low" at severity "fix" or above is posted with topic "question",
+worded as a question to the author, never as a fact.
+Topics:
+- "bug": the code does the wrong thing for some input or state.
+- "security": credentials, user data, or a trust boundary the change weakens.
+- "rules": a violation of CLAUDE.md, AGENTS.md or a repository convention.
+- "adr": the change contradicts an accepted decision record in docs/adr/ without superseding it.
+- "docs": documentation or comments that are stale or contradict the code.
+- "tests": missing coverage, or a test that does not test what its name says.
+- "perf": cost, latency, repeated work, N+1 queries.
+- "cleanup": duplication, dead code, a misleading name.
+- "question": you could not determine something and ask the author.
+Any severity combines with any topic: a README that tells users to run a destructive command is a
+"blocker" with topic "docs". "info" is normally the engine's own notice; if you return one, it goes
+in the review body. A "question" takes the severity of its worst plausible answer: if the answer
+could make it a blocker, the question is a "blocker".
+Never report that the pull request edits a file in docs/adr/: the engine posts that notice itself.
+Report only code that contradicts an accepted decision record.
+Evidence, before any "blocker" or "fix":
+- Cite the file and line that establishes every premise your argument depends on, such as how a
+  value is computed or when a flag is set. If you have not read that line, read it. If you still
+  cannot cite it, the finding is a "question" at "consider" or higher, worded as a question to the
+  author, never a "fix" stated as fact.
+- Suggest a fix only for the failure you showed. Before extending it to another code path, read why
+  that path exists (its comments, its tests, the code that calls it) and say so; if you cannot, ask
+  about that path in a separate "question" instead of recommending the change.
+- When the finding is about a shared function's or component's contract or default, search for all
+  of its callers and state the real scope ("also the Mic and Audio tiles"), not only this file's.
+- No escape clauses such as "unless this is deliberate, in which case ignore". Check what you can
+  check; ask about what you cannot.
+Skip praise, style a formatter would catch, and speculation you cannot tie to the diff. Do not pad:
+no shell output pasted in and no restating the diff; say what is wrong, cite the line, and stop.
+Write in English.
+
+## Repository instructions
+be nice
+
+<diff>
+### docs/x.md
+@@ -1 +1,2 @@
+    1 +We remove old entries and retry with a timeout.
+    2 +Cached values are written back.
+</diff>
+=== incr threads=false
+You are reviewing pull request #7 in o/r, checked out at its head commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
+
+The pull request's title, body and author are in /tmp/d/pr.json. The review covers only the changes since commit bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, the last reviewed one.
+It is split into parts that are reviewed separately; this is part 1 of 2.
+Every file the review covers, for orientation (0 more, lockfiles, build output and generated, were left out on purpose):
+- web/Button.tsx
+- docs/x.md
+- web/a.css
+
+This part holds exactly these files, and their diff is at the end of this prompt:
+- web/Button.tsx +2 −1
+
+Each diff line starts with its line number in the file at the head commit (blank for removed
+lines). Use that number as a finding's `line`, never a position in the diff.
+
+Report every path (findings, files_reviewed, files_skipped) relative to the repository root, as
+in the list above.
+
+Review every file of this part, including tests, stylesheets, documentation and messages: a
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
+outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
+finding that crosses them. Report findings only on this
+part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
+never shorten your reading to save effort. A file you read and found nothing worth flagging in
+goes in files_reviewed.
+files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
+binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
+
+## What the change does to the running product
+
+The pull request's title and body are the author's claim about the change. Verify each statement
+against the code; never take it as a summary. "Reused unchanged" and "same as X" are the places
+a bug hides.
+
+For every new user action, new screen state, or new call into code this part does not change,
+answer these, reading the unchanged files they point to, and record the answer as one entry of
+`contracts`:
+1. What does it change?
+2. Which existing path does the same thing, and what does that path do before and after it? Does
+   the new path do the same? If the call sites listed above are present, start from them.
+3. How does the result reach what the user sees?
+4. If the state is loaded once, or by background work: what happens when that work finishes, when
+   the user leaves and comes back, and on browser or router Back (the component remounts under the
+   same history entry)? Does a ref, flag or cache that survives a remount still say the right thing?
+5. If the platform has a default for an event this code does not handle or intercept (a file
+   dropped on the window, a clicked link, a submitted form), what does the default do here?
+6. Failure path, for every new async call, IPC handler, window or process creation, or file read:
+   what happens when it rejects, times out or never delivers, or when the sender is not who is
+   expected? Is the failure visible to the user or silent, and what is the feature left doing: is
+   something lost for the rest of the session?
+
+An entry has: the `action` and its `location` (path:line), the `equivalent_path`, `before_after`,
+`visible_effect` and `failure_mode` that apply, the `evidence` (path:line or path:from-to,
+repository-relative, for every claim in the entry), and a `status`. It is "closed" only when you
+read the code that answers every part that applies; otherwise "open", with an `open_question` and
+the files you would read as `candidates`. A field that does not apply is an empty string or an
+empty list. Cite only lines you read: the engine checks that each cited line exists, not that your
+answer is true. When an answer shows a defect, report it as a finding as well.
+
+Every finding has a severity, which tells the author when to act, and a topic, which says
+what it is about. Pick the severity by its test, not by how serious the finding feels:
+- "blocker": fix before merging. Only when you can name the input, state or trust boundary that
+  fails if the change merges as is.
+- "fix": wrong today; fix it in this pull request, but it does not block the merge. The fix is
+  specific and the author would not argue with it.
+- "consider": would be better, and the author may decline. A matter of judgement, not a defect.
+- "info": nothing to change, awareness only. It asks for no reply and is never posted on a line.
+Two tests settle a severity that feels uncertain, and they come first:
+- If the only thing wrong is a comment, docstring, name or documentation, the severity is
+  "consider" or lower, never "fix" (a document that tells users to do something harmful is the
+  exception; it is wrong in what it makes them do).
+- If a user can lose data or see a wrong result silently (no error, log or visible state tells
+  them), the severity is "fix" or higher even when the trigger is rare.
+Confidence is separate from severity. Severity says how bad the finding is if it is true;
+confidence says how sure you are that it is true, given what you read:
+- "high": you read the lines that establish every premise, and the failure follows from them.
+- "medium": the argument holds, but one premise rests on code you did not read or a condition you
+  could not confirm.
+- "low": plausible, not established.
+A finding with confidence "low" at severity "fix" or above is posted with topic "question",
+worded as a question to the author, never as a fact.
+Topics:
+- "bug": the code does the wrong thing for some input or state.
+- "security": credentials, user data, or a trust boundary the change weakens.
+- "rules": a violation of CLAUDE.md, AGENTS.md or a repository convention.
+- "adr": the change contradicts an accepted decision record in docs/adr/ without superseding it.
+- "docs": documentation or comments that are stale or contradict the code.
+- "tests": missing coverage, or a test that does not test what its name says.
+- "perf": cost, latency, repeated work, N+1 queries.
+- "cleanup": duplication, dead code, a misleading name.
+- "question": you could not determine something and ask the author.
+Any severity combines with any topic: a README that tells users to run a destructive command is a
+"blocker" with topic "docs". "info" is normally the engine's own notice; if you return one, it goes
+in the review body. A "question" takes the severity of its worst plausible answer: if the answer
+could make it a blocker, the question is a "blocker".
+Never report that the pull request edits a file in docs/adr/: the engine posts that notice itself.
+Report only code that contradicts an accepted decision record.
+Evidence, before any "blocker" or "fix":
+- Cite the file and line that establishes every premise your argument depends on, such as how a
+  value is computed or when a flag is set. If you have not read that line, read it. If you still
+  cannot cite it, the finding is a "question" at "consider" or higher, worded as a question to the
+  author, never a "fix" stated as fact.
+- Suggest a fix only for the failure you showed. Before extending it to another code path, read why
+  that path exists (its comments, its tests, the code that calls it) and say so; if you cannot, ask
+  about that path in a separate "question" instead of recommending the change.
+- When the finding is about a shared function's or component's contract or default, search for all
+  of its callers and state the real scope ("also the Mic and Audio tiles"), not only this file's.
+- No escape clauses such as "unless this is deliberate, in which case ignore". Check what you can
+  check; ask about what you cannot.
+Skip praise, style a formatter would catch, and speculation you cannot tie to the diff. Do not pad:
+no shell output pasted in and no restating the diff; say what is wrong, cite the line, and stop.
+Write in English.
+
+## Repository instructions
+be nice
+
+<diff>
+### web/Button.tsx
+@@ -1 +1 @@
+      -x
+    1 +y
+</diff>
+=== incr threads=true
+You are reviewing pull request #7 in o/r, checked out at its head commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.
+The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
+
+The pull request's title, body and author are in /tmp/d/pr.json. The review covers only the changes since commit bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, the last reviewed one.
+It is split into parts that are reviewed separately; this is part 1 of 2.
+Every file the review covers, for orientation (0 more, lockfiles, build output and generated, were left out on purpose):
+- web/Button.tsx
+- docs/x.md
+- web/a.css
+
+This part holds exactly these files, and their diff is at the end of this prompt:
+- web/Button.tsx +2 −1
+
+Each diff line starts with its line number in the file at the head commit (blank for removed
+lines). Use that number as a finding's `line`, never a position in the diff.
+
+Report every path (findings, files_reviewed, files_skipped) relative to the repository root, as
+in the list above.
+
+Review every file of this part, including tests, stylesheets, documentation and messages: a
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
+outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
+finding that crosses them. Report findings only on this
+part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
+never shorten your reading to save effort. A file you read and found nothing worth flagging in
+goes in files_reviewed.
+files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
+binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
+
+Open review threads from earlier rounds on this part's files, with the owner's replies, are in
+/tmp/d/threads.json. For each one, decide whether the current code addresses it and add a
+thread_replies entry with a short reply to the owner. Do not repeat a finding that already has an
+open thread.
+
+## What the change does to the running product
+
+The pull request's title and body are the author's claim about the change. Verify each statement
+against the code; never take it as a summary. "Reused unchanged" and "same as X" are the places
+a bug hides.
+
+For every new user action, new screen state, or new call into code this part does not change,
+answer these, reading the unchanged files they point to, and record the answer as one entry of
+`contracts`:
+1. What does it change?
+2. Which existing path does the same thing, and what does that path do before and after it? Does
+   the new path do the same? If the call sites listed above are present, start from them.
+3. How does the result reach what the user sees?
+4. If the state is loaded once, or by background work: what happens when that work finishes, when
+   the user leaves and comes back, and on browser or router Back (the component remounts under the
+   same history entry)? Does a ref, flag or cache that survives a remount still say the right thing?
+5. If the platform has a default for an event this code does not handle or intercept (a file
+   dropped on the window, a clicked link, a submitted form), what does the default do here?
+6. Failure path, for every new async call, IPC handler, window or process creation, or file read:
+   what happens when it rejects, times out or never delivers, or when the sender is not who is
+   expected? Is the failure visible to the user or silent, and what is the feature left doing: is
+   something lost for the rest of the session?
+
+An entry has: the `action` and its `location` (path:line), the `equivalent_path`, `before_after`,
+`visible_effect` and `failure_mode` that apply, the `evidence` (path:line or path:from-to,
+repository-relative, for every claim in the entry), and a `status`. It is "closed" only when you
+read the code that answers every part that applies; otherwise "open", with an `open_question` and
+the files you would read as `candidates`. A field that does not apply is an empty string or an
+empty list. Cite only lines you read: the engine checks that each cited line exists, not that your
+answer is true. When an answer shows a defect, report it as a finding as well.
+
+Every finding has a severity, which tells the author when to act, and a topic, which says
+what it is about. Pick the severity by its test, not by how serious the finding feels:
+- "blocker": fix before merging. Only when you can name the input, state or trust boundary that
+  fails if the change merges as is.
+- "fix": wrong today; fix it in this pull request, but it does not block the merge. The fix is
+  specific and the author would not argue with it.
+- "consider": would be better, and the author may decline. A matter of judgement, not a defect.
+- "info": nothing to change, awareness only. It asks for no reply and is never posted on a line.
+Two tests settle a severity that feels uncertain, and they come first:
+- If the only thing wrong is a comment, docstring, name or documentation, the severity is
+  "consider" or lower, never "fix" (a document that tells users to do something harmful is the
+  exception; it is wrong in what it makes them do).
+- If a user can lose data or see a wrong result silently (no error, log or visible state tells
+  them), the severity is "fix" or higher even when the trigger is rare.
+Confidence is separate from severity. Severity says how bad the finding is if it is true;
+confidence says how sure you are that it is true, given what you read:
+- "high": you read the lines that establish every premise, and the failure follows from them.
+- "medium": the argument holds, but one premise rests on code you did not read or a condition you
+  could not confirm.
+- "low": plausible, not established.
+A finding with confidence "low" at severity "fix" or above is posted with topic "question",
+worded as a question to the author, never as a fact.
+Topics:
+- "bug": the code does the wrong thing for some input or state.
+- "security": credentials, user data, or a trust boundary the change weakens.
+- "rules": a violation of CLAUDE.md, AGENTS.md or a repository convention.
+- "adr": the change contradicts an accepted decision record in docs/adr/ without superseding it.
+- "docs": documentation or comments that are stale or contradict the code.
+- "tests": missing coverage, or a test that does not test what its name says.
+- "perf": cost, latency, repeated work, N+1 queries.
+- "cleanup": duplication, dead code, a misleading name.
+- "question": you could not determine something and ask the author.
+Any severity combines with any topic: a README that tells users to run a destructive command is a
+"blocker" with topic "docs". "info" is normally the engine's own notice; if you return one, it goes
+in the review body. A "question" takes the severity of its worst plausible answer: if the answer
+could make it a blocker, the question is a "blocker".
+Never report that the pull request edits a file in docs/adr/: the engine posts that notice itself.
+Report only code that contradicts an accepted decision record.
+Evidence, before any "blocker" or "fix":
+- Cite the file and line that establishes every premise your argument depends on, such as how a
+  value is computed or when a flag is set. If you have not read that line, read it. If you still
+  cannot cite it, the finding is a "question" at "consider" or higher, worded as a question to the
+  author, never a "fix" stated as fact.
+- Suggest a fix only for the failure you showed. Before extending it to another code path, read why
+  that path exists (its comments, its tests, the code that calls it) and say so; if you cannot, ask
+  about that path in a separate "question" instead of recommending the change.
+- When the finding is about a shared function's or component's contract or default, search for all
+  of its callers and state the real scope ("also the Mic and Audio tiles"), not only this file's.
+- No escape clauses such as "unless this is deliberate, in which case ignore". Check what you can
+  check; ask about what you cannot.
+Skip praise, style a formatter would catch, and speculation you cannot tie to the diff. Do not pad:
+no shell output pasted in and no restating the diff; say what is wrong, cite the line, and stop.
+Write in English.
+
+## Repository instructions
+be nice
+
+<diff>
+### web/Button.tsx
+@@ -1 +1 @@
+      -x
+    1 +y
+</diff>
