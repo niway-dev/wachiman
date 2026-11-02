@@ -1,0 +1,495 @@
+{
+ "version": 1,
+ "provenance": "text_match",
+ "status": "truncated",
+ "caps": {
+  "symbols": 12,
+  "call_sites_per_symbol": 6,
+  "context_lines": 4,
+  "file_bytes": 16384,
+  "wall_clock_ms": 20000
+ },
+ "batch_files": [
+  "packages/infra-db/src/schema/cloud.ts",
+  "packages/infra-db/src/mappers/cloud.mapper.ts",
+  "packages/infra-db/src/repositories/cloud-asset.repository.ts",
+  "apps/kaipu-record/src/main/cloud/assign-client.ts",
+  "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+  "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+  "apps/kaipu-record/src/main/cloud/catalog-cache.ts",
+  "apps/kaipu-record/src/main/cloud/catalog-client.ts",
+  "apps/kaipu-record/src/main/cloud/cloud-state.ts",
+  "apps/kaipu-record/src/main/cloud/upload-intent-client.ts",
+  "apps/kaipu-record/src/main/cloud/workspace-filter.ts",
+  "apps/kaipu-record/src/main/index.ts",
+  "apps/kaipu-record/src/main/library/dataless.ts",
+  "apps/kaipu-record/src/main/library/drag-copies.ts",
+  "apps/kaipu-record/src/main/library/index.ts",
+  "apps/kaipu-record/src/main/library/library-service.ts",
+  "apps/kaipu-record/src/main/library/library-vault.ts",
+  "apps/kaipu-record/src/main/library/safe-place.ts",
+  "apps/kaipu-record/src/main/media-protocol.ts",
+  "apps/kaipu-record/src/main/recording/recording-hub.ts",
+  "packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts"
+ ],
+ "symbols": [
+  {
+   "symbol": "getPath",
+   "kind": "call",
+   "qualifier": "app.getPath",
+   "used_in": [
+    "apps/kaipu-record/src/main/index.ts",
+    "apps/kaipu-record/src/main/library/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 16,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/auth-store.test.ts",
+    "line": 22,
+    "text": "getPath: (name: string) => (name === \"userData\" ? mockState.userDataDir : \"/tmp\"),"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/infrastructure/auth-store.ts",
+     "line": 18,
+     "text": "return join(app.getPath(\"userData\"), \"auth.enc\");",
+     "excerpt": [
+      "14| } from \"../services/auth-client\";",
+      "15| import type { BrowserSignInClient } from \"../services/browser-sign-in\";",
+      "16| ",
+      "17| function tokenFilePath(): string {",
+      "18|   return join(app.getPath(\"userData\"), \"auth.enc\");",
+      "19| }",
+      "20| ",
+      "21| /** What survives a restart. The identity is stored alongside the token, not just the token,",
+      "22|  *  so the very first status check of a new process can already name the account it is trying"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+     "line": 35,
+     "text": "return join(app.getPath(\"userData\"), \"settings.json\");",
+     "excerpt": [
+      "35| return join(app.getPath(\"userData\"), \"settings.json\");"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-location.ts",
+     "line": 15,
+     "text": "return join(app.getPath(\"userData\"), \"preferences.json\");",
+     "excerpt": [
+      "15| return join(app.getPath(\"userData\"), \"preferences.json\");"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "has",
+   "kind": "call",
+   "qualifier": "deps.registered.has",
+   "used_in": [
+    "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+    "apps/kaipu-record/src/main/cloud/workspace-filter.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 297,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/renderer/src/features/video-editor/session.ts",
+    "line": 378,
+    "text": "const has = (key: string): boolean => l[key] !== undefined;"
+   },
+   "call_sites": [
+    {
+     "file": "apps/console/src/lib/backend.server.ts",
+     "line": 26,
+     "text": "if (!allowed.has(path)) return new Response(\"Not found\", { status: 404 });",
+     "excerpt": [
+      "22|   \"/api/auth/sign-in/email\",",
+      "23|   \"/api/auth/sign-out\",",
+      "24|   \"/api/auth/get-session\",",
+      "25| ]);",
+      "26| if (!allowed.has(path)) return new Response(\"Not found\", { status: 404 });",
+      "27| const response = await createProxyHandler({",
+      "28|   backendUrl: consoleConfig().apiUrl,",
+      "29|   fetchFn: apiFetch,",
+      "30|   forwardedHeaders: true,"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/atomic-write.ts",
+     "line": 48,
+     "text": "if (!code || !NO_DIR_SYNC.has(code)) throw error;",
+     "excerpt": [
+      "48| if (!code || !NO_DIR_SYNC.has(code)) throw error;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/compose-library.ts",
+     "line": 99,
+     "text": "if (merged.has(rec.assetId)) continue;",
+     "excerpt": [
+      "99| if (merged.has(rec.assetId)) continue;"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "json",
+   "kind": "call",
+   "qualifier": "res.json",
+   "used_in": [
+    "apps/kaipu-record/src/main/cloud/assign-client.ts",
+    "apps/kaipu-record/src/main/cloud/upload-intent-client.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 536,
+   "definition_guess": {
+    "file": "apps/kaipu-record/e2e/helpers/ffprobe.test.ts",
+    "line": 6,
+    "text": "const json = JSON.stringify({"
+   },
+   "call_sites": [
+    {
+     "file": "apps/console/src/lib/session.server.ts",
+     "line": 15,
+     "text": "const session = (await response.json()) as { user?: { id?: string; name?: string } } | null;",
+     "excerpt": [
+      "11| const response = await apiFetch(`${config.apiUrl}/api/auth/get-session?disableCookieCache=true`, {",
+      "12|   headers: { cookie },",
+      "13| });",
+      "14| if (!response.ok) throw new Error(\"Authentication service unavailable. Try again.\");",
+      "15| const session = (await response.json()) as { user?: { id?: string; name?: string } } | null;",
+      "16| if (!session?.user?.id) return { status: \"unauthorized\" as const };",
+      "17| if (!isConsoleAdmin(session.user.id, config.adminIds)) return { status: \"forbidden\" as const };",
+      "18| return {",
+      "19|   status: \"authorized\" as const,"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/cloud/storage-client.ts",
+     "line": 44,
+     "text": "const body = (await res.json()) as { data?: unknown; error?: { message?: string } | null };",
+     "excerpt": [
+      "44| const body = (await res.json()) as { data?: unknown; error?: { message?: string } | null };"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/services/auth-client.ts",
+     "line": 35,
+     "text": "const data = (await res.json().catch(() => null)) as {",
+     "excerpt": [
+      "35| const data = (await res.json().catch(() => null)) as {"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "timeout",
+   "kind": "call",
+   "qualifier": "AbortSignal.timeout",
+   "used_in": [
+    "apps/kaipu-record/src/main/cloud/assign-client.ts",
+    "apps/kaipu-record/src/main/cloud/upload-intent-client.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 63,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/index.ts",
+    "line": 283,
+    "text": "const timeout = setTimeout(finish, 2000);"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/cloud/storage-client.ts",
+     "line": 38,
+     "text": "signal: AbortSignal.timeout(15_000),",
+     "excerpt": [
+      "34|   token: string,",
+      "35| ): Promise<StorageUsage> {",
+      "36|   const res = await fetch(`${config.serverUrl}/api/v1/me/storage`, {",
+      "37|     headers: { Authorization: `Bearer ${token}` },",
+      "38|     signal: AbortSignal.timeout(15_000),",
+      "39|   });",
+      "40|   if (res.status === 401) throw { kind: \"unauthorized\" } satisfies StorageUsageError;",
+      "41|   // A 404 is not a transient failure: this server does not offer cloud storage (yet).",
+      "42|   if (res.status === 404) throw { kind: \"not-available\" } satisfies StorageUsageError;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/services/auth-client.ts",
+     "line": 27,
+     "text": "signal: AbortSignal.timeout(10_000),",
+     "excerpt": [
+      "27| signal: AbortSignal.timeout(10_000),"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/services/auth-client.ts",
+     "line": 54,
+     "text": "signal: AbortSignal.timeout(10_000),",
+     "excerpt": [
+      "54| signal: AbortSignal.timeout(10_000),"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "setWorkspace",
+   "kind": "call",
+   "qualifier": "repo.setWorkspace",
+   "used_in": [
+    "packages/infra-db/src/repositories/cloud-asset.repository.ts",
+    "packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 7,
+   "definition_guess": {
+    "file": "apps/server-hono/src/contract/asset-workspace.contract.test.ts",
+    "line": 18,
+    "text": "async setWorkspace(userId: string, assetId: string, workspaceId: string | null) {"
+   },
+   "call_sites": [
+    {
+     "file": "packages/application/src/cloud/fakes.ts",
+     "line": 209,
+     "text": "async setWorkspace(userId, assetId, workspaceId) {",
+     "excerpt": [
+      "205|   const next = { ...asset, autoUploadExcluded: excluded };",
+      "206|   assets.set(key(userId, assetId), next);",
+      "207|   return next;",
+      "208| },",
+      "209| async setWorkspace(userId, assetId, workspaceId) {",
+      "210|   const asset = assets.get(key(userId, assetId));",
+      "211|   if (!asset || asset.deletedAt) return null;",
+      "212|   const next = { ...asset, workspaceId };",
+      "213|   assets.set(key(userId, assetId), next);"
+     ]
+    },
+    {
+     "file": "packages/application/src/cloud/set-asset-workspace.ts",
+     "line": 15,
+     "text": "const asset = await params.assets.setWorkspace(params.userId, params.assetId, params.workspaceId);",
+     "excerpt": [
+      "15| const asset = await params.assets.setWorkspace(params.userId, params.assetId, params.workspaceId);"
+     ]
+    },
+    {
+     "file": "packages/domain/src/repositories/cloud-asset.repository.ts",
+     "line": 97,
+     "text": "setWorkspace(",
+     "excerpt": [
+      "97| setWorkspace("
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "randomUUID",
+   "kind": "call",
+   "qualifier": "crypto.randomUUID",
+   "used_in": [
+    "apps/kaipu-record/src/main/library/drag-copies.ts",
+    "packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 31,
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+     "line": 51,
+     "text": "settings = { ...settings, deviceId: randomUUID() };",
+     "excerpt": [
+      "47|   // The locale is NOT seeded from `app.getLocale()`: a first run opens in English",
+      "48|   // (`DEFAULT_LOCALE`) and the onboarding welcome step is where the user picks their",
+      "49|   // language. The owner chose one predictable first screen over OS detection.",
+      "50|   if (!settings.deviceId) {",
+      "51|     settings = { ...settings, deviceId: randomUUID() };",
+      "52|     persist();",
+      "53|   }",
+      "54|   recomputeEffective();",
+      "55| }"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/atomic-write.ts",
+     "line": 28,
+     "text": "return `${target}.${process.pid}.${randomUUID()}.${suffix}`;",
+     "excerpt": [
+      "28| return `${target}.${process.pid}.${randomUUID()}.${suffix}`;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-reconcile.ts",
+     "line": 606,
+     "text": "const runId = `${new Date(this.now()).toISOString().replace(/[:.]/g, \"-\")}-${randomUUID()}`;",
+     "excerpt": [
+      "606| const runId = `${new Date(this.now()).toISOString().replace(/[:.]/g, \"-\")}-${randomUUID()}`;"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "markAssigned",
+   "kind": "call",
+   "qualifier": "deps.markAssigned",
+   "used_in": [
+    "apps/kaipu-record/src/main/cloud/assign-cloud.ts"
+   ],
+   "provenance": "text_match",
+   "status": "complete",
+   "total_matches": 0,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/cloud/assign-cloud.test.ts",
+    "line": 24,
+    "text": "markAssigned: async () => {"
+   },
+   "call_sites": []
+  },
+  {
+   "symbol": "runStat",
+   "kind": "call",
+   "qualifier": "deps.runStat",
+   "used_in": [
+    "apps/kaipu-record/src/main/library/dataless.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 10,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/dataless.test.ts",
+    "line": 32,
+    "text": "runStat: async () => ({ stdout: \"\", failed: false }),"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/dataless.test.ts",
+     "line": 41,
+     "text": "const runStat = vi.fn(async () => ({",
+     "excerpt": [
+      "37| ",
+      "38| describe(\"datalessPaths (SF_DATALESS via /usr/bin/stat, one call per batch)\", () => {",
+      "39|   it(\"flags only the files whose flags carry SF_DATALESS\", async () => {",
+      "40|     expect(SF_DATALESS).toBe(0x40000000);",
+      "41|     const runStat = vi.fn(async () => ({",
+      "42|       stdout: `${EVICTED_FLAGS} /w/a.mp4\\n${LOCAL_FLAGS} /w/b.mp4\\n`,",
+      "43|       failed: false,",
+      "44|     }));",
+      "45|     const result = await datalessPaths([\"/w/a.mp4\", \"/w/b.mp4\"], deps({ runStat }));"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/dataless.test.ts",
+     "line": 45,
+     "text": "const result = await datalessPaths([\"/w/a.mp4\", \"/w/b.mp4\"], deps({ runStat }));",
+     "excerpt": [
+      "45| const result = await datalessPaths([\"/w/a.mp4\", \"/w/b.mp4\"], deps({ runStat }));"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/dataless.test.ts",
+     "line": 47,
+     "text": "expect(runStat).toHaveBeenCalledTimes(1);",
+     "excerpt": [
+      "47| expect(runStat).toHaveBeenCalledTimes(1);"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "cloudScopeBase",
+   "kind": "call",
+   "qualifier": ".cloudScopeBase",
+   "used_in": [
+    "apps/kaipu-record/src/main/library/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "complete",
+   "total_matches": 1,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/library-ipc.maintenance.test.ts",
+    "line": 32,
+    "text": "cloudScopeBase: () => ({"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+     "line": 340,
+     "text": "export function cloudScopeBase(): Omit<CloudScope, \"pending\"> {",
+     "excerpt": [
+      "336| /**",
+      "337|  * What the cloud filter needs from the registry (`workspace-filter.ts`, decisions 3, 4, 23);",
+      "338|  * the caller adds the pending assignments.",
+      "339|  */",
+      "340| export function cloudScopeBase(): Omit<CloudScope, \"pending\"> {",
+      "341|   const reg = requireRegistry();",
+      "342|   return {",
+      "343|     activeId: reg.active().id,",
+      "344|     legacyOwnerId: reg.state.legacyCloudOwnerId,"
+     ]
+    }
+   ]
+  }
+ ],
+ "no_other_matches": [],
+ "not_searched": [
+  "join",
+  "activeEvictionProbe",
+  "dirname",
+  "dragRoot",
+  "update",
+  "thumbnailPath",
+  "broadcastLibraryChanged",
+  "chain",
+  "codeOf",
+  "evictionProbe",
+  "mediaParams",
+  "mediaUrl",
+  "syncDir",
+  "writeNow",
+  "activeScratch",
+  "activeWorkspace",
+  "and",
+  "atomicWriteFile",
+  "basename",
+  "CatalogCache",
+  "coalesce",
+  "copyExclusive",
+  "createDragCopy",
+  "execFile",
+  "exists",
+  "extname",
+  "friendlyDragName",
+  "get",
+  "identityAt",
+  "isNull",
+  "LibraryVault",
+  "mapCloudAssetToDomain",
+  "mkdir",
+  "pruneDragCopies",
+  "read",
+  "readdir",
+  "readFile",
+  "registeredWorkspaces",
+  "rename",
+  "Response",
+  "syncedStagingFor",
+  "text",
+  "unlink",
+  "workspaceSync",
+  "reserveData",
+  "reserve",
+  "returning",
+  "copyFile"
+ ],
+ "notes": [
+  "45 more candidate symbol(s) beyond the cap of 12.",
+  "Detail was cut to keep this file under its size cap.",
+  "Symbols were dropped to keep this file under its size cap."
+ ]
+}

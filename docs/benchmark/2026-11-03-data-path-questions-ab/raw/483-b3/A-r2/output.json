@@ -1,0 +1,105 @@
+{
+  "files_reviewed": [
+    "packages/infra-db/src/schema/cloud.ts",
+    "packages/infra-db/src/mappers/cloud.mapper.ts",
+    "packages/infra-db/src/repositories/cloud-asset.repository.ts",
+    "apps/kaipu-record/src/main/cloud/assign-client.ts",
+    "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+    "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+    "apps/kaipu-record/src/main/cloud/catalog-cache.ts",
+    "apps/kaipu-record/src/main/cloud/catalog-client.ts",
+    "apps/kaipu-record/src/main/cloud/cloud-state.ts",
+    "apps/kaipu-record/src/main/cloud/upload-intent-client.ts",
+    "apps/kaipu-record/src/main/cloud/workspace-filter.ts",
+    "apps/kaipu-record/src/main/index.ts",
+    "apps/kaipu-record/src/main/library/dataless.ts",
+    "apps/kaipu-record/src/main/library/drag-copies.ts",
+    "apps/kaipu-record/src/main/library/index.ts",
+    "apps/kaipu-record/src/main/library/library-service.ts",
+    "apps/kaipu-record/src/main/library/library-vault.ts",
+    "apps/kaipu-record/src/main/library/safe-place.ts",
+    "apps/kaipu-record/src/main/media-protocol.ts",
+    "apps/kaipu-record/src/main/recording/recording-hub.ts",
+    "packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts"
+  ],
+  "files_skipped": [],
+  "findings": [
+    {
+      "path": "apps/kaipu-record/src/main/library/index.ts",
+      "line": 206,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "An explicit assignment that succeeds leaves an older queued assignment of the same asset in place, and the queue later sends the old one",
+      "body": "When `assignCloudItems` gets `ok`, it calls `confirmed` → `setCachedWorkspace` (line 206). That updates the cache, but nothing removes an `AssignQueue` entry the same asset may already have. Only `defer` and `enqueue` replace entries (`assign-queue.ts:85`, `:93`). The overlay then stays wrong in two ways:\n1. `effectiveWorkspace` prefers `pending` over the cache (`workspace-filter.ts:36`), so the Library and the \"Unassigned cloud items\" list keep showing the item where the stale entry puts it.\n2. On its next backoff, `runOnce` sends the stale `workspaceId` (`assign-queue.ts:121`), which overwrites the user's explicit choice on the server. `onConfirmed` then writes that stale value into the cache too.\n\nHow to hit it: move an item offline into workspace W, which queues it (`cloudItemMoved`). Delete W. The item now appears under Unassigned, because its pending workspace is not registered (`workspace-filter.ts:62`). Assign it to X while online. X is confirmed, then silently undone. Fix: on `ok`, drop any queue entry for the asset, for example with an `AssignQueue.resolve(assetId)` that filters the entry out and saves. Alternatively, always route explicit assignments through the queue."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+      "line": 15,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "Queued assignments are not tied to the account that owes them",
+      "body": "`QueuedAssignment` stores no `userId`. The queue file is one per Mac (`userData/cloud-assign-queue.json`). `runOnce` sends every entry with whatever `account()` returns when the queue runs (lines 116–121). Suppose a move is queued under account A, and the user signs out and into account B before the server confirms. Each entry then goes out with B's token. The server answers `NOT_FOUND`, because the asset is owner-scoped (`cloud-asset.repository.ts:431`), and the entry is dropped (line 126). A's cloud asset keeps its old workspace, and nothing logs or shows this. `onConfirmed`/`setCachedWorkspace` also write into the current account's cache (`library/index.ts:146`). Fix: store `userId` on each entry, and send or apply only the entries that match the current account."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+      "line": 62,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "A `load()` that finishes after an early enqueue/defer overwrites it",
+      "body": "`library/index.ts:166` starts `load()` without waiting for it, while `queueCloudMove` and the assign handler are already live. If `enqueue` or `defer` pushes an entry while `readFile` is still pending, `load` then replaces `this.entries` with the file's older contents. The next `save()` persists the queue without that entry. The window is small (startup only), but the loss is silent. One option: have `enqueue`/`defer` wait on a stored load promise. Another: merge the loaded entries into the existing ones instead of assigning over them."
+    }
+  ],
+  "contracts": [
+    {
+      "action": "Explicit \"Assign to workspace…\" IPC (workspaces:assign-cloud)",
+      "location": "apps/kaipu-record/src/main/library/index.ts:198",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/cloud/assign-cloud.ts:28-55",
+        "apps/kaipu-record/src/main/cloud/assign-queue.ts:84-102",
+        "apps/kaipu-record/src/main/cloud/workspace-filter.ts:32-38",
+        "apps/kaipu-record/src/main/library/index.ts:145-155"
+      ],
+      "equivalent_path": "The move's cloud step, through AssignQueue.enqueue (library/index.ts:167-175)",
+      "before_after": "The queue path replaces any older entry of the asset before it sends (assign-queue.ts:85). The explicit path sends directly. On ok it updates only the cache and does not clear a pending queue entry.",
+      "visible_effect": "broadcastLibraryChanged (library/index.ts:210) re-lists the Library and the Cloud page. The pending overlay wins over the cache (workspace-filter.ts:36).",
+      "failure_mode": "Unanswered outcomes are deferred to the queue (assign-cloud.ts:50). not-found is reported as failed. Renderer input is validated: the ids are filtered and capped at 500, and the target must be registered (assign-cloud.ts:28-36). A stale queue entry can override a confirmed assignment (reported as a finding).",
+      "evidence_checked": true
+    },
+    {
+      "action": "Background retry of owed cloud assignments (AssignQueue)",
+      "location": "apps/kaipu-record/src/main/cloud/assign-queue.ts:115",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/cloud/assign-queue.ts:115-151",
+        "apps/kaipu-record/src/main/library/index.ts:156-176",
+        "apps/kaipu-record/src/main/library/index.ts:219-226"
+      ],
+      "equivalent_path": "None before this PR. The catalog refresh path (library-service doRefresh) is the other background cloud call.",
+      "before_after": "It is loaded at registration and processed after load (library/index.ts:166). It is also flushed after a successful refresh (library/index.ts:221-225).",
+      "visible_effect": "onConfirmed updates the cache and broadcasts a library change (library/index.ts:161-164). pending() overlays the Library filter in the meantime.",
+      "failure_mode": "When signed out, runOnce returns early and schedules nothing, so the queue waits for the next successful refresh. unauthorized/unsupported/retry back off up to 1 h. A save failure is logged and the entry is kept in memory only. Entries are not account-scoped (reported as a finding).",
+      "evidence_checked": true
+    },
+    {
+      "action": "kaipu-media:// refuses evicted files of a synced workspace",
+      "location": "apps/kaipu-record/src/main/media-protocol.ts:126",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/media-protocol.ts:96-141",
+        "apps/kaipu-record/src/main/library/dataless.ts:59-116",
+        "apps/kaipu-record/src/main/workspaces/index.ts:366-368"
+      ],
+      "equivalent_path": "LibraryVault.describe withholds thumbnail URLs for evicted files (library-vault.ts:1021-1075)",
+      "before_after": "The protocol checks eviction through a 2 s EvictionCache before it opens the stream. describe() uses the same probe (activeEvictionProbe).",
+      "visible_effect": "The image request gets a 409. The card shows the evicted state from describe().",
+      "failure_mode": "A probe failure reads as not evicted (media-protocol.ts:139-141). The stat timeout is 5 s, and the fallback guesses from the block count (dataless.ts:76-80).",
+      "evidence_checked": true
+    }
+  ],
+  "thread_replies": [],
+  "summary": "Part 3 covers the server column and repository, and on the desktop the cloud filter, the assignment client and its retry queue, eviction detection and the synced-folder scratch paths. I found three problems, all in the assignment flow; nothing in the other files of this part needed a finding.\n\n- **Old queued assignment wins (fix, high confidence):** when \"Assign to workspace…\" succeeds, it does not clear an older queued assignment of the same asset. The queued value keeps overriding what the UI shows, and the queue later sends it to the server, which silently undoes the user's choice.\n- **Queue not tied to an account (fix, medium confidence):** entries do not record which account owes them. After an account switch they are sent with the other account's token, get NOT_FOUND, and are dropped without any log or visible state.\n- **Startup race (consider):** the queue file is loaded without waiting for it, so an entry added in the first moments after startup can be overwritten by the older file contents and lost."
+}

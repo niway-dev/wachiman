@@ -1,0 +1,85 @@
+{
+  "files_reviewed": [
+    "apps/kaipu-record/src/preload/index.ts",
+    "apps/kaipu-record/src/shared/types/electron-api.ts",
+    "apps/kaipu-record/src/shared/types/ipc.ts",
+    "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+    "apps/kaipu-record/src/shared/settings-scope.ts",
+    "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+    "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+    "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+    "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+    "apps/kaipu-record/src/main/workspaces/index.ts",
+    "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+  ],
+  "files_skipped": [],
+  "findings": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts",
+      "line": 220,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "An unreadable workspace-settings.json opens as empty and is then overwritten, dropping every workspace's upload mode",
+      "body": "`MachineSettingsStore.open` returns an empty store for every `readFile` error (line 218-221), not only ENOENT. If `userData/workspace-settings.json` exists but cannot be read at launch (EACCES, EIO, EBUSY), the store starts empty and `corrupt` stays false. The next `update()` for any workspace then runs `write()` (line 263-271), which serializes only what is in memory and atomically replaces the file. That wipes every other workspace's machine-bound `uploadMode` and its `folderOverrides` record.\n\nEffect: a workspace the user set to `local-only` silently inherits the All level again (for example `automatic`), so new files can upload against the user's per-workspace choice. Every accepted folder file also goes back to `pending`. Nothing tells the user.\n\nFix: treat only ENOENT as empty. For any other error, either refuse writes or set `corrupt = true` so the existing file is renamed aside before it is replaced, as is already done for unparsable JSON. `readFolderOverrides` in the same file already makes this ENOENT/unreadable distinction (line 80-83)."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/index.ts",
+      "line": 307,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "requireCaptureWorkspace now fails a save or recording start if the settings refresh rejects",
+      "body": "`refreshActiveWorkspaceSettings()` runs `WorkspaceSettings.refresh`, which awaits `deps.isAvailable` → `reg.availability(id)` without a catch (workspace-settings.ts:94). In `screenshot-ipc.ts:192` the same call has `.catch(() => {})` and a comment saying it must never block a capture. Here it is awaited bare. Its callers are the screenshot save (screenshot-save.ts:98, 117) and the recording start (recording-hub.ts:222). A rejection in this refresh, which only feeds settings, would turn a save or a recording start into an error. A matching `.catch` here would keep the two call sites consistent."
+    }
+  ],
+  "contracts": [
+    {
+      "action": "MachineSettingsStore.open reads userData/workspace-settings.json; later update() rewrites the whole file from memory",
+      "location": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:218-221",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-261",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:263-271",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:80-83"
+      ],
+      "equivalent_path": "readFolderOverrides in the same file, which separates ENOENT from other read errors",
+      "before_after": "readFolderOverrides returns 'absent' only for ENOENT and 'unreadable' otherwise, and it is never written over. open() returns an empty store for any read error, and update() then writes the empty map plus the one change over the file.",
+      "visible_effect": "Per-workspace uploadMode overrides and the acceptance records of folder files disappear; workspaces fall back to the All level, and accepted folder files go back to pending.",
+      "failure_mode": "EACCES/EIO/EBUSY at launch leads to an empty in-memory store, and the next update overwrites the file. Silent.",
+      "evidence_checked": true
+    },
+    {
+      "action": "Capture IPC refreshes the active workspace's folder overrides before handleCapture",
+      "location": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:192",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99",
+        "apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238",
+        "apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289"
+      ],
+      "equivalent_path": "requireCaptureWorkspace (index.ts:307) refreshes too, but without a catch",
+      "before_after": "Here the call is caught. refresh() reads the file with a 2 s timeout that turns into 'unreadable', and then calls changed() if the active overrides moved. readPolicy then reads deps.settings() once.",
+      "visible_effect": "A folder file that a sync changed goes back to pending, and the capture uses the All values. The toast and editor carry the bound policy.",
+      "failure_mode": "The folder read is capped at READ_TIMEOUT_MS. isAvailable has no timeout of its own, and a rejection is swallowed here.",
+      "evidence_checked": true
+    },
+    {
+      "action": "Switch persistActive refreshes the target's overrides; afterCommit calls notifyOverridesChanged",
+      "location": "apps/kaipu-record/src/main/workspaces/index.ts:402",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99",
+        "apps/kaipu-record/src/main/infrastructure/settings-store.ts:232-238"
+      ],
+      "equivalent_path": "the previous persistActive: reg.setActive only",
+      "before_after": "After setActive, the target's file is read into the cache, and afterCommit recomputes the effective settings and broadcasts settings:changed.",
+      "visible_effect": "Every window gets the new workspace's effective settings through settings:changed.",
+      "failure_mode": "If the read fails, refresh stores 'unreadable', so no folder overrides apply. A refresh rejection from isAvailable would fail persistActive, and with it the switch.",
+      "evidence_checked": true
+    }
+  ],
+  "thread_replies": [],
+  "summary": "Part 1 of 6 has one fix-level finding and one to consider. The fix: `MachineSettingsStore.open` treats any read error of `workspace-settings.json` as an empty file, and the next update overwrites it. That silently drops per-workspace upload-mode overrides (upload consent) and folder acceptance records. To consider: `requireCaptureWorkspace` now awaits a settings refresh without the catch its sibling call in `screenshot-ipc.ts` has, so a rejection there would fail a save or a recording start. The preload bridge and IPC handlers check their argument types before passing them on, and value validation happens in `WorkspaceSettings`."
+}

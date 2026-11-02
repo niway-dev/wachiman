@@ -1,0 +1,355 @@
+{
+  "structuredOutput": {
+    "files_reviewed": [
+      "packages/infra-db/src/schema/cloud.ts",
+      "packages/infra-db/src/mappers/cloud.mapper.ts",
+      "packages/infra-db/src/repositories/cloud-asset.repository.ts",
+      "apps/kaipu-record/src/main/cloud/assign-client.ts",
+      "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+      "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+      "apps/kaipu-record/src/main/cloud/catalog-cache.ts",
+      "apps/kaipu-record/src/main/cloud/catalog-client.ts",
+      "apps/kaipu-record/src/main/cloud/cloud-state.ts",
+      "apps/kaipu-record/src/main/cloud/upload-intent-client.ts",
+      "apps/kaipu-record/src/main/cloud/workspace-filter.ts",
+      "apps/kaipu-record/src/main/index.ts",
+      "apps/kaipu-record/src/main/library/dataless.ts",
+      "apps/kaipu-record/src/main/library/drag-copies.ts",
+      "apps/kaipu-record/src/main/library/index.ts",
+      "apps/kaipu-record/src/main/library/library-service.ts",
+      "apps/kaipu-record/src/main/library/library-vault.ts",
+      "apps/kaipu-record/src/main/library/safe-place.ts",
+      "apps/kaipu-record/src/main/media-protocol.ts",
+      "apps/kaipu-record/src/main/recording/recording-hub.ts",
+      "packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts"
+    ],
+    "files_skipped": [],
+    "findings": [
+      {
+        "path": "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+        "line": 15,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "high",
+        "title": "The assignment queue is not per account: a queued entry is sent with the next account's token and then dropped",
+        "body": "`QueuedAssignment` has no `userId`. The queue file (`userData/cloud-assign-queue.json`, `library/index.ts:157`) is shared by every account, and nothing clears it on sign-out (the only callers are at `library/index.ts:156-224`). `runOnce` sends each entry with whatever `account()` returns now (`assign-queue.ts:116-121`). Say account A moves an item while offline, then signs out and B signs in. The entry goes out with B's token, the server answers `NOT_FOUND`, and line 126 drops it for good. A's asset keeps its old workspace on the server and nothing reports it. Meanwhile `pending()` lays A's entries over B's listing. Fix: store `userId` on each entry, and send or overlay only the entries of the current account."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/library/index.ts",
+        "line": 206,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "An explicit \"Assign to workspace…\" that succeeds at once leaves an older queued assignment of the same asset in place, and that entry later undoes it",
+        "body": "`confirmed` only updates the cache (`setCachedWorkspace`). `defer` replaces any queued entry for the asset (`assign-queue.ts:93`), but the `ok` path never touches the queue. Say a move queued X→A, A was then deleted, so X shows under Unassigned, and the user assigns X to B. The server takes B, but `pending()` still says A, so `effectiveWorkspace` keeps X unassigned (`workspace-filter.ts:36`). On its next backoff the queue sends A and overwrites the user's choice. Fix: when `assign` returns `ok`, drop any queued entry for that asset, e.g. with an `AssignQueue.settle(assetId)` that removes the entry and saves."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+        "line": 73,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "`load()` treats an unreadable queue file as empty, and the next save overwrites it",
+        "body": "The bare `catch` turns every error (EACCES, EIO, EBUSY, a read that loses to a startup race) into `entries = []`. The next `enqueue`/`defer` (`save()` at line 157) then writes only the new entries over the file, so every assignment still owed is lost. Those items show in their old workspace again and are never sent. Only ENOENT, and arguably a JSON parse error, should start empty. For any other error, keep the file untouched (e.g. skip saving for the session) and log it. Also, `load()` runs fire-and-forget (`library/index.ts:166`): an `enqueue` that lands before it resolves is overwritten in memory by the file's contents."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+        "line": 42,
+        "severity": "consider",
+        "topic": "perf",
+        "confidence": "high",
+        "title": "An assign of up to 500 items runs sequentially, each with a 15 s timeout, while the renderer waits on the IPC call",
+        "body": "Each `deps.assign` call can take up to 15 s (`assign-client.ts:31`), and the loop awaits them one by one, up to `MAX_ITEMS = 500`. Against a server that hangs instead of refusing, the `workspacesAssignCloud` invoke can stay pending for up to about 2 hours. Once one item comes back `retry`/`unsupported`/`unauthorized`, the remaining items will almost certainly get the same answer, so `defer` them at once without sending. Or bound the whole batch with a deadline."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/library/dataless.ts",
+        "line": 69,
+        "severity": "consider",
+        "topic": "bug",
+        "confidence": "low",
+        "title": "Partial `stat` output (killed by the timeout) counts as a full answer",
+        "body": "When `execFile` kills `stat` after 5 s, `stdout` can already hold some lines, so `flags.size > 0`. The paths it never printed are then treated as missing, i.e. not evicted. `describe()` hands out a URL for them, and the protocol reads and downloads the file. Should a run with `failed: true` also check each path in the batch that `stat` did not print, using the `lstat` fallback? Also note the whole wait: each listing makes ceil(2N/200) sequential batches of up to 5 s each, then one `lstat` per path with no limit of its own."
+      }
+    ],
+    "contracts": [
+      {
+        "action": "Move commits → cloudItemMoved queues PUT /assets/{id}/workspace",
+        "location": "apps/kaipu-record/src/main/library/index.ts:167",
+        "equivalent_path": "assignCloudItems defer path (assign-queue defer)",
+        "before_after": "Reads the cached catalog to skip assets it knows are not in the cloud, then enqueue saves and processes at once",
+        "visible_effect": "pending() overlays the listing through cloudScope, so the item shows in the target workspace before the server confirms",
+        "failure_mode": "Errors are logged. The queue is shared across accounts (finding), and load() turns an unreadable file into empty (finding)",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/library/index.ts:156-176",
+          "apps/kaipu-record/src/main/cloud/assign-queue.ts:61-137"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Catalog cache update chain used by list(), refresh and confirmations",
+        "location": "apps/kaipu-record/src/main/cloud/catalog-cache.ts:51",
+        "equivalent_path": "write() chain",
+        "before_after": "Each read-modify-write runs inside the per-user chain. list() merges only lastSeenLocalId into the full catalog",
+        "visible_effect": "Another workspace's entries survive a filtered list()",
+        "failure_mode": "read() returns null on any error. list() and setCachedWorkspace write nothing then. doRefresh writes the fresh list with lastSeenLocalId null, as the old code did",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/cloud/catalog-cache.ts:33-75",
+          "apps/kaipu-record/src/main/library/library-service.ts:172-189",
+          "apps/kaipu-record/src/main/library/library-service.ts:225-232"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Synced-workspace drag copy is a real copy in userData scratch",
+        "location": "apps/kaipu-record/src/main/library/index.ts:412",
+        "equivalent_path": "createDragCopy hard-link path",
+        "before_after": "Probes for eviction before copying. copyFile has no fallback, unlike the link path",
+        "visible_effect": "A drag of an evicted file silently does nothing",
+        "failure_mode": "A copyFile error rejects the startDrag handler (same as the link path's copyFile fallback)",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/library/drag-copies.ts:96-126",
+          "apps/kaipu-record/src/main/library/index.ts:412-435"
+        ],
+        "open_question": "",
+        "candidates": []
+      }
+    ],
+    "thread_replies": [],
+    "summary": "Part 3 has three issues to fix, all in the new cloud assignment queue.\n\n1. **Not per account.** The queue file is shared by every account and never cleared on sign-out. After an account switch, the previous account's queued assignments go out with the new account's token, come back as not-found, and are silently dropped.\n2. **Older entry undoes an explicit assign.** When \"Assign to workspace…\" succeeds at once, an older queued entry for the same asset stays in the queue. It keeps overriding what the listing shows, and when it is retried it reverts the user's choice on the server.\n3. **Unreadable file treated as empty.** `load()` turns any read error into an empty queue, and the next save overwrites the file, losing every assignment still owed.\n\nTwo smaller points:\n- An assign of up to 500 items runs one request at a time, each with a 15 s timeout, while the renderer waits on the call.\n- When `stat` is killed by its timeout, partial output may count as a full answer, so files it never printed are treated as not evicted. I'm least sure of this one, so it's phrased as a question.\n\nThe repository, mapper and schema changes are consistent with each other."
+  },
+  "text": "{\"files_reviewed\":[\"packages/infra-db/src/schema/cloud.ts\",\"packages/infra-db/src/mappers/cloud.mapper.ts\",\"packages/infra-db/src/repositories/cloud-asset.repository.ts\",\"apps/kaipu-record/src/main/cloud/assign-client.ts\",\"apps/kaipu-record/src/main/cloud/assign-cloud.ts\",\"apps/kaipu-record/src/main/cloud/assign-queue.ts\",\"apps/kaipu-record/src/main/cloud/catalog-cache.ts\",\"apps/kaipu-record/src/main/cloud/catalog-client.ts\",\"apps/kaipu-record/src/main/cloud/cloud-state.ts\",\"apps/kaipu-record/src/main/cloud/upload-intent-client.ts\",\"apps/kaipu-record/src/main/cloud/workspace-filter.ts\",\"apps/kaipu-record/src/main/index.ts\",\"apps/kaipu-record/src/main/library/dataless.ts\",\"apps/kaipu-record/src/main/library/drag-copies.ts\",\"apps/kaipu-record/src/main/library/index.ts\",\"apps/kaipu-record/src/main/library/library-service.ts\",\"apps/kaipu-record/src/main/library/library-vault.ts\",\"apps/kaipu-record/src/main/library/safe-place.ts\",\"apps/kaipu-record/src/main/media-protocol.ts\",\"apps/kaipu-record/src/main/recording/recording-hub.ts\",\"packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/cloud/assign-queue.ts\",\"line\":15,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"high\",\"title\":\"The assignment queue is not per account: a queued entry is sent with the next account's token and then dropped\",\"body\":\"`QueuedAssignment` has no `userId`. The queue file (`userData/cloud-assign-queue.json`, `library/index.ts:157`) is shared by every account, and nothing clears it on sign-out (the only callers are at `library/index.ts:156-224`). `runOnce` sends each entry with whatever `account()` returns now (`assign-queue.ts:116-121`). Say account A moves an item while offline, then signs out and B signs in. The entry goes out with B's token, the server answers `NOT_FOUND`, and line 126 drops it for good. A's asset keeps its old workspace on the server and nothing reports it. Meanwhile `pending()` lays A's entries over B's listing. Fix: store `userId` on each entry, and send or overlay only the entries of the current account.\"},{\"path\":\"apps/kaipu-record/src/main/library/index.ts\",\"line\":206,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"An explicit \\\"Assign to workspace…\\\" that succeeds at once leaves an older queued assignment of the same asset in place, and that entry later undoes it\",\"body\":\"`confirmed` only updates the cache (`setCachedWorkspace`). `defer` replaces any queued entry for the asset (`assign-queue.ts:93`), but the `ok` path never touches the queue. Say a move queued X→A, A was then deleted, so X shows under Unassigned, and the user assigns X to B. The server takes B, but `pending()` still says A, so `effectiveWorkspace` keeps X unassigned (`workspace-filter.ts:36`). On its next backoff the queue sends A and overwrites the user's choice. Fix: when `assign` returns `ok`, drop any queued entry for that asset, e.g. with an `AssignQueue.settle(assetId)` that removes the entry and saves.\"},{\"path\":\"apps/kaipu-record/src/main/cloud/assign-queue.ts\",\"line\":73,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"`load()` treats an unreadable queue file as empty, and the next save overwrites it\",\"body\":\"The bare `catch` turns every error (EACCES, EIO, EBUSY, a read that loses to a startup race) into `entries = []`. The next `enqueue`/`defer` (`save()` at line 157) then writes only the new entries over the file, so every assignment still owed is lost. Those items show in their old workspace again and are never sent. Only ENOENT, and arguably a JSON parse error, should start empty. For any other error, keep the file untouched (e.g. skip saving for the session) and log it. Also, `load()` runs fire-and-forget (`library/index.ts:166`): an `enqueue` that lands before it resolves is overwritten in memory by the file's contents.\"},{\"path\":\"apps/kaipu-record/src/main/cloud/assign-cloud.ts\",\"line\":42,\"severity\":\"consider\",\"topic\":\"perf\",\"confidence\":\"high\",\"title\":\"An assign of up to 500 items runs sequentially, each with a 15 s timeout, while the renderer waits on the IPC call\",\"body\":\"Each `deps.assign` call can take up to 15 s (`assign-client.ts:31`), and the loop awaits them one by one, up to `MAX_ITEMS = 500`. Against a server that hangs instead of refusing, the `workspacesAssignCloud` invoke can stay pending for up to about 2 hours. Once one item comes back `retry`/`unsupported`/`unauthorized`, the remaining items will almost certainly get the same answer, so `defer` them at once without sending. Or bound the whole batch with a deadline.\"},{\"path\":\"apps/kaipu-record/src/main/library/dataless.ts\",\"line\":69,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"low\",\"title\":\"Partial `stat` output (killed by the timeout) counts as a full answer\",\"body\":\"When `execFile` kills `stat` after 5 s, `stdout` can already hold some lines, so `flags.size > 0`. The paths it never printed are then treated as missing, i.e. not evicted. `describe()` hands out a URL for them, and the protocol reads and downloads the file. Should a run with `failed: true` also check each path in the batch that `stat` did not print, using the `lstat` fallback? Also note the whole wait: each listing makes ceil(2N/200) sequential batches of up to 5 s each, then one `lstat` per path with no limit of its own.\"}],\"contracts\":[{\"action\":\"Move commits → cloudItemMoved queues PUT /assets/{id}/workspace\",\"location\":\"apps/kaipu-record/src/main/library/index.ts:167\",\"equivalent_path\":\"assignCloudItems defer path (assign-queue defer)\",\"before_after\":\"Reads the cached catalog to skip assets it knows are not in the cloud, then enqueue saves and processes at once\",\"visible_effect\":\"pending() overlays the listing through cloudScope, so the item shows in the target workspace before the server confirms\",\"failure_mode\":\"Errors are logged. The queue is shared across accounts (finding), and load() turns an unreadable file into empty (finding)\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/library/index.ts:156-176\",\"apps/kaipu-record/src/main/cloud/assign-queue.ts:61-137\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Catalog cache update chain used by list(), refresh and confirmations\",\"location\":\"apps/kaipu-record/src/main/cloud/catalog-cache.ts:51\",\"equivalent_path\":\"write() chain\",\"before_after\":\"Each read-modify-write runs inside the per-user chain. list() merges only lastSeenLocalId into the full catalog\",\"visible_effect\":\"Another workspace's entries survive a filtered list()\",\"failure_mode\":\"read() returns null on any error. list() and setCachedWorkspace write nothing then. doRefresh writes the fresh list with lastSeenLocalId null, as the old code did\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/cloud/catalog-cache.ts:33-75\",\"apps/kaipu-record/src/main/library/library-service.ts:172-189\",\"apps/kaipu-record/src/main/library/library-service.ts:225-232\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Synced-workspace drag copy is a real copy in userData scratch\",\"location\":\"apps/kaipu-record/src/main/library/index.ts:412\",\"equivalent_path\":\"createDragCopy hard-link path\",\"before_after\":\"Probes for eviction before copying. copyFile has no fallback, unlike the link path\",\"visible_effect\":\"A drag of an evicted file silently does nothing\",\"failure_mode\":\"A copyFile error rejects the startDrag handler (same as the link path's copyFile fallback)\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/library/drag-copies.ts:96-126\",\"apps/kaipu-record/src/main/library/index.ts:412-435\"],\"open_question\":\"\",\"candidates\":[]}],\"thread_replies\":[],\"summary\":\"Part 3 has three issues to fix, all in the new cloud assignment queue.\\n\\n1. **Not per account.** The queue file is shared by every account and never cleared on sign-out. After an account switch, the previous account's queued assignments go out with the new account's token, come back as not-found, and are silently dropped.\\n2. **Older entry undoes an explicit assign.** When \\\"Assign to workspace…\\\" succeeds at once, an older queued entry for the same asset stays in the queue. It keeps overriding what the listing shows, and when it is retried it reverts the user's choice on the server.\\n3. **Unreadable file treated as empty.** `load()` turns any read error into an empty queue, and the next save overwrites the file, losing every assignment still owed.\\n\\nTwo smaller points:\\n- An assign of up to 500 items runs one request at a time, each with a 15 s timeout, while the renderer waits on the call.\\n- When `stat` is killed by its timeout, partial output may count as a full answer, so files it never printed are treated as not evicted. I'm least sure of this one, so it's phrased as a question.\\n\\nThe repository, mapper and schema changes are consistent with each other.\"}",
+  "costUsd": 0.5745728,
+  "turns": 5,
+  "durationMs": 72279,
+  "terminalReason": "success",
+  "isError": false,
+  "raw": {
+    "duration_api_ms": 72122,
+    "stop_reason": "tool_use",
+    "session_id": "3be8a1bf-3472-4a08-80a3-6d5709466b9c",
+    "total_cost_usd": 0.5745728,
+    "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 51374,
+      "cache_read_input_tokens": 110884,
+      "output_tokens": 7069,
+      "output_tokens_details": {
+        "thinking_tokens": 3167
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 51374,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 3567,
+          "cache_read_input_tokens": 55558,
+          "cache_creation_input_tokens": 851,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 851
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "inputTokens": 6,
+        "outputTokens": 7069,
+        "cacheReadInputTokens": 110884,
+        "cacheCreationInputTokens": 51374,
+        "webSearchRequests": 0,
+        "costUSD": 0.5745728,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 3167,
+        "cacheCreationEphemeral5mInputTokens": 0,
+        "cacheCreationEphemeral1hInputTokens": 51374,
+        "canonicalModel": "claude-opus-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "permission_denials": [],
+    "terminal_reason": "completed",
+    "fast_mode_state": "off",
+    "fast_mode_disabled_reason": "sdk_opt_in_required",
+    "subagent_stats": {
+      "spawned": 0,
+      "requested": {
+        "background": 0,
+        "foreground": 0,
+        "unset": 0
+      },
+      "started_in_background": 0,
+      "max_depth": 0,
+      "spawned_by_subagents": 0,
+      "completed": 0,
+      "failed": 0,
+      "killed": {
+        "parent": 0,
+        "user": 0,
+        "system": 0
+      },
+      "refused": {
+        "depth_limit": 0,
+        "concurrency_limit": 0,
+        "budget": 0
+      },
+      "by_type": {}
+    },
+    "safety_stops": 0,
+    "is_error": false,
+    "num_turns": 5,
+    "subtype": "success",
+    "api_error_status": null,
+    "result": "{\"files_reviewed\":[\"packages/infra-db/src/schema/cloud.ts\",\"packages/infra-db/src/mappers/cloud.mapper.ts\",\"packages/infra-db/src/repositories/cloud-asset.repository.ts\",\"apps/kaipu-record/src/main/cloud/assign-client.ts\",\"apps/kaipu-record/src/main/cloud/assign-cloud.ts\",\"apps/kaipu-record/src/main/cloud/assign-queue.ts\",\"apps/kaipu-record/src/main/cloud/catalog-cache.ts\",\"apps/kaipu-record/src/main/cloud/catalog-client.ts\",\"apps/kaipu-record/src/main/cloud/cloud-state.ts\",\"apps/kaipu-record/src/main/cloud/upload-intent-client.ts\",\"apps/kaipu-record/src/main/cloud/workspace-filter.ts\",\"apps/kaipu-record/src/main/index.ts\",\"apps/kaipu-record/src/main/library/dataless.ts\",\"apps/kaipu-record/src/main/library/drag-copies.ts\",\"apps/kaipu-record/src/main/library/index.ts\",\"apps/kaipu-record/src/main/library/library-service.ts\",\"apps/kaipu-record/src/main/library/library-vault.ts\",\"apps/kaipu-record/src/main/library/safe-place.ts\",\"apps/kaipu-record/src/main/media-protocol.ts\",\"apps/kaipu-record/src/main/recording/recording-hub.ts\",\"packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/cloud/assign-queue.ts\",\"line\":15,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"high\",\"title\":\"The assignment queue is not per account: a queued entry is sent with the next account's token and then dropped\",\"body\":\"`QueuedAssignment` has no `userId`. The queue file (`userData/cloud-assign-queue.json`, `library/index.ts:157`) is shared by every account, and nothing clears it on sign-out (the only callers are at `library/index.ts:156-224`). `runOnce` sends each entry with whatever `account()` returns now (`assign-queue.ts:116-121`). Say account A moves an item while offline, then signs out and B signs in. The entry goes out with B's token, the server answers `NOT_FOUND`, and line 126 drops it for good. A's asset keeps its old workspace on the server and nothing reports it. Meanwhile `pending()` lays A's entries over B's listing. Fix: store `userId` on each entry, and send or overlay only the entries of the current account.\"},{\"path\":\"apps/kaipu-record/src/main/library/index.ts\",\"line\":206,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"An explicit \\\"Assign to workspace…\\\" that succeeds at once leaves an older queued assignment of the same asset in place, and that entry later undoes it\",\"body\":\"`confirmed` only updates the cache (`setCachedWorkspace`). `defer` replaces any queued entry for the asset (`assign-queue.ts:93`), but the `ok` path never touches the queue. Say a move queued X→A, A was then deleted, so X shows under Unassigned, and the user assigns X to B. The server takes B, but `pending()` still says A, so `effectiveWorkspace` keeps X unassigned (`workspace-filter.ts:36`). On its next backoff the queue sends A and overwrites the user's choice. Fix: when `assign` returns `ok`, drop any queued entry for that asset, e.g. with an `AssignQueue.settle(assetId)` that removes the entry and saves.\"},{\"path\":\"apps/kaipu-record/src/main/cloud/assign-queue.ts\",\"line\":73,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"`load()` treats an unreadable queue file as empty, and the next save overwrites it\",\"body\":\"The bare `catch` turns every error (EACCES, EIO, EBUSY, a read that loses to a startup race) into `entries = []`. The next `enqueue`/`defer` (`save()` at line 157) then writes only the new entries over the file, so every assignment still owed is lost. Those items show in their old workspace again and are never sent. Only ENOENT, and arguably a JSON parse error, should start empty. For any other error, keep the file untouched (e.g. skip saving for the session) and log it. Also, `load()` runs fire-and-forget (`library/index.ts:166`): an `enqueue` that lands before it resolves is overwritten in memory by the file's contents.\"},{\"path\":\"apps/kaipu-record/src/main/cloud/assign-cloud.ts\",\"line\":42,\"severity\":\"consider\",\"topic\":\"perf\",\"confidence\":\"high\",\"title\":\"An assign of up to 500 items runs sequentially, each with a 15 s timeout, while the renderer waits on the IPC call\",\"body\":\"Each `deps.assign` call can take up to 15 s (`assign-client.ts:31`), and the loop awaits them one by one, up to `MAX_ITEMS = 500`. Against a server that hangs instead of refusing, the `workspacesAssignCloud` invoke can stay pending for up to about 2 hours. Once one item comes back `retry`/`unsupported`/`unauthorized`, the remaining items will almost certainly get the same answer, so `defer` them at once without sending. Or bound the whole batch with a deadline.\"},{\"path\":\"apps/kaipu-record/src/main/library/dataless.ts\",\"line\":69,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"low\",\"title\":\"Partial `stat` output (killed by the timeout) counts as a full answer\",\"body\":\"When `execFile` kills `stat` after 5 s, `stdout` can already hold some lines, so `flags.size > 0`. The paths it never printed are then treated as missing, i.e. not evicted. `describe()` hands out a URL for them, and the protocol reads and downloads the file. Should a run with `failed: true` also check each path in the batch that `stat` did not print, using the `lstat` fallback? Also note the whole wait: each listing makes ceil(2N/200) sequential batches of up to 5 s each, then one `lstat` per path with no limit of its own.\"}],\"contracts\":[{\"action\":\"Move commits → cloudItemMoved queues PUT /assets/{id}/workspace\",\"location\":\"apps/kaipu-record/src/main/library/index.ts:167\",\"equivalent_path\":\"assignCloudItems defer path (assign-queue defer)\",\"before_after\":\"Reads the cached catalog to skip assets it knows are not in the cloud, then enqueue saves and processes at once\",\"visible_effect\":\"pending() overlays the listing through cloudScope, so the item shows in the target workspace before the server confirms\",\"failure_mode\":\"Errors are logged. The queue is shared across accounts (finding), and load() turns an unreadable file into empty (finding)\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/library/index.ts:156-176\",\"apps/kaipu-record/src/main/cloud/assign-queue.ts:61-137\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Catalog cache update chain used by list(), refresh and confirmations\",\"location\":\"apps/kaipu-record/src/main/cloud/catalog-cache.ts:51\",\"equivalent_path\":\"write() chain\",\"before_after\":\"Each read-modify-write runs inside the per-user chain. list() merges only lastSeenLocalId into the full catalog\",\"visible_effect\":\"Another workspace's entries survive a filtered list()\",\"failure_mode\":\"read() returns null on any error. list() and setCachedWorkspace write nothing then. doRefresh writes the fresh list with lastSeenLocalId null, as the old code did\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/cloud/catalog-cache.ts:33-75\",\"apps/kaipu-record/src/main/library/library-service.ts:172-189\",\"apps/kaipu-record/src/main/library/library-service.ts:225-232\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Synced-workspace drag copy is a real copy in userData scratch\",\"location\":\"apps/kaipu-record/src/main/library/index.ts:412\",\"equivalent_path\":\"createDragCopy hard-link path\",\"before_after\":\"Probes for eviction before copying. copyFile has no fallback, unlike the link path\",\"visible_effect\":\"A drag of an evicted file silently does nothing\",\"failure_mode\":\"A copyFile error rejects the startDrag handler (same as the link path's copyFile fallback)\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/library/drag-copies.ts:96-126\",\"apps/kaipu-record/src/main/library/index.ts:412-435\"],\"open_question\":\"\",\"candidates\":[]}],\"thread_replies\":[],\"summary\":\"Part 3 has three issues to fix, all in the new cloud assignment queue.\\n\\n1. **Not per account.** The queue file is shared by every account and never cleared on sign-out. After an account switch, the previous account's queued assignments go out with the new account's token, come back as not-found, and are silently dropped.\\n2. **Older entry undoes an explicit assign.** When \\\"Assign to workspace…\\\" succeeds at once, an older queued entry for the same asset stays in the queue. It keeps overriding what the listing shows, and when it is retried it reverts the user's choice on the server.\\n3. **Unreadable file treated as empty.** `load()` turns any read error into an empty queue, and the next save overwrites the file, losing every assignment still owed.\\n\\nTwo smaller points:\\n- An assign of up to 500 items runs one request at a time, each with a 15 s timeout, while the renderer waits on the call.\\n- When `stat` is killed by its timeout, partial output may count as a full answer, so files it never printed are treated as not evicted. I'm least sure of this one, so it's phrased as a question.\\n\\nThe repository, mapper and schema changes are consistent with each other.\"}",
+    "structured_output": {
+      "files_reviewed": [
+        "packages/infra-db/src/schema/cloud.ts",
+        "packages/infra-db/src/mappers/cloud.mapper.ts",
+        "packages/infra-db/src/repositories/cloud-asset.repository.ts",
+        "apps/kaipu-record/src/main/cloud/assign-client.ts",
+        "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+        "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+        "apps/kaipu-record/src/main/cloud/catalog-cache.ts",
+        "apps/kaipu-record/src/main/cloud/catalog-client.ts",
+        "apps/kaipu-record/src/main/cloud/cloud-state.ts",
+        "apps/kaipu-record/src/main/cloud/upload-intent-client.ts",
+        "apps/kaipu-record/src/main/cloud/workspace-filter.ts",
+        "apps/kaipu-record/src/main/index.ts",
+        "apps/kaipu-record/src/main/library/dataless.ts",
+        "apps/kaipu-record/src/main/library/drag-copies.ts",
+        "apps/kaipu-record/src/main/library/index.ts",
+        "apps/kaipu-record/src/main/library/library-service.ts",
+        "apps/kaipu-record/src/main/library/library-vault.ts",
+        "apps/kaipu-record/src/main/library/safe-place.ts",
+        "apps/kaipu-record/src/main/media-protocol.ts",
+        "apps/kaipu-record/src/main/recording/recording-hub.ts",
+        "packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts"
+      ],
+      "files_skipped": [],
+      "findings": [
+        {
+          "path": "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+          "line": 15,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "high",
+          "title": "The assignment queue is not per account: a queued entry is sent with the next account's token and then dropped",
+          "body": "`QueuedAssignment` has no `userId`. The queue file (`userData/cloud-assign-queue.json`, `library/index.ts:157`) is shared by every account, and nothing clears it on sign-out (the only callers are at `library/index.ts:156-224`). `runOnce` sends each entry with whatever `account()` returns now (`assign-queue.ts:116-121`). Say account A moves an item while offline, then signs out and B signs in. The entry goes out with B's token, the server answers `NOT_FOUND`, and line 126 drops it for good. A's asset keeps its old workspace on the server and nothing reports it. Meanwhile `pending()` lays A's entries over B's listing. Fix: store `userId` on each entry, and send or overlay only the entries of the current account."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/library/index.ts",
+          "line": 206,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "An explicit \"Assign to workspace…\" that succeeds at once leaves an older queued assignment of the same asset in place, and that entry later undoes it",
+          "body": "`confirmed` only updates the cache (`setCachedWorkspace`). `defer` replaces any queued entry for the asset (`assign-queue.ts:93`), but the `ok` path never touches the queue. Say a move queued X→A, A was then deleted, so X shows under Unassigned, and the user assigns X to B. The server takes B, but `pending()` still says A, so `effectiveWorkspace` keeps X unassigned (`workspace-filter.ts:36`). On its next backoff the queue sends A and overwrites the user's choice. Fix: when `assign` returns `ok`, drop any queued entry for that asset, e.g. with an `AssignQueue.settle(assetId)` that removes the entry and saves."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+          "line": 73,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "`load()` treats an unreadable queue file as empty, and the next save overwrites it",
+          "body": "The bare `catch` turns every error (EACCES, EIO, EBUSY, a read that loses to a startup race) into `entries = []`. The next `enqueue`/`defer` (`save()` at line 157) then writes only the new entries over the file, so every assignment still owed is lost. Those items show in their old workspace again and are never sent. Only ENOENT, and arguably a JSON parse error, should start empty. For any other error, keep the file untouched (e.g. skip saving for the session) and log it. Also, `load()` runs fire-and-forget (`library/index.ts:166`): an `enqueue` that lands before it resolves is overwritten in memory by the file's contents."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+          "line": 42,
+          "severity": "consider",
+          "topic": "perf",
+          "confidence": "high",
+          "title": "An assign of up to 500 items runs sequentially, each with a 15 s timeout, while the renderer waits on the IPC call",
+          "body": "Each `deps.assign` call can take up to 15 s (`assign-client.ts:31`), and the loop awaits them one by one, up to `MAX_ITEMS = 500`. Against a server that hangs instead of refusing, the `workspacesAssignCloud` invoke can stay pending for up to about 2 hours. Once one item comes back `retry`/`unsupported`/`unauthorized`, the remaining items will almost certainly get the same answer, so `defer` them at once without sending. Or bound the whole batch with a deadline."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/library/dataless.ts",
+          "line": 69,
+          "severity": "consider",
+          "topic": "bug",
+          "confidence": "low",
+          "title": "Partial `stat` output (killed by the timeout) counts as a full answer",
+          "body": "When `execFile` kills `stat` after 5 s, `stdout` can already hold some lines, so `flags.size > 0`. The paths it never printed are then treated as missing, i.e. not evicted. `describe()` hands out a URL for them, and the protocol reads and downloads the file. Should a run with `failed: true` also check each path in the batch that `stat` did not print, using the `lstat` fallback? Also note the whole wait: each listing makes ceil(2N/200) sequential batches of up to 5 s each, then one `lstat` per path with no limit of its own."
+        }
+      ],
+      "contracts": [
+        {
+          "action": "Move commits → cloudItemMoved queues PUT /assets/{id}/workspace",
+          "location": "apps/kaipu-record/src/main/library/index.ts:167",
+          "equivalent_path": "assignCloudItems defer path (assign-queue defer)",
+          "before_after": "Reads the cached catalog to skip assets it knows are not in the cloud, then enqueue saves and processes at once",
+          "visible_effect": "pending() overlays the listing through cloudScope, so the item shows in the target workspace before the server confirms",
+          "failure_mode": "Errors are logged. The queue is shared across accounts (finding), and load() turns an unreadable file into empty (finding)",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/library/index.ts:156-176",
+            "apps/kaipu-record/src/main/cloud/assign-queue.ts:61-137"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Catalog cache update chain used by list(), refresh and confirmations",
+          "location": "apps/kaipu-record/src/main/cloud/catalog-cache.ts:51",
+          "equivalent_path": "write() chain",
+          "before_after": "Each read-modify-write runs inside the per-user chain. list() merges only lastSeenLocalId into the full catalog",
+          "visible_effect": "Another workspace's entries survive a filtered list()",
+          "failure_mode": "read() returns null on any error. list() and setCachedWorkspace write nothing then. doRefresh writes the fresh list with lastSeenLocalId null, as the old code did",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/cloud/catalog-cache.ts:33-75",
+            "apps/kaipu-record/src/main/library/library-service.ts:172-189",
+            "apps/kaipu-record/src/main/library/library-service.ts:225-232"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Synced-workspace drag copy is a real copy in userData scratch",
+          "location": "apps/kaipu-record/src/main/library/index.ts:412",
+          "equivalent_path": "createDragCopy hard-link path",
+          "before_after": "Probes for eviction before copying. copyFile has no fallback, unlike the link path",
+          "visible_effect": "A drag of an evicted file silently does nothing",
+          "failure_mode": "A copyFile error rejects the startDrag handler (same as the link path's copyFile fallback)",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/library/drag-copies.ts:96-126",
+            "apps/kaipu-record/src/main/library/index.ts:412-435"
+          ],
+          "open_question": "",
+          "candidates": []
+        }
+      ],
+      "thread_replies": [],
+      "summary": "Part 3 has three issues to fix, all in the new cloud assignment queue.\n\n1. **Not per account.** The queue file is shared by every account and never cleared on sign-out. After an account switch, the previous account's queued assignments go out with the new account's token, come back as not-found, and are silently dropped.\n2. **Older entry undoes an explicit assign.** When \"Assign to workspace…\" succeeds at once, an older queued entry for the same asset stays in the queue. It keeps overriding what the listing shows, and when it is retried it reverts the user's choice on the server.\n3. **Unreadable file treated as empty.** `load()` turns any read error into an empty queue, and the next save overwrites the file, losing every assignment still owed.\n\nTwo smaller points:\n- An assign of up to 500 items runs one request at a time, each with a 15 s timeout, while the renderer waits on the call.\n- When `stat` is killed by its timeout, partial output may count as a full answer, so files it never printed are treated as not evicted. I'm least sure of this one, so it's phrased as a question.\n\nThe repository, mapper and schema changes are consistent with each other."
+    },
+    "ttft_ms": 33759,
+    "type": "result",
+    "duration_ms": 72279,
+    "uuid": "8bfe243f-8a5d-4be2-94d1-91b2b553681b",
+    "ttft_stream_ms": 2493,
+    "time_to_request_ms": 115,
+    "first_content_frame_ms": 2494,
+    "queued_turn_count": 0,
+    "result_index": 0
+  }
+}

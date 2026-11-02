@@ -1,0 +1,97 @@
+{
+  "files_reviewed": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts",
+    "apps/kaipu-record/src/main/workspaces/switch-transaction.ts",
+    "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+    "apps/kaipu-record/src/main/library/video-edit-session.test.ts",
+    "apps/kaipu-record/src/main/workspaces/move-group.test.ts"
+  ],
+  "files_skipped": [],
+  "findings": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "line": 409,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "A failure after the commit can still come back as `io`, or as `ok` for a quarantined entry",
+      "body": "Once `mediaPlaced` is true the item lives in the target. The catch then awaits `healEntry(...)` without guarding it. If healing throws (for example `writeJournal` failing in userData, or `quarantine` failing to write), the error goes to `moveItem`'s catch (lines 204-207), and the renderer gets `{ ok: false, reason: \"io\" }` for an item that already moved. The source may also be partly deleted at that point. In the other direction, if `healEntry` returns a quarantined `MoveJournal`, line 414 still reports `ok: true` with `mode: \"copied\"`, even though the source side was not finished. Suggestion: catch around `healEntry` and return `ok: true` there (the journal stays for the next `healMoves`). Also check the return value, so a quarantine is not reported as a clean move."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "line": 674,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "Roll-forward healing deletes every item's drag folders in the source vault",
+      "body": "`rm(join(sourceDir, META_DIR, \"drag\"), { recursive: true })` deletes the whole drag root (`dragRoot` in `library/drag-copies.ts:14-16`). That covers drag copies of every item, not only the moved one. This also runs from the post-commit path inside `moveItem` (line 409), not only at startup. A drop another item's drag started a moment ago can lose its file, and the in-memory `DragLedger` keeps entries for folders that are gone. The live path clears only this item's folders (`deps.dragLedger?.clear(source.workspaceId, id)`, line 274). Suggestion: limit this to the moved item's drag folders, or run the whole-root sweep only from the startup heal."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "line": 667,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "Rebuilding a missing target record copies the source sidecar without remapping it",
+      "body": "When the target media matches but its record is missing, healing writes `read.sidecar` from the source unchanged. The normal path builds `incoming` instead (lines 306-313): `tagIds` and `tagNames` are resolved in the target registry through `ensureByName`, and `localRemovedAt` is dropped. A record rebuilt here keeps the source workspace's tag ids, which the target registry does not know, so the moved item silently loses its tags in the target. It can also carry `localRemovedAt` along. The trigger is rare, since the record is reserved before the media. Even so, the rebuild could reuse the same `incoming` transformation."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "line": 194,
+      "severity": "consider",
+      "topic": "docs",
+      "confidence": "high",
+      "title": "The docstring says unexpected failures rethrow, but `moveItem` returns `io`",
+      "body": "The comment says an unexpected failure \"rolls back what this move made in the target before it rethrows\". `moveItem` catches every error except `SimulatedCrash` and resolves `refuse(\"io\")` (lines 204-207). Only `moveLocked` rethrows. Suggestion: describe the public contract, i.e. the method resolves `io` after the rollback."
+    }
+  ],
+  "contracts": [
+    {
+      "action": "Single move of one item to another workspace (moveItem)",
+      "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:197",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:197-210",
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:404-427",
+        "apps/kaipu-record/src/main/library/item-lock.ts:10-16",
+        "apps/kaipu-record/src/main/library/library-vault.ts:546-549",
+        "apps/kaipu-record/src/main/workspaces/index.ts:183-214",
+        "apps/kaipu-record/src/main/library/video-edit-session.ts:178-189"
+      ],
+      "equivalent_path": "LibraryVault rename/companion copy (library-vault.ts:786-791 uses the same cp of assetsDir with errorOnExist); saveSessionLocked takes the same item lock and checks hasMedia",
+      "before_after": "Takes withItemLock(source.workspaceId, id) like saveSessionLocked (video-edit-session.ts:183-187); reserves the target stem through reserveIncoming under the names lock (library-vault.ts:546-549); clears this item's drag folders first (line 274), as drag-ledger.ts:39-43 does",
+      "visible_effect": "moveItems in workspaces/index.ts maps the outcome to { ok, newId } or { ok:false, reason } for the group result and then broadcasts library-changed (index.ts:183-214)",
+      "failure_mode": "Errors before the commit roll back the target and return io. After the commit, healEntry runs unguarded: if it throws the result is io, and a quarantine is still reported as ok (see finding)",
+      "evidence_checked": true
+    },
+    {
+      "action": "Healing interrupted moves at startup and before each group (healMoves)",
+      "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:578",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:578-610",
+        "apps/kaipu-record/src/main/workspaces/index.ts:102-128"
+      ],
+      "equivalent_path": "Live move path in moveLocked",
+      "before_after": "Each entry is healed under the same item lock as the move. The workspace directories come from resolveMoveSide, which returns null while a workspace is unavailable, so the entry waits",
+      "visible_effect": "index.ts healPendingMoves broadcasts library-changed when report.healed > 0; quarantined entries are only logged",
+      "failure_mode": "An unreadable journal is kept and logged. A throwing heal counts as waiting. A quarantined entry is surfaced only in the console log (index.ts:119-124), not shown to the user",
+      "evidence_checked": true
+    },
+    {
+      "action": "Switch refusal reason now passes WorkspaceBusy through, including 'moving'",
+      "location": "apps/kaipu-record/src/main/workspaces/switch-transaction.ts:51",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/shared/types/workspaces.ts:25",
+        "apps/kaipu-record/src/shared/types/workspaces.ts:28-39"
+      ],
+      "equivalent_path": "Previous mapping recording|exporting",
+      "before_after": "WorkspaceSwitchRefusal includes 'moving', so passing busy straight through is type-correct",
+      "visible_effect": "The renderer receives reason 'moving'",
+      "evidence_checked": true
+    }
+  ],
+  "thread_replies": [],
+  "summary": "Part 2 review. I found no blockers in the mover. The order of steps (journal, reserve the stem, copy the small files, then media via link or verified staged copy as the commit point) and the rule \"delete a side only when the other side is proven complete\" both hold in the code I read. Findings: (1) A failure after the commit can be reported as `io`, or a quarantined entry as a clean success, because `healEntry` runs unguarded at line 409. (2) Roll-forward healing deletes every item's drag folders in the source vault, not just the moved item's. (3) Rebuilding a missing target record copies the source sidecar without remapping tags or dropping `localRemovedAt`. (4) The `moveItem` docstring says unexpected failures rethrow, but the function returns `io`. `switch-transaction.ts`, `workspace-view.ts` and both test files look correct: `WorkspaceSwitchRefusal` includes `moving`, and the `saveSessionLocked` test matches its `hasMedia` check."
+}

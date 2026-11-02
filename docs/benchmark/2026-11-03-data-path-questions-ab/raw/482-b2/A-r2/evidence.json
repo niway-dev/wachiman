@@ -1,0 +1,487 @@
+{
+ "version": 1,
+ "provenance": "text_match",
+ "status": "truncated",
+ "caps": {
+  "symbols": 12,
+  "call_sites_per_symbol": 6,
+  "context_lines": 4,
+  "file_bytes": 16384,
+  "wall_clock_ms": 20000
+ },
+ "batch_files": [
+  "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+  "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts",
+  "apps/kaipu-record/src/main/screenshots/capture-handler.test.ts",
+  "apps/kaipu-record/src/main/screenshots/capture-toast-window.test.ts",
+  "apps/kaipu-record/src/main/screenshots/last-quiet-capture.test.ts",
+  "apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts"
+ ],
+ "symbols": [
+  {
+   "symbol": "notifyOverridesChanged",
+   "kind": "call",
+   "qualifier": "store.notifyOverridesChanged",
+   "used_in": [
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 3,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+    "line": 232,
+    "text": "export function notifyOverridesChanged(): void {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+     "line": 410,
+     "text": "notifyOverridesChanged();",
+     "excerpt": [
+      "406|   await workspaceSettings?.refresh(target);",
+      "407| },",
+      "408| afterCommit: () => {",
+      "409|   // The new workspace's effective settings reach every window and every main listener.",
+      "410|   notifyOverridesChanged();",
+      "411|   refreshTitles();",
+      "412|   void broadcastState();",
+      "413|   host?.broadcastLibraryChanged();",
+      "414| },"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+     "line": 24,
+     "text": "notifyOverridesChanged,",
+     "excerpt": [
+      "24| notifyOverridesChanged,"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+     "line": 128,
+     "text": "changed: notifyOverridesChanged,",
+     "excerpt": [
+      "128| changed: notifyOverridesChanged,"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "registerSettings",
+   "kind": "call",
+   "qualifier": "store.registerSettings",
+   "used_in": [
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 102,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+    "line": 244,
+    "text": "export function registerSettings(): void {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 826,
+     "text": "registerSettings();",
+     "excerpt": [
+      "822|   for (const { channel, payload } of queued) mainWindow?.webContents.send(channel, payload);",
+      "823| });",
+      "824| ",
+      "825| // Persisted app settings (+ apply the Dock/switcher policy and launch-at-login).",
+      "826| registerSettings();",
+      "827| // Checked explicitly rather than asserted non-null: an unset value would otherwise reach",
+      "828| // auth-client as `undefined` in the request URL and surface much later as a generic \"network\"",
+      "829| // error the user cannot act on. Fail loudly at startup, naming the variable.",
+      "830| const authServerUrl = import.meta.env.MAIN_VITE_SERVER_URL;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 46,
+     "text": "registerSettings,",
+     "excerpt": [
+      "46| registerSettings,"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/recording/recording-hub.test.ts",
+     "line": 204,
+     "text": "registerSettings();",
+     "excerpt": [
+      "204| registerSettings();"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "setOverridesSource",
+   "kind": "call",
+   "qualifier": "store.setOverridesSource",
+   "used_in": [
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 2,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+    "line": 95,
+    "text": "export function setOverridesSource(source: () => SettingsOverrides): void {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+     "line": 132,
+     "text": "setOverridesSource(() => settings.activeOverrides());",
+     "excerpt": [
+      "128|     changed: notifyOverridesChanged,",
+      "129|     now: () => Date.now(),",
+      "130|   });",
+      "131|   workspaceSettings = settings;",
+      "132|   setOverridesSource(() => settings.activeOverrides());",
+      "133|   await settings.refresh(reg.active().id);",
+      "134| }",
+      "135| ",
+      "136| function requireWorkspaceSettings(): WorkspaceSettings {"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+     "line": 25,
+     "text": "setOverridesSource,",
+     "excerpt": [
+      "25| setOverridesSource,"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "getAllLevelSettings",
+   "kind": "call",
+   "qualifier": "store.getAllLevelSettings",
+   "used_in": [
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 2,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+    "line": 87,
+    "text": "export function getAllLevelSettings(): AppSettings {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+     "line": 22,
+     "text": "getAllLevelSettings,",
+     "excerpt": [
+      "18|   WorkspaceSwitchResult,",
+      "19|   WorkspaceView,",
+      "20| } from \"@shared/types/workspaces\";",
+      "21| import {",
+      "22|   getAllLevelSettings,",
+      "23|   getAppSettings,",
+      "24|   notifyOverridesChanged,",
+      "25|   setOverridesSource,",
+      "26|   updateAppSettings,"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+     "line": 123,
+     "text": "getAll: getAllLevelSettings,",
+     "excerpt": [
+      "123| getAll: getAllLevelSettings,"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "mockRejectedValueOnce",
+   "kind": "call",
+   "qualifier": "saveToVault.mockRejectedValueOnce",
+   "used_in": [
+    "apps/kaipu-record/src/main/screenshots/capture-handler.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 24,
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/cloud/storage-usage-service.test.ts",
+     "line": 50,
+     "text": ".mockRejectedValueOnce(new Error(\"offline\"));",
+     "excerpt": [
+      "46| it(\"falls back to the last good answer, marked stale\", async () => {",
+      "47|   const fetchUsage = vi",
+      "48|     .fn()",
+      "49|     .mockResolvedValueOnce(USAGE)",
+      "50|     .mockRejectedValueOnce(new Error(\"offline\"));",
+      "51|   const { svc } = service({ fetchUsage });",
+      "52|   await svc.get();",
+      "53|   await expect(svc.get()).resolves.toEqual({ kind: \"stale\", usage: USAGE, fetchedAt: 42 });",
+      "54| });"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/cloud/storage-usage-service.test.ts",
+     "line": 60,
+     "text": ".mockRejectedValueOnce(new Error(\"offline\"));",
+     "excerpt": [
+      "60| .mockRejectedValueOnce(new Error(\"offline\"));"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/cloud/storage-usage-service.test.ts",
+     "line": 76,
+     "text": ".mockRejectedValueOnce({ kind: \"unauthorized\" })",
+     "excerpt": [
+      "76| .mockRejectedValueOnce({ kind: \"unauthorized\" })"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "onSettingsKeysChanged",
+   "kind": "call",
+   "qualifier": "store.onSettingsKeysChanged",
+   "used_in": [
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 3,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+    "line": 182,
+    "text": "export function onSettingsKeysChanged<K extends keyof AppSettings>("
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 943,
+     "text": "onSettingsKeysChanged([\"shortcuts\"], () => applyGlobalShortcuts());",
+     "excerpt": [
+      "939|     toggleSystemAudio: () => hub?.toggleRecordingSetting(\"isSystemAudioEnabled\"),",
+      "940|     toggleCamera: () => hub?.toggleRecordingSetting(\"isCameraEnabled\"),",
+      "941|   },",
+      "942| });",
+      "943| onSettingsKeysChanged([\"shortcuts\"], () => applyGlobalShortcuts());",
+      "944| // Rebuild the native tray menu when the language (or a shortcut it labels) changes.",
+      "945| onSettingsKeysChanged([\"locale\", \"shortcuts\"], (settings) => rebuildTrayMenu(settings.locale));",
+      "946| ",
+      "947| // Library: local recordings vault + cloud catalog."
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 945,
+     "text": "onSettingsKeysChanged([\"locale\", \"shortcuts\"], (settings) => rebuildTrayMenu(settings.locale));",
+     "excerpt": [
+      "945| onSettingsKeysChanged([\"locale\", \"shortcuts\"], (settings) => rebuildTrayMenu(settings.locale));"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 51,
+     "text": "onSettingsKeysChanged,",
+     "excerpt": [
+      "51| onSettingsKeysChanged,"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "updateAppSettings",
+   "kind": "call",
+   "qualifier": "store.updateAppSettings",
+   "used_in": [
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 21,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+    "line": 217,
+    "text": "export function updateAppSettings(patch: Partial<AppSettings>): AppSettings {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 473,
+     "text": "updateAppSettings({ trayHintShown: true });",
+     "excerpt": [
+      "469|   new Notification({",
+      "470|     title: t(\"tray.closedToTrayTitle\"),",
+      "471|     body: t(\"tray.closedToTrayBody\"),",
+      "472|   }).show();",
+      "473|   updateAppSettings({ trayHintShown: true });",
+      "474| }",
+      "475| ",
+      "476| /** Show & focus the main window, recreating it if it was closed. */",
+      "477| function showMainWindow(): void {"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 544,
+     "text": "updateAppSettings({ recordingMode: requested });",
+     "excerpt": [
+      "544| updateAppSettings({ recordingMode: requested });"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 648,
+     "text": "if (getAppSettings().recordingMode !== mode) updateAppSettings({ recordingMode: mode });",
+     "excerpt": [
+      "648| if (getAppSettings().recordingMode !== mode) updateAppSettings({ recordingMode: mode });"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "clear",
+   "kind": "call",
+   "qualifier": "mockState.handlers.clear",
+   "used_in": [
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 85,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/cloud/catalog-cache.ts",
+    "line": 70,
+    "text": "async clear(userId: string): Promise<void> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/drag-ledger.ts",
+     "line": 39,
+     "text": "async clear(workspaceId: string, itemId: string): Promise<void> {",
+     "excerpt": [
+      "35|   );",
+      "36| }",
+      "37| ",
+      "38| /** Delete every drag folder of the item and forget them. Best effort per folder. */",
+      "39| async clear(workspaceId: string, itemId: string): Promise<void> {",
+      "40|   const mine = this.entries.filter((e) => e.workspaceId === workspaceId && e.itemId === itemId);",
+      "41|   this.entries = this.entries.filter((e) => !mine.includes(e));",
+      "42|   await Promise.allSettled(",
+      "43|     mine.flatMap((e) => (e.dir ? [rm(e.dir, { recursive: true, force: true })] : [])),"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/recording/recording-hub.ts",
+     "line": 1211,
+     "text": "[\"click sessions\", () => clickSessions.clear()],",
+     "excerpt": [
+      "1211| [\"click sessions\", () => clickSessions.clear()],"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/recording/recording-hub.ts",
+     "line": 1281,
+     "text": "clickSessions.clear();",
+     "excerpt": [
+      "1281| clickSessions.clear();"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "digest",
+   "kind": "call",
+   "qualifier": ".digest",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 13,
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/content-hash.ts",
+     "line": 15,
+     "text": ".on(\"end\", () => resolve(hash.digest(\"base64\")));",
+     "excerpt": [
+      "11|     const hash = createHash(\"sha256\");",
+      "12|     createReadStream(path)",
+      "13|       .on(\"data\", (chunk) => hash.update(chunk))",
+      "14|       .on(\"error\", reject)",
+      "15|       .on(\"end\", () => resolve(hash.digest(\"base64\")));",
+      "16|   });",
+      "17| }",
+      "18| "
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts",
+     "line": 67,
+     "text": "return createHash(\"sha256\").update(bytes).digest(\"hex\");",
+     "excerpt": [
+      "67| return createHash(\"sha256\").update(bytes).digest(\"hex\");"
+     ]
+    },
+    {
+     "file": "packages/infra-storage/scripts/r2-expiry-spike.ts",
+     "line": 30,
+     "text": "const sha256 = createHash(\"sha256\").update(body).digest(\"base64\");",
+     "excerpt": [
+      "30| const sha256 = createHash(\"sha256\").update(body).digest(\"base64\");"
+     ]
+    }
+   ]
+  }
+ ],
+ "no_other_matches": [],
+ "not_searched": [
+  "readFolderOverrides",
+  "resolveEffective",
+  "writeFolderOverrides",
+  "join",
+  "readFile",
+  "mkdtemp",
+  "tmpdir",
+  "changed",
+  "known",
+  "isAvailable",
+  "workspaces",
+  "activeId",
+  "getAll",
+  "update",
+  "applyFolder",
+  "isOverridableKey",
+  "writeAll",
+  "now",
+  "resolvePending",
+  "loadStore",
+  "setup",
+  "shot",
+  "readdir",
+  "updateSettings",
+  "writeFile",
+  "mkdir",
+  "setPlatform",
+  "createCaptureHandler",
+  "createHash",
+  "mergeSettings",
+  "takeLastQuietCapture",
+  "folderState",
+  "normalizeOverride",
+  "getAppSettings"
+ ],
+ "notes": [
+  "31 more candidate symbol(s) beyond the cap of 12.",
+  "Detail was cut to keep this file under its size cap.",
+  "Symbols were dropped to keep this file under its size cap."
+ ]
+}

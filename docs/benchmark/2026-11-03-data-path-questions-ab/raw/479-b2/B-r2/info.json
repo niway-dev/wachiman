@@ -1,0 +1,25 @@
+{
+  "pr": 479,
+  "head": "aac720234565627a8277413bb48618dc966e0aac",
+  "mergeBase": "7620879e5988214dc446ab7f41d4a22ad3dd9dfe",
+  "part": {
+    "index": 2,
+    "total": 5
+  },
+  "files": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts",
+    "apps/kaipu-record/src/main/workspaces/switch-transaction.ts",
+    "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+    "apps/kaipu-record/src/main/library/video-edit-session.test.ts",
+    "apps/kaipu-record/src/main/workspaces/move-group.test.ts"
+  ],
+  "questions": [
+    "destructive-step",
+    "read-error-as-empty",
+    "overlapping-calls",
+    "stale-write-back"
+  ],
+  "engine": "5348cd6bbbf46da4b94603dd117deded48e7286f",
+  "promptChars": 77648,
+  "scratchDir": "/var/folders/jq/y5f4c4617k9g7mvrnk2tdrpr0000gn/T/agent-review-rirPO7"
+}

@@ -1,0 +1,491 @@
+{
+ "version": 1,
+ "provenance": "text_match",
+ "status": "truncated",
+ "caps": {
+  "symbols": 12,
+  "call_sites_per_symbol": 6,
+  "context_lines": 4,
+  "file_bytes": 16384,
+  "wall_clock_ms": 20000
+ },
+ "batch_files": [
+  "apps/kaipu-record/src/main/workspaces/move-item.ts",
+  "apps/kaipu-record/src/main/workspaces/switch-transaction.ts",
+  "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+  "apps/kaipu-record/src/main/library/video-edit-session.test.ts",
+  "apps/kaipu-record/src/main/workspaces/move-group.test.ts"
+ ],
+ "symbols": [
+  {
+   "symbol": "companionPaths",
+   "kind": "call",
+   "qualifier": "from.companionPaths",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 9,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+    "line": 440,
+    "text": "companionPaths(id: string): CompanionPaths {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 482,
+     "text": "const { cursorTrackTemp: _temp, ...companions } = this.companionPaths(stem);",
+     "excerpt": [
+      "478|  */",
+      "479| private async stemState(stem: string): Promise<\"free\" | \"taken\" | \"unknown\"> {",
+      "480|   // A reserved stem's companions are another stem's (or the vault's own) files.",
+      "481|   if (isReservedStem(stem)) return \"taken\";",
+      "482|   const { cursorTrackTemp: _temp, ...companions } = this.companionPaths(stem);",
+      "483|   const paths = [",
+      "484|     ...ALL_EXTS.map((ext) => join(this.directory, `${stem}${ext}`)),",
+      "485|     ...Object.values(companions),",
+      "486|   ];"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 569,
+     "text": "await this.removeCompanions(this.companionPaths(id));",
+     "excerpt": [
+      "569| await this.removeCompanions(this.companionPaths(id));"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 623,
+     "text": "...Object.values(this.companionPaths(id)),",
+     "excerpt": [
+      "623| ...Object.values(this.companionPaths(id)),"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "sidecarPath",
+   "kind": "call",
+   "qualifier": "from.sidecarPath",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 26,
+   "definition_guess": {
+    "file": "apps/kaipu-record/e2e/heal-orphan.e2e.ts",
+    "line": 28,
+    "text": "const sidecarPath = path.join(vaultDir, \".kaipu\", `${ORPHAN_ID}.json`);"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 421,
+     "text": "sidecarPath(id: string): string {",
+     "excerpt": [
+      "417| private metaDirectory(): string {",
+      "418|   return join(this.directory, META_DIR);",
+      "419| }",
+      "420| ",
+      "421| sidecarPath(id: string): string {",
+      "422|   return join(this.metaDirectory(), `${id}.json`);",
+      "423| }",
+      "424| ",
+      "425| thumbnailPath(id: string): string {"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 443,
+     "text": "sidecar: this.sidecarPath(id),",
+     "excerpt": [
+      "443| sidecar: this.sidecarPath(id),"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 535,
+     "text": "await atomicWriteFile(this.sidecarPath(id), JSON.stringify(stub, null, 2));",
+     "excerpt": [
+      "535| await atomicWriteFile(this.sidecarPath(id), JSON.stringify(stub, null, 2));"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "link",
+   "kind": "call",
+   "qualifier": "fs.link",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 207,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/deep-link-router.ts",
+    "line": 31,
+    "text": "const link = parseDeepLink(url);"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/drag-copies.ts",
+     "line": 85,
+     "text": "await fs.link(vaultFile, target);",
+     "excerpt": [
+      "81|   return vaultFile; // read-only vault: drag the original rather than fail",
+      "82| }",
+      "83| const target = join(dir, fileName);",
+      "84| try {",
+      "85|   await fs.link(vaultFile, target);",
+      "86| } catch (error) {",
+      "87|   if ((error as NodeJS.ErrnoException).code === \"EXDEV\") {",
+      "88|     await rm(dir, { recursive: true, force: true }).catch(() => {});",
+      "89|     return vaultFile;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/safe-place.ts",
+     "line": 135,
+     "text": "await link(from, to);",
+     "excerpt": [
+      "135| await link(from, to);"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/deep-link-router.ts",
+     "line": 32,
+     "text": "if (!link) return;",
+     "excerpt": [
+      "32| if (!link) return;"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "liveTags",
+   "kind": "call",
+   "qualifier": "targetTags.liveTags",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "complete",
+   "total_matches": 1,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/tag-repository.ts",
+    "line": 224,
+    "text": "async liveTags(): Promise<Tag[]> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/move-item.test.ts",
+     "line": 304,
+     "text": "const live = await target.liveTags();",
+     "excerpt": [
+      "300| const existing = await target.create(\"client x\", \"lime\");",
+      "301| const item = await seedItem(src.directory);",
+      "302| await moveItem({ source: src, target: dst, id: item.id }, deps());",
+      "303| ",
+      "304| const live = await target.liveTags();",
+      "305| const draft = live.find((t) => t.slug === \"draft\");",
+      "306| expect(draft).toMatchObject({ name: \"Draft\", color: \"amber\" });",
+      "307| expect(live.filter((t) => t.slug === existing.slug)).toHaveLength(1);",
+      "308| const moved = JSON.parse(await readFile(join(dst.directory, \".kaipu\", \"Demo.json\"), \"utf-8\"));"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "clear",
+   "kind": "call",
+   "qualifier": "deps.dragLedger?.clear",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 88,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/cloud/catalog-cache.ts",
+    "line": 70,
+    "text": "async clear(userId: string): Promise<void> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/drag-ledger.ts",
+     "line": 39,
+     "text": "async clear(workspaceId: string, itemId: string): Promise<void> {",
+     "excerpt": [
+      "35|   );",
+      "36| }",
+      "37| ",
+      "38| /** Delete every drag folder of the item and forget them. Best effort per folder. */",
+      "39| async clear(workspaceId: string, itemId: string): Promise<void> {",
+      "40|   const mine = this.entries.filter((e) => e.workspaceId === workspaceId && e.itemId === itemId);",
+      "41|   this.entries = this.entries.filter((e) => !mine.includes(e));",
+      "42|   await Promise.allSettled(",
+      "43|     mine.flatMap((e) => (e.dir ? [rm(e.dir, { recursive: true, force: true })] : [])),"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/recording/recording-hub.ts",
+     "line": 1211,
+     "text": "[\"click sessions\", () => clickSessions.clear()],",
+     "excerpt": [
+      "1211| [\"click sessions\", () => clickSessions.clear()],"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/recording/recording-hub.ts",
+     "line": 1281,
+     "text": "clickSessions.clear();",
+     "excerpt": [
+      "1281| clickSessions.clear();"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "describe",
+   "kind": "call",
+   "qualifier": "from.describe",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 1173,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+    "line": 984,
+    "text": "async describe(id: string): Promise<LocalRecording | null> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 713,
+     "text": ".run(\"library\", () => currentVault().describe(id))",
+     "excerpt": [
+      "709|  * comes back already on the item — the same hand-off as the capture hotkey.",
+      "710|  */",
+      "711| function openSavedScreenshot(target: \"editor\" | \"library\", id: string): void {",
+      "712|   void vaultActivity",
+      "713|     .run(\"library\", () => currentVault().describe(id))",
+      "714|     .then((item) => {",
+      "715|       if (!item) {",
+      "716|         console.warn(`[screenshot] toast: ${id} is no longer in the vault`);",
+      "717|         return;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/gif-save.ts",
+     "line": 73,
+     "text": "const recording = await vault.describe(id);",
+     "excerpt": [
+      "73| const recording = await vault.describe(id);"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/import-video.ts",
+     "line": 214,
+     "text": "const described = await vault.describe(id);",
+     "excerpt": [
+      "214| const described = await vault.describe(id);"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "draggedJustNow",
+   "kind": "call",
+   "qualifier": "deps.dragLedger?.draggedJustNow",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "complete",
+   "total_matches": 0,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/drag-ledger.ts",
+    "line": 30,
+    "text": "draggedJustNow(workspaceId: string, itemId: string): boolean {"
+   },
+   "call_sites": []
+  },
+  {
+   "symbol": "ensureByName",
+   "kind": "call",
+   "qualifier": "targetTags.ensureByName",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "complete",
+   "total_matches": 0,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/tag-repository.ts",
+    "line": 233,
+    "text": "ensureByName(wanted: readonly { name: string; color: TagColor }[]): Promise<Tag[]> {"
+   },
+   "call_sites": []
+  },
+  {
+   "symbol": "hasMedia",
+   "kind": "call",
+   "qualifier": "to.hasMedia",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 6,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+    "line": 1247,
+    "text": "async hasMedia(id: string): Promise<boolean> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 605,
+     "text": "!(await this.hasMedia(candidate)) &&",
+     "excerpt": [
+      "601|   return { id: candidate, mode: \"case\" };",
+      "602| }",
+      "603| if (",
+      "604|   allowLeftover &&",
+      "605|   !(await this.hasMedia(candidate)) &&",
+      "606|   (await this.sidecar(candidate)).assetId === assetId",
+      "607| ) {",
+      "608|   return { id: candidate, mode: \"leftover\" };",
+      "609| }"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 650,
+     "text": "if (!(await this.hasMedia(id))) return false;",
+     "excerpt": [
+      "650| if (!(await this.hasMedia(id))) return false;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 1234,
+     "text": "if (read.status === \"missing\" && !(await this.hasMedia(id))) throw new ItemGoneError(id);",
+     "excerpt": [
+      "1234| if (read.status === \"missing\" && !(await this.hasMedia(id))) throw new ItemGoneError(id);"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "isDirectory",
+   "kind": "call",
+   "qualifier": "targetInfo.isDirectory",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 17,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/identity.ts",
+    "line": 119,
+    "text": "export async function isDirectory(path: string): Promise<boolean> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-reconcile.test-helpers.ts",
+     "line": 34,
+     "text": "if (entry.isDirectory()) {",
+     "excerpt": [
+      "30| for (const entry of await readdir(dir, { withFileTypes: true })) {",
+      "31|   const path = join(dir, entry.name);",
+      "32|   const info = await lstat(path);",
+      "33|   const key = relative(directory, path);",
+      "34|   if (entry.isDirectory()) {",
+      "35|     out[key] = `dir@${info.mtimeMs}`;",
+      "36|     await walk(path);",
+      "37|   } else if (entry.isSymbolicLink()) {",
+      "38|     out[key] = `link@${info.mtimeMs}`;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-reconcile.ts",
+     "line": 431,
+     "text": "const found = interpretations(name, entry.isDirectory());",
+     "excerpt": [
+      "431| const found = interpretations(name, entry.isDirectory());"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-reconcile.ts",
+     "line": 433,
+     "text": "if (!entry.isDirectory() && !entry.isFile()) continue;",
+     "excerpt": [
+      "433| if (!entry.isDirectory() && !entry.isFile()) continue;"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "reserveIncoming",
+   "kind": "call",
+   "qualifier": "to.reserveIncoming",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts"
+   ],
+   "provenance": "text_match",
+   "status": "complete",
+   "total_matches": 0,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+    "line": 546,
+    "text": "async reserveIncoming(stem: string, record: Sidecar): Promise<string> {"
+   },
+   "call_sites": []
+  }
+ ],
+ "no_other_matches": [],
+ "not_searched": [
+  "writeMeta",
+  "join",
+  "mkdir",
+  "readdir",
+  "withItemLock",
+  "stat",
+  "readSidecarStrict",
+  "LibraryVault",
+  "atomicWriteFile",
+  "access",
+  "copyExclusive",
+  "placeNoReplace",
+  "readFile",
+  "VaultTagRepository",
+  "busy",
+  "copyFile",
+  "deviceId",
+  "extname",
+  "nextTagColor",
+  "randomUUID",
+  "statfs",
+  "unlink",
+  "runMoveGroup",
+  "bytesOf",
+  "saveSessionLocked",
+  "writeFile",
+  "webcamFilePath"
+ ],
+ "notes": [
+  "26 more candidate symbol(s) beyond the cap of 12.",
+  "Detail was cut to keep this file under its size cap.",
+  "Symbols were dropped to keep this file under its size cap."
+ ]
+}

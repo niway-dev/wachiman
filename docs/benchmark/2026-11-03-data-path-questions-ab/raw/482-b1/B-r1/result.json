@@ -1,0 +1,375 @@
+{
+  "structuredOutput": {
+    "files_reviewed": [
+      "apps/kaipu-record/src/preload/index.ts",
+      "apps/kaipu-record/src/shared/types/electron-api.ts",
+      "apps/kaipu-record/src/shared/types/ipc.ts",
+      "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+      "apps/kaipu-record/src/shared/settings-scope.ts",
+      "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+      "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+      "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+      "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+      "apps/kaipu-record/src/main/workspaces/index.ts",
+      "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+    ],
+    "files_skipped": [],
+    "findings": [
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts",
+        "line": 220,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "high",
+        "title": "An unreadable workspace-settings.json is treated as empty, then overwritten on the next update",
+        "body": "`MachineSettingsStore.open` catches every `readFile` error and returns an empty store (lines 218-222). It does not tell ENOENT apart from EACCES/EIO/EBUSY. The next `update()` (lines 244-261) calls `write()`, which serializes the whole in-memory map (lines 268-270) and atomically replaces the file. So one transient read failure at launch, followed by any override edit or Use/Ignore answer, permanently deletes every other workspace's machine-bound `uploadMode` and every accepted folder-file record. This happens with no error or log. Losing `uploadMode` matters: a workspace the user set to `local-only` silently falls back to the All level (for example `automatic`), so files start uploading without consent. Losing the records puts every confirmed folder file back to `pending`. The corrupt-JSON path has a similar gap: if the `rename` aside fails (line 265), that is swallowed and the write goes ahead over the file. Suggested fix: return an empty store only for ENOENT. For any other code, mark the store unusable, so writes refuse or retry, or so it re-reads before the first write. Don't overwrite the file in that state."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/index.ts",
+        "line": 406,
+        "severity": "consider",
+        "topic": "question",
+        "confidence": "medium",
+        "title": "refresh(target) inside persistActive broadcasts before commit, and a throw there leaves the registry switched but the switch reported failed",
+        "body": "`reg.setActive(target)` runs first, so `activeId()` is already the target. `WorkspaceSettings.refresh` (workspace-settings.ts:96-98) therefore calls `changed()` → `notifyOverridesChanged()`. That runs every main settings listener and broadcasts `settings:changed` with the target's effective settings while the gate is still closed and windows are still stamped to the old workspace (switch-transaction.ts:70-80). The `notifyOverridesChanged()` in `afterCommit` then does nothing, so the comment 'ready the moment it commits' doesn't hold. Separately, if anything in that refresh throws (`reg.availability` in `isAvailable`, or a settings listener inside `changed()`), `persistActive` rejects after the registry has already persisted the target. switch-transaction.ts:73-76 then reopens the gate on the old workspace and reports failure, while `reg.active()` names the new one. Could the refresh run without notifying (or be caught) inside `persistActive`, with the notification left to `afterCommit` alone?"
+      }
+    ],
+    "contracts": [
+      {
+        "action": "MachineSettingsStore.open reads userData/workspace-settings.json once and later writes the whole map back",
+        "location": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215",
+        "equivalent_path": "readFolderOverrides distinguishes ENOENT from other errors (settings-overrides.ts:80-83)",
+        "before_after": "open swallows every read error (218-222); update writes the full map (263-271)",
+        "visible_effect": "Lost uploadMode overrides change upload behaviour silently; lost records show folder files as pending again",
+        "failure_mode": "Transient EACCES/EIO at launch → empty store → next update overwrites the file, deleting every workspace's entries",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215-237",
+          "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-271",
+          "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:76-84"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "MachineSettingsStore.update serializes concurrent updates",
+        "location": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244",
+        "equivalent_path": "",
+        "before_after": "Each change runs on a promise tail and reads this.get(id) inside the queued step, so overlapping updates don't drop each other; a failed write restores the previous entry",
+        "visible_effect": "",
+        "failure_mode": "Write error rejects the caller's promise and memory is restored",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-261"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Capture start re-reads the active workspace's folder overrides before handleCapture",
+        "location": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:192",
+        "equivalent_path": "requireCaptureWorkspace also refreshes after its availability probe (workspaces/index.ts:307)",
+        "before_after": "refresh is raced against a timeout and resolves unreadable on failure (workspace-settings.ts:66-81); the .catch swallows any other throw",
+        "visible_effect": "A sync-edited file becomes pending and its overrides stop applying for this capture",
+        "failure_mode": "Silent; the capture proceeds with the All level values",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:188-195",
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Workspace switch refreshes the target's overrides in persistActive",
+        "location": "apps/kaipu-record/src/main/workspaces/index.ts:402",
+        "equivalent_path": "switch-transaction persistActive/afterCommit",
+        "before_after": "setActive then refresh(target); refresh calls changed() since target is now active, before gate.commit",
+        "visible_effect": "settings:changed reaches windows before the commit",
+        "failure_mode": "A throw after setActive reopens the old gate while the registry already names the target",
+        "status": "open",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/index.ts:402-411",
+          "apps/kaipu-record/src/main/workspaces/switch-transaction.ts:70-80",
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99"
+        ],
+        "open_question": "Can reg.availability or a settings listener throw during a switch?",
+        "candidates": [
+          "apps/kaipu-record/src/main/workspaces/registry.ts"
+        ]
+      },
+      {
+        "action": "Capture policy read once at capture start and carried through result/toast/quiet bytes",
+        "location": "apps/kaipu-record/src/main/screenshots/capture-handler.ts:162",
+        "equivalent_path": "Previously finish read deps.settings() and fell back to the editor on throw",
+        "before_after": "readPolicy catches a throw → null → finish returns toEditor (288)",
+        "visible_effect": "Editor opens and copies nothing when the settings could not be read",
+        "failure_mode": "Logged with console.error; no silent copy",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238",
+          "apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "New settings-scope IPC handlers validate renderer input",
+        "location": "apps/kaipu-record/src/main/workspaces/index.ts:525",
+        "equivalent_path": "workspacesSwitch handler validates typeof id",
+        "before_after": "Strings and keys are checked with isOverridableKey; values are normalized in WorkspaceSettings.apply via normalizeOverride",
+        "visible_effect": "",
+        "failure_mode": "Invalid input returns ok:false",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/index.ts:519-560",
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-192"
+        ],
+        "open_question": "",
+        "candidates": []
+      }
+    ],
+    "thread_replies": [],
+    "summary": "Part 1 has two findings. (1) `MachineSettingsStore.open` handles every read error as an empty store. The next update then writes the whole map over `workspace-settings.json`, which silently loses every workspace's machine-bound `uploadMode` (upload consent) and its accepted folder-file records. Severity: fix. (2) A question about the switch. `refresh(target)` inside `persistActive` broadcasts the new settings before the switch commits. If it throws there, the registry has already switched but the switch is reported as failed. Severity: consider. The IPC input checks, the capture policy binding and the refresh at capture start look correct."
+  },
+  "text": "{\"files_reviewed\":[\"apps/kaipu-record/src/preload/index.ts\",\"apps/kaipu-record/src/shared/types/electron-api.ts\",\"apps/kaipu-record/src/shared/types/ipc.ts\",\"apps/kaipu-record/src/shared/types/screenshot-capture.ts\",\"apps/kaipu-record/src/shared/settings-scope.ts\",\"apps/kaipu-record/src/main/infrastructure/settings-store.ts\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts\",\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts\",\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts\",\"apps/kaipu-record/src/main/workspaces/index.ts\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\",\"line\":220,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"high\",\"title\":\"An unreadable workspace-settings.json is treated as empty, then overwritten on the next update\",\"body\":\"`MachineSettingsStore.open` catches every `readFile` error and returns an empty store (lines 218-222). It does not tell ENOENT apart from EACCES/EIO/EBUSY. The next `update()` (lines 244-261) calls `write()`, which serializes the whole in-memory map (lines 268-270) and atomically replaces the file. So one transient read failure at launch, followed by any override edit or Use/Ignore answer, permanently deletes every other workspace's machine-bound `uploadMode` and every accepted folder-file record. This happens with no error or log. Losing `uploadMode` matters: a workspace the user set to `local-only` silently falls back to the All level (for example `automatic`), so files start uploading without consent. Losing the records puts every confirmed folder file back to `pending`. The corrupt-JSON path has a similar gap: if the `rename` aside fails (line 265), that is swallowed and the write goes ahead over the file. Suggested fix: return an empty store only for ENOENT. For any other code, mark the store unusable, so writes refuse or retry, or so it re-reads before the first write. Don't overwrite the file in that state.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/index.ts\",\"line\":406,\"severity\":\"consider\",\"topic\":\"question\",\"confidence\":\"medium\",\"title\":\"refresh(target) inside persistActive broadcasts before commit, and a throw there leaves the registry switched but the switch reported failed\",\"body\":\"`reg.setActive(target)` runs first, so `activeId()` is already the target. `WorkspaceSettings.refresh` (workspace-settings.ts:96-98) therefore calls `changed()` → `notifyOverridesChanged()`. That runs every main settings listener and broadcasts `settings:changed` with the target's effective settings while the gate is still closed and windows are still stamped to the old workspace (switch-transaction.ts:70-80). The `notifyOverridesChanged()` in `afterCommit` then does nothing, so the comment 'ready the moment it commits' doesn't hold. Separately, if anything in that refresh throws (`reg.availability` in `isAvailable`, or a settings listener inside `changed()`), `persistActive` rejects after the registry has already persisted the target. switch-transaction.ts:73-76 then reopens the gate on the old workspace and reports failure, while `reg.active()` names the new one. Could the refresh run without notifying (or be caught) inside `persistActive`, with the notification left to `afterCommit` alone?\"}],\"contracts\":[{\"action\":\"MachineSettingsStore.open reads userData/workspace-settings.json once and later writes the whole map back\",\"location\":\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215\",\"equivalent_path\":\"readFolderOverrides distinguishes ENOENT from other errors (settings-overrides.ts:80-83)\",\"before_after\":\"open swallows every read error (218-222); update writes the full map (263-271)\",\"visible_effect\":\"Lost uploadMode overrides change upload behaviour silently; lost records show folder files as pending again\",\"failure_mode\":\"Transient EACCES/EIO at launch → empty store → next update overwrites the file, deleting every workspace's entries\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215-237\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-271\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:76-84\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"MachineSettingsStore.update serializes concurrent updates\",\"location\":\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244\",\"equivalent_path\":\"\",\"before_after\":\"Each change runs on a promise tail and reads this.get(id) inside the queued step, so overlapping updates don't drop each other; a failed write restores the previous entry\",\"visible_effect\":\"\",\"failure_mode\":\"Write error rejects the caller's promise and memory is restored\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-261\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Capture start re-reads the active workspace's folder overrides before handleCapture\",\"location\":\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:192\",\"equivalent_path\":\"requireCaptureWorkspace also refreshes after its availability probe (workspaces/index.ts:307)\",\"before_after\":\"refresh is raced against a timeout and resolves unreadable on failure (workspace-settings.ts:66-81); the .catch swallows any other throw\",\"visible_effect\":\"A sync-edited file becomes pending and its overrides stop applying for this capture\",\"failure_mode\":\"Silent; the capture proceeds with the All level values\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:188-195\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Workspace switch refreshes the target's overrides in persistActive\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:402\",\"equivalent_path\":\"switch-transaction persistActive/afterCommit\",\"before_after\":\"setActive then refresh(target); refresh calls changed() since target is now active, before gate.commit\",\"visible_effect\":\"settings:changed reaches windows before the commit\",\"failure_mode\":\"A throw after setActive reopens the old gate while the registry already names the target\",\"status\":\"open\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/index.ts:402-411\",\"apps/kaipu-record/src/main/workspaces/switch-transaction.ts:70-80\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99\"],\"open_question\":\"Can reg.availability or a settings listener throw during a switch?\",\"candidates\":[\"apps/kaipu-record/src/main/workspaces/registry.ts\"]},{\"action\":\"Capture policy read once at capture start and carried through result/toast/quiet bytes\",\"location\":\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:162\",\"equivalent_path\":\"Previously finish read deps.settings() and fell back to the editor on throw\",\"before_after\":\"readPolicy catches a throw → null → finish returns toEditor (288)\",\"visible_effect\":\"Editor opens and copies nothing when the settings could not be read\",\"failure_mode\":\"Logged with console.error; no silent copy\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"New settings-scope IPC handlers validate renderer input\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:525\",\"equivalent_path\":\"workspacesSwitch handler validates typeof id\",\"before_after\":\"Strings and keys are checked with isOverridableKey; values are normalized in WorkspaceSettings.apply via normalizeOverride\",\"visible_effect\":\"\",\"failure_mode\":\"Invalid input returns ok:false\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/index.ts:519-560\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-192\"],\"open_question\":\"\",\"candidates\":[]}],\"thread_replies\":[],\"summary\":\"Part 1 has two findings. (1) `MachineSettingsStore.open` handles every read error as an empty store. The next update then writes the whole map over `workspace-settings.json`, which silently loses every workspace's machine-bound `uploadMode` (upload consent) and its accepted folder-file records. Severity: fix. (2) A question about the switch. `refresh(target)` inside `persistActive` broadcasts the new settings before the switch commits. If it throws there, the registry has already switched but the switch is reported as failed. Severity: consider. The IPC input checks, the capture policy binding and the refresh at capture start look correct.\"}",
+  "costUsd": 0.46822640000000004,
+  "turns": 6,
+  "durationMs": 61415,
+  "terminalReason": "success",
+  "isError": false,
+  "raw": {
+    "duration_api_ms": 61269,
+    "stop_reason": "tool_use",
+    "session_id": "09207bfa-810e-477b-89a3-644778a5b637",
+    "total_cost_usd": 0.46822640000000004,
+    "usage": {
+      "input_tokens": 10,
+      "cache_creation_input_tokens": 39446,
+      "cache_read_input_tokens": 173692,
+      "output_tokens": 5894,
+      "output_tokens_details": {
+        "thinking_tokens": 1974
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 39446,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 4244,
+          "cache_read_input_tokens": 43557,
+          "cache_creation_input_tokens": 924,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 924
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "inputTokens": 10,
+        "outputTokens": 5894,
+        "cacheReadInputTokens": 173692,
+        "cacheCreationInputTokens": 39446,
+        "webSearchRequests": 0,
+        "costUSD": 0.46822640000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 1974,
+        "cacheCreationEphemeral5mInputTokens": 0,
+        "cacheCreationEphemeral1hInputTokens": 39446,
+        "canonicalModel": "claude-opus-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "permission_denials": [],
+    "terminal_reason": "completed",
+    "fast_mode_state": "off",
+    "fast_mode_disabled_reason": "sdk_opt_in_required",
+    "subagent_stats": {
+      "spawned": 0,
+      "requested": {
+        "background": 0,
+        "foreground": 0,
+        "unset": 0
+      },
+      "started_in_background": 0,
+      "max_depth": 0,
+      "spawned_by_subagents": 0,
+      "completed": 0,
+      "failed": 0,
+      "killed": {
+        "parent": 0,
+        "user": 0,
+        "system": 0
+      },
+      "refused": {
+        "depth_limit": 0,
+        "concurrency_limit": 0,
+        "budget": 0
+      },
+      "by_type": {}
+    },
+    "safety_stops": 0,
+    "is_error": false,
+    "num_turns": 6,
+    "subtype": "success",
+    "api_error_status": null,
+    "result": "{\"files_reviewed\":[\"apps/kaipu-record/src/preload/index.ts\",\"apps/kaipu-record/src/shared/types/electron-api.ts\",\"apps/kaipu-record/src/shared/types/ipc.ts\",\"apps/kaipu-record/src/shared/types/screenshot-capture.ts\",\"apps/kaipu-record/src/shared/settings-scope.ts\",\"apps/kaipu-record/src/main/infrastructure/settings-store.ts\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts\",\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts\",\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts\",\"apps/kaipu-record/src/main/workspaces/index.ts\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\",\"line\":220,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"high\",\"title\":\"An unreadable workspace-settings.json is treated as empty, then overwritten on the next update\",\"body\":\"`MachineSettingsStore.open` catches every `readFile` error and returns an empty store (lines 218-222). It does not tell ENOENT apart from EACCES/EIO/EBUSY. The next `update()` (lines 244-261) calls `write()`, which serializes the whole in-memory map (lines 268-270) and atomically replaces the file. So one transient read failure at launch, followed by any override edit or Use/Ignore answer, permanently deletes every other workspace's machine-bound `uploadMode` and every accepted folder-file record. This happens with no error or log. Losing `uploadMode` matters: a workspace the user set to `local-only` silently falls back to the All level (for example `automatic`), so files start uploading without consent. Losing the records puts every confirmed folder file back to `pending`. The corrupt-JSON path has a similar gap: if the `rename` aside fails (line 265), that is swallowed and the write goes ahead over the file. Suggested fix: return an empty store only for ENOENT. For any other code, mark the store unusable, so writes refuse or retry, or so it re-reads before the first write. Don't overwrite the file in that state.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/index.ts\",\"line\":406,\"severity\":\"consider\",\"topic\":\"question\",\"confidence\":\"medium\",\"title\":\"refresh(target) inside persistActive broadcasts before commit, and a throw there leaves the registry switched but the switch reported failed\",\"body\":\"`reg.setActive(target)` runs first, so `activeId()` is already the target. `WorkspaceSettings.refresh` (workspace-settings.ts:96-98) therefore calls `changed()` → `notifyOverridesChanged()`. That runs every main settings listener and broadcasts `settings:changed` with the target's effective settings while the gate is still closed and windows are still stamped to the old workspace (switch-transaction.ts:70-80). The `notifyOverridesChanged()` in `afterCommit` then does nothing, so the comment 'ready the moment it commits' doesn't hold. Separately, if anything in that refresh throws (`reg.availability` in `isAvailable`, or a settings listener inside `changed()`), `persistActive` rejects after the registry has already persisted the target. switch-transaction.ts:73-76 then reopens the gate on the old workspace and reports failure, while `reg.active()` names the new one. Could the refresh run without notifying (or be caught) inside `persistActive`, with the notification left to `afterCommit` alone?\"}],\"contracts\":[{\"action\":\"MachineSettingsStore.open reads userData/workspace-settings.json once and later writes the whole map back\",\"location\":\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215\",\"equivalent_path\":\"readFolderOverrides distinguishes ENOENT from other errors (settings-overrides.ts:80-83)\",\"before_after\":\"open swallows every read error (218-222); update writes the full map (263-271)\",\"visible_effect\":\"Lost uploadMode overrides change upload behaviour silently; lost records show folder files as pending again\",\"failure_mode\":\"Transient EACCES/EIO at launch → empty store → next update overwrites the file, deleting every workspace's entries\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215-237\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-271\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:76-84\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"MachineSettingsStore.update serializes concurrent updates\",\"location\":\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244\",\"equivalent_path\":\"\",\"before_after\":\"Each change runs on a promise tail and reads this.get(id) inside the queued step, so overlapping updates don't drop each other; a failed write restores the previous entry\",\"visible_effect\":\"\",\"failure_mode\":\"Write error rejects the caller's promise and memory is restored\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-261\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Capture start re-reads the active workspace's folder overrides before handleCapture\",\"location\":\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:192\",\"equivalent_path\":\"requireCaptureWorkspace also refreshes after its availability probe (workspaces/index.ts:307)\",\"before_after\":\"refresh is raced against a timeout and resolves unreadable on failure (workspace-settings.ts:66-81); the .catch swallows any other throw\",\"visible_effect\":\"A sync-edited file becomes pending and its overrides stop applying for this capture\",\"failure_mode\":\"Silent; the capture proceeds with the All level values\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:188-195\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Workspace switch refreshes the target's overrides in persistActive\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:402\",\"equivalent_path\":\"switch-transaction persistActive/afterCommit\",\"before_after\":\"setActive then refresh(target); refresh calls changed() since target is now active, before gate.commit\",\"visible_effect\":\"settings:changed reaches windows before the commit\",\"failure_mode\":\"A throw after setActive reopens the old gate while the registry already names the target\",\"status\":\"open\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/index.ts:402-411\",\"apps/kaipu-record/src/main/workspaces/switch-transaction.ts:70-80\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99\"],\"open_question\":\"Can reg.availability or a settings listener throw during a switch?\",\"candidates\":[\"apps/kaipu-record/src/main/workspaces/registry.ts\"]},{\"action\":\"Capture policy read once at capture start and carried through result/toast/quiet bytes\",\"location\":\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:162\",\"equivalent_path\":\"Previously finish read deps.settings() and fell back to the editor on throw\",\"before_after\":\"readPolicy catches a throw → null → finish returns toEditor (288)\",\"visible_effect\":\"Editor opens and copies nothing when the settings could not be read\",\"failure_mode\":\"Logged with console.error; no silent copy\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"New settings-scope IPC handlers validate renderer input\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:525\",\"equivalent_path\":\"workspacesSwitch handler validates typeof id\",\"before_after\":\"Strings and keys are checked with isOverridableKey; values are normalized in WorkspaceSettings.apply via normalizeOverride\",\"visible_effect\":\"\",\"failure_mode\":\"Invalid input returns ok:false\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/index.ts:519-560\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-192\"],\"open_question\":\"\",\"candidates\":[]}],\"thread_replies\":[],\"summary\":\"Part 1 has two findings. (1) `MachineSettingsStore.open` handles every read error as an empty store. The next update then writes the whole map over `workspace-settings.json`, which silently loses every workspace's machine-bound `uploadMode` (upload consent) and its accepted folder-file records. Severity: fix. (2) A question about the switch. `refresh(target)` inside `persistActive` broadcasts the new settings before the switch commits. If it throws there, the registry has already switched but the switch is reported as failed. Severity: consider. The IPC input checks, the capture policy binding and the refresh at capture start look correct.\"}",
+    "structured_output": {
+      "files_reviewed": [
+        "apps/kaipu-record/src/preload/index.ts",
+        "apps/kaipu-record/src/shared/types/electron-api.ts",
+        "apps/kaipu-record/src/shared/types/ipc.ts",
+        "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+        "apps/kaipu-record/src/shared/settings-scope.ts",
+        "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+        "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+        "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+        "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+        "apps/kaipu-record/src/main/workspaces/index.ts",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+      ],
+      "files_skipped": [],
+      "findings": [
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts",
+          "line": 220,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "high",
+          "title": "An unreadable workspace-settings.json is treated as empty, then overwritten on the next update",
+          "body": "`MachineSettingsStore.open` catches every `readFile` error and returns an empty store (lines 218-222). It does not tell ENOENT apart from EACCES/EIO/EBUSY. The next `update()` (lines 244-261) calls `write()`, which serializes the whole in-memory map (lines 268-270) and atomically replaces the file. So one transient read failure at launch, followed by any override edit or Use/Ignore answer, permanently deletes every other workspace's machine-bound `uploadMode` and every accepted folder-file record. This happens with no error or log. Losing `uploadMode` matters: a workspace the user set to `local-only` silently falls back to the All level (for example `automatic`), so files start uploading without consent. Losing the records puts every confirmed folder file back to `pending`. The corrupt-JSON path has a similar gap: if the `rename` aside fails (line 265), that is swallowed and the write goes ahead over the file. Suggested fix: return an empty store only for ENOENT. For any other code, mark the store unusable, so writes refuse or retry, or so it re-reads before the first write. Don't overwrite the file in that state."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/index.ts",
+          "line": 406,
+          "severity": "consider",
+          "topic": "question",
+          "confidence": "medium",
+          "title": "refresh(target) inside persistActive broadcasts before commit, and a throw there leaves the registry switched but the switch reported failed",
+          "body": "`reg.setActive(target)` runs first, so `activeId()` is already the target. `WorkspaceSettings.refresh` (workspace-settings.ts:96-98) therefore calls `changed()` → `notifyOverridesChanged()`. That runs every main settings listener and broadcasts `settings:changed` with the target's effective settings while the gate is still closed and windows are still stamped to the old workspace (switch-transaction.ts:70-80). The `notifyOverridesChanged()` in `afterCommit` then does nothing, so the comment 'ready the moment it commits' doesn't hold. Separately, if anything in that refresh throws (`reg.availability` in `isAvailable`, or a settings listener inside `changed()`), `persistActive` rejects after the registry has already persisted the target. switch-transaction.ts:73-76 then reopens the gate on the old workspace and reports failure, while `reg.active()` names the new one. Could the refresh run without notifying (or be caught) inside `persistActive`, with the notification left to `afterCommit` alone?"
+        }
+      ],
+      "contracts": [
+        {
+          "action": "MachineSettingsStore.open reads userData/workspace-settings.json once and later writes the whole map back",
+          "location": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215",
+          "equivalent_path": "readFolderOverrides distinguishes ENOENT from other errors (settings-overrides.ts:80-83)",
+          "before_after": "open swallows every read error (218-222); update writes the full map (263-271)",
+          "visible_effect": "Lost uploadMode overrides change upload behaviour silently; lost records show folder files as pending again",
+          "failure_mode": "Transient EACCES/EIO at launch → empty store → next update overwrites the file, deleting every workspace's entries",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:215-237",
+            "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-271",
+            "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:76-84"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "MachineSettingsStore.update serializes concurrent updates",
+          "location": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244",
+          "equivalent_path": "",
+          "before_after": "Each change runs on a promise tail and reads this.get(id) inside the queued step, so overlapping updates don't drop each other; a failed write restores the previous entry",
+          "visible_effect": "",
+          "failure_mode": "Write error rejects the caller's promise and memory is restored",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-261"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Capture start re-reads the active workspace's folder overrides before handleCapture",
+          "location": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:192",
+          "equivalent_path": "requireCaptureWorkspace also refreshes after its availability probe (workspaces/index.ts:307)",
+          "before_after": "refresh is raced against a timeout and resolves unreadable on failure (workspace-settings.ts:66-81); the .catch swallows any other throw",
+          "visible_effect": "A sync-edited file becomes pending and its overrides stop applying for this capture",
+          "failure_mode": "Silent; the capture proceeds with the All level values",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:188-195",
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Workspace switch refreshes the target's overrides in persistActive",
+          "location": "apps/kaipu-record/src/main/workspaces/index.ts:402",
+          "equivalent_path": "switch-transaction persistActive/afterCommit",
+          "before_after": "setActive then refresh(target); refresh calls changed() since target is now active, before gate.commit",
+          "visible_effect": "settings:changed reaches windows before the commit",
+          "failure_mode": "A throw after setActive reopens the old gate while the registry already names the target",
+          "status": "open",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/index.ts:402-411",
+            "apps/kaipu-record/src/main/workspaces/switch-transaction.ts:70-80",
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99"
+          ],
+          "open_question": "Can reg.availability or a settings listener throw during a switch?",
+          "candidates": [
+            "apps/kaipu-record/src/main/workspaces/registry.ts"
+          ]
+        },
+        {
+          "action": "Capture policy read once at capture start and carried through result/toast/quiet bytes",
+          "location": "apps/kaipu-record/src/main/screenshots/capture-handler.ts:162",
+          "equivalent_path": "Previously finish read deps.settings() and fell back to the editor on throw",
+          "before_after": "readPolicy catches a throw → null → finish returns toEditor (288)",
+          "visible_effect": "Editor opens and copies nothing when the settings could not be read",
+          "failure_mode": "Logged with console.error; no silent copy",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238",
+            "apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "New settings-scope IPC handlers validate renderer input",
+          "location": "apps/kaipu-record/src/main/workspaces/index.ts:525",
+          "equivalent_path": "workspacesSwitch handler validates typeof id",
+          "before_after": "Strings and keys are checked with isOverridableKey; values are normalized in WorkspaceSettings.apply via normalizeOverride",
+          "visible_effect": "",
+          "failure_mode": "Invalid input returns ok:false",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/index.ts:519-560",
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-192"
+          ],
+          "open_question": "",
+          "candidates": []
+        }
+      ],
+      "thread_replies": [],
+      "summary": "Part 1 has two findings. (1) `MachineSettingsStore.open` handles every read error as an empty store. The next update then writes the whole map over `workspace-settings.json`, which silently loses every workspace's machine-bound `uploadMode` (upload consent) and its accepted folder-file records. Severity: fix. (2) A question about the switch. `refresh(target)` inside `persistActive` broadcasts the new settings before the switch commits. If it throws there, the registry has already switched but the switch is reported as failed. Severity: consider. The IPC input checks, the capture policy binding and the refresh at capture start look correct."
+    },
+    "ttft_ms": 8522,
+    "type": "result",
+    "duration_ms": 61415,
+    "uuid": "84b3bf96-dd4b-4dce-bbb8-c8fbc0418aea",
+    "ttft_stream_ms": 3646,
+    "time_to_request_ms": 111,
+    "first_content_frame_ms": 3646,
+    "queued_turn_count": 0,
+    "result_index": 0
+  }
+}

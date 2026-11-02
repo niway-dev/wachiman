@@ -1,0 +1,78 @@
+{
+  "pr": 478,
+  "head": "07a47af",
+  "mergeBase": "ef2ba136006c08682e52c81ce6094f7feeb35112",
+  "files": 30,
+  "kept": 30,
+  "dropped": [],
+  "batches": [
+    {
+      "index": 1,
+      "files": 9,
+      "lines": 572,
+      "maxRisk": 8,
+      "paths": [
+        "apps/kaipu-record/src/preload/index.ts",
+        "apps/kaipu-record/src/shared/types/electron-api.ts",
+        "apps/kaipu-record/src/shared/types/ipc.ts",
+        "apps/kaipu-record/src/shared/types/workspaces.ts",
+        "apps/kaipu-record/src/shared/workspace-name.ts",
+        "apps/kaipu-record/src/main/workspaces/identity.ts",
+        "apps/kaipu-record/src/main/workspaces/index.ts",
+        "apps/kaipu-record/src/main/workspaces/registry.ts",
+        "apps/kaipu-record/src/shared/workspace-name.test.ts"
+      ],
+      "questions": [
+        "destructive-step",
+        "overlapping-calls",
+        "bounded-wait",
+        "stale-write-back"
+      ]
+    },
+    {
+      "index": 2,
+      "files": 6,
+      "lines": 873,
+      "maxRisk": 4,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-dialog.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspaces-context.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/settings-pages.tsx",
+        "apps/kaipu-record/src/main/workspaces/registry-create-edit.test.ts",
+        "apps/kaipu-record/src/main/workspaces/registry.test.ts"
+      ],
+      "questions": []
+    },
+    {
+      "index": 3,
+      "files": 15,
+      "lines": 688,
+      "maxRisk": 4,
+      "paths": [
+        "packages/domain/src/constants/tags.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-dialog.test.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/record/record-page.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/settings-layout.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/workspaces-settings.test.tsx",
+        "apps/kaipu-record/src/renderer/src/test/setup.ts",
+        "packages/domain/src/constants/tags.test.ts",
+        "apps/kaipu-record/src/renderer/src/features/library/tags/tag-palette.css",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-dialog.module.css",
+        "apps/documentation/src/content/docs/architecture/decisions/0032-workspaces-identity-in-the-folder-one-active.mdx",
+        "apps/documentation/src/content/docs/backlog/several-workspaces.md",
+        "apps/documentation/src/content/docs/specs/2026-10-29-several-workspaces-design.md",
+        "packages/i18n/messages/en.json",
+        "packages/i18n/messages/es.json"
+      ],
+      "questions": []
+    }
+  ],
+  "bugFiles": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/registry.ts",
+      "batch": 1
+    }
+  ]
+}

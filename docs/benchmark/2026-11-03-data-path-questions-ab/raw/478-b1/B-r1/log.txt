@@ -1,0 +1,2 @@
+Data-path questions: destructive-step, overlapping-calls, bounded-wait, stale-write-back
+{"is_error":false,"terminal_reason":"success","turns":7,"cost_usd":0.6194364,"duration_ms":89492}

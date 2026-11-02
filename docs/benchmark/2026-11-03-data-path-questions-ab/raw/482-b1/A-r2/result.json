@@ -1,0 +1,283 @@
+{
+  "structuredOutput": {
+    "files_reviewed": [
+      "apps/kaipu-record/src/preload/index.ts",
+      "apps/kaipu-record/src/shared/types/electron-api.ts",
+      "apps/kaipu-record/src/shared/types/ipc.ts",
+      "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+      "apps/kaipu-record/src/shared/settings-scope.ts",
+      "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+      "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+      "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+      "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+      "apps/kaipu-record/src/main/workspaces/index.ts",
+      "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+    ],
+    "files_skipped": [],
+    "findings": [
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/index.ts",
+        "line": 406,
+        "severity": "consider",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "A throw from the overrides refresh fails the switch after the registry already moved",
+        "body": "`persistActive` now runs `reg.setActive(target)` and then `workspaceSettings.refresh(target)`. `switchWorkspace` treats any rejection of `persistActive` as a failed persist: it reopens the gate on the old workspace and aborts the windows (`switch-transaction.ts:71-77`). By that point, though, the registry has already stored `target` as active. `refresh` is not fully guarded. Its `read()` catches errors, but `isAvailable` → `reg.availability` (`registry.ts:624`) and `deps.changed()` → `notifyOverridesChanged` are not. `notifyOverridesChanged` runs every settings listener and `webContents.send`. If either one throws, the gate stamp says one workspace and the registry says another. The comment's \"a read that fails leaves them inactive\" covers only the file read. Wrapping this refresh in a `.catch` (as `screenshot-ipc.ts:192` does) would keep a settings hiccup from turning into a half-done switch."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/index.ts",
+        "line": 307,
+        "severity": "consider",
+        "topic": "perf",
+        "confidence": "high",
+        "title": "Each screenshot now probes availability and reads the folder file several times",
+        "body": "`screenshot-ipc.ts:192` refreshes the active workspace's overrides before `handleCapture`. Then the save in `finish` goes through `saveCaptureToWorkspace` → `requireCaptureWorkspace` (`screenshot-save.ts:98/117`), which now calls `refreshActiveWorkspaceSettings()` again. That repeats `reg.availability` right after the probe at line 304 and re-reads `settings.json`. Each read can wait up to `READ_TIMEOUT_MS` (2 s) on an evicted file (`workspace-settings.ts:27`), so a quiet save can be delayed by up to 2 s more. The second read can't change this capture's policy, because it was fixed at the start. Recording start (`recording-hub.ts:222`) reaches the same refresh through `vaultDir`. Consider refreshing only at the start points the ADR names, not inside `requireCaptureWorkspace`."
+      }
+    ],
+    "contracts": [
+      {
+        "action": "Switch persists active id then refreshes the target's folder overrides",
+        "location": "apps/kaipu-record/src/main/workspaces/index.ts:402",
+        "equivalent_path": "previous persistActive: reg.setActive(target) only",
+        "before_after": "switchWorkspace closes the gate, awaits persistActive, and on rejection reopens the gate and aborts the windows; afterCommit now also calls notifyOverridesChanged",
+        "visible_effect": "settings:changed is broadcast with the new workspace's effective settings (from refresh's changed() or from afterCommit)",
+        "failure_mode": "If refresh rejects (availability or listeners throw), the switch is reported failed while the registry already holds the target as active",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/switch-transaction.ts:70-77",
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99",
+          "apps/kaipu-record/src/main/workspaces/registry.ts:624-649"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Capture start re-reads the active folder overrides and fixes the copy policy",
+        "location": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:189",
+        "equivalent_path": "requireCaptureWorkspace (recording-hub vaultDir, screenshot-save) now also refreshes",
+        "before_after": "refresh, then handleCapture reads the workspace, then readPolicy reads getAppSettings().screenshotCopy once",
+        "visible_effect": "The copy and editor behaviour follow the policy captured at the start; the toast and editor receive the policy",
+        "failure_mode": "The refresh error is swallowed; a read timeout marks the file unreadable, so the overrides are inactive for this capture; the settings throwing gives a null policy and opens the editor with no copy",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:165",
+          "apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238",
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-81"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "New settings-scope IPC handlers",
+        "location": "apps/kaipu-record/src/main/workspaces/index.ts:525",
+        "equivalent_path": "workspaces:* handlers in the same file validate argument types and do not check the sender",
+        "before_after": "Argument types are checked, keys go through isOverridableKey, and values are normalized in WorkspaceSettings.apply",
+        "visible_effect": "Results return the effective settings; changed() broadcasts settings:changed",
+        "failure_mode": "Write failures return reason 'failed'; an unknown workspace returns 'unknown-workspace'; an unavailable folder returns 'unavailable'",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-216",
+          "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:30-54"
+        ],
+        "open_question": "",
+        "candidates": []
+      }
+    ],
+    "thread_replies": [],
+    "summary": "I found nothing that blocks the merge in part 1 and left two \"consider\" findings. No value imports were added under `src/shared` (`settings-scope.ts` holds only literals and type imports). The five new IPC channels check their argument types, and `WorkspaceSettings` checks each value before anything is written. Moving the settings store's snapshots, broadcasts and listeners to the effective settings is consistent across the file.\n\n1. **Workspace switch (`apps/kaipu-record/src/main/workspaces/index.ts:406`, medium confidence):** the overrides refresh inside `persistActive` runs after the registry has already saved the new active workspace. If that refresh throws, the switch transaction reports a failed switch and reopens the old workspace while the registry already points at the new one. A `.catch` on that refresh would prevent it.\n2. **Screenshot capture cost (`apps/kaipu-record/src/main/workspaces/index.ts:307`, high confidence):** one screenshot now checks the folder's availability and reads its settings file more than once. On an evicted file each read can wait up to 2 seconds, so a quiet save can take up to 2 seconds longer."
+  },
+  "text": "{\"files_reviewed\":[\"apps/kaipu-record/src/preload/index.ts\",\"apps/kaipu-record/src/shared/types/electron-api.ts\",\"apps/kaipu-record/src/shared/types/ipc.ts\",\"apps/kaipu-record/src/shared/types/screenshot-capture.ts\",\"apps/kaipu-record/src/shared/settings-scope.ts\",\"apps/kaipu-record/src/main/infrastructure/settings-store.ts\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts\",\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts\",\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts\",\"apps/kaipu-record/src/main/workspaces/index.ts\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/index.ts\",\"line\":406,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"A throw from the overrides refresh fails the switch after the registry already moved\",\"body\":\"`persistActive` now runs `reg.setActive(target)` and then `workspaceSettings.refresh(target)`. `switchWorkspace` treats any rejection of `persistActive` as a failed persist: it reopens the gate on the old workspace and aborts the windows (`switch-transaction.ts:71-77`). By that point, though, the registry has already stored `target` as active. `refresh` is not fully guarded. Its `read()` catches errors, but `isAvailable` → `reg.availability` (`registry.ts:624`) and `deps.changed()` → `notifyOverridesChanged` are not. `notifyOverridesChanged` runs every settings listener and `webContents.send`. If either one throws, the gate stamp says one workspace and the registry says another. The comment's \\\"a read that fails leaves them inactive\\\" covers only the file read. Wrapping this refresh in a `.catch` (as `screenshot-ipc.ts:192` does) would keep a settings hiccup from turning into a half-done switch.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/index.ts\",\"line\":307,\"severity\":\"consider\",\"topic\":\"perf\",\"confidence\":\"high\",\"title\":\"Each screenshot now probes availability and reads the folder file several times\",\"body\":\"`screenshot-ipc.ts:192` refreshes the active workspace's overrides before `handleCapture`. Then the save in `finish` goes through `saveCaptureToWorkspace` → `requireCaptureWorkspace` (`screenshot-save.ts:98/117`), which now calls `refreshActiveWorkspaceSettings()` again. That repeats `reg.availability` right after the probe at line 304 and re-reads `settings.json`. Each read can wait up to `READ_TIMEOUT_MS` (2 s) on an evicted file (`workspace-settings.ts:27`), so a quiet save can be delayed by up to 2 s more. The second read can't change this capture's policy, because it was fixed at the start. Recording start (`recording-hub.ts:222`) reaches the same refresh through `vaultDir`. Consider refreshing only at the start points the ADR names, not inside `requireCaptureWorkspace`.\"}],\"contracts\":[{\"action\":\"Switch persists active id then refreshes the target's folder overrides\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:402\",\"equivalent_path\":\"previous persistActive: reg.setActive(target) only\",\"before_after\":\"switchWorkspace closes the gate, awaits persistActive, and on rejection reopens the gate and aborts the windows; afterCommit now also calls notifyOverridesChanged\",\"visible_effect\":\"settings:changed is broadcast with the new workspace's effective settings (from refresh's changed() or from afterCommit)\",\"failure_mode\":\"If refresh rejects (availability or listeners throw), the switch is reported failed while the registry already holds the target as active\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/switch-transaction.ts:70-77\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99\",\"apps/kaipu-record/src/main/workspaces/registry.ts:624-649\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Capture start re-reads the active folder overrides and fixes the copy policy\",\"location\":\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:189\",\"equivalent_path\":\"requireCaptureWorkspace (recording-hub vaultDir, screenshot-save) now also refreshes\",\"before_after\":\"refresh, then handleCapture reads the workspace, then readPolicy reads getAppSettings().screenshotCopy once\",\"visible_effect\":\"The copy and editor behaviour follow the policy captured at the start; the toast and editor receive the policy\",\"failure_mode\":\"The refresh error is swallowed; a read timeout marks the file unreadable, so the overrides are inactive for this capture; the settings throwing gives a null policy and opens the editor with no copy\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:165\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-81\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"New settings-scope IPC handlers\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:525\",\"equivalent_path\":\"workspaces:* handlers in the same file validate argument types and do not check the sender\",\"before_after\":\"Argument types are checked, keys go through isOverridableKey, and values are normalized in WorkspaceSettings.apply\",\"visible_effect\":\"Results return the effective settings; changed() broadcasts settings:changed\",\"failure_mode\":\"Write failures return reason 'failed'; an unknown workspace returns 'unknown-workspace'; an unavailable folder returns 'unavailable'\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-216\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:30-54\"],\"open_question\":\"\",\"candidates\":[]}],\"thread_replies\":[],\"summary\":\"I found nothing that blocks the merge in part 1 and left two \\\"consider\\\" findings. No value imports were added under `src/shared` (`settings-scope.ts` holds only literals and type imports). The five new IPC channels check their argument types, and `WorkspaceSettings` checks each value before anything is written. Moving the settings store's snapshots, broadcasts and listeners to the effective settings is consistent across the file.\\n\\n1. **Workspace switch (`apps/kaipu-record/src/main/workspaces/index.ts:406`, medium confidence):** the overrides refresh inside `persistActive` runs after the registry has already saved the new active workspace. If that refresh throws, the switch transaction reports a failed switch and reopens the old workspace while the registry already points at the new one. A `.catch` on that refresh would prevent it.\\n2. **Screenshot capture cost (`apps/kaipu-record/src/main/workspaces/index.ts:307`, high confidence):** one screenshot now checks the folder's availability and reads its settings file more than once. On an evicted file each read can wait up to 2 seconds, so a quiet save can take up to 2 seconds longer.\"}",
+  "costUsd": 0.5702432,
+  "turns": 7,
+  "durationMs": 71363,
+  "terminalReason": "success",
+  "isError": false,
+  "raw": {
+    "duration_api_ms": 71156,
+    "stop_reason": "tool_use",
+    "session_id": "0698f8ec-e13a-4a9d-abca-e36d74b75242",
+    "total_cost_usd": 0.5702432,
+    "usage": {
+      "input_tokens": 10,
+      "cache_creation_input_tokens": 47271,
+      "cache_read_input_tokens": 190176,
+      "output_tokens": 7700,
+      "output_tokens_details": {
+        "thinking_tokens": 4146
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 47271,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 3240,
+          "cache_read_input_tokens": 51159,
+          "cache_creation_input_tokens": 1147,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1147
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "inputTokens": 10,
+        "outputTokens": 7700,
+        "cacheReadInputTokens": 190176,
+        "cacheCreationInputTokens": 47271,
+        "webSearchRequests": 0,
+        "costUSD": 0.5702432,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 4146,
+        "cacheCreationEphemeral5mInputTokens": 0,
+        "cacheCreationEphemeral1hInputTokens": 47271,
+        "canonicalModel": "claude-opus-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "permission_denials": [],
+    "terminal_reason": "completed",
+    "fast_mode_state": "off",
+    "fast_mode_disabled_reason": "sdk_opt_in_required",
+    "subagent_stats": {
+      "spawned": 0,
+      "requested": {
+        "background": 0,
+        "foreground": 0,
+        "unset": 0
+      },
+      "started_in_background": 0,
+      "max_depth": 0,
+      "spawned_by_subagents": 0,
+      "completed": 0,
+      "failed": 0,
+      "killed": {
+        "parent": 0,
+        "user": 0,
+        "system": 0
+      },
+      "refused": {
+        "depth_limit": 0,
+        "concurrency_limit": 0,
+        "budget": 0
+      },
+      "by_type": {}
+    },
+    "safety_stops": 0,
+    "is_error": false,
+    "num_turns": 7,
+    "subtype": "success",
+    "api_error_status": null,
+    "result": "{\"files_reviewed\":[\"apps/kaipu-record/src/preload/index.ts\",\"apps/kaipu-record/src/shared/types/electron-api.ts\",\"apps/kaipu-record/src/shared/types/ipc.ts\",\"apps/kaipu-record/src/shared/types/screenshot-capture.ts\",\"apps/kaipu-record/src/shared/settings-scope.ts\",\"apps/kaipu-record/src/main/infrastructure/settings-store.ts\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts\",\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts\",\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts\",\"apps/kaipu-record/src/main/workspaces/index.ts\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/index.ts\",\"line\":406,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"A throw from the overrides refresh fails the switch after the registry already moved\",\"body\":\"`persistActive` now runs `reg.setActive(target)` and then `workspaceSettings.refresh(target)`. `switchWorkspace` treats any rejection of `persistActive` as a failed persist: it reopens the gate on the old workspace and aborts the windows (`switch-transaction.ts:71-77`). By that point, though, the registry has already stored `target` as active. `refresh` is not fully guarded. Its `read()` catches errors, but `isAvailable` → `reg.availability` (`registry.ts:624`) and `deps.changed()` → `notifyOverridesChanged` are not. `notifyOverridesChanged` runs every settings listener and `webContents.send`. If either one throws, the gate stamp says one workspace and the registry says another. The comment's \\\"a read that fails leaves them inactive\\\" covers only the file read. Wrapping this refresh in a `.catch` (as `screenshot-ipc.ts:192` does) would keep a settings hiccup from turning into a half-done switch.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/index.ts\",\"line\":307,\"severity\":\"consider\",\"topic\":\"perf\",\"confidence\":\"high\",\"title\":\"Each screenshot now probes availability and reads the folder file several times\",\"body\":\"`screenshot-ipc.ts:192` refreshes the active workspace's overrides before `handleCapture`. Then the save in `finish` goes through `saveCaptureToWorkspace` → `requireCaptureWorkspace` (`screenshot-save.ts:98/117`), which now calls `refreshActiveWorkspaceSettings()` again. That repeats `reg.availability` right after the probe at line 304 and re-reads `settings.json`. Each read can wait up to `READ_TIMEOUT_MS` (2 s) on an evicted file (`workspace-settings.ts:27`), so a quiet save can be delayed by up to 2 s more. The second read can't change this capture's policy, because it was fixed at the start. Recording start (`recording-hub.ts:222`) reaches the same refresh through `vaultDir`. Consider refreshing only at the start points the ADR names, not inside `requireCaptureWorkspace`.\"}],\"contracts\":[{\"action\":\"Switch persists active id then refreshes the target's folder overrides\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:402\",\"equivalent_path\":\"previous persistActive: reg.setActive(target) only\",\"before_after\":\"switchWorkspace closes the gate, awaits persistActive, and on rejection reopens the gate and aborts the windows; afterCommit now also calls notifyOverridesChanged\",\"visible_effect\":\"settings:changed is broadcast with the new workspace's effective settings (from refresh's changed() or from afterCommit)\",\"failure_mode\":\"If refresh rejects (availability or listeners throw), the switch is reported failed while the registry already holds the target as active\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/switch-transaction.ts:70-77\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99\",\"apps/kaipu-record/src/main/workspaces/registry.ts:624-649\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Capture start re-reads the active folder overrides and fixes the copy policy\",\"location\":\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:189\",\"equivalent_path\":\"requireCaptureWorkspace (recording-hub vaultDir, screenshot-save) now also refreshes\",\"before_after\":\"refresh, then handleCapture reads the workspace, then readPolicy reads getAppSettings().screenshotCopy once\",\"visible_effect\":\"The copy and editor behaviour follow the policy captured at the start; the toast and editor receive the policy\",\"failure_mode\":\"The refresh error is swallowed; a read timeout marks the file unreadable, so the overrides are inactive for this capture; the settings throwing gives a null policy and opens the editor with no copy\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:165\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-81\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"New settings-scope IPC handlers\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:525\",\"equivalent_path\":\"workspaces:* handlers in the same file validate argument types and do not check the sender\",\"before_after\":\"Argument types are checked, keys go through isOverridableKey, and values are normalized in WorkspaceSettings.apply\",\"visible_effect\":\"Results return the effective settings; changed() broadcasts settings:changed\",\"failure_mode\":\"Write failures return reason 'failed'; an unknown workspace returns 'unknown-workspace'; an unavailable folder returns 'unavailable'\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-216\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:30-54\"],\"open_question\":\"\",\"candidates\":[]}],\"thread_replies\":[],\"summary\":\"I found nothing that blocks the merge in part 1 and left two \\\"consider\\\" findings. No value imports were added under `src/shared` (`settings-scope.ts` holds only literals and type imports). The five new IPC channels check their argument types, and `WorkspaceSettings` checks each value before anything is written. Moving the settings store's snapshots, broadcasts and listeners to the effective settings is consistent across the file.\\n\\n1. **Workspace switch (`apps/kaipu-record/src/main/workspaces/index.ts:406`, medium confidence):** the overrides refresh inside `persistActive` runs after the registry has already saved the new active workspace. If that refresh throws, the switch transaction reports a failed switch and reopens the old workspace while the registry already points at the new one. A `.catch` on that refresh would prevent it.\\n2. **Screenshot capture cost (`apps/kaipu-record/src/main/workspaces/index.ts:307`, high confidence):** one screenshot now checks the folder's availability and reads its settings file more than once. On an evicted file each read can wait up to 2 seconds, so a quiet save can take up to 2 seconds longer.\"}",
+    "structured_output": {
+      "files_reviewed": [
+        "apps/kaipu-record/src/preload/index.ts",
+        "apps/kaipu-record/src/shared/types/electron-api.ts",
+        "apps/kaipu-record/src/shared/types/ipc.ts",
+        "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+        "apps/kaipu-record/src/shared/settings-scope.ts",
+        "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+        "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+        "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+        "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+        "apps/kaipu-record/src/main/workspaces/index.ts",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+      ],
+      "files_skipped": [],
+      "findings": [
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/index.ts",
+          "line": 406,
+          "severity": "consider",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "A throw from the overrides refresh fails the switch after the registry already moved",
+          "body": "`persistActive` now runs `reg.setActive(target)` and then `workspaceSettings.refresh(target)`. `switchWorkspace` treats any rejection of `persistActive` as a failed persist: it reopens the gate on the old workspace and aborts the windows (`switch-transaction.ts:71-77`). By that point, though, the registry has already stored `target` as active. `refresh` is not fully guarded. Its `read()` catches errors, but `isAvailable` → `reg.availability` (`registry.ts:624`) and `deps.changed()` → `notifyOverridesChanged` are not. `notifyOverridesChanged` runs every settings listener and `webContents.send`. If either one throws, the gate stamp says one workspace and the registry says another. The comment's \"a read that fails leaves them inactive\" covers only the file read. Wrapping this refresh in a `.catch` (as `screenshot-ipc.ts:192` does) would keep a settings hiccup from turning into a half-done switch."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/index.ts",
+          "line": 307,
+          "severity": "consider",
+          "topic": "perf",
+          "confidence": "high",
+          "title": "Each screenshot now probes availability and reads the folder file several times",
+          "body": "`screenshot-ipc.ts:192` refreshes the active workspace's overrides before `handleCapture`. Then the save in `finish` goes through `saveCaptureToWorkspace` → `requireCaptureWorkspace` (`screenshot-save.ts:98/117`), which now calls `refreshActiveWorkspaceSettings()` again. That repeats `reg.availability` right after the probe at line 304 and re-reads `settings.json`. Each read can wait up to `READ_TIMEOUT_MS` (2 s) on an evicted file (`workspace-settings.ts:27`), so a quiet save can be delayed by up to 2 s more. The second read can't change this capture's policy, because it was fixed at the start. Recording start (`recording-hub.ts:222`) reaches the same refresh through `vaultDir`. Consider refreshing only at the start points the ADR names, not inside `requireCaptureWorkspace`."
+        }
+      ],
+      "contracts": [
+        {
+          "action": "Switch persists active id then refreshes the target's folder overrides",
+          "location": "apps/kaipu-record/src/main/workspaces/index.ts:402",
+          "equivalent_path": "previous persistActive: reg.setActive(target) only",
+          "before_after": "switchWorkspace closes the gate, awaits persistActive, and on rejection reopens the gate and aborts the windows; afterCommit now also calls notifyOverridesChanged",
+          "visible_effect": "settings:changed is broadcast with the new workspace's effective settings (from refresh's changed() or from afterCommit)",
+          "failure_mode": "If refresh rejects (availability or listeners throw), the switch is reported failed while the registry already holds the target as active",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/switch-transaction.ts:70-77",
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99",
+            "apps/kaipu-record/src/main/workspaces/registry.ts:624-649"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Capture start re-reads the active folder overrides and fixes the copy policy",
+          "location": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:189",
+          "equivalent_path": "requireCaptureWorkspace (recording-hub vaultDir, screenshot-save) now also refreshes",
+          "before_after": "refresh, then handleCapture reads the workspace, then readPolicy reads getAppSettings().screenshotCopy once",
+          "visible_effect": "The copy and editor behaviour follow the policy captured at the start; the toast and editor receive the policy",
+          "failure_mode": "The refresh error is swallowed; a read timeout marks the file unreadable, so the overrides are inactive for this capture; the settings throwing gives a null policy and opens the editor with no copy",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:165",
+            "apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238",
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-81"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "New settings-scope IPC handlers",
+          "location": "apps/kaipu-record/src/main/workspaces/index.ts:525",
+          "equivalent_path": "workspaces:* handlers in the same file validate argument types and do not check the sender",
+          "before_after": "Argument types are checked, keys go through isOverridableKey, and values are normalized in WorkspaceSettings.apply",
+          "visible_effect": "Results return the effective settings; changed() broadcasts settings:changed",
+          "failure_mode": "Write failures return reason 'failed'; an unknown workspace returns 'unknown-workspace'; an unavailable folder returns 'unavailable'",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-216",
+            "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:30-54"
+          ],
+          "open_question": "",
+          "candidates": []
+        }
+      ],
+      "thread_replies": [],
+      "summary": "I found nothing that blocks the merge in part 1 and left two \"consider\" findings. No value imports were added under `src/shared` (`settings-scope.ts` holds only literals and type imports). The five new IPC channels check their argument types, and `WorkspaceSettings` checks each value before anything is written. Moving the settings store's snapshots, broadcasts and listeners to the effective settings is consistent across the file.\n\n1. **Workspace switch (`apps/kaipu-record/src/main/workspaces/index.ts:406`, medium confidence):** the overrides refresh inside `persistActive` runs after the registry has already saved the new active workspace. If that refresh throws, the switch transaction reports a failed switch and reopens the old workspace while the registry already points at the new one. A `.catch` on that refresh would prevent it.\n2. **Screenshot capture cost (`apps/kaipu-record/src/main/workspaces/index.ts:307`, high confidence):** one screenshot now checks the folder's availability and reads its settings file more than once. On an evicted file each read can wait up to 2 seconds, so a quiet save can take up to 2 seconds longer."
+    },
+    "ttft_ms": 14482,
+    "type": "result",
+    "duration_ms": 71363,
+    "uuid": "0cc11101-e7f5-44cb-8daa-4e438e249a55",
+    "ttft_stream_ms": 749,
+    "time_to_request_ms": 120,
+    "first_content_frame_ms": 749,
+    "queued_turn_count": 0,
+    "result_index": 0
+  }
+}

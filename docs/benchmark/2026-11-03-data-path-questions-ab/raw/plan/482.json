@@ -1,0 +1,141 @@
+{
+  "pr": 482,
+  "head": "833ca60",
+  "mergeBase": "aac720234565627a8277413bb48618dc966e0aac",
+  "files": 47,
+  "kept": 47,
+  "dropped": [],
+  "batches": [
+    {
+      "index": 1,
+      "files": 11,
+      "lines": 682,
+      "maxRisk": 8,
+      "paths": [
+        "apps/kaipu-record/src/preload/index.ts",
+        "apps/kaipu-record/src/shared/types/electron-api.ts",
+        "apps/kaipu-record/src/shared/types/ipc.ts",
+        "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+        "apps/kaipu-record/src/shared/settings-scope.ts",
+        "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+        "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+        "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+        "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+        "apps/kaipu-record/src/main/workspaces/index.ts",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+      ],
+      "questions": [
+        "destructive-step",
+        "read-error-as-empty",
+        "overlapping-calls",
+        "stale-write-back"
+      ]
+    },
+    {
+      "index": 2,
+      "files": 6,
+      "lines": 806,
+      "maxRisk": 5,
+      "paths": [
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+        "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts",
+        "apps/kaipu-record/src/main/screenshots/capture-handler.test.ts",
+        "apps/kaipu-record/src/main/screenshots/capture-toast-window.test.ts",
+        "apps/kaipu-record/src/main/screenshots/last-quiet-capture.test.ts",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts"
+      ],
+      "questions": [
+        "destructive-step",
+        "overlapping-calls",
+        "bounded-wait",
+        "stale-write-back"
+      ]
+    },
+    {
+      "index": 3,
+      "files": 8,
+      "lines": 573,
+      "maxRisk": 4,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/features/recording/hooks/use-recording-setup.ts",
+        "apps/kaipu-record/src/renderer/src/features/screenshots/image-source/types.ts",
+        "apps/kaipu-record/src/renderer/src/features/screenshots/use-screenshot-capture.ts",
+        "apps/kaipu-record/src/renderer/src/pages/cloud/cloud-page.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/brand-badge-settings.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/countdown-settings.tsx",
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.test.ts"
+      ],
+      "questions": [
+        "stale-write-back"
+      ]
+    },
+    {
+      "index": 4,
+      "files": 7,
+      "lines": 990,
+      "maxRisk": 4,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/pages/settings/scope/scope-controls.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/scope/settings-scope.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/screenshot-copy-settings.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/settings-layout.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/settings-pages.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/settings-panel.tsx",
+        "apps/kaipu-record/src/renderer/src/shell/app-shell.tsx"
+      ],
+      "questions": []
+    },
+    {
+      "index": 5,
+      "files": 9,
+      "lines": 997,
+      "maxRisk": 4,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/ui/select.tsx",
+        "apps/kaipu-record/src/renderer/src/features/recording/hooks/use-recording-setup.test.tsx",
+        "apps/kaipu-record/src/renderer/src/features/screenshots/use-screenshot-capture.test.ts",
+        "apps/kaipu-record/src/renderer/src/pages/cloud/cloud-page.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/scope/settings-scope.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/use-app-settings.test.tsx",
+        "apps/kaipu-record/src/renderer/src/test/setup.ts",
+        "apps/kaipu-record/src/renderer/src/pages/settings/scope/scope.module.css"
+      ],
+      "questions": []
+    },
+    {
+      "index": 6,
+      "files": 6,
+      "lines": 145,
+      "maxRisk": 1,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/ui/select.module.css",
+        "apps/documentation/src/content/docs/architecture/decisions/0034-per-workspace-setting-overrides.mdx",
+        "apps/documentation/src/content/docs/backlog/several-workspaces.md",
+        "apps/documentation/src/content/docs/specs/2026-10-29-several-workspaces-design.md",
+        "packages/i18n/messages/en.json",
+        "packages/i18n/messages/es.json"
+      ],
+      "questions": []
+    }
+  ],
+  "bugFiles": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+      "batch": 2
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts",
+      "batch": 1
+    },
+    {
+      "path": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+      "batch": 1
+    },
+    {
+      "path": "apps/kaipu-record/src/main/index.ts",
+      "batch": 0
+    }
+  ]
+}

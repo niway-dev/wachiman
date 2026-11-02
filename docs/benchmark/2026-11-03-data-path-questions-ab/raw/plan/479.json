@@ -1,0 +1,130 @@
+{
+  "pr": 479,
+  "head": "aac7202",
+  "mergeBase": "7620879e5988214dc446ab7f41d4a22ad3dd9dfe",
+  "files": 61,
+  "kept": 61,
+  "dropped": [],
+  "batches": [
+    {
+      "index": 1,
+      "files": 13,
+      "lines": 547,
+      "maxRisk": 8,
+      "paths": [
+        "apps/kaipu-record/src/preload/index.ts",
+        "apps/kaipu-record/src/shared/types/electron-api.ts",
+        "apps/kaipu-record/src/shared/types/ipc.ts",
+        "apps/kaipu-record/src/shared/types/workspaces.ts",
+        "apps/kaipu-record/src/main/library/drag-ledger.ts",
+        "apps/kaipu-record/src/main/library/index.ts",
+        "apps/kaipu-record/src/main/library/item-lock.ts",
+        "apps/kaipu-record/src/main/library/library-vault.ts",
+        "apps/kaipu-record/src/main/library/tag-repository.ts",
+        "apps/kaipu-record/src/main/library/video-edit-session.ts",
+        "apps/kaipu-record/src/main/screenshots/screenshot-save.ts",
+        "apps/kaipu-record/src/main/workspaces/index.ts",
+        "apps/kaipu-record/src/main/workspaces/move-group.ts"
+      ],
+      "questions": [
+        "destructive-step",
+        "overlapping-calls"
+      ]
+    },
+    {
+      "index": 2,
+      "files": 5,
+      "lines": 853,
+      "maxRisk": 5,
+      "paths": [
+        "apps/kaipu-record/src/main/workspaces/move-item.ts",
+        "apps/kaipu-record/src/main/workspaces/switch-transaction.ts",
+        "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+        "apps/kaipu-record/src/main/library/video-edit-session.test.ts",
+        "apps/kaipu-record/src/main/workspaces/move-group.test.ts"
+      ],
+      "questions": [
+        "destructive-step",
+        "read-error-as-empty",
+        "overlapping-calls",
+        "stale-write-back"
+      ]
+    },
+    {
+      "index": 3,
+      "files": 11,
+      "lines": 934,
+      "maxRisk": 4,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/app/router.tsx",
+        "apps/kaipu-record/src/renderer/src/features/library/components/select-check.tsx",
+        "apps/kaipu-record/src/renderer/src/features/library/components/video-card.tsx",
+        "apps/kaipu-record/src/renderer/src/features/library/components/video-row.tsx",
+        "apps/kaipu-record/src/renderer/src/features/library/hooks/use-library-selection.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/header-slot.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/item-move-menu.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/item-workspace-chip.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move-exports-dialog.tsx",
+        "apps/kaipu-record/src/main/workspaces/move-item.test.ts",
+        "apps/kaipu-record/src/main/workspaces/switch-transaction.test.ts"
+      ],
+      "questions": []
+    },
+    {
+      "index": 4,
+      "files": 17,
+      "lines": 865,
+      "maxRisk": 4,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move-flow.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move-store.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move-target-list.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/selection-bar.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/use-move-items.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/prepare-switch.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-dialog.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspaces-context.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/library-detail/library-detail-page.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/library/library-page.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/settings-pages.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/video-editor/video-editor-page.tsx",
+        "apps/kaipu-record/src/renderer/src/shell/app-shell.tsx",
+        "apps/kaipu-record/src/renderer/src/features/library/hooks/use-library-selection.test.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move-flow.test.ts"
+      ],
+      "questions": []
+    },
+    {
+      "index": 5,
+      "files": 15,
+      "lines": 968,
+      "maxRisk": 2,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move.test.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-dialog.test.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/library/library-page.select.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/workspaces-settings.test.tsx",
+        "apps/kaipu-record/src/renderer/src/test/setup.ts",
+        "apps/kaipu-record/src/renderer/src/features/library/components/select-check.module.css",
+        "apps/kaipu-record/src/renderer/src/features/library/components/video-card.module.css",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move.module.css",
+        "apps/kaipu-record/src/renderer/src/shell/app-shell.module.css",
+        "apps/documentation/src/content/docs/architecture/decisions/0033-moving-an-item-between-workspaces.mdx",
+        "apps/documentation/src/content/docs/backlog/several-workspaces.md",
+        "apps/documentation/src/content/docs/specs/2026-10-29-several-workspaces-design.md",
+        "packages/i18n/messages/en.json",
+        "packages/i18n/messages/es.json"
+      ],
+      "questions": []
+    }
+  ],
+  "bugFiles": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "batch": 2
+    }
+  ]
+}

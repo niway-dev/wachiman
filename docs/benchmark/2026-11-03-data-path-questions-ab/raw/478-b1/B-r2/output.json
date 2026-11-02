@@ -1,0 +1,111 @@
+{
+  "files_reviewed": [
+    "apps/kaipu-record/src/preload/index.ts",
+    "apps/kaipu-record/src/shared/types/electron-api.ts",
+    "apps/kaipu-record/src/shared/types/ipc.ts",
+    "apps/kaipu-record/src/shared/types/workspaces.ts",
+    "apps/kaipu-record/src/shared/workspace-name.ts",
+    "apps/kaipu-record/src/main/workspaces/identity.ts",
+    "apps/kaipu-record/src/main/workspaces/index.ts",
+    "apps/kaipu-record/src/main/workspaces/registry.ts",
+    "apps/kaipu-record/src/shared/workspace-name.test.ts"
+  ],
+  "files_skipped": [],
+  "findings": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/registry.ts",
+      "line": 407,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "Color upgrade reverts a rename made on another Mac",
+      "body": "`upgradeDefaultColor` decides to upgrade from the registry's cached entry (`owner.name === \"Default workspace\" && owner.color === \"rose\"`, line 407). It checks only the folder file's **color** (line 411), and then sets `pendingIdentity`. On the next probe, the `pendingIdentity` branch writes the cached `name`, `color` and `initials` over the file (lines 628-633).\n\nHere is the case that breaks. On another Mac the user renamed the folder's workspace to \"Work\" and kept rose. This Mac's cache still says \"Default workspace\" because no probe has refreshed it yet. On launch the upgrade runs, the probe at line 427 writes `name: \"Default workspace\"` into identity.json, and the rename is silently undone on both machines.\n\nThe same thing happens when the folder is not connected at launch: `readIdentity` does not return `ok` there, so neither guard applies (lines 410-412), and the stale name is written whenever the folder comes back. The doc comment at lines 403-404 says the reverse (\"A name or color the user already changed, here or on another Mac, is left as it is\").\n\nThe fix: skip the upgrade when `file.identity.name !== DEFAULT_WORKSPACE_NAME`. Better still, have the deferred write touch only the field the upgrade owns (color), so it doesn't replay the cached name."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/registry.ts",
+      "line": 520,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "create's undo deletes identity.json without checking that it wrote that file",
+      "body": "Two creates with the same name can overlap. A runs `mkdir` and B's `checkNewLocation` (line 477) still sees the folder as `empty`. B then overwrites A's identity.json (line 506), and B's `update` throws `NameTakenError`. B's `undo` then calls `removeIdentity(path)` (line 494), which force-removes the file without checking that it still holds B's id. A's registered workspace is left either pointing at B's id (\"different\" → unavailable) or with no identity at all, until a later probe rewrites it.\n\nNothing re-verifies the target between the decision and the delete. Compare the id in the file with `identity.id` before removing it, or serialize the whole create under a lock."
+    },
+    {
+      "path": "apps/kaipu-record/src/shared/workspace-name.ts",
+      "line": 48,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "A name made only of reserved characters gives the folder \"Kaipu Record — \" (trailing space)",
+      "body": "The trailing strip applies only to `safe`. For a valid name such as `?`, `...` or `:` the result of the strip is empty, so the function returns `\"Kaipu Record — \"`, which ends in a space. That contradicts the docstring's guarantee and is a name Windows refuses. All such names also map to the same folder. Fall back to a placeholder (or refuse the name) when `safe` is empty."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/registry.ts",
+      "line": 449,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "low",
+      "title": "checkNewLocation reports an invalid name as \"parent-missing\"",
+      "body": "An empty or control-character name returns `{ path: null, state: \"parent-missing\" }`. The type documents that state as \"the folder next to the Default workspace cannot be reached (an unplugged drive)\". The IPC handler does the same for a non-string (index.ts:314). Does the dialog ever show the \"drive not connected\" message while the name field is empty? A separate state, or not probing for an invalid name, would keep the two apart."
+    }
+  ],
+  "contracts": [
+    {
+      "action": "Deferred `pendingIdentity` write set by the one-time color upgrade",
+      "location": "apps/kaipu-record/src/main/workspaces/registry.ts:405-428",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/registry.ts:407-412",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:625-638"
+      ],
+      "equivalent_path": "availability() stale-cache branch, where the folder file wins",
+      "before_after": "The upgrade checks only the file's color, then the probe writes the cached name, color and initials over the file.",
+      "visible_effect": "The workspace name reverts to \"Default workspace\" in the switcher and the window title.",
+      "failure_mode": "A rename made on another Mac, or while the folder was unplugged, is silently overwritten.",
+      "evidence_checked": true
+    },
+    {
+      "action": "workspaces:create IPC",
+      "location": "apps/kaipu-record/src/main/workspaces/index.ts:261-278",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/index.ts:248-254",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:790-795"
+      ],
+      "equivalent_path": "addWorkspace (index.ts:216-255)",
+      "before_after": "Same sequence as the sibling: dismissHint, availability, runSwitch, broadcastState. Input is type-checked; the registry validates name and color.",
+      "visible_effect": "The result carries switchResult, and the state is broadcast to every window.",
+      "failure_mode": "A dismissHint persist failure rejects the IPC after the workspace is already registered, the same as in addWorkspace.",
+      "evidence_checked": true
+    },
+    {
+      "action": "removeIdentity in create's undo",
+      "location": "apps/kaipu-record/src/main/workspaces/registry.ts:493-496",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/identity.ts:166-170",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:505-522"
+      ],
+      "equivalent_path": "writeIdentity's own cleanup (identity.ts:155-158)",
+      "before_after": "Force-removes identity.json without re-checking its id. rmdir protects user content.",
+      "failure_mode": "A concurrent create can lose the identity of the create that won.",
+      "evidence_checked": true
+    },
+    {
+      "action": "workspaces:edit IPC",
+      "location": "apps/kaipu-record/src/main/workspaces/registry.ts:534-606",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/index.ts:280-298",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:580-604"
+      ],
+      "equivalent_path": "availability() writeIdentity paths",
+      "before_after": "Probes, writes the folder file first, then updates the registry; rolls the file back if the registry write fails.",
+      "visible_effect": "refreshTitles and broadcastState refresh the window titles and tiles.",
+      "failure_mode": "Folder write failure → not-writable, nothing changed. Registry write failure → previous file restored (only when the file was ok).",
+      "evidence_checked": true
+    }
+  ],
+  "thread_replies": [],
+  "summary": "Part 1 has one finding to fix and three smaller ones to consider.\n\nThe fix is in the one-time color upgrade. It checks the folder file's color but not its name, and the deferred `pendingIdentity` write then writes the cached name, color and initials over the file. A rename made on another Mac, or while the folder was unplugged, comes back as \"Default workspace\" with nothing to tell the user.\n\nThe three to consider:\n- **create's undo:** it deletes identity.json without checking that the file is the one it wrote, so two overlapping creates with the same name can strip the winner's identity.\n- **Folder name:** `newWorkspaceFolderName` can return a name ending in a space (for example for `?` or `...`), which its docstring says it never does and Windows refuses.\n- **`checkNewLocation`:** it reports an empty or invalid name as \"parent-missing\", the same state as an unplugged drive.\n\nThe IPC handlers follow the same steps as their siblings and type-check their input. `src/shared/workspace-name.ts` imports nothing, which keeps to the preload bundle rule."
+}

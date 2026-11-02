@@ -1,0 +1,283 @@
+{
+  "structuredOutput": {
+    "files_reviewed": [
+      "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+      "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts",
+      "apps/kaipu-record/src/main/screenshots/capture-handler.test.ts",
+      "apps/kaipu-record/src/main/screenshots/capture-toast-window.test.ts",
+      "apps/kaipu-record/src/main/screenshots/last-quiet-capture.test.ts",
+      "apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts"
+    ],
+    "files_skipped": [],
+    "findings": [
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+        "line": 224,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "Folder-file read-modify-write has no per-workspace lock; two overlapping edits lose one",
+        "body": "`applyFolder` reads the folder file (line 224), awaits, builds `next` from that read, and writes the whole file (line 241). Nothing serializes calls: the IPC handlers in `apps/kaipu-record/src/main/workspaces/index.ts:533-557` call `setOverride`/`resetOverrides`/`copyToAll` directly, and only `MachineSettingsStore.update` has a tail queue (`settings-overrides.ts:244-260`). If the user flips two workspace-scoped settings quickly (say the badge, then copy mode), A and B both read base X. A writes X+a, then B writes X+b, so A's key is gone from the file. Both calls return `ok`, and B's answer leaves the change out without any message. `refresh` can race the same way: a read that started before the write can finish after line 242 and overwrite the cache with the old bytes (line 92). The machine record now holds the new sha, so `stateOf` reports `pending` and this Mac's own overrides stop applying until the next refresh. Fix: chain every folder read-and-write per workspace id on one promise tail, the way `MachineSettingsStore` does, and have `refresh` use the same tail."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+        "line": 210,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "high",
+        "title": "Partial write on the failure path updates the cache without telling anyone and reports `failed`",
+        "body": "Two cases. (1) `writeFolderOverrides` succeeds and the cache is set to the new bytes (lines 241-242), then `machine.update` (243) throws. The record keeps the old sha, so `stateOf` now returns `pending` for this Mac's own write (`folderState`, `settings-overrides.ts:168`), and every folder override of the workspace goes inactive. (2) In a mixed change (`resetOverrides` with every key, or `copyToAll`), the folder write succeeds and then the `uploadMode` machine update fails. In both cases the catch at line 210 returns `failed` and never calls `deps.changed()`. Windows keep the old effective settings while the resolver's cache already holds the new ones, and the folder file has changed even though the user was told nothing was saved. Call `deps.changed()` in the catch, or before returning `failed` once any write has landed, so the state that is shown matches what is on disk."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+        "line": 231,
+        "severity": "consider",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "Rewriting the folder file drops keys this version does not know or cannot validate",
+        "body": "`base` comes from `read.overrides`, which `readFolderOverrides` has already filtered down to the four valid folder keys (`settings-overrides.ts:97-102`). A file in a synced folder that a newer app version wrote, with an extra key or a value this build rejects, loses those entries the first time this Mac edits any key. Consider keeping the raw `overrides` object from the file and changing only the keys being edited."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+        "line": 126,
+        "severity": "consider",
+        "topic": "perf",
+        "confidence": "medium",
+        "title": "The All scope refreshes every workspace one after another; the wait is not bounded as a whole",
+        "body": "`getScoped(\"all\")` awaits `refresh` for each workspace in turn. Each refresh is `isAvailable`, which has no timeout (`reg.availability`), plus a read capped at 2 s. Opening Settings at the All scope can therefore wait about N × 2 s plus the availability probes when several folders sit on evicted or slow cloud drives. Running the refreshes in parallel (`Promise.all`) would cap the wait at roughly one timeout. `getScoped(id)` also calls `isAvailable` twice (line 155, then again inside `refresh`)."
+      }
+    ],
+    "contracts": [
+      {
+        "action": "Edit a folder-bound override (setOverride/resetOverrides/copyToAll -> applyFolder)",
+        "location": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:218",
+        "equivalent_path": "MachineSettingsStore.update serializes its writes on a tail promise",
+        "before_after": "MachineSettingsStore chains each update; applyFolder reads the disk, awaits, then writes the whole file with no chaining",
+        "visible_effect": "The Settings page gets back deps.effective(), computed from the cache that applyFolder set",
+        "failure_mode": "Overlapping calls lose one edit. If the machine update fails after the file write, the state turns pending and nothing is broadcast",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-260",
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:224-247",
+          "apps/kaipu-record/src/main/workspaces/index.ts:533"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Read a folder file with a timeout at capture start or a workspace switch (refresh)",
+        "location": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88",
+        "equivalent_path": "refreshActiveWorkspaceSettings at capture start",
+        "before_after": "The read is raced against a 2 s timeout; isAvailable before it has no bound",
+        "visible_effect": "Capture start waits on isAvailable plus up to 2 s",
+        "failure_mode": "A read that times out counts as unreadable and the overrides go inactive. A hung availability probe blocks capture start",
+        "status": "open",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-81",
+          "apps/kaipu-record/src/main/workspaces/index.ts:122",
+          "apps/kaipu-record/src/main/workspaces/index.ts:146-148"
+        ],
+        "open_question": "Does reg.availability have its own timeout?",
+        "candidates": [
+          "apps/kaipu-record/src/main/workspaces/registry.ts"
+        ]
+      }
+    ],
+    "thread_replies": [],
+    "summary": "Part 2 has four findings, all in `workspace-settings.ts`; the five test files had nothing to flag.\n\n1. **Lost edits (fix):** nothing serializes the folder file's read-modify-write. Two overlapping edits to the same workspace drop one of them without telling the user. A refresh that overlaps a write can also leave this Mac's own overrides showing as `pending`.\n2. **Failure path (fix):** when a write lands only partly, the call reports `failed` but never calls `changed()`. The cache and the folder file no longer match what the windows show.\n3. **Unknown keys dropped (consider):** rewriting the folder file removes keys this build does not know or rejects.\n4. **Slow All scope (consider):** opening Settings at the All scope refreshes every workspace one after another, so the wait grows with the number of slow or evicted folders.\n\nOne question stays open: whether `reg.availability`, which every refresh awaits, has its own timeout. I didn't read the registry to check."
+  },
+  "text": "{\"files_reviewed\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"apps/kaipu-record/src/main/infrastructure/settings-store.test.ts\",\"apps/kaipu-record/src/main/screenshots/capture-handler.test.ts\",\"apps/kaipu-record/src/main/screenshots/capture-toast-window.test.ts\",\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.test.ts\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"line\":224,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Folder-file read-modify-write has no per-workspace lock; two overlapping edits lose one\",\"body\":\"`applyFolder` reads the folder file (line 224), awaits, builds `next` from that read, and writes the whole file (line 241). Nothing serializes calls: the IPC handlers in `apps/kaipu-record/src/main/workspaces/index.ts:533-557` call `setOverride`/`resetOverrides`/`copyToAll` directly, and only `MachineSettingsStore.update` has a tail queue (`settings-overrides.ts:244-260`). If the user flips two workspace-scoped settings quickly (say the badge, then copy mode), A and B both read base X. A writes X+a, then B writes X+b, so A's key is gone from the file. Both calls return `ok`, and B's answer leaves the change out without any message. `refresh` can race the same way: a read that started before the write can finish after line 242 and overwrite the cache with the old bytes (line 92). The machine record now holds the new sha, so `stateOf` reports `pending` and this Mac's own overrides stop applying until the next refresh. Fix: chain every folder read-and-write per workspace id on one promise tail, the way `MachineSettingsStore` does, and have `refresh` use the same tail.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"line\":210,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"high\",\"title\":\"Partial write on the failure path updates the cache without telling anyone and reports `failed`\",\"body\":\"Two cases. (1) `writeFolderOverrides` succeeds and the cache is set to the new bytes (lines 241-242), then `machine.update` (243) throws. The record keeps the old sha, so `stateOf` now returns `pending` for this Mac's own write (`folderState`, `settings-overrides.ts:168`), and every folder override of the workspace goes inactive. (2) In a mixed change (`resetOverrides` with every key, or `copyToAll`), the folder write succeeds and then the `uploadMode` machine update fails. In both cases the catch at line 210 returns `failed` and never calls `deps.changed()`. Windows keep the old effective settings while the resolver's cache already holds the new ones, and the folder file has changed even though the user was told nothing was saved. Call `deps.changed()` in the catch, or before returning `failed` once any write has landed, so the state that is shown matches what is on disk.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"line\":231,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Rewriting the folder file drops keys this version does not know or cannot validate\",\"body\":\"`base` comes from `read.overrides`, which `readFolderOverrides` has already filtered down to the four valid folder keys (`settings-overrides.ts:97-102`). A file in a synced folder that a newer app version wrote, with an extra key or a value this build rejects, loses those entries the first time this Mac edits any key. Consider keeping the raw `overrides` object from the file and changing only the keys being edited.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"line\":126,\"severity\":\"consider\",\"topic\":\"perf\",\"confidence\":\"medium\",\"title\":\"The All scope refreshes every workspace one after another; the wait is not bounded as a whole\",\"body\":\"`getScoped(\\\"all\\\")` awaits `refresh` for each workspace in turn. Each refresh is `isAvailable`, which has no timeout (`reg.availability`), plus a read capped at 2 s. Opening Settings at the All scope can therefore wait about N × 2 s plus the availability probes when several folders sit on evicted or slow cloud drives. Running the refreshes in parallel (`Promise.all`) would cap the wait at roughly one timeout. `getScoped(id)` also calls `isAvailable` twice (line 155, then again inside `refresh`).\"}],\"contracts\":[{\"action\":\"Edit a folder-bound override (setOverride/resetOverrides/copyToAll -> applyFolder)\",\"location\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:218\",\"equivalent_path\":\"MachineSettingsStore.update serializes its writes on a tail promise\",\"before_after\":\"MachineSettingsStore chains each update; applyFolder reads the disk, awaits, then writes the whole file with no chaining\",\"visible_effect\":\"The Settings page gets back deps.effective(), computed from the cache that applyFolder set\",\"failure_mode\":\"Overlapping calls lose one edit. If the machine update fails after the file write, the state turns pending and nothing is broadcast\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-260\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:224-247\",\"apps/kaipu-record/src/main/workspaces/index.ts:533\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Read a folder file with a timeout at capture start or a workspace switch (refresh)\",\"location\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88\",\"equivalent_path\":\"refreshActiveWorkspaceSettings at capture start\",\"before_after\":\"The read is raced against a 2 s timeout; isAvailable before it has no bound\",\"visible_effect\":\"Capture start waits on isAvailable plus up to 2 s\",\"failure_mode\":\"A read that times out counts as unreadable and the overrides go inactive. A hung availability probe blocks capture start\",\"status\":\"open\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-81\",\"apps/kaipu-record/src/main/workspaces/index.ts:122\",\"apps/kaipu-record/src/main/workspaces/index.ts:146-148\"],\"open_question\":\"Does reg.availability have its own timeout?\",\"candidates\":[\"apps/kaipu-record/src/main/workspaces/registry.ts\"]}],\"thread_replies\":[],\"summary\":\"Part 2 has four findings, all in `workspace-settings.ts`; the five test files had nothing to flag.\\n\\n1. **Lost edits (fix):** nothing serializes the folder file's read-modify-write. Two overlapping edits to the same workspace drop one of them without telling the user. A refresh that overlaps a write can also leave this Mac's own overrides showing as `pending`.\\n2. **Failure path (fix):** when a write lands only partly, the call reports `failed` but never calls `changed()`. The cache and the folder file no longer match what the windows show.\\n3. **Unknown keys dropped (consider):** rewriting the folder file removes keys this build does not know or rejects.\\n4. **Slow All scope (consider):** opening Settings at the All scope refreshes every workspace one after another, so the wait grows with the number of slow or evicted folders.\\n\\nOne question stays open: whether `reg.availability`, which every refresh awaits, has its own timeout. I didn't read the registry to check.\"}",
+  "costUsd": 0.47658960000000006,
+  "turns": 5,
+  "durationMs": 60360,
+  "terminalReason": "success",
+  "isError": false,
+  "raw": {
+    "duration_api_ms": 60247,
+    "stop_reason": "tool_use",
+    "session_id": "480378ff-dde1-4688-bb6d-7c122f816913",
+    "total_cost_usd": 0.47658960000000006,
+    "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 41893,
+      "cache_read_input_tokens": 86008,
+      "output_tokens": 6211,
+      "output_tokens_details": {
+        "thinking_tokens": 2970
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 41893,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 2889,
+          "cache_read_input_tokens": 43661,
+          "cache_creation_input_tokens": 3267,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 3267
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "inputTokens": 6,
+        "outputTokens": 6211,
+        "cacheReadInputTokens": 86008,
+        "cacheCreationInputTokens": 41893,
+        "webSearchRequests": 0,
+        "costUSD": 0.47658960000000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 2970,
+        "cacheCreationEphemeral5mInputTokens": 0,
+        "cacheCreationEphemeral1hInputTokens": 41893,
+        "canonicalModel": "claude-opus-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "permission_denials": [],
+    "terminal_reason": "completed",
+    "fast_mode_state": "off",
+    "fast_mode_disabled_reason": "sdk_opt_in_required",
+    "subagent_stats": {
+      "spawned": 0,
+      "requested": {
+        "background": 0,
+        "foreground": 0,
+        "unset": 0
+      },
+      "started_in_background": 0,
+      "max_depth": 0,
+      "spawned_by_subagents": 0,
+      "completed": 0,
+      "failed": 0,
+      "killed": {
+        "parent": 0,
+        "user": 0,
+        "system": 0
+      },
+      "refused": {
+        "depth_limit": 0,
+        "concurrency_limit": 0,
+        "budget": 0
+      },
+      "by_type": {}
+    },
+    "safety_stops": 0,
+    "is_error": false,
+    "num_turns": 5,
+    "subtype": "success",
+    "api_error_status": null,
+    "result": "{\"files_reviewed\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"apps/kaipu-record/src/main/infrastructure/settings-store.test.ts\",\"apps/kaipu-record/src/main/screenshots/capture-handler.test.ts\",\"apps/kaipu-record/src/main/screenshots/capture-toast-window.test.ts\",\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.test.ts\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"line\":224,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Folder-file read-modify-write has no per-workspace lock; two overlapping edits lose one\",\"body\":\"`applyFolder` reads the folder file (line 224), awaits, builds `next` from that read, and writes the whole file (line 241). Nothing serializes calls: the IPC handlers in `apps/kaipu-record/src/main/workspaces/index.ts:533-557` call `setOverride`/`resetOverrides`/`copyToAll` directly, and only `MachineSettingsStore.update` has a tail queue (`settings-overrides.ts:244-260`). If the user flips two workspace-scoped settings quickly (say the badge, then copy mode), A and B both read base X. A writes X+a, then B writes X+b, so A's key is gone from the file. Both calls return `ok`, and B's answer leaves the change out without any message. `refresh` can race the same way: a read that started before the write can finish after line 242 and overwrite the cache with the old bytes (line 92). The machine record now holds the new sha, so `stateOf` reports `pending` and this Mac's own overrides stop applying until the next refresh. Fix: chain every folder read-and-write per workspace id on one promise tail, the way `MachineSettingsStore` does, and have `refresh` use the same tail.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"line\":210,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"high\",\"title\":\"Partial write on the failure path updates the cache without telling anyone and reports `failed`\",\"body\":\"Two cases. (1) `writeFolderOverrides` succeeds and the cache is set to the new bytes (lines 241-242), then `machine.update` (243) throws. The record keeps the old sha, so `stateOf` now returns `pending` for this Mac's own write (`folderState`, `settings-overrides.ts:168`), and every folder override of the workspace goes inactive. (2) In a mixed change (`resetOverrides` with every key, or `copyToAll`), the folder write succeeds and then the `uploadMode` machine update fails. In both cases the catch at line 210 returns `failed` and never calls `deps.changed()`. Windows keep the old effective settings while the resolver's cache already holds the new ones, and the folder file has changed even though the user was told nothing was saved. Call `deps.changed()` in the catch, or before returning `failed` once any write has landed, so the state that is shown matches what is on disk.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"line\":231,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Rewriting the folder file drops keys this version does not know or cannot validate\",\"body\":\"`base` comes from `read.overrides`, which `readFolderOverrides` has already filtered down to the four valid folder keys (`settings-overrides.ts:97-102`). A file in a synced folder that a newer app version wrote, with an extra key or a value this build rejects, loses those entries the first time this Mac edits any key. Consider keeping the raw `overrides` object from the file and changing only the keys being edited.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts\",\"line\":126,\"severity\":\"consider\",\"topic\":\"perf\",\"confidence\":\"medium\",\"title\":\"The All scope refreshes every workspace one after another; the wait is not bounded as a whole\",\"body\":\"`getScoped(\\\"all\\\")` awaits `refresh` for each workspace in turn. Each refresh is `isAvailable`, which has no timeout (`reg.availability`), plus a read capped at 2 s. Opening Settings at the All scope can therefore wait about N × 2 s plus the availability probes when several folders sit on evicted or slow cloud drives. Running the refreshes in parallel (`Promise.all`) would cap the wait at roughly one timeout. `getScoped(id)` also calls `isAvailable` twice (line 155, then again inside `refresh`).\"}],\"contracts\":[{\"action\":\"Edit a folder-bound override (setOverride/resetOverrides/copyToAll -> applyFolder)\",\"location\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:218\",\"equivalent_path\":\"MachineSettingsStore.update serializes its writes on a tail promise\",\"before_after\":\"MachineSettingsStore chains each update; applyFolder reads the disk, awaits, then writes the whole file with no chaining\",\"visible_effect\":\"The Settings page gets back deps.effective(), computed from the cache that applyFolder set\",\"failure_mode\":\"Overlapping calls lose one edit. If the machine update fails after the file write, the state turns pending and nothing is broadcast\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-260\",\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:224-247\",\"apps/kaipu-record/src/main/workspaces/index.ts:533\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Read a folder file with a timeout at capture start or a workspace switch (refresh)\",\"location\":\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88\",\"equivalent_path\":\"refreshActiveWorkspaceSettings at capture start\",\"before_after\":\"The read is raced against a 2 s timeout; isAvailable before it has no bound\",\"visible_effect\":\"Capture start waits on isAvailable plus up to 2 s\",\"failure_mode\":\"A read that times out counts as unreadable and the overrides go inactive. A hung availability probe blocks capture start\",\"status\":\"open\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-81\",\"apps/kaipu-record/src/main/workspaces/index.ts:122\",\"apps/kaipu-record/src/main/workspaces/index.ts:146-148\"],\"open_question\":\"Does reg.availability have its own timeout?\",\"candidates\":[\"apps/kaipu-record/src/main/workspaces/registry.ts\"]}],\"thread_replies\":[],\"summary\":\"Part 2 has four findings, all in `workspace-settings.ts`; the five test files had nothing to flag.\\n\\n1. **Lost edits (fix):** nothing serializes the folder file's read-modify-write. Two overlapping edits to the same workspace drop one of them without telling the user. A refresh that overlaps a write can also leave this Mac's own overrides showing as `pending`.\\n2. **Failure path (fix):** when a write lands only partly, the call reports `failed` but never calls `changed()`. The cache and the folder file no longer match what the windows show.\\n3. **Unknown keys dropped (consider):** rewriting the folder file removes keys this build does not know or rejects.\\n4. **Slow All scope (consider):** opening Settings at the All scope refreshes every workspace one after another, so the wait grows with the number of slow or evicted folders.\\n\\nOne question stays open: whether `reg.availability`, which every refresh awaits, has its own timeout. I didn't read the registry to check.\"}",
+    "structured_output": {
+      "files_reviewed": [
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+        "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts",
+        "apps/kaipu-record/src/main/screenshots/capture-handler.test.ts",
+        "apps/kaipu-record/src/main/screenshots/capture-toast-window.test.ts",
+        "apps/kaipu-record/src/main/screenshots/last-quiet-capture.test.ts",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts"
+      ],
+      "files_skipped": [],
+      "findings": [
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+          "line": 224,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "Folder-file read-modify-write has no per-workspace lock; two overlapping edits lose one",
+          "body": "`applyFolder` reads the folder file (line 224), awaits, builds `next` from that read, and writes the whole file (line 241). Nothing serializes calls: the IPC handlers in `apps/kaipu-record/src/main/workspaces/index.ts:533-557` call `setOverride`/`resetOverrides`/`copyToAll` directly, and only `MachineSettingsStore.update` has a tail queue (`settings-overrides.ts:244-260`). If the user flips two workspace-scoped settings quickly (say the badge, then copy mode), A and B both read base X. A writes X+a, then B writes X+b, so A's key is gone from the file. Both calls return `ok`, and B's answer leaves the change out without any message. `refresh` can race the same way: a read that started before the write can finish after line 242 and overwrite the cache with the old bytes (line 92). The machine record now holds the new sha, so `stateOf` reports `pending` and this Mac's own overrides stop applying until the next refresh. Fix: chain every folder read-and-write per workspace id on one promise tail, the way `MachineSettingsStore` does, and have `refresh` use the same tail."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+          "line": 210,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "high",
+          "title": "Partial write on the failure path updates the cache without telling anyone and reports `failed`",
+          "body": "Two cases. (1) `writeFolderOverrides` succeeds and the cache is set to the new bytes (lines 241-242), then `machine.update` (243) throws. The record keeps the old sha, so `stateOf` now returns `pending` for this Mac's own write (`folderState`, `settings-overrides.ts:168`), and every folder override of the workspace goes inactive. (2) In a mixed change (`resetOverrides` with every key, or `copyToAll`), the folder write succeeds and then the `uploadMode` machine update fails. In both cases the catch at line 210 returns `failed` and never calls `deps.changed()`. Windows keep the old effective settings while the resolver's cache already holds the new ones, and the folder file has changed even though the user was told nothing was saved. Call `deps.changed()` in the catch, or before returning `failed` once any write has landed, so the state that is shown matches what is on disk."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+          "line": 231,
+          "severity": "consider",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "Rewriting the folder file drops keys this version does not know or cannot validate",
+          "body": "`base` comes from `read.overrides`, which `readFolderOverrides` has already filtered down to the four valid folder keys (`settings-overrides.ts:97-102`). A file in a synced folder that a newer app version wrote, with an extra key or a value this build rejects, loses those entries the first time this Mac edits any key. Consider keeping the raw `overrides` object from the file and changing only the keys being edited."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+          "line": 126,
+          "severity": "consider",
+          "topic": "perf",
+          "confidence": "medium",
+          "title": "The All scope refreshes every workspace one after another; the wait is not bounded as a whole",
+          "body": "`getScoped(\"all\")` awaits `refresh` for each workspace in turn. Each refresh is `isAvailable`, which has no timeout (`reg.availability`), plus a read capped at 2 s. Opening Settings at the All scope can therefore wait about N × 2 s plus the availability probes when several folders sit on evicted or slow cloud drives. Running the refreshes in parallel (`Promise.all`) would cap the wait at roughly one timeout. `getScoped(id)` also calls `isAvailable` twice (line 155, then again inside `refresh`)."
+        }
+      ],
+      "contracts": [
+        {
+          "action": "Edit a folder-bound override (setOverride/resetOverrides/copyToAll -> applyFolder)",
+          "location": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:218",
+          "equivalent_path": "MachineSettingsStore.update serializes its writes on a tail promise",
+          "before_after": "MachineSettingsStore chains each update; applyFolder reads the disk, awaits, then writes the whole file with no chaining",
+          "visible_effect": "The Settings page gets back deps.effective(), computed from the cache that applyFolder set",
+          "failure_mode": "Overlapping calls lose one edit. If the machine update fails after the file write, the state turns pending and nothing is broadcast",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-260",
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:224-247",
+            "apps/kaipu-record/src/main/workspaces/index.ts:533"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Read a folder file with a timeout at capture start or a workspace switch (refresh)",
+          "location": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88",
+          "equivalent_path": "refreshActiveWorkspaceSettings at capture start",
+          "before_after": "The read is raced against a 2 s timeout; isAvailable before it has no bound",
+          "visible_effect": "Capture start waits on isAvailable plus up to 2 s",
+          "failure_mode": "A read that times out counts as unreadable and the overrides go inactive. A hung availability probe blocks capture start",
+          "status": "open",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-81",
+            "apps/kaipu-record/src/main/workspaces/index.ts:122",
+            "apps/kaipu-record/src/main/workspaces/index.ts:146-148"
+          ],
+          "open_question": "Does reg.availability have its own timeout?",
+          "candidates": [
+            "apps/kaipu-record/src/main/workspaces/registry.ts"
+          ]
+        }
+      ],
+      "thread_replies": [],
+      "summary": "Part 2 has four findings, all in `workspace-settings.ts`; the five test files had nothing to flag.\n\n1. **Lost edits (fix):** nothing serializes the folder file's read-modify-write. Two overlapping edits to the same workspace drop one of them without telling the user. A refresh that overlaps a write can also leave this Mac's own overrides showing as `pending`.\n2. **Failure path (fix):** when a write lands only partly, the call reports `failed` but never calls `changed()`. The cache and the folder file no longer match what the windows show.\n3. **Unknown keys dropped (consider):** rewriting the folder file removes keys this build does not know or rejects.\n4. **Slow All scope (consider):** opening Settings at the All scope refreshes every workspace one after another, so the wait grows with the number of slow or evicted folders.\n\nOne question stays open: whether `reg.availability`, which every refresh awaits, has its own timeout. I didn't read the registry to check."
+    },
+    "ttft_ms": 1433,
+    "type": "result",
+    "duration_ms": 60360,
+    "uuid": "3e82ce94-6bf4-4026-8017-0469cf02001f",
+    "ttft_stream_ms": 742,
+    "time_to_request_ms": 103,
+    "first_content_frame_ms": 742,
+    "queued_turn_count": 0,
+    "result_index": 0
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "pr": 478,
+  "head": "07a47af351c261ba9cb9e9a68c34c3bec0de50b9",
+  "mergeBase": "ef2ba136006c08682e52c81ce6094f7feeb35112",
+  "part": {
+    "index": 1,
+    "total": 3
+  },
+  "files": [
+    "apps/kaipu-record/src/preload/index.ts",
+    "apps/kaipu-record/src/shared/types/electron-api.ts",
+    "apps/kaipu-record/src/shared/types/ipc.ts",
+    "apps/kaipu-record/src/shared/types/workspaces.ts",
+    "apps/kaipu-record/src/shared/workspace-name.ts",
+    "apps/kaipu-record/src/main/workspaces/identity.ts",
+    "apps/kaipu-record/src/main/workspaces/index.ts",
+    "apps/kaipu-record/src/main/workspaces/registry.ts",
+    "apps/kaipu-record/src/shared/workspace-name.test.ts"
+  ],
+  "questions": null,
+  "engine": "47933f0224c7f89451963a7d1694d2ed55ede461",
+  "promptChars": 68413,
+  "scratchDir": "/var/folders/jq/y5f4c4617k9g7mvrnk2tdrpr0000gn/T/agent-review-WnTvxw"
+}

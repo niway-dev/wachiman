@@ -1,0 +1,498 @@
+{
+ "version": 1,
+ "provenance": "text_match",
+ "status": "truncated",
+ "caps": {
+  "symbols": 12,
+  "call_sites_per_symbol": 6,
+  "context_lines": 4,
+  "file_bytes": 16384,
+  "wall_clock_ms": 20000
+ },
+ "batch_files": [
+  "apps/kaipu-record/src/preload/index.ts",
+  "apps/kaipu-record/src/shared/types/electron-api.ts",
+  "apps/kaipu-record/src/shared/types/ipc.ts",
+  "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+  "apps/kaipu-record/src/shared/settings-scope.ts",
+  "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+  "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+  "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+  "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+  "apps/kaipu-record/src/main/workspaces/index.ts",
+  "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+ ],
+ "symbols": [
+  {
+   "symbol": "refresh",
+   "kind": "call",
+   "qualifier": "settings.refresh",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 171,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+    "line": 88,
+    "text": "async refresh(id: string): Promise<void> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry.ts",
+     "line": 645,
+     "text": "await this.refresh(() => void delete entry.pendingIdentity);",
+     "excerpt": [
+      "641|     name: entry.name,",
+      "642|     color: entry.color,",
+      "643|     ...(entry.initials ? { initials: entry.initials } : {}),",
+      "644|   });",
+      "645|   await this.refresh(() => void delete entry.pendingIdentity);",
+      "646| } catch {",
+      "647|   // stays pending; the next probe tries again",
+      "648| }",
+      "649| return { availability: { state: \"available\" }, id };"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry.ts",
+     "line": 659,
+     "text": "await this.refresh(() => {",
+     "excerpt": [
+      "659| await this.refresh(() => {"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry.ts",
+     "line": 671,
+     "text": "await this.refresh((key) => {",
+     "excerpt": [
+      "671| await this.refresh((key) => {"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "active",
+   "kind": "call",
+   "qualifier": "reg.active",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 485,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/index.ts",
+    "line": 747,
+    "text": "const active = activeWorkspace().path;"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/library-service.ts",
+     "line": 87,
+     "text": "const active = this.activity.active();",
+     "excerpt": [
+      "83| }",
+      "84| ",
+      "85| /** The recording or export using the vault right now, if any. */",
+      "86| private longActivity(): \"recording\" | \"export\" | null {",
+      "87|   const active = this.activity.active();",
+      "88|   return active.includes(\"export\") ? \"export\" : active.includes(\"recording\") ? \"recording\" : null;",
+      "89| }",
+      "90| ",
+      "91| /**"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-activity.ts",
+     "line": 90,
+     "text": "active(): ActivityKind[] {",
+     "excerpt": [
+      "90| active(): ActivityKind[] {"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-activity.ts",
+     "line": 139,
+     "text": "const long = this.active().find((kind) => LONG.has(kind));",
+     "excerpt": [
+      "139| const long = this.active().find((kind) => LONG.has(kind));"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "activeOverrides",
+   "kind": "call",
+   "qualifier": "settings.activeOverrides",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 16,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+    "line": 118,
+    "text": "activeOverrides(): SettingsOverrides {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/workspace-settings.test.ts",
+     "line": 49,
+     "text": "effective: () => resolveEffective(all, instance.activeOverrides()),",
+     "excerpt": [
+      "45|   getAll: () => all,",
+      "46|   writeAll: (patch) => {",
+      "47|     all = { ...all, ...patch };",
+      "48|   },",
+      "49|   effective: () => resolveEffective(all, instance.activeOverrides()),",
+      "50|   changed: () => changed(),",
+      "51|   now: () => ++clock,",
+      "52| });",
+      "53| return instance;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/workspace-settings.test.ts",
+     "line": 82,
+     "text": "expect(settings.activeOverrides()).toEqual({});",
+     "excerpt": [
+      "82| expect(settings.activeOverrides()).toEqual({});"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/workspace-settings.test.ts",
+     "line": 92,
+     "text": "expect(settings.activeOverrides()).toEqual({ screenshotCopy: \"manual\" });",
+     "excerpt": [
+      "92| expect(settings.activeOverrides()).toEqual({ screenshotCopy: \"manual\" });"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "availability",
+   "kind": "call",
+   "qualifier": "reg.availability",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 131,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/library/compose-library.ts",
+    "line": 60,
+    "text": "let availability: Availability;"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry.ts",
+     "line": 433,
+     "text": "if (owner && upgrade) await this.availability(owner.id);",
+     "excerpt": [
+      "429|     // preferences.json could not be written: retried on the next launch.",
+      "430|     console.error(\"workspaces: could not store the color upgrade\", error);",
+      "431|     return;",
+      "432|   }",
+      "433|   if (owner && upgrade) await this.availability(owner.id);",
+      "434| }",
+      "435| ",
+      "436| /** The folder next to the Default workspace's, or the nearest reachable fallback. */",
+      "437| private async newWorkspaceParent(): Promise<string | null> {"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry.ts",
+     "line": 566,
+     "text": "const probe = await this.availability(id);",
+     "excerpt": [
+      "566| const probe = await this.availability(id);"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry.ts",
+     "line": 624,
+     "text": "async availability(id: string): Promise<{ availability: Availability; id: string }> {",
+     "excerpt": [
+      "624| async availability(id: string): Promise<{ availability: Availability; id: string }> {"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "digest",
+   "kind": "call",
+   "qualifier": ".digest",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 13,
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/content-hash.ts",
+     "line": 15,
+     "text": ".on(\"end\", () => resolve(hash.digest(\"base64\")));",
+     "excerpt": [
+      "11|     const hash = createHash(\"sha256\");",
+      "12|     createReadStream(path)",
+      "13|       .on(\"data\", (chunk) => hash.update(chunk))",
+      "14|       .on(\"error\", reject)",
+      "15|       .on(\"end\", () => resolve(hash.digest(\"base64\")));",
+      "16|   });",
+      "17| }",
+      "18| "
+     ]
+    },
+    {
+     "file": "packages/infra-storage/scripts/r2-expiry-spike.ts",
+     "line": 30,
+     "text": "const sha256 = createHash(\"sha256\").update(body).digest(\"base64\");",
+     "excerpt": [
+      "30| const sha256 = createHash(\"sha256\").update(body).digest(\"base64\");"
+     ]
+    },
+    {
+     "file": "packages/infra-storage/scripts/r2-ticket-spike.ts",
+     "line": 25,
+     "text": "const sha256 = createHash(\"sha256\").update(body).digest(\"base64\");",
+     "excerpt": [
+      "25| const sha256 = createHash(\"sha256\").update(body).digest(\"base64\");"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "getPath",
+   "kind": "call",
+   "qualifier": "app.getPath",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 13,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/auth-store.test.ts",
+    "line": 22,
+    "text": "getPath: (name: string) => (name === \"userData\" ? mockState.userDataDir : \"/tmp\"),"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 180,
+     "text": "appDataDir: app.getPath(\"appData\"),",
+     "excerpt": [
+      "176| // before the lock below and before anything reads userData.",
+      "177| const devIdentity = devAppIdentity({",
+      "178|   isPackaged: app.isPackaged,",
+      "179|   hasUserDataDirSwitch: app.commandLine.hasSwitch(\"user-data-dir\"),",
+      "180|   appDataDir: app.getPath(\"appData\"),",
+      "181| });",
+      "182| if (devIdentity) {",
+      "183|   app.setName(devIdentity.name);",
+      "184|   if (devIdentity.userDataDir) app.setPath(\"userData\", devIdentity.userDataDir);"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 752,
+     "text": "...(vaultDir === active ? { fallbackTempDir: app.getPath(\"temp\") } : {}),",
+     "excerpt": [
+      "752| ...(vaultDir === active ? { fallbackTempDir: app.getPath(\"temp\") } : {}),"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/index.ts",
+     "line": 793,
+     "text": "cleanupLegacyDragCopies(app.getPath(\"temp\")).catch(() => {});",
+     "excerpt": [
+      "793| cleanupLegacyDragCopies(app.getPath(\"temp\")).catch(() => {});"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "isDestroyed",
+   "kind": "call",
+   "qualifier": "window.isDestroyed",
+   "used_in": [
+    "apps/kaipu-record/src/main/infrastructure/settings-store.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 121,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/infrastructure/auth-store.test.ts",
+    "line": 15,
+    "text": "isDestroyed: () => boolean;"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/app-shutdown.ts",
+     "line": 30,
+     "text": "if (!window.isDestroyed()) window.destroy();",
+     "excerpt": [
+      "26|       `[shutdown] a window was created after the quit began (${describeWindow(window)}); destroying ",
+      "27|     );",
+      "28|     // Not inside the creation event itself: let the constructor return first.",
+      "29|     setImmediate(() => {",
+      "30|       if (!window.isDestroyed()) window.destroy();",
+      "31|     });",
+      "32|   });",
+      "33| }",
+      "34| "
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/app-shutdown.ts",
+     "line": 36,
+     "text": "if (window.isDestroyed()) return `#${window.id} destroyed`;",
+     "excerpt": [
+      "36| if (window.isDestroyed()) return `#${window.id} destroyed`;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/capture-panel-window.ts",
+     "line": 44,
+     "text": "if (this.window && !this.window.isDestroyed() && this.window.isVisible()) {",
+     "excerpt": [
+      "44| if (this.window && !this.window.isDestroyed() && this.window.isVisible()) {"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "setActive",
+   "kind": "call",
+   "qualifier": "reg.setActive",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 11,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/registry.ts",
+    "line": 790,
+    "text": "async setActive(id: string): Promise<void> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/renderer/src/features/library/hooks/use-library-selection.ts",
+     "line": 53,
+     "text": "start: () => setActive(true),",
+     "excerpt": [
+      "49| );",
+      "50| ",
+      "51| return {",
+      "52|   active,",
+      "53|   start: () => setActive(true),",
+      "54|   stop: () => {",
+      "55|     setActive(false);",
+      "56|     setChecked(new Set());",
+      "57|     anchor.current = null;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/renderer/src/features/library/hooks/use-library-selection.ts",
+     "line": 55,
+     "text": "setActive(false);",
+     "excerpt": [
+      "55| setActive(false);"
+     ]
+    },
+    {
+     "file": "apps/web-hono/src/components/home/use-active-chapter.ts",
+     "line": 32,
+     "text": "setActive(current);",
+     "excerpt": [
+      "32| setActive(current);"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "join",
+   "kind": "call",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts",
+    "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 1026,
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/scripts/cursor-track-check.ts",
+     "line": 23,
+     "text": "const DEFAULT_VAULT = join(homedir(), \"Movies\", \"Kaipu Record\");",
+     "excerpt": [
+      "19|   type CursorTrack,",
+      "20| } from \"../src/shared/cursor-track\";",
+      "21| import { inspectCursorTrack, type CursorTrackMedia } from \"../src/shared/cursor-track-report\";",
+      "22| ",
+      "23| const DEFAULT_VAULT = join(homedir(), \"Movies\", \"Kaipu Record\");",
+      "24| ",
+      "25| interface Args {",
+      "26|   target: string;",
+      "27|   vault: string;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/scripts/cursor-track-check.ts",
+     "line": 75,
+     "text": "metaPath: existsSync(join(dir, `${id}.json`)) ? join(dir, `${id}.json`) : null,",
+     "excerpt": [
+      "75| metaPath: existsSync(join(dir, `${id}.json`)) ? join(dir, `${id}.json`) : null,"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/scripts/cursor-track-check.ts",
+     "line": 76,
+     "text": "mp4Path: existsSync(join(dir, \"..\", `${id}.mp4`)) ? join(dir, \"..\", `${id}.mp4`) : null,",
+     "excerpt": [
+      "76| mp4Path: existsSync(join(dir, \"..\", `${id}.mp4`)) ? join(dir, \"..\", `${id}.mp4`) : null,"
+     ]
+    }
+   ]
+  }
+ ],
+ "no_other_matches": [],
+ "not_searched": [
+  "rmdir",
+  "broadcastSettings",
+  "change",
+  "createHash",
+  "decideAfterCapture",
+  "dirname",
+  "finish",
+  "handleCapture",
+  "isValidScreenshotCopyMode",
+  "mkdir",
+  "randomUUID",
+  "rename",
+  "requireRegistry",
+  "sanitizeExportQuality",
+  "sanitizeQuality",
+  "snapshot",
+  "stat",
+  "toEditor",
+  "update",
+  "updateAppSettings",
+  "WorkspaceSettings",
+  "readFile",
+  "isValidUploadMode",
+  "atomicWriteFile"
+ ],
+ "notes": [
+  "21 more candidate symbol(s) beyond the cap of 12.",
+  "Detail was cut to keep this file under its size cap.",
+  "Symbols were dropped to keep this file under its size cap."
+ ]
+}

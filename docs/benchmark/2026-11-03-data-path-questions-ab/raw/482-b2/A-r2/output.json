@@ -1,0 +1,122 @@
+{
+  "files_reviewed": [
+    "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts",
+    "apps/kaipu-record/src/main/screenshots/capture-handler.test.ts",
+    "apps/kaipu-record/src/main/screenshots/capture-toast-window.test.ts",
+    "apps/kaipu-record/src/main/screenshots/last-quiet-capture.test.ts",
+    "apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts"
+  ],
+  "files_skipped": [],
+  "findings": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+      "line": 322,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "copyToAll lists every disconnected workspace in keptOwn, even ones with no override of the key",
+      "body": "`apply` returns `unavailable` for a disconnected workspace before it looks at anything (line 192), and `copyToAll` then pushes that workspace's name into `keptOwn` with no further check (lines 322-323). Two cases come out wrong:\n\n- **`uploadMode`:** this value is machine-bound and lives in `userData/workspace-settings.json` (`settings-overrides.ts:177-182`). It can be cleared whether or not the folder is connected. Today it is not cleared, so a disconnected workspace keeps its own upload mode after \"Copy to all\". A workspace that never had an `uploadMode` override is still named as having \"kept its own\".\n- **Folder keys:** the `pending` branch (lines 324-328) already checks whether the file holds one of the keys. The `unavailable` branch never checks `this.deps.machine.get(ws.id).uploadMode` or the last cached read, so it names workspaces with nothing to keep.\n\nThe result is a false \"kept its own value\" message for workspaces that would really inherit the new All value. The only test (`workspace-settings.test.ts:433-443`) covers a disconnected workspace that does hold an override.\n\nSuggested fix: clear the machine-bound `uploadMode` regardless of availability. Name an unavailable workspace only when its machine entry holds `uploadMode`, or when its folder state cannot be known (no cached read, or a cached read that holds the key)."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+      "line": 241,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "A failed machine-record write after the folder write leaves this Mac's own edit pending and deactivates the workspace's confirmed overrides",
+      "body": "`applyFolder` writes the folder file and puts the new hash in the cache (lines 241-242) before it records that hash with `machine.update` (lines 243-246). If that update throws, `MachineSettingsStore.update` rolls back its in-memory state (`settings-overrides.ts:250-256`) and `apply` returns `failed` without calling `changed()`.\n\nAt that point the folder file's hash no longer matches the recorded one, so `folderState` reports `pending`. Every override the user had confirmed for that workspace stops applying, and the next Settings read asks them to confirm values they just wrote. No broadcast goes out, so windows keep showing the old effective settings until something else triggers `changed()`.\n\nSuggested fix: record the machine entry first, or restore the previous file and cache entry on failure. Either way, call `changed()` on this path."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+      "line": 92,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "A slow refresh can overwrite a newer cache entry written by applyFolder or resolvePending",
+      "body": "`refresh` awaits `isAvailable` and the file read (which can take up to 2 s), then calls `this.reads.set` unconditionally. Here is a failing sequence:\n\n1. A capture start calls `refreshActiveWorkspaceSettings` and the read begins.\n2. While it is in flight, a Settings edit runs `applyFolder`, which writes a new file, caches `{sha: new}` and records `use: new`.\n3. The older read resolves and replaces the cache with the old bytes.\n\nThe old hash no longer matches the record, so the active workspace's overrides go `pending` (inactive) until the next refresh. A generation counter per id, or skipping the `set` when the cache changed during the await, would close this."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+      "line": 320,
+      "severity": "consider",
+      "topic": "perf",
+      "confidence": "high",
+      "title": "copyToAll broadcasts the settings once per workspace, then again at the end",
+      "body": "Each successful `resetOverrides` goes through `apply`, which calls `this.deps.changed()` (line 214). That is `notifyOverridesChanged`, which sends the settings to every window and runs the keyed listeners. `copyToAll` then calls `changed()` once more (line 333). With N workspaces this is N+1 broadcasts, and the middle ones carry intermediate states. Consider an internal variant of `apply` that skips the notification, so `copyToAll` notifies only once."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/screenshots/capture-handler.test.ts",
+      "line": 532,
+      "severity": "consider",
+      "topic": "tests",
+      "confidence": "high",
+      "title": "\"not a fresh read\" tests change prefs only after the handler has returned",
+      "body": "In \"the in-memory editor after a failed save gets the policy, not a fresh read\", `prefs = { copy: \"manual\" }` runs after `await handler(...)` has already produced `out`. The assertion therefore cannot tell a start-time read from a later read inside the handler. The same applies to line 547 in \"the retained bytes carry the policy…\".\n\nTo test what the names claim, change `prefs` inside the provider's `capture` or inside the rejecting `saveToVault`, as the switch test at lines 490-495 does."
+    }
+  ],
+  "contracts": [
+    {
+      "action": "Settings → \"Copy to all workspaces\" (copyToAll) writes the All level, then resets each workspace's override",
+      "location": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:304",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:192",
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:318-333",
+        "apps/kaipu-record/src/main/workspaces/index.ts:124-128",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:177-182",
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.test.ts:433-443"
+      ],
+      "equivalent_path": "settings:update through updateAppSettings (writeAll)",
+      "before_after": "Refreshes the source workspace, writes the shown value to All through updateAppSettings, then calls resetOverrides for each workspace. Each successful reset broadcasts; there is one more broadcast at the end.",
+      "visible_effect": "keptOwn lists the workspaces that kept their own value. A disconnected workspace is always listed, even when it has no override of the key.",
+      "failure_mode": "If writeAll throws, the result is failed and nothing has been reset. Disconnected workspaces are named, but their machine-bound uploadMode is not cleared.",
+      "evidence_checked": true
+    },
+    {
+      "action": "setOverride/resetOverrides writes the folder file, then the machine record",
+      "location": "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:218",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:241-246",
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:210-215",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:162-170",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:244-261"
+      ],
+      "equivalent_path": "resolvePending, which records a decision in the machine store",
+      "before_after": "Re-reads from disk, refuses when the file is pending or unreadable, writes the file atomically, caches the new read, then records the hash with decision use.",
+      "visible_effect": "The handler returns effective settings, and changed() broadcasts them to every window.",
+      "failure_mode": "If the machine.update fails after the folder write, the file stays changed while the record is stale. The state becomes pending, the overrides go inactive, and no broadcast is sent.",
+      "evidence_checked": true
+    },
+    {
+      "action": "IPC settings:resolve-pending / set-override input checks",
+      "location": "apps/kaipu-record/src/main/workspaces/index.ts:530-559",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/index.ts:530-559",
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:181-191"
+      ],
+      "equivalent_path": "workspaces:switch handler, which type-checks its id",
+      "before_after": "Checks the type of workspaceId, the key (isOverridableKey), the decision and the sha256 before calling WorkspaceSettings. Values go through normalizeOverride in apply.",
+      "failure_mode": "Bad renderer input returns not-overridable, nothing-pending or invalid; nothing is written.",
+      "evidence_checked": true
+    },
+    {
+      "action": "Startup wiring: setOverridesSource plus an initial refresh of the active workspace",
+      "location": "apps/kaipu-record/src/main/workspaces/index.ts:114-134",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99",
+        "apps/kaipu-record/src/main/workspaces/index.ts:131-133"
+      ],
+      "equivalent_path": "afterCommit on a workspace switch (refresh, then notifyOverridesChanged)",
+      "before_after": "Opens the machine store, sets the overrides source, and reads the active folder file. refresh calls changed() when the active overrides differ.",
+      "visible_effect": "getAppSettings and broadcasts carry the effective settings.",
+      "failure_mode": "A folder read that times out counts as unreadable, so the overrides stay inactive. If isAvailable rejects, refresh rejects.",
+      "evidence_checked": true
+    }
+  ],
+  "thread_replies": [],
+  "summary": "Part 2 covers the `WorkspaceSettings` service and its tests. Inputs arriving over IPC are validated before they reach the service.\n\nFindings:\n- **Fix:** `copyToAll` names every disconnected workspace in `keptOwn`, including ones with no override of the key. It also leaves the machine-bound `uploadMode` of a disconnected workspace uncleared, even though that value lives on this Mac and could be cleared.\n- **Consider:**\n  - If recording the machine hash fails after the folder file is written, this Mac's own edit becomes `pending` and the workspace's confirmed overrides stop applying, with no broadcast.\n  - A slow `refresh` can overwrite a newer cache entry.\n  - `copyToAll` broadcasts the settings N+1 times.\n  - Two capture-handler tests change prefs only after the handler has returned, so they don't test the \"fresh read\" their names describe."
+}

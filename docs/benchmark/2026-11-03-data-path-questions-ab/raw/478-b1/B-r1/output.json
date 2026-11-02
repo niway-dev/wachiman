@@ -1,0 +1,139 @@
+{
+  "files_reviewed": [
+    "apps/kaipu-record/src/preload/index.ts",
+    "apps/kaipu-record/src/shared/types/electron-api.ts",
+    "apps/kaipu-record/src/shared/types/ipc.ts",
+    "apps/kaipu-record/src/shared/types/workspaces.ts",
+    "apps/kaipu-record/src/shared/workspace-name.ts",
+    "apps/kaipu-record/src/main/workspaces/identity.ts",
+    "apps/kaipu-record/src/main/workspaces/index.ts",
+    "apps/kaipu-record/src/main/workspaces/registry.ts",
+    "apps/kaipu-record/src/shared/workspace-name.test.ts"
+  ],
+  "files_skipped": [],
+  "findings": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/registry.ts",
+      "line": 411,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "Brand-color upgrade can overwrite a name changed on another Mac",
+      "body": "`upgradeDefaultColor` decides to upgrade from the registry's cached `owner.name === \"Default workspace\"` (line 407). It then only checks the folder file's **color** (line 411). When the folder's `identity.json` was renamed on another Mac (say to \"Work\") but still says rose, `upgrade` stays true and the entry gets `pendingIdentity`. The `availability(owner.id)` call at line 427 then reaches the pending branch at lines 625-634, which writes `name: entry.name` (the stale \"Default workspace\") and its initials over the file. The rename from the other Mac is lost without any message. That contradicts the docstring at lines 402-403 (\"A name or color the user already changed … on another Mac, is left as it is\").\n\nThe unplugged case is worse. `readIdentity` returns `absent`, so nothing is checked at all, and the full overwrite happens whenever the drive comes back.\n\nSuggested fix: skip the upgrade when `file.identity.name !== DEFAULT_WORKSPACE_NAME`. Also make the deferred write for the upgrade touch only the color, and only if the file is still rose, instead of reusing the whole-entry `pendingIdentity` overwrite."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/registry.ts",
+      "line": 588,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "edit() checks name uniqueness outside the update lock",
+      "body": "`create` re-checks the name inside `update` (lines 514-516) so that two writers can't take the same name. `edit` only checks at line 540. It then awaits `availability`, `readIdentity` and `writeIdentity`, and finally applies the name in `update` without checking again (lines 588-597).\n\nA `create` or another `edit` that takes the same name during those awaits passes its own check, because this edit isn't in `key.entries` yet. The result is two workspaces with the same name. It takes two dialogs in flight, so it's rare, but adding the same re-check inside the `update` callback would close it."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/registry.ts",
+      "line": 600,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "Rollback skips the case where the folder had no identity.json before",
+      "body": "The rollback only restores the file when `previous.kind === \"ok\"`. If the folder had no `identity.json` and the registry write fails, the file keeps the new name while `update` rolls the key back. The next probe sees a matching id and no `pendingIdentity`, takes the file as authoritative (lines 640-653), and adopts the refused rename in memory anyway. So the comment \"The folder must not keep a change the registry refused\" doesn't hold here. Removing the newly written file (for example with `removeIdentity`) when `previous.kind === \"absent\"` would make it true."
+    },
+    {
+      "path": "apps/kaipu-record/src/shared/workspace-name.ts",
+      "line": 48,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "A name made only of forbidden characters gives a folder name ending in a space",
+      "body": "The trailing-character strip runs on `safe` alone, before the prefix is added. A name like `?`, `*` or `...` passes `normalizeWorkspaceName`, but `safe` becomes `\"\"` and the folder is `\"Kaipu Record — \"`. That name ends with a space, which the docstring says never happens (Windows refuses it). It also means all such names map to the same folder, so the second one gets a confusing \"exists\" refusal. Applying the strip to the full folder name, or falling back to a placeholder when `safe` is empty, would fix both."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/index.ts",
+      "line": 265,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "A non-string color is refused as \"invalid-name\"",
+      "body": "A missing or non-string `color` returns `reason: \"invalid-name\"`, so the dialog would show a name error for a color problem. Returning `\"invalid-color\"` when only `color` fails the type check would match what `reg.create` reports for a bad string color."
+    }
+  ],
+  "contracts": [
+    {
+      "action": "workspaces:create IPC: create a folder next to the Default workspace's, register it, then switch to it",
+      "location": "apps/kaipu-record/src/main/workspaces/index.ts:261",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/index.ts:216-255",
+        "apps/kaipu-record/src/main/workspaces/index.ts:261-278",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:470-524",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:790-795"
+      ],
+      "equivalent_path": "addWorkspace (index.ts:216-255): reg.add, then dismissHint, availability, runSwitch, broadcastState",
+      "before_after": "Same sequence as addWorkspace after the registry call: dismissHint, availability, runSwitch, broadcastState. The read-only check happens inside reg.create instead of in the handler.",
+      "visible_effect": "The result carries switchResult. broadcastState pushes the new list to every window, and runSwitch's afterCommit refreshes titles and the library.",
+      "failure_mode": "Refusals come back as typed reasons. If mkdir or writeIdentity fails, the folder and identity are undone (registry.ts:493-510). If the registry write fails, the same undo runs (512-522). A rejection from dismissHint after a successful create makes the IPC reject even though the workspace exists; addWorkspace has the same behaviour.",
+      "evidence_checked": true
+    },
+    {
+      "action": "removeIdentity undo inside create",
+      "location": "apps/kaipu-record/src/main/workspaces/identity.ts:166",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/identity.ts:166-170",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:481-496"
+      ],
+      "equivalent_path": "writeIdentity's own cleanup of the folders it created (identity.ts:155-158)",
+      "before_after": "Removes identity.json, then rmdir on the .kaipu folders, which refuses a non-empty folder. The folder itself is removed only if create made it (madeFolder). It is only reached for a folder found free or empty earlier in the same call.",
+      "visible_effect": "Nothing is left behind on refusal.",
+      "failure_mode": "Errors are swallowed. At worst an empty .kaipu folder or the new folder is left over, and since nothing was registered there is no orphan record. The target is not re-verified: content added between checkNewLocation and the undo would only lose Kaipu's own file.",
+      "evidence_checked": true
+    },
+    {
+      "action": "workspaces:edit IPC: rename or recolor",
+      "location": "apps/kaipu-record/src/main/workspaces/index.ts:280",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/index.ts:280-298",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:534-606",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:625-639",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:811-826"
+      ],
+      "equivalent_path": "The probe's cache refresh in availability (registry.ts:640-653), which writes registry fields from the folder's file",
+      "before_after": "Probes, writes identity.json if the folder is connected, then updates the registry. Otherwise it sets pendingIdentity, and the next probe writes the file (registry.ts:625-639).",
+      "visible_effect": "refreshTitles and broadcastState update the window title and the switcher tiles.",
+      "failure_mode": "A failed folder write refuses the edit. A failed registry write rolls the file back only when it existed before (finding). The uniqueness check sits outside the lock (finding). When a pending edit is written later, it overwrites any name or color changed on another Mac in the meantime; this is the documented design.",
+      "evidence_checked": true
+    },
+    {
+      "action": "One-time brand-color upgrade at open",
+      "location": "apps/kaipu-record/src/main/workspaces/registry.ts:405",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/registry.ts:405-428",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:625-634",
+        "apps/kaipu-record/src/main/workspaces/identity.ts:84-89"
+      ],
+      "equivalent_path": "The availability pendingIdentity write (registry.ts:625-639)",
+      "before_after": "Sets the marker and the owner's color with pendingIdentity in one update, then probes. The probe writes the whole cached entry (name, color, initials) to the file.",
+      "visible_effect": "The Default workspace shows the kaipu color.",
+      "failure_mode": "If preferences.json can't be written, the update rolls back and the upgrade is retried on the next launch. A folder renamed on another Mac but still rose has its name overwritten (finding).",
+      "evidence_checked": true
+    },
+    {
+      "action": "workspaces:check-location IPC",
+      "location": "apps/kaipu-record/src/main/workspaces/index.ts:309",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/index.ts:309-315",
+        "apps/kaipu-record/src/main/workspaces/registry.ts:431-463"
+      ],
+      "before_after": "Read-only: stat and readdir on the candidate folder.",
+      "visible_effect": "The dialog shows the path and its state.",
+      "failure_mode": "An invalid name returns parent-missing with a null path. Any stat error other than ENOENT is reported as not-empty. The wait is bounded only by the file system calls (isDirectory on up to 3 parents, then stat and readdir).",
+      "evidence_checked": true
+    }
+  ],
+  "thread_replies": [],
+  "summary": "Part 1: main-side create, edit and check-location, the brand-color upgrade, and the shared name helpers. Renderer input is type-checked and validated in main. `src/shared/workspace-name.ts` has no imports, and `src/shared/types/workspaces.ts` imports `TagColor` as a type only, so neither breaks the preload bundle. One fix: the one-time brand-color upgrade checks only the folder file's color. Through the whole-entry `pendingIdentity` write, it can put back \\\"Default workspace\\\" over a name changed on another Mac. Four smaller points: `edit` checks name uniqueness outside the lock, `edit`'s rollback misses the case where the folder had no identity file before, a name made only of forbidden characters gives a folder name ending in a space, and a non-string color is refused as \\\"invalid-name\\\"."
+}

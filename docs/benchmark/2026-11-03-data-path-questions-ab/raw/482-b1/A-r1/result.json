@@ -1,0 +1,333 @@
+{
+  "structuredOutput": {
+    "files_reviewed": [
+      "apps/kaipu-record/src/preload/index.ts",
+      "apps/kaipu-record/src/shared/types/electron-api.ts",
+      "apps/kaipu-record/src/shared/types/ipc.ts",
+      "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+      "apps/kaipu-record/src/shared/settings-scope.ts",
+      "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+      "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+      "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+      "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+      "apps/kaipu-record/src/main/workspaces/index.ts",
+      "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+    ],
+    "files_skipped": [],
+    "findings": [
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts",
+        "line": 220,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "A read error other than ENOENT empties the machine store, and the next write overwrites the file",
+        "body": "`MachineSettingsStore.open` treats every `readFile` failure (EACCES, EIO, EBUSY…) the same way as a missing file: `catch { return store; }` returns an empty store with `corrupt = false`. The next `update()` (any upload-mode override, any \"Use them\"/\"Ignore\" answer) then calls `write()`, which atomically replaces `workspace-settings.json` with only that one entry. Every other workspace's machine-bound `uploadMode` and every recorded folder-file confirmation are lost, with no error and no log. After that, folder files the user had accepted show as `pending` again and their upload consent falls back to the All level.\n\nThe JSON-parse branch already protects the file (`corrupt = true` moves it aside before the first write). Do the same for a non-ENOENT read error: return empty only on `ENOENT`, and set `corrupt = true` (or refuse writes) for any other error, so the existing file is kept aside rather than silently replaced."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+        "line": 12,
+        "severity": "consider",
+        "topic": "cleanup",
+        "confidence": "high",
+        "title": "`QuietCapture.policy` and `CaptureToastPayload.policy` are stored but nothing reads them",
+        "body": "`capture-handler.ts:322` and `:334` attach `policy` to the kept bytes and the toast payload. The docs say the toast's Save and Annotate use it (`screenshot-capture.ts:245`, `:250-253`), but no code reads it. `openQuietCapture` (`main/index.ts:726-734`) forwards only `png, width, height, mode`, so the editor opened from the toast's Annotate gets a blob source without `policy` and falls back to `\"manual\"` (`screenshot-editor-page.tsx:162`). The toast's Save never reads it either (`capture-toast-window.ts:242-279`). Either forward `policy` in `openQuietCapture`, or drop the fields and correct the comments so they don't claim a guarantee the code doesn't give."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+        "line": 192,
+        "severity": "consider",
+        "topic": "perf",
+        "confidence": "medium",
+        "title": "A screenshot capture now probes availability and re-reads the folder file several times",
+        "body": "Each `screenshot:capture` first awaits `refreshActiveWorkspaceSettings()` here. That runs a `reg.availability()` probe and a folder read with a timeout of up to 2 s (`workspace-settings.ts:27`, `:94`), all before the overlay appears. Afterwards, the save path calls `requireCaptureWorkspace()` (`screenshot-save.ts:98`/`:117`), which probes availability again and now also calls `refreshActiveWorkspaceSettings()` a second time (`workspaces/index.ts:307`), even though the policy was already bound at capture start. On a slow or evicted synced folder, the hotkey can wait up to ~2 s before the overlay shows, and the save repeats the work. Consider dropping the refresh in `requireCaptureWorkspace` for screenshot saves, or reusing the availability result the refresh just computed."
+      }
+    ],
+    "contracts": [
+      {
+        "action": "Screenshot capture re-reads the active workspace's folder settings before the overlay opens",
+        "location": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:189-194",
+        "equivalent_path": "requireCaptureWorkspace (recording and screenshot-save), which probes availability and now also refreshes",
+        "before_after": "Before: handleCapture ran directly inside vaultActivity. After: it awaits refresh (an availability probe plus a read with a 2 s timeout), and a failure is swallowed by .catch.",
+        "visible_effect": "If the file changed, refresh calls notifyOverridesChanged, which broadcasts settings:changed. The capture's policy is then read synchronously from the effective settings in readPolicy.",
+        "failure_mode": "A failed read stores `unreadable`, so the overrides are inactive and the All values apply. A rejection is swallowed, and the capture continues with the cached overrides. Worst case, the overlay is delayed by up to the 2 s read timeout.",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99",
+          "apps/kaipu-record/src/main/workspaces/index.ts:146-148",
+          "apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "The capture policy is bound at start and travels with the result, the kept bytes and the toast payload",
+        "location": "apps/kaipu-record/src/main/screenshots/capture-handler.ts:162",
+        "equivalent_path": "The previous code read deps.settings().copy inside finish()",
+        "before_after": "The policy is read once and used for decideAfterCapture. It is also attached to QuietCapture and the toast payload.",
+        "visible_effect": "The editor opened after a failed save uses result.policy. The toast's Annotate opens the editor through openQuietCapture without the policy, so the editor uses \"manual\".",
+        "failure_mode": "If the settings throw, policy is null and the editor opens without copying anything.",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289",
+          "apps/kaipu-record/src/main/index.ts:726-734",
+          "apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.tsx:162"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "New settings:* scoped IPC handlers (get-scoped, set-override, reset, copy-to-all, resolve-pending)",
+        "location": "apps/kaipu-record/src/main/workspaces/index.ts:525-560",
+        "equivalent_path": "The workspaces:* handlers, which check typeof on every argument",
+        "before_after": "Workspace ids, keys and decisions are type-checked. Values are validated in WorkspaceSettings.apply through normalizeOverride.",
+        "visible_effect": "On success the handlers return the effective settings, and changed() broadcasts settings:changed to every window.",
+        "failure_mode": "A write failure returns { ok:false, reason:'failed' }. A handler called before init throws through requireWorkspaceSettings, which rejects the invoke.",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-216",
+          "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:30-54"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Workspace switch refreshes the target's overrides in persistActive and notifies after commit",
+        "location": "apps/kaipu-record/src/main/workspaces/index.ts:402-410",
+        "equivalent_path": "persistActive previously only called reg.setActive",
+        "before_after": "After setActive, refresh(target) runs, and afterCommit calls notifyOverridesChanged before refreshTitles and broadcastState.",
+        "visible_effect": "Every window receives the new workspace's effective settings through settings:changed.",
+        "failure_mode": "refresh never throws on a read failure (read returns `unreadable`). If isAvailable rejects, the rejection propagates into the switch transaction.",
+        "status": "open",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99"
+        ],
+        "open_question": "Does switchWorkspace roll back correctly if persistActive rejects after reg.setActive has already succeeded?",
+        "candidates": [
+          "apps/kaipu-record/src/main/workspaces/switch-transaction.ts"
+        ]
+      }
+    ],
+    "thread_replies": [],
+    "summary": "Part 1 reviewed: the preload and shared types, settings-store's effective/All split, capture-policy binding, the workspace-settings wiring and IPC, and the override file store. The IPC handlers check their argument types and validate values before writing. shared/settings-scope.ts uses only type imports.\\n\\nThree findings:\\n- **Fix (medium confidence):** `MachineSettingsStore.open` treats any read error like a missing file. The next write then silently replaces `workspace-settings.json`, losing other workspaces' upload modes and folder-file confirmations.\\n- **Consider:** `QuietCapture.policy` and the toast payload's `policy` are written but never read. `openQuietCapture` doesn't forward the policy to the editor.\\n- **Consider:** each capture start runs repeated availability probes and folder reads, with up to a 2 s timeout before the overlay appears.\\n\\nOne contract is still open: whether the switch transaction rolls back when `persistActive` rejects after `setActive` has succeeded."
+  },
+  "text": "{\"files_reviewed\":[\"apps/kaipu-record/src/preload/index.ts\",\"apps/kaipu-record/src/shared/types/electron-api.ts\",\"apps/kaipu-record/src/shared/types/ipc.ts\",\"apps/kaipu-record/src/shared/types/screenshot-capture.ts\",\"apps/kaipu-record/src/shared/settings-scope.ts\",\"apps/kaipu-record/src/main/infrastructure/settings-store.ts\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts\",\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts\",\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts\",\"apps/kaipu-record/src/main/workspaces/index.ts\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\",\"line\":220,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"A read error other than ENOENT empties the machine store, and the next write overwrites the file\",\"body\":\"`MachineSettingsStore.open` treats every `readFile` failure (EACCES, EIO, EBUSY…) the same way as a missing file: `catch { return store; }` returns an empty store with `corrupt = false`. The next `update()` (any upload-mode override, any \\\"Use them\\\"/\\\"Ignore\\\" answer) then calls `write()`, which atomically replaces `workspace-settings.json` with only that one entry. Every other workspace's machine-bound `uploadMode` and every recorded folder-file confirmation are lost, with no error and no log. After that, folder files the user had accepted show as `pending` again and their upload consent falls back to the All level.\\n\\nThe JSON-parse branch already protects the file (`corrupt = true` moves it aside before the first write). Do the same for a non-ENOENT read error: return empty only on `ENOENT`, and set `corrupt = true` (or refuse writes) for any other error, so the existing file is kept aside rather than silently replaced.\"},{\"path\":\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts\",\"line\":12,\"severity\":\"consider\",\"topic\":\"cleanup\",\"confidence\":\"high\",\"title\":\"`QuietCapture.policy` and `CaptureToastPayload.policy` are stored but nothing reads them\",\"body\":\"`capture-handler.ts:322` and `:334` attach `policy` to the kept bytes and the toast payload. The docs say the toast's Save and Annotate use it (`screenshot-capture.ts:245`, `:250-253`), but no code reads it. `openQuietCapture` (`main/index.ts:726-734`) forwards only `png, width, height, mode`, so the editor opened from the toast's Annotate gets a blob source without `policy` and falls back to `\\\"manual\\\"` (`screenshot-editor-page.tsx:162`). The toast's Save never reads it either (`capture-toast-window.ts:242-279`). Either forward `policy` in `openQuietCapture`, or drop the fields and correct the comments so they don't claim a guarantee the code doesn't give.\"},{\"path\":\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts\",\"line\":192,\"severity\":\"consider\",\"topic\":\"perf\",\"confidence\":\"medium\",\"title\":\"A screenshot capture now probes availability and re-reads the folder file several times\",\"body\":\"Each `screenshot:capture` first awaits `refreshActiveWorkspaceSettings()` here. That runs a `reg.availability()` probe and a folder read with a timeout of up to 2 s (`workspace-settings.ts:27`, `:94`), all before the overlay appears. Afterwards, the save path calls `requireCaptureWorkspace()` (`screenshot-save.ts:98`/`:117`), which probes availability again and now also calls `refreshActiveWorkspaceSettings()` a second time (`workspaces/index.ts:307`), even though the policy was already bound at capture start. On a slow or evicted synced folder, the hotkey can wait up to ~2 s before the overlay shows, and the save repeats the work. Consider dropping the refresh in `requireCaptureWorkspace` for screenshot saves, or reusing the availability result the refresh just computed.\"}],\"contracts\":[{\"action\":\"Screenshot capture re-reads the active workspace's folder settings before the overlay opens\",\"location\":\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:189-194\",\"equivalent_path\":\"requireCaptureWorkspace (recording and screenshot-save), which probes availability and now also refreshes\",\"before_after\":\"Before: handleCapture ran directly inside vaultActivity. After: it awaits refresh (an availability probe plus a read with a 2 s timeout), and a failure is swallowed by .catch.\",\"visible_effect\":\"If the file changed, refresh calls notifyOverridesChanged, which broadcasts settings:changed. The capture's policy is then read synchronously from the effective settings in readPolicy.\",\"failure_mode\":\"A failed read stores `unreadable`, so the overrides are inactive and the All values apply. A rejection is swallowed, and the capture continues with the cached overrides. Worst case, the overlay is delayed by up to the 2 s read timeout.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99\",\"apps/kaipu-record/src/main/workspaces/index.ts:146-148\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"The capture policy is bound at start and travels with the result, the kept bytes and the toast payload\",\"location\":\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:162\",\"equivalent_path\":\"The previous code read deps.settings().copy inside finish()\",\"before_after\":\"The policy is read once and used for decideAfterCapture. It is also attached to QuietCapture and the toast payload.\",\"visible_effect\":\"The editor opened after a failed save uses result.policy. The toast's Annotate opens the editor through openQuietCapture without the policy, so the editor uses \\\"manual\\\".\",\"failure_mode\":\"If the settings throw, policy is null and the editor opens without copying anything.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289\",\"apps/kaipu-record/src/main/index.ts:726-734\",\"apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.tsx:162\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"New settings:* scoped IPC handlers (get-scoped, set-override, reset, copy-to-all, resolve-pending)\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:525-560\",\"equivalent_path\":\"The workspaces:* handlers, which check typeof on every argument\",\"before_after\":\"Workspace ids, keys and decisions are type-checked. Values are validated in WorkspaceSettings.apply through normalizeOverride.\",\"visible_effect\":\"On success the handlers return the effective settings, and changed() broadcasts settings:changed to every window.\",\"failure_mode\":\"A write failure returns { ok:false, reason:'failed' }. A handler called before init throws through requireWorkspaceSettings, which rejects the invoke.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-216\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:30-54\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Workspace switch refreshes the target's overrides in persistActive and notifies after commit\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:402-410\",\"equivalent_path\":\"persistActive previously only called reg.setActive\",\"before_after\":\"After setActive, refresh(target) runs, and afterCommit calls notifyOverridesChanged before refreshTitles and broadcastState.\",\"visible_effect\":\"Every window receives the new workspace's effective settings through settings:changed.\",\"failure_mode\":\"refresh never throws on a read failure (read returns `unreadable`). If isAvailable rejects, the rejection propagates into the switch transaction.\",\"status\":\"open\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99\"],\"open_question\":\"Does switchWorkspace roll back correctly if persistActive rejects after reg.setActive has already succeeded?\",\"candidates\":[\"apps/kaipu-record/src/main/workspaces/switch-transaction.ts\"]}],\"thread_replies\":[],\"summary\":\"Part 1 reviewed: the preload and shared types, settings-store's effective/All split, capture-policy binding, the workspace-settings wiring and IPC, and the override file store. The IPC handlers check their argument types and validate values before writing. shared/settings-scope.ts uses only type imports.\\\\n\\\\nThree findings:\\\\n- **Fix (medium confidence):** `MachineSettingsStore.open` treats any read error like a missing file. The next write then silently replaces `workspace-settings.json`, losing other workspaces' upload modes and folder-file confirmations.\\\\n- **Consider:** `QuietCapture.policy` and the toast payload's `policy` are written but never read. `openQuietCapture` doesn't forward the policy to the editor.\\\\n- **Consider:** each capture start runs repeated availability probes and folder reads, with up to a 2 s timeout before the overlay appears.\\\\n\\\\nOne contract is still open: whether the switch transaction rolls back when `persistActive` rejects after `setActive` has succeeded.\"}",
+  "costUsd": 0.6757956,
+  "turns": 9,
+  "durationMs": 70749,
+  "terminalReason": "success",
+  "isError": false,
+  "raw": {
+    "duration_api_ms": 70466,
+    "stop_reason": "tool_use",
+    "session_id": "03d82484-5e8e-464b-85f7-be302b189dff",
+    "total_cost_usd": 0.6757956,
+    "usage": {
+      "input_tokens": 14,
+      "cache_creation_input_tokens": 57106,
+      "cache_read_input_tokens": 320758,
+      "output_tokens": 7737,
+      "output_tokens_details": {
+        "thinking_tokens": 3049
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 57106,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 4550,
+          "cache_read_input_tokens": 61367,
+          "cache_creation_input_tokens": 774,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 774
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "inputTokens": 14,
+        "outputTokens": 7737,
+        "cacheReadInputTokens": 320758,
+        "cacheCreationInputTokens": 57106,
+        "webSearchRequests": 0,
+        "costUSD": 0.6757956,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 3049,
+        "cacheCreationEphemeral5mInputTokens": 0,
+        "cacheCreationEphemeral1hInputTokens": 57106,
+        "canonicalModel": "claude-opus-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "permission_denials": [],
+    "terminal_reason": "completed",
+    "fast_mode_state": "off",
+    "fast_mode_disabled_reason": "sdk_opt_in_required",
+    "subagent_stats": {
+      "spawned": 0,
+      "requested": {
+        "background": 0,
+        "foreground": 0,
+        "unset": 0
+      },
+      "started_in_background": 0,
+      "max_depth": 0,
+      "spawned_by_subagents": 0,
+      "completed": 0,
+      "failed": 0,
+      "killed": {
+        "parent": 0,
+        "user": 0,
+        "system": 0
+      },
+      "refused": {
+        "depth_limit": 0,
+        "concurrency_limit": 0,
+        "budget": 0
+      },
+      "by_type": {}
+    },
+    "safety_stops": 0,
+    "is_error": false,
+    "num_turns": 9,
+    "subtype": "success",
+    "api_error_status": null,
+    "result": "{\"files_reviewed\":[\"apps/kaipu-record/src/preload/index.ts\",\"apps/kaipu-record/src/shared/types/electron-api.ts\",\"apps/kaipu-record/src/shared/types/ipc.ts\",\"apps/kaipu-record/src/shared/types/screenshot-capture.ts\",\"apps/kaipu-record/src/shared/settings-scope.ts\",\"apps/kaipu-record/src/main/infrastructure/settings-store.ts\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts\",\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts\",\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts\",\"apps/kaipu-record/src/main/workspaces/index.ts\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts\",\"line\":220,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"A read error other than ENOENT empties the machine store, and the next write overwrites the file\",\"body\":\"`MachineSettingsStore.open` treats every `readFile` failure (EACCES, EIO, EBUSY…) the same way as a missing file: `catch { return store; }` returns an empty store with `corrupt = false`. The next `update()` (any upload-mode override, any \\\"Use them\\\"/\\\"Ignore\\\" answer) then calls `write()`, which atomically replaces `workspace-settings.json` with only that one entry. Every other workspace's machine-bound `uploadMode` and every recorded folder-file confirmation are lost, with no error and no log. After that, folder files the user had accepted show as `pending` again and their upload consent falls back to the All level.\\n\\nThe JSON-parse branch already protects the file (`corrupt = true` moves it aside before the first write). Do the same for a non-ENOENT read error: return empty only on `ENOENT`, and set `corrupt = true` (or refuse writes) for any other error, so the existing file is kept aside rather than silently replaced.\"},{\"path\":\"apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts\",\"line\":12,\"severity\":\"consider\",\"topic\":\"cleanup\",\"confidence\":\"high\",\"title\":\"`QuietCapture.policy` and `CaptureToastPayload.policy` are stored but nothing reads them\",\"body\":\"`capture-handler.ts:322` and `:334` attach `policy` to the kept bytes and the toast payload. The docs say the toast's Save and Annotate use it (`screenshot-capture.ts:245`, `:250-253`), but no code reads it. `openQuietCapture` (`main/index.ts:726-734`) forwards only `png, width, height, mode`, so the editor opened from the toast's Annotate gets a blob source without `policy` and falls back to `\\\"manual\\\"` (`screenshot-editor-page.tsx:162`). The toast's Save never reads it either (`capture-toast-window.ts:242-279`). Either forward `policy` in `openQuietCapture`, or drop the fields and correct the comments so they don't claim a guarantee the code doesn't give.\"},{\"path\":\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts\",\"line\":192,\"severity\":\"consider\",\"topic\":\"perf\",\"confidence\":\"medium\",\"title\":\"A screenshot capture now probes availability and re-reads the folder file several times\",\"body\":\"Each `screenshot:capture` first awaits `refreshActiveWorkspaceSettings()` here. That runs a `reg.availability()` probe and a folder read with a timeout of up to 2 s (`workspace-settings.ts:27`, `:94`), all before the overlay appears. Afterwards, the save path calls `requireCaptureWorkspace()` (`screenshot-save.ts:98`/`:117`), which probes availability again and now also calls `refreshActiveWorkspaceSettings()` a second time (`workspaces/index.ts:307`), even though the policy was already bound at capture start. On a slow or evicted synced folder, the hotkey can wait up to ~2 s before the overlay shows, and the save repeats the work. Consider dropping the refresh in `requireCaptureWorkspace` for screenshot saves, or reusing the availability result the refresh just computed.\"}],\"contracts\":[{\"action\":\"Screenshot capture re-reads the active workspace's folder settings before the overlay opens\",\"location\":\"apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:189-194\",\"equivalent_path\":\"requireCaptureWorkspace (recording and screenshot-save), which probes availability and now also refreshes\",\"before_after\":\"Before: handleCapture ran directly inside vaultActivity. After: it awaits refresh (an availability probe plus a read with a 2 s timeout), and a failure is swallowed by .catch.\",\"visible_effect\":\"If the file changed, refresh calls notifyOverridesChanged, which broadcasts settings:changed. The capture's policy is then read synchronously from the effective settings in readPolicy.\",\"failure_mode\":\"A failed read stores `unreadable`, so the overrides are inactive and the All values apply. A rejection is swallowed, and the capture continues with the cached overrides. Worst case, the overlay is delayed by up to the 2 s read timeout.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99\",\"apps/kaipu-record/src/main/workspaces/index.ts:146-148\",\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"The capture policy is bound at start and travels with the result, the kept bytes and the toast payload\",\"location\":\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:162\",\"equivalent_path\":\"The previous code read deps.settings().copy inside finish()\",\"before_after\":\"The policy is read once and used for decideAfterCapture. It is also attached to QuietCapture and the toast payload.\",\"visible_effect\":\"The editor opened after a failed save uses result.policy. The toast's Annotate opens the editor through openQuietCapture without the policy, so the editor uses \\\"manual\\\".\",\"failure_mode\":\"If the settings throw, policy is null and the editor opens without copying anything.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289\",\"apps/kaipu-record/src/main/index.ts:726-734\",\"apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.tsx:162\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"New settings:* scoped IPC handlers (get-scoped, set-override, reset, copy-to-all, resolve-pending)\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:525-560\",\"equivalent_path\":\"The workspaces:* handlers, which check typeof on every argument\",\"before_after\":\"Workspace ids, keys and decisions are type-checked. Values are validated in WorkspaceSettings.apply through normalizeOverride.\",\"visible_effect\":\"On success the handlers return the effective settings, and changed() broadcasts settings:changed to every window.\",\"failure_mode\":\"A write failure returns { ok:false, reason:'failed' }. A handler called before init throws through requireWorkspaceSettings, which rejects the invoke.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-216\",\"apps/kaipu-record/src/main/workspaces/settings-overrides.ts:30-54\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Workspace switch refreshes the target's overrides in persistActive and notifies after commit\",\"location\":\"apps/kaipu-record/src/main/workspaces/index.ts:402-410\",\"equivalent_path\":\"persistActive previously only called reg.setActive\",\"before_after\":\"After setActive, refresh(target) runs, and afterCommit calls notifyOverridesChanged before refreshTitles and broadcastState.\",\"visible_effect\":\"Every window receives the new workspace's effective settings through settings:changed.\",\"failure_mode\":\"refresh never throws on a read failure (read returns `unreadable`). If isAvailable rejects, the rejection propagates into the switch transaction.\",\"status\":\"open\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99\"],\"open_question\":\"Does switchWorkspace roll back correctly if persistActive rejects after reg.setActive has already succeeded?\",\"candidates\":[\"apps/kaipu-record/src/main/workspaces/switch-transaction.ts\"]}],\"thread_replies\":[],\"summary\":\"Part 1 reviewed: the preload and shared types, settings-store's effective/All split, capture-policy binding, the workspace-settings wiring and IPC, and the override file store. The IPC handlers check their argument types and validate values before writing. shared/settings-scope.ts uses only type imports.\\\\n\\\\nThree findings:\\\\n- **Fix (medium confidence):** `MachineSettingsStore.open` treats any read error like a missing file. The next write then silently replaces `workspace-settings.json`, losing other workspaces' upload modes and folder-file confirmations.\\\\n- **Consider:** `QuietCapture.policy` and the toast payload's `policy` are written but never read. `openQuietCapture` doesn't forward the policy to the editor.\\\\n- **Consider:** each capture start runs repeated availability probes and folder reads, with up to a 2 s timeout before the overlay appears.\\\\n\\\\nOne contract is still open: whether the switch transaction rolls back when `persistActive` rejects after `setActive` has succeeded.\"}",
+    "structured_output": {
+      "files_reviewed": [
+        "apps/kaipu-record/src/preload/index.ts",
+        "apps/kaipu-record/src/shared/types/electron-api.ts",
+        "apps/kaipu-record/src/shared/types/ipc.ts",
+        "apps/kaipu-record/src/shared/types/screenshot-capture.ts",
+        "apps/kaipu-record/src/shared/settings-scope.ts",
+        "apps/kaipu-record/src/main/infrastructure/settings-store.ts",
+        "apps/kaipu-record/src/main/screenshots/capture-handler.ts",
+        "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+        "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+        "apps/kaipu-record/src/main/workspaces/index.ts",
+        "apps/kaipu-record/src/main/workspaces/settings-overrides.ts"
+      ],
+      "files_skipped": [],
+      "findings": [
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/settings-overrides.ts",
+          "line": 220,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "A read error other than ENOENT empties the machine store, and the next write overwrites the file",
+          "body": "`MachineSettingsStore.open` treats every `readFile` failure (EACCES, EIO, EBUSY…) the same way as a missing file: `catch { return store; }` returns an empty store with `corrupt = false`. The next `update()` (any upload-mode override, any \"Use them\"/\"Ignore\" answer) then calls `write()`, which atomically replaces `workspace-settings.json` with only that one entry. Every other workspace's machine-bound `uploadMode` and every recorded folder-file confirmation are lost, with no error and no log. After that, folder files the user had accepted show as `pending` again and their upload consent falls back to the All level.\n\nThe JSON-parse branch already protects the file (`corrupt = true` moves it aside before the first write). Do the same for a non-ENOENT read error: return empty only on `ENOENT`, and set `corrupt = true` (or refuse writes) for any other error, so the existing file is kept aside rather than silently replaced."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/screenshots/last-quiet-capture.ts",
+          "line": 12,
+          "severity": "consider",
+          "topic": "cleanup",
+          "confidence": "high",
+          "title": "`QuietCapture.policy` and `CaptureToastPayload.policy` are stored but nothing reads them",
+          "body": "`capture-handler.ts:322` and `:334` attach `policy` to the kept bytes and the toast payload. The docs say the toast's Save and Annotate use it (`screenshot-capture.ts:245`, `:250-253`), but no code reads it. `openQuietCapture` (`main/index.ts:726-734`) forwards only `png, width, height, mode`, so the editor opened from the toast's Annotate gets a blob source without `policy` and falls back to `\"manual\"` (`screenshot-editor-page.tsx:162`). The toast's Save never reads it either (`capture-toast-window.ts:242-279`). Either forward `policy` in `openQuietCapture`, or drop the fields and correct the comments so they don't claim a guarantee the code doesn't give."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts",
+          "line": 192,
+          "severity": "consider",
+          "topic": "perf",
+          "confidence": "medium",
+          "title": "A screenshot capture now probes availability and re-reads the folder file several times",
+          "body": "Each `screenshot:capture` first awaits `refreshActiveWorkspaceSettings()` here. That runs a `reg.availability()` probe and a folder read with a timeout of up to 2 s (`workspace-settings.ts:27`, `:94`), all before the overlay appears. Afterwards, the save path calls `requireCaptureWorkspace()` (`screenshot-save.ts:98`/`:117`), which probes availability again and now also calls `refreshActiveWorkspaceSettings()` a second time (`workspaces/index.ts:307`), even though the policy was already bound at capture start. On a slow or evicted synced folder, the hotkey can wait up to ~2 s before the overlay shows, and the save repeats the work. Consider dropping the refresh in `requireCaptureWorkspace` for screenshot saves, or reusing the availability result the refresh just computed."
+        }
+      ],
+      "contracts": [
+        {
+          "action": "Screenshot capture re-reads the active workspace's folder settings before the overlay opens",
+          "location": "apps/kaipu-record/src/main/screenshots/screenshot-ipc.ts:189-194",
+          "equivalent_path": "requireCaptureWorkspace (recording and screenshot-save), which probes availability and now also refreshes",
+          "before_after": "Before: handleCapture ran directly inside vaultActivity. After: it awaits refresh (an availability probe plus a read with a 2 s timeout), and a failure is swallowed by .catch.",
+          "visible_effect": "If the file changed, refresh calls notifyOverridesChanged, which broadcasts settings:changed. The capture's policy is then read synchronously from the effective settings in readPolicy.",
+          "failure_mode": "A failed read stores `unreadable`, so the overrides are inactive and the All values apply. A rejection is swallowed, and the capture continues with the cached overrides. Worst case, the overlay is delayed by up to the 2 s read timeout.",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:66-99",
+            "apps/kaipu-record/src/main/workspaces/index.ts:146-148",
+            "apps/kaipu-record/src/main/screenshots/capture-handler.ts:228-238"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "The capture policy is bound at start and travels with the result, the kept bytes and the toast payload",
+          "location": "apps/kaipu-record/src/main/screenshots/capture-handler.ts:162",
+          "equivalent_path": "The previous code read deps.settings().copy inside finish()",
+          "before_after": "The policy is read once and used for decideAfterCapture. It is also attached to QuietCapture and the toast payload.",
+          "visible_effect": "The editor opened after a failed save uses result.policy. The toast's Annotate opens the editor through openQuietCapture without the policy, so the editor uses \"manual\".",
+          "failure_mode": "If the settings throw, policy is null and the editor opens without copying anything.",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/screenshots/capture-handler.ts:286-289",
+            "apps/kaipu-record/src/main/index.ts:726-734",
+            "apps/kaipu-record/src/renderer/src/pages/screenshot-editor/screenshot-editor-page.tsx:162"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "New settings:* scoped IPC handlers (get-scoped, set-override, reset, copy-to-all, resolve-pending)",
+          "location": "apps/kaipu-record/src/main/workspaces/index.ts:525-560",
+          "equivalent_path": "The workspaces:* handlers, which check typeof on every argument",
+          "before_after": "Workspace ids, keys and decisions are type-checked. Values are validated in WorkspaceSettings.apply through normalizeOverride.",
+          "visible_effect": "On success the handlers return the effective settings, and changed() broadcasts settings:changed to every window.",
+          "failure_mode": "A write failure returns { ok:false, reason:'failed' }. A handler called before init throws through requireWorkspaceSettings, which rejects the invoke.",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:178-216",
+            "apps/kaipu-record/src/main/workspaces/settings-overrides.ts:30-54"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Workspace switch refreshes the target's overrides in persistActive and notifies after commit",
+          "location": "apps/kaipu-record/src/main/workspaces/index.ts:402-410",
+          "equivalent_path": "persistActive previously only called reg.setActive",
+          "before_after": "After setActive, refresh(target) runs, and afterCommit calls notifyOverridesChanged before refreshTitles and broadcastState.",
+          "visible_effect": "Every window receives the new workspace's effective settings through settings:changed.",
+          "failure_mode": "refresh never throws on a read failure (read returns `unreadable`). If isAvailable rejects, the rejection propagates into the switch transaction.",
+          "status": "open",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/workspace-settings.ts:88-99"
+          ],
+          "open_question": "Does switchWorkspace roll back correctly if persistActive rejects after reg.setActive has already succeeded?",
+          "candidates": [
+            "apps/kaipu-record/src/main/workspaces/switch-transaction.ts"
+          ]
+        }
+      ],
+      "thread_replies": [],
+      "summary": "Part 1 reviewed: the preload and shared types, settings-store's effective/All split, capture-policy binding, the workspace-settings wiring and IPC, and the override file store. The IPC handlers check their argument types and validate values before writing. shared/settings-scope.ts uses only type imports.\\n\\nThree findings:\\n- **Fix (medium confidence):** `MachineSettingsStore.open` treats any read error like a missing file. The next write then silently replaces `workspace-settings.json`, losing other workspaces' upload modes and folder-file confirmations.\\n- **Consider:** `QuietCapture.policy` and the toast payload's `policy` are written but never read. `openQuietCapture` doesn't forward the policy to the editor.\\n- **Consider:** each capture start runs repeated availability probes and folder reads, with up to a 2 s timeout before the overlay appears.\\n\\nOne contract is still open: whether the switch transaction rolls back when `persistActive` rejects after `setActive` has succeeded."
+    },
+    "ttft_ms": 1588,
+    "type": "result",
+    "duration_ms": 70749,
+    "uuid": "bfa5d09a-697e-4ce8-9baa-f82b1a112cae",
+    "ttft_stream_ms": 761,
+    "time_to_request_ms": 134,
+    "first_content_frame_ms": 761,
+    "queued_turn_count": 0,
+    "result_index": 0
+  }
+}

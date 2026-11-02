@@ -1,0 +1,21 @@
+{
+  "pr": 482,
+  "head": "833ca60acf3b10e2c1a52d32815919c2ee6aaf3f",
+  "mergeBase": "aac720234565627a8277413bb48618dc966e0aac",
+  "part": {
+    "index": 2,
+    "total": 6
+  },
+  "files": [
+    "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
+    "apps/kaipu-record/src/main/infrastructure/settings-store.test.ts",
+    "apps/kaipu-record/src/main/screenshots/capture-handler.test.ts",
+    "apps/kaipu-record/src/main/screenshots/capture-toast-window.test.ts",
+    "apps/kaipu-record/src/main/screenshots/last-quiet-capture.test.ts",
+    "apps/kaipu-record/src/main/workspaces/settings-overrides.test.ts"
+  ],
+  "questions": null,
+  "engine": "47933f0224c7f89451963a7d1694d2ed55ede461",
+  "promptChars": 74378,
+  "scratchDir": "/var/folders/jq/y5f4c4617k9g7mvrnk2tdrpr0000gn/T/agent-review-4gzK50"
+}

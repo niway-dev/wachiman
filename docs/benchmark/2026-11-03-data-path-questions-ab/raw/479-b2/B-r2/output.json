@@ -1,0 +1,102 @@
+{
+  "files_reviewed": [
+    "apps/kaipu-record/src/main/workspaces/move-item.ts",
+    "apps/kaipu-record/src/main/workspaces/switch-transaction.ts",
+    "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+    "apps/kaipu-record/src/main/library/video-edit-session.test.ts",
+    "apps/kaipu-record/src/main/workspaces/move-group.test.ts"
+  ],
+  "files_skipped": [],
+  "findings": [
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "line": 675,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "Roll-forward deletes the source media and records without checking they are still the journaled version",
+      "body": "In the roll-forward branch (661-678), the target is checked with `mediaMatches`, but the source is not. `sourceMatches` is computed at 638-641 and used only in the both-present branch (690). Line 675 unlinks `sourceMedia` and line 676 removes every source companion (sidecar, edit session, assets) whenever the source file exists.\n\nHow it can happen: the app crashes between `media-placed` and `source-media-deleted`. At the next start the target workspace is unplugged, so `healEntry` returns `waiting` (619). The source item is still complete and listed in the active workspace, and the user keeps editing it (a screenshot overwrite, an edit-session save). When the target comes back, `healPendingMoves` runs before the next move group (`workspaces/index.ts:169`). The target still matches the journal, so the source media and records holding the newer edits are deleted. The target keeps the pre-crash copy. The only log is the generic heal report, so the edits are lost silently.\n\nSuggested fix: roll forward only when `sourceMatches` is true or the source is absent. If the source exists but changed since the journal was written, quarantine the entry instead."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "line": 674,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "medium",
+      "title": "Healing one move wipes the drag folders of every item in the source vault",
+      "body": "Line 674 removes `<source>/.kaipu/drag` (`dragRoot`, `library/drag-copies.ts:14-16`) for the whole vault. The mover itself clears only this item's folders through the ledger (`deps.dragLedger?.clear(source.workspaceId, id)`, line 274) and refuses `dragged-just-now` (243). Healing runs before every move group (`workspaces/index.ts:169`), not only at startup, so a pending entry can delete another item's drag copy while a drop into another app is still reading it. The ledger keeps listing the deleted folders.\n\nSuggested fix: pass the ledger in and clear only `(journal.source.workspaceId, journal.sourceId)`. A vault-wide wipe would still be fine at startup, where `drag-copies.ts` already does one."
+    },
+    {
+      "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "line": 409,
+      "severity": "consider",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "A heal error after the commit makes a completed move report `io`",
+      "body": "Past the commit, the catch calls `healEntry` (409-413) with no guard of its own. Any error it throws (for example from `writeJournal` or `readSidecarStrict`) reaches `moveItem`'s catch (204-207), which returns `refuse(\"io\")`. The item is already in the target, with its source partly deleted, but the user is told the move failed.\n\nSeparately, line 414 always reports `mode: \"copied\"`, even when the media was hard-linked.\n\nSuggested fix: wrap the heal in a try/catch, log the error, and still return `ok: true` with the real `mode`. The journal stays in place for the next heal."
+    }
+  ],
+  "contracts": [
+    {
+      "action": "Healing rolls a journaled move forward and deletes the source media and companions",
+      "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:661",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:619",
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:638-641",
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:661-678",
+        "apps/kaipu-record/src/main/workspaces/index.ts:115-128",
+        "apps/kaipu-record/src/main/workspaces/index.ts:169"
+      ],
+      "equivalent_path": "moveLocked step 6 (lines 392-398), which deletes the source while it still holds the item lock and right after placing the media",
+      "before_after": "moveLocked deletes the source right after the commit, while it holds the lock. Healing can run much later, after the source may have been edited, and it re-verifies only the target (654), not the source (638-641 are computed but not used here).",
+      "visible_effect": "The item disappears from the source workspace and appears in the target, and broadcastLibraryChanged fires (workspaces/index.ts:118).",
+      "failure_mode": "If the source changed while the entry waited, the newer source media and records are deleted with no notice. unlink errors are swallowed (675).",
+      "evidence_checked": true
+    },
+    {
+      "action": "Healing deletes the whole source drag root",
+      "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:674",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/library/drag-copies.ts:14-16",
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:274",
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:674"
+      ],
+      "equivalent_path": "deps.dragLedger.clear(workspaceId, itemId) at line 274, which clears per item; clearing every drag copy at startup and quit (drag-copies.ts)",
+      "before_after": "The mover clears only this item's folders. Healing removes every item's folders, and also runs before each move group.",
+      "visible_effect": "A drag out of the app that is still in progress can fail for an unrelated item.",
+      "failure_mode": "Errors are swallowed (`.catch(() => {})`), and the ledger keeps the deleted folders listed.",
+      "evidence_checked": true
+    },
+    {
+      "action": "Concurrent healMoves and moveItem on the same journal",
+      "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:590",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/index.ts:159",
+        "apps/kaipu-record/src/main/workspaces/index.ts:163-169",
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:599"
+      ],
+      "equivalent_path": "Serialized by moveRun in workspaces/index.ts",
+      "before_after": "healMoves reads each journal before it takes the item lock. A second run is refused while moveRun is set, and healing runs inside the same run before its moves, so a stale journal read cannot overlap an in-flight move.",
+      "evidence_checked": true
+    },
+    {
+      "action": "rollBackTarget deletes the target record and companions",
+      "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:506",
+      "status": "closed",
+      "evidence": [
+        "apps/kaipu-record/src/main/workspaces/move-item.ts:513-518",
+        "apps/kaipu-record/src/main/library/library-vault.ts:440-452"
+      ],
+      "equivalent_path": "LibraryVault reserveIncoming/remove companions (library-vault.ts:546-570)",
+      "before_after": "Re-reads the target sidecar strictly. It returns without deleting when the record belongs to another asset or cannot be read, and deletes media only when the caller passes it.",
+      "visible_effect": "The target workspace is left without the partial item.",
+      "failure_mode": "removeCompanions uses allSettled, so a failed rm leaves orphan files that removeOrphanRecords collects later.",
+      "evidence_checked": true
+    }
+  ],
+  "thread_replies": [],
+  "summary": "I found three problems in this part, all in move-item.ts; the other four files had nothing to flag.\n\n- **Fix (lost edits):** when the startup heal finishes an interrupted move, it deletes the source copy of the item without checking that it is still the version recorded when the move started (line 675). This bites when the target drive was unplugged after the crash and the user kept editing the item in the source workspace: the edits are deleted silently once the target comes back.\n- **Consider:** the heal deletes the drag folders of every item in the source workspace, not just the moved one (line 674). It also runs before each move group, so it can break another item's drag-out that is still in progress.\n- **Consider:** if the heal fails after the commit (line 409), the user is told the move failed even though it completed. That same path always reports the move as a copy, even when the file was hard-linked.\n\nChecked and fine:\n- A heal can't run on a journal while that move is still in flight; the `moveRun` guard keeps them apart.\n- Rolling back the target re-reads its sidecar before deleting anything.\n- The switch-transaction and workspace-view changes are type and field plumbing and look right."
+}

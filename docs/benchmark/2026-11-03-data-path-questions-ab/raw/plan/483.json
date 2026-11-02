@@ -1,0 +1,193 @@
+{
+  "pr": 483,
+  "head": "443a9b0",
+  "mergeBase": "543053c406849cfe30dd1647081c4a4c39be6358",
+  "files": 100,
+  "kept": 100,
+  "dropped": [],
+  "batches": [
+    {
+      "index": 1,
+      "files": 8,
+      "lines": 115,
+      "maxRisk": 8,
+      "paths": [
+        "apps/kaipu-record/src/preload/index.ts",
+        "apps/kaipu-record/src/shared/types/electron-api.ts",
+        "apps/kaipu-record/src/shared/types/ipc.ts",
+        "apps/kaipu-record/src/shared/types/library-item.ts",
+        "apps/kaipu-record/src/shared/types/library-storage.ts",
+        "apps/kaipu-record/src/shared/types/workspaces.ts",
+        "packages/infra-db/src/migrations/0003_cloud_asset_workspace_id.sql",
+        "packages/infra-db/src/migrations/meta/_journal.json"
+      ],
+      "questions": []
+    },
+    {
+      "index": 2,
+      "files": 1,
+      "lines": 1065,
+      "maxRisk": 6,
+      "paths": [
+        "packages/infra-db/src/migrations/meta/0003_snapshot.json"
+      ],
+      "questions": []
+    },
+    {
+      "index": 3,
+      "files": 21,
+      "lines": 984,
+      "maxRisk": 6,
+      "paths": [
+        "packages/infra-db/src/schema/cloud.ts",
+        "packages/infra-db/src/mappers/cloud.mapper.ts",
+        "packages/infra-db/src/repositories/cloud-asset.repository.ts",
+        "apps/kaipu-record/src/main/cloud/assign-client.ts",
+        "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+        "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+        "apps/kaipu-record/src/main/cloud/catalog-cache.ts",
+        "apps/kaipu-record/src/main/cloud/catalog-client.ts",
+        "apps/kaipu-record/src/main/cloud/cloud-state.ts",
+        "apps/kaipu-record/src/main/cloud/upload-intent-client.ts",
+        "apps/kaipu-record/src/main/cloud/workspace-filter.ts",
+        "apps/kaipu-record/src/main/index.ts",
+        "apps/kaipu-record/src/main/library/dataless.ts",
+        "apps/kaipu-record/src/main/library/drag-copies.ts",
+        "apps/kaipu-record/src/main/library/index.ts",
+        "apps/kaipu-record/src/main/library/library-service.ts",
+        "apps/kaipu-record/src/main/library/library-vault.ts",
+        "apps/kaipu-record/src/main/library/safe-place.ts",
+        "apps/kaipu-record/src/main/media-protocol.ts",
+        "apps/kaipu-record/src/main/recording/recording-hub.ts",
+        "packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts"
+      ],
+      "questions": [
+        "destructive-step",
+        "read-error-as-empty",
+        "overlapping-calls",
+        "bounded-wait",
+        "stale-write-back"
+      ]
+    },
+    {
+      "index": 4,
+      "files": 15,
+      "lines": 880,
+      "maxRisk": 5,
+      "paths": [
+        "apps/kaipu-record/src/main/recording/recording-writer.ts",
+        "apps/kaipu-record/src/main/recording/stranded-recordings.ts",
+        "apps/kaipu-record/src/main/workspaces/index.ts",
+        "apps/kaipu-record/src/main/workspaces/move-item.ts",
+        "apps/kaipu-record/src/main/workspaces/registry.ts",
+        "apps/kaipu-record/src/main/workspaces/sync-state.ts",
+        "apps/kaipu-record/src/main/workspaces/synced-folder.ts",
+        "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+        "apps/kaipu-record/src/main/cloud/assign-client.test.ts",
+        "apps/kaipu-record/src/main/cloud/assign-cloud.test.ts",
+        "apps/kaipu-record/src/main/cloud/assign-queue.test.ts",
+        "apps/kaipu-record/src/main/cloud/catalog-cache.test.ts",
+        "apps/kaipu-record/src/main/cloud/catalog-client.test.ts",
+        "apps/kaipu-record/src/main/cloud/cloud-state.test.ts",
+        "apps/kaipu-record/src/main/cloud/upload-intent-client.test.ts"
+      ],
+      "questions": [
+        "destructive-step",
+        "overlapping-calls",
+        "bounded-wait"
+      ]
+    },
+    {
+      "index": 5,
+      "files": 18,
+      "lines": 983,
+      "maxRisk": 4,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/features/library/components/video-card.tsx",
+        "apps/kaipu-record/src/renderer/src/features/library/hooks/use-orphan-heal.ts",
+        "apps/kaipu-record/src/renderer/src/features/library/map-item.ts",
+        "apps/kaipu-record/src/renderer/src/features/library/types.ts",
+        "apps/kaipu-record/src/main/cloud/workspace-filter.test.ts",
+        "apps/kaipu-record/src/main/library/dataless.test.ts",
+        "apps/kaipu-record/src/main/library/drag-copies.test.ts",
+        "apps/kaipu-record/src/main/library/library-ipc.maintenance.test.ts",
+        "apps/kaipu-record/src/main/library/library-service.test.ts",
+        "apps/kaipu-record/src/main/library/library-vault.evicted.test.ts",
+        "apps/kaipu-record/src/main/library/safe-place.by-rename.test.ts",
+        "apps/kaipu-record/src/main/media-protocol.test.ts",
+        "apps/kaipu-record/src/main/recording/recording-hub.test.ts",
+        "apps/kaipu-record/src/main/recording/recording-writer.synced.test.ts",
+        "apps/kaipu-record/src/main/workspaces/move-item.test.ts",
+        "apps/kaipu-record/src/main/workspaces/registry.test.ts",
+        "apps/kaipu-record/src/main/workspaces/sync-state.test.ts",
+        "apps/kaipu-record/src/main/workspaces/synced-folder.test.ts"
+      ],
+      "questions": []
+    },
+    {
+      "index": 6,
+      "files": 32,
+      "lines": 994,
+      "maxRisk": 4,
+      "paths": [
+        "apps/kaipu-record/src/renderer/src/features/workspaces/cloud/workspace-cloud-section.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/item-move-menu.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move-flow.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move-target-list.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/cloud/cloud-page.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/library/library-page.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/settings-pages.tsx",
+        "apps/server-hono/src/contract/cloud.contract.ts",
+        "apps/server-hono/src/modules/cloud/cloud.router.ts",
+        "packages/application/src/cloud/create-upload-intent.ts",
+        "packages/application/src/cloud/fakes.ts",
+        "packages/application/src/cloud/index.ts",
+        "packages/application/src/cloud/set-asset-workspace.ts",
+        "packages/domain/src/repositories/cloud-asset.repository.ts",
+        "packages/domain/src/schemas/cloud-asset.ts",
+        "packages/domain/src/schemas/index.ts",
+        "apps/kaipu-record/src/renderer/src/features/library/hooks/use-orphan-heal.test.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/cloud/workspace-cloud-section.test.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move-flow.test.ts",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/move/move.test.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-dialog.test.tsx",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/cloud/cloud-page.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/library/library-page.select.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/scope/settings-scope.test.tsx",
+        "apps/kaipu-record/src/renderer/src/pages/settings/workspaces-settings.test.tsx",
+        "apps/kaipu-record/src/renderer/src/test/setup.ts",
+        "apps/server-hono/src/contract/asset-workspace.contract.test.ts",
+        "packages/application/src/cloud/cloud.test.ts",
+        "apps/kaipu-record/src/renderer/src/features/library/components/video-card.module.css",
+        "apps/kaipu-record/src/renderer/src/features/workspaces/cloud/workspace-cloud-section.module.css"
+      ],
+      "questions": []
+    },
+    {
+      "index": 7,
+      "files": 5,
+      "lines": 205,
+      "maxRisk": 2,
+      "paths": [
+        "packages/domain/src/schemas/cloud-asset.test.ts",
+        "apps/documentation/src/content/docs/backlog/several-workspaces.md",
+        "apps/documentation/src/content/docs/specs/2026-10-29-several-workspaces-design.md",
+        "packages/i18n/messages/en.json",
+        "packages/i18n/messages/es.json"
+      ],
+      "questions": []
+    }
+  ],
+  "bugFiles": [
+    {
+      "path": "apps/kaipu-record/src/main/library/dataless.ts",
+      "batch": 3
+    },
+    {
+      "path": "apps/kaipu-record/src/main/library/library-vault.ts",
+      "batch": 3
+    }
+  ]
+}

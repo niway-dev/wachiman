@@ -1,0 +1,2 @@
+Data-path questions: (engine has none)
+{"is_error":false,"terminal_reason":"success","turns":12,"cost_usd":0.5976838,"duration_ms":97492}

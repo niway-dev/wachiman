@@ -1,0 +1,343 @@
+{
+  "structuredOutput": {
+    "files_reviewed": [
+      "apps/kaipu-record/src/main/workspaces/move-item.ts",
+      "apps/kaipu-record/src/main/workspaces/switch-transaction.ts",
+      "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+      "apps/kaipu-record/src/main/library/video-edit-session.test.ts",
+      "apps/kaipu-record/src/main/workspaces/move-group.test.ts"
+    ],
+    "files_skipped": [],
+    "findings": [
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+        "line": 675,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "Roll-forward deletes the source media and edit files even when the source changed after the journal was written",
+        "body": "The roll-forward branch (line 661) checks only the target: `targetPresent && targetMatches && recordIsOurs`. It then unlinks `sourceMedia` whenever `sourcePresent` is true (line 675) and calls `removeCompanions` on the source (line 676). It never looks at `sourceMatches`, which is computed at lines 638-641 and only used in the `sourcePresent && targetPresent` branch.\n\nHere is a case that hits it. The app dies after `committed` (or after `media-placed`). At the next startup the target folder is unplugged, so `resolveMoveSide` returns null and the entry waits (line 619, `index.ts:103-108`). Meanwhile the item still shows in the source workspace with its media and sidecar. The user overwrites the screenshot there (`screenshot-save.ts:69` takes the item lock, but no heal is holding it), or saves an edit session. When the target comes back, heal deletes the edited source and its newer `.edit.json`/assets, and keeps the target copy, which is older. Nothing tells the user.\n\nThis breaks the rule the docblock states at lines 574-576: a side is deleted only when the other side is verified complete. Here the target is complete only for the *old* bytes. Fix: when `sourcePresent && !sourceMatches`, quarantine instead of rolling forward. Also consider comparing the source sidecar with the target record before you remove the source companions."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+        "line": 676,
+        "severity": "fix",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "A failed source deletion is swallowed and the journal is still dropped, leaving the item in both workspaces",
+        "body": "After the commit, `removeCompanions` uses `Promise.allSettled` and ignores every rejection (lines 495-499). In the happy path the journal is then removed at line 402. If `rm(media)` at line 395 throws (EACCES, EBUSY), the catch calls `healEntry`. That function's `unlink(sourceMedia).catch(() => {})` (line 675) also hides the error, and `done()` deletes the journal (line 625).\n\nIn both cases the source keeps its media and/or sidecar under the same `assetId` as the target copy, and nothing is left to retry the cleanup. The user ends up with a duplicate in both workspaces. A later move back is refused as `already-there` (line 251), and since the record with no media carries that assetId, it can also feed `removeOrphanRecords` later.\n\nFix: re-check after deleting. If the source media or sidecar is still there, keep the journal in phase `committed` so the next `healMoves` finishes the job, instead of returning `healed`/`ok`."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+        "line": 674,
+        "severity": "consider",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "Healing wipes every item's drag folder in the source workspace, not just this item's",
+        "body": "`rm(join(sourceDir, META_DIR, \"drag\"), { recursive: true })` deletes the whole drag directory of the source workspace. The live path scopes this to one item with `deps.dragLedger?.clear(source.workspaceId, id)` (line 274; `drag-ledger.ts:39-43`). Healing therefore also removes drag copies of unrelated items that may be mid-drop, and the in-memory `DragLedger` keeps entries pointing at folders that no longer exist. Scope the removal to this item's drag folders, or document why the whole folder is safe to drop."
+      },
+      {
+        "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+        "line": 414,
+        "severity": "consider",
+        "topic": "bug",
+        "confidence": "medium",
+        "title": "Post-commit heal outcome is ignored and its failure reports the move as an io refusal",
+        "body": "In the post-commit catch, `healEntry`'s result is discarded. A quarantined entry still returns `{ ok: true, mode: \"copied\" }`, and `mode` is also wrong for a linked move. If `healEntry` itself throws, for example from `readSidecarStrict` or `writeJournal`, the error escapes this catch and `moveItem` turns it into `refuse(\"io\")` (lines 204-207). The target then holds the item, and maybe a half-cleaned source, but the UI reports that the move failed. Consider wrapping the heal in a try/catch that still returns `ok: true` with the target id, keeping the actual mode."
+      }
+    ],
+    "contracts": [
+      {
+        "action": "Heal roll-forward deletes source media and companions",
+        "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:661-677",
+        "equivalent_path": "Live move source deletion after commit (move-item.ts:392-398)",
+        "before_after": "The live path deletes the source under the item lock right after it verified the copy. Heal deletes it on a later run without re-checking that the source is still the journaled bytes (sourceMatches is unused here).",
+        "visible_effect": "The source item disappears from the source workspace's library; the target copy stays.",
+        "failure_mode": "The source edited while the entry waited is deleted, and the edits are lost silently; deletion errors are swallowed (line 675) and the journal is dropped (line 625).",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/move-item.ts:619",
+          "apps/kaipu-record/src/main/workspaces/move-item.ts:638-641",
+          "apps/kaipu-record/src/main/workspaces/move-item.ts:675-676",
+          "apps/kaipu-record/src/main/workspaces/index.ts:103-108",
+          "apps/kaipu-record/src/main/screenshots/screenshot-save.ts:69"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Source cleanup after commit and journal removal",
+        "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:395-402",
+        "equivalent_path": "LibraryVault.remove via companionPaths",
+        "before_after": "removeCompanions ignores every rejection, then the journal is removed.",
+        "visible_effect": "On failure the item stays visible in both workspaces.",
+        "failure_mode": "Nothing retries the cleanup, because the journal is gone.",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/workspaces/move-item.ts:495-499",
+          "apps/kaipu-record/src/main/workspaces/move-item.ts:402",
+          "apps/kaipu-record/src/main/workspaces/move-item.ts:623-627"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Item lock taken by the mover and by other writers",
+        "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:201",
+        "equivalent_path": "screenshot overwrite (screenshot-save.ts:69), saveSessionLocked",
+        "before_after": "Both the mover and these writers key the lock by (workspaceId, id); healMoves takes the same lock (line 599).",
+        "visible_effect": "A save queued behind a move fails with item-moved (video-edit-session.test.ts:35-53).",
+        "failure_mode": "",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/library/item-lock.ts:10-16",
+          "apps/kaipu-record/src/main/screenshots/screenshot-save.ts:69",
+          "apps/kaipu-record/src/main/workspaces/move-item.ts:599"
+        ],
+        "open_question": "",
+        "candidates": []
+      },
+      {
+        "action": "Healing removes the source drag folder",
+        "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:674",
+        "equivalent_path": "DragLedger.clear per item (drag-ledger.ts:39-43)",
+        "before_after": "The ledger clears only this item's folders; heal removes the whole directory.",
+        "visible_effect": "Drags of other items in progress may lose their files.",
+        "failure_mode": "The ledger keeps stale entries.",
+        "status": "closed",
+        "evidence": [
+          "apps/kaipu-record/src/main/library/drag-ledger.ts:39-43",
+          "apps/kaipu-record/src/main/workspaces/move-item.ts:274"
+        ],
+        "open_question": "",
+        "candidates": []
+      }
+    ],
+    "thread_replies": [],
+    "summary": "I reviewed the five files in part 2 and found two \"fix\" issues and two \"consider\" issues, all in `move-item.ts`, the code that moves an item between workspaces and repairs interrupted moves (\"healing\"). I only read the code; nothing was run.\n\n**Fix**\n- **Healing can delete user edits (`move-item.ts:675`).** When healing finishes an interrupted move, it deletes the source copy without checking that the source still holds the bytes the journal recorded. A move can sit waiting because the target folder is unplugged. If the user overwrites a screenshot or saves an edit in the source workspace during that wait, those changes are deleted without warning once the target comes back. The fix is to quarantine the entry when the source no longer matches.\n- **Failed source deletion leaves the item in both workspaces (`move-item.ts:676`).** Errors from deleting the source are ignored (lines 495-499 and 675), and the journal is removed anyway. If the delete fails, the item stays in both workspaces with nothing left to retry the cleanup. A later move back is then refused as \"already there\".\n\n**Consider**\n- **Healing clears every item's drag folder (`move-item.ts:674`).** It wipes the source workspace's whole `.kaipu/drag` folder, while the normal path clears only the moved item's drag folders.\n- **Post-commit heal result is ignored (`move-item.ts:414`).** After the commit point, the result of the heal call is discarded, and a heal error makes the UI report a failed move even though the item is already in the target. The reported `mode` is also always \"copied\", even for a hard-linked move.\n\nThe other four files have no issues: `switch-transaction.ts`, `workspace-view.ts`, `video-edit-session.test.ts` and `move-group.test.ts`."
+  },
+  "text": "{\"files_reviewed\":[\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"apps/kaipu-record/src/main/workspaces/switch-transaction.ts\",\"apps/kaipu-record/src/main/workspaces/workspace-view.ts\",\"apps/kaipu-record/src/main/library/video-edit-session.test.ts\",\"apps/kaipu-record/src/main/workspaces/move-group.test.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"line\":675,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Roll-forward deletes the source media and edit files even when the source changed after the journal was written\",\"body\":\"The roll-forward branch (line 661) checks only the target: `targetPresent && targetMatches && recordIsOurs`. It then unlinks `sourceMedia` whenever `sourcePresent` is true (line 675) and calls `removeCompanions` on the source (line 676). It never looks at `sourceMatches`, which is computed at lines 638-641 and only used in the `sourcePresent && targetPresent` branch.\\n\\nHere is a case that hits it. The app dies after `committed` (or after `media-placed`). At the next startup the target folder is unplugged, so `resolveMoveSide` returns null and the entry waits (line 619, `index.ts:103-108`). Meanwhile the item still shows in the source workspace with its media and sidecar. The user overwrites the screenshot there (`screenshot-save.ts:69` takes the item lock, but no heal is holding it), or saves an edit session. When the target comes back, heal deletes the edited source and its newer `.edit.json`/assets, and keeps the target copy, which is older. Nothing tells the user.\\n\\nThis breaks the rule the docblock states at lines 574-576: a side is deleted only when the other side is verified complete. Here the target is complete only for the *old* bytes. Fix: when `sourcePresent && !sourceMatches`, quarantine instead of rolling forward. Also consider comparing the source sidecar with the target record before you remove the source companions.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"line\":676,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"A failed source deletion is swallowed and the journal is still dropped, leaving the item in both workspaces\",\"body\":\"After the commit, `removeCompanions` uses `Promise.allSettled` and ignores every rejection (lines 495-499). In the happy path the journal is then removed at line 402. If `rm(media)` at line 395 throws (EACCES, EBUSY), the catch calls `healEntry`. That function's `unlink(sourceMedia).catch(() => {})` (line 675) also hides the error, and `done()` deletes the journal (line 625).\\n\\nIn both cases the source keeps its media and/or sidecar under the same `assetId` as the target copy, and nothing is left to retry the cleanup. The user ends up with a duplicate in both workspaces. A later move back is refused as `already-there` (line 251), and since the record with no media carries that assetId, it can also feed `removeOrphanRecords` later.\\n\\nFix: re-check after deleting. If the source media or sidecar is still there, keep the journal in phase `committed` so the next `healMoves` finishes the job, instead of returning `healed`/`ok`.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"line\":674,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Healing wipes every item's drag folder in the source workspace, not just this item's\",\"body\":\"`rm(join(sourceDir, META_DIR, \\\"drag\\\"), { recursive: true })` deletes the whole drag directory of the source workspace. The live path scopes this to one item with `deps.dragLedger?.clear(source.workspaceId, id)` (line 274; `drag-ledger.ts:39-43`). Healing therefore also removes drag copies of unrelated items that may be mid-drop, and the in-memory `DragLedger` keeps entries pointing at folders that no longer exist. Scope the removal to this item's drag folders, or document why the whole folder is safe to drop.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"line\":414,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Post-commit heal outcome is ignored and its failure reports the move as an io refusal\",\"body\":\"In the post-commit catch, `healEntry`'s result is discarded. A quarantined entry still returns `{ ok: true, mode: \\\"copied\\\" }`, and `mode` is also wrong for a linked move. If `healEntry` itself throws, for example from `readSidecarStrict` or `writeJournal`, the error escapes this catch and `moveItem` turns it into `refuse(\\\"io\\\")` (lines 204-207). The target then holds the item, and maybe a half-cleaned source, but the UI reports that the move failed. Consider wrapping the heal in a try/catch that still returns `ok: true` with the target id, keeping the actual mode.\"}],\"contracts\":[{\"action\":\"Heal roll-forward deletes source media and companions\",\"location\":\"apps/kaipu-record/src/main/workspaces/move-item.ts:661-677\",\"equivalent_path\":\"Live move source deletion after commit (move-item.ts:392-398)\",\"before_after\":\"The live path deletes the source under the item lock right after it verified the copy. Heal deletes it on a later run without re-checking that the source is still the journaled bytes (sourceMatches is unused here).\",\"visible_effect\":\"The source item disappears from the source workspace's library; the target copy stays.\",\"failure_mode\":\"The source edited while the entry waited is deleted, and the edits are lost silently; deletion errors are swallowed (line 675) and the journal is dropped (line 625).\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/move-item.ts:619\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:638-641\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:675-676\",\"apps/kaipu-record/src/main/workspaces/index.ts:103-108\",\"apps/kaipu-record/src/main/screenshots/screenshot-save.ts:69\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Source cleanup after commit and journal removal\",\"location\":\"apps/kaipu-record/src/main/workspaces/move-item.ts:395-402\",\"equivalent_path\":\"LibraryVault.remove via companionPaths\",\"before_after\":\"removeCompanions ignores every rejection, then the journal is removed.\",\"visible_effect\":\"On failure the item stays visible in both workspaces.\",\"failure_mode\":\"Nothing retries the cleanup, because the journal is gone.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/move-item.ts:495-499\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:402\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:623-627\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Item lock taken by the mover and by other writers\",\"location\":\"apps/kaipu-record/src/main/workspaces/move-item.ts:201\",\"equivalent_path\":\"screenshot overwrite (screenshot-save.ts:69), saveSessionLocked\",\"before_after\":\"Both the mover and these writers key the lock by (workspaceId, id); healMoves takes the same lock (line 599).\",\"visible_effect\":\"A save queued behind a move fails with item-moved (video-edit-session.test.ts:35-53).\",\"failure_mode\":\"\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/library/item-lock.ts:10-16\",\"apps/kaipu-record/src/main/screenshots/screenshot-save.ts:69\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:599\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Healing removes the source drag folder\",\"location\":\"apps/kaipu-record/src/main/workspaces/move-item.ts:674\",\"equivalent_path\":\"DragLedger.clear per item (drag-ledger.ts:39-43)\",\"before_after\":\"The ledger clears only this item's folders; heal removes the whole directory.\",\"visible_effect\":\"Drags of other items in progress may lose their files.\",\"failure_mode\":\"The ledger keeps stale entries.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/library/drag-ledger.ts:39-43\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:274\"],\"open_question\":\"\",\"candidates\":[]}],\"thread_replies\":[],\"summary\":\"I reviewed the five files in part 2 and found two \\\"fix\\\" issues and two \\\"consider\\\" issues, all in `move-item.ts`, the code that moves an item between workspaces and repairs interrupted moves (\\\"healing\\\"). I only read the code; nothing was run.\\n\\n**Fix**\\n- **Healing can delete user edits (`move-item.ts:675`).** When healing finishes an interrupted move, it deletes the source copy without checking that the source still holds the bytes the journal recorded. A move can sit waiting because the target folder is unplugged. If the user overwrites a screenshot or saves an edit in the source workspace during that wait, those changes are deleted without warning once the target comes back. The fix is to quarantine the entry when the source no longer matches.\\n- **Failed source deletion leaves the item in both workspaces (`move-item.ts:676`).** Errors from deleting the source are ignored (lines 495-499 and 675), and the journal is removed anyway. If the delete fails, the item stays in both workspaces with nothing left to retry the cleanup. A later move back is then refused as \\\"already there\\\".\\n\\n**Consider**\\n- **Healing clears every item's drag folder (`move-item.ts:674`).** It wipes the source workspace's whole `.kaipu/drag` folder, while the normal path clears only the moved item's drag folders.\\n- **Post-commit heal result is ignored (`move-item.ts:414`).** After the commit point, the result of the heal call is discarded, and a heal error makes the UI report a failed move even though the item is already in the target. The reported `mode` is also always \\\"copied\\\", even for a hard-linked move.\\n\\nThe other four files have no issues: `switch-transaction.ts`, `workspace-view.ts`, `video-edit-session.test.ts` and `move-group.test.ts`.\"}",
+  "costUsd": 0.5491096,
+  "turns": 9,
+  "durationMs": 106473,
+  "terminalReason": "success",
+  "isError": false,
+  "raw": {
+    "duration_api_ms": 106332,
+    "stop_reason": "tool_use",
+    "session_id": "66afba75-90cf-4c43-ace0-b1397463e147",
+    "total_cost_usd": 0.5491096,
+    "usage": {
+      "input_tokens": 10,
+      "cache_creation_input_tokens": 40765,
+      "cache_read_input_tokens": 165448,
+      "output_tokens": 9493,
+      "output_tokens_details": {
+        "thinking_tokens": 4688
+      },
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 40765,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 4734,
+          "cache_read_input_tokens": 44176,
+          "cache_creation_input_tokens": 1624,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 1624
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "modelUsage": {
+      "claude-opus-5-5": {
+        "inputTokens": 10,
+        "outputTokens": 9493,
+        "cacheReadInputTokens": 165448,
+        "cacheCreationInputTokens": 40765,
+        "webSearchRequests": 0,
+        "costUSD": 0.5491096,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 128000,
+        "thinkingTokens": 4688,
+        "cacheCreationEphemeral5mInputTokens": 0,
+        "cacheCreationEphemeral1hInputTokens": 40765,
+        "canonicalModel": "claude-opus-5-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "permission_denials": [],
+    "terminal_reason": "completed",
+    "fast_mode_state": "off",
+    "fast_mode_disabled_reason": "sdk_opt_in_required",
+    "subagent_stats": {
+      "spawned": 0,
+      "requested": {
+        "background": 0,
+        "foreground": 0,
+        "unset": 0
+      },
+      "started_in_background": 0,
+      "max_depth": 0,
+      "spawned_by_subagents": 0,
+      "completed": 0,
+      "failed": 0,
+      "killed": {
+        "parent": 0,
+        "user": 0,
+        "system": 0
+      },
+      "refused": {
+        "depth_limit": 0,
+        "concurrency_limit": 0,
+        "budget": 0
+      },
+      "by_type": {}
+    },
+    "safety_stops": 0,
+    "is_error": false,
+    "num_turns": 9,
+    "subtype": "success",
+    "api_error_status": null,
+    "result": "{\"files_reviewed\":[\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"apps/kaipu-record/src/main/workspaces/switch-transaction.ts\",\"apps/kaipu-record/src/main/workspaces/workspace-view.ts\",\"apps/kaipu-record/src/main/library/video-edit-session.test.ts\",\"apps/kaipu-record/src/main/workspaces/move-group.test.ts\"],\"files_skipped\":[],\"findings\":[{\"path\":\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"line\":675,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Roll-forward deletes the source media and edit files even when the source changed after the journal was written\",\"body\":\"The roll-forward branch (line 661) checks only the target: `targetPresent && targetMatches && recordIsOurs`. It then unlinks `sourceMedia` whenever `sourcePresent` is true (line 675) and calls `removeCompanions` on the source (line 676). It never looks at `sourceMatches`, which is computed at lines 638-641 and only used in the `sourcePresent && targetPresent` branch.\\n\\nHere is a case that hits it. The app dies after `committed` (or after `media-placed`). At the next startup the target folder is unplugged, so `resolveMoveSide` returns null and the entry waits (line 619, `index.ts:103-108`). Meanwhile the item still shows in the source workspace with its media and sidecar. The user overwrites the screenshot there (`screenshot-save.ts:69` takes the item lock, but no heal is holding it), or saves an edit session. When the target comes back, heal deletes the edited source and its newer `.edit.json`/assets, and keeps the target copy, which is older. Nothing tells the user.\\n\\nThis breaks the rule the docblock states at lines 574-576: a side is deleted only when the other side is verified complete. Here the target is complete only for the *old* bytes. Fix: when `sourcePresent && !sourceMatches`, quarantine instead of rolling forward. Also consider comparing the source sidecar with the target record before you remove the source companions.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"line\":676,\"severity\":\"fix\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"A failed source deletion is swallowed and the journal is still dropped, leaving the item in both workspaces\",\"body\":\"After the commit, `removeCompanions` uses `Promise.allSettled` and ignores every rejection (lines 495-499). In the happy path the journal is then removed at line 402. If `rm(media)` at line 395 throws (EACCES, EBUSY), the catch calls `healEntry`. That function's `unlink(sourceMedia).catch(() => {})` (line 675) also hides the error, and `done()` deletes the journal (line 625).\\n\\nIn both cases the source keeps its media and/or sidecar under the same `assetId` as the target copy, and nothing is left to retry the cleanup. The user ends up with a duplicate in both workspaces. A later move back is refused as `already-there` (line 251), and since the record with no media carries that assetId, it can also feed `removeOrphanRecords` later.\\n\\nFix: re-check after deleting. If the source media or sidecar is still there, keep the journal in phase `committed` so the next `healMoves` finishes the job, instead of returning `healed`/`ok`.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"line\":674,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Healing wipes every item's drag folder in the source workspace, not just this item's\",\"body\":\"`rm(join(sourceDir, META_DIR, \\\"drag\\\"), { recursive: true })` deletes the whole drag directory of the source workspace. The live path scopes this to one item with `deps.dragLedger?.clear(source.workspaceId, id)` (line 274; `drag-ledger.ts:39-43`). Healing therefore also removes drag copies of unrelated items that may be mid-drop, and the in-memory `DragLedger` keeps entries pointing at folders that no longer exist. Scope the removal to this item's drag folders, or document why the whole folder is safe to drop.\"},{\"path\":\"apps/kaipu-record/src/main/workspaces/move-item.ts\",\"line\":414,\"severity\":\"consider\",\"topic\":\"bug\",\"confidence\":\"medium\",\"title\":\"Post-commit heal outcome is ignored and its failure reports the move as an io refusal\",\"body\":\"In the post-commit catch, `healEntry`'s result is discarded. A quarantined entry still returns `{ ok: true, mode: \\\"copied\\\" }`, and `mode` is also wrong for a linked move. If `healEntry` itself throws, for example from `readSidecarStrict` or `writeJournal`, the error escapes this catch and `moveItem` turns it into `refuse(\\\"io\\\")` (lines 204-207). The target then holds the item, and maybe a half-cleaned source, but the UI reports that the move failed. Consider wrapping the heal in a try/catch that still returns `ok: true` with the target id, keeping the actual mode.\"}],\"contracts\":[{\"action\":\"Heal roll-forward deletes source media and companions\",\"location\":\"apps/kaipu-record/src/main/workspaces/move-item.ts:661-677\",\"equivalent_path\":\"Live move source deletion after commit (move-item.ts:392-398)\",\"before_after\":\"The live path deletes the source under the item lock right after it verified the copy. Heal deletes it on a later run without re-checking that the source is still the journaled bytes (sourceMatches is unused here).\",\"visible_effect\":\"The source item disappears from the source workspace's library; the target copy stays.\",\"failure_mode\":\"The source edited while the entry waited is deleted, and the edits are lost silently; deletion errors are swallowed (line 675) and the journal is dropped (line 625).\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/move-item.ts:619\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:638-641\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:675-676\",\"apps/kaipu-record/src/main/workspaces/index.ts:103-108\",\"apps/kaipu-record/src/main/screenshots/screenshot-save.ts:69\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Source cleanup after commit and journal removal\",\"location\":\"apps/kaipu-record/src/main/workspaces/move-item.ts:395-402\",\"equivalent_path\":\"LibraryVault.remove via companionPaths\",\"before_after\":\"removeCompanions ignores every rejection, then the journal is removed.\",\"visible_effect\":\"On failure the item stays visible in both workspaces.\",\"failure_mode\":\"Nothing retries the cleanup, because the journal is gone.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/workspaces/move-item.ts:495-499\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:402\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:623-627\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Item lock taken by the mover and by other writers\",\"location\":\"apps/kaipu-record/src/main/workspaces/move-item.ts:201\",\"equivalent_path\":\"screenshot overwrite (screenshot-save.ts:69), saveSessionLocked\",\"before_after\":\"Both the mover and these writers key the lock by (workspaceId, id); healMoves takes the same lock (line 599).\",\"visible_effect\":\"A save queued behind a move fails with item-moved (video-edit-session.test.ts:35-53).\",\"failure_mode\":\"\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/library/item-lock.ts:10-16\",\"apps/kaipu-record/src/main/screenshots/screenshot-save.ts:69\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:599\"],\"open_question\":\"\",\"candidates\":[]},{\"action\":\"Healing removes the source drag folder\",\"location\":\"apps/kaipu-record/src/main/workspaces/move-item.ts:674\",\"equivalent_path\":\"DragLedger.clear per item (drag-ledger.ts:39-43)\",\"before_after\":\"The ledger clears only this item's folders; heal removes the whole directory.\",\"visible_effect\":\"Drags of other items in progress may lose their files.\",\"failure_mode\":\"The ledger keeps stale entries.\",\"status\":\"closed\",\"evidence\":[\"apps/kaipu-record/src/main/library/drag-ledger.ts:39-43\",\"apps/kaipu-record/src/main/workspaces/move-item.ts:274\"],\"open_question\":\"\",\"candidates\":[]}],\"thread_replies\":[],\"summary\":\"I reviewed the five files in part 2 and found two \\\"fix\\\" issues and two \\\"consider\\\" issues, all in `move-item.ts`, the code that moves an item between workspaces and repairs interrupted moves (\\\"healing\\\"). I only read the code; nothing was run.\\n\\n**Fix**\\n- **Healing can delete user edits (`move-item.ts:675`).** When healing finishes an interrupted move, it deletes the source copy without checking that the source still holds the bytes the journal recorded. A move can sit waiting because the target folder is unplugged. If the user overwrites a screenshot or saves an edit in the source workspace during that wait, those changes are deleted without warning once the target comes back. The fix is to quarantine the entry when the source no longer matches.\\n- **Failed source deletion leaves the item in both workspaces (`move-item.ts:676`).** Errors from deleting the source are ignored (lines 495-499 and 675), and the journal is removed anyway. If the delete fails, the item stays in both workspaces with nothing left to retry the cleanup. A later move back is then refused as \\\"already there\\\".\\n\\n**Consider**\\n- **Healing clears every item's drag folder (`move-item.ts:674`).** It wipes the source workspace's whole `.kaipu/drag` folder, while the normal path clears only the moved item's drag folders.\\n- **Post-commit heal result is ignored (`move-item.ts:414`).** After the commit point, the result of the heal call is discarded, and a heal error makes the UI report a failed move even though the item is already in the target. The reported `mode` is also always \\\"copied\\\", even for a hard-linked move.\\n\\nThe other four files have no issues: `switch-transaction.ts`, `workspace-view.ts`, `video-edit-session.test.ts` and `move-group.test.ts`.\"}",
+    "structured_output": {
+      "files_reviewed": [
+        "apps/kaipu-record/src/main/workspaces/move-item.ts",
+        "apps/kaipu-record/src/main/workspaces/switch-transaction.ts",
+        "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+        "apps/kaipu-record/src/main/library/video-edit-session.test.ts",
+        "apps/kaipu-record/src/main/workspaces/move-group.test.ts"
+      ],
+      "files_skipped": [],
+      "findings": [
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+          "line": 675,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "Roll-forward deletes the source media and edit files even when the source changed after the journal was written",
+          "body": "The roll-forward branch (line 661) checks only the target: `targetPresent && targetMatches && recordIsOurs`. It then unlinks `sourceMedia` whenever `sourcePresent` is true (line 675) and calls `removeCompanions` on the source (line 676). It never looks at `sourceMatches`, which is computed at lines 638-641 and only used in the `sourcePresent && targetPresent` branch.\n\nHere is a case that hits it. The app dies after `committed` (or after `media-placed`). At the next startup the target folder is unplugged, so `resolveMoveSide` returns null and the entry waits (line 619, `index.ts:103-108`). Meanwhile the item still shows in the source workspace with its media and sidecar. The user overwrites the screenshot there (`screenshot-save.ts:69` takes the item lock, but no heal is holding it), or saves an edit session. When the target comes back, heal deletes the edited source and its newer `.edit.json`/assets, and keeps the target copy, which is older. Nothing tells the user.\n\nThis breaks the rule the docblock states at lines 574-576: a side is deleted only when the other side is verified complete. Here the target is complete only for the *old* bytes. Fix: when `sourcePresent && !sourceMatches`, quarantine instead of rolling forward. Also consider comparing the source sidecar with the target record before you remove the source companions."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+          "line": 676,
+          "severity": "fix",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "A failed source deletion is swallowed and the journal is still dropped, leaving the item in both workspaces",
+          "body": "After the commit, `removeCompanions` uses `Promise.allSettled` and ignores every rejection (lines 495-499). In the happy path the journal is then removed at line 402. If `rm(media)` at line 395 throws (EACCES, EBUSY), the catch calls `healEntry`. That function's `unlink(sourceMedia).catch(() => {})` (line 675) also hides the error, and `done()` deletes the journal (line 625).\n\nIn both cases the source keeps its media and/or sidecar under the same `assetId` as the target copy, and nothing is left to retry the cleanup. The user ends up with a duplicate in both workspaces. A later move back is refused as `already-there` (line 251), and since the record with no media carries that assetId, it can also feed `removeOrphanRecords` later.\n\nFix: re-check after deleting. If the source media or sidecar is still there, keep the journal in phase `committed` so the next `healMoves` finishes the job, instead of returning `healed`/`ok`."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+          "line": 674,
+          "severity": "consider",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "Healing wipes every item's drag folder in the source workspace, not just this item's",
+          "body": "`rm(join(sourceDir, META_DIR, \"drag\"), { recursive: true })` deletes the whole drag directory of the source workspace. The live path scopes this to one item with `deps.dragLedger?.clear(source.workspaceId, id)` (line 274; `drag-ledger.ts:39-43`). Healing therefore also removes drag copies of unrelated items that may be mid-drop, and the in-memory `DragLedger` keeps entries pointing at folders that no longer exist. Scope the removal to this item's drag folders, or document why the whole folder is safe to drop."
+        },
+        {
+          "path": "apps/kaipu-record/src/main/workspaces/move-item.ts",
+          "line": 414,
+          "severity": "consider",
+          "topic": "bug",
+          "confidence": "medium",
+          "title": "Post-commit heal outcome is ignored and its failure reports the move as an io refusal",
+          "body": "In the post-commit catch, `healEntry`'s result is discarded. A quarantined entry still returns `{ ok: true, mode: \"copied\" }`, and `mode` is also wrong for a linked move. If `healEntry` itself throws, for example from `readSidecarStrict` or `writeJournal`, the error escapes this catch and `moveItem` turns it into `refuse(\"io\")` (lines 204-207). The target then holds the item, and maybe a half-cleaned source, but the UI reports that the move failed. Consider wrapping the heal in a try/catch that still returns `ok: true` with the target id, keeping the actual mode."
+        }
+      ],
+      "contracts": [
+        {
+          "action": "Heal roll-forward deletes source media and companions",
+          "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:661-677",
+          "equivalent_path": "Live move source deletion after commit (move-item.ts:392-398)",
+          "before_after": "The live path deletes the source under the item lock right after it verified the copy. Heal deletes it on a later run without re-checking that the source is still the journaled bytes (sourceMatches is unused here).",
+          "visible_effect": "The source item disappears from the source workspace's library; the target copy stays.",
+          "failure_mode": "The source edited while the entry waited is deleted, and the edits are lost silently; deletion errors are swallowed (line 675) and the journal is dropped (line 625).",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/move-item.ts:619",
+            "apps/kaipu-record/src/main/workspaces/move-item.ts:638-641",
+            "apps/kaipu-record/src/main/workspaces/move-item.ts:675-676",
+            "apps/kaipu-record/src/main/workspaces/index.ts:103-108",
+            "apps/kaipu-record/src/main/screenshots/screenshot-save.ts:69"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Source cleanup after commit and journal removal",
+          "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:395-402",
+          "equivalent_path": "LibraryVault.remove via companionPaths",
+          "before_after": "removeCompanions ignores every rejection, then the journal is removed.",
+          "visible_effect": "On failure the item stays visible in both workspaces.",
+          "failure_mode": "Nothing retries the cleanup, because the journal is gone.",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/workspaces/move-item.ts:495-499",
+            "apps/kaipu-record/src/main/workspaces/move-item.ts:402",
+            "apps/kaipu-record/src/main/workspaces/move-item.ts:623-627"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Item lock taken by the mover and by other writers",
+          "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:201",
+          "equivalent_path": "screenshot overwrite (screenshot-save.ts:69), saveSessionLocked",
+          "before_after": "Both the mover and these writers key the lock by (workspaceId, id); healMoves takes the same lock (line 599).",
+          "visible_effect": "A save queued behind a move fails with item-moved (video-edit-session.test.ts:35-53).",
+          "failure_mode": "",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/library/item-lock.ts:10-16",
+            "apps/kaipu-record/src/main/screenshots/screenshot-save.ts:69",
+            "apps/kaipu-record/src/main/workspaces/move-item.ts:599"
+          ],
+          "open_question": "",
+          "candidates": []
+        },
+        {
+          "action": "Healing removes the source drag folder",
+          "location": "apps/kaipu-record/src/main/workspaces/move-item.ts:674",
+          "equivalent_path": "DragLedger.clear per item (drag-ledger.ts:39-43)",
+          "before_after": "The ledger clears only this item's folders; heal removes the whole directory.",
+          "visible_effect": "Drags of other items in progress may lose their files.",
+          "failure_mode": "The ledger keeps stale entries.",
+          "status": "closed",
+          "evidence": [
+            "apps/kaipu-record/src/main/library/drag-ledger.ts:39-43",
+            "apps/kaipu-record/src/main/workspaces/move-item.ts:274"
+          ],
+          "open_question": "",
+          "candidates": []
+        }
+      ],
+      "thread_replies": [],
+      "summary": "I reviewed the five files in part 2 and found two \"fix\" issues and two \"consider\" issues, all in `move-item.ts`, the code that moves an item between workspaces and repairs interrupted moves (\"healing\"). I only read the code; nothing was run.\n\n**Fix**\n- **Healing can delete user edits (`move-item.ts:675`).** When healing finishes an interrupted move, it deletes the source copy without checking that the source still holds the bytes the journal recorded. A move can sit waiting because the target folder is unplugged. If the user overwrites a screenshot or saves an edit in the source workspace during that wait, those changes are deleted without warning once the target comes back. The fix is to quarantine the entry when the source no longer matches.\n- **Failed source deletion leaves the item in both workspaces (`move-item.ts:676`).** Errors from deleting the source are ignored (lines 495-499 and 675), and the journal is removed anyway. If the delete fails, the item stays in both workspaces with nothing left to retry the cleanup. A later move back is then refused as \"already there\".\n\n**Consider**\n- **Healing clears every item's drag folder (`move-item.ts:674`).** It wipes the source workspace's whole `.kaipu/drag` folder, while the normal path clears only the moved item's drag folders.\n- **Post-commit heal result is ignored (`move-item.ts:414`).** After the commit point, the result of the heal call is discarded, and a heal error makes the UI report a failed move even though the item is already in the target. The reported `mode` is also always \"copied\", even for a hard-linked move.\n\nThe other four files have no issues: `switch-transaction.ts`, `workspace-view.ts`, `video-edit-session.test.ts` and `move-group.test.ts`."
+    },
+    "ttft_ms": 6466,
+    "type": "result",
+    "duration_ms": 106473,
+    "uuid": "4ea7af46-789d-4a27-877b-27ac078b5229",
+    "ttft_stream_ms": 5470,
+    "time_to_request_ms": 97,
+    "first_content_frame_ms": 5470,
+    "queued_turn_count": 0,
+    "result_index": 0
+  }
+}

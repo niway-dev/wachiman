@@ -1,0 +1,89 @@
+{
+  "478-b1": {
+    "destructive-step": [
+      "main/workspaces/identity.ts",
+      "main/workspaces/registry.ts"
+    ],
+    "overlapping-calls": [
+      "main/workspaces/registry.ts"
+    ],
+    "bounded-wait": [
+      "main/workspaces/registry.ts"
+    ],
+    "stale-write-back": [
+      "main/workspaces/registry.ts"
+    ]
+  },
+  "479-b2": {
+    "destructive-step": [
+      "main/workspaces/move-item.ts"
+    ],
+    "read-error-as-empty": [
+      "main/workspaces/move-item.ts"
+    ],
+    "overlapping-calls": [
+      "main/workspaces/move-item.ts"
+    ],
+    "stale-write-back": [
+      "main/workspaces/move-item.ts"
+    ]
+  },
+  "482-b1": {
+    "destructive-step": [
+      "main/workspaces/settings-overrides.ts"
+    ],
+    "read-error-as-empty": [
+      "main/workspaces/settings-overrides.ts"
+    ],
+    "overlapping-calls": [
+      "main/workspaces/settings-overrides.ts"
+    ],
+    "stale-write-back": [
+      "main/workspaces/settings-overrides.ts"
+    ]
+  },
+  "482-b2": {
+    "destructive-step": [
+      "main/workspaces/workspace-settings.ts"
+    ],
+    "overlapping-calls": [
+      "main/workspaces/workspace-settings.ts"
+    ],
+    "bounded-wait": [
+      "main/workspaces/workspace-settings.ts"
+    ],
+    "stale-write-back": [
+      "main/workspaces/workspace-settings.ts"
+    ]
+  },
+  "483-b3": {
+    "destructive-step": [
+      "main/library/drag-copies.ts",
+      "main/library/safe-place.ts"
+    ],
+    "read-error-as-empty": [
+      "main/library/drag-copies.ts"
+    ],
+    "overlapping-calls": [
+      "main/cloud/assign-cloud.ts",
+      "main/cloud/assign-queue.ts",
+      "main/cloud/catalog-cache.ts",
+      "main/library/dataless.ts",
+      "main/library/drag-copies.ts",
+      "main/library/library-service.ts",
+      "main/library/safe-place.ts"
+    ],
+    "bounded-wait": [
+      "main/cloud/assign-client.ts",
+      "main/cloud/assign-queue.ts",
+      "main/cloud/upload-intent-client.ts",
+      "main/library/dataless.ts",
+      "main/library/index.ts",
+      "main/library/library-vault.ts",
+      "main/media-protocol.ts"
+    ],
+    "stale-write-back": [
+      "main/cloud/workspace-filter.ts"
+    ]
+  }
+}

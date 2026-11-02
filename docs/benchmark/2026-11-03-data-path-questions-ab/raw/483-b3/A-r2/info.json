@@ -1,0 +1,36 @@
+{
+  "pr": 483,
+  "head": "443a9b0472cffe23d503c34e1cbbfba2d80a243b",
+  "mergeBase": "543053c406849cfe30dd1647081c4a4c39be6358",
+  "part": {
+    "index": 3,
+    "total": 7
+  },
+  "files": [
+    "packages/infra-db/src/schema/cloud.ts",
+    "packages/infra-db/src/mappers/cloud.mapper.ts",
+    "packages/infra-db/src/repositories/cloud-asset.repository.ts",
+    "apps/kaipu-record/src/main/cloud/assign-client.ts",
+    "apps/kaipu-record/src/main/cloud/assign-cloud.ts",
+    "apps/kaipu-record/src/main/cloud/assign-queue.ts",
+    "apps/kaipu-record/src/main/cloud/catalog-cache.ts",
+    "apps/kaipu-record/src/main/cloud/catalog-client.ts",
+    "apps/kaipu-record/src/main/cloud/cloud-state.ts",
+    "apps/kaipu-record/src/main/cloud/upload-intent-client.ts",
+    "apps/kaipu-record/src/main/cloud/workspace-filter.ts",
+    "apps/kaipu-record/src/main/index.ts",
+    "apps/kaipu-record/src/main/library/dataless.ts",
+    "apps/kaipu-record/src/main/library/drag-copies.ts",
+    "apps/kaipu-record/src/main/library/index.ts",
+    "apps/kaipu-record/src/main/library/library-service.ts",
+    "apps/kaipu-record/src/main/library/library-vault.ts",
+    "apps/kaipu-record/src/main/library/safe-place.ts",
+    "apps/kaipu-record/src/main/media-protocol.ts",
+    "apps/kaipu-record/src/main/recording/recording-hub.ts",
+    "packages/infra-db/src/integration/cloud-asset.repository.integration.test.ts"
+  ],
+  "questions": null,
+  "engine": "47933f0224c7f89451963a7d1694d2ed55ede461",
+  "promptChars": 104374,
+  "scratchDir": "/var/folders/jq/y5f4c4617k9g7mvrnk2tdrpr0000gn/T/agent-review-GdhUUx"
+}

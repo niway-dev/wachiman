@@ -1,0 +1,479 @@
+{
+ "version": 1,
+ "provenance": "text_match",
+ "status": "truncated",
+ "caps": {
+  "symbols": 12,
+  "call_sites_per_symbol": 6,
+  "context_lines": 4,
+  "file_bytes": 16384,
+  "wall_clock_ms": 20000
+ },
+ "batch_files": [
+  "apps/kaipu-record/src/preload/index.ts",
+  "apps/kaipu-record/src/shared/types/electron-api.ts",
+  "apps/kaipu-record/src/shared/types/ipc.ts",
+  "apps/kaipu-record/src/shared/types/workspaces.ts",
+  "apps/kaipu-record/src/shared/workspace-name.ts",
+  "apps/kaipu-record/src/main/workspaces/identity.ts",
+  "apps/kaipu-record/src/main/workspaces/index.ts",
+  "apps/kaipu-record/src/main/workspaces/registry.ts",
+  "apps/kaipu-record/src/shared/workspace-name.test.ts"
+ ],
+ "symbols": [
+  {
+   "symbol": "isDirectory",
+   "kind": "call",
+   "qualifier": ".isDirectory",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/registry.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 9,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/identity.ts",
+    "line": 119,
+    "text": "export async function isDirectory(path: string): Promise<boolean> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-reconcile.test-helpers.ts",
+     "line": 34,
+     "text": "if (entry.isDirectory()) {",
+     "excerpt": [
+      "30| for (const entry of await readdir(dir, { withFileTypes: true })) {",
+      "31|   const path = join(dir, entry.name);",
+      "32|   const info = await lstat(path);",
+      "33|   const key = relative(directory, path);",
+      "34|   if (entry.isDirectory()) {",
+      "35|     out[key] = `dir@${info.mtimeMs}`;",
+      "36|     await walk(path);",
+      "37|   } else if (entry.isSymbolicLink()) {",
+      "38|     out[key] = `link@${info.mtimeMs}`;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-reconcile.ts",
+     "line": 431,
+     "text": "const found = interpretations(name, entry.isDirectory());",
+     "excerpt": [
+      "431| const found = interpretations(name, entry.isDirectory());"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/vault-reconcile.ts",
+     "line": 433,
+     "text": "if (!entry.isDirectory() && !entry.isFile()) continue;",
+     "excerpt": [
+      "433| if (!entry.isDirectory() && !entry.isFile()) continue;"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "dismissHint",
+   "kind": "call",
+   "qualifier": "reg.dismissHint",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 13,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/registry.ts",
+    "line": 790,
+    "text": "async dismissHint(): Promise<void> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/renderer/src/features/workspaces/workspace-switcher.tsx",
+     "line": 73,
+     "text": "dismissHint();",
+     "excerpt": [
+      "69| const onKey = (event: KeyboardEvent): void => {",
+      "70|   if (event.key !== \"Escape\" || event.defaultPrevented) return;",
+      "71|   if (menuOpen) setMenuOpen(false);",
+      "72|   else if (event.target instanceof Node && anchorRef.current?.contains(event.target)) {",
+      "73|     dismissHint();",
+      "74|   }",
+      "75| };",
+      "76| window.addEventListener(\"keydown\", onKey);",
+      "77| return () => window.removeEventListener(\"keydown\", onKey);"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/renderer/src/features/workspaces/workspaces-context.tsx",
+     "line": 44,
+     "text": "dismissHint(): void;",
+     "excerpt": [
+      "44| dismissHint(): void;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/renderer/src/features/workspaces/workspaces-context.tsx",
+     "line": 193,
+     "text": "dismissHint: () => void window.electronAPI.workspaces.dismissHint(),",
+     "excerpt": [
+      "193| dismissHint: () => void window.electronAPI.workspaces.dismissHint(),"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "normalize",
+   "kind": "call",
+   "qualifier": "raw.normalize",
+   "used_in": [
+    "apps/kaipu-record/src/shared/workspace-name.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 10,
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/file-stem.ts",
+     "line": 36,
+     "text": "return value.normalize(\"NFKC\").toLowerCase().toUpperCase().toLowerCase().normalize(\"NFKC\");",
+     "excerpt": [
+      "32|  */",
+      "33| export function fsFold(value: string): string {",
+      "34|   // lower → upper → lower: `ẞ` lowers to `ß`, which uppers to `SS`, so both reach `ss`",
+      "35|   // (upper first would leave `ẞ` as `ß`). Idempotent: fsFold(fsFold(x)) === fsFold(x).",
+      "36|   return value.normalize(\"NFKC\").toLowerCase().toUpperCase().toLowerCase().normalize(\"NFKC\");",
+      "37| }",
+      "38| ",
+      "39| /** The companion tail `stem` ends with, under `fsFold`, if any. */",
+      "40| function companionTail(stem: string): string | undefined {"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/file-stem.ts",
+     "line": 101,
+     "text": "let stem = title.normalize(\"NFKC\").replace(FORBIDDEN, \" \").replace(/\\s+/g, \" \");",
+     "excerpt": [
+      "101| let stem = title.normalize(\"NFKC\").replace(FORBIDDEN, \" \").replace(/\\s+/g, \" \");"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/library-vault.ts",
+     "line": 1493,
+     "text": "const base = alignedBase(title, kind, date).normalize(\"NFC\");",
+     "excerpt": [
+      "1493| const base = alignedBase(title, kind, date).normalize(\"NFC\");"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "repeat",
+   "kind": "call",
+   "qualifier": ".repeat",
+   "used_in": [
+    "apps/kaipu-record/src/shared/workspace-name.test.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 41,
+   "call_sites": [
+    {
+     "file": "apps/server-hono/src/lib/account-linking.ts",
+     "line": 124,
+     "text": "const padded = base64 + \"=\".repeat((4 - (base64.length % 4)) % 4);",
+     "excerpt": [
+      "120| const payload = idToken.split(\".\")[1];",
+      "121| if (!payload) return null;",
+      "122| try {",
+      "123|   const base64 = payload.replace(/-/g, \"+\").replace(/_/g, \"/\");",
+      "124|   const padded = base64 + \"=\".repeat((4 - (base64.length % 4)) % 4);",
+      "125|   const claims = JSON.parse(atob(padded)) as { email?: unknown; email_verified?: unknown };",
+      "126|   return {",
+      "127|     email: typeof claims.email === \"string\" ? claims.email : null,",
+      "128|     // Google sends a boolean; some libraries historically sent the string \"true\"."
+     ]
+    },
+    {
+     "file": "apps/web-hono/src/components/account/storage-section.tsx",
+     "line": 44,
+     "text": "gridTemplateColumns: { default: \"repeat(3, minmax(0, 1fr))\", [bp.mobile]: \"1fr\" },",
+     "excerpt": [
+      "44| gridTemplateColumns: { default: \"repeat(3, minmax(0, 1fr))\", [bp.mobile]: \"1fr\" },"
+     ]
+    },
+    {
+     "file": "apps/web-hono/src/components/account/storage-section.tsx",
+     "line": 104,
+     "text": "gridTemplateColumns: \"repeat(3, 1fr)\",",
+     "excerpt": [
+      "104| gridTemplateColumns: \"repeat(3, 1fr)\","
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "join",
+   "kind": "call",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/identity.ts",
+    "apps/kaipu-record/src/main/workspaces/registry.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 932,
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/scripts/cursor-track-check.ts",
+     "line": 23,
+     "text": "const DEFAULT_VAULT = join(homedir(), \"Movies\", \"Kaipu Record\");",
+     "excerpt": [
+      "19|   type CursorTrack,",
+      "20| } from \"../src/shared/cursor-track\";",
+      "21| import { inspectCursorTrack, type CursorTrackMedia } from \"../src/shared/cursor-track-report\";",
+      "22| ",
+      "23| const DEFAULT_VAULT = join(homedir(), \"Movies\", \"Kaipu Record\");",
+      "24| ",
+      "25| interface Args {",
+      "26|   target: string;",
+      "27|   vault: string;"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/scripts/cursor-track-check.ts",
+     "line": 75,
+     "text": "metaPath: existsSync(join(dir, `${id}.json`)) ? join(dir, `${id}.json`) : null,",
+     "excerpt": [
+      "75| metaPath: existsSync(join(dir, `${id}.json`)) ? join(dir, `${id}.json`) : null,"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/scripts/cursor-track-check.ts",
+     "line": 76,
+     "text": "mp4Path: existsSync(join(dir, \"..\", `${id}.mp4`)) ? join(dir, \"..\", `${id}.mp4`) : null,",
+     "excerpt": [
+      "76| mp4Path: existsSync(join(dir, \"..\", `${id}.mp4`)) ? join(dir, \"..\", `${id}.mp4`) : null,"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "writeIdentity",
+   "kind": "call",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/registry.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 9,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/identity.ts",
+    "line": 144,
+    "text": "export async function writeIdentity(root: string, identity: WorkspaceIdentity): Promise<void> {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry-create-edit.test.ts",
+     "line": 60,
+     "text": "await writeIdentity(defaultDir, {",
+     "excerpt": [
+      "56| /** The owner's machine: migrated by part 1, so \"rose\", and no upgrade marker yet. */",
+      "57| async function ownerMachineWithRose(): Promise<string> {",
+      "58|   const first = await WorkspaceRegistry.open(env());",
+      "59|   const id = first.active().id;",
+      "60|   await writeIdentity(defaultDir, {",
+      "61|     version: 1,",
+      "62|     id,",
+      "63|     name: \"Default workspace\",",
+      "64|     color: \"rose\","
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry-create-edit.test.ts",
+     "line": 119,
+     "text": "await writeIdentity(defaultDir, {",
+     "excerpt": [
+      "119| await writeIdentity(defaultDir, {"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/registry-create-edit.test.ts",
+     "line": 391,
+     "text": "await writeIdentity(folder, {",
+     "excerpt": [
+      "391| await writeIdentity(folder, {"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "deriveInitials",
+   "kind": "call",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/registry.ts"
+   ],
+   "provenance": "text_match",
+   "status": "complete",
+   "total_matches": 1,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/identity.ts",
+    "line": 52,
+    "text": "export function deriveInitials(name: string): string {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/workspaces/workspace-view.ts",
+     "line": 20,
+     "text": "initials: entry.initials ?? deriveInitials(entry.name),",
+     "excerpt": [
+      "16| return {",
+      "17|   id: entry.id,",
+      "18|   name: entry.name,",
+      "19|   color: entry.color,",
+      "20|   initials: entry.initials ?? deriveInitials(entry.name),",
+      "21|   path: entry.path,",
+      "22|   volume: volumeOf(entry.path),",
+      "23|   state: availability.state,",
+      "24|   ...(availability.state === \"unavailable\" ? { reason: availability.reason } : {}),"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "requireRegistry",
+   "kind": "call",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "complete",
+   "total_matches": 0,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/workspaces/index.ts",
+    "line": 51,
+    "text": "function requireRegistry(): WorkspaceRegistry {"
+   },
+   "call_sites": []
+  },
+  {
+   "symbol": "broadcastState",
+   "kind": "call",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/index.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 5,
+   "definition_guess": {
+    "file": "apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts",
+    "line": 765,
+    "text": "private broadcastState(): void {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts",
+     "line": 585,
+     "text": "this.broadcastState();",
+     "excerpt": [
+      "581| /** Push the list into the state every overlay renders. Ignored when no pick is open. */",
+      "582| private setWindows(list: ListedWindow[]): void {",
+      "583|   if (!this.session) return;",
+      "584|   this.windows = list;",
+      "585|   this.broadcastState();",
+      "586| }",
+      "587| ",
+      "588| /**",
+      "589|  * Ask the lister once per pick. Failure 2: a lister that throws or rejects answers an"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts",
+     "line": 841,
+     "text": "this.broadcastState();",
+     "excerpt": [
+      "841| this.broadcastState();"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/screenshots/capture-overlay-windows.ts",
+     "line": 853,
+     "text": "this.broadcastState();",
+     "excerpt": [
+      "853| this.broadcastState();"
+     ]
+    }
+   ]
+  },
+  {
+   "symbol": "isTagColor",
+   "kind": "call",
+   "used_in": [
+    "apps/kaipu-record/src/main/workspaces/registry.ts"
+   ],
+   "provenance": "text_match",
+   "status": "truncated",
+   "total_matches": 9,
+   "definition_guess": {
+    "file": "packages/domain/src/constants/tags.ts",
+    "line": 35,
+    "text": "export function isTagColor(value: unknown): value is TagColor {"
+   },
+   "call_sites": [
+    {
+     "file": "apps/kaipu-record/src/main/library/index.ts",
+     "line": 265,
+     "text": "summary((await changed(tags.create(String(name), isTagColor(color) ? color : undefined))).id),",
+     "excerpt": [
+      "261| // The tag registry is read and then written with awaits between: the gate keeps a switch",
+      "262| // out of that window, so a write never lands in another workspace's tags.json.",
+      "263| handleVault(IPC_CHANNELS.listTags, () => tags.list());",
+      "264| handleVault(IPC_CHANNELS.createTag, async (name: unknown, color: unknown) =>",
+      "265|   summary((await changed(tags.create(String(name), isTagColor(color) ? color : undefined))).id),",
+      "266| );",
+      "267| handleVault(IPC_CHANNELS.renameTag, async (id: unknown, name: unknown) =>",
+      "268|   summary((await changed(tags.rename(String(id), String(name)))).id),",
+      "269| );"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/index.ts",
+     "line": 271,
+     "text": "if (!isTagColor(color)) throw new Error(\"tags: not a palette color\");",
+     "excerpt": [
+      "271| if (!isTagColor(color)) throw new Error(\"tags: not a palette color\");"
+     ]
+    },
+    {
+     "file": "apps/kaipu-record/src/main/library/tag-repository.ts",
+     "line": 231,
+     "text": "isTagColor(color) ? color : nextTagColor(live.map((t) => t.color)),",
+     "excerpt": [
+      "231| isTagColor(color) ? color : nextTagColor(live.map((t) => t.color)),"
+     ]
+    }
+   ]
+  }
+ ],
+ "no_other_matches": [
+  "rmdir"
+ ],
+ "not_searched": [
+  "refresh",
+  "toWorkspaceView",
+  "active",
+  "dirname",
+  "entryFromIdentity",
+  "isDefaultPath",
+  "mkdir",
+  "newId",
+  "readdir",
+  "refreshTitles",
+  "runSwitch",
+  "stat",
+  "readIdentity"
+ ],
+ "notes": [
+  "12 more candidate symbol(s) beyond the cap of 12.",
+  "Detail was cut to keep this file under its size cap.",
+  "Symbols were dropped to keep this file under its size cap."
+ ]
+}
