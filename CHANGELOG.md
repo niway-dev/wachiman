@@ -23,7 +23,6 @@
 
 ### Bug Fixes
 
-* a merge into a re-reviewed file sends only the author's rows ([38b7aad](https://github.com/niway-dev/wachiman/commit/38b7aadbcb7bb81207033f987f7d6d023474008e))
 * a merge into a re-reviewed file sends only the author's rows ([17bfb19](https://github.com/niway-dev/wachiman/commit/17bfb19bc9d449be60ccff5bce0cfc9aea86aa1d))
 
 ## [1.4.0](https://github.com/niway-dev/wachiman/compare/v1.3.0...v1.4.0) (2026-11-02)
