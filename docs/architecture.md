@@ -252,11 +252,13 @@ All names are in `src/engine.ts` unless a file is given.
    and full diff in a scratch directory, the same leak check, posted as a pull request comment. It
    has no batching, no coverage check and no thread handling.
    *Thread replies.* Two paths, both under ADR 0008 (the model reports, the engine never resolves).
-   Inside a `review` run: with a previous marker, `openThreads` fetches the tool's unresolved threads
+   Inside a `review` run: with a previous marker, `fetchThreads` fetches the tool's unresolved threads
    (first 100 threads, first 30 comments each; first comment by `github-actions` and carrying the
    finding signature, or, before `LEGACY_CUTOFF`, an unsigned comment in the old label format created
    before that date) and `openBotThreads` keeps only replies from `OWNER`, `MEMBER` or `COLLABORATOR`,
-   so a stranger's reply on a public repository never reaches the model. `assignThreads` hands each
+   so a stranger's reply on a public repository never reaches the model. On a re-review (a `since`
+   commit), `reReviewThreads` (ADR 0019) leaves out a thread already answered "addressed" on a file
+   the push did not change, with no reply from a person since. `assignThreads` hands each
    thread to the batch that holds its file, and the model may answer with "Looks addressed" or
    "Still open". A `review` on a head that was already reviewed returns "Already reviewed" before
    threads are read. Without a push (`threadReplies`, `cli.ts threads`, ADR 0012): the caller's

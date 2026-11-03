@@ -10,6 +10,7 @@ import {
   marker,
   pendingThreads,
   readAutoCost,
+  reReviewThreads,
   threadReplies,
   type Deps,
   type GhFn,
@@ -97,6 +98,54 @@ describe("pendingThreads", () => {
     expect(pendingThreads([thread([FINDING(7), OWNER_REPLY()], { isResolved: true })])).toEqual([]);
     const foreign = node("github-actions", "NONE", "Some other workflow's comment", 5);
     expect(pendingThreads([thread([foreign, OWNER_REPLY()])])).toEqual([]);
+  });
+});
+
+// ADR 0019: a re-review hands the model only the threads its push can change or a person waits on.
+describe("reReviewThreads", () => {
+  const LOOKS_ADDRESSED = (id = 800) =>
+    node("github-actions", "NONE", `👮 **Wachiman** · **Looks addressed** at \`abc1234\`: yes.\n\n${SIGNATURE.reply}`, id);
+  const STILL_OPEN = (id = 801) =>
+    node("github-actions", "NONE", `👮 **Wachiman** · **Still open** at \`abc1234\`: no.\n\n${SIGNATURE.reply}`, id);
+  const APPEARS_ADDRESSED = (id = 802) =>
+    node("github-actions", "NONE", `👮 **Wachiman** · **Appears addressed in \`src/b.ts:4\`** at \`abc1234\`: yes.\n\n${SIGNATURE.reply}`, id);
+  const ids = (threads: RawThread[], files: string[]) => reReviewThreads(threads, files).map((t) => t.comment_id);
+
+  test("a thread on a file the push changed goes, whatever Wachiman answered before", () => {
+    expect(ids([thread([FINDING(7), LOOKS_ADDRESSED()])], ["src/a.ts"])).toEqual([7]);
+  });
+
+  test("a thread already judged addressed, on a file the push did not change, is left out", () => {
+    expect(ids([thread([FINDING(7), LOOKS_ADDRESSED()])], ["src/other.ts"])).toEqual([]);
+    // The thread-only run's "addressed" answer counts the same.
+    expect(ids([thread([FINDING(7), OWNER_REPLY(), APPEARS_ADDRESSED()])], ["src/other.ts"])).toEqual([]);
+  });
+
+  test("a thread Wachiman never answered goes, even on a file the push did not change", () => {
+    expect(ids([thread([FINDING(7)])], ["src/other.ts"])).toEqual([7]);
+    expect(ids([thread([FINDING(7), OWNER_REPLY()])], ["src/other.ts"])).toEqual([7]);
+  });
+
+  test("a thread whose last answer was not 'addressed' goes: the fix can land in another file", () => {
+    expect(ids([thread([FINDING(7), STILL_OPEN()])], ["src/other.ts"])).toEqual([7]);
+    expect(ids([thread([FINDING(7), OWNER_REPLY(), WACHI_REPLY()])], ["src/other.ts"])).toEqual([7]);
+  });
+
+  test("a person's reply after Wachiman's last answer brings the thread back", () => {
+    const nodes = [FINDING(7), LOOKS_ADDRESSED(), OWNER_REPLY("Reverted that in 9f00d1e", 901)];
+    expect(ids([thread(nodes)], ["src/other.ts"])).toEqual([7]);
+    expect(ids([thread([FINDING(7), LOOKS_ADDRESSED(), node("mate", "COLLABORATOR", "?", 902)])], ["src/other.ts"])).toEqual([7]);
+  });
+
+  test("a stranger's reply, or an imitation of Wachiman's answer, changes nothing", () => {
+    expect(ids([thread([FINDING(7), LOOKS_ADDRESSED(), node("rando", "NONE", "bump", 903)])], ["src/other.ts"])).toEqual([]);
+    const imitation = node("github-actions", "NONE", "👮 **Wachiman** · **Looks addressed** (another workflow)", 804);
+    expect(ids([thread([FINDING(7), imitation])], ["src/other.ts"])).toEqual([7]);
+  });
+
+  test("resolved and foreign threads never go", () => {
+    expect(ids([thread([FINDING(7)], { isResolved: true })], ["src/a.ts"])).toEqual([]);
+    expect(ids([thread([node("github-actions", "NONE", "Other workflow", 5)])], ["src/a.ts"])).toEqual([]);
   });
 });
 
