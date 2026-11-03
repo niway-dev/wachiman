@@ -157,6 +157,20 @@ printf '{"is_error":false,"subtype":"success","num_turns":3,"total_cost_usd":0.1
     delete process.env.GH_TOKEN;
   });
 
+  test("run reports the model and the usage object, cache fields included, and degrades to 0 without one", () => {
+    const withUsage = stubBinary(
+      `cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":2,"total_cost_usd":0.2,"duration_ms":9,"usage":{"input_tokens":11,"output_tokens":22,"cache_read_input_tokens":3300,"cache_creation_input_tokens":44}}'`,
+    );
+    const a = new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: withUsage }).run(request);
+    expect(a.model).toBe("claude-sonnet-5-5");
+    expect(a.usage).toEqual({ input: 11, output: 22, cacheRead: 3300, cacheWrite: 44 });
+    const without = stubBinary(
+      `cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":2,"total_cost_usd":0.2,"duration_ms":9}'`,
+    );
+    const b = new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: without }).run(request);
+    expect(b.usage).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+  });
+
   test("starts in an empty scratch directory outside the head, with the head as --add-dir only", () => {
     const head = mkdtempSync(join(tmpdir(), "head-"));
     const scratch = mkdtempSync(join(tmpdir(), "pr-scratch-"));

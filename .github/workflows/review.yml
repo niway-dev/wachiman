@@ -121,6 +121,14 @@ on:
           review and `/wachi review`.
         type: boolean
         default: true
+      push_debounce_seconds:
+        description: >-
+          Seconds a push (`synchronize`) waits before any model call, so a newer push cancels this
+          run while it sleeps and spends nothing. Only pushes wait: `opened`, `ready_for_review`
+          and comment runs start at once. `0` disables the wait. The wait counts toward the 30
+          minute job limit.
+        type: number
+        default: 180
     secrets:
       ANTHROPIC_API_KEY:
         description: Anthropic API key that pays for the review
@@ -153,6 +161,23 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      # Before any model call. The concurrency group above cancels this run when a newer push
+      # arrives, so a run cancelled here has spent nothing. Only `synchronize` waits.
+      - name: Wait for further pushes
+        if: github.event.action == 'synchronize'
+        env:
+          DEBOUNCE: ${{ inputs.push_debounce_seconds }}
+        run: |
+          seconds="${DEBOUNCE//[[:space:]]/}"
+          if ! [[ "$seconds" =~ ^[0-9]+$ ]]; then
+            echo "::warning title=push_debounce_seconds ignored::'$DEBOUNCE' is not a whole number of seconds; not waiting."
+            exit 0
+          fi
+          if [ "$seconds" -gt 0 ]; then
+            echo "Waiting ${seconds}s for further pushes; a newer push cancels this run before it spends anything."
+            sleep "$seconds"
+          fi
+
       - name: Check the operator input
         env:
           OPERATOR: ${{ inputs.operator }}

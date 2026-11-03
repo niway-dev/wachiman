@@ -19,6 +19,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { TokenUsage } from "../cost";
 import { locatePrompt as locate } from "./locate";
 import {
   DEFAULT_CALL_TIMEOUT_S,
@@ -89,6 +90,12 @@ export interface Usage {
   input_tokens: number;
   cached_input_tokens?: number;
   output_tokens: number;
+}
+
+/** Cached input is part of Codex's `input_tokens`; split it out so the four counts do not overlap. */
+export function tokenUsageOf(usage: Usage): TokenUsage {
+  const cached = Math.min(usage.cached_input_tokens ?? 0, usage.input_tokens);
+  return { input: usage.input_tokens - cached, output: usage.output_tokens, cacheRead: cached, cacheWrite: 0 };
 }
 
 export function costOf(usage: Usage, price: Price): number {
@@ -316,6 +323,8 @@ export class CodexProvider implements ProviderAdapter {
         structuredOutput,
         text,
         costUsd,
+        model: this.opts.model,
+        usage: tokenUsageOf(usage),
         turns: commands + 1,
         durationMs,
         // Codex has no spend or turn cap (`request.maxTurns` is not used: `codex exec` has no such

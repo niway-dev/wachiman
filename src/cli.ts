@@ -14,6 +14,7 @@
  */
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
 import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
@@ -110,7 +111,9 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
     const request = mode === "comment" ? required(env, "REQUEST") : "";
+    const costs: CallCost[] = [];
     const deps: Deps = {
+      costs,
       gh: defaultGh,
       provider,
       config,
@@ -125,9 +128,14 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
       console.error(`agent-review: ${error instanceof Error ? error.message : error}`);
       return 1;
     }
-    if (mode === "review") review(deps, repo, pr, rest);
-    else if (mode === "threads") threadReplies(deps, repo, pr, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
-    else comment(deps, repo, pr, request, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
+    try {
+      if (mode === "review") review(deps, repo, pr, rest);
+      else if (mode === "threads") threadReplies(deps, repo, pr, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
+      else comment(deps, repo, pr, request, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
+    } finally {
+      // Also after a failed run: the calls it made were paid for.
+      writeStepSummary(costs, env);
+    }
     return 0;
   } catch (error) {
     if (error instanceof UsageError || error instanceof UnknownProviderError) {

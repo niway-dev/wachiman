@@ -28,6 +28,7 @@ jobs:
     with:
       operator: EDIT-THIS-github-login
       # review_on_push: false   # review only on open, ready for review and `/wachi review`
+      # push_debounce_seconds: 180   # a push waits this long first; a newer push cancels it unspent (0 = no wait)
       # auto_budget_usd: 2      # most all automatic runs on one pull request may spend together
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

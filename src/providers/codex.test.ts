@@ -202,6 +202,8 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
     expect(out.token).toBe("");
     expect(out.key).toBe("sk-proj-test");
     expect(result).toMatchObject({ costUsd: 2, turns: 2, terminalReason: "success", isError: false });
+    expect(result.model).toBe("gpt-6.1-sol");
+    expect(result.usage).toEqual({ input: 1000000, output: 0, cacheRead: 0, cacheWrite: 0 });
     delete process.env.GH_TOKEN;
     delete process.env.OPENAI_API_KEY;
   });

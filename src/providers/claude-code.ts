@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { TokenUsage } from "../cost";
 import { locatePrompt } from "./locate";
 import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, type Effort, type NeutralTool, type ProviderAdapter, ProviderRequest, ProviderResult } from "./types";
 
@@ -136,6 +137,24 @@ interface ClaudeResult {
   duration_ms: number;
   result?: string;
   structured_output?: unknown;
+  /** Token counts of the whole call; `input_tokens` excludes the cache fields. */
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+}
+
+/** The `usage` object of a `claude -p --output-format json` result; any missing field is 0. */
+export function usageOf(raw: Pick<ClaudeResult, "usage">): TokenUsage {
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  return {
+    input: n(raw.usage?.input_tokens),
+    output: n(raw.usage?.output_tokens),
+    cacheRead: n(raw.usage?.cache_read_input_tokens),
+    cacheWrite: n(raw.usage?.cache_creation_input_tokens),
+  };
 }
 
 /**
@@ -240,6 +259,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       // Nothing was printed, so the spend is unknown: report 0 rather than invent a figure.
       return {
         costUsd: 0,
+        model: this.opts.model,
         turns: 0,
         durationMs,
         terminalReason: "timeout",
@@ -255,6 +275,8 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       structuredOutput: raw.structured_output,
       text: raw.result,
       costUsd: raw.total_cost_usd ?? 0,
+      model: this.opts.model,
+      usage: usageOf(raw),
       turns: raw.num_turns ?? 0,
       durationMs: raw.duration_ms ?? 0,
       terminalReason: terminalReasonOf(raw),

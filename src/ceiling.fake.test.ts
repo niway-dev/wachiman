@@ -167,6 +167,12 @@ describe("automaticSpend", () => {
     expect(spent).toBeCloseTo(0.85, 10);
   });
 
+  test("a ceiling sum reads footers from before and after the cost details together", () => {
+    const withTokens = `x\n\n<sub>Fake Model · effort high · re-review · 1.2k in / 3.4k out / 560k cache read / 21k cache write · $0.30</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
+    const { spent } = automaticSpend(world([spentBody(0.42), withTokens], [replyBody(0.1)]), "o/r", 7);
+    expect(spent).toBeCloseTo(0.82, 10);
+  });
+
   test("lists the ceilings it already announced", () => {
     const { notified } = automaticSpend(
       world([`Paused.\n\n${SIGNATURE.review}\n\n<!-- wachi:ceiling usd=2.00 -->`, "Paused.\n\n<!-- wachi:ceiling usd=5.00 -->"], []),
@@ -237,6 +243,75 @@ describe("review() under the ceiling", () => {
     review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(readAutoCost(t.posted[0])).toBeCloseTo(0.1, 10);
+  });
+
+  const USAGE = { input: 1200, output: 3400, cacheRead: 560000, cacheWrite: 21000 };
+
+  test("a first review reports its operation, tokens and cost in the footer, the log and the recorded calls", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      script: [() => ({ costUsd: 0.1, model: "claude-sonnet-5-5", usage: USAGE, structuredOutput: out({}) })],
+    });
+    const logs: string[] = [];
+    t.deps.log = (line) => void logs.push(line);
+    t.deps.costs = [];
+    review(t.deps, "o/r", 7, []);
+    expect(t.posted[0]).toContain(
+      "<sub>Fake Model · effort high · review · 1.2k in / 3.4k out / 560k cache read / 21k cache write · $0.10</sub>",
+    );
+    expect(readAutoCost(t.posted[0])).toBeCloseTo(0.1, 10);
+    expect(t.deps.costs).toEqual([
+      {
+        operation: "review",
+        label: "batch 1/1",
+        model: "claude-sonnet-5-5",
+        turns: 1,
+        durationMs: 1,
+        usage: USAGE,
+        costUsd: 0.1,
+        terminalReason: "success",
+        repo: "o/r",
+        pr: 7,
+      },
+    ]);
+    const costLines = logs.filter((l) => l.startsWith("wachiman-cost "));
+    expect(costLines).toHaveLength(1);
+    expect(JSON.parse(costLines[0].slice("wachiman-cost ".length))).toMatchObject({
+      operation: "review",
+      pr: 7,
+      trigger: "opened",
+      cache_read_tokens: 560000,
+      cost_usd: 0.1,
+    });
+  });
+
+  test("a push after a reviewed commit is a re-review, and the retry call is tagged in the recorded calls", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_TRIGGER: "synchronize" },
+      reviews: [spentBody(0.2, { marker: "aaa1111" })],
+      compare: { status: "ahead", files: [{ filename: "a.ts" }] },
+      // The first call leaves a.ts unaccounted for, so the engine retries it once.
+      script: [
+        () => ({ costUsd: 0.1, usage: USAGE, structuredOutput: out({ files_reviewed: [] }) }),
+        () => ({ costUsd: 0.05, usage: USAGE, structuredOutput: out({}) }),
+      ],
+    });
+    t.deps.costs = [];
+    review(t.deps, "o/r", 7, []);
+    expect(t.deps.costs?.map((c) => [c.operation, c.label])).toEqual([
+      ["re-review", "batch 1/1"],
+      ["re-review", "batch 1/1 retry"],
+    ]);
+    expect(t.posted[0]).toContain("effort high · re-review · 2.4k in / 6.8k out / 1.1M cache read / 42k cache write · $0.15</sub>");
+    expect(readAutoCost(t.posted[0])).toBe(0.15);
+  });
+
+  test("a provider that reports no tokens or model still yields a footer, a record and a log line", () => {
+    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened" } });
+    t.deps.costs = [];
+    review(t.deps, "o/r", 7, []);
+    expect(t.posted[0]).toContain("<sub>Fake Model · effort high · review · $0.10</sub>");
+    expect(t.deps.costs?.[0]).toMatchObject({ model: t.deps.config.model, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } });
   });
 
   test("at the ceiling the next push posts one notice, starts no batch, and a later push posts nothing", () => {

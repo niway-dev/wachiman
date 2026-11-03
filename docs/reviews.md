@@ -232,6 +232,13 @@ last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). 
 drafts, forks, Dependabot and the skipped branch prefixes. A burst of pushes runs once: the job's
 concurrency group cancels the older run, and the cancelled run posts nothing.
 
+A cancelled run could already have spent tokens, so a push first waits: for `synchronize` only, the
+first step of the job sleeps `push_debounce_seconds` (default 180, `0` disables) before any model
+call. A newer push cancels the run during the sleep and it spends nothing. Pushes a couple of minutes
+apart (an AI agent committing in steps) are reviewed once, at the last one. `opened`,
+`ready_for_review` and comment runs do not wait. The price is that a lone push is reviewed three
+minutes later, plus the runner minutes of the wait.
+
 | The push… | …and the engine does |
 | --- | --- |
 | Adds commits on top of the last reviewed one | Reviews only the files changed since it. The first line says "review of the changes since `…`". |

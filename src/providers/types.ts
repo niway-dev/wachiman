@@ -11,6 +11,8 @@
  * (ADR 0004); if a third adapter does not fit, redraw it.
  */
 
+import type { TokenUsage } from "../cost";
+
 /**
  * Reasoning effort levels, in the vocabulary both CLIs share. The consumer picks one its provider
  * and model accept (Codex may refuse `xhigh` or `max` for some models); nothing translates it.
@@ -64,6 +66,10 @@ export interface ProviderResult {
   /** The free-text answer. */
   text?: string;
   costUsd: number;
+  /** The model the call ran on. Omit when unknown. */
+  model?: string;
+  /** Tokens the call used; omit (or leave fields 0) when the provider does not report them. */
+  usage?: TokenUsage;
   turns: number;
   durationMs: number;
   /**

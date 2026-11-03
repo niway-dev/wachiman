@@ -334,7 +334,7 @@ own, which a pull request cannot change. It reads excerpts only from regular fil
 
 | Job | Runs when | What it does |
 | --- | --- | --- |
-| `review` | `pull_request` (opened, ready for review, and each push when the caller lists `synchronize` and `review_on_push` is not `false`), not a draft, head repository equals the calling repository, actor is not Dependabot | Checks the operator input, skips branches with a prefix in `skip_branch_prefixes`, then runs `cli.ts review` |
+| `review` | `pull_request` (opened, ready for review, and each push when the caller lists `synchronize` and `review_on_push` is not `false`), not a draft, head repository equals the calling repository, actor is not Dependabot | For a push, waits `push_debounce_seconds` first (so a newer push cancels it unspent); checks the operator input, skips branches with a prefix in `skip_branch_prefixes`, then runs `cli.ts review` |
 | `threads` | `pull_request_review_comment` that is a reply (`in_reply_to_id`), author login equals `operator` and is not a bot, head repository equals the calling repository | Checks the operator input, then runs `cli.ts threads` (answers pending Wachiman threads, only on an already reviewed head, counted against `auto_budget_usd`) |
 | `on-demand` | `issue_comment` on a pull request, commenter login equals `operator`, body contains the mention input, `@agent-review` or `@claude` | Checks the operator input, refuses a pull request whose head repository is not the calling repository, then runs `cli.ts comment` |
 
