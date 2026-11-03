@@ -203,7 +203,7 @@ Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · re-review · 4 batch
 - **`N batches`** appears only when the review used more than one batch.
 - **The tokens** are what the review's calls used, with cached tokens split out so the four counts do
   not overlap: `in` (not cached), `out`, `cache read` and `cache write`. They are left out when the
-  provider reported none. For Codex, `cache read` is its cached input and `cache write` is always 0.
+  provider reported none. For Codex, `cache read` is its cached input and `cache write` is its `cache_write_input_tokens`. Codex's SDK does not say whether `input_tokens` includes those, so they are treated like cached input (taken out of `in`) and the split never goes below 0.
 - **The dollar figure** is the engine's `spent`: the sum of what each call reported, plus the cap for
   any call that failed without a result. It includes retries. It is formatted to two decimals, so
   a small cost can show as `$0.00`.
@@ -237,7 +237,7 @@ Each run writes:
   counts, `costKnown`, `cost_usd` and the terminal reason. `grep '^wachiman-cost ' run.log` over several runs'
   logs gives the data to sum costs by operation.
 
-A call that died without any result still gets a row and a line, marked as an unknown cost: the
+A call that died without any result, or was killed on the time limit, or never completed a turn (Codex), still gets a row and a line, marked as an unknown cost: the
 cost column reads `unknown (counted at cap $0.75)`, and the line has `"costKnown":false`,
 `"cost_usd":null` and `"countedUsd":0.75`. The review counts it at that cap (see above), but the
 summary's total and any sum over `cost_usd` leave it out, so the figures never mix a measurement with

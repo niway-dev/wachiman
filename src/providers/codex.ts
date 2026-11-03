@@ -89,13 +89,26 @@ export function parsePrice(raw: string): Price {
 export interface Usage {
   input_tokens: number;
   cached_input_tokens?: number;
+  /** Input tokens written to the prompt cache (`cache_write_input_tokens` in the SDK's `Usage`). */
+  cache_write_input_tokens?: number;
   output_tokens: number;
 }
 
-/** Cached input is part of Codex's `input_tokens`; split it out so the four counts do not overlap. */
+/**
+ * Cached input is part of Codex's `input_tokens`; split it out so the four counts do not overlap.
+ * The SDK's `Usage` type describes `cache_write_input_tokens` as "input tokens written to the prompt
+ * cache" and does not say whether `input_tokens` includes them; they are treated like cached input
+ * (a subset of `input_tokens`), and the split is clamped so no count goes negative.
+ */
 export function tokenUsageOf(usage: Usage): TokenUsage {
   const cached = Math.min(usage.cached_input_tokens ?? 0, usage.input_tokens);
-  return { input: usage.input_tokens - cached, output: usage.output_tokens, cacheRead: cached, cacheWrite: 0 };
+  const written = Math.min(usage.cache_write_input_tokens ?? 0, usage.input_tokens - cached);
+  return {
+    input: usage.input_tokens - cached - written,
+    output: usage.output_tokens,
+    cacheRead: cached,
+    cacheWrite: written,
+  };
 }
 
 export function costOf(usage: Usage, price: Price): number {
@@ -192,13 +205,16 @@ interface CodexEvent {
 
 /** Folds the JSONL event stream into the totals the engine needs. */
 export function readEvents(stdout: string) {
-  const usage: Usage = { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0 };
+  const usage: Usage = { input_tokens: 0, cached_input_tokens: 0, cache_write_input_tokens: 0, output_tokens: 0 };
   let commands = 0;
+  let completedTurns = 0;
   let failure: string | null = null;
   for (const line of stdout.split("\n")) {
     if (!line.trim().startsWith("{")) continue;
     const event = JSON.parse(line) as CodexEvent;
     if (event.type === "turn.completed" && event.usage) {
+      completedTurns++;
+      usage.cache_write_input_tokens = (usage.cache_write_input_tokens ?? 0) + (event.usage.cache_write_input_tokens ?? 0);
       usage.input_tokens += event.usage.input_tokens ?? 0;
       usage.cached_input_tokens = (usage.cached_input_tokens ?? 0) + (event.usage.cached_input_tokens ?? 0);
       usage.output_tokens += event.usage.output_tokens ?? 0;
@@ -207,7 +223,7 @@ export function readEvents(stdout: string) {
     if (event.type === "turn.failed") failure = event.error?.message ?? "turn failed";
     if (event.type === "error" && !failure) failure = event.message ?? "error";
   }
-  return { usage, commands, failure };
+  return { usage, commands, failure, completedTurns };
 }
 
 export class CodexProvider implements ProviderAdapter {
@@ -301,7 +317,7 @@ export class CodexProvider implements ProviderAdapter {
       if (!timedOut && (run.error || !run.stdout)) {
         throw new Error(`codex did not run (status ${run.status}): ${run.error ?? run.stderr}`);
       }
-      const { usage, commands, failure } = readEvents(run.stdout ?? "");
+      const { usage, commands, failure, completedTurns } = readEvents(run.stdout ?? "");
       let text: string | undefined;
       try {
         text = readFileSync(lastMessageFile, "utf8");
@@ -323,6 +339,8 @@ export class CodexProvider implements ProviderAdapter {
         structuredOutput,
         text,
         costUsd,
+        // A killed call, or one that never completed a turn, has no complete usage report.
+        costKnown: !timedOut && completedTurns > 0,
         model: this.opts.model,
         usage: tokenUsageOf(usage),
         turns: commands + 1,

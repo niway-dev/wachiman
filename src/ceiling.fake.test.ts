@@ -14,6 +14,11 @@ import {
   type GhFn,
   type ReviewOutput,
 } from "./engine";
+import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ClaudeCodeProvider } from "./providers/claude-code";
+import { CodexProvider } from "./providers/codex";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
 // ADR 0012, part A: one ceiling for all automatic runs on a pull request, summed from the
@@ -343,6 +348,54 @@ describe("review() under the ceiling", () => {
     expect(json.terminal_reason).toContain("no result");
     expect(dead?.costUsd).toBe(t.deps.config.batchBudgetUsd);
   });
+
+  test("a result flagged costKnown false is counted at the request's cap in the footer and the ceiling", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      script: [() => ({ costUsd: 0, costKnown: false, structuredOutput: out({}) })],
+    });
+    t.deps.costs = [];
+    review(t.deps, "o/r", 7, []);
+    const cap = t.deps.config.batchBudgetUsd;
+    expect(readAutoCost(t.posted[0])).toBeCloseTo(cap, 2);
+    expect(t.deps.costs?.[0]).toMatchObject({ costKnown: false, costUsd: cap });
+  });
+
+  /** A shell stand-in for an agent CLI that never answers. */
+  const hangingBinary = (name: string) => {
+    const path = join(mkdtempSync(join(tmpdir(), `stub-${name}-`)), name);
+    writeFileSync(path, "#!/bin/sh\ncat >/dev/null\nsleep 30\n");
+    chmodSync(path, 0o755);
+    return path;
+  };
+
+  for (const kind of ["claude", "codex"] as const) {
+    test(`a ${kind} call killed at the time limit is an unknown cost counted at the batch cap, with its reason kept`, () => {
+      const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened", AGENT_REVIEW_CALL_TIMEOUT_S: "1" } });
+      const binary = hangingBinary(kind);
+      t.deps.provider =
+        kind === "claude"
+          ? new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary })
+          : new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary });
+      const logs: string[] = [];
+      t.deps.log = (line) => void logs.push(line);
+      t.deps.costs = [];
+      try {
+        review(t.deps, "o/r", 7, []);
+      } catch {
+        // No batch returned a review; the point is what was recorded.
+      }
+      const cap = t.deps.config.batchBudgetUsd;
+      expect(t.deps.costs?.length).toBeGreaterThan(0);
+      for (const c of t.deps.costs ?? []) {
+        expect(c).toMatchObject({ costKnown: false, costUsd: cap, terminalReason: "timeout" });
+      }
+      const json = JSON.parse(logs.filter((l) => l.startsWith("wachiman-cost "))[0].slice("wachiman-cost ".length));
+      expect(json).toMatchObject({ costKnown: false, cost_usd: null, countedUsd: cap, terminal_reason: "timeout" });
+      // Whatever was posted records the cap, never $0.00.
+      for (const body of t.posted) expect(readAutoCost(body)).toBeCloseTo(cap * (t.deps.costs?.length ?? 1), 2);
+    });
+  }
 
   test("at the ceiling the next push posts one notice, starts no batch, and a later push posts nothing", () => {
     const t = setup({

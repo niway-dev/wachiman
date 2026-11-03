@@ -66,6 +66,12 @@ export interface ProviderResult {
   /** The free-text answer. */
   text?: string;
   costUsd: number;
+  /**
+   * False when the call ended without a completed cost report (killed on the time limit, no
+   * completed usage event), so `costUsd` is not a measurement. The engine then counts the call at
+   * the request's `maxBudgetUsd` cap in the footer and the ceiling, and marks it unknown. Default true.
+   */
+  costKnown?: boolean;
   /** The model the call ran on. Omit when unknown. */
   model?: string;
   /** Tokens the call used; omit (or leave fields 0) when the provider does not report them. */

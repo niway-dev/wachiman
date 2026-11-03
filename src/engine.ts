@@ -2687,6 +2687,9 @@ function runProvider(
     deps.log(costLogLine(dead, { trigger: deps.config.trigger }));
     throw error;
   }
+  // No completed cost report (a timeout, a kill): the spend is unknown, so count the request's cap,
+  // exactly as a call that threw is counted, and keep the terminal reason.
+  if (result.costKnown === false) result = { ...result, costUsd: budgetUsd };
   deps.log(
     JSON.stringify({
       is_error: result.isError,
@@ -2703,6 +2706,7 @@ function runProvider(
     durationMs: result.durationMs,
     usage: result.usage ?? NO_USAGE,
     costUsd: result.costUsd,
+    ...(result.costKnown === false ? { costKnown: false } : {}),
     terminalReason: result.terminalReason,
   };
   deps.costs?.push(cost);

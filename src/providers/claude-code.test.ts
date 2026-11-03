@@ -229,7 +229,7 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
     const started = Date.now();
     const result = provider.run(request);
     expect(Date.now() - started).toBeLessThan(10_000);
-    expect(result).toMatchObject({ terminalReason: "timeout", isError: true, costUsd: 0, turns: 0 });
+    expect(result).toMatchObject({ terminalReason: "timeout", isError: true, costUsd: 0, costKnown: false, turns: 0 });
     expect(result.durationMs).toBeGreaterThanOrEqual(100);
   });
 

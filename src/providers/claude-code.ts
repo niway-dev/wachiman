@@ -256,9 +256,10 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     }
     const durationMs = Date.now() - started;
     if ((run.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") {
-      // Nothing was printed, so the spend is unknown: report 0 rather than invent a figure.
+      // Nothing was printed, so the spend is unknown: say so, and let the engine count the cap.
       return {
         costUsd: 0,
+        costKnown: false,
         model: this.opts.model,
         turns: 0,
         durationMs,
