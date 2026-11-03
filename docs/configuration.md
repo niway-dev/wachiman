@@ -533,7 +533,7 @@ Each of these is a fixed behaviour of the engine at this release:
 | `Unknown provider "…". Accepted values: claude-code, codex.` | `AGENT_REVIEW_PROVIDER` is something else. | 2 |
 | `GH_TOKEN is not set`, `GITHUB_REPOSITORY is not set`, `REQUEST is not set` | A required variable is missing or empty. | 2 |
 | `--repo-dir … is not a directory.` | The directory does not exist. | 2 |
-| `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output" in USD per million tokens, got "…".` | The price is not exactly three comma-separated numbers of 0 or more. Raised as an ordinary error, not a usage error. | 1 |
+| `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "…".` | The price is not three or four comma-separated numbers of 0 or more. Raised as an ordinary error, not a usage error. | 1 |
 | `ANTHROPIC_API_KEY is not set` / `OPENAI_API_KEY is not set` | Missing credential outside a dry run. | 1 |
 | `The Claude Code binary "claude" did not run (--version)` / `The Codex binary "codex" did not run (--version)` | The binary is missing or broken. | 1 |
 | `No price is known for model "…"` | Codex model without a built-in price and without `AGENT_REVIEW_PRICE_PER_MTOK`. | 1 |
