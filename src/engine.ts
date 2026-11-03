@@ -66,6 +66,8 @@ export interface PrFile {
   patch?: string;
   /** The file's blob at the compared commit: equal blobs are equal contents. Absent for a removed file. */
   sha?: string;
+  /** The name before a rename, as GitHub reports it. */
+  previous_filename?: string;
 }
 
 /**
@@ -1328,7 +1330,7 @@ const jsonLines = <T>(text: string) =>
 // `gh --jq` prints string results raw, like `jq -r`: `@json` of an object prints the object's
 // JSON, and `@json` of a string prints the quoted string. One JSON value per line either way.
 export function listFiles(gh: GhFn, repo: string, pr: number): PrFile[] {
-  const jq = ".[] | {filename, additions, deletions, patch, sha} | @json";
+  const jq = ".[] | {filename, additions, deletions, patch, sha, previous_filename} | @json";
   return jsonLines<PrFile>(
     gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/files`, "--jq", jq]),
   );
@@ -1367,12 +1369,30 @@ export function lastEngineMarker(reviews: { body: string; created_at?: string }[
   return found.filter((m): m is string => m !== null).at(-1) ?? null;
 }
 
-export function compareFiles(gh: GhFn, repo: string, base: string, head: string) {
-  const jq = "{status, files: [.files[] | {filename, additions, deletions, patch, sha}]}";
-  return JSON.parse(gh(["api", `repos/${repo}/compare/${base}...${head}`, "--jq", jq])) as {
-    status: string;
-    files: PrFile[];
-  };
+export interface Comparison {
+  status: string;
+  files: PrFile[];
+  /** The commits compare lists (at most 250), each with its number of parents. Absent when GitHub sent none. */
+  commits?: { parents: number }[];
+  /** The number of commits between the two, which may be more than `commits` lists. */
+  total?: number;
+}
+
+export function compareFiles(gh: GhFn, repo: string, base: string, head: string): Comparison {
+  const jq =
+    "{status, total: .total_commits, commits: [.commits[]? | {parents: ((.parents // []) | length)}], files: [.files[] | {filename, additions, deletions, patch, sha, previous_filename}]}";
+  return JSON.parse(gh(["api", `repos/${repo}/compare/${base}...${head}`, "--jq", jq]));
+}
+
+/**
+ * Whether a merge commit is among the commits of a comparison. "none" only when every commit is
+ * listed and has one parent; a list that is missing or cut short is "unknown", never "none".
+ */
+export function mergeCommits(cmp: Comparison): "none" | "some" | "unknown" {
+  const { commits, total } = cmp;
+  if (!commits || commits.length === 0) return "unknown";
+  if (commits.some((c) => c.parents > 1)) return "some";
+  return total === commits.length ? "none" : "unknown";
 }
 
 /**
@@ -1482,8 +1502,9 @@ const OWN_CONTEXT = 3;
  * pull request did not change the file then, undefined when that is not known, and then every
  * removed row is kept, since it may be the author taking back their own line.
  * Both new sides of `since` and `now` are the head, so an added row of `since` is the author's
- * exactly when `now` adds the same line number; otherwise the base already has it, and it is shown
- * as context. A removed row is the author's when `then` had added that line (the author took back
+ * exactly when `now` adds the same line number, or when it puts back a line the reviewed change
+ * deleted (`then` removed that text; it is the base's line again and `now` shows it as context);
+ * otherwise the base already has it, and it is shown as context. A removed row is the author's when `then` had added that line (the author took back
  * their own line) or when `now` removes the same text (the author removes a base line); otherwise
  * the merged branch deleted it, and it is left out. Hunks with no row of the author's are dropped
  * and long runs of context are cut. The old side's line counts are recomputed; its numbers after a
@@ -1503,8 +1524,19 @@ export function ownChangeSince(since: string | undefined, now: string | undefine
       else if (r.kind === "-") removedNow.set(r.text, (removedNow.get(r.text) ?? 0) + 1);
     }
   const addedThen = new Set<number>();
+  // Lines the reviewed change deleted from the base. One that is back in the head is no longer
+  // deleted, so `now` shows it as context; putting it back is the author's change since then.
+  const deletedThen = new Map<string, number>();
   for (const { rows } of parsePatch(then ?? ""))
-    for (const r of rows) if (r.kind === "+") addedThen.add(r.new);
+    for (const r of rows) {
+      if (r.kind === "+") addedThen.add(r.new);
+      else if (r.kind === "-") deletedThen.set(r.text, (deletedThen.get(r.text) ?? 0) + 1);
+    }
+  const takeRestored = (text: string) => {
+    const left = deletedThen.get(text) ?? 0;
+    if (left > 0) deletedThen.set(text, left - 1);
+    return left > 0;
+  };
   const takeRemoved = (text: string) => {
     const left = removedNow.get(text) ?? 0;
     if (left > 0) removedNow.set(text, left - 1);
@@ -1518,7 +1550,7 @@ export function ownChangeSince(since: string | undefined, now: string | undefine
     let previousKept = false;
     for (const r of hunk.rows) {
       if (r.kind === "+") {
-        const own = addedNow.has(r.new);
+        const own = addedNow.has(r.new) || takeRestored(r.text);
         if (!own) foreign = true;
         rows.push({ ...r, kind: own ? "+" : " ", own });
         previousKept = true;
@@ -1554,6 +1586,31 @@ export function ownChangeSince(since: string | undefined, now: string | undefine
     }
   }
   return foreign ? out.join("\n") : since;
+}
+
+/**
+ * The file's patch at the last review (`before`, keyed by the name it had then). A file renamed
+ * since is looked up under the name compare says it came from. "" means the pull request did not
+ * change it then; undefined means that cannot be told (any doubt about a rename), and every
+ * removed row is kept.
+ */
+export function patchAtReview(
+  before: Map<string, PrFile> | null,
+  file: PrFile,
+  inPr: PrFile | undefined,
+): string | undefined {
+  if (!before) return undefined;
+  const earlier = [file.previous_filename, inPr?.previous_filename].filter(
+    (n): n is string => !!n && n !== file.filename,
+  );
+  const same = before.get(file.filename);
+  if (earlier.length === 0) return same ? same.patch : "";
+  const found = [...new Set(earlier)].flatMap((n) => (before.has(n) ? [before.get(n)!] : []));
+  // The rename resolves to one reviewed file, and no other reviewed file holds this name.
+  if (found.length === 1 && !same) return found[0].patch;
+  // Nothing was reviewed under the old name, or more than one reviewed file could be its ancestor:
+  // which patch is the file's own is uncertain, so ownership is unknown and the rows are sent.
+  return undefined;
 }
 
 /** `file` (from compare) with only the pull request's own rows, and its counts to match. */
@@ -1897,8 +1954,14 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       const candidates = keep ? own.filter((f) => keep.has(f.filename)) : own;
       // The file's patch at `last`: "" when the pull request did not change it then, undefined when unknown.
       const before = delta.kind === "changed" ? new Map(delta.before.map((f) => [f.filename, f])) : null;
-      const then = (name: string) => (!before ? undefined : before.has(name) ? before.get(name)!.patch : "");
-      const narrowed = candidates.map((f) => withOwnChange(f, inPr.get(f.filename), then(f.filename)));
+      const thenOf = (f: PrFile) => patchAtReview(before, f, inPr.get(f.filename));
+      // Narrowing exists to drop the lines a merge brought. With no merge commit among the commits
+      // there are none, so every row is the author's; a list that cannot say is treated as a merge
+      // may be there, and then the rows are narrowed with the rules that fail open.
+      const noMerge = mergeCommits(cmp) === "none";
+      const narrowed = noMerge
+        ? candidates
+        : candidates.map((f) => withOwnChange(f, inPr.get(f.filename), thenOf(f)));
       files = narrowed.filter((f) => f.patch !== "");
       const trimmed = narrowed.filter((f, i) => f.patch !== "" && f !== candidates[i]).map((f) => f.filename);
       const foreignOnly = narrowed.filter((f) => f.patch === "").map((f) => f.filename);
