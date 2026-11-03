@@ -14,6 +14,7 @@ import {
   SIGNATURE,
   type Deps,
   type GhFn,
+  type RawThread,
   type ReviewOutput,
 } from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
@@ -844,6 +845,8 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     current: typeof prFiles;
     /** What `last...head` lists (everything that changed since the last review); `current` by default. */
     since?: typeof prFiles;
+    /** The pull request's review threads, as GitHub's GraphQL lists them. */
+    threads?: RawThread[];
   }
 
   function run(world: World) {
@@ -856,7 +859,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       if (line.includes("/pulls/7/reviews") && !args.includes("POST"))
         return JSON.stringify({ body: PRIOR_BODY, submitted_at: "2026-10-30T00:00:00Z" });
       if (line.startsWith("api graphql"))
-        return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
+        return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: world.threads ?? [] } } } } });
       const compare = line.match(/compare\/(\S+?)\.\.\.(\S+)/);
       if (compare) {
         if (compare[1] === LAST) {
@@ -872,9 +875,12 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       return base(args, input);
     };
     const prompts: string[] = [];
+    /** The comment ids of the threads each call found in its threads.json. */
+    const sent: number[][] = [];
     const provider = new FakeProvider([
       (req) => {
         prompts.push(req.prompt);
+        sent.push(JSON.parse(readFileSync(join(req.addDirs[0], "threads.json"), "utf8")).map((t: { comment_id: number }) => t.comment_id));
         return {
           costUsd: 0.1,
           structuredOutput: out({
@@ -887,7 +893,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     const logs: string[] = [];
     const deps: Deps = { gh, provider, config: loadConfig({}), log: (l) => void logs.push(l), warn: () => {} };
     review(deps, "o/r", 7, []);
-    return { posted: posted.review, provider, prompts, logs, calls };
+    return { posted: posted.review, provider, prompts, logs, calls, sent };
   }
 
   test("a rebase with the same lines posts only a marker and calls no model", () => {
@@ -1031,6 +1037,51 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       "👮 **Wachiman** · Brought up to date with the base branch, no new changes since `old1111`.",
     );
     expect(none.logs.join("\n")).toContain("came from the merged branch");
+  });
+
+  // ADR 0019 on kaipu-record#478 at 392778f: 14 open threads went to a 7-file push, and 8 of the 14
+  // replies said only "not in this round's files, accepting the fix as described".
+  describe("which open threads a push's review hands to the model", () => {
+    const finding = (id: number) => ({
+      databaseId: id,
+      author: { login: "github-actions" },
+      authorAssociation: "NONE",
+      body: `🟠🐛 **Fix · bug: earlier**\n\nOld finding.\n\n${SIGNATURE.finding}`,
+      createdAt: "2026-10-30T00:00:00Z",
+    });
+    const answered = (id: number, label: string) => ({
+      databaseId: id,
+      author: { login: "github-actions" },
+      authorAssociation: "NONE",
+      body: `👮 **Wachiman** · **${label}** at \`old1111\`: checked.\n\n${SIGNATURE.reply}`,
+    });
+    const owner = (id: number) => ({ databaseId: id, author: { login: "owner" }, authorAssociation: "OWNER", body: "Reverted it in 9f00d1e" });
+    const at = (path: string, nodes: RawThread["comments"]["nodes"]): RawThread => ({ isResolved: false, path, line: 1, comments: { nodes } });
+    const threads = [
+      at(MANAGER, [finding(101), answered(901, "Looks addressed")]), // its file changed: goes
+      at(STORE, [finding(102), answered(902, "Looks addressed")]), // judged, file untouched: left out
+      at(STORE, [finding(103)]), // never answered: goes
+      at(GUIDE, [finding(104), answered(904, "Still open")]), // still open: goes
+      at(GUIDE, [finding(105), answered(905, "Looks addressed"), owner(906)]), // the owner replied since: goes
+    ];
+    const changed = oldFiles.map((f) => (f.filename === MANAGER ? { ...f, additions: 7, patch: `${f.patch}\n+more` } : f));
+
+    test("a push hands over the threads it can change or a person waits on, and logs the rest", () => {
+      const r = run({ status: "ahead", old: oldFiles, current: changed, since: [changed[0]], threads });
+      expect(r.provider.requests).toHaveLength(1);
+      expect(r.sent[0]).toEqual([101, 103, 104, 105]);
+      expect(r.logs).toContain(
+        '1 of the 5 open thread(s) are not sent to the model: already answered "addressed", on files this push did not change, with no reply since.',
+      );
+    });
+
+    test("a review that falls back to the whole pull request hands over every open thread", () => {
+      // The branch was rewritten and the old change is gone: no delta, so nothing is left out.
+      const r = run({ status: "diverged", old: "throws", current: rebasedFiles, threads });
+      expect(r.provider.requests).toHaveLength(1);
+      expect(r.sent[0]).toEqual([101, 102, 103, 104, 105]);
+      expect(r.logs.join("\n")).not.toContain("are not sent to the model");
+    });
   });
 });
 

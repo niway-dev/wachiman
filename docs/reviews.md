@@ -339,6 +339,13 @@ threads and may answer them ("Looks addressed" or "Still open"), as before:
 - **Which threads.** The pull request's first 100 review threads, with at most 30 comments each,
   that are unresolved and whose first comment is a Wachiman finding. Threads on files outside the
   run are handed to the first batch.
+- **Which of them a push's review sends** ([ADR 0019](adr/0019-a-re-review-sends-only-the-threads-its-push-can-change.md),
+  new in the next release). A review of the changes since the last reviewed commit leaves out a
+  thread Wachiman already judged addressed when its file did not change in the push and nobody
+  with access replied since. Every other open thread goes: one on a file the push changed, one
+  Wachiman never answered, one it last left "Still open", and one you replied in. The run's log
+  says how many were left out. A first review, a scoped `/wachi review <paths>` and a fallback to
+  the whole pull request send every open thread.
 - **Which replies the model sees.** Only replies from people GitHub marks `OWNER`, `MEMBER` or
   `COLLABORATOR`. A stranger's reply on a public repository is dropped before the model reads
   anything. See [SECURITY.md](../SECURITY.md).

@@ -1633,10 +1633,6 @@ export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
   return JSON.parse(raw).data.repository.pullRequest.reviewThreads.nodes;
 }
 
-export function openThreads(gh: GhFn, repo: string, pr: number) {
-  return openBotThreads(fetchThreads(gh, repo, pr));
-}
-
 /** The most replies Wachiman writes in one thread over its lifetime (ADR 0008). */
 export const MAX_WACHI_REPLIES = 2;
 
@@ -1664,6 +1660,39 @@ export function pendingThreads(threads: RawThread[]) {
     if (!latest || latest.author?.login === "github-actions" || !TRUSTED.has(latest.authorAssociation)) return [];
     const wachiReplies = nodes.slice(1).filter(isWachiReply).length;
     return wachiReplies < MAX_WACHI_REPLIES ? [{ ...t, wachi_replies: wachiReplies }] : [];
+  });
+}
+
+/** How a review's thread reply starts, by status; the thread-only run writes its own labels. */
+export const REVIEW_REPLY_LABEL = { addressed: "Looks addressed", still_open: "Still open" } as const;
+
+/** How the thread-only run's "addressed" reply starts; the cited line follows it. */
+export const THREAD_ADDRESSED_LABEL = "Appears addressed in";
+
+/** Whether a Wachiman reply judged its thread addressed, in a review or in a thread-only run. */
+const saysAddressed = (body: string) =>
+  body.includes(`**${REVIEW_REPLY_LABEL.addressed}**`) || body.includes(`**${THREAD_ADDRESSED_LABEL} `);
+
+/**
+ * The open threads a re-review hands to the model (ADR 0019). A thread goes when the push can
+ * change its answer or a person waits for one: its file is one the re-review covers; Wachiman has
+ * not answered it yet; someone with access replied after Wachiman's last answer (ADR 0012 leaves
+ * that reply to the push's review); or Wachiman's last answer was not "addressed", since a fix can
+ * land in another file. A thread Wachiman last judged addressed, on a file the push did not change,
+ * with nothing new from a person, is left out: the model could only repeat its answer.
+ */
+export function reReviewThreads(threads: RawThread[], files: Iterable<string>) {
+  const covered = new Set(files);
+  const byId = new Map(threads.map((t) => [t.comments.nodes[0]?.databaseId, t]));
+  return openBotThreads(threads).filter((t) => {
+    if (covered.has(t.path)) return true;
+    const replies = (byId.get(t.comment_id)?.comments.nodes ?? []).slice(1);
+    const last = replies.findLastIndex(isWachiReply);
+    if (last < 0) return true;
+    const personSince = replies
+      .slice(last + 1)
+      .some((c) => c.author?.login !== "github-actions" && TRUSTED.has(c.authorAssociation));
+    return personSince || !saysAddressed(replies[last].body);
   });
 }
 
@@ -1971,7 +2000,14 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     // About 40k tokens at 3.5 characters a token.
     maxChars: config.batchChars,
   });
-  const threads = last ? openThreads(gh, repo, pr) : [];
+  const rawThreads = last ? fetchThreads(gh, repo, pr) : [];
+  const open = openBotThreads(rawThreads);
+  // ADR 0019: a re-review hands over only the threads its push can change or a person waits on.
+  const threads = since ? reReviewThreads(rawThreads, kept.map((f) => f.filename)) : open;
+  if (threads.length < open.length)
+    deps.log(
+      `${open.length - threads.length} of the ${open.length} open thread(s) are not sent to the model: already answered "addressed", on files this push did not change, with no reply since.`,
+    );
   const threadsByBatch = assignThreads(threads, batches);
   const everyFile = kept.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
   const context = {
@@ -2148,7 +2184,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   ]);
   postReview(deps, repo, pr, headSha, built);
   for (const r of replies) {
-    const label = r.status === "addressed" ? "Looks addressed" : "Still open";
+    const label = REVIEW_REPLY_LABEL[r.status === "addressed" ? "addressed" : "still_open"];
     if (config.dryRun) {
       deps.log(`--- reply to ${r.comment_id}: ${label} ---\n${r.reply}`);
       continue;
@@ -2339,7 +2375,7 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     return;
   }
   toPost.forEach(({ reply, cites }, i) => {
-    const label = reply.status === "addressed" ? `Appears addressed in \`${neutralise(cites[0])}\`` : "Still applies";
+    const label = reply.status === "addressed" ? `${THREAD_ADDRESSED_LABEL} \`${neutralise(cites[0])}\`` : "Still applies";
     // One call answered every thread: the first reply carries its cost, flagged automatic, for the ceiling.
     const cost =
       i === 0
