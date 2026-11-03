@@ -218,6 +218,29 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(t.calls.some((c) => /graphql.*mutation/.test(c))).toBe(false);
   });
 
+  test("the first reply's footer carries the reply operation and the tokens, and the call is recorded", () => {
+    const usage = { input: 900, output: 150, cacheRead: 40000, cacheWrite: 2000 };
+    const t = setup({
+      script: [
+        () => ({
+          costUsd: 0.12,
+          model: "claude-sonnet-5-5",
+          usage,
+          structuredOutput: {
+            thread_replies: [{ comment_id: 7, status: "addressed", reply: "Yes.", cites: ["src/a.ts:3"] }],
+          },
+        }),
+      ],
+    });
+    t.deps.costs = [];
+    threadReplies(t.deps, "o/r", 7);
+    expect(t.replies[0].body).toContain(
+      "<sub>Fake Model · effort high · reply · answers 1 thread(s) · 900 in / 150 out / 40k cache read / 2.0k cache write · $0.12</sub>",
+    );
+    expect(readAutoCost(t.replies[0].body)).toBe(0.12);
+    expect(t.deps.costs).toMatchObject([{ operation: "reply", label: "threads", model: "claude-sonnet-5-5", usage, costUsd: 0.12, pr: 7 }]);
+  });
+
   test("the call is one provider call with the thread schema, the read-only tools and the thread budget", () => {
     const t = setup();
     threadReplies(t.deps, "o/r", 7);

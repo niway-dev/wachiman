@@ -78,6 +78,9 @@ engine through the environment variable in the third column; those variables are
 | `bun_version` | string | `oven-sh/setup-bun` | `1.3.4` | The Bun version the engine runs on. Not an engine setting. CI in this repository pins Bun separately. |
 | `skip_branch_prefixes` | string | the automatic job's first gate step | `release-please--` | Comma-separated head-branch prefixes whose pull requests the automatic job does not review. Spaces are removed; empty entries are ignored, so an empty value skips nothing. It has no effect on the on-demand job. |
 | `review_on_push` | boolean | the automatic job's `if:` condition | `true` | Review each push (`synchronize`) to an open pull request, only the commits new since the last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). **New in v1.4.0.** It needs `synchronize` in the caller's `pull_request` types (the templates have it); the workflow cannot add a trigger. Each push can spend up to `budget_usd`. Set `false` to review only on open, ready for review and `/wachi review`. It has no effect on the on-demand job or the thread-reply job. From v1.5.0 each push also counts against `auto_budget_usd`. See [reviews.md](reviews.md#reviews-on-push). |
+| `push_debounce_seconds` | number | the first step of the `review` job | `180` | Seconds a push (`synchronize`) sleeps before any model call. A newer push cancels this run through the job's concurrency group, so a burst of pushes whose gaps are shorter than the wait pays only for the last one. Cancellation prevents spend only while the earlier run is still waiting: a push that arrives after the sleep ended can cancel a run that already spent. `opened`, `ready_for_review`, the thread-reply job and the on-demand job never wait. `0` disables the wait. The wait counts toward the job's 30 minute limit and uses runner minutes. See [reviews.md](reviews.md#reviews-on-push). |
+
+The copy-the-files template ([setup-copy.md](setup-copy.md)) has no inputs: its `review` job has the same first step, driven by the workflow-level variable `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables). The engine does not read it.
 
 Numeric inputs that the engine rejects (zero, negative, not a number, a fraction for `batch_lines`,
 `batch_chars`, `max_turns` or `call_timeout_s`) fail the run with the message shown under
@@ -149,7 +152,7 @@ applies.
 | `AGENT_REVIEW_BATCH_CHARS` | integer | `140000` | Whole number, greater than 0 | Diff characters per batch (the comment in the code equates this to about 40k tokens at 3.5 characters a token). It counts the diff only, not the whole prompt. | both |
 | `AGENT_REVIEW_MODEL` | string | `claude-sonnet-5-5` for `claude-code`, `gpt-6.1-sol` for `codex` | Any string the provider accepts | The model name passed to the provider. Not validated by the engine; Codex additionally needs a known price. | both |
 | `AGENT_REVIEW_PROVIDER` | string | `claude-code` | `claude-code`, `codex` | Which adapter runs the agent. Any other value is a usage error (exit 2) that lists the accepted ones. | n/a |
-| `AGENT_REVIEW_PRICE_PER_MTOK` | string | unset | `input,cached_input,output`: three numbers, each 0 or more | USD per million tokens, used to turn Codex's token counts into dollars. Takes precedence over the built-in price, also for a model that has one. | Codex only; ignored by Claude |
+| `AGENT_REVIEW_PRICE_PER_MTOK` | string | unset | `input,cached_input,output[,cache_write]`: three or four numbers, each 0 or more | USD per million tokens, used to turn Codex's token counts into dollars. Without the fourth field, cache writes are priced at 2.5 times the input rate (see [costs.md](costs.md)). Takes precedence over the built-in price, also for a model that has one. | Codex only; ignored by Claude |
 | `AGENT_REVIEW_EFFORT` | string | `high` | `low`, `medium`, `high`, `xhigh`, `max` | How hard the model reasons. Always passed explicitly, so a change in a provider CLI's own default cannot alter reviews. **New in v1.4.0.** Any other value is a usage error (exit 2). See [Reasoning effort](#reasoning-effort). | both |
 | `AGENT_REVIEW_MAX_TURNS` | integer | `40` | Whole number, greater than 0 | Most agent turns one provider call may take. **New in v1.4.0.** Normal batches take 5–12 turns; the cap only stops a looping run. See [Turn cap and call timeout](#turn-cap-and-call-timeout). | Claude: sent as `--max-turns`. Codex: no such flag; ignored |
 | `AGENT_REVIEW_CALL_TIMEOUT_S` | integer | `900` | Whole number, greater than 0 | Wall-clock seconds one provider call may run. Past it the process is killed (`SIGKILL`) and the call ends as `timeout`, with cost reported as 0 because the CLI prints nothing before it ends. **New in v1.4.0.** See [Turn cap and call timeout](#turn-cap-and-call-timeout). | both |
@@ -462,7 +465,7 @@ When everything that changed is excluded or outside the requested scope, the run
 | Credential | `ANTHROPIC_API_KEY` | `OPENAI_API_KEY` |
 | Binary on `PATH` | `claude` (the workflow installs a pinned version) | `codex` |
 | Cost | Reported by Claude Code | Estimated from tokens at a per-million-token price |
-| Price needed | No | Yes. Built in for `gpt-6.1-sol` and `gpt-6-sol` ($2 input, $0.10 cached input, $10 output); any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`, or the run stops in preflight. These are constants in the code, not a current price quote: check the vendor's pricing page. |
+| Price needed | No | Yes. Built in for `gpt-6.1-sol` and `gpt-6-sol` ($2 input, $0.10 cached input, $10 output, $5 cache write); any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`, or the run stops in preflight. These are constants in the code, not a current price quote: check the vendor's pricing page. |
 | Dollar cap on a call | Soft | None; 15-minute time limit |
 | `PRICE_PER_MTOK` | Ignored | Used |
 | `EFFORT` (new in v1.4.0) | Passed as `--effort` | Passed as `model_reasoning_effort` |
@@ -530,7 +533,7 @@ Each of these is a fixed behaviour of the engine at this release:
 | `Unknown provider "…". Accepted values: claude-code, codex.` | `AGENT_REVIEW_PROVIDER` is something else. | 2 |
 | `GH_TOKEN is not set`, `GITHUB_REPOSITORY is not set`, `REQUEST is not set` | A required variable is missing or empty. | 2 |
 | `--repo-dir … is not a directory.` | The directory does not exist. | 2 |
-| `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output" in USD per million tokens, got "…".` | The price is not exactly three comma-separated numbers of 0 or more. Raised as an ordinary error, not a usage error. | 1 |
+| `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "…".` | The price is not three or four comma-separated numbers of 0 or more. Raised as an ordinary error, not a usage error. | 1 |
 | `ANTHROPIC_API_KEY is not set` / `OPENAI_API_KEY is not set` | Missing credential outside a dry run. | 1 |
 | `The Claude Code binary "claude" did not run (--version)` / `The Codex binary "codex" did not run (--version)` | The binary is missing or broken. | 1 |
 | `No price is known for model "…"` | Codex model without a built-in price and without `AGENT_REVIEW_PRICE_PER_MTOK`. | 1 |

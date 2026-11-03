@@ -107,8 +107,8 @@ What this means in practice:
   `budget_usd` is reached.
 - With Codex, only the engine's running total and the call timeout (15 minutes by default) limit spend. A single call can
   cost more than `batch_budget_usd`. Tokens are priced from a table in `src/providers/codex.ts`
-  (`gpt-6.1-sol` and `gpt-6-sol`, both $2 input, $0.10 cached input and $10 output per million tokens),
-  and any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`. Those figures are what the code holds, not
+  (`gpt-6.1-sol` and `gpt-6-sol`, both $2 input, $0.10 cached input, $10 output and $5 cache write per million tokens),
+  and any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`. Cache writes are billed at their own rate instead of the input rate. OpenAI lists a 30-minute write at $2.50 and a 12-hour write at $5 for GPT-6.1 Sol. Codex's request structures set no cache lifetime, so it most likely gets the API default of 30 minutes and $2.50; the table still holds the higher $5 on purpose, because the figure is a budget ceiling and counting too much is safer. A custom price with only three fields uses 2.5 times its input rate for writes (the same ratio) instead of marking the cost unknown, for the same reason; add a fourth field to set it. Those figures are what the code holds, not
   a current price quote: check them against OpenAI's pricing page. Only completed turns are counted,
   so a call killed by the timeout can have spent more than it reports.
 - Codex is CLI-only today. You can run it from a checkout with the `bun` command in
@@ -192,17 +192,57 @@ workflow has no dry-run input; the setting exists for the command line and the c
 Every review ends with a line like this one (illustrative):
 
 ```
-Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · 4 batches · $1.87
+Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · re-review · 4 batches · 21k in / 38k out / 2.1M cache read / 96k cache write · $1.87
 ```
 
 - **The model label** is the model, the CLI that ran it and that CLI's version.
 - **`effort high`** is the reasoning effort the run used. Releases up to v1.3.0 do not print it, so
   their footers read `... via Claude Code 2.1.304 · 4 batches · $1.87`.
+- **The operation** is `review` (the whole pull request) or `re-review` (the changes since an earlier
+  reviewed commit). Footers written before this was added do not show it, or the token counts.
 - **`N batches`** appears only when the review used more than one batch.
+- **The tokens** are what the review's calls used, with cached tokens split out so the four counts do
+  not overlap: `in` (not cached), `out`, `cache read` and `cache write`. They are left out when the
+  provider reported none. For Codex, `cache read` is its cached input and `cache write` is its `cache_write_input_tokens`. Codex's SDK does not say whether `input_tokens` includes those, so they are treated like cached input (taken out of `in`) and the split never goes below 0.
 - **The dollar figure** is the engine's `spent`: the sum of what each call reported, plus the cap for
   any call that failed without a result. It includes retries. It is formatted to two decimals, so
   a small cost can show as `$0.00`.
-- An answer to a question ends with the model, the effort and the cost of its one call, with no batch count.
+- An answer to a question ends with the same line for its one call, tagged `on-demand`, with no batch
+  count. The first reply of a thread run ends with it too, tagged `reply`.
+- The dollar figure is always last, and the only dollar sign in the line: the per-pull-request
+  ceiling reads it from the end ([above](#the-ceiling-per-pull-request)).
+
+### Every model call, in the job summary and the log
+
+The engine makes a model call in one place, so every call is accounted for the same way, whatever
+it was for:
+
+| Operation | The call |
+| --- | --- |
+| `review` | A batch of a first or full review, and the retry of its unaccounted-for files |
+| `re-review` | A batch of an incremental review (a push, or `/wachi review` after a reviewed commit), and its retry |
+| `reply` | The one call that answers the pending review threads (an automatic thread run) |
+| `on-demand` | The one call that answers `/wachi <question>` |
+
+The engine never asks a model to write a pull request description: the review's summary is part of
+the review's own answer, so it is inside `review` or `re-review`.
+
+Each run writes:
+
+- **A job summary** (`$GITHUB_STEP_SUMMARY`, shown on the run's page) with one row per call: operation,
+  model, turns, input, output, cache read, cache write and cost in USD, and a total row. It is written
+  also when the run failed after spending, and not at all when no model was called.
+- **One log line per call**, `wachiman-cost {json}`, with the operation, a label (`batch 2/3 retry`,
+  `threads`, `question`), repository, pull request, trigger, model, turns, duration, the four token
+  counts, `costKnown`, `cost_usd` and the terminal reason. `grep '^wachiman-cost ' run.log` over several runs'
+  logs gives the data to sum costs by operation.
+
+A call that died without any result, or was killed on the time limit, or never completed a turn (Codex), still gets a row and a line, marked as an unknown cost: the
+cost column reads `unknown (counted at cap $0.75)`, and the line has `"costKnown":false`,
+`"cost_usd":null` and `"countedUsd":0.75`. The review counts it at that cap (see above), but the
+summary's total and any sum over `cost_usd` leave it out, so the figures never mix a measurement with
+a guess. A thread run that posts no reply has a row and a line but no
+footer, so the ceiling does not count it; the summary and the log do.
 
 Open **Coverage by batch** in the review for one row per batch:
 

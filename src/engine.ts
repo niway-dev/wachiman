@@ -27,6 +27,7 @@
  * best-effort, not a sandbox: it relies on the consumer repository's trust assumption (only trusted people push).
  * The command-line entry point is `src/cli.ts`.
  */
+import { NO_USAGE, addUsage, costLine, costLogLine, type CallCost, type Operation, type TokenUsage } from "./cost";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -794,6 +795,10 @@ export function buildReview(input: {
   /** Limited to `<mention> review <paths>`. */
   scoped: boolean;
   costUsd: number;
+  /** What every call of this review used, shown in the footer's cost line. */
+  usage?: TokenUsage;
+  /** `review` or `re-review`, shown in the footer's cost line. */
+  operation?: Operation;
   batches?: BatchReport[];
   /** From `ProviderAdapter.modelLabel()`, for the footer. */
   modelLabel: string;
@@ -870,8 +875,16 @@ export function buildReview(input: {
       `<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n</details>`,
     );
   }
-  const batchCount = batches.length > 1 ? ` · ${batches.length} batches` : "";
-  parts.push(`<sub>${modelLabel}${effort ? ` · effort ${effort}` : ""}${batchCount} · $${costUsd.toFixed(2)}</sub>`);
+  parts.push(
+    costLine({
+      modelLabel,
+      effort,
+      operation: input.operation,
+      extra: batches.length > 1 ? [`${batches.length} batches`] : [],
+      usage: input.usage,
+      costUsd,
+    }),
+  );
   if (input.automatic) parts.push(SIGNATURE.auto);
   parts.push(SIGNATURE.review);
   // The next `review` request starts from this commit, so only a review that covered everything
@@ -1317,6 +1330,8 @@ export interface Deps {
   git?: GitRunner;
   /** The clock of the evidence step's time box, in ms. Default: `Date.now`. */
   now?: () => number;
+  /** Every model call of this run, in order: `runProvider` appends to it. The CLI writes the job summary from it. */
+  costs?: CallCost[];
 }
 
 const blockingSleep = (ms: number) => void Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -2056,6 +2071,8 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   const reports: BatchReport[] = [];
   const notRun: string[] = [];
   let spent = 0;
+  let usage = NO_USAGE;
+  const operation: Operation = since ? "re-review" : "review";
   let budgetError = false;
   let limitError: "turns" | "timeout" | undefined;
 
@@ -2084,6 +2101,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       Math.min(batchBudget, remaining()),
     );
     spent += first.costUsd;
+    usage = addUsage(usage, first.usage);
     if (first.output) parts.push({ label, output: first.output });
     if (first.budget) budgetError = true;
     if (first.stopped) limitError = first.stopped;
@@ -2115,6 +2133,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
         Math.min(batchBudget, remaining()),
       );
       spent += retry.costUsd;
+      usage = addUsage(usage, retry.usage);
       turns += retry.turns;
       cost += retry.costUsd;
       if (retry.output) parts.push({ label: `${label}, retry`, output: retry.output });
@@ -2145,7 +2164,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
         ? postReview(deps, repo, pr, headSha, {
             body: [
               branded(text),
-              `<sub>${deps.provider.modelLabel()} · effort ${config.effort} · $${spent.toFixed(2)}</sub>`,
+              costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation, usage, costUsd: spent }),
               SIGNATURE.auto,
               SIGNATURE.review,
             ].join("\n\n"),
@@ -2193,6 +2212,8 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     rebased,
     scoped: paths.length > 0,
     costUsd: spent,
+    usage,
+    operation,
     batches: reports,
     modelLabel: deps.provider.modelLabel(),
     effort: config.effort,
@@ -2366,7 +2387,14 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     join(dir, "threads.json"),
     JSON.stringify(pending.map((t) => ({ ...t, code: codeAround(repoDir, t.path, t.line) })), null, 2),
   );
-  const call = runProvider(deps, buildThreadsPrompt({ pr, repo, headSha }, dir), dir, budgetUsd, THREAD_SCHEMA);
+  const call = runProvider(
+    deps,
+    { operation: "reply", label: "threads", repo, pr },
+    buildThreadsPrompt({ pr, repo, headSha }, dir),
+    dir,
+    budgetUsd,
+    THREAD_SCHEMA,
+  );
   const raw = !call.isError ? (call.structuredOutput as { thread_replies?: ThreadReply[] } | undefined) : undefined;
   if (!raw || !Array.isArray(raw.thread_replies)) {
     throw new Error(`The agent did not answer the threads (${call.terminalReason}); $${call.costUsd.toFixed(2)} spent.`);
@@ -2408,7 +2436,7 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     // One call answered every thread: the first reply carries its cost, flagged automatic, for the ceiling.
     const cost =
       i === 0
-        ? `\n\n<sub>${deps.provider.modelLabel()} · effort ${config.effort} · answers ${toPost.length} thread(s) · $${call.costUsd.toFixed(2)}</sub>\n\n${SIGNATURE.auto}`
+        ? `\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`], usage: call.usage, costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
         : "";
     const body = `${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(reply.reply)}${cost}\n\n${SIGNATURE.reply}`;
     if (config.dryRun) {
@@ -2644,10 +2672,22 @@ function reviewBatch(
     questions,
   );
 
-  const call = attempt(() => runProvider(deps, prompt, dir, budgetUsd, SCHEMA), budgetUsd);
+  const label = `batch ${part.index}/${part.total}${part.retry ? " retry" : ""}`;
+  const call = attempt(
+    () =>
+      runProvider(
+        deps,
+        { operation: ctx.since ? "re-review" : "review", label, repo: ctx.repo, pr: ctx.pr },
+        prompt,
+        dir,
+        budgetUsd,
+        SCHEMA,
+      ),
+    budgetUsd,
+  );
   if (!call.ok) {
     deps.warn(`A batch call failed: ${call.error}`);
-    return { output: undefined, budget: false, stopped: undefined, turns: 0, costUsd: call.costUsd, failed: true };
+    return { output: undefined, budget: false, stopped: undefined, turns: 0, costUsd: call.costUsd, usage: NO_USAGE, failed: true };
   }
   const result = call.value;
   const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
@@ -2667,23 +2707,54 @@ function reviewBatch(
     stopped,
     turns: result.turns,
     costUsd: result.costUsd,
+    usage: result.usage ?? NO_USAGE,
     failed: false,
   };
 }
 
 /** The prompt goes through stdin: a batch's diff in an argument would hit Linux's 128 KB limit. */
-function runProvider(deps: Deps, prompt: string, dir: string, budgetUsd: number, schema?: object) {
-  const result = deps.provider.run({
-    prompt,
-    cwd: deps.repoDir ?? process.cwd(),
-    addDirs: [dir],
-    allowedTools: ["read", "glob", "grep"],
-    maxBudgetUsd: budgetUsd,
-    maxTurns: deps.config.maxTurns,
-    timeoutMs: deps.config.callTimeoutS * 1000,
-    outputSchema: schema,
-    promptViaStdin: true,
-  });
+function runProvider(
+  deps: Deps,
+  what: Pick<CallCost, "operation" | "label" | "repo" | "pr">,
+  prompt: string,
+  dir: string,
+  budgetUsd: number,
+  schema?: object,
+) {
+  const started = Date.now();
+  let result: ReturnType<ProviderAdapter["run"]>;
+  try {
+    result = deps.provider.run({
+      prompt,
+      cwd: deps.repoDir ?? process.cwd(),
+      addDirs: [dir],
+      allowedTools: ["read", "glob", "grep"],
+      maxBudgetUsd: budgetUsd,
+      maxTurns: deps.config.maxTurns,
+      timeoutMs: deps.config.callTimeoutS * 1000,
+      outputSchema: schema,
+      promptViaStdin: true,
+    });
+  } catch (error) {
+    // The call died without a result, so what it cost is unknown. The caller counts it at its cap
+    // (`attempt`); record it that way here, still as a table row and a log line, then fail as before.
+    const dead: CallCost = {
+      ...what,
+      model: deps.config.model,
+      turns: 0,
+      durationMs: Date.now() - started,
+      usage: NO_USAGE,
+      costUsd: budgetUsd,
+      costKnown: false,
+      terminalReason: `no result: ${String(error).slice(0, 120)}`,
+    };
+    deps.costs?.push(dead);
+    deps.log(costLogLine(dead, { trigger: deps.config.trigger }));
+    throw error;
+  }
+  // No completed cost report (a timeout, a kill): the spend is unknown, so count the request's cap,
+  // exactly as a call that threw is counted, and keep the terminal reason.
+  if (result.costKnown === false) result = { ...result, costUsd: budgetUsd };
   deps.log(
     JSON.stringify({
       is_error: result.isError,
@@ -2693,6 +2764,18 @@ function runProvider(deps: Deps, prompt: string, dir: string, budgetUsd: number,
       duration_ms: result.durationMs,
     }),
   );
+  const cost: CallCost = {
+    ...what,
+    model: result.model ?? deps.config.model,
+    turns: result.turns,
+    durationMs: result.durationMs,
+    usage: result.usage ?? NO_USAGE,
+    costUsd: result.costUsd,
+    ...(result.costKnown === false ? { costKnown: false } : {}),
+    terminalReason: result.terminalReason,
+  };
+  deps.costs?.push(cost);
+  deps.log(costLogLine(cost, { trigger: deps.config.trigger }));
   return result;
 }
 
@@ -2719,10 +2802,16 @@ ${question}
 Answer it. Your final message is posted verbatim as the comment, so it holds the answer and
 nothing else. Write in English.`;
   // One question is one call, with the budget a whole review had before batches: $1.
-  const result = runProvider(deps, prompt, dir, deps.config.answerBudgetUsd);
+  const result = runProvider(
+    deps,
+    { operation: "on-demand", label: "question", repo, pr },
+    prompt,
+    dir,
+    deps.config.answerBudgetUsd,
+  );
   if (result.isError || !result.text)
     throw new Error(`The agent did not answer (${result.terminalReason}).`);
-  const body = `${BRAND}\n\n${neutralise(result.text)}\n\n<sub>${deps.provider.modelLabel()} · effort ${deps.config.effort} · $${result.costUsd.toFixed(2)}</sub>`;
+  const body = `${BRAND}\n\n${neutralise(result.text)}\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: deps.config.effort, operation: "on-demand", usage: result.usage, costUsd: result.costUsd })}`;
   refuseLeak(deps, [body]);
   if (deps.config.dryRun) {
     deps.log(body);

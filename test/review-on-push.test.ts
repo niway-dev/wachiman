@@ -45,6 +45,52 @@ describe("review on push (ADR 0011)", () => {
   });
 });
 
+describe("push debounce", () => {
+  const text = read(".github/workflows/review.yml");
+  const job = text.slice(text.indexOf("\n  review:"), text.indexOf("\n  threads:"));
+
+  test("the reusable workflow has a number push_debounce_seconds input, 180 by default", () => {
+    const input = text.match(/\n {6}push_debounce_seconds:\n([\s\S]*?)(?=\n {4}secrets:)/);
+    expect(input?.[1]).toMatch(/type: number/);
+    expect(input?.[1]).toMatch(/default: 180/);
+  });
+
+  test("the first step of the review job sleeps for synchronize only, before any checkout or model call", () => {
+    const steps = job.slice(job.indexOf("\n    steps:"));
+    const first = steps.slice(steps.indexOf("- name:"), steps.indexOf("\n      - name:", steps.indexOf("- name:") + 1));
+    expect(first).toContain("name: Wait for further pushes");
+    expect(first).toContain("if: github.event.action == 'synchronize'");
+    expect(first).toContain("DEBOUNCE: ${{ inputs.push_debounce_seconds }}");
+    expect(first).toContain('sleep "$seconds"');
+    expect(first).toContain('-gt 0');
+    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("uses: actions/checkout"));
+    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("cli.ts review"));
+  });
+
+  test("only the review job debounces: the thread and on-demand jobs have no wait", () => {
+    expect(text.match(/Wait for further pushes/g)).toHaveLength(1);
+  });
+
+  test("the copy template's review job has the same first step, driven by AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS (180)", () => {
+    const copy = read("templates/caller-workflow.yml");
+    expect(copy).toMatch(/AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180\b/);
+    const review = copy.slice(copy.indexOf("\n  review:"), copy.indexOf("\n  threads:"));
+    const steps = review.slice(review.indexOf("\n    steps:"));
+    const first = steps.slice(steps.indexOf("- name:"), steps.indexOf("\n      - name:", steps.indexOf("- name:") + 1));
+    expect(first).toContain("name: Wait for further pushes");
+    expect(first).toContain("if: github.event.action == 'synchronize'");
+    expect(first).toContain('sleep "$seconds"');
+    expect(first).toContain("-gt 0");
+    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("uses: actions/checkout"));
+    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("cli.ts review"));
+    expect(copy.match(/Wait for further pushes/g)).toHaveLength(1);
+  });
+
+  test("the caller template documents the input", () => {
+    expect(read("templates/agent-review-caller.yml")).toContain("push_debounce_seconds");
+  });
+});
+
 describe("thread replies without a push (ADR 0012)", () => {
   const workflow = read(".github/workflows/review.yml");
   const jobOf = (text: string, name: string) => {

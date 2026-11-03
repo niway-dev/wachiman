@@ -14,6 +14,11 @@ import {
   type GhFn,
   type ReviewOutput,
 } from "./engine";
+import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ClaudeCodeProvider } from "./providers/claude-code";
+import { CodexProvider } from "./providers/codex";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
 // ADR 0012, part A: one ceiling for all automatic runs on a pull request, summed from the
@@ -167,6 +172,12 @@ describe("automaticSpend", () => {
     expect(spent).toBeCloseTo(0.85, 10);
   });
 
+  test("a ceiling sum reads footers from before and after the cost details together", () => {
+    const withTokens = `x\n\n<sub>Fake Model · effort high · re-review · 1.2k in / 3.4k out / 560k cache read / 21k cache write · $0.30</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
+    const { spent } = automaticSpend(world([spentBody(0.42), withTokens], [replyBody(0.1)]), "o/r", 7);
+    expect(spent).toBeCloseTo(0.82, 10);
+  });
+
   test("lists the ceilings it already announced", () => {
     const { notified } = automaticSpend(
       world([`Paused.\n\n${SIGNATURE.review}\n\n<!-- wachi:ceiling usd=2.00 -->`, "Paused.\n\n<!-- wachi:ceiling usd=5.00 -->"], []),
@@ -238,6 +249,153 @@ describe("review() under the ceiling", () => {
     expect(t.provider.requests).toHaveLength(1);
     expect(readAutoCost(t.posted[0])).toBeCloseTo(0.1, 10);
   });
+
+  const USAGE = { input: 1200, output: 3400, cacheRead: 560000, cacheWrite: 21000 };
+
+  test("a first review reports its operation, tokens and cost in the footer, the log and the recorded calls", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      script: [() => ({ costUsd: 0.1, model: "claude-sonnet-5-5", usage: USAGE, structuredOutput: out({}) })],
+    });
+    const logs: string[] = [];
+    t.deps.log = (line) => void logs.push(line);
+    t.deps.costs = [];
+    review(t.deps, "o/r", 7, []);
+    expect(t.posted[0]).toContain(
+      "<sub>Fake Model · effort high · review · 1.2k in / 3.4k out / 560k cache read / 21k cache write · $0.10</sub>",
+    );
+    expect(readAutoCost(t.posted[0])).toBeCloseTo(0.1, 10);
+    expect(t.deps.costs).toEqual([
+      {
+        operation: "review",
+        label: "batch 1/1",
+        model: "claude-sonnet-5-5",
+        turns: 1,
+        durationMs: 1,
+        usage: USAGE,
+        costUsd: 0.1,
+        terminalReason: "success",
+        repo: "o/r",
+        pr: 7,
+      },
+    ]);
+    const costLines = logs.filter((l) => l.startsWith("wachiman-cost "));
+    expect(costLines).toHaveLength(1);
+    expect(JSON.parse(costLines[0].slice("wachiman-cost ".length))).toMatchObject({
+      operation: "review",
+      pr: 7,
+      trigger: "opened",
+      cache_read_tokens: 560000,
+      cost_usd: 0.1,
+    });
+  });
+
+  test("a push after a reviewed commit is a re-review, and the retry call is tagged in the recorded calls", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_TRIGGER: "synchronize" },
+      reviews: [spentBody(0.2, { marker: "aaa1111" })],
+      compare: { status: "ahead", files: [{ filename: "a.ts" }] },
+      // The first call leaves a.ts unaccounted for, so the engine retries it once.
+      script: [
+        () => ({ costUsd: 0.1, usage: USAGE, structuredOutput: out({ files_reviewed: [] }) }),
+        () => ({ costUsd: 0.05, usage: USAGE, structuredOutput: out({}) }),
+      ],
+    });
+    t.deps.costs = [];
+    review(t.deps, "o/r", 7, []);
+    expect(t.deps.costs?.map((c) => [c.operation, c.label])).toEqual([
+      ["re-review", "batch 1/1"],
+      ["re-review", "batch 1/1 retry"],
+    ]);
+    expect(t.posted[0]).toContain("effort high · re-review · 2.4k in / 6.8k out / 1.1M cache read / 42k cache write · $0.15</sub>");
+    expect(readAutoCost(t.posted[0])).toBe(0.15);
+  });
+
+  test("a provider that reports no tokens or model still yields a footer, a record and a log line", () => {
+    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened" } });
+    t.deps.costs = [];
+    review(t.deps, "o/r", 7, []);
+    expect(t.posted[0]).toContain("<sub>Fake Model · effort high · review · $0.10</sub>");
+    expect(t.deps.costs?.[0]).toMatchObject({ model: t.deps.config.model, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } });
+  });
+
+  test("a call that dies without a result is recorded and logged as an unknown cost, counted at its cap", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      script: [
+        () => {
+          throw new Error("claude exited with signal SIGKILL");
+        },
+      ],
+    });
+    const logs: string[] = [];
+    t.deps.log = (line) => void logs.push(line);
+    t.deps.costs = [];
+    // No batch returned anything, so the review fails; the dead call is still on the record.
+    expect(() => review(t.deps, "o/r", 7, [])).toThrow("did not return a review");
+    // The engine retries the batch's files once; that call dies too, and is recorded the same way.
+    expect(t.deps.costs?.map((c) => [c.label, c.costKnown])).toEqual([
+      ["batch 1/1", false],
+      ["batch 1/1 retry", false],
+    ]);
+    const dead = t.deps.costs?.[0];
+    expect(dead).toMatchObject({ operation: "review", label: "batch 1/1", costKnown: false, pr: 7, turns: 0 });
+    expect(dead?.costUsd).toBeGreaterThan(0);
+    const lines = logs.filter((l) => l.startsWith("wachiman-cost "));
+    expect(lines).toHaveLength(2);
+    const json = JSON.parse(lines[0].slice("wachiman-cost ".length));
+    expect(json).toMatchObject({ operation: "review", costKnown: false, cost_usd: null, countedUsd: dead?.costUsd });
+    expect(json.terminal_reason).toContain("no result");
+    expect(dead?.costUsd).toBe(t.deps.config.batchBudgetUsd);
+  });
+
+  test("a result flagged costKnown false is counted at the request's cap in the footer and the ceiling", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      script: [() => ({ costUsd: 0, costKnown: false, structuredOutput: out({}) })],
+    });
+    t.deps.costs = [];
+    review(t.deps, "o/r", 7, []);
+    const cap = t.deps.config.batchBudgetUsd;
+    expect(readAutoCost(t.posted[0])).toBeCloseTo(cap, 2);
+    expect(t.deps.costs?.[0]).toMatchObject({ costKnown: false, costUsd: cap });
+  });
+
+  /** A shell stand-in for an agent CLI that never answers. */
+  const hangingBinary = (name: string) => {
+    const path = join(mkdtempSync(join(tmpdir(), `stub-${name}-`)), name);
+    writeFileSync(path, "#!/bin/sh\ncat >/dev/null\nsleep 30\n");
+    chmodSync(path, 0o755);
+    return path;
+  };
+
+  for (const kind of ["claude", "codex"] as const) {
+    test(`a ${kind} call killed at the time limit is an unknown cost counted at the batch cap, with its reason kept`, () => {
+      const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened", AGENT_REVIEW_CALL_TIMEOUT_S: "1" } });
+      const binary = hangingBinary(kind);
+      t.deps.provider =
+        kind === "claude"
+          ? new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary })
+          : new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary });
+      const logs: string[] = [];
+      t.deps.log = (line) => void logs.push(line);
+      t.deps.costs = [];
+      try {
+        review(t.deps, "o/r", 7, []);
+      } catch {
+        // No batch returned a review; the point is what was recorded.
+      }
+      const cap = t.deps.config.batchBudgetUsd;
+      expect(t.deps.costs?.length).toBeGreaterThan(0);
+      for (const c of t.deps.costs ?? []) {
+        expect(c).toMatchObject({ costKnown: false, costUsd: cap, terminalReason: "timeout" });
+      }
+      const json = JSON.parse(logs.filter((l) => l.startsWith("wachiman-cost "))[0].slice("wachiman-cost ".length));
+      expect(json).toMatchObject({ costKnown: false, cost_usd: null, countedUsd: cap, terminal_reason: "timeout" });
+      // Whatever was posted records the cap, never $0.00.
+      for (const body of t.posted) expect(readAutoCost(body)).toBeCloseTo(cap * (t.deps.costs?.length ?? 1), 2);
+    });
+  }
 
   test("at the ceiling the next push posts one notice, starts no batch, and a later push posts nothing", () => {
     const t = setup({

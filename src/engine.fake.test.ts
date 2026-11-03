@@ -186,7 +186,7 @@ describe("the batch loop against a fake provider", () => {
     expect(body).toContain("**Batch 1 of 2.** Manager looks mostly fine.");
     expect(body).toContain("**Batch 2 of 2.** Guide fine.");
     // Total spent is 0.30 + 0.10 + 0.20, in the footer built from the provider's label.
-    expect(body).toContain("<sub>Fake Model 1 via Fake CLI 0.1 · effort high · 2 batches · $0.60</sub>");
+    expect(body).toContain("<sub>Fake Model 1 via Fake CLI 0.1 · effort high · review · 2 batches · $0.60</sub>");
     expect(posted.review?.comments).toHaveLength(1);
     expect(posted.review?.comments[0]).toMatchObject({ path: MANAGER, line: 2 });
   });
@@ -793,6 +793,39 @@ describe("the answer path reads the instructions from the base commit", () => {
     expect(prompt).not.toContain("RULES-FROM-HEAD");
     expect(prompt).not.toContain("Read CLAUDE.md first");
     expect(posted[0]).toContain("the answer");
+  });
+});
+
+describe("the on-demand answer reports its cost", () => {
+  test("the footer names the operation and the tokens, and the call is recorded as on-demand", () => {
+    const posted: string[] = [];
+    const usage = { input: 50, output: 60, cacheRead: 7000, cacheWrite: 800 };
+    const provider = new FakeProvider([() => ({ text: "the answer", costUsd: 0.07, usage, model: "claude-sonnet-5-5" })]);
+    const costs: NonNullable<Deps["costs"]> = [];
+    const deps: Deps = {
+      gh: (args, input) => {
+        const line = args.join(" ");
+        const contents = contentsAnswer({}, line);
+        if (contents !== undefined) return contents;
+        if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
+        if (line.startsWith("pr view")) return JSON.stringify({ title: "t", body: "b", files: [] });
+        if (line.startsWith("pr diff")) return "diff";
+        if (line.startsWith("pr comment")) {
+          posted.push(input ?? "");
+          return "";
+        }
+        throw new Error(`unexpected gh call: ${line}`);
+      },
+      provider,
+      config: loadConfig({ AGENT_REVIEW_OPERATOR: "boss" }),
+      repoDir: mkdtempSync(join(tmpdir(), "head-")),
+      costs,
+      log: () => {},
+      warn: () => {},
+    };
+    comment(deps, "o/r", 7, "@agent-review why is this here?", "boss");
+    expect(posted[0]).toContain("effort high · on-demand · 50 in / 60 out / 7.0k cache read / 800 cache write · $0.07</sub>");
+    expect(costs).toMatchObject([{ operation: "on-demand", label: "question", usage, costUsd: 0.07, pr: 7, repo: "o/r" }]);
   });
 });
 

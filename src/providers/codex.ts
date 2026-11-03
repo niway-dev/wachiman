@@ -19,6 +19,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { TokenUsage } from "../cost";
 import { locatePrompt as locate } from "./locate";
 import {
   DEFAULT_CALL_TIMEOUT_S,
@@ -63,38 +64,72 @@ export interface Price {
   input: number;
   cachedInput: number;
   output: number;
+  /**
+   * USD per million tokens written to the prompt cache. OpenAI bills a write at its own rate, which
+   * replaces the input rate. Omitted: `CACHE_WRITE_MULTIPLIER` times `input`.
+   */
+  cacheWrite?: number;
 }
+
+/**
+ * The cache-write rate assumed for a price that names none, as a multiple of its input rate. OpenAI
+ * lists a 12-hour write at 2.5x input (GPT-6.1 Sol: $2 input, $2.50 for a 30-minute write, $5 for a
+ * 12-hour one). Nothing in the Codex event stream or this adapter's request says which lifetime Codex
+ * uses, so the higher one is assumed: the cost is a budget ceiling, and counting too much is safer.
+ */
+export const CACHE_WRITE_MULTIPLIER = 2.5
 
 /**
  * List prices of the models this adapter has been set up for. A model not listed here needs
  * `AGENT_REVIEW_PRICE_PER_MTOK`: the engine's budgets are in dollars, and Codex reports tokens.
  */
 export const PRICES: Record<string, Price> = {
-  "gpt-6.1-sol": { input: 2, cachedInput: 0.1, output: 10 },
-  "gpt-6-sol": { input: 2, cachedInput: 0.1, output: 10 },
+  "gpt-6.1-sol": { input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 },
+  "gpt-6-sol": { input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 },
 };
 
-/** `"2,0.1,10"` (input, cached input, output) as a price, or a usage error. */
+/** `"2,0.1,10"` or `"2,0.1,10,5"` (input, cached input, output[, cache write]) as a price, or a usage error. */
 export function parsePrice(raw: string): Price {
   const parts = raw.split(",").map((p) => Number(p.trim()));
-  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n) || n < 0)) {
+  if (parts.length < 3 || parts.length > 4 || parts.some((n) => !Number.isFinite(n) || n < 0)) {
     throw new Error(
-      `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output" in USD per million tokens, got "${raw}".`,
+      `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "${raw}".`,
     );
   }
-  return { input: parts[0], cachedInput: parts[1], output: parts[2] };
+  return { input: parts[0], cachedInput: parts[1], output: parts[2], ...(parts.length === 4 ? { cacheWrite: parts[3] } : {}) };
 }
 
 export interface Usage {
   input_tokens: number;
   cached_input_tokens?: number;
+  /** Input tokens written to the prompt cache (`cache_write_input_tokens` in the SDK's `Usage`). */
+  cache_write_input_tokens?: number;
   output_tokens: number;
 }
 
+/**
+ * Cached input is part of Codex's `input_tokens`; split it out so the four counts do not overlap.
+ * The SDK's `Usage` type describes `cache_write_input_tokens` as "input tokens written to the prompt
+ * cache" and does not say whether `input_tokens` includes them; they are treated like cached input
+ * (a subset of `input_tokens`), and the split is clamped so no count goes negative.
+ */
+export function tokenUsageOf(usage: Usage): TokenUsage {
+  const cached = Math.min(usage.cached_input_tokens ?? 0, usage.input_tokens);
+  const written = Math.min(usage.cache_write_input_tokens ?? 0, usage.input_tokens - cached);
+  return {
+    input: usage.input_tokens - cached - written,
+    output: usage.output_tokens,
+    cacheRead: cached,
+    cacheWrite: written,
+  };
+}
+
 export function costOf(usage: Usage, price: Price): number {
-  const cached = usage.cached_input_tokens ?? 0;
+  // Same split as `tokenUsageOf`: reads and writes come out of input and are billed at their own rates.
+  const split = tokenUsageOf(usage);
+  const writeRate = price.cacheWrite ?? price.input * CACHE_WRITE_MULTIPLIER;
   return (
-    ((usage.input_tokens - cached) * price.input + cached * price.cachedInput + usage.output_tokens * price.output) /
+    (split.input * price.input + split.cacheRead * price.cachedInput + split.cacheWrite * writeRate + usage.output_tokens * price.output) /
     1_000_000
   );
 }
@@ -185,13 +220,16 @@ interface CodexEvent {
 
 /** Folds the JSONL event stream into the totals the engine needs. */
 export function readEvents(stdout: string) {
-  const usage: Usage = { input_tokens: 0, cached_input_tokens: 0, output_tokens: 0 };
+  const usage: Usage = { input_tokens: 0, cached_input_tokens: 0, cache_write_input_tokens: 0, output_tokens: 0 };
   let commands = 0;
+  let completedTurns = 0;
   let failure: string | null = null;
   for (const line of stdout.split("\n")) {
     if (!line.trim().startsWith("{")) continue;
     const event = JSON.parse(line) as CodexEvent;
     if (event.type === "turn.completed" && event.usage) {
+      completedTurns++;
+      usage.cache_write_input_tokens = (usage.cache_write_input_tokens ?? 0) + (event.usage.cache_write_input_tokens ?? 0);
       usage.input_tokens += event.usage.input_tokens ?? 0;
       usage.cached_input_tokens = (usage.cached_input_tokens ?? 0) + (event.usage.cached_input_tokens ?? 0);
       usage.output_tokens += event.usage.output_tokens ?? 0;
@@ -200,7 +238,7 @@ export function readEvents(stdout: string) {
     if (event.type === "turn.failed") failure = event.error?.message ?? "turn failed";
     if (event.type === "error" && !failure) failure = event.message ?? "error";
   }
-  return { usage, commands, failure };
+  return { usage, commands, failure, completedTurns };
 }
 
 export class CodexProvider implements ProviderAdapter {
@@ -235,7 +273,7 @@ export class CodexProvider implements ProviderAdapter {
   preflight() {
     if (!this.price) {
       throw new Error(
-        `No price is known for model "${this.opts.model}". Set AGENT_REVIEW_PRICE_PER_MTOK="input,cached_input,output" (USD per million tokens).`,
+        `No price is known for model "${this.opts.model}". Set AGENT_REVIEW_PRICE_PER_MTOK="input,cached_input,output[,cache_write]" (USD per million tokens).`,
       );
     }
     const probe = spawnSync(this.binary, ["--version"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "" } });
@@ -294,7 +332,7 @@ export class CodexProvider implements ProviderAdapter {
       if (!timedOut && (run.error || !run.stdout)) {
         throw new Error(`codex did not run (status ${run.status}): ${run.error ?? run.stderr}`);
       }
-      const { usage, commands, failure } = readEvents(run.stdout ?? "");
+      const { usage, commands, failure, completedTurns } = readEvents(run.stdout ?? "");
       let text: string | undefined;
       try {
         text = readFileSync(lastMessageFile, "utf8");
@@ -316,6 +354,10 @@ export class CodexProvider implements ProviderAdapter {
         structuredOutput,
         text,
         costUsd,
+        // A killed call, or one that never completed a turn, has no complete usage report.
+        costKnown: !timedOut && completedTurns > 0,
+        model: this.opts.model,
+        usage: tokenUsageOf(usage),
         turns: commands + 1,
         durationMs,
         // Codex has no spend or turn cap (`request.maxTurns` is not used: `codex exec` has no such

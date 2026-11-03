@@ -12,8 +12,10 @@ import {
   leaksKey,
   locatePrompt,
   parsePrice,
+  PRICES,
   prettyModel,
   readEvents,
+  tokenUsageOf,
 } from "./codex";
 import { DEFAULT_MODELS, getProvider, PROVIDER_NAMES } from "./index";
 
@@ -96,6 +98,27 @@ describe("the child environment", () => {
 });
 
 describe("prices and cost", () => {
+  test("cache writes are billed at their own rate, which replaces the input rate", () => {
+    const usage = { input_tokens: 1_000_000, cached_input_tokens: 400_000, cache_write_input_tokens: 100_000, output_tokens: 0 };
+    // 0.5M x $2 + 0.4M x $0.10 + 0.1M x $5 = 1.0 + 0.04 + 0.5
+    expect(costOf(usage, { input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 })).toBeCloseTo(1.54, 6);
+  });
+
+  test("a price without a cache-write rate assumes 2.5 times input, and the built-in table says $5", () => {
+    const usage = { input_tokens: 1_000_000, cache_write_input_tokens: 1_000_000, output_tokens: 0 };
+    expect(costOf(usage, { input: 2, cachedInput: 0.1, output: 10 })).toBeCloseTo(5, 6);
+    expect(PRICES["gpt-6.1-sol"].cacheWrite).toBe(5);
+    expect(PRICES["gpt-6-sol"].cacheWrite).toBe(5);
+    // No writes: the old formula, unchanged.
+    expect(costOf({ input_tokens: 1_000_000, output_tokens: 0 }, { input: 2, cachedInput: 0.1, output: 10 })).toBeCloseTo(2, 6);
+  });
+
+  test("the price override takes an optional fourth field and still takes three", () => {
+    expect(parsePrice("2,0.1,10,5")).toEqual({ input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 });
+    expect(parsePrice("2,0.1,10")).toEqual({ input: 2, cachedInput: 0.1, output: 10 });
+    expect(() => parsePrice("1,2,3,4,5")).toThrow("AGENT_REVIEW_PRICE_PER_MTOK");
+  });
+
   test("cached input is billed at its own price; reasoning is inside output", () => {
     const usage = { input_tokens: 1_000_000, cached_input_tokens: 400_000, output_tokens: 100_000 };
     // 0.6M × $2 + 0.4M × $0.10 + 0.1M × $10 = 1.2 + 0.04 + 1.0
@@ -122,9 +145,26 @@ describe("readEvents", () => {
 
   test("totals usage and counts commands", () => {
     expect(readEvents(stream)).toEqual({
-      usage: { input_tokens: 39761, cached_input_tokens: 25728, output_tokens: 241 },
+      usage: { input_tokens: 39761, cached_input_tokens: 25728, cache_write_input_tokens: 0, output_tokens: 241 },
       commands: 2,
       failure: null,
+      completedTurns: 1,
+    });
+  });
+
+  test("keeps cache_write_input_tokens and sums it over turns, then maps it without overlap", () => {
+    const turn = (i: number, c: number, w: number, o: number) =>
+      `{"type":"turn.completed","usage":{"input_tokens":${i},"cached_input_tokens":${c},"cache_write_input_tokens":${w},"output_tokens":${o},"reasoning_output_tokens":0}}`;
+    const events = readEvents([turn(1000, 600, 300, 10), turn(500, 100, 50, 5)].join("\n"));
+    expect(events.usage).toEqual({ input_tokens: 1500, cached_input_tokens: 700, cache_write_input_tokens: 350, output_tokens: 15 });
+    expect(events.completedTurns).toBe(2);
+    expect(tokenUsageOf(events.usage)).toEqual({ input: 450, output: 15, cacheRead: 700, cacheWrite: 350 });
+    // A write count larger than what is left of the input is clamped, never negative.
+    expect(tokenUsageOf({ input_tokens: 100, cached_input_tokens: 80, cache_write_input_tokens: 90, output_tokens: 1 })).toEqual({
+      input: 0,
+      output: 1,
+      cacheRead: 80,
+      cacheWrite: 20,
     });
   });
 
@@ -202,6 +242,8 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
     expect(out.token).toBe("");
     expect(out.key).toBe("sk-proj-test");
     expect(result).toMatchObject({ costUsd: 2, turns: 2, terminalReason: "success", isError: false });
+    expect(result.model).toBe("gpt-6.1-sol");
+    expect(result.usage).toEqual({ input: 1000000, output: 0, cacheRead: 0, cacheWrite: 0 });
     delete process.env.GH_TOKEN;
     delete process.env.OPENAI_API_KEY;
   });
@@ -215,7 +257,20 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
   test("a call that runs past the time limit ends as timeout", () => {
     const binary = stubBinary("cat >/dev/null; sleep 5");
     const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary, timeoutMs: 200 }).run(request);
-    expect(result).toMatchObject({ terminalReason: "timeout", isError: true });
+    expect(result).toMatchObject({ terminalReason: "timeout", isError: true, costKnown: false });
+  });
+
+  test("a stub reporting cache writes reaches the result, and a completed turn has a known cost", () => {
+    const binary = stubBinary(`out=$(${flagValue("--output-last-message")}); cat >/dev/null; echo '{}' > "$out"; echo '{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":200,"cache_write_input_tokens":300,"output_tokens":7}}'`);
+    const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
+    expect(result.usage).toEqual({ input: 500, output: 7, cacheRead: 200, cacheWrite: 300 });
+    expect(result.costKnown).toBe(true);
+  });
+
+  test("a call that exits without any completed turn has an unknown cost", () => {
+    const binary = stubBinary(`cat >/dev/null; echo '{"type":"turn.failed","error":{"message":"boom"}}'; exit 1`);
+    const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
+    expect(result).toMatchObject({ isError: true, costKnown: false });
   });
 
   test("the request's time limit wins over the adapter's, and a turn cap is accepted but unused", () => {

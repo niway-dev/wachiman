@@ -104,6 +104,11 @@ env:
   # The login allowed to command the tool (EDIT THIS). The `on-demand` job `if:` checks the same
   # login, and the CLI checks it again against the comment's author.
   AGENT_REVIEW_OPERATOR: your-github-login
+  # Seconds a push (`synchronize`) waits before any model call. A newer push cancels this run
+  # while it sleeps (the `review` job's concurrency group), so it spends nothing. Only pushes
+  # wait; `opened` and `ready_for_review` start at once. `0` disables the wait. The wait counts
+  # toward the job's 30 minute limit.
+  AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180
 
 jobs:
   review:
@@ -126,6 +131,20 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      # Before the checkout and any model call: a run cancelled here has spent nothing.
+      - name: Wait for further pushes
+        if: github.event.action == 'synchronize'
+        run: |
+          seconds="${AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS//[[:space:]]/}"
+          if ! [[ "$seconds" =~ ^[0-9]+$ ]]; then
+            echo "::warning title=AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS ignored::'$AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS' is not a whole number of seconds; not waiting."
+            exit 0
+          fi
+          if [ "$seconds" -gt 0 ]; then
+            echo "Waiting ${seconds}s for further pushes; a newer push cancels this run before it spends anything."
+            sleep "$seconds"
+          fi
+
       # The head, not the default merge commit, so the files match the diff's lines.
       - name: Checkout the pull request head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

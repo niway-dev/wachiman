@@ -157,6 +157,20 @@ printf '{"is_error":false,"subtype":"success","num_turns":3,"total_cost_usd":0.1
     delete process.env.GH_TOKEN;
   });
 
+  test("run reports the model and the usage object, cache fields included, and degrades to 0 without one", () => {
+    const withUsage = stubBinary(
+      `cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":2,"total_cost_usd":0.2,"duration_ms":9,"usage":{"input_tokens":11,"output_tokens":22,"cache_read_input_tokens":3300,"cache_creation_input_tokens":44}}'`,
+    );
+    const a = new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: withUsage }).run(request);
+    expect(a.model).toBe("claude-sonnet-5-5");
+    expect(a.usage).toEqual({ input: 11, output: 22, cacheRead: 3300, cacheWrite: 44 });
+    const without = stubBinary(
+      `cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":2,"total_cost_usd":0.2,"duration_ms":9}'`,
+    );
+    const b = new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: without }).run(request);
+    expect(b.usage).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
+  });
+
   test("starts in an empty scratch directory outside the head, with the head as --add-dir only", () => {
     const head = mkdtempSync(join(tmpdir(), "head-"));
     const scratch = mkdtempSync(join(tmpdir(), "pr-scratch-"));
@@ -215,8 +229,19 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
     const started = Date.now();
     const result = provider.run(request);
     expect(Date.now() - started).toBeLessThan(10_000);
-    expect(result).toMatchObject({ terminalReason: "timeout", isError: true, costUsd: 0, turns: 0 });
+    expect(result).toMatchObject({ terminalReason: "timeout", isError: true, costUsd: 0, costKnown: false, turns: 0 });
     expect(result.durationMs).toBeGreaterThanOrEqual(100);
+  });
+
+  test("only a finite, non-negative total_cost_usd makes the cost known", () => {
+    const run = (json: string) =>
+      new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: stubBinary(`cat >/dev/null; echo '${json}'`) }).run(request);
+    expect(run('{"is_error":true,"subtype":"error_during_execution"}')).toMatchObject({ costKnown: false, costUsd: 0, isError: true });
+    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":-1}')).toMatchObject({ costKnown: false });
+    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":"0.5"}')).toMatchObject({ costKnown: false });
+    // A real dollar figure stays known without any token counts, and so does a genuine zero.
+    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":0.42}')).toMatchObject({ costKnown: true, costUsd: 0.42 });
+    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":0}')).toMatchObject({ costKnown: true, costUsd: 0 });
   });
 
   test("the request's timeout wins over the adapter's, and a fast call is not touched", () => {
