@@ -50,7 +50,8 @@ function stripComments(line: string): string {
 }
 
 function removeLogging(body: string): string {
-  return body.replace(/\b(?:console|logger|log)\.\w+\s*\([^)]*\)\s*;?/g, "");
+  // One level of nested parentheses, so `logger.error({ error: String(e) })` goes whole.
+  return body.replace(/\b(?:console|logger|log)\.\w+\s*\((?:[^()]|\([^()]*\))*\)\s*;?/g, "");
 }
 
 /** Text from `start` of line `i` to the brace that closes the block opened at `start`. */
@@ -76,10 +77,12 @@ function blockBody(lines: string[], i: number, start: number): string {
 
 /** True when a catch body falls back to a value instead of reporting the failure. */
 function defaultsOnError(body: string, expression = false): boolean {
-  if (HANDLED.test(body)) return false;
+  // Logging is not handling: `logger.error({ error })` names the error and the value is still empty.
+  const quiet = removeLogging(body);
+  if (HANDLED.test(quiet)) return false;
   // `.catch(() => value)`: whatever the arrow evaluates to replaces the read, unless it exits.
   if (expression) return body.trim() !== "" && !/\b(?:exit|abort)\b/.test(body);
-  const rest = removeLogging(body).replace(/[\s;{}]/g, "");
+  const rest = quiet.replace(/[\s;{}]/g, "");
   return rest === "" || /\breturn\b/.test(body) || EMPTY_DEFAULT.test(body);
 }
 
