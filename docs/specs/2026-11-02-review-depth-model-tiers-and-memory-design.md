@@ -89,12 +89,12 @@ This spec decides three things:
 6. **Whether the judge also runs on incremental reviews.** They are half the live bill (#87) and
    found one real bug. Default: the judge runs only when the delta has at least one obligation or
    one reader `fix`.
-7. **Did Wachiman stop finding issues it used to find?** The owner's impression on 2026-11-03 is
-   that recent reviews are more thorough but report fewer issues than earlier ones. The recorded
-   benchmarks do not show it (real Medium+ bugs per run went from 1.3 on v1.3.0 to 7.3 on v1.4.0,
-   expected issues stayed at 10–13 of 26), so the impression most likely comes from live reviews,
-   which no benchmark covers. Until E5 answers it, the tier contents in A4 stay placeholders: a
-   `deep` tier that runs a pipeline which drops findings would only charge more for the same loss.
+7. **Did Wachiman stop finding issues it used to find?** Answered 2026-11-03: no. The question
+   came from reading the benchmark tables side by side, not from a review that missed something.
+   On the same five exhibition PRs, real Medium+ bugs per run rose from 1.3 (v1.3.0) to 7.3
+   (v1.4.0 on Opus) and expected issues stayed at 10–13 of 26. The lower numbers elsewhere count
+   different sets: the held-out set has 4 catalogued bugs (1.33 per run), and the field run's 2 of
+   11 was v1.3.0. No experiment is planned for it.
 
 ## Out of scope
 
@@ -143,24 +143,11 @@ Each one registers its prediction before it runs, like every benchmark so far.
 
 | Run | What | Model and effort | Answers | Cost |
 | --- | --- | --- | --- | --- |
-| E5 | Findings per review, by release, on live PRs; then a replay of the PRs where the count fell | none for the count; the replay uses the PR's original model and effort | Is the drop the owner noticed real, and if so, which change caused it: the judge or degrade step, deduplication, incremental re-reviews (#89, #99), or the data-path questions (#88)? | $0 for the count; replay priced after it |
 | E3 | Obligation ledger on known commits | none | #88's firing table is the first half (where the questions fire). The second half: does each firing on the known commits point at the known act, and does the reader's contract answer it? | $0 |
 | E2 | Packet-only judge, offline, on the E1 reports | Opus 5.5 `high` | Does a judge that sees cited code reopen what Sonnet closed wrongly? | about $1 |
 | E0 | v1.4.0, five exhibition PRs, three runs | Opus 5.5 `medium` | Does lower effort on the capable model keep 7.3 bugs at less than $6.96? | about $15–20 |
 | E1b | v1.4.0, five exhibition PRs, three runs | Sonnet 5.5 `medium` | Is `economy` still above Pullfrog's 3.5 bugs? | about $10–14 |
 | E4 | `standard` tier (reader + judge with obligations), data-moving set and held-out set | per tier | Does the judge find the High bug of #479 and #482's five, at ≤ 80 % of Opus-only cost? | to be set after E2 |
-
-**Why E5 runs first.** Every tier is a bet that more spend finds more. If a recent change makes
-the reviewer post less than it sees, a dearer tier hides the loss instead of fixing it. E5 has two
-steps. First, from the posted-reviews dataset in
-[wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks/tree/main/dataset) plus the
-reviews posted since, count per release the findings per full review and per re-review, split by
-label (`fix`, `consider`, `question`) and by valid, invalid and not yet judged. Second, only for
-the pull requests where the count fell, replay the same head on the earlier and the later release
-and compare finding by finding: which earlier finding disappeared, at which stage (never raised by
-the reader, merged by deduplication, degraded or dropped by a later step, not re-reviewed). The
-prediction is registered before the count runs. Kill condition: if the count does not fall, the
-impression is recorded as not reproduced and the tier work continues unchanged.
 
 **Why E0 exists.** Sonnet's saving in E1 was 34 %, not the 50 % the price list suggests. Cache
 reads cost the same on both models ($0.20 per million tokens), and an agentic run is mostly cache
