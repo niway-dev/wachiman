@@ -24,6 +24,9 @@
   choice back to the model.
 - **Two output ideas from Greptile's reviews are worth taking:** a copy-paste prompt for the
   developer's own agent, and a "how this was verified" line per finding.
+- **A local `git diff` can feed the engine the same input as GitHub:** `git diff -M
+  --inter-hunk-context=1 base...head` matched GitHub's patches on 1,397 files of 64 pull requests,
+  except that GitHub omits the patch of very large or long-line files.
 - **A local review on the developer's own Claude subscription is allowed** by Claude Code's terms
   when it runs the unmodified `claude` binary signed in by the developer. The catch is the data
   terms: a personal Pro or Max account is under the Consumer Terms, so company code may be used
@@ -208,6 +211,40 @@ goes to Anthropic under the Consumer Terms. The training setting must be off
 the 30-day retention. If the employer has a Claude Team or Enterprise plan, signing in with that
 account puts the same review under commercial terms, which is the easier request to approve.
 
+### Does a local `git diff` give the engine the same input as GitHub?
+
+The engine reviews the `patch` of each entry of GitHub's
+[pull request files](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files) list
+(`PrFile` in `src/engine.ts`). A local mode has to build the same list from git. Probed 2026-11-03
+with git 2.54.0, at $0 (no model call): for 64 merged pull requests (24 of niway-dev/wachiman, 40
+of niway-dev/kaipu-record), the files API was compared with a local diff of the pull request's own
+`base.sha` and `head.sha`, file by file: the file set, the rename source, the added and removed
+counts, and the patch text.
+
+| Local command | Result over 1,397 files (1,027 modified, 429 added, 21 removed, 5 renamed) |
+| --- | --- |
+| `git diff -M base...head` (git's defaults) | Same files, renames and counts. Patch text differs in 22 files of 13 pull requests |
+| `git diff -M --inter-hunk-context=1 base...head` | **Same files, renames, counts and patch text**, except the two cases below |
+
+- **Hunk grouping is the only systematic difference.** GitHub joins two hunks that are one line
+  further apart than git does by default; `--inter-hunk-context=1` reproduces it on every file
+  sampled. Line numbers and changed lines were the same either way, so it only changes how hunks
+  are cut, which the batch sizing and `commentableLines` read.
+- **The three-dot form is right.** GitHub's list is the diff from the merge base of `base.sha` and
+  `head.sha` to `head.sha`, so `base...head` matched where a two-dot diff would include changes
+  made on the base branch.
+- **GitHub omits some patches; git does not.** In niway-dev/wachiman #87, 10 added files had no
+  `patch` in the API: two Markdown files of 1,488 and 1,724 lines, and eight one-line JSON files
+  (long lines). Locally all ten have a patch. The engine treats a patch-less file as unreviewable
+  by diff, so a local run would review files the GitHub run skips. Unchecked: GitHub's exact limit.
+- **Raw control characters are rendered differently.** In two pull requests a source line holding
+  a literal control character (a NUL in a regular expression) appears in GitHub's patch in caret
+  notation (`^@`) and in git's as the byte itself. Cosmetic for a review.
+- **Not covered by the sample:** binary files, symlinks, mode-only changes, submodules, files over
+  GitHub's 3,000-file list limit, and diffs against uncommitted work.
+- The probe ran against bare clones in a temporary directory, deleted afterwards; no private code
+  was kept or published, only the counts above.
+
 ### Telemetry
 
 From the same [data usage page](https://code.claude.com/docs/en/data-usage):
@@ -235,6 +272,7 @@ nothing. Whether Wachiman makes any other network call in a local run is part of
 - Greptile demo reviews: <https://github.com/greptileai/demo-itk/pull/4>,
   <https://github.com/greptileai/demo-itk/pull/7>
 - Agent Skills: <https://agentskills.io>
+- GitHub REST, pull request files: <https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files>
 - CodeRabbit CLI, local review of uncommitted changes and Claude Code plugin:
   <https://docs.coderabbit.ai/cli>, <https://docs.coderabbit.ai/cli/claude-code-integration>
 - Claude Code legal and compliance: <https://code.claude.com/docs/en/legal-and-compliance>
