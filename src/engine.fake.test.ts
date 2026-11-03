@@ -844,6 +844,8 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     current: typeof prFiles;
     /** What `last...head` lists (everything that changed since the last review); `current` by default. */
     since?: typeof prFiles;
+    /** The commits `last...head` lists: omitted when not given, as an older fake did. */
+    commits?: "ordinary" | "merge";
   }
 
   function run(world: World) {
@@ -861,7 +863,14 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       if (compare) {
         if (compare[1] === LAST) {
           if (world.status === "throws") throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
-          return JSON.stringify({ status: world.status, files: world.since ?? world.current });
+          const commits =
+            world.commits === undefined
+              ? {}
+              : {
+                  total: world.commits === "merge" ? 2 : 1,
+                  commits: world.commits === "merge" ? [{ parents: 1 }, { parents: 2 }] : [{ parents: 1 }],
+                };
+          return JSON.stringify({ status: world.status, files: world.since ?? world.current, ...commits });
         }
         if (compare[1] === BASE && compare[2] === LAST) {
           if (world.old === "throws") throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
@@ -970,6 +979,89 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(one.provider.requests).toHaveLength(1);
     expect(one.prompts[0]).toContain(`- ${STORE} +4 −0`);
     expect(one.prompts[0]).not.toContain(`- ${MANAGER}`);
+  });
+
+  // Illustrative file used by the next tests. The base is guard, work, end.
+  const GUARDED = "src/guarded.ts";
+  const guardedAt = (patch: string, extra: Partial<(typeof prFiles)[number]> = {}) =>
+    ({ filename: GUARDED, additions: 1, deletions: 0, patch, ...extra }) as (typeof prFiles)[number];
+
+  test("a push that restores a line the reviewed change deleted is reviewed, merge or not", () => {
+    // Reviewed: guard deleted, extra added. The push puts guard back and keeps extra. The file's
+    // change differs from the reviewed one, so it is a candidate, and guard now equals the base.
+    const reviewed = guardedAt("@@ -1,3 +1,3 @@\n-guard()\n+extra()\n work()\n end()");
+    const current = guardedAt("@@ -1,3 +1,4 @@\n guard()\n+extra()\n work()\n end()");
+    const pushed = guardedAt("@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()");
+    for (const commits of ["ordinary", "merge", undefined] as const) {
+      const r = run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits });
+      expect(r.provider.requests).toHaveLength(1);
+      expect(r.prompts[0]).toContain("+guard()");
+      expect(r.posted?.body).not.toContain("Brought up to date");
+    }
+  });
+
+  test("when the prior change is unknown, a restored line is sent, never dropped", () => {
+    const current = guardedAt("@@ -1,3 +1,4 @@\n guard()\n+extra()\n work()\n end()");
+    const pushed = guardedAt("@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()");
+    const many = Array.from({ length: 300 }, (_, i) => guardedAt("@@ -0,0 +1,1 @@\n+x", { filename: `f${i}.ts` }));
+    const priors: Record<string, typeof prFiles | "throws"> = {
+      "prior comparison unavailable": "throws",
+      "prior comparison capped at 300 files": many,
+    };
+    for (const [name, old] of Object.entries(priors))
+      for (const commits of ["merge", undefined] as const) {
+        const r = run({ status: "ahead", old, current: [current], since: [pushed], commits });
+        expect(r.provider.requests, `${name}, commits ${commits}`).toHaveLength(1);
+        expect(r.prompts[0]).toContain("+guard()");
+        expect(r.posted?.body).not.toContain("Brought up to date");
+      }
+  });
+
+  test("a push with no merge commit is not narrowed at all", () => {
+    // The pull request's patch has no row for the added line, so narrowing would call it the
+    // base's; with no merge among the commits nothing came from a merged branch.
+    const reviewed = guardedAt("@@ -1,3 +1,3 @@\n-guard()\n+extra()\n work()\n end()");
+    const current = guardedAt("@@ -1,3 +1,3 @@\n-guard()\n+other()\n work()\n end()");
+    const pushed = guardedAt("@@ -1,3 +1,3 @@\n-guard()\n-extra()\n+other()\n work()\n end()");
+    const ordinary = run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits: "ordinary" });
+    expect(ordinary.provider.requests).toHaveLength(1);
+    expect(ordinary.prompts[0]).toContain("+other()");
+    expect(ordinary.prompts[0]).toContain("-extra()");
+    // The same push with a merge among the commits is narrowed: the unchanged-looking rows go.
+    const merged = run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits: "merge" });
+    expect(merged.provider.requests).toHaveLength(1);
+  });
+
+  test("a rename keeps the ownership of the rows the reviewed change added", () => {
+    // Reviewed: GUARD and `other` added to old.ts. The push renames it to new.ts, drops GUARD and
+    // keeps `other`. The prior patch is indexed by the old name; compare says where it came from.
+    const reviewed = guardedAt("@@ -1,5 +1,7 @@\n a\n b\n+GUARD\n c\n d\n e\n+other", { filename: "src/old.ts" });
+    const current = guardedAt("@@ -1,5 +1,6 @@\n a\n b\n c\n d\n e\n+other", {
+      filename: "src/new.ts",
+      previous_filename: "src/old.ts",
+    });
+    const pushed = guardedAt("@@ -1,7 +1,6 @@\n a\n b\n-GUARD\n c\n d\n e\n other", {
+      filename: "src/new.ts",
+      previous_filename: "src/old.ts",
+      additions: 0,
+      deletions: 1,
+    });
+    for (const commits of ["merge", undefined] as const) {
+      const r = run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits });
+      expect(r.provider.requests).toHaveLength(1);
+      expect(r.prompts[0]).toContain("-GUARD");
+      expect(r.posted?.body).not.toContain("Brought up to date");
+    }
+    // The rename cannot be matched to a reviewed file (the old name is not the one compare lists
+    // for the review): the full current patch is sent rather than nothing.
+    const unmatched = run({
+      status: "ahead",
+      old: [{ ...reviewed, filename: "src/elsewhere.ts" }],
+      current: [current],
+      since: [pushed],
+      commits: "merge",
+    });
+    expect(unmatched.provider.requests).toHaveLength(1);
   });
 
   test("a merge of the base branch into the pull request reviews none of the base's files", () => {
@@ -1110,6 +1202,33 @@ describe("ownChangeSince", () => {
   test("a merge that brought only base lines leaves nothing to send", () => {
     const onlyBase = "@@ -9,3 +9,5 @@\n h\n i\n j\n+R1\n+R2";
     expect(ownChangeSince(onlyBase, now, then)).toBe("");
+  });
+
+  test("restoring a line the reviewed change deleted is the author's, not the base's", () => {
+    // Illustrative. The base is guard, work, end. The reviewed change deleted guard and added
+    // extra; the next push puts guard back and keeps extra. guard now equals the base, so the pull
+    // request's patch shows it as context, yet it is the author's change since the last review.
+    const reviewed = "@@ -1,3 +1,3 @@\n-guard()\n+extra()\n work()\n end()";
+    const restored = "@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()";
+    const nowPr = "@@ -1,3 +1,4 @@\n guard()\n+extra()\n work()\n end()";
+    expect(ownChangeSince(restored, nowPr, reviewed)).toBe(restored);
+    // With the base's rows beside it, only the restored row and not the base's are sent.
+    const withMerge = "@@ -1,3 +1,5 @@\n+guard()\n extra()\n work()\n end()\n+B1";
+    const nowMerge = "@@ -1,3 +1,4 @@\n guard()\n+extra()\n work()\n end()\n B1";
+    expect(ownChangeSince(withMerge, nowMerge, reviewed)).toBe(
+      "@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()",
+    );
+    // The same text added when nothing was deleted before is still the base's.
+    expect(ownChangeSince(withMerge, nowMerge, "")).not.toContain("+guard()");
+  });
+
+  test("a row restored once is not credited twice", () => {
+    const reviewed = "@@ -1,2 +1,1 @@\n-dup\n keep";
+    const pushed = "@@ -1,1 +1,3 @@\n+dup\n+dup\n keep";
+    const nowPr = "@@ -1,2 +1,2 @@\n dup\n dup\n keep";
+    // Only one `dup` was deleted at the last review, so only one is the author's.
+    const result = ownChangeSince(pushed, nowPr, reviewed);
+    expect((result ?? "").match(/^\+dup$/gm)).toHaveLength(1);
   });
 
   test("without both patches nothing can be told apart: the patch is kept", () => {

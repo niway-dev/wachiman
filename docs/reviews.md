@@ -255,12 +255,18 @@ files, only the ones whose change differs from the reviewed one are candidates. 
 both branches changed, compare also shows the merged branch's lines as added: only the rows the
 author wrote go to the model, the merged branch's added lines are shown as context and its deleted
 lines are left out. A merge that leaves no row of the author's posts a one-line "Brought up to date
-with the base branch" marker and calls no model.
+with the base branch" marker and calls no model. This narrowing applies only when a merge commit is
+among the commits since the last review, or when those commits cannot be read in full (GitHub lists
+at most 250); a push with no merge commit sends each candidate file's patch as it is.
 
 How a row is told apart: compare's patch and the pull request's patch (against the current base)
 both end at the head, so an added row is the author's when the pull request adds that same line
 number. A removed row is the author's when the pull request at the last review had added that line,
-or when the pull request now removes the same text. When GitHub sent no patch for the file (binary,
+or when the pull request now removes the same text. An added row is also the author's when the
+change at the last review deleted a line with the same text: putting a deleted line back is the
+author's change even though the line now equals the base. When the change at the last review cannot be read (the comparison failed or may be cut short), nothing is narrowed and the candidate file's patch is sent as it is. A renamed file is matched to its reviewed
+patch through GitHub's `previous_filename`; if that does not resolve to exactly one file, the
+whole current patch is sent, with no narrowing. When GitHub sent no patch for the file (binary,
 too large), nothing can be told apart and compare's patch is sent as it is.
 
 To turn it off, remove `synchronize` from the caller's types, or pass `review_on_push: false` to the

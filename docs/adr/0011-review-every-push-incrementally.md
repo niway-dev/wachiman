@@ -103,7 +103,7 @@ removed row when the pull request at `last` had added that line, or the pull req
 same text. Other added rows become context, other removed rows are dropped, context is cut to three
 rows around the author's. A merge whose candidate files keep no row of the author's posts the
 marker and calls no model, like the merge that touches none of them. A push without a merge is sent
-unchanged.
+unchanged: see the amendment of 2026-11-03 below for how that is decided and for restored lines.
 
 Rejected: sending the file's whole diff against the base, as the rebased path does. It holds no
 base code, but it would make every ordinary push pay for the file's entire change again (a two-line
@@ -113,6 +113,37 @@ on the rebased path too (see the pull request that adds this amendment).
 Status: unit and fake-`gh` tests, and a replay of `ownChangeSince` on the field run's commits. It has
 not run in a real workflow yet. The rest of this ADR has run since 2026-11-01 (v1.4.0 on
 kaipu-record).
+
+## Amendment 2026-11-03: narrowing fails open
+
+An independent review of the amendment above found two ways it could send nothing, or too little,
+for rows the author did write. Both are fixed, and the rule behind them is now explicit: when the
+engine is unsure who owns a row, it sends the row. It never turns doubt into an empty set that
+skips the model.
+
+- **Restored lines.** The reviewed change deleted `guard()` and added `extra()`; the next push put
+  `guard()` back. It equals the base again, so the pull request's patch shows it as context and
+  `ownChangeSince` called it the merged branch's, dropped the file and posted "Brought up to date"
+  without calling the model. An added row is now also the author's when the change at the last
+  review deleted a line with that text: putting it back is the author's change.
+- **Renames.** The change at the last review is indexed by file name. A push that renamed the file
+  found nothing under the new name, so ownership was unknown-as-"not changed" and the author's
+  removal of their own earlier line was discarded. `previous_filename` from compare now resolves the
+  reviewed patch; when a rename cannot be matched to exactly one reviewed file, ownership is
+  unknown and the file's whole current patch is sent, with no narrowing.
+- **"A push without a merge is sent unchanged"** was a claim about the helper's typical output, not
+  something it checked. The engine now reads the commits that compare lists: when all of them are
+  listed and none has two parents, nothing came from a merged branch and the candidate files are
+  sent in full, without narrowing. When the list is missing or cut short (compare lists at most 250
+  commits), a merge may be among them, and the file is narrowed with the rules above.
+
+- **Unknown history.** Whenever the change at the last review is not known (the comparison failed,
+  its file list reached the 300-file cap, or a file's patch is missing), no row can be told from
+  the merged branch's, and a restored line looks like the base's. The candidate file's current
+  patch is sent as it is, with no narrowing.
+
+Narrowing still posts the "Brought up to date" marker when every candidate keeps no row of the
+author's, but only for a push that has a merge commit or whose commits cannot be read.
 
 ## Non-goals
 
