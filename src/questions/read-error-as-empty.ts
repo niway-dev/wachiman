@@ -49,9 +49,34 @@ function stripComments(line: string): string {
   return line.replace(/(?:^|\s)\/\/.*$/, "");
 }
 
+/** Index just past the `)` that closes the call opened at `open`, skipping quoted text; -1 if it never closes. */
+function endOfCall(text: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"' || ch === "`") {
+      for (i++; i < text.length && text[i] !== ch; i++) if (text[i] === "\\") i++;
+    } else if (ch === "(") depth++;
+    else if (ch === ")" && --depth === 0) return i + 1;
+  }
+  return -1;
+}
+
 function removeLogging(body: string): string {
-  // One level of nested parentheses, so `logger.error({ error: String(e) })` goes whole.
-  return body.replace(/\b(?:console|logger|log)\.\w+\s*\((?:[^()]|\([^()]*\))*\)\s*;?/g, "");
+  const call = /\b(?:console|logger|log)\.\w+\s*\(/g;
+  let out = "";
+  let from = 0;
+  for (let m = call.exec(body); m; m = call.exec(body)) {
+    if (m.index < from) continue;
+    const end = endOfCall(body, m.index + m[0].length - 1);
+    if (end === -1) continue; // not closed: leave it, so what follows is still looked at
+    out += body.slice(from, m.index);
+    from = end;
+    const tail = /^\s*;?/.exec(body.slice(end));
+    if (tail) from += tail[0].length;
+    call.lastIndex = from;
+  }
+  return out + body.slice(from);
 }
 
 /** Text from `start` of line `i` to the brace that closes the block opened at `start`. */
