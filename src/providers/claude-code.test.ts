@@ -233,6 +233,17 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
     expect(result.durationMs).toBeGreaterThanOrEqual(100);
   });
 
+  test("only a finite, non-negative total_cost_usd makes the cost known", () => {
+    const run = (json: string) =>
+      new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: stubBinary(`cat >/dev/null; echo '${json}'`) }).run(request);
+    expect(run('{"is_error":true,"subtype":"error_during_execution"}')).toMatchObject({ costKnown: false, costUsd: 0, isError: true });
+    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":-1}')).toMatchObject({ costKnown: false });
+    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":"0.5"}')).toMatchObject({ costKnown: false });
+    // A real dollar figure stays known without any token counts, and so does a genuine zero.
+    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":0.42}')).toMatchObject({ costKnown: true, costUsd: 0.42 });
+    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":0}')).toMatchObject({ costKnown: true, costUsd: 0 });
+  });
+
   test("the request's timeout wins over the adapter's, and a fast call is not touched", () => {
     const slow = stubBinary("cat >/dev/null; sleep 30");
     const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: slow, timeoutMs: 60_000 });

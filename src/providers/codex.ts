@@ -64,26 +64,39 @@ export interface Price {
   input: number;
   cachedInput: number;
   output: number;
+  /**
+   * USD per million tokens written to the prompt cache. OpenAI bills a write at its own rate, which
+   * replaces the input rate. Omitted: `CACHE_WRITE_MULTIPLIER` times `input`.
+   */
+  cacheWrite?: number;
 }
+
+/**
+ * The cache-write rate assumed for a price that names none, as a multiple of its input rate. OpenAI
+ * lists a 12-hour write at 2.5x input (GPT-6.1 Sol: $2 input, $2.50 for a 30-minute write, $5 for a
+ * 12-hour one). Nothing in the Codex event stream or this adapter's request says which lifetime Codex
+ * uses, so the higher one is assumed: the cost is a budget ceiling, and counting too much is safer.
+ */
+export const CACHE_WRITE_MULTIPLIER = 2.5
 
 /**
  * List prices of the models this adapter has been set up for. A model not listed here needs
  * `AGENT_REVIEW_PRICE_PER_MTOK`: the engine's budgets are in dollars, and Codex reports tokens.
  */
 export const PRICES: Record<string, Price> = {
-  "gpt-6.1-sol": { input: 2, cachedInput: 0.1, output: 10 },
-  "gpt-6-sol": { input: 2, cachedInput: 0.1, output: 10 },
+  "gpt-6.1-sol": { input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 },
+  "gpt-6-sol": { input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 },
 };
 
-/** `"2,0.1,10"` (input, cached input, output) as a price, or a usage error. */
+/** `"2,0.1,10"` or `"2,0.1,10,5"` (input, cached input, output[, cache write]) as a price, or a usage error. */
 export function parsePrice(raw: string): Price {
   const parts = raw.split(",").map((p) => Number(p.trim()));
-  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n) || n < 0)) {
+  if (parts.length < 3 || parts.length > 4 || parts.some((n) => !Number.isFinite(n) || n < 0)) {
     throw new Error(
-      `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output" in USD per million tokens, got "${raw}".`,
+      `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "${raw}".`,
     );
   }
-  return { input: parts[0], cachedInput: parts[1], output: parts[2] };
+  return { input: parts[0], cachedInput: parts[1], output: parts[2], ...(parts.length === 4 ? { cacheWrite: parts[3] } : {}) };
 }
 
 export interface Usage {
@@ -112,9 +125,11 @@ export function tokenUsageOf(usage: Usage): TokenUsage {
 }
 
 export function costOf(usage: Usage, price: Price): number {
-  const cached = usage.cached_input_tokens ?? 0;
+  // Same split as `tokenUsageOf`: reads and writes come out of input and are billed at their own rates.
+  const split = tokenUsageOf(usage);
+  const writeRate = price.cacheWrite ?? price.input * CACHE_WRITE_MULTIPLIER;
   return (
-    ((usage.input_tokens - cached) * price.input + cached * price.cachedInput + usage.output_tokens * price.output) /
+    (split.input * price.input + split.cacheRead * price.cachedInput + split.cacheWrite * writeRate + usage.output_tokens * price.output) /
     1_000_000
   );
 }
@@ -258,7 +273,7 @@ export class CodexProvider implements ProviderAdapter {
   preflight() {
     if (!this.price) {
       throw new Error(
-        `No price is known for model "${this.opts.model}". Set AGENT_REVIEW_PRICE_PER_MTOK="input,cached_input,output" (USD per million tokens).`,
+        `No price is known for model "${this.opts.model}". Set AGENT_REVIEW_PRICE_PER_MTOK="input,cached_input,output[,cache_write]" (USD per million tokens).`,
       );
     }
     const probe = spawnSync(this.binary, ["--version"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "" } });

@@ -152,7 +152,7 @@ applies.
 | `AGENT_REVIEW_BATCH_CHARS` | integer | `140000` | Whole number, greater than 0 | Diff characters per batch (the comment in the code equates this to about 40k tokens at 3.5 characters a token). It counts the diff only, not the whole prompt. | both |
 | `AGENT_REVIEW_MODEL` | string | `claude-sonnet-5-5` for `claude-code`, `gpt-6.1-sol` for `codex` | Any string the provider accepts | The model name passed to the provider. Not validated by the engine; Codex additionally needs a known price. | both |
 | `AGENT_REVIEW_PROVIDER` | string | `claude-code` | `claude-code`, `codex` | Which adapter runs the agent. Any other value is a usage error (exit 2) that lists the accepted ones. | n/a |
-| `AGENT_REVIEW_PRICE_PER_MTOK` | string | unset | `input,cached_input,output`: three numbers, each 0 or more | USD per million tokens, used to turn Codex's token counts into dollars. Takes precedence over the built-in price, also for a model that has one. | Codex only; ignored by Claude |
+| `AGENT_REVIEW_PRICE_PER_MTOK` | string | unset | `input,cached_input,output[,cache_write]`: three or four numbers, each 0 or more | USD per million tokens, used to turn Codex's token counts into dollars. Without the fourth field, cache writes are priced at 2.5 times the input rate (see [costs.md](costs.md)). Takes precedence over the built-in price, also for a model that has one. | Codex only; ignored by Claude |
 | `AGENT_REVIEW_EFFORT` | string | `high` | `low`, `medium`, `high`, `xhigh`, `max` | How hard the model reasons. Always passed explicitly, so a change in a provider CLI's own default cannot alter reviews. **New in v1.4.0.** Any other value is a usage error (exit 2). See [Reasoning effort](#reasoning-effort). | both |
 | `AGENT_REVIEW_MAX_TURNS` | integer | `40` | Whole number, greater than 0 | Most agent turns one provider call may take. **New in v1.4.0.** Normal batches take 5–12 turns; the cap only stops a looping run. See [Turn cap and call timeout](#turn-cap-and-call-timeout). | Claude: sent as `--max-turns`. Codex: no such flag; ignored |
 | `AGENT_REVIEW_CALL_TIMEOUT_S` | integer | `900` | Whole number, greater than 0 | Wall-clock seconds one provider call may run. Past it the process is killed (`SIGKILL`) and the call ends as `timeout`, with cost reported as 0 because the CLI prints nothing before it ends. **New in v1.4.0.** See [Turn cap and call timeout](#turn-cap-and-call-timeout). | both |
@@ -465,7 +465,7 @@ When everything that changed is excluded or outside the requested scope, the run
 | Credential | `ANTHROPIC_API_KEY` | `OPENAI_API_KEY` |
 | Binary on `PATH` | `claude` (the workflow installs a pinned version) | `codex` |
 | Cost | Reported by Claude Code | Estimated from tokens at a per-million-token price |
-| Price needed | No | Yes. Built in for `gpt-6.1-sol` and `gpt-6-sol` ($2 input, $0.10 cached input, $10 output); any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`, or the run stops in preflight. These are constants in the code, not a current price quote: check the vendor's pricing page. |
+| Price needed | No | Yes. Built in for `gpt-6.1-sol` and `gpt-6-sol` ($2 input, $0.10 cached input, $10 output, $5 cache write); any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`, or the run stops in preflight. These are constants in the code, not a current price quote: check the vendor's pricing page. |
 | Dollar cap on a call | Soft | None; 15-minute time limit |
 | `PRICE_PER_MTOK` | Ignored | Used |
 | `EFFORT` (new in v1.4.0) | Passed as `--effort` | Passed as `model_reasoning_effort` |

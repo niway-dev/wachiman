@@ -107,8 +107,8 @@ What this means in practice:
   `budget_usd` is reached.
 - With Codex, only the engine's running total and the call timeout (15 minutes by default) limit spend. A single call can
   cost more than `batch_budget_usd`. Tokens are priced from a table in `src/providers/codex.ts`
-  (`gpt-6.1-sol` and `gpt-6-sol`, both $2 input, $0.10 cached input and $10 output per million tokens),
-  and any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`. Those figures are what the code holds, not
+  (`gpt-6.1-sol` and `gpt-6-sol`, both $2 input, $0.10 cached input, $10 output and $5 cache write per million tokens),
+  and any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`. Cache writes are billed at their own rate instead of the input rate. OpenAI lists a 30-minute write at $2.50 and a 12-hour write at $5 for GPT-6.1 Sol, and nothing in Codex's event stream or this adapter's request says which one Codex uses, so the higher one is assumed: the figure is a budget ceiling, and counting too much is safer. A custom price with only three fields uses 2.5 times its input rate for writes (the same ratio) instead of marking the cost unknown, for the same reason; add a fourth field to set it. Those figures are what the code holds, not
   a current price quote: check them against OpenAI's pricing page. Only completed turns are counted,
   so a call killed by the timeout can have spent more than it reports.
 - Codex is CLI-only today. You can run it from a checkout with the `bun` command in

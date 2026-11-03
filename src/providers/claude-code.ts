@@ -272,10 +272,14 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       throw new Error(`claude did not run (status ${run.status}): ${run.error ?? run.stderr}`);
     }
     const raw = JSON.parse(run.stdout) as ClaudeResult;
+    // Known only when the CLI printed a real dollar figure; an error result without one is not a free call.
+    const reported = raw.total_cost_usd;
+    const costKnown = typeof reported === "number" && Number.isFinite(reported) && reported >= 0;
     return {
       structuredOutput: raw.structured_output,
       text: raw.result,
-      costUsd: raw.total_cost_usd ?? 0,
+      costUsd: costKnown ? reported : 0,
+      costKnown,
       model: this.opts.model,
       usage: usageOf(raw),
       turns: raw.num_turns ?? 0,

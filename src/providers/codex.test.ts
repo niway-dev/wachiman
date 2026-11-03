@@ -12,6 +12,7 @@ import {
   leaksKey,
   locatePrompt,
   parsePrice,
+  PRICES,
   prettyModel,
   readEvents,
   tokenUsageOf,
@@ -97,6 +98,27 @@ describe("the child environment", () => {
 });
 
 describe("prices and cost", () => {
+  test("cache writes are billed at their own rate, which replaces the input rate", () => {
+    const usage = { input_tokens: 1_000_000, cached_input_tokens: 400_000, cache_write_input_tokens: 100_000, output_tokens: 0 };
+    // 0.5M x $2 + 0.4M x $0.10 + 0.1M x $5 = 1.0 + 0.04 + 0.5
+    expect(costOf(usage, { input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 })).toBeCloseTo(1.54, 6);
+  });
+
+  test("a price without a cache-write rate assumes 2.5 times input, and the built-in table says $5", () => {
+    const usage = { input_tokens: 1_000_000, cache_write_input_tokens: 1_000_000, output_tokens: 0 };
+    expect(costOf(usage, { input: 2, cachedInput: 0.1, output: 10 })).toBeCloseTo(5, 6);
+    expect(PRICES["gpt-6.1-sol"].cacheWrite).toBe(5);
+    expect(PRICES["gpt-6-sol"].cacheWrite).toBe(5);
+    // No writes: the old formula, unchanged.
+    expect(costOf({ input_tokens: 1_000_000, output_tokens: 0 }, { input: 2, cachedInput: 0.1, output: 10 })).toBeCloseTo(2, 6);
+  });
+
+  test("the price override takes an optional fourth field and still takes three", () => {
+    expect(parsePrice("2,0.1,10,5")).toEqual({ input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 });
+    expect(parsePrice("2,0.1,10")).toEqual({ input: 2, cachedInput: 0.1, output: 10 });
+    expect(() => parsePrice("1,2,3,4,5")).toThrow("AGENT_REVIEW_PRICE_PER_MTOK");
+  });
+
   test("cached input is billed at its own price; reasoning is inside output", () => {
     const usage = { input_tokens: 1_000_000, cached_input_tokens: 400_000, output_tokens: 100_000 };
     // 0.6M × $2 + 0.4M × $0.10 + 0.1M × $10 = 1.2 + 0.04 + 1.0
