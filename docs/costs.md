@@ -234,11 +234,14 @@ Each run writes:
   also when the run failed after spending, and not at all when no model was called.
 - **One log line per call**, `wachiman-cost {json}`, with the operation, a label (`batch 2/3 retry`,
   `threads`, `question`), repository, pull request, trigger, model, turns, duration, the four token
-  counts, `cost_usd` and the terminal reason. `grep '^wachiman-cost ' run.log` over several runs'
+  counts, `costKnown`, `cost_usd` and the terminal reason. `grep '^wachiman-cost ' run.log` over several runs'
   logs gives the data to sum costs by operation.
 
-A call that failed without any result has no row and no line: its spend is unknown, and the review
-counts it at its cap (see above). A thread run that posts no reply has a row and a line but no
+A call that died without any result still gets a row and a line, marked as an unknown cost: the
+cost column reads `unknown (counted at cap $0.75)`, and the line has `"costKnown":false`,
+`"cost_usd":null` and `"countedUsd":0.75`. The review counts it at that cap (see above), but the
+summary's total and any sum over `cost_usd` leave it out, so the figures never mix a measurement with
+a guess. A thread run that posts no reply has a row and a line but no
 footer, so the ceiling does not count it; the summary and the log do.
 
 Open **Coverage by batch** in the review for one row per batch:

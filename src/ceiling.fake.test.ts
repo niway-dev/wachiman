@@ -314,6 +314,36 @@ describe("review() under the ceiling", () => {
     expect(t.deps.costs?.[0]).toMatchObject({ model: t.deps.config.model, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } });
   });
 
+  test("a call that dies without a result is recorded and logged as an unknown cost, counted at its cap", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      script: [
+        () => {
+          throw new Error("claude exited with signal SIGKILL");
+        },
+      ],
+    });
+    const logs: string[] = [];
+    t.deps.log = (line) => void logs.push(line);
+    t.deps.costs = [];
+    // No batch returned anything, so the review fails; the dead call is still on the record.
+    expect(() => review(t.deps, "o/r", 7, [])).toThrow("did not return a review");
+    // The engine retries the batch's files once; that call dies too, and is recorded the same way.
+    expect(t.deps.costs?.map((c) => [c.label, c.costKnown])).toEqual([
+      ["batch 1/1", false],
+      ["batch 1/1 retry", false],
+    ]);
+    const dead = t.deps.costs?.[0];
+    expect(dead).toMatchObject({ operation: "review", label: "batch 1/1", costKnown: false, pr: 7, turns: 0 });
+    expect(dead?.costUsd).toBeGreaterThan(0);
+    const lines = logs.filter((l) => l.startsWith("wachiman-cost "));
+    expect(lines).toHaveLength(2);
+    const json = JSON.parse(lines[0].slice("wachiman-cost ".length));
+    expect(json).toMatchObject({ operation: "review", costKnown: false, cost_usd: null, countedUsd: dead?.costUsd });
+    expect(json.terminal_reason).toContain("no result");
+    expect(dead?.costUsd).toBe(t.deps.config.batchBudgetUsd);
+  });
+
   test("at the ceiling the next push posts one notice, starts no batch, and a later push posts nothing", () => {
     const t = setup({
       env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" },

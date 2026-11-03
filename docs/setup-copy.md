@@ -135,7 +135,7 @@ costs money.
 | --- | --- |
 | `scripts/agent-review/` | The whole `src/` folder of this repository: `cli.ts`, `engine.ts`, `config.ts`, `install-claude-code.sh` and `providers/` (including `providers/claude-code.settings.json`, which the adapter looks for next to itself and refuses to run without). Leave out the `*.test.ts` files, or keep them and run them with `bun test ./scripts/agent-review` |
 | `scripts/agent-review/bunfig.toml` | The `bunfig.toml` at the root of this repository. The workflow passes it with `--config=` so Bun reads no `bunfig.toml` from the pull request's checkout |
-| `.github/workflows/agent-review.yml` | `templates/caller-workflow.yml`: edit its trust paragraph, the operator login (twice) and the other `EDIT THIS` markers |
+| `.github/workflows/agent-review.yml` | `templates/caller-workflow.yml`: edit its trust paragraph, the operator login (twice) and the other `EDIT THIS` markers. Its `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables) is the copy's `push_debounce_seconds`: the first step of the `review` job sleeps that long on a push (`synchronize`) before the checkout or any model call, so a newer push cancels the run unspent |
 | `.github/agent-review.md` | Write it: the repository's review focus, as a short list. Optional |
 
 The CLI contract (commands, environment, exit codes) is in [cli.md](cli.md). The CLI needs Bun

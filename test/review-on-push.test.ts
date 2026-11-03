@@ -71,6 +71,21 @@ describe("push debounce", () => {
     expect(text.match(/Wait for further pushes/g)).toHaveLength(1);
   });
 
+  test("the copy template's review job has the same first step, driven by AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS (180)", () => {
+    const copy = read("templates/caller-workflow.yml");
+    expect(copy).toMatch(/AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180\b/);
+    const review = copy.slice(copy.indexOf("\n  review:"), copy.indexOf("\n  threads:"));
+    const steps = review.slice(review.indexOf("\n    steps:"));
+    const first = steps.slice(steps.indexOf("- name:"), steps.indexOf("\n      - name:", steps.indexOf("- name:") + 1));
+    expect(first).toContain("name: Wait for further pushes");
+    expect(first).toContain("if: github.event.action == 'synchronize'");
+    expect(first).toContain('sleep "$seconds"');
+    expect(first).toContain("-gt 0");
+    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("uses: actions/checkout"));
+    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("cli.ts review"));
+    expect(copy.match(/Wait for further pushes/g)).toHaveLength(1);
+  });
+
   test("the caller template documents the input", () => {
     expect(read("templates/agent-review-caller.yml")).toContain("push_debounce_seconds");
   });

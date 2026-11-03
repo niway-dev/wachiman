@@ -80,6 +80,8 @@ engine through the environment variable in the third column; those variables are
 | `review_on_push` | boolean | the automatic job's `if:` condition | `true` | Review each push (`synchronize`) to an open pull request, only the commits new since the last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). **New in v1.4.0.** It needs `synchronize` in the caller's `pull_request` types (the templates have it); the workflow cannot add a trigger. Each push can spend up to `budget_usd`. Set `false` to review only on open, ready for review and `/wachi review`. It has no effect on the on-demand job or the thread-reply job. From v1.5.0 each push also counts against `auto_budget_usd`. See [reviews.md](reviews.md#reviews-on-push). |
 | `push_debounce_seconds` | number | the first step of the `review` job | `180` | Seconds a push (`synchronize`) sleeps before any model call. A newer push cancels this run through the job's concurrency group, so a burst of pushes pays only for the last one. `opened`, `ready_for_review`, the thread-reply job and the on-demand job never wait. `0` disables the wait. The wait counts toward the job's 30 minute limit and uses runner minutes. See [reviews.md](reviews.md#reviews-on-push). |
 
+The copy-the-files template ([setup-copy.md](setup-copy.md)) has no inputs: its `review` job has the same first step, driven by the workflow-level variable `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables). The engine does not read it.
+
 Numeric inputs that the engine rejects (zero, negative, not a number, a fraction for `batch_lines`,
 `batch_chars`, `max_turns` or `call_timeout_s`) fail the run with the message shown under
 [Validation and errors](#validation-and-errors).

@@ -237,7 +237,8 @@ first step of the job sleeps `push_debounce_seconds` (default 180, `0` disables)
 call. A newer push cancels the run during the sleep and it spends nothing. Pushes a couple of minutes
 apart (an AI agent committing in steps) are reviewed once, at the last one. `opened`,
 `ready_for_review` and comment runs do not wait. The price is that a lone push is reviewed three
-minutes later, plus the runner minutes of the wait.
+minutes later, plus the runner minutes of the wait. The copy-the-files template waits the same way,
+through its `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` variable.
 
 | The push… | …and the engine does |
 | --- | --- |

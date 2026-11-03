@@ -55,7 +55,10 @@ export interface CallCost {
   turns: number;
   durationMs: number;
   usage: TokenUsage;
+  /** For an unknown cost (`costKnown: false`) this is the cap the call was counted at, not a measurement. */
   costUsd: number;
+  /** False when the call died without a result: its real cost is unknown and `costUsd` is its cap. Default true. */
+  costKnown?: boolean;
   terminalReason: string;
   repo?: string;
   pr?: number;
@@ -117,7 +120,10 @@ export function costLogLine(call: CallCost, extra: { trigger?: string } = {}) {
     output_tokens: call.usage.output,
     cache_read_tokens: call.usage.cacheRead,
     cache_write_tokens: call.usage.cacheWrite,
-    cost_usd: Number(call.costUsd.toFixed(6)),
+    // An unknown cost is `null`, never the cap, so summing `cost_usd` across runs never counts a guess.
+    costKnown: call.costKnown !== false,
+    cost_usd: call.costKnown === false ? null : Number(call.costUsd.toFixed(6)),
+    ...(call.costKnown === false ? { countedUsd: Number(call.costUsd.toFixed(6)) } : {}),
     terminal_reason: call.terminalReason,
   })}`;
 }
@@ -125,13 +131,16 @@ export function costLogLine(call: CallCost, extra: { trigger?: string } = {}) {
 /** The job summary: one row per call and a total row. Empty string when no call was made. */
 export function renderCostSummary(calls: CallCost[]) {
   if (calls.length === 0) return "";
+  const unknown = calls.filter((c) => c.costKnown === false);
   const rows = calls.map(
     (c) =>
-      `| ${c.operation} (${c.label}) | ${c.model} | ${c.turns} | ${c.usage.input} | ${c.usage.output} | ${c.usage.cacheRead} | ${c.usage.cacheWrite} | $${c.costUsd.toFixed(4)} |`,
+      `| ${c.operation} (${c.label}) | ${c.model} | ${c.turns} | ${c.usage.input} | ${c.usage.output} | ${c.usage.cacheRead} | ${c.usage.cacheWrite} | ${c.costKnown === false ? `unknown (counted at cap $${c.costUsd.toFixed(2)})` : `$${c.costUsd.toFixed(4)}`} |`,
   );
   const total = calls.reduce((t, c) => addUsage(t, c.usage), NO_USAGE);
   const turns = calls.reduce((n, c) => n + c.turns, 0);
-  const usd = calls.reduce((n, c) => n + c.costUsd, 0);
+  // The total is what was measured; calls with an unknown cost are listed under it, not added to it.
+  const usd = calls.reduce((n, c) => n + (c.costKnown === false ? 0 : c.costUsd), 0);
+  const counted = unknown.reduce((n, c) => n + c.costUsd, 0);
   return [
     "### Wachiman model cost",
     "",
@@ -139,6 +148,12 @@ export function renderCostSummary(calls: CallCost[]) {
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...rows,
     `| **Total** | | ${turns} | ${total.input} | ${total.output} | ${total.cacheRead} | ${total.cacheWrite} | **$${usd.toFixed(4)}** |`,
+    ...(unknown.length
+      ? [
+          "",
+          `${unknown.length} call(s) died without a result, so their cost is unknown. The review footer and the automatic ceiling count them at their cap ($${counted.toFixed(2)} together); the total above does not.`,
+        ]
+      : []),
     "",
   ].join("\n");
 }

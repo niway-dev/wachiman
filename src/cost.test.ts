@@ -118,9 +118,22 @@ describe("the machine-readable log line", () => {
       output_tokens: 3400,
       cache_read_tokens: 560000,
       cache_write_tokens: 21000,
+      costKnown: true,
       cost_usd: 0.4321,
       terminal_reason: "success",
     });
+  });
+});
+
+describe("the log line of an unknown cost", () => {
+  test("says costKnown false, a null cost_usd and the cap it was counted at", () => {
+    const line = costLogLine(call({ costUsd: 0.75, costKnown: false, terminalReason: "no result: killed" }));
+    expect(JSON.parse(line.slice("wachiman-cost ".length))).toMatchObject({
+      costKnown: false,
+      cost_usd: null,
+      countedUsd: 0.75,
+    });
+    expect(JSON.parse(costLogLine(call()).slice("wachiman-cost ".length))).toMatchObject({ costKnown: true, cost_usd: 0.4321 });
   });
 });
 
@@ -142,6 +155,17 @@ describe("the job summary", () => {
         "",
       ].join("\n"),
     );
+  });
+
+  test("an unknown cost shows its cap in the cost column and stays out of the total", () => {
+    const table = renderCostSummary([
+      call({ usage: NO_USAGE, turns: 0, costUsd: 0.75, costKnown: false, terminalReason: "no result: killed" }),
+      call({ label: "batch 2/2", costUsd: 0.25 }),
+    ]);
+    expect(table).toContain("| review (batch 1/2) | claude-sonnet-5-5 | 0 | 0 | 0 | 0 | 0 | unknown (counted at cap $0.75) |");
+    expect(table).toContain("| **Total** | | 7 | 1200 | 3400 | 560000 | 21000 | **$0.2500** |");
+    expect(table).toContain("1 call(s) died without a result");
+    expect(table).toContain("$0.75 together");
   });
 
   test("renders nothing when no model was called", () => {

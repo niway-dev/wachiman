@@ -2656,17 +2656,37 @@ function runProvider(
   budgetUsd: number,
   schema?: object,
 ) {
-  const result = deps.provider.run({
-    prompt,
-    cwd: deps.repoDir ?? process.cwd(),
-    addDirs: [dir],
-    allowedTools: ["read", "glob", "grep"],
-    maxBudgetUsd: budgetUsd,
-    maxTurns: deps.config.maxTurns,
-    timeoutMs: deps.config.callTimeoutS * 1000,
-    outputSchema: schema,
-    promptViaStdin: true,
-  });
+  const started = Date.now();
+  let result: ReturnType<ProviderAdapter["run"]>;
+  try {
+    result = deps.provider.run({
+      prompt,
+      cwd: deps.repoDir ?? process.cwd(),
+      addDirs: [dir],
+      allowedTools: ["read", "glob", "grep"],
+      maxBudgetUsd: budgetUsd,
+      maxTurns: deps.config.maxTurns,
+      timeoutMs: deps.config.callTimeoutS * 1000,
+      outputSchema: schema,
+      promptViaStdin: true,
+    });
+  } catch (error) {
+    // The call died without a result, so what it cost is unknown. The caller counts it at its cap
+    // (`attempt`); record it that way here, still as a table row and a log line, then fail as before.
+    const dead: CallCost = {
+      ...what,
+      model: deps.config.model,
+      turns: 0,
+      durationMs: Date.now() - started,
+      usage: NO_USAGE,
+      costUsd: budgetUsd,
+      costKnown: false,
+      terminalReason: `no result: ${String(error).slice(0, 120)}`,
+    };
+    deps.costs?.push(dead);
+    deps.log(costLogLine(dead, { trigger: deps.config.trigger }));
+    throw error;
+  }
   deps.log(
     JSON.stringify({
       is_error: result.isError,
