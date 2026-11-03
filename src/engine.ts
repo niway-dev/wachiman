@@ -1499,8 +1499,8 @@ const OWN_CONTEXT = 3;
  *
  * `since` is the file's patch from `compare last...head`, `now` its patch in the pull request
  * (against the current base), `then` its patch at the last review (`base...last`): "" when the
- * pull request did not change the file then, undefined when that is not known, and then every
- * removed row is kept, since it may be the author taking back their own line.
+ * pull request did not change the file then, undefined when that is not known, and then nothing is
+ * narrowed: the patch is returned as it is, since any row may be the author's.
  * Both new sides of `since` and `now` are the head, so an added row of `since` is the author's
  * exactly when `now` adds the same line number, or when it puts back a line the reviewed change
  * deleted (`then` removed that text; it is the base's line again and `now` shows it as context);
@@ -1515,7 +1515,9 @@ const OWN_CONTEXT = 3;
  * told apart.
  */
 export function ownChangeSince(since: string | undefined, now: string | undefined, then?: string) {
-  if (!since || !now) return since;
+  // Without the change at the last review nothing can be said about who owns a row (a restored
+  // line looks like the base's): fail open and send the patch as it is.
+  if (!since || !now || then === undefined) return since;
   const addedNow = new Set<number>();
   const removedNow = new Map<string, number>();
   for (const { rows } of parsePatch(now))

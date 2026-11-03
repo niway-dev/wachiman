@@ -264,7 +264,7 @@ both end at the head, so an added row is the author's when the pull request adds
 number. A removed row is the author's when the pull request at the last review had added that line,
 or when the pull request now removes the same text. An added row is also the author's when the
 change at the last review deleted a line with the same text: putting a deleted line back is the
-author's change even though the line now equals the base. A renamed file is matched to its reviewed
+author's change even though the line now equals the base. When the change at the last review cannot be read (the comparison failed or may be cut short), nothing is narrowed and the candidate file's patch is sent as it is. A renamed file is matched to its reviewed
 patch through GitHub's `previous_filename`; if that does not resolve to exactly one file, the
 removed rows are sent rather than dropped. When GitHub sent no patch for the file (binary,
 too large), nothing can be told apart and compare's patch is sent as it is.

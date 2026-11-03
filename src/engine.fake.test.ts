@@ -1000,6 +1000,23 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     }
   });
 
+  test("when the prior change is unknown, a restored line is sent, never dropped", () => {
+    const current = guardedAt("@@ -1,3 +1,4 @@\n guard()\n+extra()\n work()\n end()");
+    const pushed = guardedAt("@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()");
+    const many = Array.from({ length: 300 }, (_, i) => guardedAt("@@ -0,0 +1,1 @@\n+x", { filename: `f${i}.ts` }));
+    const priors: Record<string, typeof prFiles | "throws"> = {
+      "prior comparison unavailable": "throws",
+      "prior comparison capped at 300 files": many,
+    };
+    for (const [name, old] of Object.entries(priors))
+      for (const commits of ["merge", undefined] as const) {
+        const r = run({ status: "ahead", old, current: [current], since: [pushed], commits });
+        expect(r.provider.requests, `${name}, commits ${commits}`).toHaveLength(1);
+        expect(r.prompts[0]).toContain("+guard()");
+        expect(r.posted?.body).not.toContain("Brought up to date");
+      }
+  });
+
   test("a push with no merge commit is not narrowed at all", () => {
     // The pull request's patch has no row for the added line, so narrowing would call it the
     // base's; with no merge among the commits nothing came from a merged branch.

@@ -137,6 +137,11 @@ skips the model.
   sent in full, without narrowing. When the list is missing or cut short (compare lists at most 250
   commits), a merge may be among them, and the file is narrowed with the rules above.
 
+- **Unknown history.** Whenever the change at the last review is not known (the comparison failed,
+  its file list reached the 300-file cap, or a file's patch is missing), no row can be told from
+  the merged branch's, and a restored line looks like the base's. The candidate file's current
+  patch is sent as it is, with no narrowing.
+
 Narrowing still posts the "Brought up to date" marker when every candidate keeps no row of the
 author's, but only for a push that has a merge commit or whose commits cannot be read.
 
