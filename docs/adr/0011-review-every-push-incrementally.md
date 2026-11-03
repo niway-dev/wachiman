@@ -130,7 +130,7 @@ skips the model.
   found nothing under the new name, so ownership was unknown-as-"not changed" and the author's
   removal of their own earlier line was discarded. `previous_filename` from compare now resolves the
   reviewed patch; when a rename cannot be matched to exactly one reviewed file, ownership is
-  unknown and every removed row is sent.
+  unknown and the file's whole current patch is sent, with no narrowing.
 - **"A push without a merge is sent unchanged"** was a claim about the helper's typical output, not
   something it checked. The engine now reads the commits that compare lists: when all of them are
   listed and none has two parents, nothing came from a merged branch and the candidate files are

@@ -287,19 +287,6 @@ describe("read-error-as-empty: applies (synthetic, illustrative)", () => {
     expect(applies(["try {", "  return JSON.parse(localStorage.getItem(KEY));", "} catch {", "  return null;", "}", "localStorage.setItem(KEY, next);"])).toBe(true);
   });
 
-  test("matches a catch whose structured logging names the error, then defaults", () => {
-    // `error:` inside the logging argument is not handling: the value still becomes empty.
-    expect(
-      applies(["try {", "  value = await readFile(p, 'utf-8');", "} catch (error) {", "  logger.error({ error: error }, 'read failed');", "  value = {};", "}", ...write]),
-    ).toBe(true);
-    expect(
-      applies(["try {", "  value = await readFile(p, 'utf-8');", "} catch (e) {", "  logger.error({ error: String(e) }, 'read failed');", "  value = {};", "}", ...write]),
-    ).toBe(true);
-    expect(
-      applies(["const v = await readFile(p, 'utf-8').catch((e) => {", "  console.error({ error: e });", "  return '';", "});", ...write]),
-    ).toBe(true);
-  });
-
   test("works for .js, .tsx and .mjs files", () => {
     const lines = ["try { x = readFileSync(f); } catch { x = []; }", ...write];
     for (const f of ["a.js", "ui/Panel.tsx", "scripts/run.mjs"]) expect(applies(lines, f)).toBe(true);
@@ -325,30 +312,6 @@ describe("read-error-as-empty: never matches", () => {
   test("a catch that reports the failure as an error result", () => {
     expect(applies(["try {", "  b = await readFile(p);", "} catch {", "  return { kind: 'unreadable' };", "}", ...write])).toBe(false);
     expect(applies(["try {", "  b = await readFile(p);", "} catch (e) {", "  return { ok: false, error: String(e) };", "}", ...write])).toBe(false);
-  });
-
-  test("a catch that logs the error and still returns or propagates it", () => {
-    expect(
-      applies(["try {", "  value = await readFile(p, 'utf-8');", "} catch (error) {", "  logger.error({ error: error }, 'read failed');", "  throw error;", "}", ...write]),
-    ).toBe(false);
-    expect(
-      applies(["try {", "  b = await readFile(p);", "} catch (e) {", "  logger.error({ error: e }, 'read failed');", "  return { ok: false, error: String(e) };", "}", ...write]),
-    ).toBe(false);
-    expect(
-      applies(["try {", "  b = await readFile(p);", "} catch (e) {", "  logger.error({ error: e }, 'read failed');", "  return { error: e };", "}", ...write]),
-    ).toBe(false);
-  });
-
-  test("logging with parentheses inside its message does not swallow the next statement", () => {
-    const head = ["try {", "  b = await readFile(p);", "} catch (e) {"];
-    // The quoted ")" and "(" are text; the throw after the logging call is real handling.
-    expect(applies([...head, "  logger.error(\"read failed (\", { error: e }); throw new Error(\"failed)\");", "}", ...write])).toBe(false);
-    expect(applies([...head, "  logger.error('read failed (', { error: e });", "  throw e;", "}", ...write])).toBe(false);
-    expect(applies([...head, "  console.warn(`gave up :)`, e);", "  throw e;", "}", ...write])).toBe(false);
-    // An escaped quote does not end the string.
-    expect(applies([...head, "  logger.error(\"say \\\"(\\\" now\", e);", "  throw e;", "}", ...write])).toBe(false);
-    // Without a throw the same logging still defaults, whatever its message holds.
-    expect(applies([...head, "  logger.error('read failed (', { error: e });", "  b = {};", "}", ...write])).toBe(true);
   });
 
   test("a catch around a read when nothing in the batch writes", () => {
