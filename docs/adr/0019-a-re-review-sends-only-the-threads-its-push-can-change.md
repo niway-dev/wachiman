@@ -16,9 +16,10 @@ The prompt then asks for a reply to each one.
 
 On kaipu-record#478 at `392778f` a 7-file push received 14 threads; 7 were on files the push did
 not touch and had already been answered "Looks addressed" in an earlier round. Both baseline runs
-replied to all 14, and the replies on the untouched files said only "Not in this round's files.
-Accepting the fix described in 886d67f0". One thread on that pull request got "Looks addressed"
-four times on a file no push changed. Over the six rebuilt re-reviews, the threads file was the
+replied to all 14. In each run, six of the seven replies on the untouched files said only "Not in
+this round's files. Accepting the fix in 886d67f0 as described" or "Already fixed in an earlier
+round"; the seventh repeated the same verdict. One thread on that pull request got "Looks
+addressed" four times on a file no push changed. Over the six rebuilt re-reviews, the threads file was the
 largest single read (87,600 characters), and about 10 % of the cost.
 
 ADR 0008 already says the model replies "for a thread without a verdict whose code changed".
