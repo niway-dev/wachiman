@@ -104,6 +104,9 @@ export function buildChildEnv(
   return child;
 }
 
+/** Subscription mode: the developer stopped `claude` (Ctrl-C reaches the whole process group). */
+export class InterruptedError extends Error {}
+
 /** The refusal of D4: a key in the environment would bill the key instead of the subscription. */
 export const SUBSCRIPTION_KEY_REFUSAL =
   "ANTHROPIC_API_KEY is set. The local review runs on your signed-in `claude`; unset the variable, or run the GitHub mode.";
@@ -323,6 +326,10 @@ export class ClaudeCodeProvider implements ProviderAdapter {
         isError: true,
         raw: { timedOut: true, timeoutMs, stderr: run.stderr?.slice(-2000) },
       };
+    }
+    // Only locally: a Ctrl-C there means "stop the review", not "this batch failed, try the next".
+    if (this.subscription && (run.signal === "SIGINT" || run.signal === "SIGTERM")) {
+      throw new InterruptedError(`claude was stopped by ${run.signal}`);
     }
     if (run.error || !run.stdout) {
       throw new Error(`claude did not run (status ${run.status}): ${run.error ?? run.stderr}`);

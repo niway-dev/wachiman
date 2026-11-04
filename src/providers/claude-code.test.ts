@@ -8,6 +8,7 @@ import {
   buildClaudeArgs,
   ClaudeCodeProvider,
   findEngineSettings,
+  InterruptedError,
   leaksKey,
   prettyModel,
   SUBSCRIPTION_ENV,
@@ -561,6 +562,14 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
       if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
       else process.env.CLAUDE_CONFIG_DIR = saved;
     }
+  });
+
+  test("a claude stopped by SIGINT is an interruption locally, and an ordinary failure in api-key mode", () => {
+    const binary = stubBinary("cat >/dev/null; kill -INT $$");
+    const local = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription", binary });
+    expect(() => local.run(request)).toThrow(InterruptedError);
+    const ci = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary });
+    expect(() => ci.run(request)).toThrow("claude did not run");
   });
 
   test("leaksSecret in subscription mode keeps the key-shape check", () => {
