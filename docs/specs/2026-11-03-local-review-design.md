@@ -123,8 +123,28 @@ Still open:
      launched from a directory whose `CLAUDE.md` imports outside files, the interactive login asks
      whether to allow those imports, which `--setup-profile` avoids by starting in an empty
      directory.
-   - Still open: the populated-profile harness (one sentinel per customisation kind) decides what
-     the `default` profile's notice may drop. Docker is rejected for the first slice: no keychain
+   - **Populated-profile harness, run 2026-11-04** (Haiku, five calls, about $0.005). Sentinels
+     planted in a signed-in profile: a root `CLAUDE.md` with a codeword, a user skill, a custom
+     agent, a custom command, `SessionStart` and `UserPromptSubmit` hooks that touch a file, and a
+     user-scope stdio MCP server that touches a file when spawned. Evidence: the `system`/`init`
+     event of `--output-format stream-json --verbose` and the files.
+
+     | Sentinel | Wachiman's flags | + `--safe-mode` | Control (no hardening) |
+     | --- | --- | --- | --- |
+     | `CLAUDE.md` codeword | not loaded | not loaded | loaded |
+     | Skill, command, agent | absent from init | absent | present |
+     | Both hooks | did not run | did not run | ran |
+     | User MCP server | not spawned, `mcp_servers` empty | same | spawned |
+     | Account claude.ai connectors | absent, no `mcp__` tool | absent | 6 connected, their tools listed |
+
+     With Wachiman's flags the child's tools were exactly `Read`, `Glob`, `Grep`. `--safe-mode`
+     added nothing measurable (it only dropped a built-in agent), so it is not adopted. Plugins
+     were not tested (the harness did not risk the profile's plugin store). Consequence: the
+     `default` profile's notice names only what is untested (installed plugins) and the Claude
+     Code version tested; the `isolated` profile stays as the stronger option, not the only safe
+     one.
+   - Still open: a plugin sentinel, and re-running the harness on each new Claude Code version the
+     guide names. Docker is rejected for the first slice: no keychain
      inside it, so it would need a long-lived token passed by environment.
 
 ## Out of scope
@@ -452,6 +472,20 @@ variables. Total: about $0.002 API-equivalent, from the plan.
 | Control without `--restricted` | `PELICAN`: the parent `CLAUDE.md` loads without it |
 | `--max-budget-usd 0.000001` | `subtype: error_max_budget_usd`, `total_cost_usd` 0.00011: enforced after the first call, which overshoots |
 | After all runs | No transcript under `projects/`; Claude Code created an empty `memory/` directory there |
+
+**Network, 2026-11-04** (Haiku, four calls; a logging `HTTPS_PROXY` that Claude Code honoured;
+not cross-checked with `lsof`, so traffic that ignores the proxy would be invisible):
+
+| Run | Hosts contacted |
+| --- | --- |
+| No switches | `api.anthropic.com:443` ×10, `http-intake.logs.us5.datadoghq.com:443` ×1 |
+| D10's switches | `api.anthropic.com:443` ×2 |
+| D10's switches, repeated | `api.anthropic.com:443` ×2 |
+| D10's switches, with a `Read` tool call | `api.anthropic.com:443` ×2 |
+
+The switches removed the Datadog log intake and nothing else was contacted. Statsig and Sentry
+never appeared, so the probe says nothing about them. Without `--no-session-persistence` each
+`-p` run writes the session to `projects/` in the profile, which is why D10 adds the flag.
 
 What this does not show: hooks, plugins, MCP servers and the account's claude.ai connectors in a
 populated home (open question 4), the shape of a quota stop, Linux (where the sign-in is not in a
