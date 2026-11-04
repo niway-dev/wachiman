@@ -12,7 +12,6 @@ describe("classifyProviderError", () => {
   test.each([
     "You have reached your usage limit",
     "Your workspace hit its spend limit for this month",
-    "Please check your billing details",
     "Purchase credits to continue",
   ])("billing: %s", (text) => {
     expect(classifyProviderError(text)).toBe("billing");
@@ -46,5 +45,6 @@ describe("classifyProviderError", () => {
     expect(classifyProviderError("")).toBe("other");
     expect(classifyProviderError("processed 4012 files in 4290 ms, line 4031 of 401")).toBe("other");
     expect(classifyProviderError("API Error: 500 internal server error")).toBe("other");
+    expect(classifyProviderError("The billing webhook handler drops the refund event")).toBe("other");
   });
 });

@@ -16,13 +16,15 @@ export type ProviderErrorClass = "billing" | "auth" | "rate_limit" | "other";
  * every live response: adjust the lists here when a real message is classified wrongly. A bare
  * status code must not match random numbers, so each one needs an "API Error" / "HTTP" / "status"
  * prefix; the error type names (`authentication_error`, `rate_limit_error`) are matched as they are.
+ *
+ * No bare word such as "billing": `result` can hold the model's own last message, and a review of
+ * billing code that then fails for a real bug must stay `other`, not pass as a missing-credit notice.
  */
 const PATTERNS: { class: Exclude<ProviderErrorClass, "other">; patterns: RegExp[] }[] = [
   {
     class: "billing",
     patterns: [
       /credit balance/i, // "Your credit balance is too low to access the Anthropic API."
-      /\bbilling\b/i,
       /spend limit/i,
       /usage limit/i,
       /purchase credits/i,
