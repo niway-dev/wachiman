@@ -64,7 +64,7 @@
           }
         },
         "excluded": {
-          "description": "How many files the excludes and the scope dropped.",
+          "description": "How many files within the scope the excludes dropped (lockfiles, build output, generated).",
           "type": "integer",
           "minimum": 0
         },

@@ -63,12 +63,12 @@ export interface ReviewResult {
   engine: { version: string };
   provider: { label: string; model: string; effort: string; profile: Profile };
   coverage: {
-    /** The files kept for review, after the excludes and the scope. */
+    /** The files kept for review, after the scope and the excludes. */
     expected: string[];
     reviewed: string[];
     /** Closed skip reasons and the "not reached" entries. */
     skipped: { path: string; reason: string }[];
-    /** How many files the excludes and the scope dropped. */
+    /** How many files within the scope the excludes dropped (lockfiles, build output, generated). */
     excluded: number;
     partial: boolean;
   };

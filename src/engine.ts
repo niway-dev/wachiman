@@ -2168,13 +2168,13 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
   const other = otherError as string | undefined;
   const firstRejection = refused ?? (other !== undefined ? { kind: "other" as const, text: other } : undefined);
-  // Decision 5 of the extraction plan, in today's precedence: a refused account stops everything; a
-  // review with output is complete (coverage says whether it is partial); otherwise the limit that
-  // ended the calls.
+  // In today's precedence: a refused account stops everything; a review with output, or nothing
+  // to review, is complete (coverage says whether it is partial); otherwise the limit that ended
+  // the calls.
   const stop: Stop =
     refused?.kind === "billing" || refused?.kind === "rate_limit"
       ? "quota"
-      : parts.length > 0
+      : parts.length > 0 || kept.length === 0
         ? "complete"
         : limitError && !budgetError
           ? limitError
