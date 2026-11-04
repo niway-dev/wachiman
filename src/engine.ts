@@ -2331,7 +2331,8 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   );
   if (ignored.length > 0)
     deps.log(`Not paths in this pull request, ignored: ${ignored.join(" ")}`);
-  const last = lastReviewedSha(gh, repo, pr);
+  // A dry run may ask for the whole pull request again (AGENT_REVIEW_FULL_REVIEW): no marker read.
+  const last = config.fullReview ? null : lastReviewedSha(gh, repo, pr);
   if (last === headSha && paths.length === 0) {
     bodyOnly(
       `Already reviewed at \`${short(headSha)}\`. Push changes, or ask \`${config.mention} review <paths>\`.`,

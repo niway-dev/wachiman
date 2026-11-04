@@ -35,6 +35,11 @@ export interface EngineConfig {
   batchLines: number;
   batchChars: number;
   dryRun: boolean;
+  /**
+   * `AGENT_REVIEW_FULL_REVIEW`: a dry run reviews the whole pull request, as if it had never been
+   * reviewed, without reading the previous-review marker. Only together with `dryRun`.
+   */
+  fullReview: boolean;
   /** The provider's default (`DEFAULT_MODELS`) when unset. */
   model: string;
   provider: string;
@@ -126,6 +131,13 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     throw new UsageError(`AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE must be warn or fail, got "${onProviderUnavailable}".`);
   }
   const provider = get("PROVIDER") ?? "claude-code";
+  const dryRun = get("DRY_RUN") === "1";
+  const fullReview = get("FULL_REVIEW") === "1";
+  if (fullReview && !dryRun) {
+    throw new UsageError(
+      "AGENT_REVIEW_FULL_REVIEW=1 works only with AGENT_REVIEW_DRY_RUN=1: a full review ignores the previous-review marker, so it is printed, never posted.",
+    );
+  }
   const trigger = get("TRIGGER")?.trim();
   if (trigger !== undefined && !/^[a-z_]+$/.test(trigger)) {
     throw new UsageError(`AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "${trigger}".`);
@@ -139,7 +151,8 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     answerBudgetUsd: number("ANSWER_BUDGET_USD", 1),
     batchLines: number("BATCH_LINES", 1000, true),
     batchChars: number("BATCH_CHARS", 140000, true),
-    dryRun: get("DRY_RUN") === "1",
+    dryRun,
+    fullReview,
     model: get("MODEL") ?? DEFAULT_MODELS[provider as keyof typeof DEFAULT_MODELS] ?? DEFAULT_MODELS["claude-code"],
     provider,
     pricePerMTok: get("PRICE_PER_MTOK"),

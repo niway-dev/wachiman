@@ -19,6 +19,7 @@ describe("loadConfig", () => {
       batchLines: 1000,
       batchChars: 140000,
       dryRun: false,
+      fullReview: false,
       model: "claude-sonnet-5-5",
       provider: "claude-code",
       effort: "high",
@@ -30,6 +31,13 @@ describe("loadConfig", () => {
       exclude: [],
     });
     expect(warnings).toEqual([]);
+  });
+
+  test("a full review is a dry-run option only", () => {
+    expect(load({ AGENT_REVIEW_FULL_REVIEW: "1", AGENT_REVIEW_DRY_RUN: "1" }).config.fullReview).toBe(true);
+    expect(load({ AGENT_REVIEW_DRY_RUN: "1" }).config.fullReview).toBe(false);
+    expect(() => load({ AGENT_REVIEW_FULL_REVIEW: "1" })).toThrow(UsageError);
+    expect(() => load({ AGENT_REVIEW_FULL_REVIEW: "1" })).toThrow(/AGENT_REVIEW_FULL_REVIEW.*AGENT_REVIEW_DRY_RUN/);
   });
 
   test("reads the per-pull-request ceiling and the thread run's budget", () => {
