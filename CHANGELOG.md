@@ -5,6 +5,35 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.6.0](https://github.com/niway-dev/wachiman/compare/v1.5.0...v1.6.0) (2026-11-04)
+
+
+### Features
+
+* **engine:** record a dead model call as an unknown cost, and debounce pushes in the copy template ([052291d](https://github.com/niway-dev/wachiman/commit/052291ddad67921478b72a612bb884ce43170cd3))
+* **engine:** report the cost of every model call, and debounce pushes before spending ([8e0e848](https://github.com/niway-dev/wachiman/commit/8e0e8485598a5428381fda55c6d6c874c96994c8))
+* **providers:** classify provider errors and keep the CLI's error text ([642e304](https://github.com/niway-dev/wachiman/commit/642e3045e0e3dc0ac18d27f06d8ca1cd4f9049aa))
+* report the cost of every model call and debounce pushes before spending ([1e6fcc6](https://github.com/niway-dev/wachiman/commit/1e6fcc6e33f96a794f9ca37194056f6772010323))
+
+
+### Bug Fixes
+
+* **engine:** count a killed call at its cap and keep Codex cache writes ([ec36941](https://github.com/niway-dev/wachiman/commit/ec369417eb39980f2ee66db9266834b37ccbb2e3))
+* **engine:** keep restored and renamed rows when narrowing a merge's changes ([6906e5d](https://github.com/niway-dev/wachiman/commit/6906e5d1fefea582c7ce89f5dcd40c50f4c00e78))
+* **engine:** post a notice instead of failing when the provider rejects the call ([0685f46](https://github.com/niway-dev/wachiman/commit/0685f463969e11339099fe166baf5b0b1c94f20e))
+* **engine:** price Codex cache writes and stop treating a missing Claude cost as free ([61a9d2f](https://github.com/niway-dev/wachiman/commit/61a9d2fe398a7339c5d906cb1dc4de051842a3c3))
+* **engine:** send the whole patch when prior ownership is unknown ([cd0c4c0](https://github.com/niway-dev/wachiman/commit/cd0c4c0ae70403c2cfc937dd873e169c709a7e7f))
+* keep restored and renamed rows in incremental re-review ([2cb26b9](https://github.com/niway-dev/wachiman/commit/2cb26b99f2316fa945c99fb363e83f6f5a1aba13))
+* post a notice instead of failing when the provider rejects the call ([a936b21](https://github.com/niway-dev/wachiman/commit/a936b2184e04a4671b46c9c173b8c8d623c79b68))
+* **providers:** do not classify a bare "billing" as a billing rejection ([7540b0b](https://github.com/niway-dev/wachiman/commit/7540b0b5c3bcbcf5f571151916ef46cc6f681ce9))
+* **questions:** remove logging before deciding a catch handled the read error ([bf818f1](https://github.com/niway-dev/wachiman/commit/bf818f1b5c3619744cc211e6d59b23490d0ee204))
+* **questions:** skip quoted text when removing logging calls ([d6ad7b4](https://github.com/niway-dev/wachiman/commit/d6ad7b4c44b7f01392a700899ef916de4dc53173))
+
+
+### Reverts
+
+* **questions:** leave the read-error scanner as on main ([6cf2d67](https://github.com/niway-dev/wachiman/commit/6cf2d67fcfbc47561fef87a40d7187949bbdf301))
+
 ## [1.5.0](https://github.com/niway-dev/wachiman/compare/v1.4.0...v1.5.0) (2026-11-02)
 
 
