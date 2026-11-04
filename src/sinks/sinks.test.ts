@@ -161,6 +161,14 @@ describe("renderTerminal", () => {
     expect(out).toEndWith("\n");
   });
 
+  test("a cost under a cent is not shown as $0.00", () => {
+    const r = local();
+    r.execution.costUsdEstimate = 0.00234837;
+    expect(renderTerminal(r, { agentPrompt: false })).toContain("Cost: $0.0023, an API-equivalent estimate");
+    r.execution.costUsdEstimate = 0;
+    expect(renderTerminal(r, { agentPrompt: false })).toContain("Cost: $0.00, an API-equivalent estimate");
+  });
+
   test("the same estimate wording as the Markdown", () => {
     const r = local();
     const estimate = (text: string) => text.split("\n").find((l) => l.includes("API-equivalent estimate"));

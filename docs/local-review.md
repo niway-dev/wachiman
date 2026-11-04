@@ -170,7 +170,7 @@ of those rows is unconfirmed.
 | `--safe-mode` | Not adopted: the harness showed it adds nothing over `--restricted` and `--strict-mcp-config` | not recorded |
 | On a subscription, `total_cost_usd` is reported and `--max-budget-usd` is enforced | Verified by the subscription probe of 2026-11-03 (enforced after the call that crosses it) | 2.1.318 as recorded (unconfirmed) |
 | No transcript is written with `--no-session-persistence` | Verified by the same probe | 2.1.318 as recorded (unconfirmed) |
-| `local` end to end on a subscription | One smoke run on a small throwaway repository (see the pull request that added this mode) | 2.1.311 |
+| `local` end to end on a subscription | One smoke run, 2026-11-04: a throwaway repository with a one-file branch, Haiku at effort `low`, the `default` profile pointed at a signed-in isolated directory, no API key. 1 call, 3 turns, 7 s, $0.0023 estimate, the planted off-by-one found, and no `projects/` or `session-env/` written to the profile. The wire was not observed | 2.1.311 |
 | Findings match a posted CI review on the same commits (level c) | Not yet run | — |
 | What the wire shows during a whole local review | Not yet run | — |
 | The shape of a real quota stop | Not yet run: the tests use Claude Code's "usage limit" wording | — |
