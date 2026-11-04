@@ -8,6 +8,12 @@
   the focus file. **Decision 5 amended** by [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md)
   (proposed 2026-11-01): the operator's thread replies also start an automatic run. **Decision 8 amended** by
   [ADR 0013](0013-license-fsl-1-1-alv2.md) (2026-11-01): the license is now FSL-1.1-ALv2.
+  **Decision 7 and the trust model amended** by
+  [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
+  (proposed 2026-11-03, not implemented): the provider adapter is no longer the only boundary; a
+  review core sits behind source and sink ports, and a local mode runs on the developer's
+  signed-in `claude` with no API key and no GitHub request, so its trust boundary is the
+  developer's own machine and account.
 - **Date:** 2026-10-25. **Amended 2026-10-26:** decision 3 now recommends an exact release tag;
   the floating major tag is kept but no longer recommended. See "Amendment" below.
 
