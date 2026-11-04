@@ -74,9 +74,9 @@ export function measure(pr: number, all: PrFile[]): PrReport {
     }
   }
   const ctx: ReviewContext = {
-    pr,
-    repo: "o/r",
+    describe: `pull request #${pr} in o/r`,
     headSha: "0".repeat(40),
+    headDir: "/tmp/head",
     since: null,
     paths: [],
     dropped: all.length - kept.length,

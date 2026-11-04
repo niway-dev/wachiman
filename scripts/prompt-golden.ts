@@ -2,7 +2,7 @@
 // The fixture was generated from origin/main 47933f0, before the data-path questions existed. Regenerate it only when
 // a prompt change is intended, and say so in the commit.
 const { buildBatchPrompt } = await import(`${process.argv[2] ?? "."}/src/engine.ts`);
-const ctx = { pr: 7, repo: "o/r", headSha: "a".repeat(40), since: null, paths: [], dropped: 0,
+const ctx = { describe: "pull request #7 in o/r", headSha: "a".repeat(40), headDir: "/tmp/head", since: null, paths: [], dropped: 0,
   everyFile: "- web/Button.tsx\n- docs/x.md\n- web/a.css", meta: { title: "t", body: "b" }, instructions: "" };
 const f = (filename: string, patch: string) => ({ filename, status: "modified", additions: 2, deletions: 1, patch });
 const batches = {

@@ -1138,9 +1138,9 @@ describe("openBotThreads", () => {
 
 describe("buildBatchPrompt", () => {
   const ctx: ReviewContext = {
-    pr: 7,
-    repo: "o/r",
+    describe: "pull request #7 in o/r",
     headSha: "abc1234",
+    headDir: "/tmp/head",
     since: null,
     paths: [],
     dropped: 2,

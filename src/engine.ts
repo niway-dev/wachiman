@@ -1312,16 +1312,9 @@ export const defaultGh: GhFn = (args, input) => {
   return run.stdout;
 };
 
-/** Everything the engine needs from outside: GitHub, the agent, settings and output. */
-export interface Deps {
-  gh: GhFn;
+/** What the review core needs from outside: the agent and the engine's own I/O. No GitHub. */
+export interface CoreDeps {
   provider: ProviderAdapter;
-  config: EngineConfig;
-  /**
-   * The checked-out head of the pull request: the agent's working directory. It is never the engine's own working directory. Default: the
-   * current directory.
-   */
-  repoDir?: string;
   log: (line: string) => void;
   warn: (line: string) => void;
   /**
@@ -1339,6 +1332,19 @@ export interface Deps {
   now?: () => number;
   /** Every model call of this run, in order: `runProvider` appends to it. The CLI writes the job summary from it. */
   costs?: CallCost[];
+  /** `readVersion()` from the CLI; "unknown" when absent. */
+  engineVersion?: string;
+}
+
+/** `CoreDeps` plus GitHub and the settings: what `review`, `comment`, `threads` and `answer` need. */
+export interface Deps extends CoreDeps {
+  gh: GhFn;
+  config: EngineConfig;
+  /**
+   * The checked-out head of the pull request: the agent's working directory. It is never the engine's own working directory. Default: the
+   * current directory.
+   */
+  repoDir?: string;
 }
 
 const blockingSleep = (ms: number) => void Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -2064,17 +2070,18 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   const threads = last ? openThreads(gh, repo, pr) : [];
   const threadsByBatch = assignThreads(threads, batches);
   const everyFile = kept.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
-  const context = {
-    pr,
-    repo,
+  const context: ReviewContext = {
+    describe: `pull request #${pr} in ${repo}`,
     headSha,
+    headDir: deps.repoDir ?? process.cwd(),
     since,
     rebased,
     paths,
     dropped: dropped.length,
     everyFile,
-    meta,
+    meta: { title: meta.title, body: meta.body, author: meta.author?.login },
     instructions: renderInstructions(instructions),
+    costTags: { repo, pr },
   };
 
   const parts: { label: string; output: ReviewOutput }[] = [];
@@ -2128,6 +2135,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     }
     const first = reviewBatchBackingOff(
       deps,
+      config,
       context,
       batch.files,
       threadsByBatch[i],
@@ -2164,6 +2172,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     if (gaps.length > 0 && first.stopped !== "timeout" && !rejection && remaining() >= MIN_BATCH_USD) {
       const retry = reviewBatchBackingOff(
         deps,
+        config,
         context,
         gaps,
         [],
@@ -2448,6 +2457,8 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
   );
   const call = runProvider(
     deps,
+    config,
+    repoDir,
     { operation: "reply", label: "threads", repo, pr },
     buildThreadsPrompt({ pr, repo, headSha }, dir),
     dir,
@@ -2507,18 +2518,23 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
 }
 
 export interface ReviewContext {
-  pr: number;
-  repo: string;
+  /** One sentence naming the change, for the prompt's first line: "pull request #7 in o/r". */
+  describe: string;
   headSha: string;
+  /** The checkout (or snapshot) of `headSha`: the agent's working directory and what evidence searches. */
+  headDir: string;
   since: string | null;
   /** The branch was rewritten since `since`: the files are those whose changed lines differ. */
   rebased?: boolean;
   paths: string[];
   dropped: number;
   everyFile: string;
-  meta: { title: string; body: string; author?: { login: string } };
+  /** What `pr.json` holds. */
+  meta: { title?: string; body?: string; author?: string };
   /** `renderInstructions` of the base commit's rules. */
   instructions: string;
+  /** How the cost log line names the change; absent for a change with no repository or number. */
+  costTags?: Pick<CallCost, "repo" | "pr">;
 }
 
 /** Placed before the evidence slice; the slice itself comes from `renderEvidenceSlice`. */
@@ -2547,7 +2563,7 @@ export function buildBatchPrompt(
       ? `only the files whose changed lines differ from what was reviewed at commit ${ctx.since}, the last reviewed one (the branch was rebased since; a file's diff below is still its whole diff against the base)`
       : `only the changes since commit ${ctx.since}, the last reviewed one`
     : "the whole pull request";
-  return `You are reviewing pull request #${ctx.pr} in ${ctx.repo}, checked out at its head commit ${ctx.headSha}.
+  return `You are reviewing ${ctx.describe}, checked out at its head commit ${ctx.headSha}.
 The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
 
 The pull request's title, body and author are in ${dir}/pr.json. The review covers ${scope}${ctx.paths.length ? `, limited to ${ctx.paths.join(", ")}` : ""}.
@@ -2664,7 +2680,7 @@ function safeRealpath(path: string) {
  * the repository uses the symbols the batch's added lines call. Evidence is a help, never a
  * condition: any failure is a warning, the file then holds an empty document, and the review goes on.
  */
-function gatherEvidence(deps: Deps, files: PrFile[], dir: string): string {
+function gatherEvidence(deps: CoreDeps, headDir: string, files: PrFile[], dir: string): string {
   const batchFiles = files.map((f) => f.filename);
   const now = deps.now ?? Date.now;
   const started = now();
@@ -2675,7 +2691,7 @@ function gatherEvidence(deps: Deps, files: PrFile[], dir: string): string {
     if (plan.symbols.length > 0) {
       const found = collectEvidence(
         plan,
-        { repoDir: deps.repoDir ?? process.cwd(), batchFiles },
+        { repoDir: headDir, batchFiles },
         { ...defaultEvidenceIo, ...(deps.git ? { git: deps.git } : {}), now },
       );
       doc = found.doc;
@@ -2696,9 +2712,13 @@ function gatherEvidence(deps: Deps, files: PrFile[], dir: string): string {
   }
 }
 
+/** The settings a provider call reads. `EngineConfig` and the core's options both carry them. */
+type CallLimits = Pick<EngineConfig, "maxTurns" | "callTimeoutS" | "model" | "trigger">;
+
 /** One provider call over one batch, with the batch's diff inside the prompt. */
 function reviewBatch(
-  deps: Deps,
+  deps: CoreDeps,
+  limits: CallLimits,
   ctx: ReviewContext,
   files: PrFile[],
   threads: ReturnType<typeof openBotThreads>,
@@ -2709,13 +2729,13 @@ function reviewBatch(
   writeFileSync(
     join(dir, "pr.json"),
     JSON.stringify(
-      { title: ctx.meta.title, body: ctx.meta.body, author: ctx.meta.author?.login },
+      { title: ctx.meta.title, body: ctx.meta.body, author: ctx.meta.author },
       null,
       2,
     ),
   );
   writeFileSync(join(dir, "threads.json"), JSON.stringify(threads, null, 2));
-  const evidence = gatherEvidence(deps, files, dir);
+  const evidence = gatherEvidence(deps, ctx.headDir, files, dir);
   const questions = selectQuestions(files);
   deps.log(
     `Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`,
@@ -2736,7 +2756,9 @@ function reviewBatch(
     () =>
       runProvider(
         deps,
-        { operation: ctx.since ? "re-review" : "review", label, repo: ctx.repo, pr: ctx.pr },
+        limits,
+        ctx.headDir,
+        { operation: ctx.since ? "re-review" : "review", label, ...ctx.costTags },
         prompt,
         dir,
         budgetUsd,
@@ -2750,15 +2772,14 @@ function reviewBatch(
   }
   const result = call.value;
   const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
-  const repoDir = deps.repoDir ?? process.cwd();
   const output =
-    raw && checkOutput(relativisePaths(raw, repoDir), deps.lineCounter ?? repoLineCounter(repoDir), deps.warn);
+    raw && checkOutput(relativisePaths(raw, ctx.headDir), deps.lineCounter ?? repoLineCounter(ctx.headDir), deps.warn);
   const stopped =
     result.terminalReason === "turns" || result.terminalReason === "timeout" ? result.terminalReason : undefined;
   if (stopped === "turns")
-    deps.warn(`Batch ${part.index} of ${part.total} hit the ${deps.config.maxTurns}-turn limit after ${result.turns} turns.`);
+    deps.warn(`Batch ${part.index} of ${part.total} hit the ${limits.maxTurns}-turn limit after ${result.turns} turns.`);
   if (stopped === "timeout")
-    deps.warn(`Batch ${part.index} of ${part.total} was killed after the ${deps.config.callTimeoutS} s call time limit.`);
+    deps.warn(`Batch ${part.index} of ${part.total} was killed after the ${limits.callTimeoutS} s call time limit.`);
   return {
     output,
     budget: result.terminalReason === "budget",
@@ -2783,7 +2804,7 @@ type BatchResult = ReturnType<typeof reviewBatch>;
 
 /** `reviewBatch`, with one retry of the same batch after a backoff when the API rate-limited the call. */
 function reviewBatchBackingOff(...args: Parameters<typeof reviewBatch>): BatchResult {
-  const [deps, , , , part] = args;
+  const [deps, , , , , part] = args;
   const first = reviewBatch(...args);
   if (first.rejection?.kind !== "rate_limit") return first;
   const wait = deps.rateLimitBackoffMs ?? RATE_LIMIT_BACKOFF_MS;
@@ -2800,7 +2821,9 @@ function reviewBatchBackingOff(...args: Parameters<typeof reviewBatch>): BatchRe
 
 /** The prompt goes through stdin: a batch's diff in an argument would hit Linux's 128 KB limit. */
 function runProvider(
-  deps: Deps,
+  deps: CoreDeps,
+  limits: CallLimits,
+  cwd: string,
   what: Pick<CallCost, "operation" | "label" | "repo" | "pr">,
   prompt: string,
   dir: string,
@@ -2812,12 +2835,12 @@ function runProvider(
   try {
     result = deps.provider.run({
       prompt,
-      cwd: deps.repoDir ?? process.cwd(),
+      cwd,
       addDirs: [dir],
       allowedTools: ["read", "glob", "grep"],
       maxBudgetUsd: budgetUsd,
-      maxTurns: deps.config.maxTurns,
-      timeoutMs: deps.config.callTimeoutS * 1000,
+      maxTurns: limits.maxTurns,
+      timeoutMs: limits.callTimeoutS * 1000,
       outputSchema: schema,
       promptViaStdin: true,
     });
@@ -2826,7 +2849,7 @@ function runProvider(
     // (`attempt`); record it that way here, still as a table row and a log line, then fail as before.
     const dead: CallCost = {
       ...what,
-      model: deps.config.model,
+      model: limits.model,
       turns: 0,
       durationMs: Date.now() - started,
       usage: NO_USAGE,
@@ -2835,7 +2858,7 @@ function runProvider(
       terminalReason: `no result: ${String(error).slice(0, 120)}`,
     };
     deps.costs?.push(dead);
-    deps.log(costLogLine(dead, { trigger: deps.config.trigger }));
+    deps.log(costLogLine(dead, { trigger: limits.trigger }));
     throw error;
   }
   // No completed cost report (a timeout, a kill): the spend is unknown, so count the request's cap,
@@ -2867,7 +2890,7 @@ function runProvider(
   );
   const cost: CallCost = {
     ...what,
-    model: result.model ?? deps.config.model,
+    model: result.model ?? limits.model,
     turns: result.turns,
     durationMs: result.durationMs,
     usage: result.usage ?? NO_USAGE,
@@ -2876,7 +2899,7 @@ function runProvider(
     terminalReason: result.terminalReason,
   };
   deps.costs?.push(cost);
-  deps.log(costLogLine(cost, { trigger: deps.config.trigger }));
+  deps.log(costLogLine(cost, { trigger: limits.trigger }));
   return result;
 }
 
@@ -2905,6 +2928,8 @@ nothing else. Write in English.`;
   // One question is one call, with the budget a whole review had before batches: $1.
   const result = runProvider(
     deps,
+    deps.config,
+    deps.repoDir ?? process.cwd(),
     { operation: "on-demand", label: "question", repo, pr },
     prompt,
     dir,
