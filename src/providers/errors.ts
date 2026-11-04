@@ -12,8 +12,9 @@ export type ProviderErrorClass = "billing" | "auth" | "rate_limit" | "other";
  * The patterns, checked in this order; the first class with a match wins. All are matched
  * case-insensitively.
  *
- * The wording is from memory of Anthropic's API and Claude Code and has not been verified against
- * every live response: adjust the lists here when a real message is classified wrongly. A bare
+ * Only the no-credit message is confirmed against a live run (`errors.test.ts`, `CREDIT_LIVE`); the
+ * rest is from memory of Anthropic's API and Claude Code. When a real message is classified wrongly,
+ * add it to the tests as a live fixture, then adjust the lists here. A bare
  * status code must not match random numbers, so each one needs an "API Error" / "HTTP" / "status"
  * prefix; the error type names (`authentication_error`, `rate_limit_error`) are matched as they are.
  *
