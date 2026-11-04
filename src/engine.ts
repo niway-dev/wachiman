@@ -730,7 +730,7 @@ export function countLine(findings: Finding[]): string {
 export const CONTRACTS_SUMMARY = "What the change connects to";
 
 /** One line of model text: whitespace collapsed, comments defused, cut at `max` characters. */
-function oneLine(text: string, max = 280) {
+export function oneLine(text: string, max = 280) {
   const flat = neutralise(text).replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
