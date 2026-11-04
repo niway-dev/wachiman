@@ -234,6 +234,9 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | `N file(s) left: budget spent` | Files were left out and less than 0.05 USD remained for a retry. |
 | `N file(s) left: the call timed out` | The call was killed at `call_timeout_s` and is not retried. Raise `call_timeout_s` (keep it under the 30 minute job limit) or lower `batch_lines`. |
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
+| `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log line of that call has `error_class` and `error`. Fix the account, then re-run. |
+
+If **no** batch produced a review because the provider refused the calls, the job posts one notice ("Not reviewed: the reviewer's Anthropic account has no credit", "...API key was rejected" or "...kept rate-limiting the reviewer") with the provider's message quoted, and the check passes. Set `on_provider_unavailable: fail` to make it fail instead. The classification matches the CLI's error text against a short list of phrases (`src/providers/errors.ts`), written from memory of Anthropic's messages and not verified against every real one; an error it does not recognise is `other` and always fails the job, with the text in the error message.
 
 The source also defines the labels `ran out of its budget`, `hit the turn limit`, `timed out`,
 `the call failed` and `returned no review`, but the retry logic replaces them with one of the statuses above whenever a batch has a

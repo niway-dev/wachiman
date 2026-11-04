@@ -24,6 +24,7 @@ describe("loadConfig", () => {
       effort: "high",
       maxTurns: 40,
       callTimeoutS: 900,
+      onProviderUnavailable: "warn",
       mention: "/wachi",
       operator: "",
       exclude: [],
@@ -54,6 +55,14 @@ describe("loadConfig", () => {
 
   test("rejects a trigger that is not an event action", () => {
     expect(() => load({ AGENT_REVIEW_TRIGGER: "Sync Now!" })).toThrow(UsageError);
+  });
+
+  test("reads AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: warn or fail, anything else is a usage error", () => {
+    expect(load({ AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "fail" }).config.onProviderUnavailable).toBe("fail");
+    expect(load({ AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "warn" }).config.onProviderUnavailable).toBe("warn");
+    expect(load({ AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "" }).config.onProviderUnavailable).toBe("warn");
+    expect(() => load({ AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "ignore" })).toThrow(UsageError);
+    expect(() => load({ AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "ignore" })).toThrow("AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE");
   });
 
   test("reads AGENT_REVIEW_MAX_TURNS and AGENT_REVIEW_CALL_TIMEOUT_S", () => {

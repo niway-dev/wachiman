@@ -56,6 +56,7 @@ import {
   type Contract,
   type LineCounter,
 } from "./contracts";
+import type { ProviderErrorClass } from "./providers/errors";
 import type { ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 
@@ -1326,6 +1327,8 @@ export interface Deps {
   lineCounter?: LineCounter;
   /** Waits `ms` between review POST retries; swapped for a no-op in tests. Default: blocks the thread. */
   sleep?: (ms: number) => void;
+  /** How long a rate-limited call waits before its one retry, in ms. Default 20000. */
+  rateLimitBackoffMs?: number;
   /** Runs `git` in the head for the call-site evidence; swapped for a fake in tests. Default: the real `git`. */
   git?: GitRunner;
   /** The clock of the evidence step's time box, in ms. Default: `Date.now`. */
@@ -2075,10 +2078,34 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   const operation: Operation = since ? "re-review" : "review";
   let budgetError = false;
   let limitError: "turns" | "timeout" | undefined;
+  // The first call the provider refused because the reviewer's account cannot make it (no credit,
+  // bad key, rate limit that outlasted its retry): every later call would fail the same way.
+  let rejection: { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
+  // The first unclassified error, kept for the message of the final throw.
+  let otherError: string | undefined;
+  const rejectedFiles: string[] = [];
+  const noteRejection = (r: BatchResult["rejection"]) => {
+    if (!r) return;
+    if (r.kind === "other") otherError ??= r.text;
+    else rejection ??= { kind: r.kind, text: r.text };
+  };
 
   batches.forEach((batch, i) => {
     const label = `Batch ${i + 1} of ${batches.length}`;
     const remaining = () => totalBudget - spent;
+    if (rejection) {
+      rejectedFiles.push(...batch.files.map((f) => f.filename));
+      reports.push({
+        label,
+        files: batch.files.length,
+        lines: batch.lines,
+        maxRisk: batch.maxRisk,
+        status: "not run: provider rejected the call",
+        turns: 0,
+        costUsd: 0,
+      });
+      return;
+    }
     if (remaining() < MIN_BATCH_USD) {
       notRun.push(...batch.files.map((f) => f.filename));
       reports.push({
@@ -2092,7 +2119,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       });
       return;
     }
-    const first = reviewBatch(
+    const first = reviewBatchBackingOff(
       deps,
       context,
       batch.files,
@@ -2102,6 +2129,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     );
     spent += first.costUsd;
     usage = addUsage(usage, first.usage);
+    noteRejection(first.rejection);
     if (first.output) parts.push({ label, output: first.output });
     if (first.budget) budgetError = true;
     if (first.stopped) limitError = first.stopped;
@@ -2113,6 +2141,8 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
           ? "hit the turn limit"
           : first.stopped === "timeout"
             ? "timed out"
+            : first.rejection
+              ? "the provider rejected the call"
             : first.failed
               ? "the call failed"
               : "returned no review";
@@ -2123,8 +2153,9 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     const gaps = batchGaps(batch.files, first.output);
     // After a wall-clock kill the same files would likely run into the same limit, and another
     // full timeout could exhaust the job's own limit: they are reported as not reviewed instead.
-    if (gaps.length > 0 && first.stopped !== "timeout" && remaining() >= MIN_BATCH_USD) {
-      const retry = reviewBatch(
+    // A refused call (no credit, bad key) would be refused again: no retry.
+    if (gaps.length > 0 && first.stopped !== "timeout" && !rejection && remaining() >= MIN_BATCH_USD) {
+      const retry = reviewBatchBackingOff(
         deps,
         context,
         gaps,
@@ -2136,13 +2167,15 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       usage = addUsage(usage, retry.usage);
       turns += retry.turns;
       cost += retry.costUsd;
+      noteRejection(retry.rejection);
       if (retry.output) parts.push({ label: `${label}, retry`, output: retry.output });
       const left = batchGaps(gaps, retry.output);
       status =
         left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
     } else if (gaps.length > 0) {
-      status =
-        first.stopped === "timeout"
+      status = rejection
+        ? `${gaps.length} file(s) left: the provider rejected the call`
+        : first.stopped === "timeout"
           ? `${gaps.length} file(s) left: the call timed out`
           : `${gaps.length} file(s) left: budget spent`;
     }
@@ -2171,6 +2204,21 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
             comments: [],
           })
         : bodyOnly(text);
+    const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
+    if (refused) {
+      const headline = {
+        billing: "**Not reviewed: the reviewer's Anthropic account has no credit.** Top up, then re-run this job.",
+        auth: "**Not reviewed: the reviewer's API key was rejected.** Check the `ANTHROPIC_API_KEY` secret, then re-run.",
+        rate_limit: "**Not reviewed: the Anthropic API kept rate-limiting the reviewer.** Re-run later.",
+      }[refused.kind];
+      // `oneLine` neutralises the text and cuts it at 300 characters.
+      const detail = oneLine(refused.text, 300);
+      spentNotice(detail ? `${headline}\n\n> ${detail}` : headline);
+      if (config.onProviderUnavailable === "fail") {
+        throw new Error(`Not reviewed: the provider rejected the call (${refused.kind}): ${detail || "no error text"}`);
+      }
+      return;
+    }
     if (limitError && !budgetError) {
       const why =
         limitError === "turns"
@@ -2187,7 +2235,9 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       );
       return;
     }
-    throw new Error("The agent did not return a review for any batch.");
+    throw new Error(
+      `The agent did not return a review for any batch.${otherError === undefined ? "" : ` Provider error (other): ${oneLine(otherError, 300) || "no error text"}`}`,
+    );
   }
   const merged = mergeOutputs(parts);
   const ruled = enforceConfidenceRule(merged.findings);
@@ -2203,6 +2253,8 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   ]);
   for (const path of notRun)
     merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
+  for (const path of rejectedFiles)
+    merged.files_skipped.push({ path, reason: "not reached: the provider rejected the call" });
 
   const built = buildReview({
     output: merged,
@@ -2687,7 +2739,7 @@ function reviewBatch(
   );
   if (!call.ok) {
     deps.warn(`A batch call failed: ${call.error}`);
-    return { output: undefined, budget: false, stopped: undefined, turns: 0, costUsd: call.costUsd, usage: NO_USAGE, failed: true };
+    return { output: undefined, budget: false, stopped: undefined, turns: 0, costUsd: call.costUsd, usage: NO_USAGE, failed: true, rejection: undefined };
   }
   const result = call.value;
   const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
@@ -2709,6 +2761,33 @@ function reviewBatch(
     costUsd: result.costUsd,
     usage: result.usage ?? NO_USAGE,
     failed: false,
+    /** The API (or the CLI) refused the call: the class and the text it gave. */
+    rejection:
+      result.isError && result.terminalReason === "error"
+        ? { kind: result.providerError ?? ("other" as ProviderErrorClass), text: result.errorText ?? "" }
+        : undefined,
+  };
+}
+
+/** Where a rate-limited call waits before its one retry, in ms. Overridable through `Deps` so tests do not sleep. */
+const RATE_LIMIT_BACKOFF_MS = 20_000;
+
+type BatchResult = ReturnType<typeof reviewBatch>;
+
+/** `reviewBatch`, with one retry of the same batch after a backoff when the API rate-limited the call. */
+function reviewBatchBackingOff(...args: Parameters<typeof reviewBatch>): BatchResult {
+  const [deps, , , , part] = args;
+  const first = reviewBatch(...args);
+  if (first.rejection?.kind !== "rate_limit") return first;
+  const wait = deps.rateLimitBackoffMs ?? RATE_LIMIT_BACKOFF_MS;
+  deps.warn(`Batch ${part.index} of ${part.total} was rate-limited; retrying once in ${wait / 1000} s.`);
+  (deps.sleep ?? blockingSleep)(wait);
+  const again = reviewBatch(...args);
+  return {
+    ...again,
+    turns: first.turns + again.turns,
+    costUsd: first.costUsd + again.costUsd,
+    usage: addUsage(first.usage, again.usage),
   };
 }
 
@@ -2762,6 +2841,8 @@ function runProvider(
       turns: result.turns,
       cost_usd: result.costUsd,
       duration_ms: result.durationMs,
+      ...(result.isError && result.providerError ? { error_class: result.providerError } : {}),
+      ...(result.isError && result.errorText ? { error: oneLine(result.errorText, 300) } : {}),
     }),
   );
   const cost: CallCost = {

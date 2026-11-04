@@ -55,6 +55,12 @@ export interface EngineConfig {
    * killed when it passes and ends as `timeout`.
    */
   callTimeoutS: number;
+  /**
+   * `AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE`: what a run does when the provider rejects every call
+   * because the reviewer's own account cannot pay or authenticate (or stays rate-limited). `warn`
+   * posts a notice and finishes green; `fail` posts it and fails the job.
+   */
+  onProviderUnavailable: "warn" | "fail";
   mention: string;
   /** Login allowed to command the tool. `comment` refuses to run when it is empty or a placeholder. */
   operator: string;
@@ -115,6 +121,10 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     return value;
   };
   const effort = readEffort(env, warn);
+  const onProviderUnavailable = get("ON_PROVIDER_UNAVAILABLE") ?? "warn";
+  if (onProviderUnavailable !== "warn" && onProviderUnavailable !== "fail") {
+    throw new UsageError(`AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE must be warn or fail, got "${onProviderUnavailable}".`);
+  }
   const provider = get("PROVIDER") ?? "claude-code";
   const trigger = get("TRIGGER")?.trim();
   if (trigger !== undefined && !/^[a-z_]+$/.test(trigger)) {
@@ -136,6 +146,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     effort,
     maxTurns: number("MAX_TURNS", DEFAULT_MAX_TURNS, true),
     callTimeoutS: number("CALL_TIMEOUT_S", DEFAULT_CALL_TIMEOUT_S, true),
+    onProviderUnavailable,
     mention: get("MENTION") ?? "/wachi",
     operator: get("OPERATOR") ?? "",
     exclude: (get("EXCLUDE") ?? "").split(",").filter(Boolean),
