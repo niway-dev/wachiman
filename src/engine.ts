@@ -1199,7 +1199,11 @@ function fileAtBase(gh: GhFn, repo: string, path: string, sha: string): Instruct
   if (meta.type !== "file") return null;
   // The contents API sends no content for a file over 1 MB.
   if (meta.encoding !== "base64") return { path, content: "", truncated: true };
-  const bytes = Buffer.from(meta.content ?? "", "base64");
+  return instructionFileOf(path, Buffer.from(meta.content ?? "", "base64"));
+}
+
+/** An instruction file from its bytes, cut at `MAX_INSTRUCTION_BYTES`. Shared by every connector. */
+export function instructionFileOf(path: string, bytes: Buffer): InstructionFile {
   if (bytes.length <= MAX_INSTRUCTION_BYTES) return { path, content: bytes.toString("utf8"), truncated: false };
   // A cut inside a multi-byte character leaves a replacement character at the end: drop it.
   const content = bytes.subarray(0, MAX_INSTRUCTION_BYTES).toString("utf8").replace(/\uFFFD+$/, "");
@@ -1217,11 +1221,23 @@ export function readBaseInstructions(
   sha: string,
   warn: (line: string) => void,
 ): BaseInstructions {
+  return instructionsFrom(sha, (path) => fileAtBase(gh, repo, path, sha), warn);
+}
+
+/**
+ * The instruction files at `sha`, read one path at a time through `fileAt` (null when absent):
+ * the lookup order, the old focus path's fallback and the warnings of every connector.
+ */
+export function instructionsFrom(
+  sha: string,
+  fileAt: (path: string) => InstructionFile | null,
+  warn: (line: string) => void,
+): BaseInstructions {
   const files: InstructionFile[] = [];
   for (const path of INSTRUCTION_PATHS) {
-    let found = fileAtBase(gh, repo, path, sha);
+    let found = fileAt(path);
     if (!found && path === FOCUS_PATH) {
-      found = fileAtBase(gh, repo, OLD_FOCUS_PATH, sha);
+      found = fileAt(OLD_FOCUS_PATH);
       if (found) warn(`${OLD_FOCUS_PATH} is deprecated; rename it to ${FOCUS_PATH}.`);
     }
     if (found) files.push(found);
