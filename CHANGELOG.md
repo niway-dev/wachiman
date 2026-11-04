@@ -5,6 +5,14 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.7.0](https://github.com/niway-dev/wachiman/compare/v1.6.0...v1.7.0) (2026-11-04)
+
+
+### Features
+
+* add a readable log line for each provider call ([9f05cbc](https://github.com/niway-dev/wachiman/commit/9f05cbcfa630c16fe5a7d2ceeebeb60d69821a9a))
+* **engine:** add a readable log line for each provider call ([5f34e5d](https://github.com/niway-dev/wachiman/commit/5f34e5dfc92581086888ff0f55f036055aba813f))
+
 ## [1.6.0](https://github.com/niway-dev/wachiman/compare/v1.5.0...v1.6.0) (2026-11-04)
 
 
