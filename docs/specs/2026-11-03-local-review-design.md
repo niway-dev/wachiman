@@ -491,6 +491,24 @@ What this does not show: hooks, plugins, MCP servers and the account's claude.ai
 populated home (open question 4), the shape of a quota stop, Linux (where the sign-in is not in a
 keychain), and the network traffic.
 
+**A whole review on the subscription, 2026-11-04** (an early, partial level c through today's
+GitHub source, not the local connector). Engine `origin/main` in dry run with a throwaway patch
+(`USER` and D10's variables in the allowlist, `--no-session-persistence`, and the previous-review
+marker ignored, because the dry run has no supported way to force a full review), signed in with
+the isolated profile, no API key. Target: kaipu-record #386 at its only commit `8c32901` (6 files,
+195 lines), whose posted CI review was a full first review.
+
+| | Posted (CI, API key, 2026-10-27 engine) | Subscription run |
+| --- | --- | --- |
+| Model | Sonnet 5.5, effort not recorded | Sonnet 5.5, effort `high` |
+| Calls, turns, time | 1, 3, not recorded | 1, 11, 34 s |
+| Cost reported | $0.04 | $0.18 (`total_cost_usd`, API-equivalent) |
+| Findings | 3 × consider (bug, tests, cleanup) | 2 × consider: the same bug and the same test finding; the cleanup finding missed |
+
+Coverage 6 of 6, no errors, no `projects/` transcript. The kill condition cannot be judged:
+neither review has a finding above `consider`. One pull request and two engine versions make this
+a smoke test, not a comparison; level c proper still runs once the local connector exists.
+
 ### Validation, in order
 
 | Level | What | Cost | Answers |
