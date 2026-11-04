@@ -1,7 +1,9 @@
 # ADR 0019: A review core behind source and sink ports, and a local mode on the developer's own subscription
 
-- **Status:** proposed 2026-11-03. **Nothing is implemented.** The extraction, the connector, the
-  sinks and the `local` command are described in the spec and do not exist on any branch. Amends
+- **Status:** proposed 2026-11-03; the extraction (decision 1, the GitHub sink of decision 3, the
+  formats of decision 9) is implemented by PR [#111](https://github.com/niway-dev/wachiman/pull/111);
+  the local connector, the other sinks, the subscription mode and the `local` command are not on
+  `main`. Amends
   [ADR 0001](0001-distribution-and-trust.md) decision 7 (the provider adapter was the only
   boundary) and its trust model (which assumed a CI job holding an API key).
 - **Date:** 2026-11-03
@@ -121,8 +123,12 @@ is what `claude -p` bills.
 
 ## Consequences
 
-- `src/engine.ts` gains two exported types and one function, and `review()` shrinks to a
-  connector plus a sink. The pipeline diagram in `docs/architecture.md` grows two seams.
+- The engine gains the two format types (`ReviewInput`, `ReviewResult`, with `ResultFinding`, the
+  `ReviewFile` alias and the two format constants, in `src/formats.ts` and re-exported from
+  `src/engine.ts`), `reviewChange` with its `ReviewOptions` and `CoreDeps` (which `Deps` now
+  extends), the GitHub connector `githubReviewInput` and the GitHub sink `githubReview`; `review()`
+  shrinks to a connector plus a sink. The pipeline diagram in `docs/architecture.md` grows two
+  seams.
 - A local review and a GitHub review of the same commits send the same prompts, so every benchmark
   result transfers to the local mode, and a prompt change is measured once.
 - The trust boundary of the local mode is the developer's machine and account, not a CI job. The

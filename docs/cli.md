@@ -336,3 +336,7 @@ reusable workflow installs, and [Codex](providers/codex.md) (ADR 0004), which is
 CLI only. Each brings its own sandbox story (what the agent may read or run), its own
 structured-output path and its own cost accounting; the differences that affect settings are in
 [configuration.md](configuration.md#providers-and-models). There is no plugin system.
+
+Between the GitHub side and the provider, the review core reads a `wachiman.review-input/1` and
+returns a `wachiman.review-result/1`, both public JSON formats described in
+[formats/README.md](formats/README.md); no command reads or writes them as files yet.

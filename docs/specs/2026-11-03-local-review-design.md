@@ -1,6 +1,7 @@
 # Local review on the developer's own Claude subscription: a review core behind source and sink ports
 
-- **Status:** draft for discussion, 2026-11-03. **Nothing here is built.** The owner approved the
+- **Status:** draft for discussion, 2026-11-03. Extraction (PR E) implemented in
+  [#111](https://github.com/niway-dev/wachiman/pull/111); L and G not started. The owner approved the
   direction and the decisions in the table on 2026-11-03 ([#103](https://github.com/niway-dev/wachiman/issues/103));
   the owner answered the first draft's questions on 2026-11-03 and 2026-11-04; only 4 is open. Every claim about the code below was checked by reading
   `main` at `dce32d9` on 2026-11-03 (marked *verified*); claims about Claude Code's behaviour on a
@@ -196,18 +197,27 @@ Still open:
 Checkable predicates; each names the pull request it belongs to (E = extraction, L = local
 slice, G = guide).
 
-- [ ] (E) `src/engine.ts` exports `reviewChange(input: ReviewInput, options, deps): ReviewResult`
+- [x] (E) `src/engine.ts` exports `reviewChange(input: ReviewInput, options, deps): ReviewResult`
   and `review()` calls it; `review()` keeps `gh`, the marker, `compareFiles`, `rebaseDelta`,
-  `ceilingRoom`, `openThreads`, `buildReview`, `refuseLeak`, `postReview` and the reply posting.
-- [ ] (E) A golden test records every `FakeProvider.requests[].prompt` of the existing fake tests
-  on `main` before the extraction and asserts byte identity after it. Every existing test passes
-  unchanged.
-- [ ] (E) `ReviewInput` and `ReviewResult` carry a `format` string (`wachiman.review-input/1`,
+  `ceilingRoom`, `openThreads`, `buildReview` (through `githubReview`), `refuseLeak`, `postReview`
+  and the reply posting. Proved by `src/review-core.fake.test.ts` ("reviews a branch input end to
+  end and never touches gh") and by every `review()` test of the three fake suites.
+- [x] (E) A golden test records every `FakeProvider.requests[].prompt` of the existing fake tests
+  on `main` before the extraction and asserts byte identity after it
+  (`test/support/golden-prompts.ts`, `checkGoldenPrompts` in `src/engine.fake.test.ts`,
+  `src/ceiling.fake.test.ts`, `src/threads.fake.test.ts`). Every existing assertion passes
+  unchanged; two tests read `evidence.json` during the call instead of after it (the run
+  directory is now removed), and the call-site evidence a test greps from the engine's own
+  checkout is a placeholder in the fixtures, because it moves with every commit.
+- [x] (E) `ReviewInput` and `ReviewResult` carry a `format` string (`wachiman.review-input/1`,
   `wachiman.review-result/1`); JSON Schemas for both are in `docs/formats/`; a round-trip test
   (`JSON.parse(JSON.stringify(x))` deep-equals `x`, `headDir` excepted) passes and validates each
-  fixture against its schema; the core rejects an unknown `format` with a usage error.
-- [ ] (E) The core has no `GhFn` in its dependencies: the type of `reviewChange`'s `deps` does not
-  include `gh`.
+  fixture against its schema; the core rejects an unknown `format` with a usage error
+  (`src/formats.test.ts`: "each fixture validates against its schema", "the formats survive a
+  JSON round trip, headDir excepted", "the core refuses an unknown format with a usage error").
+- [x] (E) The core has no `GhFn` in its dependencies: the type of `reviewChange`'s `deps` does not
+  include `gh` (`CoreDeps`; at run time, the proxy deps of `src/review-core.fake.test.ts` throw on
+  `gh`).
 - [ ] (L) `agent-review local [--base <ref>] [paths…] [--repo-dir <dir>] [--input <file>]
   [--format terminal|markdown|json] [--output <file>]` exists; with `--format json` stdout holds
   only the `ReviewResult` and progress goes to stderr; with `--input`, the file's `change.head.sha`
@@ -406,6 +416,16 @@ interface ReviewResult {
   };
 }
 ```
+
+**Amendments (PR E, 2026-11-04).** The implemented `/1` differs from the sketch above in three
+additive ways; the schema in `docs/formats/` is the contract:
+
+1. `execution.usage` (token counts): the GitHub footer prints them, so the sink needs them.
+2. `execution.callsWithOutput` and `execution.rejection?: { kind, text }`: the GitHub notices
+   differ per rejection class and only apply when no call returned a review, which `stop` alone
+   cannot say. `provider.profile` (open question 4) is in `/1` too.
+3. `coverage.excluded` counts the in-scope files the exclude globs drop, as `filterFiles` does;
+   files outside the scope are not counted.
 
 `buildReview` becomes a pure function of this (plus `since`, `rebased`, `scoped`, `mention`,
 `automatic`, which the GitHub orchestration still knows), and its output is unchanged. The
