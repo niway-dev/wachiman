@@ -56,6 +56,7 @@ import {
   type Contract,
   type LineCounter,
 } from "./contracts";
+import { describeCall } from "./call-message";
 import type { ProviderErrorClass } from "./providers/errors";
 import type { ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
@@ -2843,6 +2844,19 @@ function runProvider(
       duration_ms: result.durationMs,
       ...(result.isError && result.providerError ? { error_class: result.providerError } : {}),
       ...(result.isError && result.errorText ? { error: oneLine(result.errorText, 300) } : {}),
+    }),
+  );
+  // The JSON above is what scripts parse; this line is for the person reading the job log.
+  deps.log(
+    describeCall({
+      label: what.label,
+      isError: result.isError,
+      terminalReason: result.terminalReason,
+      turns: result.turns,
+      costUsd: result.costUsd,
+      durationMs: result.durationMs,
+      providerError: result.providerError,
+      errorText: result.errorText,
     }),
   );
   const cost: CallCost = {
