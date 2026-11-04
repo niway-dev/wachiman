@@ -59,10 +59,11 @@ is what `claude -p` bills.
 3. **Sinks consume the result.** GitHub posting (`buildReview`, `refuseLeak`, `postReview`, the
    reply POSTs) is today's and is unchanged in output. Terminal and Markdown file are new; the
    Markdown report holds every finding and ends with a copy-paste prompt for the developer's own
-   agent. JSON is the result itself and ships later.
+   agent. The JSON sink writes the result as is and ships in the same slice (decision 9).
 4. **The provider stays the Claude Code adapter**, with an explicit `auth: "subscription"` mode
    for local runs: it refuses to start when `ANTHROPIC_API_KEY` is set, strips it from the child
-   environment, never reads or forwards OAuth tokens or `~/.claude` contents, sets the
+   environment, passes `USER` (without it, `claude -p` on macOS answers "Not logged in"; probe of
+   2026-11-03), never reads or forwards OAuth tokens or `~/.claude` contents, sets the
    non-essential-traffic switches (`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` and the related
    variables) and `--no-session-persistence`, and keeps every hardening flag of the GitHub mode.
 5. **The promise of the local mode is exactly this:** "Wachiman sends no telemetry and makes no
@@ -81,6 +82,15 @@ is what `claude -p` bills.
    review.
 8. **First slice: committed changes only.** `--working-tree` is the next slice with its own
    design, not a deferred wish.
+9. **Both formats are public and versioned** (owner, 2026-11-03). `agent-review local --input
+   <file> --repo-dir <clone>` reviews a `ReviewInput` written by any producer, and `--format
+   terminal|markdown|json` picks the sink; the JSON sink writes `ReviewResult` unchanged. JSON
+   Schemas for both live in `docs/formats/`. Inside `/1` only optional fields are added; removing,
+   renaming or retyping a field is `/2`, and the core refuses a version it does not know.
+   `headDir` is never in the file: the core snapshots `head.sha` from `--repo-dir`.
+10. **The GitHub review is one rendering of the result.** `buildReview` is the GitHub sink; the
+    terminal, Markdown and JSON sinks render the same `ReviewResult`, so a fact the result
+    carries reaches every destination.
 
 ## Alternatives rejected
 
@@ -102,10 +112,12 @@ is what `claude -p` bills.
   on macOS. `--safe-mode` is a candidate instead, adopted only if a populated-HOME harness shows
   it adds a property and leaves sign-in working.
 - **Mimic GitHub's missing patches for very large files.** GitHub's limit is undocumented; a
-  guessed threshold reproduces neither GitHub nor the truth. Local runs review them (open
-  question 2 of the spec, recommendation).
-- **A public file format for the input on day one.** A compatibility promise with one producer.
-  The shape is fixed and round-trip tested so `--input` later is a flag, not a format change.
+  guessed threshold reproduces neither GitHub nor the truth. Local runs review them (owner's
+  decision, 2026-11-03).
+- **An in-process type only, with `--input` later.** The first draft's recommendation: no
+  compatibility promise before a second producer exists. Rejected by the owner: the formats are
+  the seam for other hosts and tools, and a standard result is what lets runs from different
+  sources be compared. The additive-only rule inside `/1` is the cost of the promise.
 
 ## Consequences
 
@@ -142,13 +154,14 @@ is what `claude -p` bills.
 
 ## Reopen if
 
-- A second producer of `ReviewInput` appears outside this repository (a host connector someone
-  else writes, or a tool that wants `--input`): make the format public and version it as such.
+- A change to either format cannot be additive: publish `/2`, and decide then how long `/1` is
+  still read.
 - The populated-HOME harness shows that the developer's customisations reach the review and no
   flag stops them: shrink the guide's isolation claim to what the harness shows, or require a
   dedicated `CLAUDE_CONFIG_DIR` for local runs.
-- Level (c) shows that OAuth-mode `claude -p` reports no usable `total_cost_usd` or ignores
-  `--max-budget-usd`: drop the estimate guard and bound by work only.
+- A Claude Code release stops reporting `total_cost_usd` or enforcing `--max-budget-usd` when
+  signed in with a subscription (both held on 2.1.318 in the 2026-11-03 probe): drop the
+  estimate guard and bound by work only.
 - Anthropic's terms for subscription use of the binary change: revisit decision 4 and the guide.
 - A local review on the same commits finds fewer than half of the posted review's
   Medium-or-higher findings and the difference is not explained by the inputs: the extraction

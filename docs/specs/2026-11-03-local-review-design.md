@@ -2,10 +2,12 @@
 
 - **Status:** draft for discussion, 2026-11-03. **Nothing here is built.** The owner approved the
   direction and the decisions in the table on 2026-11-03 ([#103](https://github.com/niway-dev/wachiman/issues/103));
-  the open questions are still open. Every claim about the code below was checked by reading
+  on the same day the owner answered the first draft's questions; 4, 5 and 9 are still open. Every claim about the code below was checked by reading
   `main` at `dce32d9` on 2026-11-03 (marked *verified*); claims about Claude Code's behaviour on a
   subscription are read from its documentation or its `--help`, not run (marked *inferred* or
-  *unverified*). No model call was made for this document.
+  *unverified*). The first draft made no model call. The revision of the same day records the
+  owner's answers to its open questions and one probe of seven Haiku calls on the owner's
+  subscription (about $0.002 API-equivalent), in [The subscription probe](#the-subscription-probe-2026-11-03).
 - **Issue:** [#103](https://github.com/niway-dev/wachiman/issues/103).
 - **Creates:** [ADR 0019](../adr/0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
   (a review core behind source and sink ports, and a local mode on the developer's own
@@ -19,13 +21,14 @@
   (#102: terms, data and telemetry facts, the diff parity probe); GPT-6.1 Sol's read-only review of
   difficulty and shape (2026-11-03, an input that was spot-checked, not a source of truth); the
   hub's [ports and adapters pattern](https://github.com/csdev19/general-knowledge/blob/main/architecture/domain-layer-contracts.md).
-- **Written on:** Claude Fable 5.1, from the owner's brief of 2026-11-03.
+- **Written on:** Claude Fable 5.1, from the owner's brief of 2026-11-03; revised on Claude
+  Opus 5.5 the same day.
 
 ## Summary (one minute)
 
 A developer runs Wachiman on their own laptop against the branch they are on, signed in to the
-unmodified `claude` binary with their own subscription, and gets the review in the terminal or a
-Markdown file. Nothing is posted to GitHub, Wachiman sends no telemetry, and no API key exists.
+unmodified `claude` binary with their own subscription, and gets the review in the terminal, a
+Markdown file or a JSON file. Nothing is posted to GitHub, Wachiman sends no telemetry, and no API key exists.
 The owner's use: reviewing an employer's code locally, where a local tool is far easier to approve
 than a CI job with a key.
 
@@ -55,97 +58,80 @@ designed so that one can fill it cheaply.
 | D9 | **No GitHub call in local mode**, by construction: the core has no `gh` dependency, and the local command never constructs one. A test runs `local` with a `gh` stub that throws | The promise below has to be checkable, not asserted | 0019 |
 | D10 | **The telemetry switches are set in the child environment** of every `claude` call in local mode: `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_AUTOUPDATER=1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1`, plus `--no-session-persistence`. None of them passes today's allowlist (*verified*: `CHILD_ENV_ALLOWLIST`), so they must be added on purpose | What they switch off is documented (research, "Telemetry"); whether they hold on the wire is *unverified* and is part of validation level c. `--no-session-persistence` keeps the transcript, which holds the employer's code, off `~/.claude/projects/` | 0019 |
 | D11 | **The promise is the honest one:** "Wachiman sends no telemetry and makes no GitHub requests in local mode; your code is sent to your configured Claude account for the review." | Claude Code's own metrics and error reports are a separate claim with separate switches, and the model call is the review | 0019 |
-| D12 | **Cost in local mode is an estimate, and the limits are work limits.** `total_cost_usd` is an API-equivalent figure, labelled so in every output; the run is bounded by calls, turns per call, time per call and total minutes. A quota or auth stop ends the run with a partial report whose coverage section lists what was not reviewed; the run never waits for a window to reset | A subscription has no dollar meter the engine can read (Sol, *inferred from docs*; see open question 3). Pretending the estimate is a bill would mislead the developer and their employer | 0019 |
+| D12 | **Cost in local mode is an estimate, and the limits are work limits** (the probe confirmed OAuth mode reports `total_cost_usd` and enforces `--max-budget-usd`, after the call that crosses it). `total_cost_usd` is an API-equivalent figure, labelled so in every output; the run is bounded by calls, turns per call, time per call and total minutes. A quota or auth stop ends the run with a partial report whose coverage section lists what was not reviewed; the run never waits for a window to reset | A subscription has no dollar meter the engine can read (Sol, *inferred from docs*; the probe confirmed the estimate is reported). Pretending the estimate is a bill would mislead the developer and their employer | 0019 |
 | D13 | **Validation in three levels** before the guide makes any claim: (a) input parity, `local-git` against `github` on known pull requests, same `ReviewFile[]`; (b) prompt parity, the same commits through the core with the fake provider, batch prompts byte-identical between sources; (c) one real local review on the subscription on known kaipu-record commits (#479 at `aac7202`) compared with the posted GitHub review | Owner's idea. (a) and (b) cost $0; (c) is the only paid step and the only one that can show what OAuth-mode `claude -p` reports | 0019 |
-| D14 | **Files GitHub omits a patch for are reviewed locally** (recommendation; open question 2). The connector sets `patch` only when git produced a text diff; binary files get none, like GitHub's | Locally the diff exists; dropping it to imitate a limit GitHub does not document would hide real lines. The batch size caps already give an oversized file its own batch | 0019 |
+| D14 | **Files GitHub omits a patch for are reviewed locally** (owner's decision, 2026-11-03). The connector sets `patch` only when git produced a text diff; binary files get none, like GitHub's | Locally the diff exists; dropping it to imitate a limit GitHub does not document would hide real lines. The batch size caps already give an oversized file its own batch | 0019 |
+| D15 | **Both formats are public and versioned.** `agent-review local --input <file> --repo-dir <clone>` reviews a `ReviewInput` JSON written by any producer; `--format terminal\|markdown\|json` picks the sink, and the JSON sink writes `ReviewResult` as is. JSON Schemas for both ship in `docs/formats/`. Inside `/1` only optional fields are added; removing, renaming or retyping a field is `/2`, and the core refuses a version it does not know. `headDir` is never in the file: the core snapshots `head.sha` from `--repo-dir` | Owner's decision: the formats are the seam for other hosts and tools (an editor, a dashboard, the benchmark harness), and a standard result lets runs from different sources be compared. Against, accepted: a compatibility promise before a second producer exists; the additive-only rule is its cost | 0019 |
+| D16 | **The GitHub review is one rendering of `ReviewResult`.** `buildReview` becomes the GitHub sink; terminal, Markdown and JSON render the same object | A fact the result carries reaches every destination; no sink computes its own | 0019 |
+| D17 | **The subscription child environment passes `USER`** | Probe: on macOS, `claude -p` with today's allowlist and no `USER` answers "Not logged in"; with `USER` it signs in. CI never noticed because it uses a key | 0019 |
 
 ## Open questions
 
-Each one lists the options, the strongest argument against each, and a recommendation. The owner
-decides; none blocks the extraction pull request (D3).
+The owner answered the first draft's eight questions on 2026-11-03. Decided:
 
-1. **Is the input format a public file format now (`agent-review local --input change.json`),
-   or an in-process type?**
-   - *Public now.* Against: a compatibility promise with no second producer; the first host
-     connector will want fields nobody can predict today, and a `/1` that changes in a month is a
-     broken promise. `headDir` (a local path) does not belong in a file anyway.
-   - *In-process only, shape fixed and serialisable.* Against: a GitLab connector written outside
-     this repository would have to be in-process TypeScript. That is also true of the provider
-     adapter today, and ADR 0001 decision 7 accepted it.
-   - **Recommendation:** in-process, with the JSON shape documented below and a round-trip test
-     (`JSON.parse(JSON.stringify(input))` deep-equals `input`, `headDir` excepted) so that
-     `--input` later is a flag, not a format change.
-2. **Files GitHub sends no patch for (very large files, long lines) that local git can diff:
-   review them, or mimic GitHub?**
-   - *Mimic GitHub.* Against: GitHub's limit is undocumented (research: "Unchecked: GitHub's exact
-     limit"); a guessed threshold reproduces neither GitHub nor the truth, and it drops lines the
-     developer wrote.
-   - *Review them (D14).* Against: input parity (level a) cannot be "identical" on those files;
-     the test must say "identical where GitHub has a patch, and a superset otherwise". A 1,700-line
-     Markdown file is one batch of its own at today's caps.
-   - *Review them, with a local per-file cap* (for example a patch over 200 KB or a line over
-     10,000 characters gets no patch and the "read the file itself" notice). Against: another
-     number nobody measured.
-   - **Recommendation:** review them, with the parity test's exception list explicit. Add a cap
-     only when a real repository shows a file that hurts.
-3. **What bounds a local run on a subscription, and how is a quota stop reported?**
-   - What is known (*verified in code*): the engine subtracts `costUsd` from `budget_usd` and
-     stops a batch below `MIN_BATCH_USD`; the adapter passes `--max-budget-usd`, `--max-turns`
-     (40) and a 900 s `SIGKILL`. What is not known (*unverified*): whether `claude -p` signed in
-     by OAuth reports a meaningful `total_cost_usd` and enforces `--max-budget-usd`, and what a
-     quota exhaustion looks like in its JSON result.
-   - *Keep the dollar budget as the only bound.* Against: it bounds an estimate, not the plan's
-     usage, and if OAuth mode reports 0 the run has no bound at all.
-   - *Work limits only* (calls, turns, time). Against: a developer who knows API prices loses a
-     familiar number.
-   - **Recommendation (D12):** both. Keep `--max-budget-usd` as an estimate guard with today's
-     default, add `--max-minutes` (default 30, the CI job's timeout) and keep `max_turns` and
-     `call_timeout_s`. Report the estimate as "API-equivalent estimate, not your bill". A result
-     with `is_error` whose text names authentication, a limit or a quota ends the run with
-     `stop: "quota"`; the report's coverage section lists every file not reviewed. Level (c)
-     records what OAuth mode actually returns and this question is closed from that.
-4. **Laptop isolation: what must be proven before the guide claims it?**
-   - Today's harness (`test/provider-isolation.test.ts`, *verified*) replaces `HOME` with an
-     empty directory, so it proves nothing about a developer's populated `~/.claude` (a global
-     `CLAUDE.md`, `settings.json` hooks, plugins, MCP servers). `--restricted` says it ignores
-     user settings (*from `--help`*); the scratch working directory keeps the head's `CLAUDE.md`
-     out (*verified by the harness*). Claude Code 2.1.317's `--help` lists `--safe-mode` ("all
-     customizations (CLAUDE.md, skills, installed plugins, hooks, MCP servers, custom commands and
-     agents, output styles, …) disabled") and `--bare`, which also skips keychain reads and would
-     break OAuth sign-in on macOS.
-   - *Claim isolation from the flags' documentation.* Against: ADR 0001 forbids exactly that
-     ("claimed only for behaviours that tests show").
-   - *Extend the harness to a populated HOME, then claim what it shows.* Against: cost of a day's
-     work and a fixture per customisation kind. That is the price of the claim.
-   - *Add `--safe-mode` as well.* Against: untested interaction with OAuth; if it disables
-     anything the review needs (none known), the harness will show it.
-   - **Recommendation:** extend the harness with a populated HOME (global `CLAUDE.md`, a settings
-     hook, a plugin skill, an MCP server, each with a sentinel), run it with and without
-     `--safe-mode`, adopt `--safe-mode` only if it adds a property the other flags lack and leaves
-     sign-in working, and pin the tested Claude Code version in the guide. Reject `--bare`. The
-     engine itself keeps the Bun isolation of `docs/cli.md` (engine-owned working directory,
-     `--no-env-file`, `--config=`), shipped as a one-line launcher so a developer cannot run Bun
-     from inside the reviewed repository by accident.
-5. **Snapshot mechanism.** `git archive HEAD | tar -x` runs no hooks and touches no index, but
-   honours `export-ignore` attributes (a file so marked would be missing from the snapshot while
-   present in the diff). `git worktree add --detach` runs `post-checkout` hooks unless
-   `core.hooksPath` is overridden, and leaves worktree metadata in the clone. A temporary index
-   with `GIT_INDEX_FILE` and `git checkout-index` runs no hooks and ignores export attributes, but
-   is the least familiar command. **Recommendation:** `git archive`, and the connector compares
-   the snapshot's file list with `git ls-tree -r HEAD` and warns on any file missing. Smudge
-   filters (LFS) produce pointer files in all three, as GitHub's API does.
-6. **Where scope words, `adrNotices` and the confidence rule live.** They are source-neutral
-   (pure functions over file names and findings, *verified*), so the recommendation is the core;
-   the alternative, leaving them in the GitHub orchestration, would make a local review miss the
-   ADR notice and the confidence rewrite, and prompt parity (b) would still pass because neither
-   touches the prompt. **Recommendation:** core.
-7. **Does the local report carry a "how this was verified" line per finding?** The research
-   proposes `checked` and `example` fields for #90. Out of scope here (it changes the schema the
-   model answers), but the Markdown sink should leave room for it: one line under each finding.
-8. **Name of the type.** `PrFile` is used across `src/engine.ts` and its tests. Renaming it to
-   `ReviewFile` in the extraction pull request widens the diff; keeping it misnames the local
-   case. **Recommendation:** `export type ReviewFile = PrFile` in the extraction, rename in the
-   local-connector pull request where the name is first wrong.
+- **Q1, formats: public now** (D15). The first draft recommended an in-process type; the owner
+  chose a public input file and asked for the output to be standardised the same way.
+- **Q2, files GitHub sends no patch for: reviewed locally** (D14). The parity test lists them as
+  "local only", not as differences.
+- **Q3, subscription bounds: answered by the probe** ([below](#the-subscription-probe-2026-11-03)).
+  OAuth mode reports `total_cost_usd` and enforces `--max-budget-usd`, so D12 keeps both the
+  estimate guard and the work limits. Still unknown: what a quota exhaustion looks like in the JSON
+  result (a probe cannot trigger it cheaply), and whether D10's switches hold on the wire. Both
+  stay in validation level (c).
+- **Q6, scope words, `adrNotices` and the confidence rule: in the core**, so GitHub and local
+  runs behave the same.
+- **Q7, "how this was verified": yes.** `ReviewResult` findings reserve an optional
+  `verification?: { checked: string; example?: string }`, and the Markdown and terminal sinks print
+  it as one line under the finding when present. Asking the model for it changes the output schema
+  the model answers, which this spec leaves alone; it is #90's decision or its own issue.
+- **Q8, `PrFile`: alias in the extraction** (`export type ReviewFile = PrFile`), rename in the
+  local-connector pull request.
+
+Still open, with a recommendation each:
+
+4. **Laptop isolation: what must be proven before the guide claims it?** A developer's `~/.claude`
+   holds things a CI runner's empty home never has: a global `CLAUDE.md`, hooks that run shell
+   commands on tool events, plugins and skills, MCP servers, and the claude.ai connectors of the
+   account (Gmail, Linear, Drive, …). Loaded into a review, the first would steer it, the second
+   would run code on the reviewer's machine, and the last two could send the employer's code to
+   another service. The probe showed one property: under `--restricted`, a `CLAUDE.md` in a parent
+   of the working directory is not loaded (the control run without `--restricted` loaded it), and
+   `--safe-mode` keeps sign-in working. Hooks, plugins, MCP servers and the account's connectors
+   are untested.
+   - *Claim isolation from the flags' documentation.* Against: ADR 0001 allows claims "only for
+     behaviours that tests show".
+   - *Extend the harness to a populated HOME, then claim what it shows.* Against: about a day's
+     work and one fixture per kind. That is the price of the claim.
+   - **Recommendation:** extend the harness (global `CLAUDE.md`, a settings hook that writes a
+     file, a plugin skill, a local MCP server, each with a sentinel; the account's connectors
+     checked by asking the child to list its tools), run it with and without `--safe-mode`, adopt
+     `--safe-mode` if it adds a property and costs nothing, pin the tested Claude Code version.
+     Reject `--bare` (it disables the keychain sign-in).
+5. **Snapshot mechanism.** A review takes minutes, and during it the agent reads files from disk
+   while the prompt holds a diff computed at the start. A developer who keeps editing, or switches
+   branch, makes the two disagree: findings cite lines that are no longer there, and the citation
+   checks reject correct findings or accept wrong ones. In CI this cannot happen because the
+   checkout is fresh and nobody edits it. The snapshot is a copy of the exact commit in a
+   temporary directory that the diff, the agent, the evidence and the checks all read, deleted
+   afterwards; it also leaves the developer free to keep working. `git archive HEAD | tar -x` runs
+   no hooks and touches no index, but honours `export-ignore` attributes. `git worktree add
+   --detach` runs `post-checkout` hooks unless `core.hooksPath` is overridden, and leaves worktree
+   metadata in the clone. A temporary index (`GIT_INDEX_FILE`, `git checkout-index`) runs no hooks
+   and ignores export attributes, but is the least familiar. **Recommendation:** `git archive`,
+   with the connector comparing the snapshot's file list to `git ls-tree -r HEAD` and warning on
+   any file missing. Smudge filters (LFS) give pointer files in all three, as GitHub's API does.
+9. **Should the local mode replace the CI reviewer?** (Owner, 2026-11-03.) Local runs cost the
+   developer nothing extra on a plan they already pay for and need no key.
+   - *Local only.* Against: Claude Code's terms allow a subscription for the subscriber's own use,
+     so a reviewer that reviews everyone's pull requests (contributors, teammates without a plan)
+     still needs an API key in CI. A local review runs only when the developer remembers to and
+     leaves no record on the pull request; CI's incremental reviews, threads, ceiling and verdict
+     history (ADR 0011, 0012) have no local counterpart. ADR 0001's product is the Action.
+   - *CI only (today).* Against: a review arrives after the push, and where CI with a key is not
+     allowed (the owner's employer) there is no review at all.
+   - **Recommendation:** both, with distinct jobs. Local is the review before the pull request,
+     on the author's account; CI is the record on the pull request, for everyone. Where CI is not
+     allowed, local is the whole product, and nothing in the core assumes otherwise.
 
 ## Out of scope
 
@@ -156,8 +142,6 @@ decides; none blocks the extraction pull request (D3).
 - Incremental local reviews, local thread follow-up, learned memory, the automatic ceiling
   (ADR 0007, 0008, 0011, 0012): all GitHub-side state. A local run reviews the whole requested
   range every time.
-- A JSON sink. Designed into `ReviewResult` (the result *is* the JSON); the `--format json` flag
-  ships after the Markdown sink has been used.
 - Running the developer's agent on the findings. The report ends with a prompt to paste; Wachiman
   starts nothing.
 - Any change to what the model is asked (`RULES`, `FLOW_QUESTIONS`, the data-path questions, the
@@ -205,17 +189,21 @@ slice, G = guide).
   on `main` before the extraction and asserts byte identity after it. Every existing test passes
   unchanged.
 - [ ] (E) `ReviewInput` and `ReviewResult` carry a `format` string (`wachiman.review-input/1`,
-  `wachiman.review-result/1`) and the round-trip test of open question 1 passes.
+  `wachiman.review-result/1`); JSON Schemas for both are in `docs/formats/`; a round-trip test
+  (`JSON.parse(JSON.stringify(x))` deep-equals `x`, `headDir` excepted) passes and validates each
+  fixture against its schema; the core rejects an unknown `format` with a usage error.
 - [ ] (E) The core has no `GhFn` in its dependencies: the type of `reviewChange`'s `deps` does not
   include `gh`.
-- [ ] (L) `agent-review local [--base <ref>] [paths…] [--repo-dir <dir>] [--output <file>]`
-  exists; `--base` defaults to the upstream's default branch when resolvable, else `main`; the
+- [ ] (L) `agent-review local [--base <ref>] [paths…] [--repo-dir <dir>] [--input <file>]
+  [--format terminal|markdown|json] [--output <file>]` exists; with `--format json` stdout holds
+  only the `ReviewResult` and progress goes to stderr; with `--input`, the file's `change.head.sha`
+  is snapshotted from `--repo-dir` and no local diff is computed; `--base` defaults to the upstream's default branch when resolvable, else `main`; the
   command prints the resolved base ref, the merge-base SHA and the head SHA before any call.
 - [ ] (L) With `ANTHROPIC_API_KEY` set, `local` exits 2 before any call with a message that names
   the variable and says the local mode uses the signed-in `claude`.
 - [ ] (L) A test runs `local` with a `gh` stub that throws on any call and the run completes.
 - [ ] (L) A test asserts the local child environment contains none of `ANTHROPIC_API_KEY`,
-  `ANTHROPIC_BASE_URL`, `GH_TOKEN`, and contains the D10 variables; a test asserts the `claude`
+  `ANTHROPIC_BASE_URL`, `GH_TOKEN`, and contains the D10 variables and `USER` (D17); a test asserts the `claude`
   arguments include `--no-session-persistence`.
 - [ ] (L) The review runs against a snapshot: a test edits a tracked file in the working tree
   after the snapshot is taken and asserts the prompt's diff and the agent's `--add-dir` both show
@@ -304,7 +292,7 @@ and the per-batch `BatchReport`s. The core also decides each finding's anchor
 **Why the cut is there.** Everything in the core is already a pure function or a function of
 `Deps` without `gh`; everything left outside either calls `gh` or renders GitHub Markdown. Sol's
 table of GitHub dependencies (its section 1) was checked against the code and agrees, with one
-correction: `resolveScope` and `adrNotices` are not GitHub-specific and move in (open question 6).
+correction: `resolveScope` and `adrNotices` are not GitHub-specific and move in (Q6, decided: core).
 
 **The extraction pull request** does only this: it introduces the two types, moves the body of
 `review()` from `filterFiles` to `buildReview` into `reviewChange`, builds the input in `review()`,
@@ -314,7 +302,8 @@ request. No new command, no new connector, no new flag.
 
 ### The input format
 
-In-process TypeScript; the JSON shape is what the round-trip test fixes. `format` is the only
+A public JSON file format (D15), with a TypeScript type of the same shape; the schema in
+`docs/formats/` and the round-trip test fix it. `format` is the only
 versioning: a connector writes the version it produces, the core refuses a version it does not
 know. Fields marked *opt* are optional.
 
@@ -333,7 +322,7 @@ interface ReviewInput {
   };
   files: ReviewFile[];                          // today's PrFile: filename, additions, deletions, patch?, sha?
   instructions: BaseInstructions;               // read from change.base.sha by the connector (ADR 0006)
-  headDir: string;                              // the checkout or snapshot the agent reads; not serialised
+  headDir: string;                              // in memory only: the snapshot the core made from --repo-dir
   scope: string[];                              // the words after `review`, or the local paths
   since?: { sha: string; rebased: boolean };    // opt: incremental context, GitHub only today
   conversation?: Thread[];                      // opt: open threads for the model to answer, GitHub only today
@@ -386,7 +375,10 @@ interface ReviewResult {
     skipped: { path: string; reason: string }[];                // closed reasons and "not reached"
     excluded: number; partial: boolean;
   };
-  findings: (Finding & { anchor: "diff" | "outside" })[];       // after dedupe, confidence rule, adrNotices
+  findings: (Finding & {
+    anchor: "diff" | "outside";
+    verification?: { checked: string; example?: string };       // reserved (Q7); filled once the model is asked
+  })[];                                                         // after dedupe, confidence rule, adrNotices
   contracts: Contract[];                                        // merged, evidence-checked
   summary: string;
   batches: BatchReport[];
@@ -434,8 +426,8 @@ plus the dry-run exception). In `"subscription"` mode, *all new*:
   missing, the first call fails and the run ends with `stop: "quota"`'s sibling, `"error"`, and
   Claude Code's own message.
 - `buildChildEnv` drops `ANTHROPIC_API_KEY` and adds D10's variables; `HOME`, `PATH`, `TMPDIR`,
-  locale and `CLAUDE_CONFIG_DIR` pass as today, because they are how the binary finds its own
-  sign-in.
+  locale and `CLAUDE_CONFIG_DIR` pass as today, and `USER` is added (D17), because they are how
+  the binary finds its own sign-in.
 - `buildClaudeArgs` adds `--no-session-persistence`; `--safe-mode` only after open question 4.
 - `leaksSecret` keeps the key-shape check (there is no exact key to match).
 - Everything else is the same: `--restricted`, `--strict-mcp-config`, `--settings`, `--tools
@@ -449,13 +441,35 @@ the same as the workflow's default tier at that time; a tier with a judge role r
 call on the same subscription, counted in `execution.calls`. Nothing about the tier is decided
 here.
 
+### The subscription probe (2026-11-03)
+
+Seven calls of `claude -p --model haiku` on Claude Code 2.1.318, macOS, signed in with the owner's
+subscription, no `ANTHROPIC_API_KEY`, from an empty working directory whose parent held a
+`CLAUDE.md` with a codeword. Each call had `--restricted --strict-mcp-config --tools Read
+--no-session-persistence --output-format json`, a child environment built with `env -i`, and D10's
+variables. Total: about $0.002 API-equivalent, from the plan.
+
+| Run | Result |
+| --- | --- |
+| `env -i` with `PATH`, `HOME`, `TERM`, `CLAUDE_CONFIG_DIR` | `"Not logged in · Please run /login"`, `is_error: true`, cost 0 |
+| … plus `USER` | Signs in; `total_cost_usd` 0.00048 (D17) |
+| `--restricted`, asked for the codeword | `NONE`: the parent `CLAUDE.md` was not loaded |
+| … plus `--safe-mode` | `NONE`, signed in |
+| Control without `--restricted` | `PELICAN`: the parent `CLAUDE.md` loads without it |
+| `--max-budget-usd 0.000001` | `subtype: error_max_budget_usd`, `total_cost_usd` 0.00011: enforced after the first call, which overshoots |
+| After all runs | No transcript under `projects/`; Claude Code created an empty `memory/` directory there |
+
+What this does not show: hooks, plugins, MCP servers and the account's claude.ai connectors in a
+populated home (open question 4), the shape of a quota stop, Linux (where the sign-in is not in a
+keychain), and the network traffic.
+
 ### Validation, in order
 
 | Level | What | Cost | Answers |
 | --- | --- | --- | --- |
-| a | `local-git` vs `github` on at least 10 merged pull requests of this repository (public): equal `ReviewFile[]` where GitHub has a patch; list the rest | $0 | The connector reproduces the probe inside the engine's own parsing, and the exception list of open question 2 is real |
+| a | `local-git` vs `github` on at least 10 merged pull requests of this repository (public): equal `ReviewFile[]` where GitHub has a patch; list the rest | $0 | The connector reproduces the probe inside the engine's own parsing, and the D14 "local only" list is real |
 | b | Same commits through `reviewChange` with the fake provider from both connectors (same `change` metadata): `requests[i].prompt` byte-identical per batch | $0 | The core is source-independent; the only inputs that reach the prompt are the ones the format carries |
-| c | One local run on kaipu-record #479 at `aac7202` on the owner's subscription, compared with the posted review; record `total_cost_usd`, turns, minutes, the exit shape, and what left the machine (a proxy or packet capture on the laptop, one run) | one review's worth of the owner's plan | What OAuth-mode `claude -p` reports (open question 3), whether D10's switches hold on the wire, and whether findings match the API run on the same commits |
+| c | One local run on kaipu-record #479 at `aac7202` on the owner's subscription, compared with the posted review; record `total_cost_usd`, turns, minutes, the exit shape, and what left the machine (a proxy or packet capture on the laptop, one run) | one review's worth of the owner's plan | The shape of a quota stop and the real run's estimate, whether D10's switches hold on the wire, and whether findings match the API run on the same commits |
 
 Kill condition for (c): if the local run on the same commits finds fewer than half of the posted
 review's Medium-or-higher findings, the extraction or the connector changed something that (a)
