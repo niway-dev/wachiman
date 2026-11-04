@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TokenUsage } from "../cost";
 import { locatePrompt } from "./locate";
+import { classifyProviderError } from "./errors";
 import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, type Effort, type NeutralTool, type ProviderAdapter, ProviderRequest, ProviderResult } from "./types";
 
 const BINARY = "claude";
@@ -275,6 +276,15 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     // Known only when the CLI printed a real dollar figure; an error result without one is not a free call.
     const reported = raw.total_cost_usd;
     const costKnown = typeof reported === "number" && Number.isFinite(reported) && reported >= 0;
+    const terminalReason = terminalReasonOf(raw);
+    const isError = Boolean(raw.is_error);
+    // Claude Code writes the API's error message in `result`; stderr may hold more.
+    const errorText = isError
+      ? [typeof raw.result === "string" ? raw.result : "", run.stderr?.slice(-2000) ?? ""]
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join("\n")
+      : undefined;
     return {
       structuredOutput: raw.structured_output,
       text: raw.result,
@@ -284,8 +294,10 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       usage: usageOf(raw),
       turns: raw.num_turns ?? 0,
       durationMs: raw.duration_ms ?? 0,
-      terminalReason: terminalReasonOf(raw),
-      isError: Boolean(raw.is_error),
+      terminalReason,
+      isError,
+      ...(errorText !== undefined ? { errorText } : {}),
+      ...(isError && terminalReason === "error" ? { providerError: classifyProviderError(errorText ?? "") } : {}),
       raw,
     };
   }

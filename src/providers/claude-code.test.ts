@@ -361,3 +361,49 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
     }
   });
 });
+
+describe("ClaudeCodeProvider provider rejections", () => {
+  const request = {
+    prompt: "p",
+    cwd: process.cwd(),
+    addDirs: [],
+    allowedTools: ["read" as const],
+    maxBudgetUsd: 0.5,
+    promptViaStdin: true,
+  };
+  const provider = (binary: string) => new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary });
+
+  test("an is_error result carries the CLI's text, the stderr tail and a billing class", () => {
+    const binary = stubBinary(
+      `cat >/dev/null; echo "wrapper noise" >&2; echo '{"is_error":true,"subtype":"success","num_turns":1,"total_cost_usd":0,"duration_ms":300,"result":"API Error: 400 Your credit balance is too low to access the Anthropic API."}'`,
+    );
+    const result = provider(binary).run(request);
+    expect(result.isError).toBe(true);
+    expect(result.terminalReason).toBe("error");
+    expect(result.providerError).toBe("billing");
+    expect(result.errorText).toContain("credit balance is too low");
+    expect(result.errorText).toContain("wrapper noise");
+  });
+
+  test("an unrecognised error is other, and a success has no error fields", () => {
+    const bad = stubBinary(
+      `cat >/dev/null; echo '{"is_error":true,"subtype":"success","num_turns":1,"total_cost_usd":0,"duration_ms":3,"result":"something odd"}'`,
+    );
+    expect(provider(bad).run(request).providerError).toBe("other");
+    const ok = stubBinary(
+      `cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0.1,"duration_ms":3,"result":"fine"}'`,
+    );
+    const b = provider(ok).run(request);
+    expect(b.providerError).toBeUndefined();
+    expect(b.errorText).toBeUndefined();
+  });
+
+  test("a budget stop is not classified as a provider error", () => {
+    const binary = stubBinary(
+      `cat >/dev/null; echo '{"is_error":true,"subtype":"error_max_budget_usd","num_turns":9,"total_cost_usd":0.5,"duration_ms":3}'`,
+    );
+    const r = provider(binary).run(request);
+    expect(r.terminalReason).toBe("budget");
+    expect(r.providerError).toBeUndefined();
+  });
+});
