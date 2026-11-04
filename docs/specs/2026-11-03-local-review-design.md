@@ -56,7 +56,7 @@ designed so that one can fill it cheaply.
 | D7 | **The local diff is `git diff -M --inter-hunk-context=1 <merge-base> HEAD`**, with `--numstat` for the counts, parsed into the same per-file records GitHub sends | The probe reproduced GitHub's patches on 1,397 files of 64 pull requests with that flag (research); hunk grouping was the only systematic difference | 0019 |
 | D8 | **Instructions come from the merge-base commit**, read with `git show <merge-base>:<path>`, never from the head or the working tree | ADR 0006 decision 3 and today's `readBaseInstructions` (*verified*: base, never head). Same rule, different reader | reuses 0006 |
 | D9 | **No GitHub call in local mode**, by construction: the core has no `gh` dependency, and the local command never constructs one. A test runs `local` with a `gh` stub that throws | The promise below has to be checkable, not asserted | 0019 |
-| D10 | **The telemetry switches are set in the child environment** of every `claude` call in local mode: `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_AUTOUPDATER=1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1`, plus `--no-session-persistence`. None of them passes today's allowlist (*verified*: `CHILD_ENV_ALLOWLIST`), so they must be added on purpose | What they switch off is documented (research, "Telemetry"); whether they hold on the wire is *unverified* and is part of validation level c. `--no-session-persistence` keeps the transcript, which holds the employer's code, off `~/.claude/projects/` | 0019 |
+| D10 | **The telemetry switches are set in the child environment** of every `claude` call in local mode: `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, `DISABLE_TELEMETRY=1`, `DISABLE_ERROR_REPORTING=1`, `DISABLE_AUTOUPDATER=1`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1`, `CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL=1`, plus `--no-session-persistence`. None of them passes today's allowlist (*verified*: `CHILD_ENV_ALLOWLIST`), so they must be added on purpose | What they switch off is documented (research, "Telemetry"); whether they hold on the wire is *unverified* and is part of validation level c. `--no-session-persistence` keeps the transcript, which holds the employer's code, off `~/.claude/projects/` | 0019 |
 | D11 | **The promise is the honest one:** "Wachiman sends no telemetry and makes no GitHub requests in local mode; your code is sent to your configured Claude account for the review." | Claude Code's own metrics and error reports are a separate claim with separate switches, and the model call is the review | 0019 |
 | D12 | **Cost in local mode is an estimate, and the limits are work limits** (the probe confirmed OAuth mode reports `total_cost_usd` and enforces `--max-budget-usd`, after the call that crosses it). `total_cost_usd` is an API-equivalent figure, labelled so in every output; the run is bounded by calls, turns per call, time per call and total minutes. A quota or auth stop ends the run with a partial report whose coverage section lists what was not reviewed; the run never waits for a window to reset | A subscription has no dollar meter the engine can read (Sol, *inferred from docs*; the probe confirmed the estimate is reported). Pretending the estimate is a bill would mislead the developer and their employer | 0019 |
 | D13 | **Validation in three levels** before the guide makes any claim: (a) input parity, `local-git` against `github` on known pull requests, same `ReviewFile[]`; (b) prompt parity, the same commits through the core with the fake provider, batch prompts byte-identical between sources; (c) one real local review on the subscription on known kaipu-record commits (#479 at `aac7202`) compared with the posted GitHub review | Owner's idea. (a) and (b) cost $0; (c) is the only paid step and the only one that can show what OAuth-mode `claude -p` reports | 0019 |
@@ -94,27 +94,38 @@ The owner answered the first draft's eight questions on 2026-11-03. Decided:
 
 Still open:
 
-4. **Laptop isolation: a clean Claude profile for Wachiman.** The owner wants the local review to
-   run like an empty container, as the CI runner's empty home does. A second probe (2026-11-04,
-   four Haiku calls) showed that the sign-in belongs to the configuration directory: with an empty
-   `CLAUDE_CONFIG_DIR`, or an empty `HOME`, `claude -p` answers "Not logged in". So an empty
-   directory cannot be made per run; it has to be signed in once. It also showed that `--tools
-   Read` leaves only `Read` callable even without `--strict-mcp-config` (the child, asked to list
-   its tools, named only `Read`; a self-report, not a test).
-   - **Direction (recommended):** a dedicated profile, `CLAUDE_CONFIG_DIR=~/.wachiman/claude`,
-     that the developer signs in to once through Claude Code's own `/login`. It holds no
-     `CLAUDE.md`, hooks, plugins, skills or MCP servers, so the developer's customisations are
-     absent by construction, not by flag; `--restricted`, `--strict-mcp-config`, `--tools` and
-     `--safe-mode` stay as a second layer. Wachiman never reads the directory; `local` refuses to
-     start when it holds a `CLAUDE.md`, `settings.json` hooks or a plugins directory with content,
-     and the guide shows the one-time sign-in. Against: one more login per laptop; whether the
-     account's claude.ai connectors attach to any profile is untested (the `--tools` allowlist
-     keeps them uncallable either way).
-   - *A real container (Docker).* The keychain is not reachable inside it, so it would need a
-     long-lived token (`claude setup-token`) passed in by environment, which comes closer to the
-     terms' "intermediate credentials". Rejected for the first slice.
-   - The harness test still decides what the guide claims: a populated profile with one sentinel
-     per customisation kind must show nothing reaching the review.
+4. **Laptop isolation: two profiles, the normal one by default** (owner, 2026-11-04).
+   - **`--profile default`** (the default): the developer's own signed-in `claude`, with no
+     setup. Every hardening flag applies (`--restricted`, `--strict-mcp-config`, `--tools
+     Read,Glob,Grep`, `--safe-mode` if the harness adopts it), but the developer's customisations
+     are present on disk, so the report states that the run used the developer's profile and that
+     their skills, plugins or instructions may have reached it, until the harness shows otherwise.
+   - **`--profile isolated`** (optional): a dedicated configuration directory,
+     `~/.wachiman/claude-<name>`, holding only a sign-in, the local equivalent of the CI runner's
+     empty home. `agent-review local --setup-profile <name>` launches the unmodified `claude` with
+     that `CLAUDE_CONFIG_DIR`, from an empty working directory, so the developer runs Anthropic's
+     own `/login` once; Wachiman never reads the directory's credentials. Wachiman sets
+     `CLAUDE_CONFIG_DIR` itself rather than inheriting it, because a shell function can override
+     the variable (the owner's `claude` function does), and the sign-in is keyed to the directory's
+     path, so the directory must not move.
+   - The CI run stays the reference: a fresh runner, an empty home, an API key. Benchmarks and the
+     kill condition of validation level (c) compare against it, and level (c) runs once per
+     profile.
+   - `ReviewResult.provider` gains `profile: "ci" | "default" | "isolated"`, and every sink prints
+     it, so a finding's provenance is never ambiguous.
+   - Facts from the 2026-11-04 probes (Haiku, a few calls): an empty `CLAUDE_CONFIG_DIR` or `HOME`
+     answers "Not logged in", so the isolated profile must be signed in once, not created per run;
+     `--tools Read` left only `Read` callable even without `--strict-mcp-config` (the child's own
+     report, not a test); the signed-in isolated profile answered a `-p` call; an interactive
+     session in a fresh profile downloaded the official plugin marketplace's catalogue unasked
+     (`plugins/marketplaces/claude-plugins-official`, nothing enabled), so local runs also set
+     `CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL=1`, and `--setup-profile` sets it too;
+     launched from a directory whose `CLAUDE.md` imports outside files, the interactive login asks
+     whether to allow those imports, which `--setup-profile` avoids by starting in an empty
+     directory.
+   - Still open: the populated-profile harness (one sentinel per customisation kind) decides what
+     the `default` profile's notice may drop. Docker is rejected for the first slice: no keychain
+     inside it, so it would need a long-lived token passed by environment.
 
 ## Out of scope
 
