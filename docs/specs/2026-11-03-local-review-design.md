@@ -2,7 +2,7 @@
 
 - **Status:** draft for discussion, 2026-11-03. **Nothing here is built.** The owner approved the
   direction and the decisions in the table on 2026-11-03 ([#103](https://github.com/niway-dev/wachiman/issues/103));
-  on the same day the owner answered the first draft's questions; 4, 5 and 9 are still open. Every claim about the code below was checked by reading
+  the owner answered the first draft's questions on 2026-11-03 and 2026-11-04; only 4 is open. Every claim about the code below was checked by reading
   `main` at `dce32d9` on 2026-11-03 (marked *verified*); claims about Claude Code's behaviour on a
   subscription are read from its documentation or its `--help`, not run (marked *inferred* or
   *unverified*). The first draft made no model call. The revision of the same day records the
@@ -87,51 +87,34 @@ The owner answered the first draft's eight questions on 2026-11-03. Decided:
 - **Q8, `PrFile`: alias in the extraction** (`export type ReviewFile = PrFile`), rename in the
   local-connector pull request.
 
-Still open, with a recommendation each:
+- **Q5, snapshot: `git archive`**, with the `ls-tree` comparison (owner, 2026-11-04).
+- **Q9, local only or CI: both.** Local is the review before the pull request, on the author's
+  account; CI is the record on the pull request, for everyone (an API key, because a subscription
+  serves only its subscriber). Where CI is not allowed, local is the whole product.
 
-4. **Laptop isolation: what must be proven before the guide claims it?** A developer's `~/.claude`
-   holds things a CI runner's empty home never has: a global `CLAUDE.md`, hooks that run shell
-   commands on tool events, plugins and skills, MCP servers, and the claude.ai connectors of the
-   account (Gmail, Linear, Drive, …). Loaded into a review, the first would steer it, the second
-   would run code on the reviewer's machine, and the last two could send the employer's code to
-   another service. The probe showed one property: under `--restricted`, a `CLAUDE.md` in a parent
-   of the working directory is not loaded (the control run without `--restricted` loaded it), and
-   `--safe-mode` keeps sign-in working. Hooks, plugins, MCP servers and the account's connectors
-   are untested.
-   - *Claim isolation from the flags' documentation.* Against: ADR 0001 allows claims "only for
-     behaviours that tests show".
-   - *Extend the harness to a populated HOME, then claim what it shows.* Against: about a day's
-     work and one fixture per kind. That is the price of the claim.
-   - **Recommendation:** extend the harness (global `CLAUDE.md`, a settings hook that writes a
-     file, a plugin skill, a local MCP server, each with a sentinel; the account's connectors
-     checked by asking the child to list its tools), run it with and without `--safe-mode`, adopt
-     `--safe-mode` if it adds a property and costs nothing, pin the tested Claude Code version.
-     Reject `--bare` (it disables the keychain sign-in).
-5. **Snapshot mechanism.** A review takes minutes, and during it the agent reads files from disk
-   while the prompt holds a diff computed at the start. A developer who keeps editing, or switches
-   branch, makes the two disagree: findings cite lines that are no longer there, and the citation
-   checks reject correct findings or accept wrong ones. In CI this cannot happen because the
-   checkout is fresh and nobody edits it. The snapshot is a copy of the exact commit in a
-   temporary directory that the diff, the agent, the evidence and the checks all read, deleted
-   afterwards; it also leaves the developer free to keep working. `git archive HEAD | tar -x` runs
-   no hooks and touches no index, but honours `export-ignore` attributes. `git worktree add
-   --detach` runs `post-checkout` hooks unless `core.hooksPath` is overridden, and leaves worktree
-   metadata in the clone. A temporary index (`GIT_INDEX_FILE`, `git checkout-index`) runs no hooks
-   and ignores export attributes, but is the least familiar. **Recommendation:** `git archive`,
-   with the connector comparing the snapshot's file list to `git ls-tree -r HEAD` and warning on
-   any file missing. Smudge filters (LFS) give pointer files in all three, as GitHub's API does.
-9. **Should the local mode replace the CI reviewer?** (Owner, 2026-11-03.) Local runs cost the
-   developer nothing extra on a plan they already pay for and need no key.
-   - *Local only.* Against: Claude Code's terms allow a subscription for the subscriber's own use,
-     so a reviewer that reviews everyone's pull requests (contributors, teammates without a plan)
-     still needs an API key in CI. A local review runs only when the developer remembers to and
-     leaves no record on the pull request; CI's incremental reviews, threads, ceiling and verdict
-     history (ADR 0011, 0012) have no local counterpart. ADR 0001's product is the Action.
-   - *CI only (today).* Against: a review arrives after the push, and where CI with a key is not
-     allowed (the owner's employer) there is no review at all.
-   - **Recommendation:** both, with distinct jobs. Local is the review before the pull request,
-     on the author's account; CI is the record on the pull request, for everyone. Where CI is not
-     allowed, local is the whole product, and nothing in the core assumes otherwise.
+Still open:
+
+4. **Laptop isolation: a clean Claude profile for Wachiman.** The owner wants the local review to
+   run like an empty container, as the CI runner's empty home does. A second probe (2026-11-04,
+   four Haiku calls) showed that the sign-in belongs to the configuration directory: with an empty
+   `CLAUDE_CONFIG_DIR`, or an empty `HOME`, `claude -p` answers "Not logged in". So an empty
+   directory cannot be made per run; it has to be signed in once. It also showed that `--tools
+   Read` leaves only `Read` callable even without `--strict-mcp-config` (the child, asked to list
+   its tools, named only `Read`; a self-report, not a test).
+   - **Direction (recommended):** a dedicated profile, `CLAUDE_CONFIG_DIR=~/.wachiman/claude`,
+     that the developer signs in to once through Claude Code's own `/login`. It holds no
+     `CLAUDE.md`, hooks, plugins, skills or MCP servers, so the developer's customisations are
+     absent by construction, not by flag; `--restricted`, `--strict-mcp-config`, `--tools` and
+     `--safe-mode` stay as a second layer. Wachiman never reads the directory; `local` refuses to
+     start when it holds a `CLAUDE.md`, `settings.json` hooks or a plugins directory with content,
+     and the guide shows the one-time sign-in. Against: one more login per laptop; whether the
+     account's claude.ai connectors attach to any profile is untested (the `--tools` allowlist
+     keeps them uncallable either way).
+   - *A real container (Docker).* The keychain is not reachable inside it, so it would need a
+     long-lived token (`claude setup-token`) passed in by environment, which comes closer to the
+     terms' "intermediate credentials". Rejected for the first slice.
+   - The harness test still decides what the guide claims: a populated profile with one sentinel
+     per customisation kind must show nothing reaching the review.
 
 ## Out of scope
 
