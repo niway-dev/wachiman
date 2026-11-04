@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { UsageError } from "../config";
 import type { TokenUsage } from "../cost";
 import { locatePrompt } from "./locate";
 import { classifyProviderError } from "./errors";
@@ -60,16 +61,52 @@ export const CHILD_ENV_ALLOWLIST = [
 /** `LC_ALL`, `LC_CTYPE`, … along with the exact names above. */
 const LOCALE_PREFIX = "LC_";
 
-export function buildChildEnv(env: Record<string, string | undefined>) {
+/**
+ * `api-key`: the CI path, billed to `ANTHROPIC_API_KEY`. `subscription`: the local review, on the
+ * developer's own signed-in `claude` (ADR 0019 decision 3); the key is refused and never forwarded.
+ */
+export type ClaudeAuth = "api-key" | "subscription";
+
+/** D10: set in every local call; what each one switches off is in docs/providers/claude-code.md. */
+export const SUBSCRIPTION_ENV = {
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+  DISABLE_TELEMETRY: "1",
+  DISABLE_ERROR_REPORTING: "1",
+  DISABLE_AUTOUPDATER: "1",
+  CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY: "1",
+  CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL: "1",
+} as const;
+
+/**
+ * The child's environment. In subscription mode the allowlist loses `ANTHROPIC_API_KEY` and gains
+ * `USER` (without it, `claude` on macOS cannot find its own sign-in: spec D17) and the D10
+ * switches; `configDir` (an isolated profile) replaces any `CLAUDE_CONFIG_DIR` of the parent. The
+ * sign-in itself is never read here: the binary finds it through `HOME`, `USER` and
+ * `CLAUDE_CONFIG_DIR`.
+ */
+export function buildChildEnv(
+  env: Record<string, string | undefined>,
+  opts: { auth?: ClaudeAuth; configDir?: string } = {},
+) {
+  const subscription = opts.auth === "subscription";
   const child: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined) continue;
+    if (subscription && name === "ANTHROPIC_API_KEY") continue;
     if ((CHILD_ENV_ALLOWLIST as readonly string[]).includes(name) || name.startsWith(LOCALE_PREFIX)) {
       child[name] = value;
     }
   }
+  if (!subscription) return child;
+  if (env.USER !== undefined) child.USER = env.USER;
+  Object.assign(child, SUBSCRIPTION_ENV);
+  if (opts.configDir) child.CLAUDE_CONFIG_DIR = opts.configDir;
   return child;
 }
+
+/** The refusal of D4: a key in the environment would bill the key instead of the subscription. */
+export const SUBSCRIPTION_KEY_REFUSAL =
+  "ANTHROPIC_API_KEY is set. The local review runs on your signed-in `claude`; unset the variable, or run the GitHub mode.";
 
 /** The adapter's own settings, next to this file. */
 export function findEngineSettings(dir: string) {
@@ -99,6 +136,8 @@ export function buildClaudeArgs(opts: {
   tools: NeutralTool[];
   schema?: object;
   prompt?: string;
+  /** False in subscription mode: `--no-session-persistence` keeps the transcript out of the profile's `projects/`. */
+  sessionPersistence?: boolean;
 }) {
   const tools = toolNames(opts.tools);
   return [
@@ -121,6 +160,7 @@ export function buildClaudeArgs(opts: {
     tools,
     "--disallowedTools",
     "Bash,Read(//proc/**),Grep(//proc/**),Glob(//proc/**)",
+    ...(opts.sessionPersistence === false ? ["--no-session-persistence"] : []),
     "--output-format",
     "json",
     ...(opts.schema ? ["--json-schema", JSON.stringify(opts.schema)] : []),
@@ -183,6 +223,10 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       effort?: Effort;
       /** Wall-clock limit per call when the request names none. Default `DEFAULT_CALL_TIMEOUT_S`. */
       timeoutMs?: number;
+      /** Default `api-key`. */
+      auth?: ClaudeAuth;
+      /** Subscription mode only: the isolated profile's directory, forced as `CLAUDE_CONFIG_DIR`. */
+      configDir?: string;
       /** For tests: another executable, and another folder for the settings file. */
       binary?: string;
       settingsDir?: string;
@@ -192,11 +236,21 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     this.settingsDir = opts.settingsDir ?? import.meta.dir;
   }
 
+  private get subscription() {
+    return this.opts.auth === "subscription";
+  }
+
+  private childEnv() {
+    return buildChildEnv(process.env, { auth: this.opts.auth, configDir: this.opts.configDir });
+  }
+
   preflight() {
+    // First, before anything runs: with a key present, `claude -p` would bill the key.
+    if (this.subscription && process.env.ANTHROPIC_API_KEY) throw new UsageError(SUBSCRIPTION_KEY_REFUSAL);
     findEngineSettings(this.settingsDir);
     const probe = spawnSync(this.binary, ["--version"], {
       encoding: "utf8",
-      env: buildChildEnv(process.env),
+      env: this.childEnv(),
     });
     if (probe.error || probe.status !== 0) {
       throw new Error(
@@ -219,7 +273,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
 
   run(request: ProviderRequest): ProviderResult {
     // The agent never gets a GitHub token, a base URL or a proxy: see CHILD_ENV_ALLOWLIST.
-    const childEnv = buildChildEnv(process.env);
+    const childEnv = this.childEnv();
     // The session starts in an empty scratch directory, never in the head: Claude Code discovers
     // `CLAUDE.md` (and `.claude/`) from its working directory and its parents, and a pull request
     // must not supply instructions. The head is only an `--add-dir`, which does not load them.
@@ -235,6 +289,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       tools: request.allowedTools,
       schema: request.outputSchema,
       prompt: request.promptViaStdin ? undefined : prompt,
+      sessionPersistence: !this.subscription,
     });
     const timeoutMs = request.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_CALL_TIMEOUT_S * 1000;
     const started = Date.now();

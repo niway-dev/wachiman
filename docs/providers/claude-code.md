@@ -90,6 +90,26 @@ example a corporate proxy), it has to be added to the list in code, on purpose.
 The engine itself runs with `bun --no-env-file`, so a `.env` file in the reviewed head cannot add
 variables to the engine process either; see [SECURITY.md](../../SECURITY.md).
 
+### In local mode (`auth: "subscription"`)
+
+`agent-review local` runs the adapter in subscription mode: the developer's own signed-in
+`claude`, never a key ([the local review guide](../local-review.md), ADR 0019). The list above
+changes in these ways (`buildChildEnv(env, { auth: "subscription", configDir })`):
+
+| Variable | In local mode |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Never passed. `preflight()` refuses to start when it is set, before the `--version` probe runs anything: with a key present, `claude -p` would bill the key |
+| `USER` | Added. Without it, `claude` on macOS answers "Not logged in" (spec D17) |
+| `CLAUDE_CONFIG_DIR` | Passed as today for the `default` profile; forced to `~/.wachiman/claude-<name>` for an `isolated` profile, whatever the parent has |
+| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING`, `DISABLE_AUTOUPDATER`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY`, `CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL` | Set to `1` (`SUBSCRIPTION_ENV`, spec D10): metrics, error reports, the updater, the feedback survey and the marketplace auto-install are switched off |
+
+Every call also gets `--no-session-persistence`, so the transcript, which holds the reviewed
+code, is not written to the profile's `projects/`. The OAuth token is never read by Wachiman: the
+binary finds its own sign-in through `HOME`, `USER` and `CLAUDE_CONFIG_DIR`. A signed-out
+`claude` fails the first call with "Not logged in · Please run /login", which
+`src/providers/errors.ts` classifies as `auth`; the run then ends with `stop: "error"` and that
+text. A usage limit is `billing`, and the run ends with `stop: "quota"`.
+
 
 The footer label is built from the model name and `claude --version`, for example "Claude Sonnet
 5.5 via Claude Code 2.1.304". Credential detection (`leaksSecret`) matches the exact

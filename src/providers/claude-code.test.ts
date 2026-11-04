@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -10,9 +10,11 @@ import {
   findEngineSettings,
   leaksKey,
   prettyModel,
+  SUBSCRIPTION_ENV,
   terminalReasonOf,
   toolNames,
 } from "./claude-code";
+import { UsageError } from "../config";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./index";
 
 describe("buildClaudeArgs", () => {
@@ -405,5 +407,179 @@ describe("ClaudeCodeProvider provider rejections", () => {
     const r = provider(binary).run(request);
     expect(r.terminalReason).toBe("budget");
     expect(r.providerError).toBeUndefined();
+  });
+});
+
+describe("subscription mode", () => {
+  const SWITCHES = {
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    DISABLE_TELEMETRY: "1",
+    DISABLE_ERROR_REPORTING: "1",
+    DISABLE_AUTOUPDATER: "1",
+    CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY: "1",
+    CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL: "1",
+  } as const;
+  const parent = {
+    PATH: "/p",
+    HOME: "/h",
+    USER: "me",
+    ANTHROPIC_API_KEY: "sk-ant-x",
+    ANTHROPIC_BASE_URL: "http://x",
+    GH_TOKEN: "t",
+    CLAUDE_CONFIG_DIR: "/c",
+  };
+  const request = {
+    prompt: "p",
+    cwd: process.cwd(),
+    addDirs: [],
+    allowedTools: ["read" as const],
+    maxBudgetUsd: 0.5,
+    promptViaStdin: true,
+  };
+
+  test("the child environment drops the API key, adds USER and the no-telemetry switches", () => {
+    expect(SUBSCRIPTION_ENV).toEqual(SWITCHES);
+    expect(buildChildEnv(parent, { auth: "subscription" })).toEqual({
+      PATH: "/p",
+      HOME: "/h",
+      USER: "me",
+      CLAUDE_CONFIG_DIR: "/c",
+      ...SWITCHES,
+    });
+  });
+
+  test("a configDir forces CLAUDE_CONFIG_DIR even when the parent has another one", () => {
+    expect(buildChildEnv(parent, { auth: "subscription", configDir: "/iso" }).CLAUDE_CONFIG_DIR).toBe("/iso");
+    const { CLAUDE_CONFIG_DIR: _, ...withoutDir } = parent;
+    expect(buildChildEnv(withoutDir, { auth: "subscription", configDir: "/iso" }).CLAUDE_CONFIG_DIR).toBe("/iso");
+  });
+
+  test("api-key mode is unchanged", () => {
+    const child = buildChildEnv(parent);
+    expect(child).toEqual({ PATH: "/p", HOME: "/h", ANTHROPIC_API_KEY: "sk-ant-x", CLAUDE_CONFIG_DIR: "/c" });
+    expect(child).not.toHaveProperty("USER");
+    expect(buildChildEnv(parent, { auth: "api-key" })).toEqual(child);
+  });
+
+  test("subscription args carry --no-session-persistence and nothing else new", () => {
+    const base = {
+      addDirs: ["/d"],
+      budgetUsd: 1,
+      maxTurns: 40,
+      model: "m",
+      effort: "high" as const,
+      settings: "s",
+      tools: ["read" as const, "glob" as const, "grep" as const],
+      schema: { type: "object" },
+    };
+    const local = buildClaudeArgs({ ...base, sessionPersistence: false });
+    const ci = buildClaudeArgs(base);
+    expect(local).toContain("--no-session-persistence");
+    expect(ci).not.toContain("--no-session-persistence");
+    expect(buildClaudeArgs({ ...base, sessionPersistence: true })).toEqual(ci);
+    expect(local.filter((a) => a !== "--no-session-persistence")).toEqual(ci);
+  });
+
+  test("preflight refuses to start when ANTHROPIC_API_KEY is set in subscription mode", () => {
+    const ran = join(mkdtempSync(join(tmpdir(), "stub-ran-")), "ran");
+    const binary = stubBinary(`touch "${ran}"; echo "2.1.304 (Claude Code)"`);
+    const saved = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+    try {
+      const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription", binary });
+      let thrown: unknown;
+      try {
+        provider.preflight();
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(UsageError);
+      expect((thrown as Error).message).toBe(
+        "ANTHROPIC_API_KEY is set. The local review runs on your signed-in `claude`; unset the variable, or run the GitHub mode.",
+      );
+      expect(existsSync(ran)).toBe(false);
+      // Without the key the same provider starts, and the probe is what runs the binary.
+      delete process.env.ANTHROPIC_API_KEY;
+      provider.preflight();
+      expect(existsSync(ran)).toBe(true);
+    } finally {
+      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = saved;
+    }
+  });
+
+  test("the spawned child in subscription mode sees USER and the switches and none of the key names", () => {
+    const binary = stubBinary(`
+cat >/dev/null
+env | sort > "$(dirname "$0")/env.log"
+printf '%s\\n' "$@" > "$(dirname "$0")/args.log"
+printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"duration_ms":1,"result":"ok"}'`);
+    const dir = join(binary, "..");
+    const poisoned = {
+      USER: "someone",
+      ANTHROPIC_API_KEY: "sk-ant-test",
+      ANTHROPIC_BASE_URL: "https://example.invalid",
+      GH_TOKEN: "ghs_secret",
+      GITHUB_TOKEN: "ghs_secret",
+      HTTPS_PROXY: "http://evil.invalid:3128",
+    };
+    const saved = { ...process.env };
+    Object.assign(process.env, poisoned);
+    try {
+      const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription", binary });
+      expect(provider.run(request).text).toBe("ok");
+    } finally {
+      for (const name of Object.keys(poisoned)) delete process.env[name];
+      Object.assign(process.env, saved);
+    }
+    const env = Object.fromEntries(
+      readFileSync(join(dir, "env.log"), "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
+    );
+    expect(env.USER).toBe("someone");
+    for (const [name, value] of Object.entries(SWITCHES)) expect(env[name]).toBe(value);
+    for (const name of ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "GH_TOKEN", "GITHUB_TOKEN", "HTTPS_PROXY"])
+      expect(env).not.toHaveProperty(name);
+    const args = readFileSync(join(dir, "args.log"), "utf8").split("\n");
+    expect(args).toContain("--no-session-persistence");
+    expect(args).toContain("--restricted");
+    expect(args).toContain("--strict-mcp-config");
+  });
+
+  test("the spawned child in subscription mode gets the forced CLAUDE_CONFIG_DIR", () => {
+    const binary = stubBinary(`
+cat >/dev/null
+printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"duration_ms":1,"result":"dir=%s"}' "$CLAUDE_CONFIG_DIR"`);
+    const saved = process.env.CLAUDE_CONFIG_DIR;
+    process.env.CLAUDE_CONFIG_DIR = "/elsewhere";
+    try {
+      const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription", configDir: "/iso", binary });
+      expect(provider.run(request).text).toBe("dir=/iso");
+    } finally {
+      if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+      else process.env.CLAUDE_CONFIG_DIR = saved;
+    }
+  });
+
+  test("leaksSecret in subscription mode keeps the key-shape check", () => {
+    const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription" });
+    expect(provider.leaksSecret(["sk-ant-api03-SyntheticSyntheticSynthetic0123"])).toBe(true);
+    expect(provider.leaksSecret(["the guard matches `sk-ant-` literally"])).toBe(false);
+  });
+
+  test("getProvider passes the auth mode and the config directory through", () => {
+    const provider = getProvider("claude-code", { model: "m", dryRun: false, effort: "high", auth: "subscription", configDir: "/iso" });
+    expect(provider.name).toBe("claude-code");
+    // Subscription mode never requires a key: the API-key check is the refusal's opposite.
+    const saved = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+    try {
+      expect(() => provider.preflight()).toThrow("ANTHROPIC_API_KEY is set.");
+    } finally {
+      if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = saved;
+    }
   });
 });
