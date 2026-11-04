@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/niway-dev/wachiman/docs/formats/review-result.v1.schema.json",
+  "title": "Wachiman review result, version 1",
+  "description": "What the review core returns for one review input. Every sink (the GitHub review, and later the terminal, Markdown and JSON outputs) renders this object.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "change",
+    "engine",
+    "provider",
+    "coverage",
+    "findings",
+    "contracts",
+    "summary",
+    "batches",
+    "threadReplies",
+    "instructionChanges",
+    "execution"
+  ],
+  "properties": {
+    "format": { "const": "wachiman.review-result/1" },
+    "change": { "$ref": "#/$defs/ResultChange" },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version"],
+      "properties": { "version": { "type": "string" } }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "model", "effort", "profile"],
+      "properties": {
+        "label": { "type": "string" },
+        "model": { "type": "string" },
+        "effort": { "type": "string" },
+        "profile": { "enum": ["ci", "default", "isolated"] }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected", "reviewed", "skipped", "excluded", "partial"],
+      "properties": {
+        "expected": {
+          "description": "The files kept for review, after the excludes and the scope.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "reviewed": { "type": "array", "items": { "type": "string" } },
+        "skipped": {
+          "description": "Closed skip reasons and the \"not reached\" entries.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "reason"],
+            "properties": {
+              "path": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "excluded": {
+          "description": "How many files the excludes and the scope dropped.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "partial": { "type": "boolean" }
+      }
+    },
+    "findings": { "type": "array", "items": { "$ref": "#/$defs/ResultFinding" } },
+    "contracts": { "type": "array", "items": { "$ref": "#/$defs/Contract" } },
+    "summary": { "type": "string" },
+    "batches": { "type": "array", "items": { "$ref": "#/$defs/BatchReport" } },
+    "threadReplies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["comment_id", "status", "reply"],
+        "properties": {
+          "comment_id": { "type": "integer" },
+          "status": { "enum": ["addressed", "still_open"] },
+          "reply": { "type": "string" }
+        }
+      }
+    },
+    "instructionChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "baseSha"],
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" } },
+        "baseSha": { "type": "string" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["costUsdEstimate", "usage", "calls", "callsWithOutput", "turns", "durationMs", "stop", "notices"],
+      "properties": {
+        "costUsdEstimate": {
+          "description": "total_cost_usd summed: an API-equivalent estimate, never a bill on a subscription.",
+          "type": "number",
+          "minimum": 0
+        },
+        "usage": { "$ref": "#/$defs/TokenUsage" },
+        "calls": { "description": "Provider calls, retries included.", "type": "integer", "minimum": 0 },
+        "callsWithOutput": {
+          "description": "Calls (retries included) that returned a review; 0 means nothing was reviewed.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "turns": { "type": "integer", "minimum": 0 },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "stop": { "enum": ["complete", "budget", "turns", "timeout", "quota", "error"] },
+        "rejection": {
+          "description": "The first provider rejection, when a call was refused.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": { "enum": ["billing", "auth", "rate_limit", "other"] },
+            "text": { "type": "string" }
+          }
+        },
+        "notices": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "ResultChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "describe", "repository", "base", "head"],
+      "properties": {
+        "kind": { "enum": ["pull-request", "branch"] },
+        "describe": { "type": "string" },
+        "repository": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string" }
+          }
+        },
+        "base": { "$ref": "#/$defs/Commit" },
+        "head": { "$ref": "#/$defs/Commit" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "author": { "type": "string" },
+        "identifier": { "type": "string" },
+        "snapshot": { "description": "The snapshot the review read, when the connector made one.", "type": "string" }
+      }
+    },
+    "Commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha"],
+      "properties": {
+        "sha": { "type": "string" },
+        "ref": { "type": "string" }
+      }
+    },
+    "ResultFinding": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["path", "line", "severity", "topic", "title", "body", "anchor"],
+      "properties": {
+        "path": { "type": "string" },
+        "line": { "description": "A new-side line, or 0 for the whole file.", "type": "integer", "minimum": 0 },
+        "severity": { "enum": ["blocker", "fix", "consider", "info"] },
+        "topic": { "enum": ["bug", "security", "rules", "adr", "docs", "tests", "perf", "cleanup", "question"] },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "anchor": {
+          "description": "Whether a diff-anchored comment can target the line.",
+          "enum": ["diff", "outside"]
+        },
+        "verification": {
+          "description": "Reserved: filled once the model is asked how it verified a finding.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["checked"],
+          "properties": {
+            "checked": { "type": "string" },
+            "example": { "type": "string" }
+          }
+        }
+      }
+    },
+    "Contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["action", "location", "status", "evidence"],
+      "properties": {
+        "action": { "type": "string" },
+        "location": { "type": "string" },
+        "equivalent_path": { "type": "string" },
+        "before_after": { "type": "string" },
+        "visible_effect": { "type": "string" },
+        "failure_mode": { "type": "string" },
+        "status": { "enum": ["closed", "open"] },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "open_question": { "type": "string" },
+        "candidates": { "type": "array", "items": { "type": "string" } },
+        "evidence_checked": { "type": "boolean" }
+      }
+    },
+    "BatchReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["label", "files", "lines", "maxRisk", "status", "turns", "costUsd"],
+      "properties": {
+        "label": { "type": "string" },
+        "files": { "type": "integer", "minimum": 0 },
+        "lines": { "type": "integer", "minimum": 0 },
+        "maxRisk": { "type": "number" },
+        "status": { "type": "string" },
+        "turns": { "type": "integer", "minimum": 0 },
+        "costUsd": { "type": "number", "minimum": 0 }
+      }
+    },
+    "TokenUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "output", "cacheRead", "cacheWrite"],
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "output": { "type": "integer", "minimum": 0 },
+        "cacheRead": { "type": "integer", "minimum": 0 },
+        "cacheWrite": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

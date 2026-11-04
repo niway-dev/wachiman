@@ -61,6 +61,9 @@ import type { ProviderErrorClass } from "./providers/errors";
 import type { ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 
+export type { Profile, ResultFinding, ReviewChange, ReviewFile, ReviewInput, ReviewResult, Stop } from "./formats";
+export { REVIEW_INPUT_FORMAT, REVIEW_RESULT_FORMAT } from "./formats";
+
 export interface PrFile {
   filename: string;
   additions: number;
@@ -1688,6 +1691,9 @@ export function openBotThreads(threads: RawThread[]) {
         .map((c) => ({ author: c.author?.login ?? "ghost", body: c.body })),
     }));
 }
+
+/** An open thread of the tool's own, as the model reads it (`threads.json`). */
+export type Thread = ReturnType<typeof openBotThreads>[number];
 
 /** The pull request's first 100 review threads (30 comments each), as GitHub's GraphQL sends them. */
 export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
