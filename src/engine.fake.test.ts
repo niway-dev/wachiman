@@ -396,6 +396,15 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     expect(parsed.error.length).toBeLessThanOrEqual(300);
   });
 
+  test("the job log also has a readable line naming the refusal next to the JSON", () => {
+    const t = setup([rejected("billing", "Credit balance is too low")]);
+    review(t.deps, "o/r", 7, []);
+    const readable = t.logs.find((l) => l.startsWith("❌ ")) ?? "";
+    expect(readable).toContain("the account has no credit");
+    expect(readable).toContain('API said: "Credit balance is too low"');
+    expect(t.logs.some((l) => l.includes('"error_class":"billing"'))).toBe(true);
+  });
+
   test("a rate limit is retried once after a backoff, and a review that then succeeds is posted", () => {
     const all = [MANAGER, STORE, GUIDE, LOGO];
     const t = setup([
