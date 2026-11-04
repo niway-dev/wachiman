@@ -12,6 +12,7 @@
  */
 
 import type { TokenUsage } from "../cost";
+import type { ProviderErrorClass } from "./errors";
 
 /**
  * Reasoning effort levels, in the vocabulary both CLIs share. The consumer picks one its provider
@@ -84,6 +85,16 @@ export interface ProviderResult {
    */
   terminalReason: string;
   isError: boolean;
+  /**
+   * When `isError`: the text the CLI gave as the reason (Claude Code puts the API's message in its
+   * result) plus the tail of stderr. Model-independent but untrusted text: neutralise before posting.
+   */
+  errorText?: string;
+  /**
+   * Why a generic error (`terminalReason: "error"`) happened, from `errorText`. Unset for success,
+   * budget, turn and time limits.
+   */
+  providerError?: ProviderErrorClass;
   /** The provider's own result, kept for debugging. Never posted. */
   raw: unknown;
 }

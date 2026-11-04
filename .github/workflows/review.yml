@@ -91,6 +91,10 @@ on:
         description: Wall-clock seconds one call may run before it is killed; keep it well under the 30 minute job limit
         type: number
         default: 900
+      on_provider_unavailable:
+        description: When the Anthropic account rejects every call (no credit, bad key, rate limit), warn posts a notice and passes the check; fail posts it and fails the check
+        type: string
+        default: warn
       provider:
         description: Agent provider; only claude-code exists
         type: string
@@ -278,6 +282,7 @@ jobs:
           AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
           AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
           AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
@@ -380,6 +385,7 @@ jobs:
           AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
           AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
           AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
@@ -498,6 +504,7 @@ jobs:
           AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
           AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
           AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}

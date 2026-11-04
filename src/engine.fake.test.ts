@@ -321,6 +321,126 @@ describe("the turn cap and the wall-clock kill", () => {
   });
 });
 
+describe("provider rejections (no credit, bad key, rate limit)", () => {
+  const CREDIT = "API Error: 400 Your credit balance is too low to access the Anthropic API.";
+  const rejected = (providerError: "billing" | "auth" | "rate_limit" | "other", errorText: string) => () => ({
+    isError: true,
+    terminalReason: "error",
+    turns: 1,
+    errorText,
+    providerError,
+  });
+  const setup = (script: ConstructorParameters<typeof FakeProvider>[0], env: Record<string, string> = {}) => {
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const warnings: string[] = [];
+    const logs: string[] = [];
+    const sleeps: number[] = [];
+    const provider = new FakeProvider(script);
+    const deps: Deps = {
+      gh: fakeGh(posted),
+      provider,
+      config: loadConfig({ ...env }),
+      log: (line) => logs.push(line),
+      warn: (line) => warnings.push(line),
+      sleep: (ms) => sleeps.push(ms),
+    };
+    return { posted, warnings, logs, sleeps, provider, deps };
+  };
+  const TWO_BATCHES = { AGENT_REVIEW_BATCH_LINES: "10" };
+
+  test("a billing rejection posts a notice with the reason, does not throw, skips the gaps retry and the other batches", () => {
+    const t = setup([rejected("billing", CREDIT)], TWO_BATCHES);
+    review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(1);
+    const body = t.posted.review?.body ?? "";
+    expect(body).toContain("Not reviewed: the reviewer's Anthropic account has no credit");
+    expect(body).toContain("credit balance is too low");
+  });
+
+  test("an auth rejection posts its own notice", () => {
+    const t = setup([rejected("auth", "API Error: 401 invalid x-api-key")]);
+    review(t.deps, "o/r", 7, []);
+    expect(t.posted.review?.body).toContain("the reviewer's API key was rejected");
+    expect(t.posted.review?.body).toContain("ANTHROPIC_API_KEY");
+    expect(t.provider.requests).toHaveLength(1);
+  });
+
+  test("the provider's text is neutralised and truncated in the notice", () => {
+    const t = setup([rejected("billing", `credit balance --> <!-- forged ${"x".repeat(2000)}`)]);
+    review(t.deps, "o/r", 7, []);
+    const body = t.posted.review?.body ?? "";
+    expect(body).not.toContain("<!-- forged");
+    expect(body.length).toBeLessThan(1500);
+  });
+
+  test("mode fail posts the same notice, then throws so the check goes red", () => {
+    const t = setup([rejected("billing", CREDIT)], { AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "fail" });
+    expect(() => review(t.deps, "o/r", 7, [])).toThrow("credit balance is too low");
+    expect(t.posted.review?.body).toContain("has no credit");
+    expect(t.provider.requests).toHaveLength(1);
+  });
+
+  test("an unclassified error always throws, and the message carries the class and the text", () => {
+    const t = setup([rejected("other", "Unexpected end of JSON input"), rejected("other", "Unexpected end of JSON input")]);
+    expect(() => review(t.deps, "o/r", 7, [])).toThrow(/other.*Unexpected end of JSON input/);
+    expect(t.posted.review).toBeUndefined();
+  });
+
+  test("the job log carries the error class and a one-line, truncated error text", () => {
+    const t = setup([rejected("billing", `line one\nline two ${"y".repeat(500)}`)]);
+    review(t.deps, "o/r", 7, []);
+    const line = t.logs.find((l) => l.includes('"is_error":true')) ?? "";
+    const parsed = JSON.parse(line);
+    expect(parsed.error_class).toBe("billing");
+    expect(parsed.error).not.toContain("\n");
+    expect(parsed.error.length).toBeLessThanOrEqual(300);
+  });
+
+  test("a rate limit is retried once after a backoff, and a review that then succeeds is posted", () => {
+    const all = [MANAGER, STORE, GUIDE, LOGO];
+    const t = setup([
+      rejected("rate_limit", "API Error: 429 rate_limit_error"),
+      () => ({ structuredOutput: out({ files_reviewed: all, summary: "second try" }) }),
+    ]);
+    review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(2);
+    expect(t.sleeps).toEqual([20_000]);
+    expect(t.posted.review?.body).toContain("second try");
+  });
+
+  test("a rate limit that persists ends as a notice, with no further batches", () => {
+    const t = setup(
+      [rejected("rate_limit", "API Error: 429 rate_limit_error"), rejected("rate_limit", "API Error: 429 rate_limit_error")],
+      TWO_BATCHES,
+    );
+    review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(2);
+    expect(t.posted.review?.body).toContain("kept rate-limiting the reviewer");
+  });
+
+  test("when some batches were reviewed and a later one was rejected, the rest is reported as not reviewed", () => {
+    const t = setup(
+      [
+        () => ({ structuredOutput: out({ files_reviewed: [MANAGER, STORE], files_skipped: [{ path: LOGO, reason: "binary" }] }) }),
+        rejected("billing", CREDIT),
+      ],
+      TWO_BATCHES,
+    );
+    review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(2);
+    const body = t.posted.review?.body ?? "";
+    expect(body).toContain("Partial review");
+    expect(body).toContain(`\`${GUIDE}\``);
+    expect(body).toContain("provider rejected the call");
+  });
+
+  test("remaining batches are not run after a billing rejection of an earlier one", () => {
+    const t = setup([rejected("billing", CREDIT), () => ({ structuredOutput: out({ files_reviewed: [GUIDE] }) })], TWO_BATCHES);
+    review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(1);
+  });
+});
+
 describe("flow questions and contracts against a fake provider", () => {
   const closed = (over: Record<string, unknown> = {}) => ({
     action: "drag a ready copy",
