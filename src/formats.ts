@@ -6,14 +6,13 @@
 import { UsageError } from "./config";
 import type { Contract } from "./contracts";
 import type { TokenUsage } from "./cost";
-import type { BaseInstructions, BatchReport, Finding, PrFile, ReviewOutput, Thread } from "./engine";
+import type { BaseInstructions, BatchReport, Finding, ReviewFile, ReviewOutput, Thread } from "./engine";
 import type { ProviderErrorClass } from "./providers/errors";
 
 export const REVIEW_INPUT_FORMAT = "wachiman.review-input/1";
 export const REVIEW_RESULT_FORMAT = "wachiman.review-result/1";
 
-/** Spec Q8: an alias in the extraction; the rename happens with the local connector. */
-export type ReviewFile = PrFile;
+export type { ReviewFile };
 
 export interface ReviewChange {
   kind: "pull-request" | "branch";

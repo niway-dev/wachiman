@@ -61,7 +61,7 @@ import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 
-export type { Profile, ResultFinding, ReviewChange, ReviewFile, ReviewInput, ReviewResult, Stop } from "./formats";
+export type { Profile, ResultFinding, ReviewChange, ReviewInput, ReviewResult, Stop } from "./formats";
 export { REVIEW_INPUT_FORMAT, REVIEW_RESULT_FORMAT } from "./formats";
 import {
   REVIEW_INPUT_FORMAT,
@@ -74,7 +74,8 @@ import {
   type Stop,
 } from "./formats";
 
-export interface PrFile {
+/** One changed file, as GitHub's files list has it; every connector fills this shape (spec Q8). */
+export interface ReviewFile {
   filename: string;
   additions: number;
   deletions: number;
@@ -85,6 +86,9 @@ export interface PrFile {
   /** The name before a rename, as GitHub reports it. */
   previous_filename?: string;
 }
+
+/** @deprecated The name before the review core; use `ReviewFile`. Removed in the next minor release. */
+export type PrFile = ReviewFile;
 
 /**
  * Severity answers "when does the author act on this". The keys are in rank order, highest first:
@@ -234,11 +238,11 @@ export function resolveScope(words: string[], filenames: string[]) {
   return { paths, ignored: words.filter((w) => !paths.includes(w)) };
 }
 
-export function filterFiles(files: PrFile[], exclude: string[], scope: string[]) {
+export function filterFiles(files: ReviewFile[], exclude: string[], scope: string[]) {
   const globs = exclude.map((pattern) => new Bun.Glob(pattern));
   const inScope = (name: string) => scope.length === 0 || scope.some((p) => underPath(name, p));
-  const kept: PrFile[] = [];
-  const dropped: PrFile[] = [];
+  const kept: ReviewFile[] = [];
+  const dropped: ReviewFile[] = [];
   for (const f of files) {
     if (!inScope(f.filename)) continue;
     (globs.some((g) => g.match(f.filename)) ? dropped : kept).push(f);
@@ -311,13 +315,13 @@ export function moduleKey(path: string): string {
 }
 
 export interface Batch {
-  files: PrFile[];
+  files: ReviewFile[];
   lines: number;
   maxRisk: number;
 }
 
 const KIND_ORDER: Record<FileKind, number> = { code: 0, test: 1, docs: 2 };
-const sizeOf = (f: PrFile) => f.additions + f.deletions;
+const sizeOf = (f: ReviewFile) => f.additions + f.deletions;
 
 /**
  * Packs the files into batches of at most `maxLines` changed lines and `maxChars` of diff.
@@ -326,10 +330,10 @@ const sizeOf = (f: PrFile) => f.additions + f.deletions;
  * either limit is a batch of its own.
  */
 export function planBatches(
-  files: PrFile[],
+  files: ReviewFile[],
   limits: { maxLines: number; maxChars: number },
 ): Batch[] {
-  const modules = new Map<string, PrFile[]>();
+  const modules = new Map<string, ReviewFile[]>();
   for (const f of files) {
     const key = moduleKey(f.filename);
     modules.set(key, [...(modules.get(key) ?? []), f]);
@@ -348,8 +352,8 @@ export function planBatches(
     )
     .flat();
 
-  const batches: PrFile[][] = [];
-  let current: PrFile[] = [];
+  const batches: ReviewFile[][] = [];
+  let current: ReviewFile[] = [];
   let lines = 0;
   let chars = 0;
   for (const f of ordered) {
@@ -383,7 +387,7 @@ export function planBatches(
  * The files of a batch the model left unaccounted for. A skip counts only with a closed reason
  * and only for a file GitHub sent no diff for: a file with a diff in the prompt can always be read.
  */
-export function batchGaps(files: PrFile[], output: ReviewOutput | undefined): PrFile[] {
+export function batchGaps(files: ReviewFile[], output: ReviewOutput | undefined): ReviewFile[] {
   if (!output) return files;
   const reviewed = new Set(output.files_reviewed);
   const skipped = new Set(
@@ -516,7 +520,7 @@ export function commentableLines(patch: string): Set<number> {
  * The diff the agent reads, with each line's number in the file at the head commit on the left
  * (blank for removed lines), so the `line` it reports is one GitHub can anchor a thread to.
  */
-export function annotateDiff(files: PrFile[]) {
+export function annotateDiff(files: ReviewFile[]) {
   const out: string[] = [];
   for (const f of files) {
     out.push(`### ${f.filename}`);
@@ -803,7 +807,7 @@ export function renderContracts(contracts: Contract[], room = Number.POSITIVE_IN
 export function buildReview(input: {
   /** A finding's `anchor`, when given (a `ReviewResult`'s), decides inline or body; else its file's patch does. */
   output: Omit<ReviewOutput, "findings"> & { findings: (Finding & { anchor?: "diff" | "outside" })[] };
-  files: PrFile[];
+  files: ReviewFile[];
   headSha: string;
   since: string | null;
   /** The branch was rewritten since `since`, and `files` are those whose changed lines differ. */
@@ -1385,9 +1389,9 @@ const jsonLines = <T>(text: string) =>
 
 // `gh --jq` prints string results raw, like `jq -r`: `@json` of an object prints the object's
 // JSON, and `@json` of a string prints the quoted string. One JSON value per line either way.
-export function listFiles(gh: GhFn, repo: string, pr: number): PrFile[] {
+export function listFiles(gh: GhFn, repo: string, pr: number): ReviewFile[] {
   const jq = ".[] | {filename, additions, deletions, patch, sha, previous_filename} | @json";
-  return jsonLines<PrFile>(
+  return jsonLines<ReviewFile>(
     gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/files`, "--jq", jq]),
   );
 }
@@ -1427,7 +1431,7 @@ export function lastEngineMarker(reviews: { body: string; created_at?: string }[
 
 export interface Comparison {
   status: string;
-  files: PrFile[];
+  files: ReviewFile[];
   /** The commits compare lists (at most 250), each with its number of parents. Absent when GitHub sent none. */
   commits?: { parents: number }[];
   /** The number of commits between the two, which may be more than `commits` lists. */
@@ -1471,7 +1475,7 @@ const COMPARE_FILE_LIMIT = 300;
 /** What a rewritten branch (a rebase, a squash, a force-push) changed compared to what was reviewed. */
 export type RebaseDelta =
   | { kind: "unchanged"; removed: string[] }
-  | { kind: "changed"; files: PrFile[]; unchanged: number; before: PrFile[] }
+  | { kind: "changed"; files: ReviewFile[]; unchanged: number; before: ReviewFile[] }
   | { kind: "unknown"; reason: string };
 
 /**
@@ -1488,9 +1492,9 @@ export function rebaseDelta(
   repo: string,
   base: string,
   last: string,
-  current: PrFile[],
+  current: ReviewFile[],
 ): RebaseDelta {
-  let old: { files: PrFile[] };
+  let old: { files: ReviewFile[] };
   try {
     old = compareFiles(gh, repo, base, last);
   } catch (error) {
@@ -1498,7 +1502,7 @@ export function rebaseDelta(
   }
   if (old.files.length >= COMPARE_FILE_LIMIT)
     return { kind: "unknown", reason: `the old change lists ${old.files.length} files, which GitHub may have cut short` };
-  const signature = (f: PrFile) => changeSignature(f.patch);
+  const signature = (f: ReviewFile) => changeSignature(f.patch);
   const before = new Map(old.files.map((f) => [f.filename, { sha: f.sha, signature: signature(f) }]));
   const changed = current.filter((f) => {
     const was = before.get(f.filename);
@@ -1653,9 +1657,9 @@ export function ownChangeSince(since: string | undefined, now: string | undefine
  * removed row is kept.
  */
 export function patchAtReview(
-  before: Map<string, PrFile> | null,
-  file: PrFile,
-  inPr: PrFile | undefined,
+  before: Map<string, ReviewFile> | null,
+  file: ReviewFile,
+  inPr: ReviewFile | undefined,
 ): string | undefined {
   if (!before) return undefined;
   const earlier = [file.previous_filename, inPr?.previous_filename].filter(
@@ -1672,7 +1676,7 @@ export function patchAtReview(
 }
 
 /** `file` (from compare) with only the pull request's own rows, and its counts to match. */
-function withOwnChange(file: PrFile, inPr: PrFile | undefined, then: string | undefined): PrFile {
+function withOwnChange(file: ReviewFile, inPr: ReviewFile | undefined, then: string | undefined): ReviewFile {
   const patch = ownChangeSince(file.patch, inPr?.patch, then);
   if (patch === file.patch) return file;
   const rows = (patch ?? "").split("\n");
@@ -2241,7 +2245,7 @@ export function githubReviewInput(p: {
   headSha: string;
   baseSha: string;
   meta: { title?: string; body?: string; author?: { login?: string } | null };
-  files: PrFile[];
+  files: ReviewFile[];
   instructions: BaseInstructions;
   headDir: string;
   scope: string[];
@@ -2383,7 +2387,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       const candidates = keep ? own.filter((f) => keep.has(f.filename)) : own;
       // The file's patch at `last`: "" when the pull request did not change it then, undefined when unknown.
       const before = delta.kind === "changed" ? new Map(delta.before.map((f) => [f.filename, f])) : null;
-      const thenOf = (f: PrFile) => patchAtReview(before, f, inPr.get(f.filename));
+      const thenOf = (f: ReviewFile) => patchAtReview(before, f, inPr.get(f.filename));
       // Narrowing exists to drop the lines a merge brought. With no merge commit among the commits
       // there are none, so every row is the author's; a list that cannot say is treated as a merge
       // may be there, and then the rows are narrowed with the rules that fail open.
@@ -2794,7 +2798,7 @@ full before you rely on it.`;
 /** The prompt for one batch: its framing, the rules, the repository's instructions and its diff last. */
 export function buildBatchPrompt(
   ctx: ReviewContext,
-  files: PrFile[],
+  files: ReviewFile[],
   hasThreads: boolean,
   part: { index: number; total: number; retry?: boolean },
   dir: string,
@@ -2925,7 +2929,7 @@ function safeRealpath(path: string) {
  * the repository uses the symbols the batch's added lines call. Evidence is a help, never a
  * condition: any failure is a warning, the file then holds an empty document, and the review goes on.
  */
-function gatherEvidence(deps: CoreDeps, headDir: string, files: PrFile[], dir: string): string {
+function gatherEvidence(deps: CoreDeps, headDir: string, files: ReviewFile[], dir: string): string {
   const batchFiles = files.map((f) => f.filename);
   const now = deps.now ?? Date.now;
   const started = now();
@@ -2965,7 +2969,7 @@ function reviewBatch(
   deps: CoreDeps,
   limits: CallLimits,
   ctx: ReviewContext,
-  files: PrFile[],
+  files: ReviewFile[],
   threads: ReturnType<typeof openBotThreads>,
   part: { index: number; total: number; retry?: boolean },
   budgetUsd: number,

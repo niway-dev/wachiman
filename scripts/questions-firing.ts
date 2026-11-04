@@ -18,7 +18,7 @@ import {
   buildBatchPrompt,
   filterFiles,
   planBatches,
-  type PrFile,
+  type ReviewFile,
   type ReviewContext,
 } from "../src/engine";
 import { addedLinesOf } from "../src/evidence";
@@ -26,7 +26,7 @@ import { QUESTIONS, selectQuestions } from "../src/questions";
 
 const words = (text: string) => text.trim().split(/\s+/).filter(Boolean).length;
 
-function fetchFiles(repo: string, pr: number): PrFile[] {
+function fetchFiles(repo: string, pr: number): ReviewFile[] {
   const run = Bun.spawnSync([
     "gh",
     "api",
@@ -40,7 +40,7 @@ function fetchFiles(repo: string, pr: number): PrFile[] {
     .toString()
     .split("\n")
     .filter(Boolean)
-    .map((l) => JSON.parse(l) as PrFile);
+    .map((l) => JSON.parse(l) as ReviewFile);
 }
 
 export interface PrReport {
@@ -58,7 +58,7 @@ export interface PrReport {
   addedChars: number;
 }
 
-export function measure(pr: number, all: PrFile[]): PrReport {
+export function measure(pr: number, all: ReviewFile[]): PrReport {
   const config = loadConfig({});
   const { kept } = filterFiles(all, [...DEFAULT_EXCLUDE, ...config.exclude], []);
   const fires: Record<string, string[]> = Object.fromEntries(QUESTIONS.map((q) => [q.id, [] as string[]]));

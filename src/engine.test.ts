@@ -21,7 +21,7 @@ import {
   type ReviewContext,
   resolveScope,
   type Finding,
-  type PrFile,
+  type ReviewFile,
   type ReviewOutput,
   buildReview,
   commentableLines,
@@ -54,7 +54,7 @@ import { loadConfig } from "./config";
 import type { Contract } from "./contracts";
 
 // Synthetic pull requests only: these tests never call GitHub or an agent.
-const file = (filename: string, additions: number, deletions = 0, patch = ""): PrFile => ({
+const file = (filename: string, additions: number, deletions = 0, patch = ""): ReviewFile => ({
   filename,
   additions,
   deletions,
@@ -1208,7 +1208,7 @@ describe("buildBatchPrompt", () => {
   describe("data-path questions", () => {
     const withPatch = (name: string, patch: string) => [file(name, 1, 0, patch)];
     const destructive = withPatch("src/main/heal.ts", "@@ -0,0 +1 @@\n+  unlinkSync(source);");
-    const ask = (f: PrFile[], questions?: Parameters<typeof buildBatchPrompt>[8]) =>
+    const ask = (f: ReviewFile[], questions?: Parameters<typeof buildBatchPrompt>[8]) =>
       buildBatchPrompt(ctx, f, false, { index: 1, total: 1 }, "/tmp/d", ctx.instructions, "", questions);
 
     test("without a pattern in the added lines the prompt is the one from before the questions existed", () => {
