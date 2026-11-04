@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError, loadConfig } from "./config";
@@ -241,5 +241,45 @@ describe("reviewChange from a ReviewInput", () => {
     const result = reviewChange(branchInput({ conversation: [thread] }), options(), coreDeps(provider).deps);
     expect(result.threadReplies).toEqual([{ comment_id: 11, status: "addressed", reply: "Fixed at src/a.ts:2." }]);
     expect(provider.requests[0].prompt).toContain("threads.json");
+  });
+});
+
+// The one behaviour change of the extraction: each batch's run directory (pr.json, threads.json,
+// evidence.json) holds the reviewed change's text and is removed after its call, on every path.
+describe("the run directory", () => {
+  const twoFiles = (): Partial<ReviewInput> => ({
+    files: [
+      { filename: "src/a.ts", additions: 2, deletions: 0, patch: "@@ -1,1 +1,3 @@\n const a = 1;\n+const b = 2;\n+const c = 3;" },
+    ],
+  });
+
+  test("the run directory is removed after the call, on success", () => {
+    const during: boolean[] = [];
+    const provider = new FakeProvider([
+      (request) => {
+        const dir = request.addDirs[0];
+        during.push(["pr.json", "threads.json", "evidence.json"].every((f) => existsSync(join(dir, f))));
+        return { structuredOutput: out({ files_reviewed: ["src/a.ts"], summary: "ok" }) };
+      },
+    ]);
+    const result = reviewChange(branchInput(twoFiles()), options(), coreDeps(provider).deps);
+    expect(result.execution.stop).toBe("complete");
+    expect(during).toEqual([true]);
+    expect(existsSync(provider.requests[0].addDirs[0])).toBe(false);
+  });
+
+  test("the run directory is removed when the provider throws", () => {
+    const during: boolean[] = [];
+    const dies = (request: ProviderRequest): Partial<ProviderResult> => {
+      during.push(existsSync(request.addDirs[0]));
+      throw new Error("the CLI died");
+    };
+    // The first call and its one retry both throw.
+    const provider = new FakeProvider([dies, dies]);
+    const result = reviewChange(branchInput(twoFiles()), options(), coreDeps(provider).deps);
+    expect(result.execution).toMatchObject({ calls: 2, callsWithOutput: 0, stop: "error" });
+    expect(during).toEqual([true, true]);
+    expect(provider.requests).toHaveLength(2);
+    for (const request of provider.requests) expect(existsSync(request.addDirs[0])).toBe(false);
   });
 });

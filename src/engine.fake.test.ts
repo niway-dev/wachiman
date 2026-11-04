@@ -1415,7 +1415,8 @@ describe("call-site evidence reaches the batch", () => {
   ];
   const SIBLING = "src/export-status-cards.tsx";
 
-  const run = (git: Deps["git"]) => {
+  /** `onCall` runs inside the provider call, while the run dir still exists. */
+  const run = (git: Deps["git"], onCall?: (request: ProviderRequest) => void) => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     mkdirSync(join(headDir, "src"));
     writeFileSync(
@@ -1423,7 +1424,12 @@ describe("call-site evidence reaches the batch", () => {
       "const onDrag = () => {\n  markCopySeen(id);\n  window.electronAPI.startFileDrag(path);\n};\n",
     );
     const posted: { review?: { body: string; comments: unknown[] } } = {};
-    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: [NEW], summary: "ok" }) })]);
+    const provider = new FakeProvider([
+      (request) => {
+        onCall?.(request);
+        return { structuredOutput: out({ files_reviewed: [NEW], summary: "ok" }) };
+      },
+    ]);
     const warnings: string[] = [];
     const logs: string[] = [];
     const deps: Deps = {
@@ -1447,10 +1453,13 @@ describe("call-site evidence reaches the batch", () => {
         stdout: `${SIBLING}:3:  window.electronAPI.startFileDrag(path);\n${NEW}:2:  window.electronAPI.startFileDrag(item.path);`,
       };
     };
-    const r = run(git);
+    let evidenceFile = "";
+    const r = run(git, (request) => {
+      evidenceFile = readFileSync(join(request.addDirs[0], "evidence.json"), "utf8");
+    });
     const request = r.provider.requests[0];
     const runDir = request.addDirs[0];
-    const doc = JSON.parse(readFileSync(join(runDir, "evidence.json"), "utf8"));
+    const doc = JSON.parse(evidenceFile);
     expect(doc.provenance).toBe("text_match");
     expect(doc.symbols).toHaveLength(1);
     expect(doc.symbols[0].call_sites.map((c: { file: string }) => c.file)).toEqual([SIBLING]);
@@ -1468,11 +1477,17 @@ describe("call-site evidence reaches the batch", () => {
   });
 
   test("a failing git never fails the review: a warning, an empty file, no evidence in the prompt", () => {
-    const r = run(() => ({ status: 128, stdout: "", error: "fatal: not a git repository" }));
+    let evidenceFile = "";
+    const r = run(
+      () => ({ status: 128, stdout: "", error: "fatal: not a git repository" }),
+      (request) => {
+        evidenceFile = readFileSync(join(request.addDirs[0], "evidence.json"), "utf8");
+      },
+    );
     const request = r.provider.requests[0];
     expect(r.posted.review).toBeDefined();
     expect(r.warnings.join("\n")).toContain("Call-site evidence skipped");
-    const doc = JSON.parse(readFileSync(join(request.addDirs[0], "evidence.json"), "utf8"));
+    const doc = JSON.parse(evidenceFile);
     expect(doc.symbols).toEqual([]);
     expect(doc.status).toBe("truncated");
     expect(request.prompt).not.toContain("<evidence");

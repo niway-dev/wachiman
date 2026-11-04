@@ -29,7 +29,7 @@
  */
 import { NO_USAGE, addUsage, costLine, costLogLine, type CallCost, type Operation, type TokenUsage } from "./cost";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isAutomatic, operatorProblem, type EngineConfig, type Trigger } from "./config";
@@ -2955,75 +2955,81 @@ function reviewBatch(
   budgetUsd: number,
 ) {
   const dir = mkdtempSync(join(tmpdir(), "agent-review-"));
-  writeFileSync(
-    join(dir, "pr.json"),
-    JSON.stringify(
-      { title: ctx.meta.title, body: ctx.meta.body, author: ctx.meta.author },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(join(dir, "threads.json"), JSON.stringify(threads, null, 2));
-  const evidence = gatherEvidence(deps, ctx.headDir, files, dir);
-  const questions = selectQuestions(files);
-  deps.log(
-    `Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`,
-  );
-  const prompt = buildBatchPrompt(
-    ctx,
-    files,
-    threads.length > 0,
-    part,
-    dir,
-    ctx.instructions,
-    evidence,
-    questions,
-  );
-
-  const label = `batch ${part.index}/${part.total}${part.retry ? " retry" : ""}`;
-  const call = attempt(
-    () =>
-      runProvider(
-        deps,
-        limits,
-        ctx.headDir,
-        { operation: ctx.since ? "re-review" : "review", label, ...ctx.costTags },
-        prompt,
-        dir,
-        budgetUsd,
-        SCHEMA,
+  // The run dir holds the change's text (title, body, threads, evidence): removed once the call
+  // is over, whatever happened. Nothing reads it after the provider returns.
+  try {
+    writeFileSync(
+      join(dir, "pr.json"),
+      JSON.stringify(
+        { title: ctx.meta.title, body: ctx.meta.body, author: ctx.meta.author },
+        null,
+        2,
       ),
-    budgetUsd,
-  );
-  if (!call.ok) {
-    deps.warn(`A batch call failed: ${call.error}`);
-    return { output: undefined, budget: false, stopped: undefined, turns: 0, costUsd: call.costUsd, usage: NO_USAGE, failed: true, rejection: undefined };
+    );
+    writeFileSync(join(dir, "threads.json"), JSON.stringify(threads, null, 2));
+    const evidence = gatherEvidence(deps, ctx.headDir, files, dir);
+    const questions = selectQuestions(files);
+    deps.log(
+      `Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`,
+    );
+    const prompt = buildBatchPrompt(
+      ctx,
+      files,
+      threads.length > 0,
+      part,
+      dir,
+      ctx.instructions,
+      evidence,
+      questions,
+    );
+
+    const label = `batch ${part.index}/${part.total}${part.retry ? " retry" : ""}`;
+    const call = attempt(
+      () =>
+        runProvider(
+          deps,
+          limits,
+          ctx.headDir,
+          { operation: ctx.since ? "re-review" : "review", label, ...ctx.costTags },
+          prompt,
+          dir,
+          budgetUsd,
+          SCHEMA,
+        ),
+      budgetUsd,
+    );
+    if (!call.ok) {
+      deps.warn(`A batch call failed: ${call.error}`);
+      return { output: undefined, budget: false, stopped: undefined, turns: 0, costUsd: call.costUsd, usage: NO_USAGE, failed: true, rejection: undefined };
+    }
+    const result = call.value;
+    const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
+    const output =
+      raw && checkOutput(relativisePaths(raw, ctx.headDir), deps.lineCounter ?? repoLineCounter(ctx.headDir), deps.warn);
+    const stopped =
+      result.terminalReason === "turns" || result.terminalReason === "timeout" ? result.terminalReason : undefined;
+    if (stopped === "turns")
+      deps.warn(`Batch ${part.index} of ${part.total} hit the ${limits.maxTurns}-turn limit after ${result.turns} turns.`);
+    if (stopped === "timeout")
+      deps.warn(`Batch ${part.index} of ${part.total} was killed after the ${limits.callTimeoutS} s call time limit.`);
+    return {
+      output,
+      budget: result.terminalReason === "budget",
+      /** Ended by the turn cap or the wall-clock kill, not by money or by its own answer. */
+      stopped,
+      turns: result.turns,
+      costUsd: result.costUsd,
+      usage: result.usage ?? NO_USAGE,
+      failed: false,
+      /** The API (or the CLI) refused the call: the class and the text it gave. */
+      rejection:
+        result.isError && result.terminalReason === "error"
+          ? { kind: result.providerError ?? ("other" as ProviderErrorClass), text: result.errorText ?? "" }
+          : undefined,
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
-  const result = call.value;
-  const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
-  const output =
-    raw && checkOutput(relativisePaths(raw, ctx.headDir), deps.lineCounter ?? repoLineCounter(ctx.headDir), deps.warn);
-  const stopped =
-    result.terminalReason === "turns" || result.terminalReason === "timeout" ? result.terminalReason : undefined;
-  if (stopped === "turns")
-    deps.warn(`Batch ${part.index} of ${part.total} hit the ${limits.maxTurns}-turn limit after ${result.turns} turns.`);
-  if (stopped === "timeout")
-    deps.warn(`Batch ${part.index} of ${part.total} was killed after the ${limits.callTimeoutS} s call time limit.`);
-  return {
-    output,
-    budget: result.terminalReason === "budget",
-    /** Ended by the turn cap or the wall-clock kill, not by money or by its own answer. */
-    stopped,
-    turns: result.turns,
-    costUsd: result.costUsd,
-    usage: result.usage ?? NO_USAGE,
-    failed: false,
-    /** The API (or the CLI) refused the call: the class and the text it gave. */
-    rejection:
-      result.isError && result.terminalReason === "error"
-        ? { kind: result.providerError ?? ("other" as ProviderErrorClass), text: result.errorText ?? "" }
-        : undefined,
-  };
 }
 
 /** Where a rate-limited call waits before its one retry, in ms. Overridable through `Deps` so tests do not sleep. */
