@@ -118,6 +118,7 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
       provider,
       config,
       repoDir,
+      engineVersion: readVersion(),
       log: (line) => console.log(line),
       warn: (line) => console.error(line),
     };

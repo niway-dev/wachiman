@@ -32,7 +32,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isAutomatic, operatorProblem, type EngineConfig } from "./config";
+import { isAutomatic, operatorProblem, type EngineConfig, type Trigger } from "./config";
 import {
   EVIDENCE_CAPS,
   addedLinesOf,
@@ -58,11 +58,21 @@ import {
 } from "./contracts";
 import { describeCall } from "./call-message";
 import type { ProviderErrorClass } from "./providers/errors";
-import type { ProviderAdapter } from "./providers/types";
+import type { Effort, ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 
 export type { Profile, ResultFinding, ReviewChange, ReviewFile, ReviewInput, ReviewResult, Stop } from "./formats";
 export { REVIEW_INPUT_FORMAT, REVIEW_RESULT_FORMAT } from "./formats";
+import {
+  REVIEW_INPUT_FORMAT,
+  REVIEW_RESULT_FORMAT,
+  assertReviewInputFormat,
+  type Profile,
+  type ResultFinding,
+  type ReviewInput,
+  type ReviewResult,
+  type Stop,
+} from "./formats";
 
 export interface PrFile {
   filename: string;
@@ -791,7 +801,8 @@ export function renderContracts(contracts: Contract[], room = Number.POSITIVE_IN
 }
 
 export function buildReview(input: {
-  output: ReviewOutput;
+  /** A finding's `anchor`, when given (a `ReviewResult`'s), decides inline or body; else its file's patch does. */
+  output: Omit<ReviewOutput, "findings"> & { findings: (Finding & { anchor?: "diff" | "outside" })[] };
   files: PrFile[];
   headSha: string;
   since: string | null;
@@ -825,7 +836,8 @@ export function buildReview(input: {
   const forInfo = output.findings.filter((f) => f.severity === "info");
   for (const f of output.findings) {
     if (f.severity === "info") continue;
-    if (commentable.get(f.path)?.has(f.line)) {
+    const onLine = f.anchor ? f.anchor === "diff" : commentable.get(f.path)?.has(f.line);
+    if (onLine) {
       comments.push({
         path: f.path,
         line: f.line,
@@ -1915,6 +1927,374 @@ function refuseLeak(deps: Deps, texts: string[]) {
   }
 }
 
+export interface ReviewOptions {
+  /** `min(config.budgetUsd, ceiling room)` in GitHub mode; `config.budgetUsd` for a local run. */
+  totalBudgetUsd: number;
+  batchBudgetUsd: number;
+  batchLines: number;
+  batchChars: number;
+  /** On top of `DEFAULT_EXCLUDE`. */
+  exclude: string[];
+  maxTurns: number;
+  callTimeoutS: number;
+  model: string;
+  effort: Effort;
+  trigger?: Trigger;
+  profile: Profile;
+}
+
+/** Today's settings as the core's options. */
+export function reviewOptionsOf(config: EngineConfig, totalBudgetUsd: number, profile: Profile = "ci"): ReviewOptions {
+  return {
+    totalBudgetUsd,
+    batchBudgetUsd: config.batchBudgetUsd,
+    batchLines: config.batchLines,
+    batchChars: config.batchChars,
+    exclude: config.exclude,
+    maxTurns: config.maxTurns,
+    callTimeoutS: config.callTimeoutS,
+    model: config.model,
+    effort: config.effort,
+    trigger: config.trigger,
+    profile,
+  };
+}
+
+/**
+ * The review core (ADR 0019 decision 1): from a `ReviewInput` to a `ReviewResult`, with no
+ * knowledge of where the change came from or where the result goes. Filtering, scope, batching,
+ * instructions rendering, evidence, data-path questions, the prompt, the provider calls, output
+ * checks, coverage, the one retry, budget arithmetic, merging, the confidence rule, dedupe, the
+ * ADR notices, the anchors and the "not reached" skips are here. Posting is not.
+ */
+export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: CoreDeps): ReviewResult {
+  assertReviewInputFormat(input);
+  const started = Date.now();
+  // Every warning the core logs is also a notice of the result; `runProvider` appends one entry
+  // per provider call (retries included, a call that threw too), so the count is the difference.
+  const notices: string[] = [];
+  const costs = deps.costs ?? [];
+  const callsBefore = costs.length;
+  const core: CoreDeps = {
+    ...deps,
+    costs,
+    warn: (line) => {
+      notices.push(line);
+      deps.warn(line);
+    },
+  };
+  const { change } = input;
+  const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...options.exclude], input.scope);
+  const totalBudget = options.totalBudgetUsd;
+  const batchBudget = options.batchBudgetUsd;
+  const batches = planBatches(kept, {
+    maxLines: options.batchLines,
+    // About 40k tokens at 3.5 characters a token.
+    maxChars: options.batchChars,
+  });
+  const threads = input.conversation ?? [];
+  const threadsByBatch = assignThreads(threads, batches);
+  const everyFile = kept.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
+  // The cost log line names a pull request by its number; a change without one has none.
+  const number = change.identifier?.match(/^#(\d+)$/)?.[1];
+  const context: ReviewContext = {
+    describe: change.describe,
+    headSha: change.head.sha,
+    headDir: input.headDir,
+    since: input.since?.sha ?? null,
+    rebased: input.since?.rebased,
+    paths: input.scope,
+    dropped: dropped.length,
+    everyFile,
+    meta: { title: change.title, body: change.description, author: change.author },
+    instructions: renderInstructions(input.instructions),
+    costTags: { repo: change.repository.name, ...(number ? { pr: Number(number) } : {}) },
+  };
+
+  const parts: { label: string; output: ReviewOutput }[] = [];
+  const reports: BatchReport[] = [];
+  const notRun: string[] = [];
+  let spent = 0;
+  let usage = NO_USAGE;
+  let budgetError = false;
+  let limitError: "turns" | "timeout" | undefined;
+  // The first call the provider refused because the reviewer's account cannot make it (no credit,
+  // bad key, rate limit that outlasted its retry): every later call would fail the same way.
+  let rejection: { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
+  // The first unclassified error, kept for the message of the final throw.
+  let otherError: string | undefined;
+  const rejectedFiles: string[] = [];
+  const noteRejection = (r: BatchResult["rejection"]) => {
+    if (!r) return;
+    if (r.kind === "other") otherError ??= r.text;
+    else rejection ??= { kind: r.kind, text: r.text };
+  };
+
+  batches.forEach((batch, i) => {
+    const label = `Batch ${i + 1} of ${batches.length}`;
+    const remaining = () => totalBudget - spent;
+    if (rejection) {
+      rejectedFiles.push(...batch.files.map((f) => f.filename));
+      reports.push({
+        label,
+        files: batch.files.length,
+        lines: batch.lines,
+        maxRisk: batch.maxRisk,
+        status: "not run: provider rejected the call",
+        turns: 0,
+        costUsd: 0,
+      });
+      return;
+    }
+    if (remaining() < MIN_BATCH_USD) {
+      notRun.push(...batch.files.map((f) => f.filename));
+      reports.push({
+        label,
+        files: batch.files.length,
+        lines: batch.lines,
+        maxRisk: batch.maxRisk,
+        status: "not run: budget spent",
+        turns: 0,
+        costUsd: 0,
+      });
+      return;
+    }
+    const first = reviewBatchBackingOff(
+      core,
+      options,
+      context,
+      batch.files,
+      threadsByBatch[i],
+      { index: i + 1, total: batches.length },
+      Math.min(batchBudget, remaining()),
+    );
+    spent += first.costUsd;
+    usage = addUsage(usage, first.usage);
+    noteRejection(first.rejection);
+    if (first.output) parts.push({ label, output: first.output });
+    if (first.budget) budgetError = true;
+    if (first.stopped) limitError = first.stopped;
+    let status = first.output
+      ? "reviewed"
+      : first.budget
+        ? "ran out of its budget"
+        : first.stopped === "turns"
+          ? "hit the turn limit"
+          : first.stopped === "timeout"
+            ? "timed out"
+            : first.rejection
+              ? "the provider rejected the call"
+            : first.failed
+              ? "the call failed"
+              : "returned no review";
+    let turns = first.turns;
+    let cost = first.costUsd;
+
+    // One retry with only the files the first pass left unaccounted for.
+    const gaps = batchGaps(batch.files, first.output);
+    // After a wall-clock kill the same files would likely run into the same limit, and another
+    // full timeout could exhaust the job's own limit: they are reported as not reviewed instead.
+    // A refused call (no credit, bad key) would be refused again: no retry.
+    if (gaps.length > 0 && first.stopped !== "timeout" && !rejection && remaining() >= MIN_BATCH_USD) {
+      const retry = reviewBatchBackingOff(
+        core,
+        options,
+        context,
+        gaps,
+        [],
+        { index: i + 1, total: batches.length, retry: true },
+        Math.min(batchBudget, remaining()),
+      );
+      spent += retry.costUsd;
+      usage = addUsage(usage, retry.usage);
+      turns += retry.turns;
+      cost += retry.costUsd;
+      noteRejection(retry.rejection);
+      if (retry.output) parts.push({ label: `${label}, retry`, output: retry.output });
+      const left = batchGaps(gaps, retry.output);
+      status =
+        left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
+    } else if (gaps.length > 0) {
+      status = rejection
+        ? `${gaps.length} file(s) left: the provider rejected the call`
+        : first.stopped === "timeout"
+          ? `${gaps.length} file(s) left: the call timed out`
+          : `${gaps.length} file(s) left: budget spent`;
+    }
+    reports.push({
+      label,
+      files: batch.files.length,
+      lines: batch.lines,
+      maxRisk: batch.maxRisk,
+      status,
+      turns,
+      costUsd: cost,
+    });
+  });
+
+  const merged: ReviewOutput =
+    parts.length > 0
+      ? mergeOutputs(parts)
+      : { files_reviewed: [], files_skipped: [], findings: [], contracts: [], thread_replies: [], summary: "" };
+  if (parts.length > 0) {
+    const ruled = enforceConfidenceRule(merged.findings);
+    if (ruled.rewritten > 0)
+      core.log(
+        `Confidence rule: ${ruled.rewritten} finding(s) with low confidence at severity fix or above posted as questions.`,
+      );
+    // The engine's notices come first so that, on a tie with the model's own, its wording is kept.
+    // The rule runs before this pass so that a rewritten question and another question on its line collapse.
+    merged.findings = dedupeFindings([
+      ...adrNotices(kept.map((f) => f.filename)),
+      ...ruled.findings,
+    ]);
+  }
+  for (const path of notRun)
+    merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
+  for (const path of rejectedFiles)
+    merged.files_skipped.push({ path, reason: "not reached: the provider rejected the call" });
+
+  // The anchor is decided here, so a sink needs no patch to know which findings sit on a diff line.
+  const commentable = new Map(kept.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
+  const findings: ResultFinding[] = merged.findings.map((f) => ({
+    ...f,
+    anchor: commentable.get(f.path)?.has(f.line) ? "diff" : "outside",
+  }));
+  // Only threads the connector handed over: an id the model made up would reply elsewhere.
+  const known = new Set(threads.map((t) => t.comment_id));
+  const threadReplies = merged.thread_replies.filter((r) => known.has(r.comment_id));
+
+  // Assigned inside the loop's callbacks, which the compiler does not follow.
+  const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
+  const other = otherError as string | undefined;
+  const firstRejection = refused ?? (other !== undefined ? { kind: "other" as const, text: other } : undefined);
+  // Decision 5 of the extraction plan, in today's precedence: a refused account stops everything; a
+  // review with output is complete (coverage says whether it is partial); otherwise the limit that
+  // ended the calls.
+  const stop: Stop =
+    refused?.kind === "billing" || refused?.kind === "rate_limit"
+      ? "quota"
+      : parts.length > 0
+        ? "complete"
+        : limitError && !budgetError
+          ? limitError
+          : budgetError
+            ? "budget"
+            : "error";
+  const expected = kept.map((f) => f.filename);
+  const reviewedSet = new Set(merged.files_reviewed);
+  return {
+    format: REVIEW_RESULT_FORMAT,
+    change,
+    engine: { version: deps.engineVersion ?? "unknown" },
+    provider: { label: deps.provider.modelLabel(), model: options.model, effort: options.effort, profile: options.profile },
+    coverage: {
+      expected,
+      reviewed: merged.files_reviewed,
+      skipped: merged.files_skipped,
+      excluded: dropped.length,
+      partial: expected.some((f) => !reviewedSet.has(f)),
+    },
+    findings,
+    contracts: merged.contracts ?? [],
+    summary: merged.summary,
+    batches: reports,
+    threadReplies,
+    instructionChanges: {
+      files: changedInstructionFiles(input.files.map((f) => f.filename)),
+      baseSha: input.instructions.baseSha,
+    },
+    execution: {
+      costUsdEstimate: spent,
+      usage,
+      calls: costs.length - callsBefore,
+      callsWithOutput: parts.length,
+      turns: reports.reduce((sum, r) => sum + r.turns, 0),
+      durationMs: Date.now() - started,
+      stop,
+      ...(firstRejection ? { rejection: firstRejection } : {}),
+      notices,
+    },
+  };
+}
+
+/** The GitHub connector: today's pull request facts as a `ReviewInput`. Pure; `review()` read them. */
+export function githubReviewInput(p: {
+  repo: string;
+  pr: number;
+  headSha: string;
+  baseSha: string;
+  meta: { title?: string; body?: string; author?: { login?: string } | null };
+  files: PrFile[];
+  instructions: BaseInstructions;
+  headDir: string;
+  scope: string[];
+  since: string | null;
+  rebased: boolean;
+  threads: Thread[];
+}): ReviewInput {
+  return {
+    format: REVIEW_INPUT_FORMAT,
+    change: {
+      kind: "pull-request",
+      describe: `pull request #${p.pr} in ${p.repo}`,
+      repository: { name: p.repo, url: `https://github.com/${p.repo}` },
+      base: { sha: p.baseSha },
+      head: { sha: p.headSha },
+      title: p.meta.title,
+      description: p.meta.body,
+      author: p.meta.author?.login ?? undefined,
+      identifier: `#${p.pr}`,
+    },
+    files: p.files,
+    instructions: p.instructions,
+    headDir: p.headDir,
+    scope: p.scope,
+    ...(p.since ? { since: { sha: p.since, rebased: p.rebased } } : {}),
+    ...(p.threads.length > 0 ? { conversation: p.threads } : {}),
+  };
+}
+
+/** The GitHub sink: a `ReviewResult` as the review `postReview` posts, through `buildReview`. */
+export function githubReview(
+  result: ReviewResult,
+  github: {
+    since: string | null;
+    rebased: boolean;
+    scoped: boolean;
+    mention: string;
+    automatic: boolean;
+    /** Computed by the connector from every file of the pull request, not only the reviewed ones. */
+    instructionChanges: { files: string[]; baseSha: string };
+  },
+): Review {
+  return buildReview({
+    output: {
+      files_reviewed: result.coverage.reviewed,
+      files_skipped: result.coverage.skipped,
+      findings: result.findings,
+      contracts: result.contracts,
+      thread_replies: result.threadReplies,
+      summary: result.summary,
+    },
+    // Names only: each finding carries its anchor, so no patch is needed.
+    files: result.coverage.expected.map((filename) => ({ filename, additions: 0, deletions: 0 })),
+    headSha: result.change.head.sha,
+    since: github.since,
+    rebased: github.rebased,
+    scoped: github.scoped,
+    costUsd: result.execution.costUsdEstimate,
+    usage: result.execution.usage,
+    operation: github.since ? "re-review" : "review",
+    batches: result.batches,
+    modelLabel: result.provider.label,
+    effort: result.provider.effort,
+    automatic: github.automatic,
+    mention: github.mention,
+    instructionChanges: github.instructionChanges,
+  });
+}
+
 export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   const { gh, config } = deps;
   const meta = JSON.parse(
@@ -2059,168 +2439,45 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   // After the rebase exits above (they cost nothing and move the marker) and before any paid step.
   const room = ceilingRoom(deps, repo, pr, headSha);
   if (room === null) return;
-  const instructions = readBaseInstructions(gh, repo, baseSha(gh, repo, pr), deps.warn);
+  const base = baseSha(gh, repo, pr);
+  const instructions = readBaseInstructions(gh, repo, base, deps.warn);
   const totalBudget = Math.min(config.budgetUsd, room);
   const batchBudget = config.batchBudgetUsd;
-  const batches = planBatches(kept, {
-    maxLines: config.batchLines,
-    // About 40k tokens at 3.5 characters a token.
-    maxChars: config.batchChars,
-  });
   const threads = last ? openThreads(gh, repo, pr) : [];
-  const threadsByBatch = assignThreads(threads, batches);
-  const everyFile = kept.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
-  const context: ReviewContext = {
-    describe: `pull request #${pr} in ${repo}`,
+  const input = githubReviewInput({
+    repo,
+    pr,
     headSha,
+    baseSha: base,
+    meta,
+    files,
+    instructions,
     headDir: deps.repoDir ?? process.cwd(),
+    scope: paths,
     since,
     rebased,
-    paths,
-    dropped: dropped.length,
-    everyFile,
-    meta: { title: meta.title, body: meta.body, author: meta.author?.login },
-    instructions: renderInstructions(instructions),
-    costTags: { repo, pr },
-  };
-
-  const parts: { label: string; output: ReviewOutput }[] = [];
-  const reports: BatchReport[] = [];
-  const notRun: string[] = [];
-  let spent = 0;
-  let usage = NO_USAGE;
-  const operation: Operation = since ? "re-review" : "review";
-  let budgetError = false;
-  let limitError: "turns" | "timeout" | undefined;
-  // The first call the provider refused because the reviewer's account cannot make it (no credit,
-  // bad key, rate limit that outlasted its retry): every later call would fail the same way.
-  let rejection: { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
-  // The first unclassified error, kept for the message of the final throw.
-  let otherError: string | undefined;
-  const rejectedFiles: string[] = [];
-  const noteRejection = (r: BatchResult["rejection"]) => {
-    if (!r) return;
-    if (r.kind === "other") otherError ??= r.text;
-    else rejection ??= { kind: r.kind, text: r.text };
-  };
-
-  batches.forEach((batch, i) => {
-    const label = `Batch ${i + 1} of ${batches.length}`;
-    const remaining = () => totalBudget - spent;
-    if (rejection) {
-      rejectedFiles.push(...batch.files.map((f) => f.filename));
-      reports.push({
-        label,
-        files: batch.files.length,
-        lines: batch.lines,
-        maxRisk: batch.maxRisk,
-        status: "not run: provider rejected the call",
-        turns: 0,
-        costUsd: 0,
-      });
-      return;
-    }
-    if (remaining() < MIN_BATCH_USD) {
-      notRun.push(...batch.files.map((f) => f.filename));
-      reports.push({
-        label,
-        files: batch.files.length,
-        lines: batch.lines,
-        maxRisk: batch.maxRisk,
-        status: "not run: budget spent",
-        turns: 0,
-        costUsd: 0,
-      });
-      return;
-    }
-    const first = reviewBatchBackingOff(
-      deps,
-      config,
-      context,
-      batch.files,
-      threadsByBatch[i],
-      { index: i + 1, total: batches.length },
-      Math.min(batchBudget, remaining()),
-    );
-    spent += first.costUsd;
-    usage = addUsage(usage, first.usage);
-    noteRejection(first.rejection);
-    if (first.output) parts.push({ label, output: first.output });
-    if (first.budget) budgetError = true;
-    if (first.stopped) limitError = first.stopped;
-    let status = first.output
-      ? "reviewed"
-      : first.budget
-        ? "ran out of its budget"
-        : first.stopped === "turns"
-          ? "hit the turn limit"
-          : first.stopped === "timeout"
-            ? "timed out"
-            : first.rejection
-              ? "the provider rejected the call"
-            : first.failed
-              ? "the call failed"
-              : "returned no review";
-    let turns = first.turns;
-    let cost = first.costUsd;
-
-    // One retry with only the files the first pass left unaccounted for.
-    const gaps = batchGaps(batch.files, first.output);
-    // After a wall-clock kill the same files would likely run into the same limit, and another
-    // full timeout could exhaust the job's own limit: they are reported as not reviewed instead.
-    // A refused call (no credit, bad key) would be refused again: no retry.
-    if (gaps.length > 0 && first.stopped !== "timeout" && !rejection && remaining() >= MIN_BATCH_USD) {
-      const retry = reviewBatchBackingOff(
-        deps,
-        config,
-        context,
-        gaps,
-        [],
-        { index: i + 1, total: batches.length, retry: true },
-        Math.min(batchBudget, remaining()),
-      );
-      spent += retry.costUsd;
-      usage = addUsage(usage, retry.usage);
-      turns += retry.turns;
-      cost += retry.costUsd;
-      noteRejection(retry.rejection);
-      if (retry.output) parts.push({ label: `${label}, retry`, output: retry.output });
-      const left = batchGaps(gaps, retry.output);
-      status =
-        left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
-    } else if (gaps.length > 0) {
-      status = rejection
-        ? `${gaps.length} file(s) left: the provider rejected the call`
-        : first.stopped === "timeout"
-          ? `${gaps.length} file(s) left: the call timed out`
-          : `${gaps.length} file(s) left: budget spent`;
-    }
-    reports.push({
-      label,
-      files: batch.files.length,
-      lines: batch.lines,
-      maxRisk: batch.maxRisk,
-      status,
-      turns,
-      costUsd: cost,
-    });
+    threads,
   });
+  const result = reviewChange(input, reviewOptionsOf(config, totalBudget), deps);
+  const { usage, costUsdEstimate: spent } = result.execution;
+  const operation: Operation = since ? "re-review" : "review";
 
-  if (parts.length === 0) {
+  if (result.execution.callsWithOutput === 0) {
     // A failed automatic run still spent money: its notice carries the cost line the ceiling sums.
     const spentNotice = (text: string) =>
       isAutomatic(config.trigger)
         ? postReview(deps, repo, pr, headSha, {
             body: [
               branded(text),
-              costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation, usage, costUsd: spent }),
+              costLine({ modelLabel: result.provider.label, effort: config.effort, operation, usage, costUsd: spent }),
               SIGNATURE.auto,
               SIGNATURE.review,
             ].join("\n\n"),
             comments: [],
           })
         : bodyOnly(text);
-    const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
+    const { rejection, stop } = result.execution;
+    const refused = rejection && rejection.kind !== "other" ? { kind: rejection.kind, text: rejection.text } : undefined;
     if (refused) {
       const headline = {
         billing: "**Not reviewed: the reviewer's Anthropic account has no credit.** Top up, then re-run this job.",
@@ -2235,9 +2492,9 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       }
       return;
     }
-    if (limitError && !budgetError) {
+    if (stop === "turns" || stop === "timeout") {
       const why =
-        limitError === "turns"
+        stop === "turns"
           ? `hit its turn limit (${config.maxTurns} turns a call)`
           : `was killed at the ${config.callTimeoutS} s time limit on a call`;
       spentNotice(
@@ -2245,63 +2502,35 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       );
       return;
     }
-    if (budgetError) {
+    if (stop === "budget") {
       spentNotice(
         `**The agent ran out of its budget** ($${batchBudget} a batch, $${totalBudget} the pull request) before finishing any batch: nothing here was reviewed reliably. Review part of it: \`${config.mention} review <path> [path…]\`.`,
       );
       return;
     }
+    const otherError = rejection?.kind === "other" ? rejection.text : undefined;
     throw new Error(
       `The agent did not return a review for any batch.${otherError === undefined ? "" : ` Provider error (other): ${oneLine(otherError, 300) || "no error text"}`}`,
     );
   }
-  const merged = mergeOutputs(parts);
-  const ruled = enforceConfidenceRule(merged.findings);
-  if (ruled.rewritten > 0)
-    deps.log(
-      `Confidence rule: ${ruled.rewritten} finding(s) with low confidence at severity fix or above posted as questions.`,
-    );
-  // The engine's notices come first so that, on a tie with the model's own, its wording is kept.
-  // The rule runs before this pass so that a rewritten question and another question on its line collapse.
-  merged.findings = dedupeFindings([
-    ...adrNotices(kept.map((f) => f.filename)),
-    ...ruled.findings,
-  ]);
-  for (const path of notRun)
-    merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
-  for (const path of rejectedFiles)
-    merged.files_skipped.push({ path, reason: "not reached: the provider rejected the call" });
-
-  const built = buildReview({
-    output: merged,
-    files: kept,
-    headSha,
+  const built = githubReview(result, {
     since,
     rebased,
     scoped: paths.length > 0,
-    costUsd: spent,
-    usage,
-    operation,
-    batches: reports,
-    modelLabel: deps.provider.modelLabel(),
-    effort: config.effort,
-    automatic: isAutomatic(config.trigger),
     mention: config.mention,
+    automatic: isAutomatic(config.trigger),
     instructionChanges: {
       files: changedInstructionFiles(prFiles.map((f) => f.filename)),
       baseSha: instructions.baseSha,
     },
   });
-  // Only threads the script handed over: an id the model made up would reply elsewhere.
-  const known = new Set(threads.map((t) => t.comment_id));
-  const replies = merged.thread_replies.filter((r) => known.has(r.comment_id));
   refuseLeak(deps, [
     built.body,
     ...built.comments.map((c) => c.body),
-    ...replies.map((r) => r.reply),
+    ...result.threadReplies.map((r) => r.reply),
   ]);
   postReview(deps, repo, pr, headSha, built);
-  for (const r of replies) {
+  for (const r of result.threadReplies) {
     const label = r.status === "addressed" ? "Looks addressed" : "Still open";
     if (config.dryRun) {
       deps.log(`--- reply to ${r.comment_id}: ${label} ---\n${r.reply}`);
