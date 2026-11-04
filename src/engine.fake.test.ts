@@ -17,6 +17,7 @@ import {
   type ReviewOutput,
 } from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
+import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts";
 
 /** Plays back one scripted answer per call and records what the engine asked for. */
 class FakeProvider implements ProviderAdapter {
@@ -32,6 +33,7 @@ class FakeProvider implements ProviderAdapter {
   }
   run(request: ProviderRequest): ProviderResult {
     this.requests.push(request);
+    recordPrompt("engine.fake", request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
     return {
@@ -45,6 +47,8 @@ class FakeProvider implements ProviderAdapter {
     };
   }
 }
+
+checkGoldenPrompts("engine.fake");
 
 const out = (over: Partial<ReviewOutput>): ReviewOutput => ({
   files_reviewed: [],

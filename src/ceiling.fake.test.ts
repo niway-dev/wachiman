@@ -20,6 +20,7 @@ import { join } from "node:path";
 import { ClaudeCodeProvider } from "./providers/claude-code";
 import { CodexProvider } from "./providers/codex";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
+import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts";
 
 // ADR 0012, part A: one ceiling for all automatic runs on a pull request, summed from the
 // engine's own signed footers.
@@ -37,11 +38,14 @@ class FakeProvider implements ProviderAdapter {
   }
   run(request: ProviderRequest): ProviderResult {
     this.requests.push(request);
+    recordPrompt("ceiling.fake", request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
     return { costUsd: 0, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, ...step(request) };
   }
 }
+
+checkGoldenPrompts("ceiling.fake");
 
 const out = (over: Partial<ReviewOutput>): ReviewOutput => ({
   files_reviewed: ["a.ts"],
