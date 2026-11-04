@@ -122,8 +122,9 @@ export function readInputFile(path: string): Omit<ReviewInput, "headDir"> {
   if (!instr || !isString(instr.baseSha) || !Array.isArray(instr.files)) problems.push("instructions");
   if (!Array.isArray(input.scope) || input.scope.some((s: unknown) => !isString(s))) problems.push("scope");
   if (problems.length > 0) throw new UsageError(`--input ${path} is missing or mistypes: ${problems.join(", ")}.`);
-  const { headDir: _ignored, ...rest } = input;
-  return rest as Omit<ReviewInput, "headDir">;
+  // In memory only (docs/formats): the head the agent reads is always the engine's own snapshot.
+  if ("headDir" in input) throw new UsageError(`--input ${path} carries headDir, which a review input file never holds.`);
+  return input as Omit<ReviewInput, "headDir">;
 }
 
 /** Exit code for a finished review (decision 8). */

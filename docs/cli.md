@@ -1,6 +1,7 @@
 # Command-line contract
 
-`agent-review` is one command with three subcommands. The reusable workflow and the copied caller
+`agent-review` is one command with four subcommands: three for GitHub and `local`, which reviews a
+branch on your own machine and posts nothing. The reusable workflow and the copied caller
 workflow both run exactly this; anything else that wants to drive a review can too. Every setting
 it reads is listed in [configuration.md](configuration.md); this page covers the commands, what
 they post and how they exit.
@@ -9,6 +10,9 @@ they post and how they exit.
 bun src/cli.ts review <pr> [paths…] [--repo-dir <dir>]
 bun src/cli.ts comment <pr> [--repo-dir <dir>]   # the comment text comes from $REQUEST
 bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman threads, no review
+bun src/cli.ts local [paths…] [--base <ref>] [--repo-dir <dir>] [--input <file>] \
+  [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
+bun src/cli.ts --setup-profile [<name>]          # sign in an isolated profile for `local`
 bun src/cli.ts --help
 bun src/cli.ts --version
 ```
@@ -19,8 +23,8 @@ engine uses `Bun.Glob`), and so are the `gh` CLI and the provider's binary on th
 
 Argument rules, as implemented:
 
-- The command (`review`, `comment` or `threads`) must be the first argument. `--help`/`-h` and
-  `--version`/`-v` are recognised only as the first argument too.
+- The command (`review`, `comment`, `threads` or `local`) must be the first argument. `--help`/`-h`,
+  `--version`/`-v` and `--setup-profile` are recognised only as the first argument too.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
   rest are read, so it is never taken for a path.
@@ -52,6 +56,8 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `review <pr> [paths…]` | Reviews the pull request and posts one GitHub review with inline comments, then replies in its own open threads when there is work to do. See "Incremental reviews" and "Scope" below. |
 | `comment <pr>` | Routes the operator's comment (from `REQUEST`) to a review, an answer or nothing. See "What `comment` does" below. |
 | `threads <pr>` | Answers the Wachiman threads that wait for an answer, with no review, and only when the pull request's head was already reviewed. See "What `threads` does" below. |
+| `local [paths…]` | Reviews the committed branch of a clone on your own signed-in `claude` and prints the review; no GitHub call, nothing posted. See [`local`](#local) below and [the guide](local-review.md). |
+| `--setup-profile [<name>]` | Creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in, for `local --profile isolated[:<name>]`. |
 
 ### Incremental reviews
 
@@ -126,6 +132,37 @@ The checks run in this order, and each "exits 0" ends the run without a model ca
 
 Like `comment`, `threads` needs a working provider binary and credential before it checks anything.
 
+### `local`
+
+`local` reviews `merge-base(base, HEAD) → HEAD` of the clone given by `--repo-dir` (default: the
+current directory): the committed change only, read from a `git archive` snapshot of the head, so
+edits made during the run change nothing. It builds the same `ReviewInput` the GitHub mode
+builds, with the `local-git` connector, and sends the same prompt
+([architecture](architecture.md#the-review-core-and-its-ports)).
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `--base <ref>` | `origin/HEAD` when it resolves, else `main` | The branch the change is compared with. No fetch is made |
+| `[paths…]` | the whole change | Only the changed files under these paths; a word that names no changed file is ignored with a line on stderr |
+| `--input <file>` | none | A `wachiman.review-input/1` file ([formats](formats/README.md)) instead of the local diff; its `change.head.sha` is snapshotted from `--repo-dir`. Takes no `--base` and no paths |
+| `--format terminal\|markdown\|json` | `terminal` | Plain text; a Markdown report with every finding and the prompt for your agent; or the `ReviewResult` JSON |
+| `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
+| `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
+| `--profile default\|isolated[:<name>]` | `default` | `default` is your own `claude`; `isolated` (the name `isolated`) or `isolated:<name>` uses `~/.wachiman/claude-<name>`, which must exist and hold nothing but a sign-in |
+
+Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
+merge-base and the head (`base: main (1a2b3c4)`, `merge-base: …`, `head: feat/x (…)`), the file
+count and the number of batches on stderr; the provider's progress follows there too. **It
+prints, never posts:** the report goes to stdout (or `--output`), so `--format json` on stdout is
+the result alone.
+
+It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `AGENT_REVIEW_PROVIDER`
+is not `claude-code`, for a detached or unborn `HEAD`, a base with no merge-base, a refused
+isolated profile, or an `--input` whose format is not `/1` or whose head is not in the clone.
+Each `claude` call runs in subscription mode: no key, `USER` and the no-telemetry switches in its
+environment, `--no-session-persistence` (see
+[providers/claude-code.md](providers/claude-code.md#in-local-mode-auth-subscription)).
+
 ## What it posts
 
 - `review`: one GitHub review with the event `COMMENT`, never an approval or a change request. Its
@@ -171,15 +208,15 @@ scanner. See [SECURITY.md](../SECURITY.md).
 
 ## Environment
 
-Required for all commands:
+Required for `review`, `comment` and `threads`:
 
 | Variable | Meaning |
 | --- | --- |
-| `GH_TOKEN` | Token for `gh`. It is never given to the agent. |
-| `GITHUB_REPOSITORY` | `owner/name` of the repository. |
+| `GH_TOKEN` | Token for `gh`. It is never given to the agent. Not read by `local` or `--setup-profile`. |
+| `GITHUB_REPOSITORY` | `owner/name` of the repository. Not read by `local` or `--setup-profile`. |
 | `REQUEST` | `comment` only: the comment text. Pass it through the environment, never interpolated into a shell command. |
 | `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs. |
-| Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`. For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. |
+| Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`. For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
 
 The `gh` CLI and the provider's binary (`claude` for `claude-code`, `codex` for `codex`) must be on
 the `PATH`.
@@ -313,6 +350,15 @@ says `Already reviewed` instead of repeating the replies that failed.
 
 A batch that fails or overruns does not end the review: the batches that ran are posted and the
 rest are listed as not reviewed.
+
+`local` has its own codes:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | A report was printed: complete, partial, or ended by the account's usage limit (`stop: quota`) |
+| `1` | No call returned a review (a refused sign-in, an unclassified error, every batch failed), after printing the report that says why; or the `claude` binary did not run |
+| `2` | Usage error: an unknown option or format, `ANTHROPIC_API_KEY` set, a provider other than `claude-code`, a refused or missing isolated profile, no merge-base, a detached or unborn `HEAD`, an `--input` of another format or whose head is not in the clone |
+| `130` | Interrupted with `Ctrl-C`; the snapshot was removed |
 
 Which exit code you get follows the order of the checks in `main`:
 

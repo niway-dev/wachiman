@@ -147,7 +147,7 @@ describe("renderTerminal", () => {
     expect(out).not.toMatch(/\x1b\[/);
     const lines = out.split("\n");
     expect(lines[0]).toBe(`Wachiman · review of ${r.change.describe}, at ${SHA7}: all 4 files reviewed.`);
-    expect(lines[1]).toBe("profile: default — your own signed-in `claude`");
+    expect(lines[1]).toBe("profile: default — your own signed-in `claude`; its plugins are untested and could reach the review");
     expect(lines[2]).toBe(countLine(r.findings));
     expect(out).toContain(
       "apps/api/src/main/session/store.ts:2  🟠🐛 Fix · bug: The store drops the last session (confidence high)\n    `y` overwrites `x` before it is flushed.",

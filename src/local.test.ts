@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
 import { localFiles } from "./connectors/local-git";
-import { parseLocalArgs } from "./local";
+import { parseLocalArgs, readInputFile } from "./local";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
 import { A_HEAD, branchRepo, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
 
@@ -158,6 +158,25 @@ describe("parseLocalArgs", () => {
     expect(parseLocalArgs(["--input", file]).input).toBe(file);
     expect(() => parseLocalArgs(["--input", file, "src"])).toThrow("takes no --base and no paths");
     expect(() => parseLocalArgs(["--input", file, "--base", "main"])).toThrow(UsageError);
+  });
+});
+
+describe("readInputFile", () => {
+  const fixture = () => JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+  const file = (value: unknown) => {
+    const path = join(temp("wachiman-input-"), "in.json");
+    writeFileSync(path, typeof value === "string" ? value : JSON.stringify(value));
+    return path;
+  };
+
+  test("reads a valid file, and refuses one that is not JSON, of another format, mistyped, or with headDir", () => {
+    expect(readInputFile(file(fixture())).change.kind).toBe("branch");
+    expect(() => readInputFile(file("{"))).toThrow("is not JSON");
+    expect(() => readInputFile(file({ ...fixture(), format: "wachiman.review-input/2" }))).toThrow(UsageError);
+    expect(() => readInputFile(file({ ...fixture(), files: [{ filename: "a" }] }))).toThrow("files");
+    expect(() => readInputFile(file({ ...fixture(), change: { ...fixture().change, head: { sha: "nope" } } }))).toThrow("change.head.sha");
+    expect(() => readInputFile(file({ ...fixture(), scope: [1] }))).toThrow("scope");
+    expect(() => readInputFile(file({ ...fixture(), headDir: "/tmp/x" }))).toThrow("headDir");
   });
 });
 

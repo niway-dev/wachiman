@@ -26,11 +26,19 @@ The JSON Schemas are the contract; the TypeScript types in `src/formats.ts` foll
 input in memory only. A connector sets it when it hands the input to the core; it is not in the
 schema, and a file that carries it is invalid.
 
-## Producers and consumers on `main`
+## Producers and consumers
 
-Only the GitHub connector (`githubReviewInput`) and the GitHub sink (`githubReview`) exist. No
-command reads or writes these files yet; the local connector and the terminal, Markdown and JSON
-sinks are the next pull request (spec [2026-11-03-local-review-design.md](../specs/2026-11-03-local-review-design.md)).
+- **Input.** The GitHub connector (`githubReviewInput`) and the `local-git` connector
+  (`buildLocalInput`, `src/connectors/local-git.ts`) build it in memory. `agent-review local
+  --input <file> --repo-dir <clone>` reads one from a file: it checks the format and the fields
+  the core reads, refuses a file that carries `headDir`, and snapshots `change.head.sha` from the
+  clone ([the local review guide](../local-review.md)).
+- **Result.** The GitHub sink (`githubReview`) renders it as a pull request review;
+  `agent-review local --format json` writes it as is, and `--format terminal` and `markdown`
+  render it (`src/sinks/`).
+
+Added by [#112](https://github.com/niway-dev/wachiman/pull/112) (not merged); spec
+[2026-11-03-local-review-design.md](../specs/2026-11-03-local-review-design.md).
 
 Example files that validate against the schemas: `test/fixtures/formats/`; `src/formats.test.ts`
 checks them.

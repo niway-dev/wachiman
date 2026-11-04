@@ -87,6 +87,14 @@ repository to a posted review. The caller file itself is
 Already copied the engine into a repository? That setup still runs, and
 [docs/setup-copy.md](docs/setup-copy.md) explains how to move to the maintained workflow.
 
+### Review locally on your own subscription
+
+`agent-review local` reviews the branch you have checked out, on your own signed-in `claude`, and
+prints the review in the terminal or writes it as Markdown or JSON. No API key, no GitHub token,
+nothing posted: Wachiman sends no telemetry and makes no GitHub requests in local mode; your code
+is sent to your configured Claude account for the review. Read
+[docs/local-review.md](docs/local-review.md) before running it on an employer's code.
+
 ## Documentation map
 
 | I want to… | Read |
@@ -102,6 +110,7 @@ Already copied the engine into a repository? That setup still runs, and
 | Turn it off and remove it | [docs/uninstall.md](docs/uninstall.md) |
 | Quick answers and limitations | [docs/faq.md](docs/faq.md) |
 | Run the engine from the command line | [docs/cli.md](docs/cli.md) |
+| Review a branch on my laptop, on my own Claude subscription | [docs/local-review.md](docs/local-review.md) |
 | See what a provider adapter runs and inherits | [docs/providers/claude-code.md](docs/providers/claude-code.md), [docs/providers/codex.md](docs/providers/codex.md) |
 | Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
 | Understand how a review is built | [docs/architecture.md](docs/architecture.md) |

@@ -262,6 +262,24 @@ after new commits it reviews only what changed. `AGENT_REVIEW_FULL_REVIEW=1` (wi
 printed and not posted. To review a branch without GitHub at all, use
 [`agent-review local`](local-review.md).
 
+### Local mode
+
+[`agent-review local`](local-review.md) reads the same environment, but only part of it applies.
+A person runs it by hand, so it is never an automatic run, and it has no pull request, so nothing
+GitHub-side applies.
+
+- **Apply:** `AGENT_REVIEW_BUDGET_USD` (the whole run, counted in the API-equivalent estimate, $3
+  by default), `AGENT_REVIEW_BATCH_BUDGET_USD`, `AGENT_REVIEW_BATCH_LINES`,
+  `AGENT_REVIEW_BATCH_CHARS`, `AGENT_REVIEW_MODEL`, `AGENT_REVIEW_EFFORT`,
+  `AGENT_REVIEW_MAX_TURNS`, `AGENT_REVIEW_CALL_TIMEOUT_S` and `AGENT_REVIEW_EXCLUDE`.
+- **Do not apply:** `AGENT_REVIEW_AUTO_BUDGET_USD` (no ceiling), `AGENT_REVIEW_THREADS_BUDGET_USD`,
+  `AGENT_REVIEW_OPERATOR`, `AGENT_REVIEW_MENTION`, `AGENT_REVIEW_TRIGGER` (ignored: the run is a
+  person's) and `AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE` (a refused call is the `stop:` line of the
+  report and the exit code).
+- **Refused:** `AGENT_REVIEW_PROVIDER` other than `claude-code`, and `ANTHROPIC_API_KEY` set: both
+  exit 2 before any call. `AGENT_REVIEW_DRY_RUN` changes nothing, since nothing is posted anyway;
+  `AGENT_REVIEW_FULL_REVIEW` without a dry run is still a usage error.
+
 ## Other environment variables
 
 Read directly, not through `loadConfig`.

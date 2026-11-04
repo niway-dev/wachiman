@@ -108,7 +108,22 @@ code, is not written to the profile's `projects/`. The OAuth token is never read
 binary finds its own sign-in through `HOME`, `USER` and `CLAUDE_CONFIG_DIR`. A signed-out
 `claude` fails the first call with "Not logged in · Please run /login", which
 `src/providers/errors.ts` classifies as `auth`; the run then ends with `stop: "error"` and that
-text. A usage limit is `billing`, and the run ends with `stop: "quota"`.
+text. A usage limit is `billing`, and the run ends with `stop: "quota"`. If `claude` dies of
+`SIGINT` or `SIGTERM` (a `Ctrl-C` reaches the whole process group), the adapter throws
+`InterruptedError` in this mode only, and `local` stops the review instead of trying the next
+batch.
+
+**Profiles.** `--profile default` runs your `claude` as your shell would, with its configuration
+directory (`CLAUDE_CONFIG_DIR` passes through). `--profile isolated[:<name>]` forces
+`CLAUDE_CONFIG_DIR` to `~/.wachiman/claude-<name>`, created by `agent-review --setup-profile
+[<name>]`, which starts `claude` there, from an empty directory and without a shell, for
+`/login`. Before a run, `src/profiles.ts` refuses an isolated profile that holds `CLAUDE.md`,
+`hooks/`, `skills/`, `agents/`, `commands/`, `.mcp.json`, or a `settings.json` with hooks or MCP
+servers. It reads `settings.json` for those two keys and checks the rest by name; it never opens
+`.credentials.json`, `.claude.json` or the keychain. User MCP servers in `.claude.json` are not
+checked, since `--strict-mcp-config` ignores them in every call. Every customisation listed here
+is already neutralised by `--restricted` and `--strict-mcp-config`; the check keeps the word
+"isolated" true.
 
 
 The footer label is built from the model name and `claude --version`, for example "Claude Sonnet

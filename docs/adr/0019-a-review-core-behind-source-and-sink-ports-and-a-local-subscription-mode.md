@@ -2,8 +2,10 @@
 
 - **Status:** proposed 2026-11-03; the extraction (decision 1, the GitHub sink of decision 3, the
   formats of decision 9) is implemented by PR [#111](https://github.com/niway-dev/wachiman/pull/111);
-  the local connector, the other sinks, the subscription mode and the `local` command are not on
-  `main`. Amends
+  decisions 2–9 (the subscription mode, the `local-git` connector, the terminal, Markdown and JSON
+  sinks, the profiles and the `local` command) are implemented by PR
+  [#112](https://github.com/niway-dev/wachiman/pull/112), stacked on #111; neither is merged. Level
+  (c) of the validation (the owner's run on kaipu-record #386) is not yet recorded. Amends
   [ADR 0001](0001-distribution-and-trust.md) decision 7 (the provider adapter was the only
   boundary) and its trust model (which assumed a CI job holding an API key).
 - **Date:** 2026-11-03

@@ -286,10 +286,11 @@ All names are in `src/engine.ts` unless a file is given.
 ## The review core and its ports
 
 [ADR 0019](adr/0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
-decision 1 cuts the pipeline above into a source-neutral core and two adapters around it. Only
-the GitHub connector and sink exist on `main`; the local connector and the terminal, Markdown and
-JSON sinks are PR L ([spec](specs/2026-11-03-local-review-design.md)). The two formats are public
-and versioned: see [docs/formats](formats/README.md).
+decision 1 cuts the pipeline above into a source-neutral core and two adapters around it: the
+GitHub connector and sink, and the `local-git` connector with the terminal, Markdown and JSON
+sinks of `agent-review local` (added by [#112](https://github.com/niway-dev/wachiman/pull/112),
+[spec](specs/2026-11-03-local-review-design.md)). The two formats are public and versioned: see
+[docs/formats](formats/README.md).
 
 **`ReviewInput`** (`wachiman.review-input/1`, `src/formats.ts`). Required: `change.describe`, the
 sentence the prompt's first line uses ("pull request #7 in o/r"); `change.head.sha`;
@@ -335,6 +336,43 @@ the input's files, which an incremental review narrows). `buildReview` puts a fi
 its `anchor` is `diff`, so the sink needs no patch. Then `refuseLeak`, `postReview` and the reply
 POSTs run as before. When `callsWithOutput` is 0, `review()` posts the no-review notices from
 `execution.rejection` and `execution.stop` instead.
+
+**The `local-git` connector** (`src/connectors/local-git.ts`, `buildLocalInput`) builds the
+same `ReviewInput` from a clone, reading it with `git` only (the minimal environment of
+`spawnGit`; no fetch, nothing written to the clone):
+
+1. `resolveRefs`: the base (`--base`, else `origin/HEAD` when it resolves, else `main`), the head
+   branch, refusing a detached or unborn `HEAD`; then `git merge-base`, refusing unrelated history.
+2. `localFiles`: one `git diff -M --inter-hunk-context=1 <merge-base> <head>` split per file
+   into GitHub's `patch` shape (from the first `@@` line, no final newline; none for a binary
+   file, a pure rename or a mode change), counts from `--numstat` (`-` is 0), the head blob and
+   the old name of a rename from `--raw`. Every diff option a developer's git configuration could
+   change (prefixes, context, algorithm, colour, external diff, order file) is pinned, so the
+   patches are the same on every machine. Sorted by name.
+3. `resolveScope` on the paths, as `review()` does with the words after `review`.
+4. `localInstructions`: the instruction files at the merge-base, through `instructionsFrom` and
+   `instructionFileOf`, the same lookup, fallback, cut and warnings as `readBaseInstructions`.
+5. `change`: `kind: "branch"`, `describe` = "branch `<head>` of <clone> against <base>
+   (merge-base <sha7>)", the head ref as `title`, the commit subjects as `description`, the head
+   commit's author.
+6. `snapshotHead`: `git archive` of the head extracted with `tar` into a `wachiman-snapshot-`
+   directory, which becomes `headDir`. The evidence step runs `git grep` in the head, and a plain
+   directory is not a repository, so the snapshot gets an index of its own (`git init`, `git add
+   -A -f`, no commit, every filter attribute unset); `git grep` then sees exactly the archived
+   files. A snapshot that differs from `git ls-tree` of the head (`export-ignore`, submodules) is
+   a warning.
+7. `agent-review local` (`src/local.ts`) removes the snapshot on every exit path.
+
+Two tests hold the connector to GitHub's: level (b) in `test/parity.test.ts` runs the core on
+recorded pull requests from both connectors with a fake provider and requires byte-identical
+prompts; level (a), opt-in with `WACHI_PARITY=1`, compares the files list of ten merged pull
+requests with GitHub's.
+
+**The local sinks** (`src/sinks/`) read only the `ReviewResult`: `renderTerminal` (plain text),
+`renderMarkdown` (every finding, no `MAX_BODY_CHARS` cut, ending with the prompt for the
+developer's agent) and `renderJson` (the result itself). The coverage, profile, estimate and stop
+lines are shared (`src/sinks/common.ts`), so the terminal and the Markdown say the same thing,
+and every cost is labelled an API-equivalent estimate. No sink computes an anchor.
 
 **The run directory.** Each batch call gets its own `mkdtemp` directory holding `pr.json`,
 `threads.json` and `evidence.json`, and `reviewBatch` removes it once the call is over, on success
@@ -566,6 +604,10 @@ and the copy-the-files install. The two sets must stay equal.
 - The core (`reviewChange`) has no `gh` in its dependencies and makes no network call of its own;
   the only senders are `defaultGh` and the provider adapter.
 - Each batch's run directory is removed after its call.
+- The local mode never constructs a `gh` function (a test runs it with a `gh` that exits 99), and
+  never forwards `ANTHROPIC_API_KEY`: it refuses to start when the key is set.
+- The snapshot and the run directory are removed on every exit path of `agent-review local`,
+  `Ctrl-C` included.
 - Only the operator can start an on-demand run, and only replies from `OWNER`, `MEMBER` or
   `COLLABORATOR` reach the agent.
 - Text containing the key or something shaped like one is not posted.

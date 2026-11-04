@@ -43,7 +43,8 @@ export function coverageText(result: ReviewResult) {
 /** What each profile means, when the caller has nothing more specific to say. */
 const PROFILE_NOTES: Record<Profile, string | undefined> = {
   ci: undefined,
-  default: "your own signed-in `claude`",
+  // Spec open question 4: the harness cleared CLAUDE.md, skills, hooks and MCP servers, not plugins.
+  default: "your own signed-in `claude`; its plugins are untested and could reach the review",
   isolated: "a Claude Code profile that holds only a sign-in",
 };
 
