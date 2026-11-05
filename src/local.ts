@@ -223,7 +223,7 @@ export function runLocal(
       const { refs } = built;
       io.stderr(`base: ${refs.baseRef} (${short(refs.baseSha)})`);
       io.stderr(`merge-base: ${short(refs.mergeBase)}`);
-      io.stderr(`depth: ${refs.depth} commits (max ${args.maxDepth ?? DEFAULT_MAX_DEPTH})`);
+      io.stderr(`depth: ${refs.depth} commit${refs.depth === 1 ? "" : "s"} (max ${args.maxDepth ?? DEFAULT_MAX_DEPTH})`);
       io.stderr(`head: ${refs.headRef} (${short(refs.headSha)})`);
     } else {
       const fromFile = readInputFile(args.input);

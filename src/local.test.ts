@@ -480,7 +480,7 @@ describe("the start commit and the maximum depth", () => {
     const r = local("ok", ["--base", repo.mergeBase], {}, repo);
     expect(r.code).toBe(0);
     expect(r.stderr).toContain(`merge-base: ${sha7(repo.mergeBase)}`);
-    expect(r.stderr).toContain("depth: 1 commits (max 50)");
+    expect(r.stderr).toContain("depth: 1 commit (max 50)");
     expect(r.calls().length).toBeGreaterThan(0);
   });
 
