@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractRepoDir } from "./cli";
@@ -61,6 +61,29 @@ describe("cli", () => {
     });
     expect(out.code).toBe(1);
     expect(out.stderr).toContain("did not run");
+  });
+
+  test("a GitHub-mode review with a temporary HOME creates no ~/.wachiman under it", () => {
+    const home = mkdtempSync(join(tmpdir(), "wachiman-gh-home-"));
+    const bin = mkdtempSync(join(tmpdir(), "wachiman-gh-bin-"));
+    try {
+      // A `claude` that answers the version probe, and a `gh` that fails: `review()` starts and stops.
+      writeFileSync(join(bin, "claude"), '#!/bin/sh\necho "9.9.9 (Claude Code)"\n');
+      writeFileSync(join(bin, "gh"), "#!/bin/sh\nexit 1\n");
+      for (const name of ["claude", "gh"]) chmodSync(join(bin, name), 0o755);
+      const env = { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r", AGENT_REVIEW_DRY_RUN: "1", AGENT_REVIEW_HISTORY: "1", AGENT_REVIEW_HISTORY_DAYS: "x", HOME: home };
+      const started = run(["review", "1"], { ...env, PATH: `${bin}:${process.env.PATH ?? ""}` });
+      expect(started.code).toBe(1);
+      expect(started.stderr).not.toContain("AGENT_REVIEW_HISTORY");
+      const missing = run(["review", "1"], { ...env, PATH: "/nonexistent" });
+      expect(missing.code).toBe(1);
+      // The variable is ignored outside `local`: no history, no `~/.wachiman`. (macOS may add
+      // `Library` for its own reasons; only ours is asserted.)
+      expect(readdirSync(home)).not.toContain(".wachiman");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(bin, { recursive: true, force: true });
+    }
   });
 });
 
