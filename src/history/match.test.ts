@@ -109,6 +109,22 @@ describe("reconcile", () => {
     expect(out.tracking[0]).toMatchObject({ status: "open", matchedBy: "title" });
   });
 
+  test("a line-hash match anywhere in the result is taken before any title match", () => {
+    const runs: HistoryRun[] = [];
+    const first = step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts"] });
+    // The first finding shares only A's title; the second sits on A's line under another title.
+    const out = step(runs, {
+      head: "h2",
+      findings: [
+        { ...A, line: 20, text: "somethingelseentirely;" },
+        { ...A, title: "A reworded complaint", line: 9 },
+      ],
+      reviewed: ["src/a.ts"],
+    });
+    expect(out.tracking.map((t) => t.status)).toEqual(["new", "open"]);
+    expect(out.tracking[1]).toMatchObject({ matchedBy: "line", firstId: first.tracking[0].firstId });
+  });
+
   test("a different topic or path never matches", () => {
     const runs: HistoryRun[] = [];
     step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts", "src/b.ts"] });

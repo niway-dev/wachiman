@@ -278,7 +278,9 @@ the new `ReviewResult`, its `files` (for `previous_filename` and `sha`), and `he
 2. Build the rename map from the new input's files: `previous_filename → filename`.
 3. For each new finding, in result order, look for a tracked finding with the same path (after
    mapping the tracked path through the rename map), the same topic, and a `lineHash` equal to
-   the new one (tier a); failing that, the same `titleKey` (tier b). The first match in
+   the new one (tier a); failing that, the same `titleKey` (tier b). Tier a runs over every new
+   finding before tier b starts over the ones left, so a title match never takes a tracked
+   finding that a later finding matches by line. The first match in
    first-seen order wins and is removed from the candidate pool, so one old finding cannot
    satisfy two new ones. A match that was `probably-fixed` or `not-repeated` becomes `open`
    with `reopened + 1`.

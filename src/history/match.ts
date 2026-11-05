@@ -67,23 +67,37 @@ export function reconcile(p: ReconcileInput): { tracking: Tracking[]; settled: S
     return index === -1 ? undefined : pool.splice(index, 1)[0];
   };
 
-  const tracking: Tracking[] = p.result.findings.map((f) => {
-    const fp = p.fingerprint(f);
-    const here = (t: TrackedFinding) => pathOf(t) === f.path && t.topic === f.topic;
-    const byLine = fp.lineHash !== undefined ? take((t) => here(t) && t.lineHash === fp.lineHash) : undefined;
-    const found = byLine ?? take((t) => here(t) && t.titleKey === fp.titleKey);
+  // Two passes over the whole result: a line-hash match anywhere beats a title match, so a title
+  // match cannot take a tracked finding that a later finding matches by its line.
+  const here = (t: TrackedFinding, f: ResultFinding) => pathOf(t) === f.path && t.topic === f.topic;
+  const fps = p.result.findings.map((f) => p.fingerprint(f));
+  const found: ({ t: TrackedFinding; by: "line" | "title" } | undefined)[] = p.result.findings.map(() => undefined);
+  p.result.findings.forEach((f, i) => {
+    const hash = fps[i].lineHash;
+    const t = hash !== undefined ? take((c) => here(c, f) && c.lineHash === hash) : undefined;
+    if (t) found[i] = { t, by: "line" };
+  });
+  p.result.findings.forEach((f, i) => {
+    if (found[i]) return;
+    const t = take((c) => here(c, f) && c.titleKey === fps[i].titleKey);
+    if (t) found[i] = { t, by: "title" };
+  });
+
+  const tracking: Tracking[] = p.result.findings.map((f, i) => {
+    const fp = fps[i];
+    const match = found[i];
     const id = findingId(p.key, head, f.path, f.line, f.topic, fp.titleKey);
     const parts = { titleKey: fp.titleKey, lineHash: fp.lineHash, lineText: fp.lineText, blobSha: fp.blobSha };
-    if (!found) return { id, status: "new", firstId: id, firstHead: head, runs: 1, reopened: 0, ...parts };
+    if (!match) return { id, status: "new", firstId: id, firstHead: head, runs: 1, reopened: 0, ...parts };
     return {
       id,
       status: "open",
-      firstId: found.firstId,
-      firstHead: found.firstHead,
-      runs: found.runs + 1,
-      reopened: found.reopened + (SETTLED_STATUSES.includes(found.status) ? 1 : 0),
+      firstId: match.t.firstId,
+      firstHead: match.t.firstHead,
+      runs: match.t.runs + 1,
+      reopened: match.t.reopened + (SETTLED_STATUSES.includes(match.t.status) ? 1 : 0),
       ...parts,
-      matchedBy: byLine ? "line" : "title",
+      matchedBy: match.by,
     };
   });
 
