@@ -38,7 +38,7 @@ export interface HistoryRepository {
   key: string;
   name: string;
   keyedBy: "remote" | "path";
-  /** Credentials stripped; absent when keyed by path. */
+  /** Credentials stripped; absent when keyed by path or when the URL did not parse. */
   remote?: string;
   path: string;
 }

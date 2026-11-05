@@ -62,20 +62,30 @@ export const historyRoot = (home: string) => join(home, ".wachiman", "history");
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 const GIT_TIMEOUT_MS = 30_000;
 
-/** `user:token@` never reaches the hash input or the file; the host is lowercased; no `.git`, no trailing `/`. */
-function normaliseRemote(raw: string): string {
+/**
+ * Userinfo (`user:token@`) is stripped before anything is parsed, hashed or stored, so no URL shape
+ * can carry a credential through the fallback. The host is lowercased; no `.git`, no trailing `/`.
+ * `parsed` is false when the stripped text is not a URL: it still keys the history, but is not stored.
+ */
+function normaliseRemote(raw: string): { text: string; parsed: boolean } {
   let url = raw.trim();
-  const scp = url.match(/^([^@/:\s]+)@([^:/\s]+):(?!\/\/)(.*)$/);
-  if (scp) url = `ssh://${scp[1]}@${scp[2]}/${scp[3].replace(/^\/+/, "")}`;
+  const scheme = url.match(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i);
+  if (scheme) url = scheme[1] + url.slice(scheme[0].length);
+  else if (!url.includes("://")) url = url.replace(/^[^@/\s]*@/, "");
+  const scp = url.match(/^([^@/:\s]+):(?!\/\/)(.*)$/);
+  if (scp) url = `ssh://${scp[1]}/${scp[2].replace(/^\/+/, "")}`;
   let text: string;
+  let parsed = true;
   try {
-    const parsed = new URL(url);
-    const port = parsed.port ? `:${parsed.port}` : "";
-    text = `${parsed.protocol}//${parsed.hostname.toLowerCase()}${port}${parsed.pathname}`;
+    const u = new URL(url);
+    if (!u.hostname || /^[a-z][a-z0-9+.-]*:\/\/\//i.test(url)) throw new Error("no host");
+    const port = u.port ? `:${u.port}` : "";
+    text = `${u.protocol}//${u.hostname.toLowerCase()}${port}${u.pathname}`;
   } catch {
     text = url;
+    parsed = false;
   }
-  return text.replace(/\/+$/, "").replace(/\.git$/, "").replace(/\/+$/, "");
+  return { text: text.replace(/\/+$/, "").replace(/\.git$/, "").replace(/\/+$/, ""), parsed };
 }
 
 const safeName = (name: string) => name.replace(/[^A-Za-z0-9._-]/g, "-").replace(/^[.-]+/, "") || "repo";
@@ -92,9 +102,9 @@ export function repositoryKey(repoDir: string, git: GitRunner = spawnGit): Histo
   const origin = git(["remote", "get-url", "origin"], { cwd: repoDir, timeoutMs: GIT_TIMEOUT_MS });
   const raw = origin.status === 0 ? origin.stdout.trim() : "";
   if (raw !== "") {
-    const remote = normaliseRemote(raw);
-    const name = safeName(basename(remote));
-    return { key: `${name}-${sha256(remote).slice(0, 8)}`, name, keyedBy: "remote", remote, path };
+    const { text, parsed } = normaliseRemote(raw);
+    const name = safeName(basename(text));
+    return { key: `${name}-${sha256(text).slice(0, 8)}`, name, keyedBy: "remote", ...(parsed ? { remote: text } : {}), path };
   }
   const name = safeName(basename(path));
   return { key: `${name}-${sha256(commonDir).slice(0, 8)}`, name, keyedBy: "path", path };

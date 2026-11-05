@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import { REVIEW_RESULT_FORMAT } from "../formats";
+import { spawnGit } from "../evidence";
 import { emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import {
   appendVerdict,
@@ -86,6 +87,24 @@ describe("repositoryKey", () => {
     git(b, "remote", "add", "origin", "ssh://git@github-csdev/o/r.git");
     expect(repositoryKey(a).key).toBe(repositoryKey(b).key);
     expect(repositoryKey(a).remote).toBe("ssh://github-csdev/o/r");
+  });
+
+  test("a credential never survives, even when the URL cannot be parsed", () => {
+    const dir = emptyRepo();
+    const runner = (url: string) => (args: string[], opts: { cwd: string; timeoutMs: number }) =>
+      args[0] === "remote" ? { status: 0, stdout: `${url}\n`, stderr: "" } : spawnGit(args, opts);
+    for (const [url, secret] of [
+      ["user:pw@github.com:a/b.git", "pw"],
+      ["https://tok@host:99999/a/b.git", "tok"],
+      ["https://user:tok@/a/b", "tok"],
+    ]) {
+      const k = repositoryKey(dir, runner(url) as any);
+      expect(JSON.stringify(k)).not.toContain(secret);
+      expect(JSON.stringify(k)).not.toContain("user");
+    }
+    // Unparseable: the key still comes from the stripped text, and no remote is stored.
+    expect(repositoryKey(dir, runner("https://tok@host:99999/a/b.git") as any).remote).toBeUndefined();
+    expect(repositoryKey(dir, runner("user:pw@github.com:a/b.git") as any).remote).toBe("ssh://github.com/a/b");
   });
 
   test("without origin, the common git directory's real path keys it", () => {
