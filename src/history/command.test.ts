@@ -73,7 +73,7 @@ describe("parseHistoryArgs", () => {
     expect(parseHistoryArgs(["--since", "7d", "--all-repos", "--json"])).toEqual({ sinceDays: 7, allRepos: true, json: true, forget: false, all: false });
     expect(parseHistoryArgs(["--verdict", "abc", "wrong", "--reason", "x"]).verdict).toEqual({ id: "abc", word: "wrong" });
     expect(parseHistoryArgs(["--forget", "--all"])).toMatchObject({ forget: true, all: true });
-    for (const bad of [["--frobnicate"], ["--all"], ["--since", "7"], ["--since=1w"], ["--reason", "x"], ["--verdict", "abc", "maybe"], ["--verdict", "abc"], ["stray"], ["--json=1"], ["--forget", "--json"]]) {
+    for (const bad of [["--frobnicate"], ["--all"], ["--since", "7"], ["--since=1w"], ["--reason", "x"], ["--verdict", "abc", "maybe"], ["--verdict", "abc"], ["stray"], ["--json=1"], ["--forget", "--json"], ["--forget", "--all-repos"], ["--forget", "--all", "--all-repos"], ["--forget", "--since", "7d"]]) {
       expect(() => parseHistoryArgs(bad)).toThrow(UsageError);
     }
   });

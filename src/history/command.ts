@@ -65,7 +65,9 @@ export function parseHistoryArgs(argv: string[]): HistoryArgs {
   if (args.verdict && (args.forget || args.json || args.allRepos || args.sinceDays !== undefined)) {
     throw new UsageError("--verdict records one verdict and lists nothing: it takes no other option than --repo-dir and --reason.");
   }
-  if (args.forget && (args.json || args.sinceDays !== undefined)) throw new UsageError("--forget takes only --all and --repo-dir.");
+  if (args.forget && (args.json || args.allRepos || args.sinceDays !== undefined)) {
+    throw new UsageError("--forget takes only --all and --repo-dir (--all, not --all-repos, forgets every repository).");
+  }
   return args;
 }
 
