@@ -6,6 +6,7 @@ import { countLine, label, neutralise, renderContracts, type ReviewResult } from
 import { agentPrompt } from "./agent-prompt";
 import {
   coverageText,
+  dollars,
   estimateLine,
   instructionNote,
   location,
@@ -59,7 +60,7 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
   if (contracts) parts.push(contracts);
   if (result.batches.length > 0) {
     const rows = result.batches.map(
-      (b) => `| ${neutralise(b.label)} | ${b.files} | ${b.lines} | ${b.maxRisk} | ${b.status} | ${b.turns} | $${b.costUsd.toFixed(2)} |`,
+      (b) => `| ${neutralise(b.label)} | ${b.files} | ${b.lines} | ${b.maxRisk} | ${b.status} | ${b.turns} | ${dollars(b.costUsd)} |`,
     );
     parts.push(
       "## Coverage by batch",
