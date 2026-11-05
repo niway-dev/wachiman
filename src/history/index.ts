@@ -81,7 +81,12 @@ export function saveRun(p: SaveRunParams): HistoryAnnotation {
     unknown: out.unknown,
     unknownIds: out.unknownIds,
   });
-  prune(p.root, repository.key, p.days, now);
+  // The run is already saved: a pruning failure must not turn it into "not saved" or drop the annotation.
+  try {
+    prune(p.root, repository.key, p.days, now);
+  } catch (error) {
+    p.warn(`history: old runs could not be pruned (${error instanceof Error ? error.message : error})`);
+  }
 
   const last = runs.at(-1);
   return {
