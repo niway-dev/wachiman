@@ -148,21 +148,33 @@ describe("writeRun / readRuns", () => {
     expect(readRuns(root, "r-12345678", () => {})).toHaveLength(2);
   });
 
-  test("an unreadable file is moved aside with a warning and the rest is read", () => {
+  test("a file that is not JSON is moved aside with a warning and the rest is read", () => {
     const root = historyRoot(home());
     writeRun(root, run("2026-11-05T10:00:00.000Z"));
     const dir = join(root, "r-12345678", "runs");
     writeFileSync(join(dir, "a.json"), "not json");
-    writeFileSync(join(dir, "b.json"), JSON.stringify({ ...run("2026-11-05T09:00:00.000Z"), format: "wachiman.history-run/2" }));
     const warnings: string[] = [];
-    const runs = readRuns(root, "r-12345678", (l) => warnings.push(l));
-    expect(runs).toHaveLength(1);
-    expect(warnings).toHaveLength(2);
-    const names = readdirSync(dir);
-    expect(names.filter((n) => /^[ab]\.json\.unreadable-\d+$/.test(n))).toHaveLength(2);
-    expect(names.filter((n) => n === "a.json" || n === "b.json")).toEqual([]);
     expect(readRuns(root, "r-12345678", (l) => warnings.push(l))).toHaveLength(1);
-    expect(warnings).toHaveLength(2);
+    expect(warnings).toHaveLength(1);
+    const names = readdirSync(dir);
+    expect(names.filter((n) => /^a\.json\.unreadable-\d+$/.test(n))).toHaveLength(1);
+    expect(names).not.toContain("a.json");
+    expect(readRuns(root, "r-12345678", (l) => warnings.push(l))).toHaveLength(1);
+    expect(warnings).toHaveLength(1);
+  });
+
+  test("a file of another format version is skipped with a warning and left in place", () => {
+    const root = historyRoot(home());
+    writeRun(root, run("2026-11-05T10:00:00.000Z"));
+    const dir = join(root, "r-12345678", "runs");
+    const foreign = JSON.stringify({ ...run("2026-11-05T09:00:00.000Z"), format: "wachiman.history-run/2" });
+    writeFileSync(join(dir, "b.json"), foreign);
+    const warnings: string[] = [];
+    expect(readRuns(root, "r-12345678", (l) => warnings.push(l))).toHaveLength(1);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("wachiman.history-run/2");
+    expect(readFileSync(join(dir, "b.json"), "utf8")).toBe(foreign);
+    expect(readdirSync(dir).filter((n) => n.includes(".unreadable-"))).toEqual([]);
   });
 });
 

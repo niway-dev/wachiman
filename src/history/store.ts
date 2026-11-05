@@ -162,10 +162,16 @@ export function writeRun(root: string, run: HistoryRun): string {
   return path;
 }
 
+/** A run file written by another version of the tool: not damaged, so never moved. */
+class ForeignFormat extends Error {}
+
 function parseRun(path: string): HistoryRun {
   const parsed = JSON.parse(readFileSync(path, "utf8"));
   if (!parsed || typeof parsed !== "object") throw new Error("not an object");
-  if (parsed.format !== HISTORY_RUN_FORMAT) throw new Error(`format ${JSON.stringify(parsed.format)}`);
+  if (parsed.format !== HISTORY_RUN_FORMAT) {
+    const message = `format ${JSON.stringify(parsed.format)}`;
+    throw typeof parsed.format === "string" && parsed.format.startsWith("wachiman.history-run/") ? new ForeignFormat(message) : new Error(message);
+  }
   if (parsed.result?.format !== REVIEW_RESULT_FORMAT) throw new Error("result is not a review result");
   const { result } = parsed;
   if (typeof parsed.savedAt !== "string" || !Array.isArray(parsed.tracking) || !Array.isArray(result.findings)) {
@@ -195,8 +201,9 @@ const runFiles = (root: string, key: string) => {
 };
 
 /**
- * Every readable run of a repository in `savedAt` order. A file that is not JSON or has another
- * format is renamed `<name>.unreadable-<unix-seconds>`, with one warning, and skipped.
+ * Every readable run of a repository in `savedAt` order. A file that is not JSON or is structurally invalid
+ * is renamed `<name>.unreadable-<unix-seconds>`, with one warning, and skipped. A file of another
+ * format version is skipped with a warning and left alone: a downgrade must not lose history.
  */
 export function readRuns(root: string, key: string, warn: (line: string) => void): HistoryRun[] {
   const runs: HistoryRun[] = [];
@@ -205,6 +212,10 @@ export function readRuns(root: string, key: string, warn: (line: string) => void
       runs.push(parseRun(path));
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
+      if (error instanceof ForeignFormat) {
+        warn(`history: ${path} skipped (${reason}); it was written by another version and is left in place`);
+        continue;
+      }
       const aside = `${path}.unreadable-${Math.floor(Date.now() / 1000)}`;
       try {
         renameSync(path, aside);
