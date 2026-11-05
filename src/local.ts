@@ -23,9 +23,11 @@ import {
 } from "./engine";
 import { spawnGit } from "./evidence";
 import { assertReviewInputFormat } from "./formats";
+import { historyRoot, historySettings, saveRun } from "./history";
 import { inspectIsolatedProfile, parseProfile, populatedProfileError, profileDir, type ProfileChoice } from "./profiles";
 import { getProvider, type ProviderAdapter } from "./providers";
 import { InterruptedError, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
+import { sinceLastRunText, type HistoryAnnotation } from "./sinks/common";
 import { renderJson } from "./sinks/json";
 import { renderMarkdown } from "./sinks/markdown";
 import { renderTerminal } from "./sinks/terminal";
@@ -40,16 +42,17 @@ export interface LocalArgs {
   output?: string;
   profile: ProfileChoice;
   agentPrompt: boolean;
+  history: boolean;
   input?: string;
 }
 
 export const localUsage = `agent-review local [paths…] [--base <ref>] [--repo-dir <dir>] [--input <file>]
                    [--format terminal|markdown|json] [--output <file>]
-                   [--profile default|isolated[:<name>]] [--agent-prompt]`;
+                   [--profile default|isolated[:<name>]] [--agent-prompt] [--history]`;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLocalArgs(argv: string[]): LocalArgs {
-  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, input: undefined };
+  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined };
   let base: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -65,6 +68,7 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
       return v;
     };
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
+    else if (name === "--history" && eq === -1) args.history = true;
     else if (name === "--base") base = value();
     else if (name === "--output") args.output = value();
     else if (name === "--profile") args.profile = parseProfile(value());
@@ -173,6 +177,10 @@ export function runLocal(
   const config = { ...loaded, trigger: undefined };
   // Before the provider exists; the adapter's own check in preflight() is the second line.
   if (env.ANTHROPIC_API_KEY) throw new UsageError(SUBSCRIPTION_KEY_REFUSAL);
+  // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.
+  // A bad AGENT_REVIEW_HISTORY_DAYS stops here, before any call is paid for.
+  const history = historySettings(env, args.history);
+  if (history.enabled && !env.HOME) throw new UsageError("HOME is not set, so the history cannot be kept.");
 
   let configDir: string | undefined;
   let profileNote: string | undefined;
@@ -238,12 +246,30 @@ export function runLocal(
       io.stderr("Interrupted: the review stopped and its snapshot was removed.");
       return 130;
     }
+    // After the review and before the snapshot goes: the cited lines are read from it.
+    let annotation: HistoryAnnotation | undefined;
+    if (history.enabled) {
+      try {
+        annotation = saveRun({
+          root: historyRoot(env.HOME!),
+          repoDir,
+          input,
+          result,
+          engineVersion: io.engineVersion,
+          days: history.days,
+          warn: io.stderr,
+        });
+      } catch (error) {
+        io.stderr(`history: this run was not saved (${error instanceof Error ? error.message : error})`);
+      }
+    }
+    if (annotation && args.format === "json") io.stderr(sinceLastRunText(annotation));
     const text =
       args.format === "json"
         ? renderJson(result)
         : args.format === "markdown"
-          ? renderMarkdown(result, { profileNote })
-          : renderTerminal(result, { profileNote, agentPrompt: args.agentPrompt });
+          ? renderMarkdown(result, { profileNote, history: annotation })
+          : renderTerminal(result, { profileNote, agentPrompt: args.agentPrompt, history: annotation });
     if (args.output !== undefined) {
       const path = resolve(args.output);
       writeFileSync(path, text);

@@ -1,12 +1,12 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
 import { localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile } from "./local";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
-import { A_HEAD, branchRepo, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
+import { A_HEAD, branchRepo, commit, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
 
 const temps: string[] = [];
 const temp = (prefix: string) => {
@@ -37,6 +37,14 @@ const OK_RESULT = JSON.stringify({
     summary: "ok",
   },
 });
+const NONE_RESULT = JSON.stringify({
+  is_error: false,
+  subtype: "success",
+  num_turns: 3,
+  total_cost_usd: 0.01,
+  duration_ms: 10,
+  structured_output: { files_reviewed: BRANCH_FILES, files_skipped: [], findings: [], contracts: [], thread_replies: [], summary: "clean" },
+});
 const QUOTA_RESULT = JSON.stringify({
   is_error: true,
   subtype: "error",
@@ -46,7 +54,7 @@ const QUOTA_RESULT = JSON.stringify({
   duration_ms: 1,
 });
 
-type Variant = "ok" | "quota" | "edit" | "garbage" | "interrupt";
+type Variant = "ok" | "none" | "quota" | "edit" | "garbage" | "interrupt";
 
 /**
  * A temporary `bin/` with a `gh` that leaves a canary and fails, and a `claude` that records its
@@ -61,11 +69,13 @@ function stubs(variant: Variant, repoDir: string) {
   const answer =
     variant === "quota"
       ? `cat <<'JSON'\n${QUOTA_RESULT}\nJSON`
-      : variant === "garbage"
-        ? "echo 'not json at all'; exit 3"
-        : variant === "interrupt"
-          ? "kill -INT $PPID; kill -INT $$"
-          : `cat <<'JSON'\n${OK_RESULT}\nJSON`;
+      : variant === "none"
+        ? `cat <<'JSON'\n${NONE_RESULT}\nJSON`
+        : variant === "garbage"
+          ? "echo 'not json at all'; exit 3"
+          : variant === "interrupt"
+            ? "kill -INT $PPID; kill -INT $$"
+            : `cat <<'JSON'\n${OK_RESULT}\nJSON`;
   writeFileSync(
     join(bin, "claude"),
     `#!/bin/sh
@@ -134,9 +144,10 @@ describe("parseLocalArgs", () => {
       output: "r.md",
       profile: { kind: "isolated", name: "work" },
       agentPrompt: true,
+      history: false,
       input: undefined,
     });
-    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, input: undefined });
+    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined });
     expect(parseLocalArgs(["--format=json", "--base=origin/main"])).toMatchObject({ format: "json", base: "origin/main" });
   });
 
@@ -379,5 +390,178 @@ describe("agent-review local", () => {
     const r = local("ok");
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("GH_TOKEN");
+  });
+});
+
+describe("--history", () => {
+  const A_FIXED = A_HEAD.replace("export const b = 20;", "export const b = 21;");
+  const runFiles = (home: string) => {
+    const root = join(home, ".wachiman", "history");
+    if (!existsSync(root)) return [];
+    return readdirSync(root).flatMap((key) => {
+      const dir = join(root, key, "runs");
+      return existsSync(dir) ? readdirSync(dir).map((n) => join(dir, n)) : [];
+    });
+  };
+  const mode = (path: string) => statSync(path).mode & 0o777;
+
+  test("without the flag, nothing under ~/.wachiman is created or read", () => {
+    const home = temp("wachiman-home-");
+    const r = local("ok", [], { HOME: home });
+    expect(r.code).toBe(0);
+    expect(existsSync(join(home, ".wachiman"))).toBe(false);
+
+    const runs = join(home, ".wachiman", "history", "x", "runs");
+    mkdirSync(runs, { recursive: true });
+    const file = join(runs, "2026-11-01T10-00-00-000Z-aaaaaaa.json");
+    writeFileSync(file, "{}");
+    const old = new Date("2026-11-01T10:00:00Z");
+    utimesSync(file, old, old);
+    utimesSync(runs, old, old);
+    const before = { file: statSync(file).mtimeMs, dir: statSync(runs).mtimeMs, listing: readdirSync(runs) };
+    const again = local("ok", [], { HOME: home });
+    expect(again.code).toBe(0);
+    expect(statSync(file).mtimeMs).toBe(before.file);
+    expect(statSync(runs).mtimeMs).toBe(before.dir);
+    expect(readdirSync(runs)).toEqual(before.listing);
+    expect(again.stdout).not.toContain("· id ");
+    expect(again.stdout).not.toContain("Since the last run");
+    expect(again.stderr).not.toContain("history:");
+  });
+
+  test("--history saves one run file, 0600, whose result is the JSON sink's output", () => {
+    const r = local("ok", ["--history", "--format", "json"]);
+    expect(r.code).toBe(0);
+    const files = runFiles(r.home);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatch(/runs\/.+-[0-9a-f]{7}\.json$/);
+    expect(mode(files[0])).toBe(0o600);
+    expect(mode(join(r.home, ".wachiman", "history"))).toBe(0o700);
+    const saved = JSON.parse(readFileSync(files[0], "utf8"));
+    expect(saved.format).toBe("wachiman.history-run/1");
+    expect(saved.result).toEqual(JSON.parse(r.stdout));
+    expect(saved.tracking).toHaveLength(1);
+    expect(saved.tracking[0].status).toBe("new");
+  });
+
+  test("AGENT_REVIEW_HISTORY=1 is the same switch", () => {
+    const r = local("ok", [], { AGENT_REVIEW_HISTORY: "1" });
+    expect(r.code).toBe(0);
+    expect(runFiles(r.home)).toHaveLength(1);
+    expect(r.stdout).toContain("· id ");
+  });
+
+  test("the prompts are byte-identical with and without --history", () => {
+    const repo = branchRepo();
+    const without = local("ok", [], {}, repo);
+    const withHistory = local("ok", ["--history"], {}, repo);
+    expect(without.read("prompt")).toBeDefined();
+    // Each run's scratch directory has a random name; nothing else may differ.
+    const scrub = (text: string) => text.replace(/(agent-review|wachiman-snapshot)-[A-Za-z0-9]+/g, "$1-X");
+    expect(scrub(withHistory.read("prompt") as string)).toBe(scrub(without.read("prompt") as string));
+    expect(withHistory.read("args")?.split("\n").filter((a) => !a.startsWith("/"))).toEqual(
+      without.read("args")?.split("\n").filter((a) => !a.startsWith("/")),
+    );
+  });
+
+  test("--format json on stdout is unchanged with --history, and the block goes to stderr", () => {
+    const repo = branchRepo();
+    const without = local("ok", ["--format", "json"], {}, repo);
+    const withHistory = local("ok", ["--history", "--format", "json"], {}, repo);
+    const strip = (text: string) => {
+      const r = JSON.parse(text);
+      delete r.change.snapshot;
+      delete r.execution.durationMs;
+      for (const b of r.batches ?? []) delete b.durationMs;
+      return r;
+    };
+    expect(strip(withHistory.stdout)).toEqual(strip(without.stdout));
+    expect(withHistory.stdout).not.toContain("tracking");
+    expect(withHistory.stderr).toContain("Since the last run: this is the first saved run of this repository.");
+    expect(without.stderr).not.toContain("Since the last run");
+  });
+
+  test("a second run labels the finding open since the first head, with its id", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    const first = local("ok", ["--history"], { HOME: home }, repo);
+    expect(first.stdout).toMatch(/src\/a\.ts:2  🟠🐛 Fix · bug: T \(confidence high\)  new · id [0-9a-f]{10}\n/);
+    const second = local("ok", ["--history"], { HOME: home }, repo);
+    expect(second.code).toBe(0);
+    expect(second.stdout).toMatch(new RegExp(`open since ${sha7(repo.head)} · 2 runs · id [0-9a-f]{10}\\n`));
+    expect(second.stdout).toContain(`Since the last run (${sha7(repo.head)}, `);
+    expect(runFiles(home)).toHaveLength(2);
+    const id = (text: string) => text.match(/· id ([0-9a-f]{10})/)?.[1];
+    expect(id(second.stdout)).toBe(id(first.stdout));
+  });
+
+  test("a finding absent after its line changed is probably-fixed; unchanged, not-repeated", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    local("ok", ["--history"], { HOME: home }, repo);
+    commit(repo.dir, { "src/a.ts": A_FIXED }, "fix");
+    const fixed = local("none", ["--history"], { HOME: home }, repo);
+    expect(fixed.code).toBe(0);
+    expect(fixed.stdout).toMatch(/probably fixed  src\/a\.ts:2  T  \(id [0-9a-f]{10}\)/);
+    expect(fixed.stdout).not.toContain("not repeated");
+
+    const home2 = temp("wachiman-home-");
+    const repo2 = branchRepo();
+    local("ok", ["--history"], { HOME: home2 }, repo2);
+    const same = local("none", ["--history"], { HOME: home2 }, repo2);
+    expect(same.stdout).toMatch(/not repeated  src\/a\.ts:2  T  \(id [0-9a-f]{10}\)/);
+    expect(same.stdout).not.toContain("probably fixed");
+  });
+
+  test("a scoped run and a quota stop leave the finding unknown", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    local("ok", ["--history"], { HOME: home }, repo);
+    const scoped = local("none", ["--history", "src/b.ts"], { HOME: home }, repo);
+    expect(scoped.code).toBe(0);
+    expect(scoped.stdout).toMatch(/unknown +1 finding\(s\) in files this run did not review/);
+    expect(scoped.stdout).not.toContain("probably fixed");
+    expect(scoped.stdout).not.toContain("not repeated");
+
+    const quota = local("quota", ["--history"], { HOME: home }, repo);
+    expect(quota.stdout).toMatch(/unknown +1 finding\(s\) in files this run did not review/);
+    expect(quota.stdout).not.toContain("probably fixed");
+  });
+
+  test("AGENT_REVIEW_HISTORY_DAYS prunes old runs at save time, and a bad value exits 2 before any call", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    const first = local("ok", ["--history"], { HOME: home }, repo);
+    const [file] = runFiles(home);
+    const old = JSON.parse(readFileSync(file, "utf8"));
+    old.savedAt = new Date(Date.now() - 40 * 86_400_000).toISOString();
+    writeFileSync(file, JSON.stringify(old));
+    const second = local("ok", ["--history"], { HOME: home }, repo);
+    expect(second.code).toBe(0);
+    const files = runFiles(home);
+    expect(files).toHaveLength(1);
+    expect(files[0]).not.toBe(file);
+    expect(first.code).toBe(0);
+
+    const bad = local("ok", ["--history"], { HOME: home, AGENT_REVIEW_HISTORY_DAYS: "x" }, repo);
+    expect(bad.code).toBe(2);
+    expect(bad.stderr).toContain("AGENT_REVIEW_HISTORY_DAYS");
+    expect(bad.calls()).toEqual([]);
+    expect(runFiles(home)).toHaveLength(1);
+  });
+
+  test("Ctrl-C saves nothing", () => {
+    const r = local("interrupt", ["--history"], { AGENT_REVIEW_BATCH_LINES: "1" });
+    expect(r.code).toBe(130);
+    expect(runFiles(r.home)).toEqual([]);
+  });
+
+  test("a failure to save is a warning, and the report is still printed", () => {
+    const home = temp("wachiman-home-");
+    writeFileSync(join(home, ".wachiman"), "a file where the directory should go");
+    const r = local("ok", ["--history"], { HOME: home });
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain("history: this run was not saved");
+    expect(r.stdout).toContain("src/a.ts:2");
   });
 });

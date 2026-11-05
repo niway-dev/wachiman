@@ -17,6 +17,8 @@ interface Step {
   head: string;
   findings: F[];
   reviewed: string[];
+  /** Defaults to `reviewed`. */
+  expected?: string[];
   files?: Partial<ReviewFile>[];
   /** Tracked findings (by first title) whose cited region changed. */
   changed?: string[];
@@ -28,7 +30,7 @@ function step(runs: HistoryRun[], s: Step) {
   const result = {
     format: "wachiman.review-result/1",
     change: { head: { sha: s.head } },
-    coverage: { reviewed: s.reviewed, expected: s.reviewed, skipped: [] },
+    coverage: { reviewed: s.reviewed, expected: s.expected ?? s.reviewed, skipped: [] },
     findings: s.findings.map((f) => ({ path: f.path, line: f.line, title: f.title, topic: f.topic ?? "bug", severity: f.severity ?? "fix", body: "b" })),
   } as unknown as ReviewResult;
   const textOf = new Map(s.findings.map((f) => [`${f.path}:${f.line}:${f.title}`, f.text]));
@@ -144,6 +146,10 @@ describe("reconcile", () => {
     expect(gone.settled).toEqual([]);
     expect(gone.unknown).toBe(1);
     expect(replay(runs, new Map()).findings[0].status).toBe("unknown");
+    // ... or the model named a file that was not in its scope.
+    const outOfScope = step(runs, { head: "h4", findings: [], reviewed: ["src/a.ts"], expected: ["src/b.ts"] });
+    expect(outOfScope.settled).toEqual([]);
+    expect(outOfScope.unknown).toBe(1);
   });
 
   test("a line-0 finding matches by title only and is probably-fixed when the blob changed", () => {

@@ -13,7 +13,9 @@ import {
   profileText,
   providerLine,
   sha7,
+  sinceLastRunMarkdown,
   stopLine,
+  type HistoryAnnotation,
 } from "./common";
 
 /** A code fence longer than any run of backticks in `text`. */
@@ -25,7 +27,7 @@ function fenced(text: string, info: string) {
 
 const sentenceCase = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
-export function renderMarkdown(result: ReviewResult, opts: { profileNote?: string } = {}): string {
+export function renderMarkdown(result: ReviewResult, opts: { profileNote?: string; history?: HistoryAnnotation } = {}): string {
   const parts: string[] = [];
   parts.push(`# Wachiman review of ${neutralise(result.change.describe)}, at ${sha7(result.change.head.sha)}`);
   parts.push(`${sentenceCase(coverageText(result))}.`, `Profile: ${profileText(result, opts.profileNote)}`, countLine(result.findings));
@@ -33,18 +35,25 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
   if (note) parts.push(note);
   if (result.findings.length > 0) {
     parts.push("## Findings");
-    for (const f of result.findings) {
-      parts.push(`### ${label(f)}`, `\`${location(f)}\``, neutralise(f.body));
+    result.findings.forEach((f, i) => {
+      parts.push(`### ${label(f)}`, `\`${location(f)}\``);
+      const entry = opts.history?.byIndex.get(i);
+      if (entry) {
+        const where = entry.status === "new" ? "new" : `open since \`${sha7(entry.firstHead)}\`, ${entry.runs} runs`;
+        parts.push(`History: ${where}, id \`${entry.id}\`${entry.verdict ? `, verdict: ${entry.verdict}` : ""}`);
+      }
+      parts.push(neutralise(f.body));
       if (f.verification) {
         const v = f.verification;
         parts.push(`Verified: ${neutralise(v.checked)}${v.example ? ` — ${neutralise(v.example)}` : ""}`);
       }
-    }
+    });
   }
   const missing = notReviewed(result);
   if (missing.length > 0) {
     parts.push("## Not reviewed", missing.map((f) => `- \`${neutralise(f.path)}\`${f.reason ? `: ${neutralise(f.reason)}` : ""}`).join("\n"));
   }
+  if (opts.history) parts.push("## Since the last run", sinceLastRunMarkdown(opts.history));
   parts.push("## Summary", neutralise(result.summary || "(no summary)"));
   const contracts = renderContracts(result.contracts);
   if (contracts) parts.push(contracts);

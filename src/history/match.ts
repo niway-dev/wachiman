@@ -82,7 +82,10 @@ export function reconcile(p: ReconcileInput): { tracking: Tracking[]; settled: S
     };
   });
 
-  const reviewed = new Set(p.result.coverage.reviewed);
+  // A file counts as reviewed only when the run expected it: a model that names a file outside
+  // its batch or the scope has not covered it.
+  const expected = new Set(p.result.coverage.expected);
+  const reviewed = new Set(p.result.coverage.reviewed.filter((f) => expected.has(f)));
   const settled: Settled[] = [];
   const unknownIds: string[] = [];
   for (const t of pool) {
