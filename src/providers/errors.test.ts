@@ -4,7 +4,14 @@ import { classifyProviderError } from "./errors";
 const CREDIT =
   'API Error: 400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}';
 
+// Captured from a live run: the whole `result` of a refused call (Claude Code 2.1.304, 2026-11-04).
+const CREDIT_LIVE = "Credit balance is too low";
+
 describe("classifyProviderError", () => {
+  test("the live no-credit message is billing", () => {
+    expect(classifyProviderError(CREDIT_LIVE)).toBe("billing");
+  });
+
   test("the realistic no-credit message is billing", () => {
     expect(classifyProviderError(CREDIT)).toBe("billing");
   });
