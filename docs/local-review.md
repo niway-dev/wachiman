@@ -37,7 +37,8 @@ marketplace auto-install are switched off in every call (see section 7 for what 
 
 **The local transcript.** Claude Code normally keeps each session's transcript, which holds the
 reviewed code, in plain text under the profile's `projects/` folder for 30 days. Wachiman passes
-`--no-session-persistence` to every call, so no transcript is written.
+`--no-session-persistence` to every call, so no transcript is written. Wachiman itself keeps
+nothing either, unless you turn on the history (section 5).
 
 A request to your employer can be this short:
 
@@ -46,7 +47,7 @@ I would like to run Wachiman (https://github.com/niway-dev/wachiman) on my lapto
 branches before I open pull requests. It runs Claude Code under my <personal Pro | company Team>
 Claude account, with training turned off, and Anthropic keeps the data for 30 days. It sends the
 branch's diff and the files the model reads to Anthropic only; nothing goes to GitHub or anywhere
-else, and no transcript is kept on disk. Can I use it on <repository>?
+else, no transcript is kept on disk, and no history unless I turn it on. Can I use it on <repository>?
 ```
 
 ## 3. Install
@@ -144,6 +145,38 @@ profile out.
   same clone. It asks the agent to check each finding against the current code, fix the valid
   ones, report the rejected ones with the reason, and run the checks. Wachiman launches nothing.
 
+### Keep a history of your runs (optional)
+
+Off by default: without the switch, `local` neither reads nor creates `~/.wachiman/history`. Turn it
+on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
+
+- **What is saved.** One file per run, `~/.wachiman/history/<name>-<hash>/runs/<time>-<sha7>.json`,
+  holding the whole result, including the finding text, which quotes your code. It is as sensitive
+  as a `--output` report. Directories are mode 0700 and files 0600. `<name>-<hash>` comes from the
+  `origin` URL (credentials removed), so every clone and worktree of one repository shares a
+  history; without an `origin` it comes from the clone's git directory.
+- **What it tells you.** Each finding is labelled `new` or `open since <sha7>`, with an id. A
+  finding is the same as an earlier one when the file (renames followed) and topic match and the
+  cited line has the same text, or the title is the same once digits and punctuation are ignored.
+  No model decides that. An earlier finding this run did not repeat is `probably fixed` (the file
+  was reviewed and the cited code changed), `not repeated` (reviewed, code unchanged: the reviewer
+  just did not say it again) or `unknown` (the file was not reviewed: a path scope, a skip, a usage
+  limit). It says "probably" because a fix is inferred from absence, never observed. With
+  `--format json`, stdout is unchanged and this block goes to stderr.
+- **`agent-review history`** lists what is tracked, per repository: status, first and last head,
+  runs, id and your verdict. `--since 7d`, `--all-repos` and `--json` narrow or reshape it. It reads
+  files only: no `claude`, no GitHub.
+- **Verdicts.** `agent-review history --verdict <id> correct|partial|wrong [--reason "…"]` records
+  your judgement, with the words of [precision](precision.md). It appears in the listing and in
+  later reports. It does not change a review: a finding you called wrong is still reported if the
+  reviewer repeats it, which is how you see a persistent false positive.
+- **Retention.** 30 days, per repository, pruned when that repository is saved
+  (`AGENT_REVIEW_HISTORY_DAYS=<n>`, `0` keeps everything). A repository you stop reviewing keeps
+  its files until you forget them.
+- **Forget.** `agent-review history --forget [--repo-dir <dir>]` deletes one repository's history;
+  `--forget --all` deletes `~/.wachiman/history`. Neither touches `~/.wachiman/claude-*`.
+- **Nothing is exported.** No upload, no sync. The files never leave the laptop unless you copy them.
+
 ## 6. Limits
 
 - **Work limits, and the estimate guard.** Each call is bounded by `AGENT_REVIEW_MAX_TURNS` and
@@ -152,8 +185,9 @@ profile out.
 - **A usage limit ends the run.** When your plan's usage runs out mid-review, the run stops (it
   never waits for the window to reset) and prints a partial report:
   `stop: quota — the account's usage limit ended the run; N file(s) not reviewed: …`. Exit code 0.
-- **No memory between runs.** No incremental reviews, threads or precision memory: those live on
-  GitHub. Each run reviews the whole branch.
+- **No memory between runs, unless you turn on `--history`.** No incremental reviews, threads or
+  precision memory: those live on GitHub. Each run reviews the whole branch. The history labels
+  findings; it never changes what is reviewed or what is sent.
 - **Committed changes only**, and only what `git archive` exports: a file marked `export-ignore`
   in `.gitattributes`, or a submodule, is missing from the snapshot (a warning names it).
 
@@ -185,6 +219,7 @@ of those rows is unconfirmed.
 | `No base branch found; pass --base <ref>` (exit 2) | No `origin/HEAD` and no `main`. Pass `--base`, or run `git remote set-head origin --auto` |
 | `HEAD is detached; check out a branch, or pass --input` (exit 2) | Check out a branch (`git switch -c review-me`) |
 | `The snapshot lacks N file(s) that the head commit has …` | `export-ignore` or a submodule. The review goes on without those files; remove the attribute on a temporary branch if they matter |
+| `history: … cannot be read (…); moved to … .unreadable-<seconds>` | A history run file is not JSON or has another format. It was renamed, not deleted, and skipped; the run went on. Delete the renamed file when you no longer need it |
 | An isolated profile seems to use another account | A `claude` **shell function or alias** that sets `CLAUDE_CONFIG_DIR` does not affect Wachiman (it starts the binary from `PATH`, without a shell), but it does affect a `claude` you run by hand to sign in. That is why `--setup-profile` exists: it starts the binary itself with the profile's directory. Check with `type claude` |
 
 Exit codes: 0 a report was printed (complete, partial, or ended by a usage limit), 1 no call

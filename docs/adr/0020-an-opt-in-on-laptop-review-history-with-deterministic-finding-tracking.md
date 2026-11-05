@@ -1,8 +1,7 @@
 # ADR 0020: An opt-in, on-laptop review history with deterministic finding tracking
 
-- **Status:** proposed 2026-11-05. **Not implemented**: no branch contains any of it. The plan is
-  [2026-11-05-local-review-history.md](../plans/2026-11-05-local-review-history.md). Depends on
-  ADR 0019's local mode (merged in #111 and #112).
+- **Status:** accepted 2026-11-05; implemented by the PR that closes #103 (`src/history/`). Depends
+  on ADR 0019's local mode (merged in #111 and #112).
 - **Date:** 2026-11-05
 - **Spec:** [2026-11-05-local-review-history-design.md](../specs/2026-11-05-local-review-history-design.md)
 - **Issue:** [#103](https://github.com/niway-dev/wachiman/issues/103)

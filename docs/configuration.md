@@ -272,6 +272,9 @@ GitHub-side applies.
   by default), `AGENT_REVIEW_BATCH_BUDGET_USD`, `AGENT_REVIEW_BATCH_LINES`,
   `AGENT_REVIEW_BATCH_CHARS`, `AGENT_REVIEW_MODEL`, `AGENT_REVIEW_EFFORT`,
   `AGENT_REVIEW_MAX_TURNS`, `AGENT_REVIEW_CALL_TIMEOUT_S` and `AGENT_REVIEW_EXCLUDE`.
+  Also `AGENT_REVIEW_HISTORY=1` (keep the [history](local-review.md#keep-a-history-of-your-runs-optional)
+  of the run, the same as `--history`) and `AGENT_REVIEW_HISTORY_DAYS` (days to keep it, default 30,
+  `0` forever, anything else exits 2 before any call). GitHub mode ignores both.
 - **Do not apply:** `AGENT_REVIEW_AUTO_BUDGET_USD` (no ceiling), `AGENT_REVIEW_THREADS_BUDGET_USD`,
   `AGENT_REVIEW_OPERATOR`, `AGENT_REVIEW_MENTION`, `AGENT_REVIEW_TRIGGER` (ignored: the run is a
   person's) and `AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE` (a refused call is the `stop:` line of the

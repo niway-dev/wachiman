@@ -149,6 +149,7 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
 | `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
 | `--profile default\|isolated[:<name>]` | `default` | `default` is your own `claude`; `isolated` (the name `isolated`) or `isolated:<name>` uses `~/.wachiman/claude-<name>`, which must exist and hold nothing but a sign-in |
+| `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
 merge-base and the head (`base: main (1a2b3c4)`, `merge-base: …`, `head: feat/x (…)`), the file
@@ -162,6 +163,23 @@ isolated profile, or an `--input` whose format is not `/1` or whose head is not 
 Each `claude` call runs in subscription mode: no key, `USER` and the no-telemetry switches in its
 environment, `--no-session-persistence` (see
 [providers/claude-code.md](providers/claude-code.md#in-local-mode-auth-subscription)).
+
+### `history`
+
+`agent-review history` lists the findings that `local --history` kept for the repository of
+`--repo-dir` (default: the current directory). It reads files under `~/.wachiman/history` only: it
+runs no `claude` and calls no `gh`.
+
+| Option | What it does |
+| --- | --- |
+| `--since <n>d` | Only findings seen in the last `n` days |
+| `--all-repos` | Every repository in the history, not just this clone's |
+| `--json` | The replayed state as `wachiman.history-state/1` JSON (an internal format, like the files it reads) |
+| `--verdict <id> correct\|partial\|wrong [--reason <text>]` | Record your judgement of a finding (the id is in the report and the listing); the listing shows it |
+| `--forget [--all]` | Delete this repository's history, or all of `~/.wachiman/history`; prints what was removed |
+
+Exit codes: 0 listed, recorded or forgotten (a missing history prints one line and exits 0); 2 usage
+error, including a `--verdict` id that matches no finding.
 
 ## What it posts
 

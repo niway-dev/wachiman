@@ -63,7 +63,7 @@ describe("cli", () => {
     expect(out.stderr).toContain("did not run");
   });
 
-  test("a GitHub-mode review with a temporary HOME creates no ~/.wachiman under it", () => {
+  test("a GitHub-mode review with a temporary HOME creates nothing under it", () => {
     const home = mkdtempSync(join(tmpdir(), "wachiman-gh-home-"));
     const bin = mkdtempSync(join(tmpdir(), "wachiman-gh-bin-"));
     try {

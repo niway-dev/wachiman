@@ -158,7 +158,7 @@ Still open:
   run on real work.
 - Incremental local reviews, local thread follow-up, learned memory, the automatic ceiling
   (ADR 0007, 0008, 0011, 0012): all GitHub-side state. A local run reviews the whole requested
-  range every time.
+  range every time (the history of ADR 0020 labels findings; it still reviews the whole range).
 - Running the developer's agent on the findings. The report ends with a prompt to paste; Wachiman
   starts nothing.
 - Any change to what the model is asked (`RULES`, `FLOW_QUESTIONS`, the data-path questions, the

@@ -1,7 +1,8 @@
 # An opt-in local review history that tracks findings across runs
 
-- **Status:** draft for discussion, 2026-11-05. **Nothing is built.** Every claim about the code
-  below was checked by reading `main` at `f70f3d4` (the merged local mode, #111 and #112) on
+- **Status:** accepted and implemented by the PR that closes #103 (supersedes draft #117); every
+  acceptance criterion below is met and ticked. The four open questions were answered with their
+  recommendations (a, a, a, a). The claims about the code were checked by reading `main` at `f70f3d4` (the merged local mode, #111 and #112) on
   2026-11-05 and is marked *verified*; claims about other tools come from their documentation as
   fetched that day (linked inline; what could not be fetched is marked *unverified*). No model
   call was made for this design.
@@ -16,7 +17,7 @@
   signed marker and the content comparison, all GitHub-side), ADR 0007 (learned memory, not
   implemented: this spec takes none of it), ADR 0001 (trust model as amended by 0019), the
   precision verdict vocabulary of `docs/precision.md`.
-- **Plan:** [2026-11-05-local-review-history.md](../plans/2026-11-05-local-review-history.md).
+- **Plan:** a working document, deleted by the shipping commit; git keeps it.
 - **Evidence:** the research notes in [How other tools track a finding](#how-other-tools-track-a-finding-across-runs);
   the hub's [local store migration rules](https://github.com/csdev19/general-knowledge/blob/main/architecture/local-store-migration.md)
   (version the on-disk format from day one, move a file aside instead of overwriting it).
@@ -155,47 +156,47 @@ Each with options, the strongest argument against the recommendation, and the re
 
 ## Acceptance criteria
 
-Checkable predicates; **none is met today**.
+Checkable predicates; **all are met** by the implementing PR.
 
-- [ ] `agent-review local` without `--history` and without `AGENT_REVIEW_HISTORY=1` never creates
+- [x] `agent-review local` without `--history` and without `AGENT_REVIEW_HISTORY=1` never creates
   or reads `~/.wachiman/history` (test: temporary `HOME`, the directory is absent after the run,
   and a pre-existing history directory's mtime is unchanged).
-- [ ] With `--history`, a run writes exactly one file
+- [x] With `--history`, a run writes exactly one file
   `~/.wachiman/history/<repo-key>/runs/<utc-timestamp>-<sha7>.json`, mode 0600, under
   directories of mode 0700, whose `result` deep-equals the `ReviewResult` the JSON sink prints
   for the same run and whose `format` is `wachiman.history-run/1`.
-- [ ] The repository key is `<basename>-<hash8>` from the credential-stripped `origin` URL, and
+- [x] The repository key is `<basename>-<hash8>` from the credential-stripped `origin` URL, and
   from the common git directory's real path when there is no `origin`; two clones of one remote
   share a key; the recorded `remote` never contains `@`-delimited credentials.
-- [ ] `titleKey` and `lineHash` are pure functions with the exact rules of D5, proved by a table
+- [x] `titleKey` and `lineHash` are pure functions with the exact rules of D5, proved by a table
   test (whitespace, backticks, digit runs, a duplicated line, a 7-character line, `line: 0`).
-- [ ] The status rules of D6 hold on a table of two-run scenarios built from temporary
+- [x] The status rules of D6 hold on a table of two-run scenarios built from temporary
   repositories and the stub `claude` of `src/local.test.ts`: unchanged (open), line moved (open),
   file renamed (open), title reworded with the same line (open), line edited and finding absent
   (probably-fixed), line unchanged and finding absent (not-repeated), scoped run that excludes the
   file (unknown), `stop: quota` before the file's batch (unknown), file left the change (unknown),
   `line: 0` with a changed blob (probably-fixed), reopened after probably-fixed (open, `reopened: 1`).
-- [ ] The terminal and Markdown reports of a `--history` run label each finding `new` or
+- [x] The terminal and Markdown reports of a `--history` run label each finding `new` or
   `open since <sha7>` with its id and carry the "Since the last run" block; `--format json` on
   stdout is byte-identical with and without `--history` for the same stubbed run, and the block
   goes to stderr.
-- [ ] `agent-review history --repo-dir <dir>` lists every tracked finding of that repository with
+- [x] `agent-review history --repo-dir <dir>` lists every tracked finding of that repository with
   status, first head, last head, run count and verdict; `--all-repos` lists every key; `--since 7d`
   keeps findings seen in the last 7 days; `--json` prints the replayed state; exit 0; a missing
   history prints one line and exits 0.
-- [ ] `agent-review history --verdict <id> wrong --reason "..."` appends one line to
+- [x] `agent-review history --verdict <id> wrong --reason "..."` appends one line to
   `verdicts.jsonl` (mode 0600) and the next listing shows `verdict: wrong`; an id that resolves to
   no finding exits 2; the counts line matches `precision.ts`'s four words.
-- [ ] `agent-review history --forget --repo-dir <dir>` removes that key's directory;
+- [x] `agent-review history --forget --repo-dir <dir>` removes that key's directory;
   `--forget --all` removes `~/.wachiman/history`; both print what they removed; neither touches
   `~/.wachiman/claude-*`.
-- [ ] A save with `AGENT_REVIEW_HISTORY_DAYS=30` deletes run files of that repository whose
+- [x] A save with `AGENT_REVIEW_HISTORY_DAYS=30` deletes run files of that repository whose
   timestamp is older than 30 days and the verdicts whose first id no longer resolves; `0` deletes
   nothing; a non-integer is a usage error (exit 2) before any call.
-- [ ] A run file that is not JSON, or has another `format`, is renamed `<name>.unreadable-<unix-seconds>`
+- [x] A run file that is not JSON, or has another `format`, is renamed `<name>.unreadable-<unix-seconds>`
   with one warning on stderr, and the run proceeds.
-- [ ] A GitHub-mode review with a temporary `HOME` creates nothing under it.
-- [ ] `docs/local-review.md`'s promise reads "no transcript is kept on disk, and no history unless
+- [x] A GitHub-mode review with a temporary `HOME` creates nothing under it.
+- [x] `docs/local-review.md`'s promise reads "no transcript is kept on disk, and no history unless
   you turn it on", with a section that says what the history holds, where, who can read it, and
   how to delete it; `docs/cli.md` documents `--history`, `history` and the exit codes;
   `docs/configuration.md` lists the two variables under "Local mode"; `docs/architecture.md`'s
@@ -243,6 +244,7 @@ Checkable predicates; **none is met today**.
       "reopened": 0,
       "titleKey": "off by one in the loop over items",
       "lineHash": "9c1f…",                     // absent for line 0, a short line, or a duplicated line
+      "lineText": "returnitems[i+1];",         // the stripped line itself, so a later run can look for it
       "blobSha": "e3b0…",                      // files[].sha of the finding's file at this head
       "matchedBy": "line"                      // "line" | "title" | absent when new
     }
@@ -251,9 +253,16 @@ Checkable predicates; **none is met today**.
     { "firstId": "0f0e0d0c0b", "status": "probably-fixed", "path": "src/a.ts", "title": "…", "lastHead": "1a2b3c4…" },
     { "firstId": "77aa88bb99", "status": "not-repeated", "path": "src/b.ts", "title": "…", "lastHead": "1a2b3c4…" }
   ],
-  "unknown": 3                                 // open findings whose file this run did not review
+  "unknown": 3,                               // open findings whose file this run did not review
+  "unknownIds": ["…"]                          // their first ids, so a replay can mark them unknown
 }
 ```
+
+Reports and the listing show a finding's **first id** (stable across runs), which is also what
+`--verdict` takes; the per-run `id` stays in the file. A tracked finding's state between runs is
+`open`, `probably-fixed`, `not-repeated` or `unknown` (`new` is only the label a run gives its own
+sightings). A file counts as reviewed only when it is in both `coverage.reviewed` and
+`coverage.expected`; a finding with no line hash is compared by its file's blob `sha`.
 
 `verdicts.jsonl`, one JSON object per line: `{ "at": "…", "firstId": "…", "verdict": "wrong",
 "reason": "…" }`. The last line for a `firstId` wins.
