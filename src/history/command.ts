@@ -1,7 +1,7 @@
 /**
  * `agent-review history`: lists the findings the local history tracks, records the developer's
- * verdict on one, and forgets what was kept. It reads files only: no clone is needed beyond
- * finding the repository's key, no `claude`, no `gh`.
+ * verdict on one, and forgets what was kept. It reads files and local git metadata only (`git rev-parse`
+ * and `git remote get-url` in `--repo-dir`, to find the key): no `claude`, no GitHub.
  */
 import { UsageError } from "../config";
 import { SEVERITY, TOPIC } from "../engine";

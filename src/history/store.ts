@@ -115,7 +115,7 @@ const assertKey = (key: string) => {
   if (!KEY_PATTERN.test(key)) throw new Error(`"${key}" is not a history key.`);
 };
 
-/** Creates `dirs` (parents first) at 0700; only a directory this call made is chmodded. */
+/** Creates the missing `dirs` (parents first) at 0700; an existing one is left as it is. */
 function privateDirs(...dirs: string[]) {
   for (const dir of dirs) {
     if (existsSync(dir)) continue;
@@ -133,6 +133,8 @@ const verdictsPath = (root: string, key: string) => join(keyDir(root, key), "ver
 
 function ensureKeyDirs(root: string, key: string) {
   privateDirs(dirname(root), root, keyDir(root, key), runsDir(root, key));
+  // Tighten what an older version, an `mkdir -p` or a umask left open; only under the history root.
+  for (const dir of [root, keyDir(root, key), runsDir(root, key)]) chmodSync(dir, 0o700);
 }
 
 /** Writes `text` to `path` 0600 through a temporary name in the same directory: all or nothing. */

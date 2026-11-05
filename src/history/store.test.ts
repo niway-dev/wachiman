@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
@@ -131,6 +131,19 @@ describe("writeRun / readRuns", () => {
     const runs = readRuns(root, "r-12345678", () => {});
     expect(runs).toHaveLength(1);
     expect(runs[0].format).toBe("wachiman.history-run/1");
+  });
+
+  test("every save tightens the history root and the repository directories to 0700", () => {
+    const h = home();
+    const root = historyRoot(h);
+    const dirs = [root, join(root, "r-12345678"), join(root, "r-12345678", "runs")];
+    for (const d of dirs) mkdirSync(d, { recursive: true, mode: 0o755 });
+    for (const d of dirs) chmodSync(d, 0o755);
+    chmodSync(join(h, ".wachiman"), 0o755);
+    writeRun(root, run("2026-11-05T10:00:00.000Z"));
+    for (const d of dirs) expect(mode(d)).toBe(0o700);
+    // Only the history is the tool's to tighten: ~/.wachiman itself, which holds other things, is not touched.
+    expect(mode(join(h, ".wachiman"))).toBe(0o755);
   });
 
   test("runs come back in savedAt order", () => {

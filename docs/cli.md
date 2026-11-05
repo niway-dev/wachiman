@@ -167,8 +167,10 @@ environment, `--no-session-persistence` (see
 ### `history`
 
 `agent-review history` lists the findings that `local --history` kept for the repository of
-`--repo-dir` (default: the current directory). It reads files under `~/.wachiman/history` only: it
-runs no `claude` and calls no `gh`.
+`--repo-dir` (default: the current directory). It reads files and local git metadata only: the history files
+under `~/.wachiman/history`, plus `git rev-parse` and `git remote get-url` in `--repo-dir` to find the
+repository's key. It runs no `claude` and calls no GitHub. With no history, `--json` prints
+`{"format": "wachiman.history-state/1", "repositories": []}` rather than a message.
 
 | Option | What it does |
 | --- | --- |
@@ -176,7 +178,7 @@ runs no `claude` and calls no `gh`.
 | `--all-repos` | Every repository in the history, not just this clone's |
 | `--json` | The replayed state as `wachiman.history-state/1` JSON (an internal format, like the files it reads) |
 | `--verdict <id> correct\|partial\|wrong [--reason <text>]` | Record your judgement of a finding (the id is in the report and the listing); the listing shows it |
-| `--forget [--all]` | Delete this repository's history, or all of `~/.wachiman/history`; prints what was removed |
+| `--forget [--all]` | Delete this repository's history, or all of `~/.wachiman/history`; prints what was removed. It takes no `--all-repos`, `--json` or `--since` (usage error) |
 
 Exit codes: 0 listed, recorded or forgotten (a missing history prints one line and exits 0); 2 usage
 error, including a `--verdict` id that matches no finding.

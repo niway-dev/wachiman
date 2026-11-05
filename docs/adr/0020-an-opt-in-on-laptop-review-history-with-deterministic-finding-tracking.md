@@ -35,7 +35,7 @@ Semgrep's hash of path, rule and matched content. The spec cites each page read.
 1. **Opt-in, and off means off.** The history is read or written only with `--history` or
    `AGENT_REVIEW_HISTORY=1`. Without them `local` never opens, creates or stats
    `~/.wachiman/history`. GitHub mode (`review()`) has no path to the store at all.
-2. **On the laptop only.** The store is `~/.wachiman/history/`, directories 0700, files 0600,
+2. **On the laptop only.** The store is `~/.wachiman/history/`, directories 0700 (re-applied on every save), files 0600,
    written atomically (temporary name, `fsync`, rename). There is no export, upload or benchmark
    hook, and the guide says the files hold the review text, which quotes code.
 3. **One immutable file per run; state by replay.** Each run writes

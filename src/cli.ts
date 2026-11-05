@@ -35,7 +35,8 @@ export const USAGE = `Usage:
                                                          signed-in claude, and print it; nothing is posted
   ${historyUsage}
                                                          List, judge and forget the findings kept by
-                                                         \`local --history\`; reads files only
+                                                         \`local --history\`; reads files and local git
+                                                         metadata only: no claude, no GitHub
   agent-review --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
   agent-review --help | --version
 

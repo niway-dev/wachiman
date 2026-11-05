@@ -152,7 +152,7 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
 
 - **What is saved.** One file per run, `~/.wachiman/history/<name>-<hash>/runs/<time>-<sha7>.json`,
   holding the whole result, including the finding text, which quotes your code. It is as sensitive
-  as a `--output` report. Directories are mode 0700 and files 0600. `<name>-<hash>` comes from the
+  as a `--output` report. The history directories are set to mode 0700 and files to 0600 on every save. `<name>-<hash>` comes from the
   `origin` URL (credentials removed), so every clone and worktree of one repository shares a
   history; without an `origin` it comes from the clone's git directory.
 - **What it tells you.** Each finding is labelled `new` or `open since <sha7>`, with an id. A
@@ -165,7 +165,7 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
   `--format json`, stdout is unchanged and this block goes to stderr.
 - **`agent-review history`** lists what is tracked, per repository: status, first and last head,
   runs, id and your verdict. `--since 7d`, `--all-repos` and `--json` narrow or reshape it. It reads
-  files only: no `claude`, no GitHub.
+  files and local git metadata only (it asks `git` for the repository's key): no `claude`, no GitHub.
 - **Verdicts.** `agent-review history --verdict <id> correct|partial|wrong [--reason "…"]` records
   your judgement, with the words of [precision](precision.md). It appears in the listing and in
   later reports. It does not change a review: a finding you called wrong is still reported if the
@@ -219,7 +219,7 @@ of those rows is unconfirmed.
 | `No base branch found; pass --base <ref>` (exit 2) | No `origin/HEAD` and no `main`. Pass `--base`, or run `git remote set-head origin --auto` |
 | `HEAD is detached; check out a branch, or pass --input` (exit 2) | Check out a branch (`git switch -c review-me`) |
 | `The snapshot lacks N file(s) that the head commit has …` | `export-ignore` or a submodule. The review goes on without those files; remove the attribute on a temporary branch if they matter |
-| `history: … cannot be read (…); moved to … .unreadable-<seconds>` | A history run file is not JSON or has another format. It was renamed, not deleted, and skipped; the run went on. Delete the renamed file when you no longer need it |
+| `history: … cannot be read (…); moved to … .unreadable-<seconds>` | A history run file is not JSON or is structurally invalid. It was moved aside as `<name>.json.unreadable-<seconds>` (renamed, not deleted) and skipped; the run went on. Delete it when you no longer need it. A file written by another format version (say, after a downgrade) is skipped with a warning and left where it is |
 | An isolated profile seems to use another account | A `claude` **shell function or alias** that sets `CLAUDE_CONFIG_DIR` does not affect Wachiman (it starts the binary from `PATH`, without a shell), but it does affect a `claude` you run by hand to sign in. That is why `--setup-profile` exists: it starts the binary itself with the profile's directory. Check with `type claude` |
 
 Exit codes: 0 a report was printed (complete, partial, or ended by a usage limit), 1 no call
