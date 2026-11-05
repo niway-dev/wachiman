@@ -7,6 +7,7 @@ import { agentPrompt } from "./agent-prompt";
 import {
   coverageText,
   estimateLine,
+  historyLabel,
   indent,
   instructionNote,
   location,
@@ -15,10 +16,12 @@ import {
   profileText,
   providerLine,
   sha7,
+  sinceLastRunText,
   stopLine,
+  type HistoryAnnotation,
 } from "./common";
 
-export function renderTerminal(result: ReviewResult, opts: { profileNote?: string; agentPrompt: boolean }): string {
+export function renderTerminal(result: ReviewResult, opts: { profileNote?: string; agentPrompt: boolean; history?: HistoryAnnotation }): string {
   const blocks: string[] = [];
   blocks.push(
     [
@@ -29,7 +32,11 @@ export function renderTerminal(result: ReviewResult, opts: { profileNote?: strin
   );
   const note = instructionNote(result);
   if (note) blocks.push(note);
-  for (const f of result.findings) blocks.push(`${location(f)}  ${plainLabel(f)}\n${indent(neutralise(f.body), "    ")}`);
+  result.findings.forEach((f, i) => {
+    const entry = opts.history?.byIndex.get(i);
+    blocks.push(`${location(f)}  ${plainLabel(f)}${entry ? `  ${historyLabel(entry)}` : ""}\n${indent(neutralise(f.body), "    ")}`);
+  });
+  if (opts.history) blocks.push(sinceLastRunText(opts.history));
   const missing = notReviewed(result);
   if (missing.length > 0) {
     blocks.push(`Not reviewed:\n${missing.map((f) => `  - ${neutralise(f.path)}${f.reason ? ` (${neutralise(f.reason)})` : ""}`).join("\n")}`);

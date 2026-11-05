@@ -68,6 +68,14 @@ designed so that one can fill it cheaply.
 | D16 | **The GitHub review is one rendering of `ReviewResult`.** `buildReview` becomes the GitHub sink; terminal, Markdown and JSON render the same object | A fact the result carries reaches every destination; no sink computes its own | 0019 |
 | D17 | **The subscription child environment passes `USER`** | Probe: on macOS, `claude -p` with today's allowlist and no `USER` answers "Not logged in"; with `USER` it signs in. CI never noticed because it uses a key | 0019 |
 
+**Amendment (2026-11-05), a start commit with a maximum depth.** D6's range now has a bound: the
+merge-base is the start commit, and `git rev-list --count <start>..HEAD` may not exceed 50 commits
+(`--max-depth <n>` changes it for one run; no environment variable, no prompt). A big range is as
+acceptable as a big pull request, but the local review must not be able to analyse all of `main`.
+Size (files, lines, batches) never blocks. Without `--base`, a `HEAD` on the base branch has no
+branch to review and exits 2; `--base <commit>` names the start and is held to the same limit. The
+check runs before the snapshot and any call; `--input` has no git range and skips it.
+
 ## Open questions
 
 The owner answered the first draft's eight questions on 2026-11-03. Decided:
@@ -158,7 +166,7 @@ Still open:
   run on real work.
 - Incremental local reviews, local thread follow-up, learned memory, the automatic ceiling
   (ADR 0007, 0008, 0011, 0012): all GitHub-side state. A local run reviews the whole requested
-  range every time.
+  range every time (the history of ADR 0020 labels findings; it still reviews the whole range).
 - Running the developer's agent on the findings. The report ends with a prompt to paste; Wachiman
   starts nothing.
 - Any change to what the model is asked (`RULES`, `FLOW_QUESTIONS`, the data-path questions, the

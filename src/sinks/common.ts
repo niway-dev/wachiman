@@ -3,6 +3,7 @@
  * Markdown report. Every sink reads only the `ReviewResult` and computes no anchor.
  */
 import { neutralise, oneLine, SEVERITY, TOPIC, type Finding, type Profile, type ReviewResult } from "../engine";
+import type { Settled } from "../history/types";
 
 export const sha7 = (sha: string) => sha.slice(0, 7);
 
@@ -102,4 +103,62 @@ export function instructionNote(result: ReviewResult) {
   const { files, baseSha } = result.instructionChanges;
   if (files.length === 0) return null;
   return `Review instructions changed: this change edits ${files.map((f) => neutralise(f)).join(", ")}. The review ran under the versions at the base commit ${sha7(baseSha)}.`;
+}
+
+/**
+ * What a `--history` run adds to its report (ADR 0020): a label per finding and what this run
+ * settled about earlier ones. Built by `saveRun`; the sinks only print it.
+ */
+export interface HistoryEntry {
+  status: "new" | "open";
+  firstHead: string;
+  runs: number;
+  id: string;
+  verdict?: string;
+}
+
+export interface HistoryAnnotation {
+  /** By index into `result.findings`. `id` is the finding's first id, the one `history --verdict` takes. */
+  byIndex: Map<number, HistoryEntry>;
+  settled: Settled[];
+  unknown: number;
+  lastRun?: { head: string; savedAt: string };
+}
+
+const SETTLED_WORDS: Record<Settled["status"], string> = { "probably-fixed": "probably fixed", "not-repeated": "not repeated" };
+
+/** `new · id a1b2c3d4e5` or `open since 5d6e7f8 · 3 runs · id a1b2c3d4e5`, plus `· verdict: wrong` when judged. */
+export function historyLabel(entry: HistoryEntry) {
+  const where = entry.status === "new" ? "new" : `open since ${sha7(entry.firstHead)} · ${entry.runs} runs`;
+  return `${where} · id ${entry.id}${entry.verdict ? ` · verdict: ${entry.verdict}` : ""}`;
+}
+
+const pad = (text: string, width: number) => text + " ".repeat(Math.max(0, width - text.length));
+
+const UNKNOWN_HINT = "finding(s) in files this run did not review (run without paths to settle them)";
+
+/** The "Since the last run" block, as plain text (terminal, and stderr for `--format json`). */
+export function sinceLastRunText(a: HistoryAnnotation) {
+  const head = a.lastRun
+    ? `Since the last run (${sha7(a.lastRun.head)}, ${a.lastRun.savedAt.slice(0, 16).replace("T", " ")}):`
+    : "Since the last run: this is the first saved run of this repository.";
+  const rows = a.settled.map((s) => ({ word: SETTLED_WORDS[s.status], where: location(s), title: neutralise(s.title), id: s.firstId }));
+  const wordWidth = Math.max(...rows.map((r) => r.word.length), "unknown".length);
+  const whereWidth = Math.max(0, ...rows.map((r) => r.where.length));
+  const titleWidth = Math.max(0, ...rows.map((r) => r.title.length));
+  const lines = rows.map((r) => `  ${pad(r.word, wordWidth)}  ${pad(r.where, whereWidth)}  ${pad(r.title, titleWidth)}  (id ${r.id})`);
+  if (a.unknown > 0) lines.push(`  ${pad("unknown", wordWidth)}  ${a.unknown} ${UNKNOWN_HINT}`);
+  return [head, ...lines].join("\n");
+}
+
+/** The same facts as Markdown bullets, for the `## Since the last run` section. */
+export function sinceLastRunMarkdown(a: HistoryAnnotation) {
+  const head = a.lastRun
+    ? `Compared with the run at \`${sha7(a.lastRun.head)}\` (${a.lastRun.savedAt.slice(0, 16).replace("T", " ")}).`
+    : "This is the first saved run of this repository.";
+  const bullets = a.settled.map(
+    (s) => `- ${SETTLED_WORDS[s.status]}: \`${location(s)}\` ${neutralise(s.title)} (id \`${s.firstId}\`)`,
+  );
+  if (a.unknown > 0) bullets.push(`- unknown: ${a.unknown} ${UNKNOWN_HINT}`);
+  return bullets.length > 0 ? `${head}\n\n${bullets.join("\n")}` : head;
 }

@@ -223,3 +223,53 @@ describe("a run that stopped early", () => {
     expect(renderMarkdown(r, {})).toContain(line);
   });
 });
+
+describe("the history annotation", () => {
+  const annotation = () => ({
+    byIndex: new Map([
+      [0, { status: "open" as const, firstHead: "5d6e7f8".padEnd(40, "0"), runs: 3, id: "a1b2c3d4e5", verdict: "wrong" }],
+      [1, { status: "new" as const, firstHead: SHA7.padEnd(40, "a"), runs: 1, id: "f0f0f0f0f0" }],
+    ]),
+    settled: [
+      { firstId: "0f0e0d0c0b", status: "probably-fixed" as const, path: "src/b.ts", line: 40, title: "Unchecked cast of the response", lastHead: "1a2b3c4".padEnd(40, "0") },
+      { firstId: "77aa88bb99", status: "not-repeated" as const, path: "src/c.ts", line: 7, title: "Missing await on save", lastHead: "1a2b3c4".padEnd(40, "0") },
+    ],
+    unknown: 2,
+    lastRun: { head: "1a2b3c4".padEnd(40, "0"), savedAt: "2026-11-04T18:02:33.000Z" },
+  });
+
+  test("the history annotation labels each finding and adds the since-the-last-run block", () => {
+    const r = local();
+    const text = renderTerminal(r, { agentPrompt: false, history: annotation() });
+    expect(text).toContain(
+      "apps/api/src/main/session/store.ts:2  🟠🐛 Fix · bug: The store drops the last session (confidence high)  open since 5d6e7f8 · 3 runs · id a1b2c3d4e5 · verdict: wrong\n    `y` overwrites",
+    );
+    expect(text).toContain("session-manager.ts  🟡🧪 Consider · tests: No test covers the export (confidence medium)  new · id f0f0f0f0f0\n");
+    expect(text).toContain(
+      [
+        "Since the last run (1a2b3c4, 2026-11-04 18:02):",
+        "  probably fixed  src/b.ts:40  Unchecked cast of the response  (id 0f0e0d0c0b)",
+        "  not repeated    src/c.ts:7   Missing await on save           (id 77aa88bb99)",
+        "  unknown         2 finding(s) in files this run did not review (run without paths to settle them)",
+      ].join("\n"),
+    );
+    expect(text.indexOf("Since the last run")).toBeGreaterThan(text.indexOf("session-manager.ts"));
+    expect(text.indexOf("Since the last run")).toBeLessThan(text.indexOf("Summary:"));
+    // Without the history the report has no label and no block.
+    const plain = renderTerminal(r, { agentPrompt: false });
+    expect(plain).not.toContain("id a1b2c3d4e5");
+    expect(plain).not.toContain("Since the last run");
+
+    const md = renderMarkdown(r, { history: annotation() });
+    expect(md).toContain("`apps/api/src/main/session/store.ts:2`\n\nHistory: open since `5d6e7f8`, 3 runs, id `a1b2c3d4e5`, verdict: wrong\n\n`y` overwrites");
+    expect(md).toContain("`apps/api/src/main/session/session-manager.ts`\n\nHistory: new, id `f0f0f0f0f0`\n\nAdd a test");
+    expect(md).toContain("## Since the last run\n\nCompared with the run at `1a2b3c4` (2026-11-04 18:02).\n\n- probably fixed: `src/b.ts:40` Unchecked cast of the response (id `0f0e0d0c0b`)");
+    expect(md.indexOf("## Since the last run")).toBeLessThan(md.indexOf("## Summary"));
+    expect(renderMarkdown(r, {})).not.toContain("Since the last run");
+  });
+
+  test("the first saved run says so", () => {
+    const a = { ...annotation(), settled: [], unknown: 0, lastRun: undefined };
+    expect(renderTerminal(local(), { agentPrompt: false, history: a })).toContain("Since the last run: this is the first saved run of this repository.");
+  });
+});

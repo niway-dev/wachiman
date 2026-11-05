@@ -1,12 +1,12 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
 import { localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile } from "./local";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
-import { A_HEAD, branchRepo, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
+import { A_HEAD, branchRepo, commit, emptyCommits, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
 
 const temps: string[] = [];
 const temp = (prefix: string) => {
@@ -37,6 +37,14 @@ const OK_RESULT = JSON.stringify({
     summary: "ok",
   },
 });
+const NONE_RESULT = JSON.stringify({
+  is_error: false,
+  subtype: "success",
+  num_turns: 3,
+  total_cost_usd: 0.01,
+  duration_ms: 10,
+  structured_output: { files_reviewed: BRANCH_FILES, files_skipped: [], findings: [], contracts: [], thread_replies: [], summary: "clean" },
+});
 const QUOTA_RESULT = JSON.stringify({
   is_error: true,
   subtype: "error",
@@ -46,7 +54,7 @@ const QUOTA_RESULT = JSON.stringify({
   duration_ms: 1,
 });
 
-type Variant = "ok" | "quota" | "edit" | "garbage" | "interrupt";
+type Variant = "ok" | "none" | "quota" | "edit" | "garbage" | "interrupt";
 
 /**
  * A temporary `bin/` with a `gh` that leaves a canary and fails, and a `claude` that records its
@@ -61,11 +69,13 @@ function stubs(variant: Variant, repoDir: string) {
   const answer =
     variant === "quota"
       ? `cat <<'JSON'\n${QUOTA_RESULT}\nJSON`
-      : variant === "garbage"
-        ? "echo 'not json at all'; exit 3"
-        : variant === "interrupt"
-          ? "kill -INT $PPID; kill -INT $$"
-          : `cat <<'JSON'\n${OK_RESULT}\nJSON`;
+      : variant === "none"
+        ? `cat <<'JSON'\n${NONE_RESULT}\nJSON`
+        : variant === "garbage"
+          ? "echo 'not json at all'; exit 3"
+          : variant === "interrupt"
+            ? "kill -INT $PPID; kill -INT $$"
+            : `cat <<'JSON'\n${OK_RESULT}\nJSON`;
   writeFileSync(
     join(bin, "claude"),
     `#!/bin/sh
@@ -134,9 +144,10 @@ describe("parseLocalArgs", () => {
       output: "r.md",
       profile: { kind: "isolated", name: "work" },
       agentPrompt: true,
+      history: false,
       input: undefined,
     });
-    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, input: undefined });
+    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined });
     expect(parseLocalArgs(["--format=json", "--base=origin/main"])).toMatchObject({ format: "json", base: "origin/main" });
   });
 
@@ -148,8 +159,19 @@ describe("parseLocalArgs", () => {
     [["--base", "--format"]],
     [["--profile", "Work"]],
     [["--frobnicate"]],
+    [["--max-depth", "0"]],
+    [["--max-depth", "abc"]],
+    [["--max-depth", "-3"]],
+    [["--max-depth", "1.5"]],
+    [["--max-depth"]],
   ])("%p is a usage error", (argv) => {
     expect(() => parseLocalArgs(argv)).toThrow(UsageError);
+  });
+
+  test("--max-depth takes a positive integer, in both spellings", () => {
+    expect(parseLocalArgs(["--max-depth", "100"]).maxDepth).toBe(100);
+    expect(parseLocalArgs(["--max-depth=7"]).maxDepth).toBe(7);
+    expect(parseLocalArgs([]).maxDepth).toBeUndefined();
   });
 
   test("--input takes no base and no paths", () => {
@@ -215,6 +237,15 @@ describe("agent-review local", () => {
       expect(dir.startsWith(repo.dir)).toBe(false);
       expect(repo.dir.startsWith(dir)).toBe(false);
     }
+  });
+
+  test("prints the depth after the merge-base, before any call", () => {
+    const r = local("ok");
+    expect(r.code).toBe(0);
+    const lines = r.stderr.split("\n");
+    // branchRepo's feat/x has two commits past the merge-base.
+    expect(lines).toContain("depth: 2 commits (max 50)");
+    expect(lines.indexOf("depth: 2 commits (max 50)")).toBe(lines.indexOf(`merge-base: ${sha7(r.repo.mergeBase)}`) + 1);
   });
 
   test("the review runs against the snapshot, not the working tree", () => {
@@ -379,5 +410,295 @@ describe("agent-review local", () => {
     const r = local("ok");
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("GH_TOKEN");
+  });
+});
+
+describe("the start commit and the maximum depth", () => {
+  const sha = (dir: string, rev: string) => git(dir, "rev-parse", rev).trim();
+  const noReview = (r: { calls: () => string[]; canary: string }) => {
+    expect(r.calls()).toEqual([]);
+    expect(existsSync(r.canary)).toBe(false);
+  };
+
+  test("51 commits past the merge-base: exit 2, the message, zero provider calls", () => {
+    const repo = branchRepo();
+    emptyCommits(repo.dir, 49); // feat/x already has 2
+    expect(git(repo.dir, "rev-list", "--count", `${repo.mergeBase}..HEAD`).trim()).toBe("51");
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(
+      `The range from ${sha7(repo.mergeBase)} to ${sha7(sha(repo.dir, "HEAD"))} is 51 commits, more than the maximum depth of 50. Pass a closer --base <commit>, or raise the limit with --max-depth <n>.`,
+    );
+    noReview(r);
+    expect(r.stdout).toBe("");
+    // The refusal came before the snapshot: no temporary directory was handed to a call.
+    expect(r.read("dirs")).toBeUndefined();
+  });
+
+  test("exactly 50 commits runs", () => {
+    const repo = branchRepo();
+    emptyCommits(repo.dir, 48);
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain("depth: 50 commits (max 50)");
+  });
+
+  test("--max-depth 100 lets 51 commits run; a lower one refuses a short branch", () => {
+    const repo = branchRepo();
+    emptyCommits(repo.dir, 49);
+    const wide = local("ok", ["--max-depth", "100"], {}, repo);
+    expect(wide.code).toBe(0);
+    expect(wide.stderr).toContain("depth: 51 commits (max 100)");
+
+    const narrow = local("ok", ["--max-depth=1"], {}, branchRepo());
+    expect(narrow.code).toBe(2);
+    expect(narrow.stderr).toContain("is 2 commits, more than the maximum depth of 1.");
+    noReview(narrow);
+  });
+
+  test.each(["0", "abc"])("--max-depth %s is a usage error before any call", (value) => {
+    const r = local("ok", ["--max-depth", value]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("--max-depth");
+    noReview(r);
+  });
+
+  test("on the base branch without --base: exit 2, nothing to review", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "main");
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(
+      "HEAD is on main, which is the base: there is no branch to review. Check out your branch, or pass --base <commit> to review from that commit.",
+    );
+    noReview(r);
+  });
+
+  test("on the base branch with --base <older commit> within the depth: runs", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "main");
+    const r = local("ok", ["--base", repo.mergeBase], {}, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain(`merge-base: ${sha7(repo.mergeBase)}`);
+    expect(r.stderr).toContain("depth: 1 commit (max 50)");
+    expect(r.calls().length).toBeGreaterThan(0);
+  });
+
+  test("on the base branch with --base further back than the depth: exit 2, zero calls", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "main");
+    emptyCommits(repo.dir, 60);
+    const r = local("ok", ["--base", repo.mergeBase], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("is 61 commits, more than the maximum depth of 50.");
+    noReview(r);
+  });
+
+  test("a feature branch with no commit of its own is the base too", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "-c", "feat/empty", "main");
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("which is the base");
+    noReview(r);
+  });
+
+  test("uncommitted work, staged, unstaged and untracked, is not reviewed", () => {
+    const repo = branchRepo();
+    writeFileSync(join(repo.dir, "src/a.ts"), `${A_HEAD}export const unstagedEdit = 1;\n`);
+    writeFileSync(join(repo.dir, "src/b.ts"), "export const stagedEdit = 1;\n");
+    git(repo.dir, "add", "src/b.ts");
+    writeFileSync(join(repo.dir, "src/untracked.ts"), "export const untrackedFile = 1;\n");
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(0);
+    const prompt = r.read("prompt") ?? "";
+    for (const text of ["unstagedEdit", "stagedEdit", "untrackedFile", "untracked.ts"]) expect(prompt).not.toContain(text);
+    expect(r.stderr).toContain("files: 5 (0 excluded)");
+  });
+
+  test("--input has no git range, so the depth is not checked", () => {
+    const repo = branchRepo();
+    const head = emptyCommits(repo.dir, 60);
+    const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+    fixture.change.head.sha = head;
+    fixture.files = localFiles(repo.dir, repo.mergeBase, head);
+    const file = join(temp("wachiman-input-"), "input.json");
+    writeFileSync(file, JSON.stringify(fixture));
+    const r = local("ok", ["--input", file], {}, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr).not.toContain("depth:");
+  });
+});
+
+describe("--history", () => {
+  const A_FIXED = A_HEAD.replace("export const b = 20;", "export const b = 21;");
+  const runFiles = (home: string) => {
+    const root = join(home, ".wachiman", "history");
+    if (!existsSync(root)) return [];
+    return readdirSync(root).flatMap((key) => {
+      const dir = join(root, key, "runs");
+      return existsSync(dir) ? readdirSync(dir).map((n) => join(dir, n)) : [];
+    });
+  };
+  const mode = (path: string) => statSync(path).mode & 0o777;
+
+  test("without the flag, nothing under ~/.wachiman is created or read", () => {
+    const home = temp("wachiman-home-");
+    const r = local("ok", [], { HOME: home });
+    expect(r.code).toBe(0);
+    expect(existsSync(join(home, ".wachiman"))).toBe(false);
+
+    const runs = join(home, ".wachiman", "history", "x", "runs");
+    mkdirSync(runs, { recursive: true });
+    const file = join(runs, "2026-11-01T10-00-00-000Z-aaaaaaa.json");
+    writeFileSync(file, "{}");
+    const old = new Date("2026-11-01T10:00:00Z");
+    utimesSync(file, old, old);
+    utimesSync(runs, old, old);
+    const before = { file: statSync(file).mtimeMs, dir: statSync(runs).mtimeMs, listing: readdirSync(runs) };
+    const again = local("ok", [], { HOME: home });
+    expect(again.code).toBe(0);
+    expect(statSync(file).mtimeMs).toBe(before.file);
+    expect(statSync(runs).mtimeMs).toBe(before.dir);
+    expect(readdirSync(runs)).toEqual(before.listing);
+    expect(again.stdout).not.toContain("· id ");
+    expect(again.stdout).not.toContain("Since the last run");
+    expect(again.stderr).not.toContain("history:");
+  });
+
+  test("--history saves one run file, 0600, whose result is the JSON sink's output", () => {
+    const r = local("ok", ["--history", "--format", "json"]);
+    expect(r.code).toBe(0);
+    const files = runFiles(r.home);
+    expect(files).toHaveLength(1);
+    expect(files[0]).toMatch(/runs\/.+-[0-9a-f]{7}\.json$/);
+    expect(mode(files[0])).toBe(0o600);
+    expect(mode(join(r.home, ".wachiman", "history"))).toBe(0o700);
+    const saved = JSON.parse(readFileSync(files[0], "utf8"));
+    expect(saved.format).toBe("wachiman.history-run/1");
+    expect(saved.result).toEqual(JSON.parse(r.stdout));
+    expect(saved.tracking).toHaveLength(1);
+    expect(saved.tracking[0].status).toBe("new");
+  });
+
+  test("AGENT_REVIEW_HISTORY=1 is the same switch", () => {
+    const r = local("ok", [], { AGENT_REVIEW_HISTORY: "1" });
+    expect(r.code).toBe(0);
+    expect(runFiles(r.home)).toHaveLength(1);
+    expect(r.stdout).toContain("· id ");
+  });
+
+  test("the prompts are byte-identical with and without --history", () => {
+    const repo = branchRepo();
+    const without = local("ok", [], {}, repo);
+    const withHistory = local("ok", ["--history"], {}, repo);
+    expect(without.read("prompt")).toBeDefined();
+    // Each run's scratch directory has a random name; nothing else may differ.
+    const scrub = (text: string) => text.replace(/(agent-review|wachiman-snapshot)-[A-Za-z0-9]+/g, "$1-X");
+    expect(scrub(withHistory.read("prompt") as string)).toBe(scrub(without.read("prompt") as string));
+    expect(withHistory.read("args")?.split("\n").filter((a) => !a.startsWith("/"))).toEqual(
+      without.read("args")?.split("\n").filter((a) => !a.startsWith("/")),
+    );
+  });
+
+  test("--format json on stdout is unchanged with --history, and the block goes to stderr", () => {
+    const repo = branchRepo();
+    const without = local("ok", ["--format", "json"], {}, repo);
+    const withHistory = local("ok", ["--history", "--format", "json"], {}, repo);
+    const strip = (text: string) => {
+      const r = JSON.parse(text);
+      delete r.change.snapshot;
+      delete r.execution.durationMs;
+      for (const b of r.batches ?? []) delete b.durationMs;
+      return r;
+    };
+    expect(strip(withHistory.stdout)).toEqual(strip(without.stdout));
+    expect(withHistory.stdout).not.toContain("tracking");
+    expect(withHistory.stderr).toContain("Since the last run: this is the first saved run of this repository.");
+    expect(without.stderr).not.toContain("Since the last run");
+  });
+
+  test("a second run labels the finding open since the first head, with its id", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    const first = local("ok", ["--history"], { HOME: home }, repo);
+    expect(first.stdout).toMatch(/src\/a\.ts:2  🟠🐛 Fix · bug: T \(confidence high\)  new · id [0-9a-f]{10}\n/);
+    const second = local("ok", ["--history"], { HOME: home }, repo);
+    expect(second.code).toBe(0);
+    expect(second.stdout).toMatch(new RegExp(`open since ${sha7(repo.head)} · 2 runs · id [0-9a-f]{10}\\n`));
+    expect(second.stdout).toContain(`Since the last run (${sha7(repo.head)}, `);
+    expect(runFiles(home)).toHaveLength(2);
+    const id = (text: string) => text.match(/· id ([0-9a-f]{10})/)?.[1];
+    expect(id(second.stdout)).toBe(id(first.stdout));
+  });
+
+  test("a finding absent after its line changed is probably-fixed; unchanged, not-repeated", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    local("ok", ["--history"], { HOME: home }, repo);
+    commit(repo.dir, { "src/a.ts": A_FIXED }, "fix");
+    const fixed = local("none", ["--history"], { HOME: home }, repo);
+    expect(fixed.code).toBe(0);
+    expect(fixed.stdout).toMatch(/probably fixed  src\/a\.ts:2  T  \(id [0-9a-f]{10}\)/);
+    expect(fixed.stdout).not.toContain("not repeated");
+
+    const home2 = temp("wachiman-home-");
+    const repo2 = branchRepo();
+    local("ok", ["--history"], { HOME: home2 }, repo2);
+    const same = local("none", ["--history"], { HOME: home2 }, repo2);
+    expect(same.stdout).toMatch(/not repeated  src\/a\.ts:2  T  \(id [0-9a-f]{10}\)/);
+    expect(same.stdout).not.toContain("probably fixed");
+  });
+
+  test("a scoped run and a quota stop leave the finding unknown", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    local("ok", ["--history"], { HOME: home }, repo);
+    const scoped = local("none", ["--history", "src/b.ts"], { HOME: home }, repo);
+    expect(scoped.code).toBe(0);
+    expect(scoped.stdout).toMatch(/unknown +1 finding\(s\) in files this run did not review/);
+    expect(scoped.stdout).not.toContain("probably fixed");
+    expect(scoped.stdout).not.toContain("not repeated");
+
+    const quota = local("quota", ["--history"], { HOME: home }, repo);
+    expect(quota.stdout).toMatch(/unknown +1 finding\(s\) in files this run did not review/);
+    expect(quota.stdout).not.toContain("probably fixed");
+  });
+
+  test("AGENT_REVIEW_HISTORY_DAYS prunes old runs at save time, and a bad value exits 2 before any call", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    const first = local("ok", ["--history"], { HOME: home }, repo);
+    const [file] = runFiles(home);
+    const old = JSON.parse(readFileSync(file, "utf8"));
+    old.savedAt = new Date(Date.now() - 40 * 86_400_000).toISOString();
+    writeFileSync(file, JSON.stringify(old));
+    const second = local("ok", ["--history"], { HOME: home }, repo);
+    expect(second.code).toBe(0);
+    const files = runFiles(home);
+    expect(files).toHaveLength(1);
+    expect(files[0]).not.toBe(file);
+    expect(first.code).toBe(0);
+
+    const bad = local("ok", ["--history"], { HOME: home, AGENT_REVIEW_HISTORY_DAYS: "x" }, repo);
+    expect(bad.code).toBe(2);
+    expect(bad.stderr).toContain("AGENT_REVIEW_HISTORY_DAYS");
+    expect(bad.calls()).toEqual([]);
+    expect(runFiles(home)).toHaveLength(1);
+  });
+
+  test("Ctrl-C saves nothing", () => {
+    const r = local("interrupt", ["--history"], { AGENT_REVIEW_BATCH_LINES: "1" });
+    expect(r.code).toBe(130);
+    expect(runFiles(r.home)).toEqual([]);
+  });
+
+  test("a failure to save is a warning, and the report is still printed", () => {
+    const home = temp("wachiman-home-");
+    writeFileSync(join(home, ".wachiman"), "a file where the directory should go");
+    const r = local("ok", ["--history"], { HOME: home });
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain("history: this run was not saved");
+    expect(r.stdout).toContain("src/a.ts:2");
   });
 });

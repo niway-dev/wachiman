@@ -82,3 +82,9 @@ export function branchRepo(): BranchRepo {
   git(dir, "switch", "-q", "feat/x");
   return { dir, mergeBase, mainTip, head, subjects: ["edit a and add b", "rename old, change the image and the rules"] };
 }
+
+/** `count` empty commits on the current branch; returns the new tip. */
+export function emptyCommits(dir: string, count: number) {
+  for (let i = 1; i <= count; i++) git(dir, "commit", "-q", "--allow-empty", "-m", `step ${i}`);
+  return git(dir, "rev-parse", "HEAD").trim();
+}

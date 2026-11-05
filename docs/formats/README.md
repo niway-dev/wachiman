@@ -9,7 +9,9 @@ change to review or read a review's result.
 | `wachiman.review-input/1` | [review-input.v1.schema.json](review-input.v1.schema.json) | A change to review: what changed (`change`), the per-file diffs (`files`), the instructions read from the base commit (`instructions`), the scope, and optionally the incremental context (`since`) and the open threads (`conversation`) |
 | `wachiman.review-result/1` | [review-result.v1.schema.json](review-result.v1.schema.json) | What the core found: coverage, findings (each with its `anchor`), contracts, the summary, per-batch reports, thread replies, and how the run went (`execution`: cost estimate, calls, turns, why it stopped) |
 
-The JSON Schemas are the contract; the TypeScript types in `src/formats.ts` follow them.
+The JSON Schemas are the contract; the TypeScript types in `src/formats.ts` follow them. A local
+history run file embeds a `wachiman.review-result/1` under `result`; the wrapper around it
+(`wachiman.history-run/1`) is internal and has no schema.
 
 ## Versioning
 

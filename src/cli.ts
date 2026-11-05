@@ -10,6 +10,7 @@
  *                                       when the head was already reviewed
  *   agent-review local [paths…]         review the committed branch of a clone on the signed-in
  *                                       `claude`, and print it; no GitHub call (src/local.ts)
+ *   agent-review history                list and judge what `local --history` kept on this laptop
  *   agent-review --setup-profile [name] sign in an isolated Claude Code profile under ~/.wachiman
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error.
@@ -19,6 +20,7 @@ import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
+import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { setupProfile } from "./profiles";
@@ -31,6 +33,10 @@ export const USAGE = `Usage:
   ${localUsage}
                                                          Review the committed branch of a clone on your
                                                          signed-in claude, and print it; nothing is posted
+  ${historyUsage}
+                                                         List, judge and forget the findings kept by
+                                                         \`local --history\`; reads files and local git
+                                                         metadata only: no claude, no GitHub
   agent-review --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
   agent-review --help | --version
 
@@ -49,6 +55,7 @@ Environment:
 
 Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
+\`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 Guide: docs/local-review.md`;
 
 /** package.json sits one level above src/; in a copied layout it may belong to someone else. */
@@ -139,6 +146,9 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
       });
+    }
+    if (mode === "history") {
+      return runHistory(parseHistoryArgs(args.slice(1)), repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     const [, prArg, ...rest] = args;
     if (mode !== "review" && mode !== "comment" && mode !== "threads") {

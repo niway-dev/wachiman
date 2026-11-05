@@ -292,6 +292,12 @@ sinks of `agent-review local` (added by [#112](https://github.com/niway-dev/wach
 [spec](specs/2026-11-03-local-review-design.md)). The two formats are public and versioned: see
 [docs/formats](formats/README.md).
 
+**The history** (`src/history/`, [ADR 0020](adr/0020-an-opt-in-on-laptop-review-history-with-deterministic-finding-tracking.md))
+sits after the core, beside the sinks, and only in local mode: when `--history` is on, `runLocal`
+compares the finished `ReviewResult` with the repository's earlier runs (`reconcile`, pure: no
+filesystem, no model), saves the run, and hands the sinks an annotation. `review()` and
+`src/engine.ts` never import it.
+
 **`ReviewInput`** (`wachiman.review-input/1`, `src/formats.ts`). Required: `change.describe`, the
 sentence the prompt's first line uses ("pull request #7 in o/r"); `change.head.sha`;
 `change.base.sha`; `files[]` with `filename`, `additions` and `deletions`; `instructions`, read
@@ -578,6 +584,9 @@ and the copy-the-files install. The two sets must stay equal.
 
 ## Invariants a change must keep
 
+- The history under `~/.wachiman/history` is written only with `--history` or
+  `AGENT_REVIEW_HISTORY=1`, only by `local` and `history`, never by GitHub mode, and never leaves
+  the machine.
 - No `pull_request_target` trigger, anywhere, and no caller template that adds one.
 - No `secrets: inherit`: the caller passes `ANTHROPIC_API_KEY` explicitly.
 - Fork pull requests never run: the `review` job checks the head repository, the `on-demand` job
