@@ -58,7 +58,10 @@ Semgrep's hash of path, rule and matched content. The spec cites each page read.
    it is `new`. An earlier open finding absent from a run that lists its file in
    `coverage.reviewed` is `probably-fixed` when its cited region changed (the line hash is not
    found in the file at the new head; for `line: 0`, the blob `sha` differs) and `not-repeated`
-   when it did not; a finding whose file the run did not review stays `unknown`. A settled
+   when it did not; a finding whose file the run did not review stays `unknown`. The history key has
+   no branch, so a finding is settled only when the head it was last seen at is an ancestor of
+   (or equal to) the run's head (`git merge-base --is-ancestor`); one last seen on another line
+   of history stays `unknown` for this run. A settled
    finding that matches again is `open` with a `reopened` count. Partial coverage, scopes,
    excludes, skips and quota stops never mark anything fixed.
 7. **The developer's verdict reuses the precision vocabulary**: `history --verdict <id>

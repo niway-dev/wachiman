@@ -2,6 +2,7 @@
  * What `local` and the `history` command use of the history (ADR 0020). `review()` and the engine
  * never import this module: GitHub mode has no path to the store.
  */
+import { spawnGit, type GitRunner } from "../evidence";
 import type { ReviewInput, ReviewResult } from "../engine";
 import type { HistoryAnnotation } from "../sinks/common";
 import { lineHashOf, readHeadFileLines, stripWhitespace, titleKey } from "./fingerprint";
@@ -19,6 +20,7 @@ export interface SaveRunParams {
   days: number;
   warn: (line: string) => void;
   now?: () => Date;
+  git?: GitRunner;
 }
 
 /**
@@ -27,12 +29,26 @@ export interface SaveRunParams {
  */
 export function saveRun(p: SaveRunParams): HistoryAnnotation {
   const now = p.now ?? (() => new Date());
-  const repository = repositoryKey(p.repoDir);
+  const git = p.git ?? spawnGit;
+  const repository = repositoryKey(p.repoDir, git);
   const runs = readRuns(p.root, repository.key, p.warn);
   const verdicts = readVerdicts(p.root, repository.key);
   const blobOf = (path: string) => p.input.files.find((f) => f.filename === path)?.sha;
 
+  const head = p.result.change.head.sha;
+  const ancestors = new Map<string, boolean>();
+  // Exit 0 = ancestor (or the same commit); 1 = not; anything else (an unknown commit) cannot be proven.
+  const isAncestor = (lastHead: string) => {
+    let known = ancestors.get(lastHead);
+    if (known === undefined) {
+      known = git(["merge-base", "--is-ancestor", lastHead, head], { cwd: p.repoDir, timeoutMs: 30_000 }).status === 0;
+      ancestors.set(lastHead, known);
+    }
+    return known;
+  };
+
   const out = reconcile({
+    isAncestor,
     open: replay(runs, verdicts).findings,
     result: p.result,
     files: p.input.files,

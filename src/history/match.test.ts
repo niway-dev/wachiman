@@ -23,6 +23,8 @@ interface Step {
   /** Tracked findings (by first title) whose cited region changed. */
   changed?: string[];
   blobs?: Record<string, string>;
+  /** Heads that are not ancestors of this run's head. */
+  otherBranch?: string[];
 }
 
 /** Runs `reconcile` on a hand-built result and appends the run it would have saved. */
@@ -44,6 +46,7 @@ function step(runs: HistoryRun[], s: Step) {
       return { titleKey: titleKey(f.title), lineHash: text ? `H:${text}` : undefined, lineText: text, blobSha: s.blobs?.[f.path] };
     },
     regionChanged: (_path, t) => (s.changed ?? []).includes(t.title),
+    isAncestor: (lastHead) => !(s.otherBranch ?? []).includes(lastHead),
   });
   runs.push({
     format: HISTORY_RUN_FORMAT,
@@ -131,6 +134,17 @@ describe("reconcile", () => {
     step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts"] });
     const out = step(runs, { head: "h2", findings: [], reviewed: ["src/a.ts"] });
     expect(out.settled.map((s) => s.status)).toEqual(["not-repeated"]);
+  });
+
+  test("absent on a head that does not descend from the finding's last head: unknown, not settled", () => {
+    const runs: HistoryRun[] = [];
+    const first = step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts"] });
+    const out = step(runs, { head: "h2", findings: [], reviewed: ["src/a.ts"], changed: [A.title], otherBranch: ["h1"] });
+    expect(out.settled).toEqual([]);
+    expect(out.unknownIds).toEqual([first.tracking[0].firstId]);
+    // Back on the finding's own line of history it settles normally.
+    const back = step(runs, { head: "h3", findings: [], reviewed: ["src/a.ts"], changed: [A.title] });
+    expect(back.settled.map((s) => s.status)).toEqual(["probably-fixed"]);
   });
 
   test("absent, file not in coverage.reviewed: unknown, counted", () => {

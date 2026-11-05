@@ -47,6 +47,11 @@ export interface ReconcileInput {
   fingerprint: (f: ResultFinding) => Fingerprint;
   /** Whether the cited region of `t` changed in the file at `path` (the rename-mapped path). */
   regionChanged: (path: string, t: TrackedFinding) => boolean;
+  /**
+   * Whether the head `t` was last seen at is this run's head or one of its ancestors. The key
+   * has no branch: a finding from another line of history says nothing about this one.
+   */
+  isAncestor: (lastHead: string) => boolean;
 }
 
 const SETTLED_STATUSES: readonly TrackedStatus[] = ["probably-fixed", "not-repeated"];
@@ -83,7 +88,8 @@ export function reconcile(p: ReconcileInput): { tracking: Tracking[]; settled: S
   });
 
   // A file counts as reviewed only when the run expected it: a model that names a file outside
-  // its batch or the scope has not covered it.
+  // its batch or the scope has not covered it. A finding last seen on a head that is not an
+  // ancestor of this one (another branch) is unknown here, never settled.
   const expected = new Set(p.result.coverage.expected);
   const reviewed = new Set(p.result.coverage.reviewed.filter((f) => expected.has(f)));
   const settled: Settled[] = [];
@@ -91,7 +97,7 @@ export function reconcile(p: ReconcileInput): { tracking: Tracking[]; settled: S
   for (const t of pool) {
     if (SETTLED_STATUSES.includes(t.status)) continue; // settled earlier, and not seen again: stays settled
     const path = pathOf(t);
-    if (!reviewed.has(path)) {
+    if (!reviewed.has(path) || !p.isAncestor(t.lastHead)) {
       unknownIds.push(t.firstId);
       continue;
     }
