@@ -11,7 +11,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadConfig, UsageError } from "./config";
-import { buildLocalInput, removeSnapshot, snapshotHead, warnSnapshotDifferences } from "./connectors/local-git";
+import { buildLocalInput, DEFAULT_MAX_DEPTH, removeSnapshot, snapshotHead, warnSnapshotDifferences } from "./connectors/local-git";
 import {
   DEFAULT_EXCLUDE,
   filterFiles,
@@ -37,6 +37,7 @@ export type LocalFormat = (typeof FORMATS)[number];
 
 export interface LocalArgs {
   base?: string;
+  maxDepth?: number;
   paths: string[];
   format: LocalFormat;
   output?: string;
@@ -46,8 +47,8 @@ export interface LocalArgs {
   input?: string;
 }
 
-export const localUsage = `agent-review local [paths…] [--base <ref>] [--repo-dir <dir>] [--input <file>]
-                   [--format terminal|markdown|json] [--output <file>]
+export const localUsage = `agent-review local [paths…] [--base <ref>] [--max-depth <n>] [--repo-dir <dir>]
+                   [--input <file>] [--format terminal|markdown|json] [--output <file>]
                    [--profile default|isolated[:<name>]] [--agent-prompt] [--history]`;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
@@ -70,7 +71,11 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
     else if (name === "--history" && eq === -1) args.history = true;
     else if (name === "--base") base = value();
-    else if (name === "--output") args.output = value();
+    else if (name === "--max-depth") {
+      const v = value();
+      if (!/^[1-9]\d*$/.test(v) || !Number.isSafeInteger(Number(v))) throw new UsageError(`--max-depth must be a positive integer, got "${v}".`);
+      args.maxDepth = Number(v);
+    } else if (name === "--output") args.output = value();
     else if (name === "--profile") args.profile = parseProfile(value());
     else if (name === "--format") {
       const v = value();
@@ -212,12 +217,13 @@ export function runLocal(
   try {
     let input: ReviewInput;
     if (args.input === undefined) {
-      const built = buildLocalInput({ repoDir, base: args.base, paths: args.paths, log: io.stderr, warn: io.stderr });
+      const built = buildLocalInput({ repoDir, base: args.base, maxDepth: args.maxDepth ?? DEFAULT_MAX_DEPTH, paths: args.paths, log: io.stderr, warn: io.stderr });
       snapshotDir = built.snapshotDir;
       input = built.input;
       const { refs } = built;
       io.stderr(`base: ${refs.baseRef} (${short(refs.baseSha)})`);
       io.stderr(`merge-base: ${short(refs.mergeBase)}`);
+      io.stderr(`depth: ${refs.depth} commits (max ${args.maxDepth ?? DEFAULT_MAX_DEPTH})`);
       io.stderr(`head: ${refs.headRef} (${short(refs.headSha)})`);
     } else {
       const fromFile = readInputFile(args.input);

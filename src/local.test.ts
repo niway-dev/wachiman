@@ -6,7 +6,7 @@ import { UsageError } from "./config";
 import { localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile } from "./local";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
-import { A_HEAD, branchRepo, commit, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
+import { A_HEAD, branchRepo, commit, emptyCommits, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
 
 const temps: string[] = [];
 const temp = (prefix: string) => {
@@ -159,8 +159,19 @@ describe("parseLocalArgs", () => {
     [["--base", "--format"]],
     [["--profile", "Work"]],
     [["--frobnicate"]],
+    [["--max-depth", "0"]],
+    [["--max-depth", "abc"]],
+    [["--max-depth", "-3"]],
+    [["--max-depth", "1.5"]],
+    [["--max-depth"]],
   ])("%p is a usage error", (argv) => {
     expect(() => parseLocalArgs(argv)).toThrow(UsageError);
+  });
+
+  test("--max-depth takes a positive integer, in both spellings", () => {
+    expect(parseLocalArgs(["--max-depth", "100"]).maxDepth).toBe(100);
+    expect(parseLocalArgs(["--max-depth=7"]).maxDepth).toBe(7);
+    expect(parseLocalArgs([]).maxDepth).toBeUndefined();
   });
 
   test("--input takes no base and no paths", () => {
@@ -226,6 +237,15 @@ describe("agent-review local", () => {
       expect(dir.startsWith(repo.dir)).toBe(false);
       expect(repo.dir.startsWith(dir)).toBe(false);
     }
+  });
+
+  test("prints the depth after the merge-base, before any call", () => {
+    const r = local("ok");
+    expect(r.code).toBe(0);
+    const lines = r.stderr.split("\n");
+    // branchRepo's feat/x has two commits past the merge-base.
+    expect(lines).toContain("depth: 2 commits (max 50)");
+    expect(lines.indexOf("depth: 2 commits (max 50)")).toBe(lines.indexOf(`merge-base: ${sha7(r.repo.mergeBase)}`) + 1);
   });
 
   test("the review runs against the snapshot, not the working tree", () => {
@@ -390,6 +410,123 @@ describe("agent-review local", () => {
     const r = local("ok");
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("GH_TOKEN");
+  });
+});
+
+describe("the start commit and the maximum depth", () => {
+  const sha = (dir: string, rev: string) => git(dir, "rev-parse", rev).trim();
+  const noReview = (r: { calls: () => string[]; canary: string }) => {
+    expect(r.calls()).toEqual([]);
+    expect(existsSync(r.canary)).toBe(false);
+  };
+
+  test("51 commits past the merge-base: exit 2, the message, zero provider calls", () => {
+    const repo = branchRepo();
+    emptyCommits(repo.dir, 49); // feat/x already has 2
+    expect(git(repo.dir, "rev-list", "--count", `${repo.mergeBase}..HEAD`).trim()).toBe("51");
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(
+      `The range from ${sha7(repo.mergeBase)} to ${sha7(sha(repo.dir, "HEAD"))} is 51 commits, more than the maximum depth of 50. Pass a closer --base <commit>, or raise the limit with --max-depth <n>.`,
+    );
+    noReview(r);
+    expect(r.stdout).toBe("");
+    // The refusal came before the snapshot: no temporary directory was handed to a call.
+    expect(r.read("dirs")).toBeUndefined();
+  });
+
+  test("exactly 50 commits runs", () => {
+    const repo = branchRepo();
+    emptyCommits(repo.dir, 48);
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain("depth: 50 commits (max 50)");
+  });
+
+  test("--max-depth 100 lets 51 commits run; a lower one refuses a short branch", () => {
+    const repo = branchRepo();
+    emptyCommits(repo.dir, 49);
+    const wide = local("ok", ["--max-depth", "100"], {}, repo);
+    expect(wide.code).toBe(0);
+    expect(wide.stderr).toContain("depth: 51 commits (max 100)");
+
+    const narrow = local("ok", ["--max-depth=1"], {}, branchRepo());
+    expect(narrow.code).toBe(2);
+    expect(narrow.stderr).toContain("is 2 commits, more than the maximum depth of 1.");
+    noReview(narrow);
+  });
+
+  test.each(["0", "abc"])("--max-depth %s is a usage error before any call", (value) => {
+    const r = local("ok", ["--max-depth", value]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("--max-depth");
+    noReview(r);
+  });
+
+  test("on the base branch without --base: exit 2, nothing to review", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "main");
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(
+      "HEAD is on main, which is the base: there is no branch to review. Check out your branch, or pass --base <commit> to review from that commit.",
+    );
+    noReview(r);
+  });
+
+  test("on the base branch with --base <older commit> within the depth: runs", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "main");
+    const r = local("ok", ["--base", repo.mergeBase], {}, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain(`merge-base: ${sha7(repo.mergeBase)}`);
+    expect(r.stderr).toContain("depth: 1 commits (max 50)");
+    expect(r.calls().length).toBeGreaterThan(0);
+  });
+
+  test("on the base branch with --base further back than the depth: exit 2, zero calls", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "main");
+    emptyCommits(repo.dir, 60);
+    const r = local("ok", ["--base", repo.mergeBase], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("is 61 commits, more than the maximum depth of 50.");
+    noReview(r);
+  });
+
+  test("a feature branch with no commit of its own is the base too", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "-c", "feat/empty", "main");
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("which is the base");
+    noReview(r);
+  });
+
+  test("uncommitted work, staged, unstaged and untracked, is not reviewed", () => {
+    const repo = branchRepo();
+    writeFileSync(join(repo.dir, "src/a.ts"), `${A_HEAD}export const unstagedEdit = 1;\n`);
+    writeFileSync(join(repo.dir, "src/b.ts"), "export const stagedEdit = 1;\n");
+    git(repo.dir, "add", "src/b.ts");
+    writeFileSync(join(repo.dir, "src/untracked.ts"), "export const untrackedFile = 1;\n");
+    const r = local("ok", [], {}, repo);
+    expect(r.code).toBe(0);
+    const prompt = r.read("prompt") ?? "";
+    for (const text of ["unstagedEdit", "stagedEdit", "untrackedFile", "untracked.ts"]) expect(prompt).not.toContain(text);
+    expect(r.stderr).toContain("files: 5 (0 excluded)");
+  });
+
+  test("--input has no git range, so the depth is not checked", () => {
+    const repo = branchRepo();
+    const head = emptyCommits(repo.dir, 60);
+    const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+    fixture.change.head.sha = head;
+    fixture.files = localFiles(repo.dir, repo.mergeBase, head);
+    const file = join(temp("wachiman-input-"), "input.json");
+    writeFileSync(file, JSON.stringify(fixture));
+    const r = local("ok", ["--input", file], {}, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr).not.toContain("depth:");
   });
 });
 

@@ -37,6 +37,7 @@ describe("resolveRefs", () => {
       mergeBase: r.mergeBase,
       headRef: "feat/x",
       headSha: r.head,
+      depth: 2,
     });
     expect(resolveRefs(r.dir, "main").mergeBase).toBe(r.mergeBase);
   });

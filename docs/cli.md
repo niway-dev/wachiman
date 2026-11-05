@@ -10,7 +10,7 @@ they post and how they exit.
 bun src/cli.ts review <pr> [paths…] [--repo-dir <dir>]
 bun src/cli.ts comment <pr> [--repo-dir <dir>]   # the comment text comes from $REQUEST
 bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman threads, no review
-bun src/cli.ts local [paths…] [--base <ref>] [--repo-dir <dir>] [--input <file>] \
+bun src/cli.ts local [paths…] [--base <ref>] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
   [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
 bun src/cli.ts --setup-profile [<name>]          # sign in an isolated profile for `local`
 bun src/cli.ts --help
@@ -143,6 +143,7 @@ builds, with the `local-git` connector, and sends the same prompt
 | Option | Default | What it does |
 | --- | --- | --- |
 | `--base <ref>` | `origin/HEAD` when it resolves, else `main` | The branch the change is compared with. No fetch is made |
+| `--max-depth <n>` | `50` | The most commits from the start commit (the merge-base) to `HEAD`. A deeper range exits 2 before any call; a positive integer, for this run only. Size (files, lines, batches) never blocks a run. With no `--base`, a `HEAD` on the base branch itself is refused; `--base <commit>` names the start instead. Not checked for `--input` |
 | `[paths…]` | the whole change | Only the changed files under these paths; a word that names no changed file is ignored with a line on stderr |
 | `--input <file>` | none | A `wachiman.review-input/1` file ([formats](formats/README.md)) instead of the local diff; its `change.head.sha` is snapshotted from `--repo-dir`. Takes no `--base` and no paths |
 | `--format terminal\|markdown\|json` | `terminal` | Plain text; a Markdown report with every finding and the prompt for your agent; or the `ReviewResult` JSON |
@@ -152,13 +153,13 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
-merge-base and the head (`base: main (1a2b3c4)`, `merge-base: …`, `head: feat/x (…)`), the file
+merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 50)`, `head: feat/x (…)`), the file
 count and the number of batches on stderr; the provider's progress follows there too. **It
 prints, never posts:** the report goes to stdout (or `--output`), so `--format json` on stdout is
 the result alone.
 
 It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `AGENT_REVIEW_PROVIDER`
-is not `claude-code`, for a detached or unborn `HEAD`, a base with no merge-base, a refused
+is not `claude-code`, for a detached or unborn `HEAD`, a `HEAD` on the base branch without `--base`, a range deeper than `--max-depth`, a base with no merge-base, a refused
 isolated profile, or an `--input` whose format is not `/1` or whose head is not in the clone.
 Each `claude` call runs in subscription mode: no key, `USER` and the no-telemetry switches in its
 environment, `--no-session-persistence` (see
@@ -377,7 +378,7 @@ rest are listed as not reviewed.
 | --- | --- |
 | `0` | A report was printed: complete, partial, or ended by the account's usage limit (`stop: quota`) |
 | `1` | No call returned a review (a refused sign-in, an unclassified error, every batch failed), after printing the report that says why; or the `claude` binary did not run |
-| `2` | Usage error: an unknown option or format, `ANTHROPIC_API_KEY` set, a provider other than `claude-code`, a refused or missing isolated profile, no merge-base, a detached or unborn `HEAD`, an `--input` of another format or whose head is not in the clone |
+| `2` | Usage error: an unknown option or format, `ANTHROPIC_API_KEY` set, a provider other than `claude-code`, a refused or missing isolated profile, no merge-base, a detached or unborn `HEAD`, a `HEAD` on the base branch, a range deeper than the maximum depth, an `--input` of another format or whose head is not in the clone |
 | `130` | Interrupted with `Ctrl-C`; the snapshot was removed |
 
 Which exit code you get follows the order of the checks in `main`:

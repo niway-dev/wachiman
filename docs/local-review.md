@@ -87,6 +87,7 @@ wachi-local --repo-dir . --format markdown --output review.md
 | --- | --- |
 | `--repo-dir <dir>` | The clone. Default: the current directory |
 | `--base <ref>` | What the branch is compared with. Default: `origin/HEAD` when it resolves (the remote's default branch), else `main`. No fetch is made: fetch first if your base is stale |
+| `--max-depth <n>` | The most commits the review may span, from its start commit to `HEAD`. Default 50. Over it, the run stops with exit 2 before any call; raise it (or lower it) for one run. A positive integer; no environment variable |
 | `[paths…]` | Review only the changed files under these paths. A word that names no changed file is ignored, with a line on stderr |
 | `--input <file>` | Review a `wachiman.review-input/1` file ([formats](formats/README.md)) instead of computing the diff; its `change.head.sha` must exist in `--repo-dir` |
 | `--format terminal\|markdown\|json` | Default `terminal` (plain text). `markdown` holds every finding and ends with the prompt for your agent. `json` is the [`ReviewResult`](formats/README.md) |
@@ -95,7 +96,14 @@ wachi-local --repo-dir . --format markdown --output review.md
 | `--profile default\|isolated[:<name>]` | Which Claude Code profile runs the review (below). Default `default` |
 
 What is reviewed is the **committed** change: `merge-base(base, HEAD) → HEAD`. Uncommitted edits
-and untracked files are not part of it. The engine takes a snapshot of the head commit (`git
+and untracked files are not part of it.
+
+**The start commit and the depth.** The merge-base is the start commit of the review. A big range
+is fine, but not all of `main`: the range may span at most 50 commits (`--max-depth <n>` changes
+that for one run), however many files or lines they touch. Over the limit, the run stops with exit
+2 and no call is made; pass a closer `--base <commit>` or raise `--max-depth`. On the base branch
+itself there is no branch to review, so the run stops with exit 2 unless you pass `--base
+<commit>` to name where the review starts (that range obeys the same limit). The engine takes a snapshot of the head commit (`git
 archive` into a temporary directory) and the model reads that, so you can keep editing while it
 runs.
 
@@ -104,6 +112,7 @@ Before any call, stderr shows what will be reviewed:
 ```text
 base: origin/main (1a2b3c4)
 merge-base: 9f8e7d6
+depth: 12 commits (max 50)
 head: feat/export (5d6e7f8)
 files: 6 (0 excluded)
 batches: 1
@@ -217,6 +226,8 @@ of those rows is unconfirmed.
 | `stop: error — the provider refused the call (auth): Not logged in · Please run /login` (exit 1) | The profile is not signed in. Run `claude` and `/login` for `default`, or `--setup-profile` for an isolated profile |
 | `` `main` and HEAD have no common ancestor `` (exit 2) | The base is unrelated history. Pass the right `--base` |
 | `No base branch found; pass --base <ref>` (exit 2) | No `origin/HEAD` and no `main`. Pass `--base`, or run `git remote set-head origin --auto` |
+| `HEAD is on main, which is the base: there is no branch to review. …` (exit 2) | You are on the base branch, or on a branch with no commit past it. Check out your branch, or pass `--base <commit>` to review from that commit |
+| `The range from 1a2b3c4 to 5d6e7f8 is 51 commits, more than the maximum depth of 50. …` (exit 2) | The range is deeper than the limit, and nothing was sent. Pass a closer `--base <commit>`, or raise the limit with `--max-depth <n>` |
 | `HEAD is detached; check out a branch, or pass --input` (exit 2) | Check out a branch (`git switch -c review-me`) |
 | `The snapshot lacks N file(s) that the head commit has …` | `export-ignore` or a submodule. The review goes on without those files; remove the attribute on a temporary branch if they matter |
 | `history: … cannot be read (…); moved to … .unreadable-<seconds>` | A history run file is not JSON or is structurally invalid. It was moved aside as `<name>.json.unreadable-<seconds>` (renamed, not deleted) and skipped; the run went on. Delete it when you no longer need it. A file written by another format version (say, after a downgrade) is skipped with a warning and left where it is |

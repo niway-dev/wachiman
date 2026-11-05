@@ -29,12 +29,17 @@ const TIMEOUT_MS = 60_000;
 const DIFF_MAX_BYTES = 512 * 1024 * 1024;
 const short = (sha: string) => sha.slice(0, 7);
 
+/** The most commits a local review may span, from its start commit to `HEAD`; `--max-depth` changes it for one run. */
+export const DEFAULT_MAX_DEPTH = 50;
+
 export interface LocalRefs {
   baseRef: string;
   baseSha: string;
   mergeBase: string;
   headRef: string;
   headSha: string;
+  /** `git rev-list --count mergeBase..headSha`. */
+  depth: number;
 }
 
 /** Runs git in the clone and returns stdout; a non-zero exit throws with the command and stderr. */
@@ -54,8 +59,17 @@ const ok = (git: GitRunner, cwd: string, args: string[]) => git(args, { cwd, tim
  * The base, its merge-base with `HEAD`, and the head. The base defaults to the upstream's default
  * branch (`origin/HEAD`) when it resolves, else `main`. A detached or unborn `HEAD`, a base that is
  * not a commit and a base with no common ancestor are usage errors. No fetch, ever.
+ *
+ * The start commit is the merge-base. Without `--base`, a `HEAD` on the base branch itself (or one
+ * with no commit past the base) has no branch to review and is refused. Either way the range may
+ * not exceed `maxDepth` commits, checked here, before any snapshot or provider call.
  */
-export function resolveRefs(repoDir: string, base: string | undefined, git: GitRunner = spawnGit): LocalRefs {
+export function resolveRefs(
+  repoDir: string,
+  base: string | undefined,
+  git: GitRunner = spawnGit,
+  maxDepth: number = DEFAULT_MAX_DEPTH,
+): LocalRefs {
   if (base !== undefined && (base === "" || base.startsWith("-"))) throw new UsageError(`--base "${base}" is not a ref.`);
   const symbolic = git(["symbolic-ref", "-q", "--short", "HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
   if (symbolic.status !== 0) throw new UsageError("HEAD is detached; check out a branch, or pass --input");
@@ -77,7 +91,21 @@ export function resolveRefs(repoDir: string, base: string | undefined, git: GitR
   const headSha = run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
   const mb = git(["merge-base", baseSha, headSha], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
   if (mb.status !== 0 || mb.stdout.trim() === "") throw new UsageError(`\`${baseRef}\` and HEAD have no common ancestor`);
-  return { baseRef, baseSha, mergeBase: mb.stdout.trim(), headRef, headSha };
+  const mergeBase = mb.stdout.trim();
+  // `origin/main` and `main` are the same branch for this purpose.
+  if (base === undefined && (headRef === baseRef || `origin/${headRef}` === baseRef || mergeBase === headSha)) {
+    const branch = headRef === baseRef || `origin/${headRef}` === baseRef ? headRef : baseRef;
+    throw new UsageError(
+      `HEAD is on ${branch}, which is the base: there is no branch to review. Check out your branch, or pass --base <commit> to review from that commit.`,
+    );
+  }
+  const depth = Number(run(git, repoDir, ["rev-list", "--count", `${mergeBase}..${headSha}`]).trim());
+  if (depth > maxDepth) {
+    throw new UsageError(
+      `The range from ${short(mergeBase)} to ${short(headSha)} is ${depth} commits, more than the maximum depth of ${maxDepth}. Pass a closer --base <commit>, or raise the limit with --max-depth <n>.`,
+    );
+  }
+  return { baseRef, baseSha, mergeBase, headRef, headSha, depth };
 }
 
 /**
@@ -290,13 +318,14 @@ export function warnSnapshotDifferences(snapshot: { missing: string[]; extra: st
 export function buildLocalInput(p: {
   repoDir: string;
   base?: string;
+  maxDepth?: number;
   paths: string[];
   log: (line: string) => void;
   warn: (line: string) => void;
   git?: GitRunner;
 }): { input: ReviewInput; snapshotDir: string; refs: LocalRefs } {
   const git = p.git ?? spawnGit;
-  const refs = resolveRefs(p.repoDir, p.base, git);
+  const refs = resolveRefs(p.repoDir, p.base, git, p.maxDepth);
   const files = localFiles(p.repoDir, refs.mergeBase, refs.headSha, git);
   const { paths, ignored } = resolveScope(
     p.paths,
