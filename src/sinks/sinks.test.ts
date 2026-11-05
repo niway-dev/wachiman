@@ -167,6 +167,14 @@ describe("renderTerminal", () => {
     expect(renderTerminal(r, { agentPrompt: false })).toContain("Cost: $0.0023, an API-equivalent estimate");
     r.execution.costUsdEstimate = 0;
     expect(renderTerminal(r, { agentPrompt: false })).toContain("Cost: $0.00, an API-equivalent estimate");
+    r.execution.costUsdEstimate = 0.01;
+    expect(renderTerminal(r, { agentPrompt: false })).toContain("Cost: $0.01, an API-equivalent estimate");
+  });
+
+  test("a batch costing under a cent is not shown as $0.00 in the Markdown table", () => {
+    const r = example();
+    r.batches[0]!.costUsd = 0.00234837;
+    expect(renderMarkdown(r, {})).toMatch(/\| \$0\.0023 \|$/m);
   });
 
   test("the same estimate wording as the Markdown", () => {

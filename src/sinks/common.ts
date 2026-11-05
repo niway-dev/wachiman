@@ -61,7 +61,7 @@ const seconds = (ms: number) => {
 };
 
 /** Dollars to the cent; a cheap run (a Haiku call costs a fraction of a cent) to four places, not "$0.00". */
-const dollars = (usd: number) => `$${usd > 0 && usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`;
+export const dollars = (usd: number) => `$${usd > 0 && usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`;
 
 /** The cost, said for what it is (spec D12): the same sentence in every local rendering. */
 export function estimateLine(result: ReviewResult) {
