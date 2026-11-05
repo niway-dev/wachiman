@@ -5,7 +5,7 @@
  * lines the pull request adds, so a batch without the pattern pays nothing. The choice is made
  * by the engine from text, never by the model (ADR 0009).
  */
-import type { PrFile } from "../engine";
+import type { ReviewFile } from "../engine";
 import { addedLinesOf } from "../evidence";
 import { QUESTION as boundedWait } from "./bounded-wait";
 import { QUESTION as destructiveStep } from "./destructive-step";
@@ -29,7 +29,7 @@ export const QUESTIONS: readonly DataPathQuestion[] = [
  * The questions that apply to at least one of `files`, each once, in registry order. A file with
  * no patch (binary, or too large for GitHub to send) has no added lines and selects nothing.
  */
-export function selectQuestions(files: PrFile[]): DataPathQuestion[] {
+export function selectQuestions(files: ReviewFile[]): DataPathQuestion[] {
   const added = files.map((f) => ({ filename: f.filename, lines: addedLinesOf(f.patch) }));
   return QUESTIONS.filter((q) => added.some((f) => f.lines.length > 0 && q.applies(f.lines, f.filename)));
 }

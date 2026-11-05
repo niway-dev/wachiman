@@ -1,6 +1,9 @@
 # Local review on the developer's own Claude subscription: a review core behind source and sink ports
 
-- **Status:** draft for discussion, 2026-11-03. **Nothing here is built.** The owner approved the
+- **Status:** draft for discussion, 2026-11-03. Extraction (PR E) implemented in
+  [#111](https://github.com/niway-dev/wachiman/pull/111); the local slice (PR L, with the guide
+  of G) implemented in [#112](https://github.com/niway-dev/wachiman/pull/112), stacked on #111,
+  neither merged; level (c) not yet run, so the (G) boxes stay open. The owner approved the
   direction and the decisions in the table on 2026-11-03 ([#103](https://github.com/niway-dev/wachiman/issues/103));
   the owner answered the first draft's questions on 2026-11-03 and 2026-11-04; only 4 is open. Every claim about the code below was checked by reading
   `main` at `dce32d9` on 2026-11-03 (marked *verified*); claims about Claude Code's behaviour on a
@@ -196,47 +199,78 @@ Still open:
 Checkable predicates; each names the pull request it belongs to (E = extraction, L = local
 slice, G = guide).
 
-- [ ] (E) `src/engine.ts` exports `reviewChange(input: ReviewInput, options, deps): ReviewResult`
+- [x] (E) `src/engine.ts` exports `reviewChange(input: ReviewInput, options, deps): ReviewResult`
   and `review()` calls it; `review()` keeps `gh`, the marker, `compareFiles`, `rebaseDelta`,
-  `ceilingRoom`, `openThreads`, `buildReview`, `refuseLeak`, `postReview` and the reply posting.
-- [ ] (E) A golden test records every `FakeProvider.requests[].prompt` of the existing fake tests
-  on `main` before the extraction and asserts byte identity after it. Every existing test passes
-  unchanged.
-- [ ] (E) `ReviewInput` and `ReviewResult` carry a `format` string (`wachiman.review-input/1`,
+  `ceilingRoom`, `openThreads`, `buildReview` (through `githubReview`), `refuseLeak`, `postReview`
+  and the reply posting. Proved by `src/review-core.fake.test.ts` ("reviews a branch input end to
+  end and never touches gh") and by every `review()` test of the three fake suites.
+- [x] (E) A golden test records every `FakeProvider.requests[].prompt` of the existing fake tests
+  on `main` before the extraction and asserts byte identity after it
+  (`test/support/golden-prompts.ts`, `checkGoldenPrompts` in `src/engine.fake.test.ts`,
+  `src/ceiling.fake.test.ts`, `src/threads.fake.test.ts`). Every existing assertion passes
+  unchanged; two tests read `evidence.json` during the call instead of after it (the run
+  directory is now removed), and the call-site evidence a test greps from the engine's own
+  checkout is a placeholder in the fixtures, because it moves with every commit.
+- [x] (E) `ReviewInput` and `ReviewResult` carry a `format` string (`wachiman.review-input/1`,
   `wachiman.review-result/1`); JSON Schemas for both are in `docs/formats/`; a round-trip test
   (`JSON.parse(JSON.stringify(x))` deep-equals `x`, `headDir` excepted) passes and validates each
-  fixture against its schema; the core rejects an unknown `format` with a usage error.
-- [ ] (E) The core has no `GhFn` in its dependencies: the type of `reviewChange`'s `deps` does not
-  include `gh`.
-- [ ] (L) `agent-review local [--base <ref>] [paths…] [--repo-dir <dir>] [--input <file>]
+  fixture against its schema; the core rejects an unknown `format` with a usage error
+  (`src/formats.test.ts`: "each fixture validates against its schema", "the formats survive a
+  JSON round trip, headDir excepted", "the core refuses an unknown format with a usage error").
+- [x] (E) The core has no `GhFn` in its dependencies: the type of `reviewChange`'s `deps` does not
+  include `gh` (`CoreDeps`; at run time, the proxy deps of `src/review-core.fake.test.ts` throw on
+  `gh`).
+- [x] (L) `agent-review local [--base <ref>] [paths…] [--repo-dir <dir>] [--input <file>]
   [--format terminal|markdown|json] [--output <file>]` exists; with `--format json` stdout holds
   only the `ReviewResult` and progress goes to stderr; with `--input`, the file's `change.head.sha`
   is snapshotted from `--repo-dir` and no local diff is computed; `--base` defaults to the upstream's default branch when resolvable, else `main`; the
   command prints the resolved base ref, the merge-base SHA and the head SHA before any call.
-- [ ] (L) With `ANTHROPIC_API_KEY` set, `local` exits 2 before any call with a message that names
-  the variable and says the local mode uses the signed-in `claude`.
-- [ ] (L) A test runs `local` with a `gh` stub that throws on any call and the run completes.
-- [ ] (L) A test asserts the local child environment contains none of `ANTHROPIC_API_KEY`,
+  (`src/local.test.ts`: "reviews the branch, prints progress on stderr and the report on stdout,
+  and never calls gh", "--format json writes only the result on stdout", "--input reviews a
+  ReviewInput file and snapshots its head from --repo-dir"; `src/connectors/local-git.test.ts`:
+  "the upstream's default branch wins over main when origin/HEAD resolves".)
+- [x] (L) With `ANTHROPIC_API_KEY` set, `local` exits 2 before any call with a message that names
+  the variable and says the local mode uses the signed-in `claude`. (`src/local.test.ts`:
+  "ANTHROPIC_API_KEY set: exit 2 before any call"; `src/providers/claude-code.test.ts`: "preflight
+  refuses to start when ANTHROPIC_API_KEY is set in subscription mode".)
+- [x] (L) A test runs `local` with a `gh` stub that throws on any call and the run completes.
+  (`src/local.test.ts`: "reviews the branch, … and never calls gh": a `gh` on `PATH` that leaves
+  a canary and exits 99.)
+- [x] (L) A test asserts the local child environment contains none of `ANTHROPIC_API_KEY`,
   `ANTHROPIC_BASE_URL`, `GH_TOKEN`, and contains the D10 variables and `USER` (D17); a test asserts the `claude`
-  arguments include `--no-session-persistence`.
-- [ ] (L) The review runs against a snapshot: a test edits a tracked file in the working tree
+  arguments include `--no-session-persistence`. (`src/providers/claude-code.test.ts`: "the
+  spawned child in subscription mode sees USER and the switches and none of the key names";
+  `src/local.test.ts`: "reviews the branch, …".)
+- [x] (L) The review runs against a snapshot: a test edits a tracked file in the working tree
   after the snapshot is taken and asserts the prompt's diff and the agent's `--add-dir` both show
-  the committed content.
-- [ ] (L) The run directory and the snapshot are removed on success and on a thrown error (a test
-  with a failing fake provider).
-- [ ] (L, level a) An opt-in test (`WACHI_PARITY=1`, needs `gh` and network) builds the input for
+  the committed content. (`src/local.test.ts`: "the review runs against the snapshot, not the
+  working tree"; `src/connectors/local-git.test.ts`: "the snapshot holds the committed head, not
+  the working tree, and git grep works in it".)
+- [x] (L) The run directory and the snapshot are removed on success and on a thrown error (a test
+  with a failing fake provider). (`src/local.test.ts`: "the snapshot and the run directory are
+  removed on success and on a thrown error", with a stub `claude` that prints garbage and exits
+  3, and "Ctrl-C stops the review after the call it interrupted, removes the snapshot and exits
+  130".)
+- [x] (L, level a) An opt-in test (`WACHI_PARITY=1`, needs `gh` and network) builds the input for
   at least 10 merged pull requests of this repository with both connectors and asserts equal
   `filename`, `additions`, `deletions` and `patch` wherever GitHub sent a patch, and reports the
-  files where only the local connector has one.
-- [ ] (L, level b) For a recorded pull request fixture and a local clone at the same commits, the
+  files where only the local connector has one. (`test/parity.test.ts`, "files parity with
+  GitHub on merged pull requests"; first run in #112: 10 pull requests, 299 files equal, 0
+  differing, 14 local-only patches in #93.)
+- [x] (L, level b) For a recorded pull request fixture and a local clone at the same commits, the
   fake provider receives byte-identical prompts per batch from both connectors, with the same
-  `change` metadata in both inputs.
-- [ ] (L) Every cost figure in the terminal and Markdown output is labelled an API-equivalent
+  `change` metadata in both inputs. (`test/parity.test.ts`, "prompt parity between the github
+  and local-git connectors", on #88 and #105.)
+- [x] (L) Every cost figure in the terminal and Markdown output is labelled an API-equivalent
   estimate; a run ended by a quota or auth error prints `stop: quota` and lists every file not
-  reviewed.
-- [ ] (L) The Markdown report holds every finding (no `MAX_BODY_CHARS` cut), each with path,
+  reviewed. (`src/sinks/sinks.test.ts`: "a usage limit renders stop: quota …", "a refused sign-in
+  quotes the provider's text on one line"; `src/local.test.ts`: "a usage-limit rejection ends
+  with stop: quota, exit 0, …". An auth refusal prints `stop: error` with the provider's text and
+  the same list: amendment 2 below.)
+- [x] (L) The Markdown report holds every finding (no `MAX_BODY_CHARS` cut), each with path,
   line, label, confidence and body, and ends with the "prompt for your agent" block that lists
-  each finding's `path:line` and the reviewed head SHA.
+  each finding's `path:line` and the reviewed head SHA. (`src/sinks/sinks.test.ts`: "holds every
+  finding with no size cut, and every section", "the layout of a finding, …".)
 - [ ] (G, level c) One local run on kaipu-record #479 at `aac7202` (base: its merge-base with
   `main` at the time) on the owner's subscription; the report is compared with the posted review
   (findings matched by path and defect) and the comparison, the reported `total_cost_usd`, the
@@ -245,6 +279,30 @@ slice, G = guide).
 - [ ] (G) `docs/local-review.md` states, for each of: telemetry switches, populated-HOME
   isolation, `--safe-mode`, OAuth cost reporting, whether it was verified and on which Claude Code
   version.
+
+**Amendments (PR L, 2026-11-04).** What the implementation in #112 settled differently from the
+text above; the plan recorded the first four as spec corrections.
+
+1. **The snapshot has an index of its own.** A `git archive` extract is not a repository, and the
+   evidence step runs `git grep` in the head, so the connector runs `git init` and `git add -A -f`
+   in the snapshot (no commit, every filter attribute unset). The `ls-tree` comparison compares
+   the head's tree with the snapshot's `git ls-files`.
+2. **A quota stop reuses #109's error classes.** A usage limit is `billing` and ends with
+   `stop: "quota"`; a signed-out `claude` ("Not logged in · Please run /login") is `auth` and ends
+   with `stop: "error"` and the provider's text, both with the list of files not reviewed. The
+   criterion above says `stop: quota` for both; the core's mapping from PR E keeps them apart.
+3. **Level (c) targets kaipu-record #386 at `8c32901`** (6 files, a full posted first review), not
+   #479 at `aac7202` (65 files, not a full first review). #479 is optional, after #386.
+4. **The guide names the Claude Code version a run actually used.** 2.1.311 on 2026-11-04 on the
+   owner's machine, where the probe records above say 2.1.318.
+5. **`--setup-profile` is a top-level flag** (`agent-review --setup-profile [<name>]`, default name
+   `isolated`), not an option of `local`; profiles live at `~/.wachiman/claude-<name>`.
+6. **The populated-profile check does not open `.claude.json`**, which holds the account's
+   `oauthAccount`: only `settings.json` is read (for `hooks` and `mcpServers`); the rest is checked
+   by name. User MCP servers in `.claude.json` are ignored by `--strict-mcp-config` in every call.
+7. **`Ctrl-C`.** `spawnSync` blocks Bun's signal handlers, so the adapter, in subscription mode
+   only, throws `InterruptedError` when `claude` dies of `SIGINT` or `SIGTERM`; `local` then fails
+   every later call without starting `claude`, removes the snapshot and exits 130.
 
 ## Detail
 
@@ -406,6 +464,16 @@ interface ReviewResult {
   };
 }
 ```
+
+**Amendments (PR E, 2026-11-04).** The implemented `/1` differs from the sketch above in three
+additive ways; the schema in `docs/formats/` is the contract:
+
+1. `execution.usage` (token counts): the GitHub footer prints them, so the sink needs them.
+2. `execution.callsWithOutput` and `execution.rejection?: { kind, text }`: the GitHub notices
+   differ per rejection class and only apply when no call returned a review, which `stop` alone
+   cannot say. `provider.profile` (open question 4) is in `/1` too.
+3. `coverage.excluded` counts the in-scope files the exclude globs drop, as `filterFiles` does;
+   files outside the scope are not counted.
 
 `buildReview` becomes a pure function of this (plus `since`, `rebased`, `scoped`, `mention`,
 `automatic`, which the GitHub orchestration still knows), and its output is unchanged. The

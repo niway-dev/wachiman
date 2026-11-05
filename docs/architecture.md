@@ -36,6 +36,9 @@ model actually read, so "reviewed" always means "reported as reviewed by the mod
      v                                      v                    v
  listFiles --> since last marker? --> filterFiles --> planBatches     answer(): 1 call,
  (gh api)      (compareFiles)        (exclude, scope)  (risk, modules)  free text
+ [github connector: review(), githubReviewInput]          |                |
+ [core: ReviewInput ──► reviewChange() ──► ReviewResult,  |                |
+  from filterFiles through mergeOutputs]                  |                |
                                                           |                |
               per batch, riskiest first, until budget ends|                |
                   buildBatchPrompt --> provider.run --> batchGaps          |
@@ -46,7 +49,10 @@ model actually read, so "reviewed" always means "reported as reviewed by the mod
                                                                   |        |
                               refuseLeak --> postReview (COMMENT) <+-------+
                                              inline + body + coverage + marker
+                 [GitHub sink: githubReview → buildReview, refuseLeak, postReview, replies]
 ```
+
+The bracketed labels are the two seams of [the review core](#the-review-core-and-its-ports).
 
 ## The pipeline, stage by stage
 
@@ -143,7 +149,7 @@ All names are in `src/engine.ts` unless a file is given.
    the model should not trade coverage for it.
 
 5. **The provider call.** `reviewBatch` writes `pr.json`, `threads.json` and `evidence.json` to a scratch directory
-   and calls `deps.provider.run` asking for the neutral read tools (`read`, `glob`, `grep`;
+   (removed after the call, on success and on failure) and calls `deps.provider.run` asking for the neutral read tools (`read`, `glob`, `grep`;
    Claude Code gets exactly those three, Codex reads through shell commands in a read-only
    sandbox), `SCHEMA` as the output schema (files reviewed, files skipped with a closed reason, findings with a
    confidence, `contracts`, thread replies, summary), the head as a readable directory (the adapter starts the agent in an empty scratch
@@ -276,6 +282,106 @@ All names are in `src/engine.ts` unless a file is given.
    text cannot forge it (`neutralise`). The run's budget is the smaller of `budget_usd` and what is
    left; below `MIN_BATCH_USD` it posts one signed notice per ceiling (`readCeilingNotice`) and stops.
    *Why:* the pull request is the only state between runs (ADR 0001: no server).
+
+## The review core and its ports
+
+[ADR 0019](adr/0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
+decision 1 cuts the pipeline above into a source-neutral core and two adapters around it: the
+GitHub connector and sink, and the `local-git` connector with the terminal, Markdown and JSON
+sinks of `agent-review local` (added by [#112](https://github.com/niway-dev/wachiman/pull/112),
+[spec](specs/2026-11-03-local-review-design.md)). The two formats are public and versioned: see
+[docs/formats](formats/README.md).
+
+**`ReviewInput`** (`wachiman.review-input/1`, `src/formats.ts`). Required: `change.describe`, the
+sentence the prompt's first line uses ("pull request #7 in o/r"); `change.head.sha`;
+`change.base.sha`; `files[]` with `filename`, `additions` and `deletions`; `instructions`, read
+from the base commit by the connector (ADR 0006); `headDir`, the checkout the agent reads, the
+evidence searches and the citations are checked against (in memory only, never written to a
+file); and `scope`. Optional, because a host or a local branch may not have them: `title`,
+`description` and `author` (they become `pr.json`), `identifier`, a file's `patch` (absent for a
+binary or too-large file, as GitHub sends it) and blob `sha`, `since` (the incremental context)
+and `conversation` (the open threads). The GitHub connector, `githubReviewInput`, maps what
+`review()` already read through `gh` onto the input; it makes no call of its own.
+
+**`reviewChange(input, options, deps)`** holds `filterFiles` (with `DEFAULT_EXCLUDE` and the
+configured excludes) and the scope, `planBatches`, `assignThreads`, `renderInstructions`, and per
+batch `gatherEvidence`, `selectQuestions`, `buildBatchPrompt`, `runProvider`, `relativisePaths`,
+`checkOutput`, `batchGaps` and the one retry; then the budget arithmetic (`MIN_BATCH_USD`, the
+per-batch cap), the rate-limit backoff, `mergeOutputs`, `enforceConfidenceRule`, `adrNotices`,
+`dedupeFindings`, the "not reached" skips, each finding's `anchor` (`commentableLines`) and the
+filter that keeps only replies to thread ids the input carried. `options` (`ReviewOptions`) are
+values: the total and per-batch budgets, batch sizes, excludes, turn and time limits, model,
+effort, trigger and profile; `reviewOptionsOf(config, total)` builds them from the settings.
+`deps` (`CoreDeps`) are the agent and the engine's own I/O: provider, log, warn, line counter,
+sleep, `git`, clock, cost list and engine version. `Deps extends CoreDeps` adds `gh`, `config`
+and `repoDir` for the GitHub paths; the core never sees them.
+
+**`ReviewResult`** (`wachiman.review-result/1`) carries the coverage (`expected`, `reviewed`,
+`skipped` with closed and "not reached" reasons, `excluded`, `partial`), the findings with their
+`anchor`, the contracts, the summary, the per-batch reports, the thread replies,
+`instructionChanges` and `execution`. `execution.costUsdEstimate` is the providers'
+`total_cost_usd` summed: an API-equivalent estimate, never a bill on a subscription. `calls`
+counts provider calls, retries included; `callsWithOutput` counts those that returned a review,
+and 0 means nothing was reviewed. `notices` holds every warning the core logged and `rejection`
+the first refused call. `stop` is `quota` when a call was refused as `billing` or `rate_limit`;
+`complete` when any call returned a review or nothing was left to review (`coverage.partial`
+says whether files are missing); otherwise `turns` or `timeout` when a call hit that limit and
+none ran out of its budget, `budget` when one did, and `error` for anything else (an `auth`
+rejection is `error` with `rejection.kind: "auth"`).
+
+**The GitHub sink.** `githubReview(result, github)` maps the result onto `buildReview`'s input and
+adds the facts only GitHub mode knows: `since`, `rebased`, `scoped`, `mention`, `automatic`, and
+`instructionChanges` computed from every file of the pull request (the result's own comes from
+the input's files, which an incremental review narrows). `buildReview` puts a finding inline when
+its `anchor` is `diff`, so the sink needs no patch. Then `refuseLeak`, `postReview` and the reply
+POSTs run as before. When `callsWithOutput` is 0, `review()` posts the no-review notices from
+`execution.rejection` and `execution.stop` instead.
+
+**The `local-git` connector** (`src/connectors/local-git.ts`, `buildLocalInput`) builds the
+same `ReviewInput` from a clone, reading it with `git` only (the minimal environment of
+`spawnGit`; no fetch, nothing written to the clone):
+
+1. `resolveRefs`: the base (`--base`, else `origin/HEAD` when it resolves, else `main`), the head
+   branch, refusing a detached or unborn `HEAD`; then `git merge-base`, refusing unrelated history.
+2. `localFiles`: one `git diff -M --inter-hunk-context=1 <merge-base> <head>` split per file
+   into GitHub's `patch` shape (from the first `@@` line, no final newline; none for a binary
+   file, a pure rename or a mode change), counts from `--numstat` (`-` is 0), the head blob and
+   the old name of a rename from `--raw`. Every diff option a developer's git configuration could
+   change (prefixes, context, algorithm, colour, external diff, order file) is pinned, so the
+   patches are the same on every machine. Sorted by name.
+3. `resolveScope` on the paths, as `review()` does with the words after `review`.
+4. `localInstructions`: the instruction files at the merge-base, through `instructionsFrom` and
+   `instructionFileOf`, the same lookup, fallback, cut and warnings as `readBaseInstructions`.
+5. `change`: `kind: "branch"`, `describe` = "branch `<head>` of <clone> against <base>
+   (merge-base <sha7>)", the head ref as `title`, the commit subjects as `description`, the head
+   commit's author.
+6. `snapshotHead`: `git archive` of the head extracted with `tar` into a `wachiman-snapshot-`
+   directory, which becomes `headDir`. The evidence step runs `git grep` in the head, and a plain
+   directory is not a repository, so the snapshot gets an index of its own (`git init`, `git add
+   -A -f`, no commit, every filter attribute unset); `git grep` then sees exactly the archived
+   files. A snapshot that differs from `git ls-tree` of the head (`export-ignore`, submodules) is
+   a warning.
+7. `agent-review local` (`src/local.ts`) removes the snapshot on every exit path.
+
+Two tests hold the connector to GitHub's: level (b) in `test/parity.test.ts` runs the core on
+recorded pull requests from both connectors with a fake provider and requires byte-identical
+prompts; level (a), opt-in with `WACHI_PARITY=1`, compares the files list of ten merged pull
+requests with GitHub's.
+
+**The local sinks** (`src/sinks/`) read only the `ReviewResult`: `renderTerminal` (plain text),
+`renderMarkdown` (every finding, no `MAX_BODY_CHARS` cut, ending with the prompt for the
+developer's agent) and `renderJson` (the result itself). The coverage, profile, estimate and stop
+lines are shared (`src/sinks/common.ts`), so the terminal and the Markdown say the same thing,
+and every cost is labelled an API-equivalent estimate. No sink computes an anchor.
+
+**The run directory.** Each batch call gets its own `mkdtemp` directory holding `pr.json`,
+`threads.json` and `evidence.json`, and `reviewBatch` removes it once the call is over, on success
+and on failure. The thread-only run's and the on-demand answer's directories (`agent-threads-`,
+`agent-answer-`) are not removed yet.
+
+**The golden prompts.** Every prompt the fake-provider tests send is pinned in
+`test/fixtures/golden-prompts/` (see its README), so a change to what the model is asked shows up
+as a fixture diff in review.
 
 ## Call-site evidence (`evidence.json`)
 
@@ -495,6 +601,13 @@ and the copy-the-files install. The two sets must stay equal.
   install Codex).
 - Budgets and batch sizes come from the caller's inputs or the environment, never from the pull
   request.
+- The core (`reviewChange`) has no `gh` in its dependencies and makes no network call of its own;
+  the only senders are `defaultGh` and the provider adapter.
+- Each batch's run directory is removed after its call.
+- The local mode never constructs a `gh` function (a test runs it with a `gh` that exits 99), and
+  never forwards `ANTHROPIC_API_KEY`: it refuses to start when the key is set.
+- The snapshot and the run directory are removed on every exit path of `agent-review local`,
+  `Ctrl-C` included.
 - Only the operator can start an on-demand run, and only replies from `OWNER`, `MEMBER` or
   `COLLABORATOR` reach the agent.
 - Text containing the key or something shaped like one is not posted.

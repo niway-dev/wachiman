@@ -16,6 +16,7 @@ import {
   type RawThread,
 } from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
+import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts";
 
 // ADR 0012, part B: the thread-only run. It answers the operator's replies without a push, only on
 // a reviewed head, and follows ADR 0008: it reports, it never resolves.
@@ -33,11 +34,14 @@ class FakeProvider implements ProviderAdapter {
   }
   run(request: ProviderRequest): ProviderResult {
     this.requests.push(request);
+    recordPrompt("threads.fake", request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
     return { costUsd: 0, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, ...step(request) };
   }
 }
+
+checkGoldenPrompts("threads.fake");
 
 type Node = RawThread["comments"]["nodes"][number];
 const node = (login: string, assoc: string, body: string, databaseId = 1): Node => ({

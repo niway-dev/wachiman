@@ -30,6 +30,8 @@ describe("classifyProviderError", () => {
     'API Error: 403 {"error":{"type":"permission_error","message":"nope"}}',
     "request failed with status 401",
     "HTTP 403 Forbidden",
+    // The exact text of a signed-out `claude -p` (subscription probe of 2026-11-03).
+    "Not logged in · Please run /login",
   ])("auth: %s", (text) => {
     expect(classifyProviderError(text)).toBe("auth");
   });

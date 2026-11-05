@@ -38,6 +38,9 @@ const PATTERNS: { class: Exclude<ProviderErrorClass, "other">; patterns: RegExp[
       /invalid x-api-key/i,
       /invalid api key/i,
       /permission_error/i,
+      // A signed-out `claude` on a subscription: "Not logged in · Please run /login".
+      /not logged in/i,
+      /please run \/login/i,
       /\b(?:api error|http|status(?: code)?)\W{0,3}(?:401|403)\b/i,
     ],
   },

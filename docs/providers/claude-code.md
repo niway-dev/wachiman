@@ -90,6 +90,41 @@ example a corporate proxy), it has to be added to the list in code, on purpose.
 The engine itself runs with `bun --no-env-file`, so a `.env` file in the reviewed head cannot add
 variables to the engine process either; see [SECURITY.md](../../SECURITY.md).
 
+### In local mode (`auth: "subscription"`)
+
+`agent-review local` runs the adapter in subscription mode: the developer's own signed-in
+`claude`, never a key ([the local review guide](../local-review.md), ADR 0019). The list above
+changes in these ways (`buildChildEnv(env, { auth: "subscription", configDir })`):
+
+| Variable | In local mode |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Never passed. `preflight()` refuses to start when it is set, before the `--version` probe runs anything: with a key present, `claude -p` would bill the key |
+| `USER` | Added. Without it, `claude` on macOS answers "Not logged in" (spec D17) |
+| `CLAUDE_CONFIG_DIR` | Passed as today for the `default` profile; forced to `~/.wachiman/claude-<name>` for an `isolated` profile, whatever the parent has |
+| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_TELEMETRY`, `DISABLE_ERROR_REPORTING`, `DISABLE_AUTOUPDATER`, `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY`, `CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL` | Set to `1` (`SUBSCRIPTION_ENV`, spec D10): metrics, error reports, the updater, the feedback survey and the marketplace auto-install are switched off |
+
+Every call also gets `--no-session-persistence`, so the transcript, which holds the reviewed
+code, is not written to the profile's `projects/`. The OAuth token is never read by Wachiman: the
+binary finds its own sign-in through `HOME`, `USER` and `CLAUDE_CONFIG_DIR`. A signed-out
+`claude` fails the first call with "Not logged in · Please run /login", which
+`src/providers/errors.ts` classifies as `auth`; the run then ends with `stop: "error"` and that
+text. A usage limit is `billing`, and the run ends with `stop: "quota"`. If `claude` dies of
+`SIGINT` or `SIGTERM` (a `Ctrl-C` reaches the whole process group), the adapter throws
+`InterruptedError` in this mode only, and `local` stops the review instead of trying the next
+batch.
+
+**Profiles.** `--profile default` runs your `claude` as your shell would, with its configuration
+directory (`CLAUDE_CONFIG_DIR` passes through). `--profile isolated[:<name>]` forces
+`CLAUDE_CONFIG_DIR` to `~/.wachiman/claude-<name>`, created by `agent-review --setup-profile
+[<name>]`, which starts `claude` there, from an empty directory and without a shell, for
+`/login`. Before a run, `src/profiles.ts` refuses an isolated profile that holds `CLAUDE.md`,
+`hooks/`, `skills/`, `agents/`, `commands/`, `.mcp.json`, or a `settings.json` with hooks or MCP
+servers. It reads `settings.json` for those two keys and checks the rest by name; it never opens
+`.credentials.json`, `.claude.json` or the keychain. User MCP servers in `.claude.json` are not
+checked, since `--strict-mcp-config` ignores them in every call. Every customisation listed here
+is already neutralised by `--restricted` and `--strict-mcp-config`; the check keeps the word
+"isolated" true.
+
 
 The footer label is built from the model name and `claude --version`, for example "Claude Sonnet
 5.5 via Claude Code 2.1.304". Credential detection (`leaksSecret`) matches the exact

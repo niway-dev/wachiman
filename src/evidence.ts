@@ -324,31 +324,40 @@ export interface GitResult {
   timedOut?: boolean;
   /** `stdout` was cut at the buffer limit. */
   outputCut?: boolean;
+  /** What git wrote to stderr, for an error message. */
+  stderr?: string;
 }
 
-export type GitRunner = (args: string[], opts: { cwd: string; timeoutMs: number }) => GitResult;
+export type GitRunner = (args: string[], opts: { cwd: string; timeoutMs: number; maxBytes?: number }) => GitResult;
 
 const GIT_OUTPUT_LIMIT = 8 * 1024 * 1024;
 
+/** The whole environment of every `git` the engine runs: no token, no proxy, no pager, no prompt. */
+export const gitEnv = () => ({
+  PATH: process.env.PATH ?? "",
+  HOME: process.env.HOME ?? "",
+  LC_ALL: "C",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_OPTIONAL_LOCKS: "0",
+});
+
+/** The options every `git` the engine runs starts with. */
+export const GIT_BASE_ARGS = ["-c", "core.quotepath=off", "-c", "core.fsmonitor=false"] as const;
+
 /** Runs `git` with a minimal environment: the checked-out head is untrusted, the engine's token is not its business. */
-export const spawnGit: GitRunner = (args, { cwd, timeoutMs }) => {
-  const run = spawnSync("git", ["-c", "core.quotepath=off", "-c", "core.fsmonitor=false", ...args], {
+export const spawnGit: GitRunner = (args, { cwd, timeoutMs, maxBytes }) => {
+  const run = spawnSync("git", [...GIT_BASE_ARGS, ...args], {
     cwd,
     encoding: "utf8",
     timeout: Math.max(1, Math.floor(timeoutMs)),
-    maxBuffer: GIT_OUTPUT_LIMIT,
-    env: {
-      PATH: process.env.PATH ?? "",
-      HOME: process.env.HOME ?? "",
-      LC_ALL: "C",
-      GIT_TERMINAL_PROMPT: "0",
-      GIT_OPTIONAL_LOCKS: "0",
-    },
+    maxBuffer: maxBytes ?? GIT_OUTPUT_LIMIT,
+    env: gitEnv(),
   });
   const code = (run.error as NodeJS.ErrnoException | undefined)?.code;
   return {
     status: run.status,
     stdout: run.stdout ?? "",
+    stderr: run.stderr ?? "",
     error: run.error ? run.error.message : undefined,
     timedOut: code === "ETIMEDOUT",
     outputCut: code === "ENOBUFS",

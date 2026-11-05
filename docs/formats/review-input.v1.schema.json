@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/niway-dev/wachiman/docs/formats/review-input.v1.schema.json",
+  "title": "Wachiman review input, version 1",
+  "description": "A change to review, as a source connector writes it for the review core. The in-memory input also carries headDir, the checkout or snapshot of change.head.sha; it is never written to a file, so it is not part of this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "change", "files", "instructions", "scope"],
+  "properties": {
+    "format": { "const": "wachiman.review-input/1" },
+    "change": { "$ref": "#/$defs/ReviewChange" },
+    "files": { "type": "array", "items": { "$ref": "#/$defs/ReviewFile" } },
+    "instructions": { "$ref": "#/$defs/BaseInstructions" },
+    "scope": {
+      "description": "The words after `review`, or the local paths; empty for the whole change.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "since": {
+      "description": "Incremental context: the last reviewed commit, and whether the change was rebased since.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha", "rebased"],
+      "properties": {
+        "sha": { "type": "string" },
+        "rebased": { "type": "boolean" }
+      }
+    },
+    "conversation": {
+      "description": "Open threads for the model to answer.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/Thread" }
+    }
+  },
+  "$defs": {
+    "ReviewChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "describe", "repository", "base", "head"],
+      "properties": {
+        "kind": { "enum": ["pull-request", "branch"] },
+        "describe": {
+          "description": "One sentence for the prompt's first line and every report's headline.",
+          "type": "string"
+        },
+        "repository": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string" },
+            "url": { "type": "string" }
+          }
+        },
+        "base": { "$ref": "#/$defs/Commit" },
+        "head": { "$ref": "#/$defs/Commit" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "author": { "type": "string" },
+        "identifier": { "description": "\"#479\", \"!12\".", "type": "string" }
+      }
+    },
+    "Commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha"],
+      "properties": {
+        "sha": { "type": "string" },
+        "ref": { "type": "string" }
+      }
+    },
+    "ReviewFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filename", "additions", "deletions"],
+      "properties": {
+        "filename": { "type": "string" },
+        "additions": { "type": "integer", "minimum": 0 },
+        "deletions": { "type": "integer", "minimum": 0 },
+        "patch": { "description": "Absent for a binary file or a diff the source did not send.", "type": "string" },
+        "sha": { "description": "The file's blob at the head; absent for a removed file.", "type": "string" },
+        "previous_filename": { "description": "The name before a rename.", "type": "string" }
+      }
+    },
+    "BaseInstructions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseSha", "files"],
+      "properties": {
+        "baseSha": { "type": "string" },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/InstructionFile" } }
+      }
+    },
+    "InstructionFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "content", "truncated"],
+      "properties": {
+        "path": { "type": "string" },
+        "content": { "type": "string" },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "Thread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["comment_id", "path", "line", "finding", "replies"],
+      "properties": {
+        "comment_id": { "type": "integer" },
+        "path": { "type": "string" },
+        "line": { "type": ["integer", "null"] },
+        "finding": { "type": "string" },
+        "replies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["author", "body"],
+            "properties": {
+              "author": { "type": "string" },
+              "body": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

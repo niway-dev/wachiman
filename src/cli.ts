@@ -8,35 +8,48 @@
  *                                       review or an answer
  *   agent-review threads <pr>           answer the pending Wachiman threads, with no review; only
  *                                       when the head was already reviewed
+ *   agent-review local [paths…]         review the committed branch of a clone on the signed-in
+ *                                       `claude`, and print it; no GitHub call (src/local.ts)
+ *   agent-review --setup-profile [name] sign in an isolated Claude Code profile under ~/.wachiman
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error.
  * The settings are documented in docs/cli.md.
  */
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
 import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
+import { localUsage, parseLocalArgs, runLocal } from "./local";
+import { setupProfile } from "./profiles";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 
 export const USAGE = `Usage:
   agent-review review <pr> [paths…] [--repo-dir <dir>]   Review a pull request (or only the given paths)
   agent-review comment <pr> [--repo-dir <dir>]           Handle the comment in $REQUEST (a review or an answer)
   agent-review threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
+  ${localUsage}
+                                                         Review the committed branch of a clone on your
+                                                         signed-in claude, and print it; nothing is posted
+  agent-review --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
   agent-review --help | --version
 
 Options:
   --repo-dir <dir>                   The checked-out pull request head: every file the engine reads
                                      and the agent's working directory. Default: the current directory.
+                                     For \`local\`: the clone whose branch is reviewed.
 
 Environment:
-  GH_TOKEN, GITHUB_REPOSITORY        required
-  ANTHROPIC_API_KEY                  required by the claude-code provider (not in a dry run)
+  GH_TOKEN, GITHUB_REPOSITORY        required (not read by \`local\` or \`--setup-profile\`)
+  ANTHROPIC_API_KEY                  required by the claude-code provider (not in a dry run);
+                                     \`local\` refuses to start when it is set
   REQUEST                            the comment text, for \`comment\`
   AGENT_REVIEW_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
   AGENT_REVIEW_*                     optional settings; see docs/cli.md
 
-Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.`;
+Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
+\`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
+Guide: docs/local-review.md`;
 
 /** package.json sits one level above src/; in a copied layout it may belong to someone else. */
 export function readVersion(dir = import.meta.dir) {
@@ -76,6 +89,24 @@ export function extractRepoDir(argv: string[]) {
   return { repoDir, rest };
 }
 
+/**
+ * Writes all of `text` to a file descriptor before returning. `process.stdout.write` is
+ * asynchronous on a pipe, and `process.exit` right after it cuts a long report short.
+ */
+export function writeAll(fd: number, text: string) {
+  const bytes = Buffer.from(text);
+  let offset = 0;
+  while (offset < bytes.length) {
+    try {
+      offset += writeSync(fd, bytes, offset);
+    } catch (error) {
+      // A non-blocking pipe that is full: wait for the reader.
+      if ((error as NodeJS.ErrnoException).code !== "EAGAIN") throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+    }
+  }
+}
+
 function required(env: Record<string, string | undefined>, name: string) {
   const value = env[name];
   if (value === undefined || value === "") throw new UsageError(`${name} is not set`);
@@ -93,7 +124,22 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
     return 0;
   }
   try {
+    if (mode === "--setup-profile") {
+      if (argv.length > 2) throw new UsageError("--setup-profile takes at most one profile name.");
+      const home = env.HOME;
+      if (!home) throw new UsageError("HOME is not set.");
+      setupProfile({ name: argv[1], home, env });
+      return 0;
+    }
     const { repoDir, rest: args } = extractRepoDir(argv);
+    if (mode === "local") {
+      // No GitHub: no token, no repository, no `gh` function anywhere on this path.
+      return runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
+        stdout: (text) => writeAll(1, text),
+        stderr: (line) => console.error(line),
+        engineVersion: readVersion(),
+      });
+    }
     const [, prArg, ...rest] = args;
     if (mode !== "review" && mode !== "comment" && mode !== "threads") {
       throw new UsageError(mode ? `Unknown command "${mode}".` : "No command given.");
@@ -118,6 +164,7 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
       provider,
       config,
       repoDir,
+      engineVersion: readVersion(),
       log: (line) => console.log(line),
       warn: (line) => console.error(line),
     };

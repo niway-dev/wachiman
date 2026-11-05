@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import type { PrFile } from "../engine";
+import type { ReviewFile } from "../engine";
 import { QUESTIONS, renderDataPathQuestions, selectQuestions } from "./index";
 
-const file = (filename: string, ...added: string[]): PrFile => ({
+const file = (filename: string, ...added: string[]): ReviewFile => ({
   filename,
   additions: added.length,
   deletions: 0,
   patch: `@@ -0,0 +1,${added.length} @@\n${added.map((l) => `+${l}`).join("\n")}`,
 });
 
-const ids = (files: PrFile[]) => selectQuestions(files).map((q) => q.id);
+const ids = (files: ReviewFile[]) => selectQuestions(files).map((q) => q.id);
 
 describe("the registry", () => {
   test("holds the five questions once each, in a fixed order", () => {
@@ -47,7 +47,7 @@ describe("selectQuestions", () => {
   });
 
   test("only added lines count: a removed or unchanged line never selects", () => {
-    const f: PrFile = {
+    const f: ReviewFile = {
       filename: "src/main/heal.ts",
       additions: 1,
       deletions: 1,
@@ -65,7 +65,7 @@ describe("selectQuestions", () => {
   });
 
   test("every question can be selected by a batch (the trigger is wired, not just exported)", () => {
-    const shown: Record<string, PrFile> = {
+    const shown: Record<string, ReviewFile> = {
       "destructive-step": file("src/main/a.ts", "  unlinkSync(source);"),
       "read-error-as-empty": file(
         "src/main/b.ts",

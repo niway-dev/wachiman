@@ -160,6 +160,7 @@ applies.
 | `AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE` | string | `warn` | `warn`, `fail` | When every call is rejected for a reason on the reviewer's side (no credit, bad key, persistent rate limit): `warn` posts a notice and finishes green, `fail` posts it and throws. Any other value is a usage error (exit 2). | both |
 | `AGENT_REVIEW_REASONING_EFFORT` | string | unset | same as `AGENT_REVIEW_EFFORT` | Deprecated name of `AGENT_REVIEW_EFFORT`. Still read, with a notice on stderr, and `AGENT_REVIEW_EFFORT` wins when both are set. See [Reasoning effort](#reasoning-effort). | both |
 | `AGENT_REVIEW_DRY_RUN` | flag | off | `1` | Only the exact value `1` turns it on. Reads GitHub, runs the provider, and prints the review and replies instead of posting them. It still spends: see [Dry run](#dry-run). | both |
+| `AGENT_REVIEW_FULL_REVIEW` | flag | off | `1` | Only with `AGENT_REVIEW_DRY_RUN=1` (alone it is a usage error, exit 2). The dry run reviews the whole pull request without reading the previous-review marker, as a first review would. See [Dry run](#dry-run). | both |
 | `AGENT_REVIEW_EXCLUDE` | list | none | Comma-separated globs | Extra files to leave out, on top of the [built-in list](#excluded-files). | both |
 
 How values are read:
@@ -254,6 +255,30 @@ has no input for it. It suppresses the writes to GitHub only. It still reads the
 through `gh` and still runs the provider, so it still spends money (or uses subscription quota,
 since a dry run uses the machine's own provider login and does not need an API key). It is not an
 offline mode.
+
+A dry run of a pull request Wachiman already reviewed at its head prints "Already reviewed", and
+after new commits it reviews only what changed. `AGENT_REVIEW_FULL_REVIEW=1` (with
+`AGENT_REVIEW_DRY_RUN=1`) skips the previous-review marker, so the run is the full first review,
+printed and not posted. To review a branch without GitHub at all, use
+[`agent-review local`](local-review.md).
+
+### Local mode
+
+[`agent-review local`](local-review.md) reads the same environment, but only part of it applies.
+A person runs it by hand, so it is never an automatic run, and it has no pull request, so nothing
+GitHub-side applies.
+
+- **Apply:** `AGENT_REVIEW_BUDGET_USD` (the whole run, counted in the API-equivalent estimate, $3
+  by default), `AGENT_REVIEW_BATCH_BUDGET_USD`, `AGENT_REVIEW_BATCH_LINES`,
+  `AGENT_REVIEW_BATCH_CHARS`, `AGENT_REVIEW_MODEL`, `AGENT_REVIEW_EFFORT`,
+  `AGENT_REVIEW_MAX_TURNS`, `AGENT_REVIEW_CALL_TIMEOUT_S` and `AGENT_REVIEW_EXCLUDE`.
+- **Do not apply:** `AGENT_REVIEW_AUTO_BUDGET_USD` (no ceiling), `AGENT_REVIEW_THREADS_BUDGET_USD`,
+  `AGENT_REVIEW_OPERATOR`, `AGENT_REVIEW_MENTION`, `AGENT_REVIEW_TRIGGER` (ignored: the run is a
+  person's) and `AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE` (a refused call is the `stop:` line of the
+  report and the exit code).
+- **Refused:** `AGENT_REVIEW_PROVIDER` other than `claude-code`, and `ANTHROPIC_API_KEY` set: both
+  exit 2 before any call. `AGENT_REVIEW_DRY_RUN` changes nothing, since nothing is posted anyway;
+  `AGENT_REVIEW_FULL_REVIEW` without a dry run is still a usage error.
 
 ## Other environment variables
 

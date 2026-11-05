@@ -1,4 +1,4 @@
-import { ClaudeCodeProvider } from "./claude-code";
+import { ClaudeCodeProvider, type ClaudeAuth } from "./claude-code";
 import { CodexProvider } from "./codex";
 import type { Effort, ProviderAdapter } from "./types";
 
@@ -17,10 +17,24 @@ export class UnknownProviderError extends Error {}
 
 export function getProvider(
   name: string,
-  options: { model: string; dryRun: boolean; pricePerMTok?: string; effort: Effort },
+  options: {
+    model: string;
+    dryRun: boolean;
+    pricePerMTok?: string;
+    effort: Effort;
+    /** Claude Code only; the local command refuses Codex before it gets here. */
+    auth?: ClaudeAuth;
+    configDir?: string;
+  },
 ): ProviderAdapter {
   if (name === "claude-code") {
-    return new ClaudeCodeProvider({ model: options.model, requireApiKey: !options.dryRun, effort: options.effort });
+    const subscription = options.auth === "subscription";
+    return new ClaudeCodeProvider({
+      model: options.model,
+      requireApiKey: !subscription && !options.dryRun,
+      effort: options.effort,
+      ...(subscription ? { auth: options.auth, configDir: options.configDir } : {}),
+    });
   }
   if (name === "codex") {
     return new CodexProvider({
