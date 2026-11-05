@@ -223,3 +223,13 @@ describe("replay", () => {
     expect(state.counts).toEqual({ correct: 0, partial: 0, wrong: 1, unjudged: 2 });
   });
 });
+
+describe("replay robustness", () => {
+  test("a run without settled or unknownIds does not throw", () => {
+    const runs: HistoryRun[] = [];
+    step(runs, { head: "h1", findings: [{ path: "a.ts", line: 1, title: "t", text: "x" }], reviewed: ["a.ts"] });
+    delete (runs[0] as any).settled;
+    delete (runs[0] as any).unknownIds;
+    expect(replay(runs, new Map()).findings).toHaveLength(1);
+  });
+});

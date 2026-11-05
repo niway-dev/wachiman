@@ -47,7 +47,7 @@ function seeded(daysAgo = 2, name = "listed") {
   const run1 = {
     ...base,
     savedAt: at(daysAgo + 10),
-    result: { format: "wachiman.review-result/1", change: { head: { sha: FIRST } }, findings: [finding("src/a.ts", 12, "Off-by-one in the loop"), finding("src/b.ts", 40, "Unchecked cast")] },
+    result: { format: "wachiman.review-result/1", change: { head: { sha: FIRST } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [finding("src/a.ts", 12, "Off-by-one in the loop"), finding("src/b.ts", 40, "Unchecked cast")] },
     tracking: [tr("a1a1a1a1a1", "new", 1, FIRST), tr("b2b2b2b2b2", "new", 1, FIRST)],
     settled: [],
     unknown: 0,
@@ -56,7 +56,7 @@ function seeded(daysAgo = 2, name = "listed") {
   const run2 = {
     ...base,
     savedAt: at(daysAgo),
-    result: { format: "wachiman.review-result/1", change: { head: { sha: SECOND } }, findings: [finding("src/a.ts", 12, "Off-by-one in the loop")] },
+    result: { format: "wachiman.review-result/1", change: { head: { sha: SECOND } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [finding("src/a.ts", 12, "Off-by-one in the loop")] },
     tracking: [tr("c3c3c3c3c3", "open", 2, FIRST)].map((t) => ({ ...t, firstId: "a1a1a1a1a1" })),
     settled: [{ firstId: "b2b2b2b2b2", status: "probably-fixed", path: "src/b.ts", line: 40, title: "Unchecked cast", lastHead: FIRST }],
     unknown: 0,

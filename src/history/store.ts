@@ -167,9 +167,21 @@ function parseRun(path: string): HistoryRun {
   if (!parsed || typeof parsed !== "object") throw new Error("not an object");
   if (parsed.format !== HISTORY_RUN_FORMAT) throw new Error(`format ${JSON.stringify(parsed.format)}`);
   if (parsed.result?.format !== REVIEW_RESULT_FORMAT) throw new Error("result is not a review result");
-  if (typeof parsed.savedAt !== "string" || !Array.isArray(parsed.tracking) || !Array.isArray(parsed.result.findings)) {
+  const { result } = parsed;
+  if (typeof parsed.savedAt !== "string" || !Array.isArray(parsed.tracking) || !Array.isArray(result.findings)) {
     throw new Error("missing savedAt or tracking");
   }
+  if (!Array.isArray(parsed.settled)) throw new Error("missing settled");
+  if (typeof result.change?.head?.sha !== "string") throw new Error("missing head sha");
+  if (!Array.isArray(result.coverage?.reviewed) || !Array.isArray(result.coverage?.expected)) throw new Error("missing coverage");
+  if (!parsed.tracking.every((t: unknown) => t && typeof t === "object" && typeof (t as { firstId?: unknown }).firstId === "string")) {
+    throw new Error("malformed tracking");
+  }
+  if (!parsed.settled.every((t: unknown) => t && typeof t === "object" && typeof (t as { firstId?: unknown }).firstId === "string")) {
+    throw new Error("malformed settled");
+  }
+  if (parsed.unknownIds === undefined) parsed.unknownIds = [];
+  else if (!Array.isArray(parsed.unknownIds)) throw new Error("malformed unknownIds");
   return parsed as HistoryRun;
 }
 

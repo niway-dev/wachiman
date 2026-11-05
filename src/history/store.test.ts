@@ -39,7 +39,7 @@ function run(savedAt: string, firstIds: string[] = ["aaaaaaaaaa"], key = "r-1234
     savedAt,
     engine: { version: "0.0.0" },
     repository: { key, name: "r", keyedBy: "remote", remote: "https://github.com/o/r", path: "/x" },
-    result: { format: REVIEW_RESULT_FORMAT, change: { head: { sha: "1a2b3c4d5e6f".padEnd(40, "0") } }, findings: [] } as any,
+    result: { format: REVIEW_RESULT_FORMAT, change: { head: { sha: "1a2b3c4d5e6f".padEnd(40, "0") } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [] } as any,
     tracking: firstIds.map((id) => ({ id, status: "new", firstId: id, firstHead: "h", runs: 1, reopened: 0, titleKey: "t" })),
     settled: [],
     unknown: 0,
@@ -163,6 +163,34 @@ describe("writeRun / readRuns", () => {
     expect(names.filter((n) => n === "a.json" || n === "b.json")).toEqual([]);
     expect(readRuns(root, "r-12345678", (l) => warnings.push(l))).toHaveLength(1);
     expect(warnings).toHaveLength(2);
+  });
+});
+
+describe("structurally invalid run files", () => {
+  const broken = (mutate: (r: any) => void) => {
+    const r: any = JSON.parse(JSON.stringify(run("2026-11-05T09:00:00.000Z")));
+    mutate(r);
+    return r;
+  };
+  test("a right-format file missing settled, head.sha or coverage is moved aside; a missing unknownIds defaults to []", () => {
+    const root = historyRoot(home());
+    writeRun(root, run("2026-11-05T10:00:00.000Z"));
+    const dir = join(root, "r-12345678", "runs");
+    const cases: Record<string, (r: any) => void> = {
+      "settled.json": (r) => delete r.settled,
+      "sha.json": (r) => delete r.result.change.head.sha,
+      "coverage.json": (r) => delete r.result.coverage,
+      "tracking.json": (r) => (r.tracking = [null]),
+    };
+    for (const [name, mutate] of Object.entries(cases)) writeFileSync(join(dir, name), JSON.stringify(broken(mutate)));
+    const noIds = broken((r) => delete r.unknownIds);
+    writeFileSync(join(dir, "ids.json"), JSON.stringify(noIds));
+    const warnings: string[] = [];
+    const runs = readRuns(root, "r-12345678", (l) => warnings.push(l));
+    expect(runs).toHaveLength(2);
+    expect(runs.find((r) => r.savedAt.startsWith("2026-11-05T09"))!.unknownIds).toEqual([]);
+    expect(warnings).toHaveLength(4);
+    expect(readdirSync(dir).filter((n) => n.includes(".unreadable-"))).toHaveLength(4);
   });
 });
 

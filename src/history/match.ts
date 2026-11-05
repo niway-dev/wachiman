@@ -143,7 +143,7 @@ export function replay(runs: HistoryRun[], verdicts: Map<string, VerdictLine>): 
         reopened: t.reopened,
       });
     });
-    for (const s of run.settled) {
+    for (const s of run.settled ?? []) {
       const t = state.get(s.firstId);
       if (t) t.status = s.status;
     }
