@@ -32,7 +32,18 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isAutomatic, operatorProblem, type EngineConfig, type Trigger } from "./config";
+import { isAutomatic, operatorProblem, type DailyLimitMode, type EngineConfig, type Trigger } from "./config";
+import {
+  LedgerRefused,
+  defaultCurl,
+  receiptFooter,
+  requestIdToken,
+  reserve as ledgerReserve,
+  settle as ledgerSettle,
+  type CurlFn,
+  type LedgerEnv,
+  type Refusal,
+} from "./ledger";
 import {
   EVIDENCE_CAPS,
   addedLinesOf,
@@ -171,7 +182,8 @@ export interface Review {
   comments: InlineComment[];
 }
 
-export type Command = { kind: "review"; paths: string[] } | { kind: "answer" };
+/** `force` is `--force` after `review`: spend past a spent day (ADR 0020). Only the operator's comment may honour it. */
+export type Command = { kind: "review"; paths: string[]; force: boolean } | { kind: "answer" };
 
 export const DEFAULT_EXCLUDE = [
   "**/bun.lock",
@@ -225,7 +237,10 @@ export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command |
   const match = body.match(new RegExp(`(?<![\\w./@-])(?:${names})(?![\\w-])(.*)`));
   if (!match) return null;
   const words = match[1].trim().split(/\s+/).filter(Boolean);
-  if (words[0]?.toLowerCase() === "review") return { kind: "review", paths: words.slice(1) };
+  if (words[0]?.toLowerCase() === "review") {
+    const rest = words.slice(1);
+    return { kind: "review", paths: rest.filter((w) => w !== "--force"), force: rest.includes("--force") };
+  }
   return { kind: "answer" };
 }
 
@@ -826,6 +841,8 @@ export function buildReview(input: {
   effort?: string;
   /** An automatic run: its footer gets the flag the pull request's ceiling sums (ADR 0012). */
   automatic?: boolean;
+  /** The ledger's signed receipt line (ADR 0020), written immediately before the cost line. */
+  receiptLine?: string;
   /** The configured mention keyword, for the hint on how to ask for the rest. */
   mention?: string;
   /** Review-instruction files this pull request edits, and the base commit they were read from. */
@@ -896,6 +913,7 @@ export function buildReview(input: {
       `<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n</details>`,
     );
   }
+  if (input.receiptLine) parts.push(input.receiptLine);
   parts.push(
     costLine({
       modelLabel,
@@ -1377,6 +1395,10 @@ export interface Deps extends CoreDeps {
    * current directory.
    */
   repoDir?: string;
+  /** Runs `curl` for the daily ledger (ADR 0020); swapped for a fake in tests. Default: the real `curl`. */
+  curl?: CurlFn;
+  /** Where the id-token request variables come from. Default: `process.env`. */
+  ledgerEnv?: LedgerEnv;
 }
 
 const blockingSleep = (ms: number) => void Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -1842,6 +1864,138 @@ export function ceilingRoom(deps: Deps, repo: string, pr: number, headSha: strin
   return null;
 }
 
+/** The daily ledger refused the run (ADR 0020): the day is spent. `mode` is the caller's `daily_limit_mode`. */
+export class DailyLimitReached extends Error {
+  constructor(
+    readonly refusal: Refusal,
+    readonly mode: DailyLimitMode,
+  ) {
+    super(
+      refusal.accountSpentUsd !== undefined && refusal.accountLimitUsd !== undefined
+        ? `Automatic reviews spent $${refusal.accountSpentUsd.toFixed(2)} of $${refusal.accountLimitUsd.toFixed(2)} today.`
+        : "The daily spend limit is reached.",
+    );
+  }
+}
+
+/** What a run may spend after asking the ledger; `reservationId` is null when there was no ledger to ask. */
+export interface DailyGrant {
+  reservationId: string | null;
+  roomUsd: number;
+}
+
+/**
+ * The notice posted when the ledger says the day is spent, once per pull request per UTC day.
+ * Its footer names the day, so a second run the same day posts nothing (ADR 0020).
+ */
+const NO_CREDITS_SOURCE = "<!-- wachi:nocredits day=(\\d{4}-\\d{2}-\\d{2}) -->";
+export const noCreditsFooter = (day: string) => `<!-- wachi:nocredits day=${day} -->`;
+const NO_CREDITS_NOTICE = new RegExp(
+  `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${NO_CREDITS_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`,
+);
+
+/** The day (`YYYY-MM-DD`) a signed No credits notice was posted for, or null when the body is not one. */
+export function readNoCreditsDay(body: string) {
+  return body.trimEnd().match(NO_CREDITS_NOTICE)?.[1] ?? null;
+}
+
+const usd = (value: number) => `$${value.toFixed(2)}`;
+
+/** `00:00 UTC (in 5 h 12 min)`: the reset time the ledger named, relative to now. */
+function resetText(deps: Deps, resetsAt: string | undefined) {
+  const now = (deps.now ?? Date.now)();
+  const at = resetsAt ? Date.parse(resetsAt) : Number.NaN;
+  const reset = Number.isNaN(at) ? Math.floor(now / 86_400_000 + 1) * 86_400_000 : at;
+  const clock = new Date(reset).toISOString().slice(11, 16);
+  const minutes = Math.max(0, Math.floor((reset - now) / 60_000));
+  return `${clock} UTC (in ${Math.floor(minutes / 60)} h ${minutes % 60} min)`;
+}
+
+function postNoCredits(deps: Deps, repo: string, pr: number, headSha: string, refusal: Refusal) {
+  const day = refusal.day ?? new Date((deps.now ?? Date.now)()).toISOString().slice(0, 10);
+  const jq = '.[] | select(.user.login == "github-actions[bot]") | {body} | @json';
+  const told = jsonLines<{ body: string | null }>(deps.gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/reviews`, "--jq", jq])).some(
+    (r) => readNoCreditsDay(r.body ?? "") === day,
+  );
+  if (told) {
+    deps.log(`The daily limit is reached and this pull request already has today's notice (${day}); posting none.`);
+    return;
+  }
+  const spent =
+    refusal.accountSpentUsd !== undefined && refusal.accountLimitUsd !== undefined
+      ? `Automatic reviews spent **${usd(refusal.accountSpentUsd)} of ${usd(refusal.accountLimitUsd)}** across your repositories`
+      : "Automatic reviews reached today's limit";
+  postReview(deps, repo, pr, headSha, {
+    body: [
+      branded(
+        `**No credits today.** ${spent}; the limit resets at **${resetText(deps, refusal.resetsAt)}**. To review this pull request now, comment \`${deps.config.mention} review --force\`. To change the limit, edit the account in the ledger; to let this repository ignore it, set \`daily_limit_bypass: true\` (at your own risk).`,
+      ),
+      SIGNATURE.review,
+      noCreditsFooter(day),
+    ].join("\n\n"),
+    comments: [],
+  });
+}
+
+/**
+ * Asks the daily ledger how much this run may spend (ADR 0020), before any model call. With no
+ * `ledger_url`, or `daily_limit_bypass`, there is nothing to ask and the room is unlimited. A
+ * refusal for the day's limit posts the No credits notice (once a day per pull request) and throws
+ * `DailyLimitReached`; any other refusal, or a ledger that cannot answer, propagates unchanged.
+ */
+export function dailyReserve(
+  deps: Deps,
+  repo: string,
+  pr: number,
+  headSha: string,
+  wantedUsd: number,
+  forced: boolean,
+): DailyGrant {
+  const { config } = deps;
+  if (!config.ledgerUrl) return { reservationId: null, roomUsd: Number.POSITIVE_INFINITY };
+  if (config.dailyLimitBypass) {
+    deps.log("ledger bypassed");
+    return { reservationId: null, roomUsd: Number.POSITIVE_INFINITY };
+  }
+  const curl = deps.curl ?? defaultCurl;
+  try {
+    const token = requestIdToken(deps.ledgerEnv ?? process.env, config.ledgerUrl, curl);
+    const granted = ledgerReserve(
+      config.ledgerUrl,
+      token,
+      { wantedUsd, callerLimitUsd: config.dailyBudgetUsd, trigger: config.trigger ?? "cli", forced },
+      curl,
+    );
+    return { reservationId: granted.reservationId, roomUsd: granted.grantedUsd };
+  } catch (error) {
+    if (error instanceof LedgerRefused && (error.refusal.reason === "limit" || error.refusal.reason === "repository_limit")) {
+      postNoCredits(deps, repo, pr, headSha, error.refusal);
+      throw new DailyLimitReached(error.refusal, config.dailyLimitMode);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Tells the ledger what the run really spent and returns the receipt footer line, or null when
+ * there was no reservation or the ledger could not settle: the review is still posted, and the
+ * reservation stays counted at the reserved amount (ADR 0020).
+ */
+export function dailySettle(deps: Deps, grant: DailyGrant, spentUsd: number): string | null {
+  const { ledgerUrl } = deps.config;
+  if (grant.reservationId === null || !ledgerUrl) return null;
+  const curl = deps.curl ?? defaultCurl;
+  try {
+    // A fresh token: a long run can outlive the one `dailyReserve` used.
+    const token = requestIdToken(deps.ledgerEnv ?? process.env, ledgerUrl, curl);
+    const { receipt, signature } = ledgerSettle(ledgerUrl, token, grant.reservationId, spentUsd, curl);
+    return receiptFooter(receipt, signature);
+  } catch (error) {
+    deps.warn(`Could not settle with the ledger; the reservation stays counted: ${String(error).slice(0, 200)}`);
+    return null;
+  }
+}
+
 /** Waits before the 1st and 2nd retry of a review POST GitHub answered with a transient error. */
 export const REVIEW_RETRY_DELAYS_MS = [1_000, 3_000];
 
@@ -2284,6 +2438,8 @@ export function githubReview(
     scoped: boolean;
     mention: string;
     automatic: boolean;
+    /** The ledger's receipt line (ADR 0020), when the run settled. */
+    receiptLine?: string;
     /** Computed by the connector from every file of the pull request, not only the reviewed ones. */
     instructionChanges: { files: string[]; baseSha: string };
   },
@@ -2310,12 +2466,14 @@ export function githubReview(
     modelLabel: result.provider.label,
     effort: result.provider.effort,
     automatic: github.automatic,
+    receiptLine: github.receiptLine,
     mention: github.mention,
     instructionChanges: github.instructionChanges,
   });
 }
 
-export function review(deps: Deps, repo: string, pr: number, words: string[]) {
+/** `force` (`--force`) counts only for the operator's own run, never an automatic trigger (ADR 0020). */
+export function review(deps: Deps, repo: string, pr: number, words: string[], force = false) {
   const { gh, config } = deps;
   const meta = JSON.parse(
     gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,title,body,author"]),
@@ -2460,9 +2618,10 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   // After the rebase exits above (they cost nothing and move the marker) and before any paid step.
   const room = ceilingRoom(deps, repo, pr, headSha);
   if (room === null) return;
+  const grant = dailyReserve(deps, repo, pr, headSha, Math.min(config.budgetUsd, room), force && !isAutomatic(config.trigger));
   const base = baseSha(gh, repo, pr);
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
-  const totalBudget = Math.min(config.budgetUsd, room);
+  const totalBudget = Math.min(config.budgetUsd, room, grant.roomUsd);
   const batchBudget = config.batchBudgetUsd;
   const threads = last ? openThreads(gh, repo, pr) : [];
   const input = githubReviewInput({
@@ -2482,6 +2641,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   const result = reviewChange(input, reviewOptionsOf(config, totalBudget), deps);
   const { usage, costUsdEstimate: spent } = result.execution;
   const operation: Operation = since ? "re-review" : "review";
+  const receiptLine = dailySettle(deps, grant, spent) ?? undefined;
 
   if (result.execution.callsWithOutput === 0) {
     // A failed automatic run still spent money: its notice carries the cost line the ceiling sums.
@@ -2490,6 +2650,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
         ? postReview(deps, repo, pr, headSha, {
             body: [
               branded(text),
+              ...(receiptLine ? [receiptLine] : []),
               costLine({ modelLabel: result.provider.label, effort: config.effort, operation, usage, costUsd: spent }),
               SIGNATURE.auto,
               SIGNATURE.review,
@@ -2540,6 +2701,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     scoped: paths.length > 0,
     mention: config.mention,
     automatic: isAutomatic(config.trigger),
+    receiptLine,
     instructionChanges: {
       files: changedInstructionFiles(prFiles.map((f) => f.filename)),
       baseSha: instructions.baseSha,
@@ -2692,7 +2854,8 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
   }
   const room = ceilingRoom(deps, repo, pr, headSha);
   if (room === null) return;
-  const budgetUsd = Math.min(config.threadsBudgetUsd, room);
+  const grant = dailyReserve(deps, repo, pr, headSha, Math.min(config.threadsBudgetUsd, room), false);
+  const budgetUsd = Math.min(config.threadsBudgetUsd, room, grant.roomUsd);
 
   const meta = JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,author"]));
   const repoDir = deps.repoDir ?? process.cwd();
@@ -2715,6 +2878,7 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     budgetUsd,
     THREAD_SCHEMA,
   );
+  const receiptLine = dailySettle(deps, grant, call.costUsd);
   const raw = !call.isError ? (call.structuredOutput as { thread_replies?: ThreadReply[] } | undefined) : undefined;
   if (!raw || !Array.isArray(raw.thread_replies)) {
     throw new Error(`The agent did not answer the threads (${call.terminalReason}); $${call.costUsd.toFixed(2)} spent.`);
@@ -2756,7 +2920,7 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     // One call answered every thread: the first reply carries its cost, flagged automatic, for the ceiling.
     const cost =
       i === 0
-        ? `\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`], usage: call.usage, costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
+        ? `${receiptLine ? `\n\n${receiptLine}` : ""}\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`], usage: call.usage, costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
         : "";
     const body = `${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(reply.reply)}${cost}\n\n${SIGNATURE.reply}`;
     if (config.dryRun) {
@@ -3182,6 +3346,12 @@ ${question}
 Answer it. Your final message is posted verbatim as the comment, so it holds the answer and
 nothing else. Write in English.`;
   // One question is one call, with the budget a whole review had before batches: $1.
+  // The head is only needed to post the No credits notice, so it is read only when a ledger will be asked.
+  const askLedger = deps.config.ledgerUrl && !deps.config.dailyLimitBypass;
+  const headSha = askLedger
+    ? String(JSON.parse(deps.gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid"])).headRefOid)
+    : "";
+  const grant = dailyReserve(deps, repo, pr, headSha, deps.config.answerBudgetUsd, false);
   const result = runProvider(
     deps,
     deps.config,
@@ -3189,11 +3359,12 @@ nothing else. Write in English.`;
     { operation: "on-demand", label: "question", repo, pr },
     prompt,
     dir,
-    deps.config.answerBudgetUsd,
+    Math.min(deps.config.answerBudgetUsd, grant.roomUsd),
   );
+  const receiptLine = dailySettle(deps, grant, result.costUsd);
   if (result.isError || !result.text)
     throw new Error(`The agent did not answer (${result.terminalReason}).`);
-  const body = `${BRAND}\n\n${neutralise(result.text)}\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: deps.config.effort, operation: "on-demand", usage: result.usage, costUsd: result.costUsd })}`;
+  const body = `${BRAND}\n\n${neutralise(result.text)}\n\n${receiptLine ? `${receiptLine}\n\n` : ""}${costLine({ modelLabel: deps.provider.modelLabel(), effort: deps.config.effort, operation: "on-demand", usage: result.usage, costUsd: result.costUsd })}`;
   refuseLeak(deps, [body]);
   if (deps.config.dryRun) {
     deps.log(body);
@@ -3218,6 +3389,6 @@ export function comment(deps: Deps, repo: string, pr: number, request: string, a
     return;
   }
   const command = parseCommand(request, deps.config.mention);
-  if (command?.kind === "review") review(deps, repo, pr, command.paths);
+  if (command?.kind === "review") review(deps, repo, pr, command.paths, command.force);
   else if (command) answer(deps, repo, pr, request);
 }
