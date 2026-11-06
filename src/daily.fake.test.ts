@@ -20,6 +20,7 @@ import {
   type RawThread,
   type ReviewOutput,
   LEDGER_BYPASSED_FOOTER,
+  LEDGER_FORCED_FOOTER,
 } from "./engine";
 import { LedgerUnavailable, readReceipt, type CurlFn } from "./ledger";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
@@ -323,6 +324,23 @@ describe("review() with the daily ledger", () => {
     const plain = setup({ env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "comment" } });
     comment(plain.deps, "o/r", 7, "/wachi review", "owner");
     expect(plain.reserves[0]).toMatchObject({ forced: false });
+  });
+
+  test("the operator's --force run says forced next to its receipt; a normal run does not, and an automatic run's cost still reads", () => {
+    const script = [() => ({ costUsd: 0.1, structuredOutput: out() })];
+    const forced = setup({ env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "comment" }, script });
+    comment(forced.deps, "o/r", 7, "/wachi review --force", "owner");
+    expect(forced.posted[0]).toContain(LEDGER_FORCED_FOOTER);
+    expect(readReceipt(forced.posted[0]!)).not.toBeNull();
+
+    const plain = setup({ env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "comment" }, script });
+    comment(plain.deps, "o/r", 7, "/wachi review", "owner");
+    expect(plain.posted[0]).not.toContain(LEDGER_FORCED_FOOTER);
+
+    const automatic = setup({ env: WITH_LEDGER });
+    review(automatic.deps, "o/r", 7, []);
+    expect(automatic.posted[0]).not.toContain(LEDGER_FORCED_FOOTER);
+    expect(readAutoCost(automatic.posted[0]!)).toBeCloseTo(0.1, 10);
   });
 
   test("--force is not taken as a path", () => {

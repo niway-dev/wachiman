@@ -1884,10 +1884,15 @@ export interface DailyGrant {
   roomUsd: number;
   /** `daily_limit_bypass`: no reservation, and the footer says so. */
   bypassed?: boolean;
+  /** Reserved with `forced`: the footer says so, next to the receipt. */
+  forced?: boolean;
 }
 
 /** Written where the receipt would be when a repository skips the ledger (ADR 0021 decision 5). */
 export const LEDGER_BYPASSED_FOOTER = "<!-- wachi:ledger bypassed -->";
+
+/** Written next to the receipt of a `/wachi review --force` run, which may pass the daily limit. */
+export const LEDGER_FORCED_FOOTER = "<!-- wachi:forced -->";
 
 /**
  * The notice posted when the ledger says the day is spent, once per pull request per UTC day.
@@ -1971,7 +1976,7 @@ export function dailyReserve(
       { wantedUsd, callerLimitUsd: config.dailyBudgetUsd, trigger: config.trigger ?? "cli", forced },
       curl,
     );
-    return { reservationId: granted.reservationId, roomUsd: granted.grantedUsd };
+    return { reservationId: granted.reservationId, roomUsd: granted.grantedUsd, ...(forced ? { forced: true } : {}) };
   } catch (error) {
     if (error instanceof LedgerRefused && (error.refusal.reason === "limit" || error.refusal.reason === "repository_limit")) {
       postNoCredits(deps, repo, pr, headSha, error.refusal);
@@ -1984,7 +1989,8 @@ export function dailyReserve(
 /**
  * Tells the ledger what the run really spent and returns the receipt footer line, or null when
  * there was no reservation or the ledger could not settle: the review is still posted, and the
- * reservation stays counted at the reserved amount (ADR 0021).
+ * reservation stays counted at the reserved amount (ADR 0021). A forced run's line also carries
+ * the forced footer, even when settling failed.
  */
 export function dailySettle(deps: Deps, grant: DailyGrant, spentUsd: number): string | null {
   const { ledgerUrl } = deps.config;
@@ -1995,10 +2001,11 @@ export function dailySettle(deps: Deps, grant: DailyGrant, spentUsd: number): st
     // A fresh token: a long run can outlive the one `dailyReserve` used.
     const token = requestIdToken(deps.ledgerEnv ?? process.env, ledgerUrl, curl);
     const { receipt, signature } = ledgerSettle(ledgerUrl, token, grant.reservationId, spentUsd, curl);
-    return receiptFooter(receipt, signature);
+    const line = receiptFooter(receipt, signature);
+    return grant.forced ? `${line}\n\n${LEDGER_FORCED_FOOTER}` : line;
   } catch (error) {
     deps.warn(`Could not settle with the ledger; the reservation stays counted: ${String(error).slice(0, 200)}`);
-    return null;
+    return grant.forced ? LEDGER_FORCED_FOOTER : null;
   }
 }
 
