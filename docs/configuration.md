@@ -47,7 +47,7 @@ Rules that hold everywhere:
 ## Reusable workflow
 
 `.github/workflows/review.yml`, called from your caller file (the template is
-[`templates/agent-review-caller.yml`](../templates/agent-review-caller.yml)). It has three jobs: an
+[`templates/wachiman-review-caller.yml`](../templates/wachiman-review-caller.yml)). It has three jobs: an
 automatic review (`review`), a thread-reply run started by the operator's reply in a review thread
 (`threads`) and an on-demand run started by a comment (`on-demand`).
 
@@ -60,9 +60,9 @@ engine through the environment variable in the third column; those variables are
 | Input | Type | Sent to | Default | What it changes |
 | --- | --- | --- | --- | --- |
 | `operator` | string, required | `AGENT_REVIEW_OPERATOR` | none | The one GitHub login whose comments can start an on-demand run. Both jobs fail early while it is empty or a template placeholder (`EDIT…`, `your-github-login`, compared case-insensitively, whitespace removed). This is true of the automatic job too, even though it never compares the operator to anyone. |
-| `mention` | string | `AGENT_REVIEW_MENTION` | `/wachi` | The command word the on-demand job listens for. See [Mentions and commands](#mentions-and-commands): the workflow's check and the engine's parser accept different sets of words. |
+| `mention` | string | `AGENT_REVIEW_MENTION` | `/wachiman` | The command word the on-demand job listens for, next to `/wachiman`, `/wachi`, `@agent-review` and `@claude`, which always work. See [Mentions and commands](#mentions-and-commands). |
 | `budget_usd` | number | `AGENT_REVIEW_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit: that is `auto_budget_usd`. See [Budgets](#budgets). |
-| `auto_budget_usd` | number | `AGENT_REVIEW_AUTO_BUDGET_USD` | `6` | The most **all automatic runs on one pull request** may spend together: the first review, push reviews and thread-reply runs ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)). **New in v1.5.0.** The engine sums it from the cost line of its own signed review footers marked automatic, so it needs no server. A run starts with at most what is left; at the ceiling it posts one notice and stops. The operator's `/wachi review` is not limited by it. A number greater than 0. See [Budgets](#budgets). |
+| `auto_budget_usd` | number | `AGENT_REVIEW_AUTO_BUDGET_USD` | `6` | The most **all automatic runs on one pull request** may spend together: the first review, push reviews and thread-reply runs ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)). **New in v1.5.0.** The engine sums it from the cost line of its own signed review footers marked automatic, so it needs no server. A run starts with at most what is left; at the ceiling it posts one notice and stops. The operator's `/wachiman review` is not limited by it. A number greater than 0. See [Budgets](#budgets). |
 | `threads_budget_usd` | number | `AGENT_REVIEW_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in v1.5.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
 | `batch_budget_usd` | number | `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
 | `answer_budget_usd` | number | `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | The cap given to the one call that answers a question. Separate from `budget_usd`. |
@@ -78,7 +78,7 @@ engine through the environment variable in the third column; those variables are
 | `claude_code_sha256` | string | installer `CLAUDE_CODE_SHA256` | empty | SHA-256 of the Claude Code binary for the runner's platform (`linux-x64` on `ubuntu-latest`). Empty means the installer reads the expected hash from the publisher's manifest. |
 | `bun_version` | string | `oven-sh/setup-bun` | `1.3.4` | The Bun version the engine runs on. Not an engine setting. CI in this repository pins Bun separately. |
 | `skip_branch_prefixes` | string | the automatic job's first gate step | `release-please--` | Comma-separated head-branch prefixes whose pull requests the automatic job does not review. Spaces are removed; empty entries are ignored, so an empty value skips nothing. It has no effect on the on-demand job. |
-| `review_on_push` | boolean | the automatic job's `if:` condition | `true` | Review each push (`synchronize`) to an open pull request, only the commits new since the last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). **New in v1.4.0.** It needs `synchronize` in the caller's `pull_request` types (the templates have it); the workflow cannot add a trigger. Each push can spend up to `budget_usd`. Set `false` to review only on open, ready for review and `/wachi review`. It has no effect on the on-demand job or the thread-reply job. From v1.5.0 each push also counts against `auto_budget_usd`. See [reviews.md](reviews.md#reviews-on-push). |
+| `review_on_push` | boolean | the automatic job's `if:` condition | `true` | Review each push (`synchronize`) to an open pull request, only the commits new since the last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). **New in v1.4.0.** It needs `synchronize` in the caller's `pull_request` types (the templates have it); the workflow cannot add a trigger. Each push can spend up to `budget_usd`. Set `false` to review only on open, ready for review and `/wachiman review`. It has no effect on the on-demand job or the thread-reply job. From v1.5.0 each push also counts against `auto_budget_usd`. See [reviews.md](reviews.md#reviews-on-push). |
 | `push_debounce_seconds` | number | the first step of the `review` job | `180` | Seconds a push (`synchronize`) sleeps before any model call. A newer push cancels this run through the job's concurrency group, so a burst of pushes whose gaps are shorter than the wait pays only for the last one. Cancellation prevents spend only while the earlier run is still waiting: a push that arrives after the sleep ended can cancel a run that already spent. `opened`, `ready_for_review`, the thread-reply job and the on-demand job never wait. `0` disables the wait. The wait counts toward the job's 30 minute limit and uses runner minutes. See [reviews.md](reviews.md#reviews-on-push). |
 
 The copy-the-files template ([setup-copy.md](setup-copy.md)) has no inputs: its `review` job has the same first step, driven by the workflow-level variable `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables). The engine does not read it.
@@ -117,7 +117,7 @@ to run the job.
 | | `review` (automatic) | `threads` (thread replies) | `on-demand` |
 | --- | --- | --- | --- |
 | Event | `pull_request` | `pull_request_review_comment` (created) | `issue_comment` on a pull request |
-| Runs when | The pull request is not a draft, its head is in the same repository (not a fork), and the actor is not `dependabot[bot]`. The caller's `on:` decides which activity types arrive; the templates list `opened`, `ready_for_review` and `synchronize`. For a `synchronize` (a push) the input `review_on_push` must also be `true`. | The comment is a reply (`in_reply_to_id` is set), its author's login equals `operator` and is not a bot, and the pull request's head is in the same repository. Anyone else's reply starts a job that GitHub shows as skipped, before any paid step. | The commenter's login equals `operator` and the comment body contains `mention`, `@agent-review` or `@claude` (a substring check, see [Mentions and commands](#mentions-and-commands)). |
+| Runs when | The pull request is not a draft, its head is in the same repository (not a fork), and the actor is not `dependabot[bot]`. The caller's `on:` decides which activity types arrive; the templates list `opened`, `ready_for_review` and `synchronize`. For a `synchronize` (a push) the input `review_on_push` must also be `true`. | The comment is a reply (`in_reply_to_id` is set), its author's login equals `operator` and is not a bot, and the pull request's head is in the same repository. Anyone else's reply starts a job that GitHub shows as skipped, before any paid step. | The commenter's login equals `operator` and the comment body contains `mention`, `/wachi`, `@agent-review` or `@claude` (a substring check, see [Mentions and commands](#mentions-and-commands)). |
 | Then the engine | Reviews, within `auto_budget_usd` for the pull request. | Exits without a model call unless the head was already reviewed; then answers every Wachiman thread that waits for an answer. Counts against `auto_budget_usd`. | Reviews or answers, never limited by `auto_budget_usd`. |
 | Skips | A head branch starting with a `skip_branch_prefixes` entry. The job still starts and fails first if `operator` is invalid. | A fork pull request (by its `if:`). It has no draft, Dependabot or branch-prefix gate: a head that was never reviewed has nothing to answer, and the engine exits. | A fork pull request: the job stops with an error before reading the head. It has no draft, Dependabot or branch-prefix gate. |
 | Checks `operator` | Only that it is set | That it is set, the login match above, and again in the engine | That it is set, and the login match above |
@@ -142,9 +142,9 @@ applies.
 | Variable | Type | Default | Valid values | What it changes | Provider |
 | --- | --- | --- | --- | --- | --- |
 | `AGENT_REVIEW_OPERATOR` | string | empty | A GitHub login | Who may command the tool. Only `comment` uses it, and `comment` refuses to run (exit 1) while it is empty or a placeholder. `review` never checks it. | both |
-| `AGENT_REVIEW_MENTION` | string | `/wachi` | Any non-empty string | The command word `comment` looks for, in addition to `/wachiman`, `@agent-review` and `@claude`. An empty value counts as unset. | both |
+| `AGENT_REVIEW_MENTION` | string | `/wachiman` | Any non-empty string | The command word `comment` looks for, in addition to `/wachiman`, `@agent-review` and `@claude`. An empty value counts as unset. | both |
 | `AGENT_REVIEW_BUDGET_USD` | number | `3` | Finite, greater than 0 | Total for one `review` invocation. See [Budgets](#budgets). | both |
-| `AGENT_REVIEW_AUTO_BUDGET_USD` | number | `6` | Finite, greater than 0 | Ceiling for all automatic runs on one pull request, summed from the engine's own signed review footers. **New in v1.5.0.** Applies only when `AGENT_REVIEW_TRIGGER` names an automatic run; `/wachi review` (`comment`) ignores it. See [Budgets](#budgets). | both |
+| `AGENT_REVIEW_AUTO_BUDGET_USD` | number | `6` | Finite, greater than 0 | Ceiling for all automatic runs on one pull request, summed from the engine's own signed review footers. **New in v1.5.0.** Applies only when `AGENT_REVIEW_TRIGGER` names an automatic run; `/wachiman review` (`comment`) ignores it. See [Budgets](#budgets). | both |
 | `AGENT_REVIEW_THREADS_BUDGET_USD` | number | `0.25` | Finite, greater than 0 | Cap for the one provider call of a `threads` run. **New in v1.5.0.** | same as the batch cap |
 | `AGENT_REVIEW_TRIGGER` | string | unset | A lowercase event action: `opened`, `ready_for_review`, `synchronize`, `comment`, `thread`… | Why the run started. **New in v1.5.0.** `comment` is the operator's command and is never limited by the ceiling; any other value is an automatic run that is. Unset means a person ran the CLI by hand, which is not limited either. The workflow sets it (`github.event.action`, `comment`, `thread`); the `comment` and `threads` commands set it themselves, whatever the environment says. A value that is not a lowercase word is a usage error (exit 2). | both |
 | `AGENT_REVIEW_BATCH_BUDGET_USD` | number | `0.75` | Finite, greater than 0 | Cap passed with each provider call in a review, limited by what is left of the total. | Claude: sent as `--max-budget-usd`, a soft cap. Codex: used for accounting only, never enforced. |
@@ -260,11 +260,11 @@ A dry run of a pull request Wachiman already reviewed at its head prints "Alread
 after new commits it reviews only what changed. `AGENT_REVIEW_FULL_REVIEW=1` (with
 `AGENT_REVIEW_DRY_RUN=1`) skips the previous-review marker, so the run is the full first review,
 printed and not posted. To review a branch without GitHub at all, use
-[`agent-review local`](local-review.md).
+[`wachiman local`](local-review.md).
 
 ### Local mode
 
-[`agent-review local`](local-review.md) reads the same environment, but only part of it applies.
+[`wachiman local`](local-review.md) reads the same environment, but only part of it applies.
 A person runs it by hand, so it is never an automatic run, and it has no pull request, so nothing
 GitHub-side applies.
 
@@ -307,33 +307,31 @@ on Bun 1.3 or later (`package.json`).
 
 ## Mentions and commands
 
-On-demand runs are triggered by a comment from the operator. Two separate pieces of code decide
-whether a comment counts, and for custom mentions they do not agree.
+On-demand runs are triggered by a comment from the operator. Two pieces of code decide whether a
+comment counts, and they accept the same words.
 
 1. **The workflow's check** (the `on-demand` job's `if:`) decides whether a job starts at all. It
    requires the commenter's login to equal `operator` and the comment body to *contain* `mention`,
-   `@agent-review` or `@claude`. It is a substring check, and GitHub's expression `contains`
-   ignores case, per GitHub's documentation.
+   `/wachi`, `@agent-review` or `@claude`. It is a substring check, and GitHub's expression
+   `contains` ignores case, per GitHub's documentation. `/wachi` also matches `/wachiman`.
 2. **The engine's parser** (`parseCommand` in `src/engine.ts`) decides what a started job does.
-   It accepts `mention`, `/wachiman`, `@agent-review` and `@claude`, case-sensitively, and only
-   when the word stands alone (rules below).
+   It accepts `mention`, `/wachiman`, `/wachi`, `@agent-review` and `@claude`, case-sensitively, and
+   only when the word stands alone (rules below).
 
-`/wachiman` is in the parser's list but not in the workflow's. With the default mention `/wachi`
-it still works, because `/wachi` is a substring of `/wachiman` and the check passes. With a custom
-mention that is not a substring of `/wachiman`, a comment containing only `/wachiman` never starts
-a job. With a custom mention, use that mention. This is a known inconsistency, not a promise that
-`/wachiman` works.
+So `/wachiman` is the documented command, and the other words are accepted only so a caller or a
+habit from before [ADR 0023](adr/0023-one-name-for-every-surface-people-type.md) keeps working.
+A custom `mention` such as `/reviewbot` works next to them; it does not replace them.
 
 What each kind of comment does (illustrative comments from the operator on a pull request):
 
-| Comment | Default mention (`/wachi`) | Custom mention `/reviewbot` |
+| Comment | Default mention (`/wachiman`) | Custom mention `/reviewbot` |
 | --- | --- | --- |
-| `/wachi review` | Review | Job skipped |
-| `/wachiman review` | Review | Job skipped (the parser would accept it, but the job never starts) |
+| `/wachiman review` | Review | Review |
+| `/wachi review` | Review | Review |
 | `@claude review` | Review | Review |
 | `/reviewbot review` | Job skipped | Review |
-| `/Wachi review` | Job starts, nothing happens (the check ignores case, the parser does not) | `/Reviewbot review`: the same |
-| `see docs/wachi` | Job starts, nothing happens (substring match, but not a standalone word) | n/a |
+| `/Wachiman review` | Job starts, nothing happens (the check ignores case, the parser does not) | the same |
+| `see docs/wachiman` | Job starts, nothing happens (substring match, but not a standalone word) | the same |
 
 A job that starts and finds no command exits 0 without posting. It still installs Claude Code, so
 it costs runner minutes but no model spend.
@@ -343,12 +341,12 @@ How the parser reads a comment, once the job has started:
 - The command word must be a whole word. The character before it cannot be a letter, digit,
   underscore, `.`, `/`, `@` or `-`, and the character after it cannot be a letter, digit,
   underscore or `-`. So `docs/wachi` and `me@claude` are not commands, and `/wachi-review` is not
-  either. Punctuation such as `/wachi,` or `/wachi:` still ends the word.
+  either. Punctuation such as `/wachiman,` or `/wachiman:` still ends the word.
 - The first match in the comment is used, on any line, and only the rest of that line is read.
-  `/wachi review` on line 3 works; text on later lines is not read as paths.
+  `/wachiman review` on line 3 works; text on later lines is not read as paths.
 - If the first word after the command word is `review` (any case), the rest of the line is the
-  scope: `review` or `review src docs/api`. Anything else, including a bare `/wachi` or
-  `/wachi, review`, is a question, and the whole comment is sent to the answer call.
+  scope: `review` or `review src docs/api`. Anything else, including a bare `/wachiman` or
+  `/wachiman, review`, is a question, and the whole comment is sent to the answer call.
 - The operator is checked again by the engine when `AGENT_REVIEW_COMMENT_AUTHOR` is set (see above).
 
 ### Scope words
@@ -395,13 +393,13 @@ amount on their cost line. Model text cannot forge either part: `<!--` is defuse
 model writes, and the footer is read only at the very end of the body.
 
 - If `auto_budget_usd` minus that sum is less than $0.05 (a batch's minimum), the run posts one
-  notice, "Automatic reviews paused: $X of $Y spent on this pull request. Comment `/wachi review`
+  notice, "Automatic reviews paused: $X of $Y spent on this pull request. Comment `/wachiman review`
   to review now.", and starts no model call. A second notice for the same ceiling is not posted:
   later pushes post nothing. Raising `auto_budget_usd` lets the next push run.
 - Otherwise the run's budget is the smaller of `budget_usd` (or `threads_budget_usd`) and what is
   left, so the pull request cannot go far past the ceiling (Claude's per-call cap is still soft).
 - The first review counts. A large first review can use most of the default $2.
-- `/wachi review` and `/wachi <question>` are not limited and not counted. A rebase or merge with
+- `/wachiman review` and `/wachiman <question>` are not limited and not counted. A rebase or merge with
   no change in the pull request's lines is still posted at the ceiling: it costs nothing and moves
   the marker.
 - **What is not counted.** A run cancelled by a newer push posts nothing, so its spend is in no
@@ -531,8 +529,8 @@ edits them is reviewed under the base version and the review says the change app
 
 | File | Meaning |
 | --- | --- |
-| `.github/agent-review.md` | The repository's review focus. Optional. |
-| `.github/claude-review.md` | The old name of the focus file. Read only when `.github/agent-review.md` does not exist at the base commit, with a deprecation notice on stderr. |
+| `.github/wachiman.md` | The repository's review focus. Optional. |
+| `.github/agent-review.md`, `.github/claude-review.md` | The old names of the focus file, newest first. The first one found is read only when `.github/wachiman.md` does not exist at the base commit, with a deprecation notice on stderr. |
 | `CLAUDE.md`, `AGENTS.md` | Read from the repository root only, if present. |
 
 Each file is cut at 64 KiB (the agent is told the file was cut). A file over the contents API's

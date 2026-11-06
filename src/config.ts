@@ -160,7 +160,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     maxTurns: number("MAX_TURNS", DEFAULT_MAX_TURNS, true),
     callTimeoutS: number("CALL_TIMEOUT_S", DEFAULT_CALL_TIMEOUT_S, true),
     onProviderUnavailable,
-    mention: get("MENTION") ?? "/wachi",
+    mention: get("MENTION") ?? "/wachiman",
     operator: get("OPERATOR") ?? "",
     exclude: (get("EXCLUDE") ?? "").split(",").filter(Boolean),
   };

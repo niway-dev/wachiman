@@ -13,8 +13,9 @@ the budgets or the engine's rules.
 
 | File | Read from | Notes |
 | --- | --- | --- |
-| `.github/agent-review.md` | the base commit | The focus file: what this repository's reviews should look at. Read first. |
-| `.github/claude-review.md` | the base commit | The old name. Read only when `.github/agent-review.md` does not exist there; the job log says to rename it. |
+| `.github/wachiman.md` | the base commit | The focus file: what this repository's reviews should look at. Read first. |
+| `.github/agent-review.md` | the base commit | The name before the naming release. Read only when `.github/wachiman.md` does not exist there; the job log says to rename it. |
+| `.github/claude-review.md` | the base commit | The oldest name. Read only when neither file above exists there; the job log says to rename it. |
 | `CLAUDE.md` | the base commit | Repository root only. |
 | `AGENTS.md` | the base commit | Repository root only. |
 
@@ -41,7 +42,7 @@ What this means in practice:
   request's own base branch, not the point where it left the default branch. Choosing the
   merge-base instead is part of the proposed [ADR 0006](adr/0006-repository-review-policy.md) and
   is not implemented.
-- **The questions you ask on a pull request** (`/wachi <question>`) read the same files from the
+- **The questions you ask on a pull request** (`/wachiman <question>`) read the same files from the
   same base commit. See [reviews.md](reviews.md).
 
 ## What wins when they disagree
@@ -119,7 +120,7 @@ Write rules the model can check from the code in front of it:
 - **Keep it short.** The files go into the prompt of every batch call and of every question, so a
   long file is paid for again each time.
 
-Invented example for a `.github/agent-review.md` (illustrative; not from a real repository):
+Invented example for a `.github/wachiman.md` (illustrative; not from a real repository):
 
 ```markdown
 # Review focus
@@ -177,7 +178,7 @@ which instruction files it read.
 [ADR 0006](adr/0006-repository-review-policy.md) proposes a policy folder (`.github/wachi/`) with
 a `wachi.yml` file, `rules/*.md`, `learned/*.md`, a `policy_dir` workflow input and
 `severity_overrides`. Its status is **proposed**, and none of it is implemented. [ADR
-0007](adr/0007-learned-memory-by-draft-pr.md) (a `/wachi learn` command) is proposed and not
+0007](adr/0007-learned-memory-by-draft-pr.md) (a `/wachiman learn` command) is proposed and not
 implemented either. Do not create those files expecting them to be read.
 
 What is implemented is what this page describes: the focus file, `CLAUDE.md` and `AGENTS.md`,

@@ -34,7 +34,7 @@ the cost lines of its own signed review footers that carry the automatic flag
 posts one "Automatic reviews paused" notice and does nothing else, and later pushes post nothing
 until you raise the limit or ask yourself.
 
-- `/wachi review` and `/wachi <question>` are not limited and not counted.
+- `/wachiman review` and `/wachiman <question>` are not limited and not counted.
 - The first review counts. A large first review ($1.36 on a big pull request) can use most of $2;
   the notice then tells you how to continue.
 - A run cancelled by a newer push posts nothing, so what it spent is in no footer and is not
@@ -80,11 +80,11 @@ Four rules follow from that code:
    reported. The last call can push the total past `budget_usd`, because the cap on a call is not
    exact (see the next section).
 
-Only the budget of the run is tracked. Nothing carries over between runs: each `/wachi review`
+Only the budget of the run is tracked. Nothing carries over between runs: each `/wachiman review`
 comment, each time a pull request opens or leaves draft, and each answer starts again from zero. The
 engine has no lifetime or monthly limit per pull request or repository.
 
-The `answer` path (a question to `/wachi`, not a review) is one call with `answer_budget_usd`. It has
+The `answer` path (a question to `/wachiman`, not a review) is one call with `answer_budget_usd`. It has
 no batches and no retry.
 
 ## How each provider enforces its cap
@@ -135,17 +135,17 @@ The engine does not stop the review early with an error. It posts what it has:
 - If at least one batch produced a review, it is posted with a first line that begins
   "Partial review": how many files were reviewed, which were not, and the command to ask for the rest.
 - If no batch produced a review and at least one call ran out of budget (or hit the turn cap or the
-  time limit), the review is a short body saying so, with `/wachi review <path>` as the way to review part of the pull request. If nothing
+  time limit), the review is a short body saying so, with `/wachiman review <path>` as the way to review part of the pull request. If nothing
   came back and no call ran out of budget, the run fails with "The agent did not return a review for
   any batch."
 
 Because batches run riskiest first, the files left out are the ones the path heuristic ranks lowest.
 That is a heuristic on file names. It does not mean they are safe.
 
-To cover the rest, ask for those paths with `/wachi review <path> [path...]`. A scoped review is a new
+To cover the rest, ask for those paths with `/wachiman review <path> [path...]`. A scoped review is a new
 run with a new budget, and it does not move the "reviewed up to here" marker, so it is not a way to
 finish an incremental review. See [reviews.md](reviews.md). A partial review does not move the marker
-either: the next unscoped `/wachi review` covers the changes since the last complete review again,
+either: the next unscoped `/wachiman review` covers the changes since the last complete review again,
 and spends again.
 
 ## Things that add to the total
@@ -161,8 +161,8 @@ and spends again.
   a cancelled run had already spent is not verified here. To opt out, remove `synchronize` from the
   caller or set `review_on_push: false`. Whether the cost per pull request is worth the findings on
   later commits is not measured yet ([ADR 0011](adr/0011-review-every-push-incrementally.md)).
-- **Repeated runs.** A new `/wachi review` after a change, a pull request that leaves draft,
-  and a scoped review on an unchanged head each start a full budget. A plain `/wachi review` on a head
+- **Repeated runs.** A new `/wachiman review` after a change, a pull request that leaves draft,
+  and a scoped review on an unchanged head each start a full budget. A plain `/wachiman review` on a head
   that already has a complete review stops with "Already reviewed" before any provider call.
 - **Thread replies.** Each reply of the operator's in a thread can start a run (`threads`) that makes one
   call capped at `threads_budget_usd` (default $0.25), once the head is reviewed. It counts against
@@ -220,9 +220,9 @@ it was for:
 | Operation | The call |
 | --- | --- |
 | `review` | A batch of a first or full review, and the retry of its unaccounted-for files |
-| `re-review` | A batch of an incremental review (a push, or `/wachi review` after a reviewed commit), and its retry |
+| `re-review` | A batch of an incremental review (a push, or `/wachiman review` after a reviewed commit), and its retry |
 | `reply` | The one call that answers the pending review threads (an automatic thread run) |
-| `on-demand` | The one call that answers `/wachi <question>` |
+| `on-demand` | The one call that answers `/wachiman <question>` |
 
 The engine never asks a model to write a pull request description: the review's summary is part of
 the review's own answer, so it is inside `review` or `re-review`.

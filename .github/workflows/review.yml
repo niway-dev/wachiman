@@ -1,7 +1,7 @@
-name: Agent review (reusable)
+name: Wachiman review (reusable)
 
 # Reusable workflow: an advisory review of a pull request, paid from the caller's own API key.
-# Call it from a short caller file (templates/agent-review-caller.yml); see docs/install.md.
+# Call it from a short caller file (templates/wachiman-review-caller.yml); see docs/install.md.
 # The review is never a required check, an approval, a change request or a merge gate.
 #
 # What the consumer must trust (see SECURITY.md and docs/adr/0001-distribution-and-trust.md):
@@ -39,9 +39,9 @@ on:
         type: string
         required: true
       mention:
-        description: Command that starts an on-demand run (`@agent-review` and `@claude` are always accepted too)
+        description: Command that starts an on-demand run (`/wachi`, `/wachiman`, `@agent-review` and `@claude` are always accepted too)
         type: string
-        default: "/wachi"
+        default: "/wachiman"
       budget_usd:
         description: Most one review run may spend, in USD
         type: number
@@ -50,7 +50,7 @@ on:
         description: >-
           Most all automatic runs on one pull request (the first review, push reviews and thread
           replies) may spend together, in USD, summed from the signed footers of Wachiman's own
-          reviews. At the limit one notice is posted and automatic runs stop; `/wachi review` is
+          reviews. At the limit one notice is posted and automatic runs stop; `/wachiman review` is
           not limited by it. The default leaves room for one full review (`budget_usd`, $3) and
           several push reviews
         type: number
@@ -122,7 +122,7 @@ on:
           Review every push to an open pull request, only the new commits (the caller must list
           `synchronize` in its `pull_request` types). A push can spend up to `budget_usd`, within
           `auto_budget_usd` for the pull request; set false to review only on open, ready for
-          review and `/wachi review`.
+          review and `/wachiman review`.
         type: boolean
         default: true
       push_debounce_seconds:
@@ -143,7 +143,7 @@ on:
 
 jobs:
   review:
-    name: Agent review
+    name: Wachiman review
     # Fork and Dependabot pull requests get no secrets, so the job could only fail there.
     # The skipped branch prefixes are checked in the first step (a prefix list cannot be
     # matched in an expression). These conditions hold for every `pull_request` action, so a
@@ -295,7 +295,7 @@ jobs:
         run: bun --no-env-file --config=bunfig.toml src/cli.ts review "$PR" --repo-dir "$GITHUB_WORKSPACE/head"
 
   threads:
-    name: Agent thread replies
+    name: Wachiman thread replies
     # A reply in a review thread (`pull_request_review_comment`), written by the operator, on a
     # head in this repository, never by a bot. The gate runs before any paid step: a stranger's
     # reply on a public repository starts a skipped job and nothing else. The engine adds two
@@ -394,7 +394,7 @@ jobs:
         run: bun --no-env-file --config=bunfig.toml src/cli.ts threads "$PR" --repo-dir "$GITHUB_WORKSPACE/head"
 
   on-demand:
-    name: Agent on demand
+    name: Wachiman on demand
     # Only the operator's login starts a run: `author_association` is `OWNER` for a
     # user-owned repository but `MEMBER` in an organisation, so the login is compared.
     if: |
@@ -402,6 +402,7 @@ jobs:
       github.event.issue.pull_request &&
       github.event.comment.user.login == inputs.operator &&
       (contains(github.event.comment.body, inputs.mention) ||
+       contains(github.event.comment.body, '/wachi') ||
        contains(github.event.comment.body, '@agent-review') ||
        contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest

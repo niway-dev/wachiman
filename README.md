@@ -21,10 +21,10 @@ record, goes in the review body. Every comment opens with "👮 **Wachiman**".
   GitHub enforces.
 - **It starts on a pull request and on request.** It reviews when a pull request opens or leaves
   draft, and, if your caller lists `synchronize`, on each push (only the new commits). The operator
-  you name can comment `/wachi review` to ask for another review of what changed, or any other
-  `/wachi …` text to ask a question, and a reply the operator writes in a review thread gets an
+  you name can comment `/wachiman review` to ask for another review of what changed, or any other
+  `/wachiman …` text to ask a question, and a reply the operator writes in a review thread gets an
   answer without a push. All automatic runs on one pull request together stop at $6 by default
-  (`auto_budget_usd`); `/wachi review` is not limited. Details: [docs/reviews.md](docs/reviews.md).
+  (`auto_budget_usd`); `/wachiman review` is not limited. Details: [docs/reviews.md](docs/reviews.md).
 - **Large pull requests are reviewed in batches**, riskiest files first (the risk is a score
   computed from file paths, not a reading of the code). Each batch is one agent call with a
   spend limit. What that limit does and does not guarantee, and what "all files reviewed"
@@ -64,7 +64,7 @@ This is not a sandbox. What is enforced, what the tests show and what is still u
 
 The current release is **v1.5.0** ([CHANGELOG.md](CHANGELOG.md)). The command-line contract
 ([docs/cli.md](docs/cli.md)) and the provider adapter boundary are in place. The older
-`CLAUDE_REVIEW_*` variables, `.github/claude-review.md` and the `@claude` mention are still read
+`CLAUDE_REVIEW_*` variables, `.github/agent-review.md`, `.github/claude-review.md`, `/wachi` and the `@claude` mention are still read
 with a notice; see [docs/upgrading.md](docs/upgrading.md).
 
 - **Claude Code** (`claude -p`) is the provider the reusable workflow installs and runs, with
@@ -82,14 +82,14 @@ release, passes your key and names the operator.
 
 **Start here: [docs/install.md](docs/install.md)**, the first advisory review from an empty
 repository to a posted review. The caller file itself is
-[`templates/agent-review-caller.yml`](templates/agent-review-caller.yml).
+[`templates/wachiman-review-caller.yml`](templates/wachiman-review-caller.yml).
 
 Already copied the engine into a repository? That setup still runs, and
 [docs/setup-copy.md](docs/setup-copy.md) explains how to move to the maintained workflow.
 
 ### Review locally on your own subscription
 
-`agent-review local` reviews the branch you have checked out, on your own signed-in `claude`, and
+`wachiman local` reviews the branch you have checked out, on your own signed-in `claude`, and
 prints the review in the terminal or writes it as Markdown or JSON. No API key, no GitHub token,
 nothing posted: Wachiman sends no telemetry and makes no GitHub requests in local mode; your code
 is sent to your configured Claude account for the review. Read

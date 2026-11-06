@@ -1,17 +1,17 @@
 #!/usr/bin/env bun
 /**
- * agent-review: advisory pull request reviews by an agent CLI.
+ * wachiman: advisory pull request reviews by an agent CLI.
  *
- *   agent-review review <pr> [paths…]   review it; after the first review, only what changed
+ *   wachiman review <pr> [paths…]   review it; after the first review, only what changed
  *                                       since the last reviewed commit
- *   agent-review comment <pr>           route the operator's comment, read from $REQUEST, to a
+ *   wachiman comment <pr>           route the operator's comment, read from $REQUEST, to a
  *                                       review or an answer
- *   agent-review threads <pr>           answer the pending Wachiman threads, with no review; only
+ *   wachiman threads <pr>           answer the pending Wachiman threads, with no review; only
  *                                       when the head was already reviewed
- *   agent-review local [paths…]         review the committed branch of a clone on the signed-in
+ *   wachiman local [paths…]         review the committed branch of a clone on the signed-in
  *                                       `claude`, and print it; no GitHub call (src/local.ts)
- *   agent-review history                list and judge what `local --history` kept on this laptop
- *   agent-review --setup-profile [name] sign in an isolated Claude Code profile under ~/.wachiman
+ *   wachiman history                list and judge what `local --history` kept on this laptop
+ *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under ~/.wachiman
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error.
  * The settings are documented in docs/cli.md.
@@ -27,20 +27,20 @@ import { setupProfile } from "./profiles";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 
 export const USAGE = `Usage:
-  agent-review review <pr> [paths…] [--repo-dir <dir>]   Review a pull request (or only the given paths)
-  agent-review comment <pr> [--repo-dir <dir>]           Handle the comment in $REQUEST (a review or an answer)
-  agent-review threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
+  wachiman review <pr> [paths…] [--repo-dir <dir>]   Review a pull request (or only the given paths)
+  wachiman comment <pr> [--repo-dir <dir>]           Handle the comment in $REQUEST (a review or an answer)
+  wachiman threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
   ${localUsage}
-                                                         Review the committed branch of a clone on your
-                                                         signed-in claude, and print it; nothing is posted.
-                                                         --commit: that one commit (<commit>^ → <commit>);
-                                                         --from: that commit forward (<commit>^ → HEAD)
+                                                     Review the committed branch of a clone on your
+                                                     signed-in claude, and print it; nothing is posted.
+                                                     --commit: that one commit (<commit>^ → <commit>);
+                                                     --from: that commit forward (<commit>^ → HEAD)
   ${historyUsage}
-                                                         List, judge and forget the findings kept by
-                                                         \`local --history\`; reads files and local git
-                                                         metadata only: no claude, no GitHub
-  agent-review --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
-  agent-review --help | --version
+                                                     List, judge and forget the findings kept by
+                                                     \`local --history\`; reads files and local git
+                                                     metadata only: no claude, no GitHub
+  wachiman --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
+  wachiman --help | --version
 
 Options:
   --repo-dir <dir>                   The checked-out pull request head: every file the engine reads
@@ -184,7 +184,7 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
     try {
       provider.preflight();
     } catch (error) {
-      console.error(`agent-review: ${error instanceof Error ? error.message : error}`);
+      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
       return 1;
     }
     try {
@@ -198,10 +198,10 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
     return 0;
   } catch (error) {
     if (error instanceof UsageError || error instanceof UnknownProviderError) {
-      console.error(`agent-review: ${error.message}\n\n${USAGE}`);
+      console.error(`wachiman: ${error.message}\n\n${USAGE}`);
       return 2;
     }
-    console.error(`agent-review: ${error instanceof Error ? error.message : error}`);
+    console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
     return 1;
   }
 }

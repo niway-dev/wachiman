@@ -31,12 +31,12 @@ schema, and a file that carries it is invalid.
 ## Producers and consumers
 
 - **Input.** The GitHub connector (`githubReviewInput`) and the `local-git` connector
-  (`buildLocalInput`, `src/connectors/local-git.ts`) build it in memory. `agent-review local
+  (`buildLocalInput`, `src/connectors/local-git.ts`) build it in memory. `wachiman local
   --input <file> --repo-dir <clone>` reads one from a file: it checks the format and the fields
   the core reads, refuses a file that carries `headDir`, and snapshots `change.head.sha` from the
   clone ([the local review guide](../local-review.md)).
 - **Result.** The GitHub sink (`githubReview`) renders it as a pull request review;
-  `agent-review local --format json` writes it as is, and `--format terminal` and `markdown`
+  `wachiman local --format json` writes it as is, and `--format terminal` and `markdown`
   render it (`src/sinks/`).
 
 Added by [#112](https://github.com/niway-dev/wachiman/pull/112) (not merged); spec

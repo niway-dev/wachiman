@@ -2,7 +2,7 @@
 
 ## 1. Who it is for
 
-`agent-review local` reviews the branch you have checked out in a clone, with the same engine and
+`wachiman local` reviews the branch you have checked out in a clone, with the same engine and
 the same prompt as the GitHub workflow, and prints the review in your terminal (or writes it as
 Markdown or JSON). It runs on the `claude` you are already signed in to: no API key, no GitHub
 token, no `gh`, and nothing is posted anywhere.
@@ -30,7 +30,7 @@ A Team or Enterprise account of your employer is the easier request to approve.
 
 **What leaves the machine:** the diff of the branch, the files the model chooses to read in the
 snapshot (read-only tools only: `Read`, `Glob`, `Grep`), the repository's instruction files
-(`CLAUDE.md`, `AGENTS.md`, `.github/agent-review.md`) at the merge-base, and the prompt. They go to
+(`CLAUDE.md`, `AGENTS.md`, `.github/wachiman.md`) at the merge-base, and the prompt. They go to
 `api.anthropic.com` through your `claude`. **What does not:** nothing goes to GitHub, and Wachiman
 itself sends nothing. Claude Code's own metrics, error reports, feedback survey, auto-updater and
 marketplace auto-install are switched off in every call (see section 7 for what is verified).
@@ -205,17 +205,17 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
   limit). It says "probably" because a fix is inferred from absence, never observed. With
   `--format json`, stdout is unchanged; stderr lists this run's findings with their labels and ids
   (`This run (history):`), then this block.
-- **`agent-review history`** lists what is tracked, per repository: status, first and last head,
+- **`wachiman history`** lists what is tracked, per repository: status, first and last head,
   runs, id and your verdict. `--since 7d`, `--all-repos` and `--json` narrow or reshape it. It reads
   files and local git metadata only (it asks `git` for the repository's key): no `claude`, no GitHub.
-- **Verdicts.** `agent-review history --verdict <id> correct|partial|wrong [--reason "…"]` records
+- **Verdicts.** `wachiman history --verdict <id> correct|partial|wrong [--reason "…"]` records
   your judgement, with the words of [precision](precision.md). It appears in the listing and in
   later reports. It does not change a review: a finding you called wrong is still reported if the
   reviewer repeats it, which is how you see a persistent false positive.
 - **Retention.** 30 days, per repository, pruned when that repository is saved
   (`AGENT_REVIEW_HISTORY_DAYS=<n>`, `0` keeps everything). A repository you stop reviewing keeps
   its files until you forget them.
-- **Forget.** `agent-review history --forget [--repo-dir <dir>]` deletes one repository's history;
+- **Forget.** `wachiman history --forget [--repo-dir <dir>]` deletes one repository's history;
   `--forget --all` deletes `~/.wachiman/history`. Neither touches `~/.wachiman/claude-*`.
 - **Nothing is exported.** No upload, no sync. The files never leave the laptop unless you copy them.
 

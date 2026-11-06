@@ -1,5 +1,5 @@
 /**
- * `agent-review local`: the committed change of a branch, reviewed on the developer's own signed-in
+ * `wachiman local`: the committed change of a branch, reviewed on the developer's own signed-in
  * `claude` (ADR 0019, spec D4–D14). Nothing is posted and no GitHub call is made: this module never
  * builds a `gh` function, and the core it calls has none. The review is printed (terminal), or
  * written as Markdown or JSON.
@@ -49,9 +49,9 @@ export interface LocalArgs {
   input?: string;
 }
 
-export const localUsage = `agent-review local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
-                   [--input <file>] [--format terminal|markdown|json] [--output <file>]
-                   [--profile default|isolated[:<name>]] [--agent-prompt] [--history]`;
+export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
+               [--input <file>] [--format terminal|markdown|json] [--output <file>]
+               [--profile default|isolated[:<name>]] [--agent-prompt] [--history]`;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLocalArgs(argv: string[]): LocalArgs {
@@ -208,7 +208,7 @@ export function runLocal(
     configDir = profileDir(args.profile.name, home);
     const flag = args.profile.name === "isolated" ? "" : ` ${args.profile.name}`;
     if (!existsSync(configDir)) {
-      throw new UsageError(`The isolated profile ${configDir} does not exist; run \`agent-review --setup-profile${flag}\` first.`);
+      throw new UsageError(`The isolated profile ${configDir} does not exist; run \`wachiman --setup-profile${flag}\` first.`);
     }
     const found = inspectIsolatedProfile(configDir);
     if (found.length > 0) throw populatedProfileError(configDir, found);

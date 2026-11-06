@@ -10,6 +10,7 @@
     "url": "git+https://github.com/niway-dev/wachiman.git"
   },
   "bin": {
+    "wachiman": "src/cli.ts",
     "agent-review": "src/cli.ts"
   },
   "engines": {

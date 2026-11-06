@@ -120,7 +120,7 @@ function runCli(args: string[], env: Record<string, string>) {
   return { code: out.exitCode, stdout: out.stdout.toString(), stderr: out.stderr.toString() };
 }
 
-/** `agent-review local` on a fresh branch repository, with the stubs first on PATH and a temporary HOME. */
+/** `wachiman local` on a fresh branch repository, with the stubs first on PATH and a temporary HOME. */
 function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: BranchRepo = branchRepo()) {
   const s = stubs(variant, repo.dir);
   const home = extraEnv.HOME ?? temp("wachiman-home-");
@@ -202,7 +202,7 @@ describe("readInputFile", () => {
   });
 });
 
-describe("agent-review local", () => {
+describe("wachiman local", () => {
   test("reviews the branch, prints progress on stderr and the report on stdout, and never calls gh", () => {
     const r = local("ok");
     expect(r.stderr).not.toContain("agent-review:");
@@ -366,7 +366,7 @@ describe("agent-review local", () => {
 
     const missing = local("ok", ["--profile", "isolated:work"], { HOME: home });
     expect(missing.code).toBe(2);
-    expect(missing.stderr).toContain("agent-review --setup-profile work");
+    expect(missing.stderr).toContain("wachiman --setup-profile work");
   });
 
   test("--setup-profile launches claude in an empty directory with the forced config dir", () => {
@@ -392,7 +392,7 @@ describe("agent-review local", () => {
     expect(env).toContain(`CLAUDE_CONFIG_DIR=${join(home, ".wachiman", "claude-work")}\n`);
     expect(env).not.toContain("ANTHROPIC_API_KEY");
     expect(env).toContain("DISABLE_TELEMETRY=1");
-    expect(out.stderr.toString()).toContain("agent-review local --profile isolated:work");
+    expect(out.stderr.toString()).toContain("wachiman local --profile isolated:work");
   });
 
   test("codex is refused in local mode", () => {
@@ -404,8 +404,8 @@ describe("agent-review local", () => {
 
   test("--help lists local and --setup-profile; GH_TOKEN is not required for them", () => {
     const help = runCli(["--help"], { PATH: process.env.PATH ?? "" });
-    expect(help.stdout).toContain("agent-review local [paths…]");
-    expect(help.stdout).toContain("agent-review --setup-profile [<name>]");
+    expect(help.stdout).toContain("wachiman local [paths…]");
+    expect(help.stdout).toContain("wachiman --setup-profile [<name>]");
     // The first test ran without GH_TOKEN and GITHUB_REPOSITORY; a usage error here would name them.
     const r = local("ok");
     expect(r.code).toBe(0);

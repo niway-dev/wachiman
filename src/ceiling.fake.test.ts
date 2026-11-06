@@ -410,7 +410,7 @@ describe("review() under the ceiling", () => {
     expect(t.provider.requests).toHaveLength(0);
     expect(t.posted).toHaveLength(1);
     expect(t.posted[0]).toContain("Automatic reviews paused: $0.50 of $0.50 spent on this pull request.");
-    expect(t.posted[0]).toContain("Comment `/wachi review` to review now.");
+    expect(t.posted[0]).toContain("Comment `/wachiman review` to review now.");
     expect(readCeilingNotice(t.posted[0].trimEnd().replace(/\n\n<!-- wachi:attempt id=[0-9a-f-]+ -->$/, ""))).toBe("0.50");
 
     // The next push: the notice for this ceiling already exists.
@@ -458,7 +458,7 @@ describe("review() under the ceiling", () => {
     expect(t.posted[0]).toContain("$1.97 of $2.00");
   });
 
-  test("the operator's /wachi review is not limited, and does not even read the spend", () => {
+  test("the operator's /wachiman review is not limited, and does not even read the spend", () => {
     for (const trigger of [undefined, "comment"]) {
       const t = setup({
         env: { AGENT_REVIEW_AUTO_BUDGET_USD: "0.5", ...(trigger ? { AGENT_REVIEW_TRIGGER: trigger } : {}) },

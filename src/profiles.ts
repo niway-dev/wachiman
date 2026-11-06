@@ -89,7 +89,7 @@ type SpawnFn = (
 const defaultSpawn: SpawnFn = (command, args, opts) => spawnSync(command, args, opts);
 
 /**
- * `agent-review --setup-profile [<name>]`: creates `~/.wachiman/claude-<name>` (mode 0700) and
+ * `wachiman --setup-profile [<name>]`: creates `~/.wachiman/claude-<name>` (mode 0700) and
  * launches the developer's `claude` in it, interactively, from an empty directory, so they can
  * sign in with Claude Code's own flow. The binary is spawned directly, without a shell, with the
  * subscription environment: a `claude` shell function or alias cannot change its
@@ -135,6 +135,6 @@ export function setupProfile(p: {
     rmSync(cwd, { recursive: true, force: true });
   }
   if (status !== 0) say(`claude exited with status ${status}.`);
-  say(`Wachiman did not check whether the sign-in succeeded; run \`agent-review local --profile ${flag}\` to find out.`);
+  say(`Wachiman did not check whether the sign-in succeeded; run \`wachiman local --profile ${flag}\` to find out.`);
   return lines;
 }

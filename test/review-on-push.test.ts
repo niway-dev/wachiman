@@ -9,7 +9,7 @@ const read = (path: string) => readFileSync(join(root, path), "utf8");
 
 describe("review on push (ADR 0011)", () => {
   test("both caller templates listen for synchronize", () => {
-    expect(read("templates/agent-review-caller.yml")).toMatch(
+    expect(read("templates/wachiman-review-caller.yml")).toMatch(
       /^\s*pull_request: \{ types: \[opened, ready_for_review, synchronize\] \}$/m,
     );
     expect(read("templates/caller-workflow.yml")).toMatch(
@@ -87,7 +87,7 @@ describe("push debounce", () => {
   });
 
   test("the caller template documents the input", () => {
-    expect(read("templates/agent-review-caller.yml")).toContain("push_debounce_seconds");
+    expect(read("templates/wachiman-review-caller.yml")).toContain("push_debounce_seconds");
   });
 });
 
@@ -101,7 +101,7 @@ describe("thread replies without a push (ADR 0012)", () => {
   };
 
   test("both caller templates listen for pull_request_review_comment: created", () => {
-    expect(read("templates/agent-review-caller.yml")).toMatch(
+    expect(read("templates/wachiman-review-caller.yml")).toMatch(
       /^\s*pull_request_review_comment: \{ types: \[created\] \}$/m,
     );
     expect(read("templates/caller-workflow.yml")).toMatch(/^\s*pull_request_review_comment:\n\s*types: \[created\]$/m);

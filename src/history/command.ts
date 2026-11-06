@@ -1,5 +1,5 @@
 /**
- * `agent-review history`: lists the findings the local history tracks, records the developer's
+ * `wachiman history`: lists the findings the local history tracks, records the developer's
  * verdict on one, and forgets what was kept. It reads files and local git metadata only (`git rev-parse`
  * and `git remote get-url` in `--repo-dir`, to find the key): no `claude`, no GitHub.
  */
@@ -12,9 +12,9 @@ import { VERDICT_WORDS, type HistoryRun, type VerdictWord } from "./types";
 
 export const HISTORY_STATE_FORMAT = "wachiman.history-state/1";
 
-export const historyUsage = `agent-review history [--repo-dir <dir>] [--since <n>d] [--all-repos] [--json]
-                     [--verdict <id> correct|partial|wrong [--reason <text>]]
-                     [--forget [--all]]`;
+export const historyUsage = `wachiman history [--repo-dir <dir>] [--since <n>d] [--all-repos] [--json]
+                 [--verdict <id> correct|partial|wrong [--reason <text>]]
+                 [--forget [--all]]`;
 
 export interface HistoryArgs {
   sinceDays?: number;
@@ -128,7 +128,7 @@ export function runHistory(
     const { key } = repositoryKey(repoDir);
     const { id, word } = args.verdict;
     const known = replay(readRuns(root, key, warn), new Map()).findings.some((f) => f.firstId === id);
-    if (!known) throw new UsageError(`No finding with id ${id} in the history of ${key}; \`agent-review history\` lists the ids.`);
+    if (!known) throw new UsageError(`No finding with id ${id} in the history of ${key}; \`wachiman history\` lists the ids.`);
     appendVerdict(root, key, { at: (io.now?.() ?? new Date()).toISOString(), firstId: id, verdict: word, ...(args.reason ? { reason: args.reason } : {}) });
     io.stdout(`Recorded: ${id} is ${word}.\n`);
     return 0;
@@ -168,7 +168,7 @@ export function runHistory(
     return 0;
   }
   if (listed.length === 0) {
-    io.stdout("No history yet: run `agent-review local --history` to start one.\n");
+    io.stdout("No history yet: run `wachiman local --history` to start one.\n");
     return 0;
   }
   io.stdout(`${listed.map(table).join("\n\n")}\n`);
