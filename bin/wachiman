@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Global entry point for the Wachiman CLI, from any project directory.
+#   wachiman local [--commit X | --from X | --base REF] [--history] ...
+#   wachiman history [--verdict ID correct|partial|wrong] ...
+# Runs on your Claude subscription: ANTHROPIC_API_KEY is always dropped, and Bun never loads the
+# reviewed project's dotenv files or bunfig.toml. For `local`, --profile defaults to $WACHIMAN_PROFILE.
+set -euo pipefail
+
+if [[ -n "${WACHIMAN_DIR:-}" ]]; then
+  dir="$WACHIMAN_DIR"
+else
+  # Resolve this script through symlinks (no `readlink -f` on macOS), then go up from bin/.
+  src="${BASH_SOURCE[0]}"
+  while [[ -L "$src" ]]; do
+    link="$(readlink "$src")"
+    if [[ "$link" == /* ]]; then src="$link"; else src="$(dirname "$src")/$link"; fi
+  done
+  dir="$(cd "$(dirname "$src")/.." && pwd -P)"
+fi
+
+if [[ ! -f "$dir/src/cli.ts" ]]; then
+  echo "wachiman: no engine at $dir (set WACHIMAN_DIR to your Wachiman clone)" >&2
+  exit 2
+fi
+
+args=("$@")
+if [[ "${1:-}" == "local" && -n "${WACHIMAN_PROFILE:-}" ]]; then
+  has_profile=0
+  for a in "$@"; do
+    if [[ "$a" == --profile || "$a" == --profile=* ]]; then has_profile=1; fi
+  done
+  if [[ $has_profile == 0 ]]; then args+=(--profile "$WACHIMAN_PROFILE"); fi
+fi
+
+exec env -u ANTHROPIC_API_KEY bun --no-env-file --config="$dir/bunfig.toml" "$dir/src/cli.ts" "${args[@]}"

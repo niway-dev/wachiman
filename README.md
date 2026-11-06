@@ -95,6 +95,9 @@ nothing posted: Wachiman sends no telemetry and makes no GitHub requests in loca
 is sent to your configured Claude account for the review. Read
 [docs/local-review.md](docs/local-review.md) before running it on an employer's code.
 
+Run `scripts/install-local.sh` once from your clone to get a global `wachiman local …` command and
+the `wachiman-review` agent skill, usable from any project.
+
 ## Documentation map
 
 | I want to… | Read |
