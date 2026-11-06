@@ -19,11 +19,12 @@ import {
   type GhFn,
   type RawThread,
   type ReviewOutput,
+  LEDGER_BYPASSED_FOOTER,
 } from "./engine";
 import { LedgerUnavailable, readReceipt, type CurlFn } from "./ledger";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
-// ADR 0020: the engine reserves from the daily ledger before a run and settles after it. The
+// ADR 0021: the engine reserves from the daily ledger before a run and settles after it. The
 // ledger is a fake `curl`; the model is a fake provider. Both write to one event log, so the
 // tests can assert the order of the calls.
 //
@@ -338,6 +339,7 @@ describe("review() with the daily ledger", () => {
     expect(t.events).toEqual(["model"]);
     expect(t.logs).toContain("ledger bypassed");
     expect(t.provider.requests).toHaveLength(1);
+    expect(t.posted[0]).toContain(LEDGER_BYPASSED_FOOTER);
   });
 
   test("an unreachable ledger throws LedgerUnavailable before any model call", () => {

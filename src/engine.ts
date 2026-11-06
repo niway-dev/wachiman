@@ -182,7 +182,7 @@ export interface Review {
   comments: InlineComment[];
 }
 
-/** `force` is `--force` after `review`: spend past a spent day (ADR 0020). Only the operator's comment may honour it. */
+/** `force` is `--force` after `review`: spend past a spent day (ADR 0021). Only the operator's comment may honour it. */
 export type Command = { kind: "review"; paths: string[]; force: boolean } | { kind: "answer" };
 
 export const DEFAULT_EXCLUDE = [
@@ -841,7 +841,7 @@ export function buildReview(input: {
   effort?: string;
   /** An automatic run: its footer gets the flag the pull request's ceiling sums (ADR 0012). */
   automatic?: boolean;
-  /** The ledger's signed receipt line (ADR 0020), written immediately before the cost line. */
+  /** The ledger's signed receipt line (ADR 0021), written immediately before the cost line. */
   receiptLine?: string;
   /** The configured mention keyword, for the hint on how to ask for the rest. */
   mention?: string;
@@ -1395,7 +1395,7 @@ export interface Deps extends CoreDeps {
    * current directory.
    */
   repoDir?: string;
-  /** Runs `curl` for the daily ledger (ADR 0020); swapped for a fake in tests. Default: the real `curl`. */
+  /** Runs `curl` for the daily ledger (ADR 0021); swapped for a fake in tests. Default: the real `curl`. */
   curl?: CurlFn;
   /** Where the id-token request variables come from. Default: `process.env`. */
   ledgerEnv?: LedgerEnv;
@@ -1864,7 +1864,7 @@ export function ceilingRoom(deps: Deps, repo: string, pr: number, headSha: strin
   return null;
 }
 
-/** The daily ledger refused the run (ADR 0020): the day is spent. `mode` is the caller's `daily_limit_mode`. */
+/** The daily ledger refused the run (ADR 0021): the day is spent. `mode` is the caller's `daily_limit_mode`. */
 export class DailyLimitReached extends Error {
   constructor(
     readonly refusal: Refusal,
@@ -1882,11 +1882,16 @@ export class DailyLimitReached extends Error {
 export interface DailyGrant {
   reservationId: string | null;
   roomUsd: number;
+  /** `daily_limit_bypass`: no reservation, and the footer says so. */
+  bypassed?: boolean;
 }
+
+/** Written where the receipt would be when a repository skips the ledger (ADR 0021 decision 5). */
+export const LEDGER_BYPASSED_FOOTER = "<!-- wachi:ledger bypassed -->";
 
 /**
  * The notice posted when the ledger says the day is spent, once per pull request per UTC day.
- * Its footer names the day, so a second run the same day posts nothing (ADR 0020).
+ * Its footer names the day, so a second run the same day posts nothing (ADR 0021).
  */
 const NO_CREDITS_SOURCE = "<!-- wachi:nocredits day=(\\d{4}-\\d{2}-\\d{2}) -->";
 export const noCreditsFooter = (day: string) => `<!-- wachi:nocredits day=${day} -->`;
@@ -1938,7 +1943,7 @@ function postNoCredits(deps: Deps, repo: string, pr: number, headSha: string, re
 }
 
 /**
- * Asks the daily ledger how much this run may spend (ADR 0020), before any model call. With no
+ * Asks the daily ledger how much this run may spend (ADR 0021), before any model call. With no
  * `ledger_url`, or `daily_limit_bypass`, there is nothing to ask and the room is unlimited. A
  * refusal for the day's limit posts the No credits notice (once a day per pull request) and throws
  * `DailyLimitReached`; any other refusal, or a ledger that cannot answer, propagates unchanged.
@@ -1955,7 +1960,7 @@ export function dailyReserve(
   if (!config.ledgerUrl) return { reservationId: null, roomUsd: Number.POSITIVE_INFINITY };
   if (config.dailyLimitBypass) {
     deps.log("ledger bypassed");
-    return { reservationId: null, roomUsd: Number.POSITIVE_INFINITY };
+    return { reservationId: null, roomUsd: Number.POSITIVE_INFINITY, bypassed: true };
   }
   const curl = deps.curl ?? defaultCurl;
   try {
@@ -1979,10 +1984,11 @@ export function dailyReserve(
 /**
  * Tells the ledger what the run really spent and returns the receipt footer line, or null when
  * there was no reservation or the ledger could not settle: the review is still posted, and the
- * reservation stays counted at the reserved amount (ADR 0020).
+ * reservation stays counted at the reserved amount (ADR 0021).
  */
 export function dailySettle(deps: Deps, grant: DailyGrant, spentUsd: number): string | null {
   const { ledgerUrl } = deps.config;
+  if (grant.bypassed) return LEDGER_BYPASSED_FOOTER;
   if (grant.reservationId === null || !ledgerUrl) return null;
   const curl = deps.curl ?? defaultCurl;
   try {
@@ -2438,7 +2444,7 @@ export function githubReview(
     scoped: boolean;
     mention: string;
     automatic: boolean;
-    /** The ledger's receipt line (ADR 0020), when the run settled. */
+    /** The ledger's receipt line (ADR 0021), when the run settled. */
     receiptLine?: string;
     /** Computed by the connector from every file of the pull request, not only the reviewed ones. */
     instructionChanges: { files: string[]; baseSha: string };
@@ -2472,7 +2478,7 @@ export function githubReview(
   });
 }
 
-/** `force` (`--force`) counts only for the operator's own run, never an automatic trigger (ADR 0020). */
+/** `force` (`--force`) counts only for the operator's own run, never an automatic trigger (ADR 0021). */
 export function review(deps: Deps, repo: string, pr: number, words: string[], force = false) {
   const { gh, config } = deps;
   const meta = JSON.parse(
