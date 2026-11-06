@@ -49,7 +49,7 @@ until you raise the limit or ask yourself.
 
 **New in the next major release.** `budget_usd` bounds a run and `auto_budget_usd` bounds a pull
 request; neither can see what another repository spent. With `ledger_url` set, one number bounds
-every repository of an account for a UTC day ([ADR 0020](adr/0020-a-daily-spend-limit-kept-by-a-ledger-service.md)).
+every repository of an account for a UTC day ([ADR 0021](adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md)).
 Before its first model call a run asks the ledger to reserve what it may spend, and after its last
 it tells the ledger the real cost. The ledger handles one request at a time per account, so two
 runs that start in the same second cannot both spend the same last dollars. The service is the code

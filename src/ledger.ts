@@ -1,5 +1,5 @@
 /**
- * The client of the daily-limit ledger service (ADR 0020): one synchronous call to reserve before
+ * The client of the daily-limit ledger service (ADR 0021): one synchronous call to reserve before
  * a run, one to settle after it, and the signed receipt that settling returns. Like `gh`, the
  * network goes through a binary the runner has (`curl`), so the engine stays synchronous and
  * dependency-free (ADR 0002). Imports only `node:` builtins.

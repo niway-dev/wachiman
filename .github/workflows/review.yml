@@ -57,7 +57,7 @@ on:
         default: 6
       ledger_url:
         description: >-
-          Base URL of the ledger that keeps the daily spend limit across repositories (ADR 0020).
+          Base URL of the ledger that keeps the daily spend limit across repositories (ADR 0021).
           Unset: no daily limit. Set: the caller must grant `id-token: write`, and a run that
           cannot reach the ledger does not start.
         type: string

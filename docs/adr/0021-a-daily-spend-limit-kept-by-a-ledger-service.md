@@ -1,4 +1,4 @@
-# ADR 0020: A daily spend limit across repositories, kept by a ledger service with GitHub OIDC
+# ADR 0021: A daily spend limit across repositories, kept by a ledger service with GitHub OIDC
 
 - **Status:** proposed 2026-11-06, approved in conversation by the owner. Not implemented.
   **Supersedes, for this one purpose,** the non-goal "A hosted service, a queue" of
@@ -8,7 +8,8 @@
   per-pull-request ceiling but is inside the daily limit. Everything else in those records stands.
 - **Spec:** [A daily spend limit across every repository](../specs/2026-11-06-daily-spend-limit-design.md)
 - **Issue:** [#122](https://github.com/niway-dev/wachiman/issues/122)
-- **Numbering:** 0014 to 0019 are taken by open design pull requests (#80, #90, #99).
+- **Numbering:** 0019 and 0020 are on `main`; 0014 to 0019 are also claimed by open design pull
+  requests (#80, #90, #99).
 
 ## Context
 

@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 /**
- * One account's daily spend ledger (ADR 0020, ADR 0021): a SQLite-backed Durable Object that
+ * One account's daily spend ledger (ADR 0021, ADR 0022): a SQLite-backed Durable Object that
  * reserves before a run and settles after it. The day is UTC and decided by this clock.
  *
  * Money is stored as INTEGER micro-dollars (1 USD = 1_000_000) and converted only at the RPC
@@ -154,7 +154,7 @@ export class LedgerAccount extends DurableObject {
   }
 
   /**
-   * Reserves up to `wanted_usd` for a run (ADR 0020). Refuses when the account, or the
+   * Reserves up to `wanted_usd` for a run (ADR 0021). Refuses when the account, or the
    * repository's own limit, has nothing left today, unless `forced`.
    *
    * Atomic by construction: the method is synchronous (sql.exec does not await), so the read,
@@ -249,7 +249,7 @@ export class LedgerAccount extends DurableObject {
   }
 
   /**
-   * Replaces a reservation's amount with the real spend (ADR 0020). Idempotent: a second settle
+   * Replaces a reservation's amount with the real spend (ADR 0021). Idempotent: a second settle
    * returns the stored entry unchanged. The entry keeps the day it was reserved on.
    */
   settle(i: SettleInput): SettleOutput {
@@ -268,7 +268,7 @@ export class LedgerAccount extends DurableObject {
     return { ok: true, entry: toEntry(settled) };
   }
 
-  /** Today's totals for the account, by repository (ADR 0021). Tags are folded in by the Worker. */
+  /** Today's totals for the account, by repository (ADR 0022). Tags are folded in by the Worker. */
   today(limitUsd: number, now?: number): TodayOutput {
     const day = dayOf(now ?? Date.now());
     const rows = this.ctx.storage.sql

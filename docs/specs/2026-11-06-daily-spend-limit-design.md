@@ -2,18 +2,18 @@
 
 - **Status:** proposed 2026-11-06. Nothing here is implemented. Written on Claude Fable 5.1 from
   the owner's decisions of 2026-11-05 and 2026-11-06.
-- **Creates:** [ADR 0020](../adr/0020-a-daily-spend-limit-kept-by-a-ledger-service.md) (a hosted
+- **Creates:** [ADR 0021](../adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md) (a hosted
   ledger with GitHub OIDC, superseding the "no hosted service" non-goals of ADR 0001 and ADR
-  0012 for this one purpose) and [ADR 0021](../adr/0021-accounts-are-the-only-wallet-tags-only-report.md)
+  0012 for this one purpose) and [ADR 0022](../adr/0022-accounts-are-the-only-wallet-tags-only-report.md)
   (accounts are the only wallet; tags only report). Amends ADR 0012 (manual runs now count
   against a limit). Reuses ADR 0001 (trust model, no forks), ADR 0002 (zero dependencies in the
   engine), ADR 0011 and ADR 0012 (the per-pull-request ceiling stays).
 - **Refs:** [#122](https://github.com/niway-dev/wachiman/issues/122). Supersedes, in part, the
   spec [Usage and spend by model, without a server](2026-10-31-usage-dashboard-design.md): its
   "no data sent to a Wachi server" rule stays for review content and is relaxed for one number,
-  the dollars a run spent, under the conditions in ADR 0020.
-- **Numbering:** 0014 and 0015 are taken by #80, 0017 and 0018 by #90, 0019 by #99, so these
-  records are 0020 and 0021.
+  the dollars a run spent, under the conditions in ADR 0021.
+- **Numbering:** 0019 and 0020 are on `main`; 0014 to 0019 are also claimed by open design pull
+  requests (#80, #90, #99), so these records are 0021 and 0022.
 
 ## Summary (one minute)
 
@@ -34,18 +34,18 @@ consumer's repository; the ledger sees repository names and dollars, nothing els
 
 | # | Decision | Why | ADR |
 | --- | --- | --- | --- |
-| 1 | One daily limit, calendar day in UTC, kept by a hosted ledger service the engine calls before and after each run | Only a shared service can see across repositories; a GitHub-based ledger cannot reserve atomically | 0020 (new) |
-| 2 | Identity by GitHub OIDC: the ledger verifies the token's signature, `iss`, `aud`, expiry and reads `repository_id`, `repository`, `run_id`, `run_attempt`, `job_workflow_ref` | No secret to distribute or leak; GitHub, not the caller's yml, names the repository; forks never get a token | 0020 |
-| 3 | The ledger is a Cloudflare Worker with one SQLite-backed Durable Object per account; the Worker routes by the account the repository is linked to | A Durable Object is a single, globally unique instance per id, which is what makes a reservation atomic; the free plan covers this volume by orders of magnitude | 0020 |
-| 4 | Three concepts: **organization** (optional, cross-cutting admin), **account** (the wallet, the only hard-limit holder with its repositories), **repository** (linked once by hand, proven by OIDC on every call). **Tags** cross accounts and only group reports and alerts | Flexibility without coordination: hard limits live where atomicity lives; grouping for people is free-form | 0021 (new) |
-| 5 | Hard limits: per account (the daily number), per repository (optional, stricter), per organization (designed, not built: a second reservation in the organization's object). No limit per tag | A tag limit would need every reservation to coordinate several objects | 0021 |
-| 6 | `reserve` grants `min(run budget, repository left, account left)`; a positive balance starts a run with what is left; a balance of zero or below starts nothing | The owner's grace rule: $0.30 left still runs; negative does not | 0020 |
+| 1 | One daily limit, calendar day in UTC, kept by a hosted ledger service the engine calls before and after each run | Only a shared service can see across repositories; a GitHub-based ledger cannot reserve atomically | 0021 (new) |
+| 2 | Identity by GitHub OIDC: the ledger verifies the token's signature, `iss`, `aud`, expiry and reads `repository_id`, `repository`, `run_id`, `run_attempt`, `job_workflow_ref` | No secret to distribute or leak; GitHub, not the caller's yml, names the repository; forks never get a token | 0021 |
+| 3 | The ledger is a Cloudflare Worker with one SQLite-backed Durable Object per account; the Worker routes by the account the repository is linked to | A Durable Object is a single, globally unique instance per id, which is what makes a reservation atomic; the free plan covers this volume by orders of magnitude | 0021 |
+| 4 | Three concepts: **organization** (optional, cross-cutting admin), **account** (the wallet, the only hard-limit holder with its repositories), **repository** (linked once by hand, proven by OIDC on every call). **Tags** cross accounts and only group reports and alerts | Flexibility without coordination: hard limits live where atomicity lives; grouping for people is free-form | 0022 (new) |
+| 5 | Hard limits: per account (the daily number), per repository (optional, stricter), per organization (designed, not built: a second reservation in the organization's object). No limit per tag | A tag limit would need every reservation to coordinate several objects | 0022 |
+| 6 | `reserve` grants `min(run budget, repository left, account left)`; a positive balance starts a run with what is left; a balance of zero or below starts nothing | The owner's grace rule: $0.30 left still runs; negative does not | 0021 |
 | 7 | **Every** run counts and is limited, including `/wachi review` and `/wachi <question>`; `/wachi review --force` (operator only) runs past the limit and is still recorded | A money ceiling that a comment can skip is not a ceiling; the owner keeps one explicit override | amends 0012 |
 | 8 | Per repository, `daily_limit_mode: fail` (default) ends the run with exit code **3** and a red job; `notice` posts the comment and exits 0. Both post one "No credits today" comment per pull request per UTC day | The owner wants a visible pipeline error; a repository with a required check can choose the quiet mode | none |
-| 9 | The ledger's URL is a caller input (`ledger_url`); the global number lives in the ledger and is edited there; the caller's `daily_budget_usd` is optional and can only be stricter than the account's limit | One source of truth for the shared number; a repository can protect itself further | 0020 |
-| 10 | Fail closed: with `ledger_url` set, a missing `id-token` permission, an unreachable ledger, a 401/403 or an unlinked repository ends the run with exit 3 and no model call. `daily_limit_bypass: true` skips the ledger entirely, at the repository's own risk, and the run says so in its footer | The owner prefers a missed review to an unbounded bill; the bypass is the escape hatch | 0020 |
-| 11 | The ledger answers `settle` with a signed receipt (`account`, `repository`, `run_id`, `usd`, `day`); the engine writes it into the review's hidden footer | A reader can verify what the ledger recorded with the ledger's public key; it replaces trust in the private data with a check | 0020 |
-| 12 | The ledger's Worker code is public in this repository under `ledger/`; the account table, the data and the dashboard are private. Secrets: the Cloudflare deploy token in a protected `production` environment of this repository; the receipt signing key as a Worker secret | Trust: the consumer can read what decides whether its review runs; the FSL already forbids a competing service | 0020 |
+| 9 | The ledger's URL is a caller input (`ledger_url`); the global number lives in the ledger and is edited there; the caller's `daily_budget_usd` is optional and can only be stricter than the account's limit | One source of truth for the shared number; a repository can protect itself further | 0021 |
+| 10 | Fail closed: with `ledger_url` set, a missing `id-token` permission, an unreachable ledger, a 401/403 or an unlinked repository ends the run with exit 3 and no model call. `daily_limit_bypass: true` skips the ledger entirely, at the repository's own risk, and the run says so in its footer | The owner prefers a missed review to an unbounded bill; the bypass is the escape hatch | 0021 |
+| 11 | The ledger answers `settle` with a signed receipt (`account`, `repository`, `run_id`, `usd`, `day`); the engine writes it into the review's hidden footer | A reader can verify what the ledger recorded with the ledger's public key; it replaces trust in the private data with a check | 0021 |
+| 12 | The ledger's Worker code is public in this repository under `ledger/`; the account table, the data and the dashboard are private. Secrets: the Cloudflare deploy token in a protected `production` environment of this repository; the receipt signing key as a Worker secret | Trust: the consumer can read what decides whether its review runs; the FSL already forbids a competing service | 0021 |
 | 13 | The engine's ledger client has no dependencies (ADR 0002): `fetch`, the OIDC request with `ACTIONS_ID_TOKEN_REQUEST_URL`/`_TOKEN`, JSON | Same rule as every other engine module | reuses 0002 |
 | 14 | The caller adds `permissions: id-token: write`; this ships as a **major** release with an upgrading note; a caller without it and with `ledger_url` set fails with exit 3 and a clear message | A reusable workflow cannot raise permissions the caller did not grant (ADR 0001 decision 2) | reuses 0001 |
 
@@ -73,7 +73,7 @@ consumer's repository; the ledger sees repository names and dollars, nothing els
 5. **Account administration in the first version.** Default: a JSON table in the Worker's
    configuration (`accounts.json`, private, mounted as a Worker secret or KV entry, never in
    git) edited by the owner; an admin endpoint and the web console are the next phase.
-6. **Two reservations for the organization limit.** Default: designed in ADR 0021, not built.
+6. **Two reservations for the organization limit.** Default: designed in ADR 0022, not built.
 7. **Clock skew and the day boundary.** The ledger decides the day from its own clock, never
    from the run. Default: a reservation made at 23:59:30 UTC belongs to that day even if it
    settles after midnight.

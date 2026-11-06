@@ -26,7 +26,7 @@ export interface EngineConfig {
    */
   autoBudgetUsd: number;
   /**
-   * `AGENT_REVIEW_LEDGER_URL`: the daily-limit ledger service (ADR 0020), trimmed, without a
+   * `AGENT_REVIEW_LEDGER_URL`: the daily-limit ledger service (ADR 0021), trimmed, without a
    * trailing slash. Unset means no daily limit. It is also the OIDC audience, as configured.
    */
   ledgerUrl?: string;

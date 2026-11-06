@@ -1,7 +1,7 @@
-# ADR 0021: Accounts are the only wallet; tags only report
+# ADR 0022: Accounts are the only wallet; tags only report
 
 - **Status:** proposed 2026-11-06, approved in conversation by the owner. Not implemented.
-  Builds on [ADR 0020](0020-a-daily-spend-limit-kept-by-a-ledger-service.md).
+  Builds on [ADR 0021](0021-a-daily-spend-limit-kept-by-a-ledger-service.md).
 - **Spec:** [A daily spend limit across every repository](../specs/2026-11-06-daily-spend-limit-design.md)
 - **Issue:** [#122](https://github.com/niway-dev/wachiman/issues/122)
 
@@ -16,7 +16,7 @@ or a very large one) would work.
 A GitHub OIDC token proves `repository` and `repository_owner`; it carries no team or group. Any
 grouping beyond the owner is therefore a table the ledger keeps, not something the token says.
 
-A hard limit needs one place that decides atomically (ADR 0020: one Durable Object). A group that
+A hard limit needs one place that decides atomically (ADR 0021: one Durable Object). A group that
 spans accounts spans objects, so a hard limit per group would make every reservation coordinate
 several objects.
 

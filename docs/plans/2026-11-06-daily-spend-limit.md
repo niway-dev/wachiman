@@ -8,7 +8,7 @@
 
 **Tech Stack:** Bun + TypeScript, zero runtime dependencies in `src/` (ADR 0002; `curl` and `gh` are binaries the runner has). `ledger/` is its own package with `wrangler` and `@cloudflare/vitest-pool-workers` as dev dependencies and no runtime dependency (WebCrypto only).
 
-**Spec:** `docs/specs/2026-11-06-daily-spend-limit-design.md` (ADR 0020, ADR 0021; issue #122).
+**Spec:** `docs/specs/2026-11-06-daily-spend-limit-design.md` (ADR 0021, ADR 0022; issue #122).
 
 **Workers (global `CLAUDE.md` roster):** implementer and reviewer on Sonnet medium; Task 9 (the Durable Object and its concurrency test) and the final whole-branch review on Opus 5. Name the model in the dispatch message.
 
@@ -70,9 +70,9 @@ test("ledger url loses a trailing slash; mode and bypass are read; a bad mode is
 ```
 
 - [ ] **Step 2: Run** `bun test src/config.test.ts` — expected: FAIL (properties undefined / no throw).
-- [ ] **Step 3: Implement** the four fields in `loadConfig`, next to `autoBudgetUsd`, with doc comments in the style of the neighbours (ADR 0020 reference).
+- [ ] **Step 3: Implement** the four fields in `loadConfig`, next to `autoBudgetUsd`, with doc comments in the style of the neighbours (ADR 0021 reference).
 - [ ] **Step 4: Run** `bun test src/config.test.ts` — expected: PASS.
-- [ ] **Step 5: Commit** `feat(config): daily limit settings (ADR 0020)`.
+- [ ] **Step 5: Commit** `feat(config): daily limit settings (ADR 0021)`.
 
 ### Task 2: The ledger client (`src/ledger.ts`)
 
@@ -112,7 +112,7 @@ export function canonicalReceipt(receipt: Receipt): Uint8Array;  // JSON with ke
 - [ ] **Step 2: Run** `bun test src/ledger.test.ts` — expected: FAIL (module not found).
 - [ ] **Step 3: Implement** `src/ledger.ts`. `curl` args: `["-sS", "--max-time", "20", "-o", "-", "-w", "\n%{http_code}", "-X", "POST", "-H", "Authorization: Bearer …", "-H", "Content-Type: application/json", "--data", json, url]`; split the last line off `stdout` as the status. The module imports only `node:child_process` and `node:crypto`.
 - [ ] **Step 4: Run** `bun test src/ledger.test.ts` — expected: PASS.
-- [ ] **Step 5: Commit** `feat(ledger): a synchronous client for the ledger service (ADR 0020)`.
+- [ ] **Step 5: Commit** `feat(ledger): a synchronous client for the ledger service (ADR 0021)`.
 
 ### Task 3: Reserve before, settle after, in `review`, `threadReplies` and `answer`
 
@@ -155,7 +155,7 @@ Placement: in `review`, right after `ceilingRoom` returns a number: `const grant
 - [ ] **Step 2: Run** `bun test src/daily.fake.test.ts` — expected: FAIL.
 - [ ] **Step 3: Implement** in `src/engine.ts` as specified. Keep `ceilingRoom` untouched.
 - [ ] **Step 4: Run** `bun test` — expected: all PASS, including `ceiling.fake.test.ts` and the golden prompts (record new goldens for `daily.fake` the way `ceiling.fake` does).
-- [ ] **Step 5: Commit** `feat(engine): reserve from and settle with the daily ledger; No credits today notice; --force (ADR 0020)`.
+- [ ] **Step 5: Commit** `feat(engine): reserve from and settle with the daily ledger; No credits today notice; --force (ADR 0021)`.
 
 ### Task 4: Exit code 3 in the CLI
 
@@ -173,7 +173,7 @@ Mapping in `main`'s `catch`: `DailyLimitReached` with `mode === "notice"` → lo
 - [ ] **Step 2: Run** `bun test src/cli.test.ts` — expected: FAIL.
 - [ ] **Step 3: Implement** the mapping; add `3` to the usage text's exit-code line.
 - [ ] **Step 4: Run** `bun test src/cli.test.ts` — expected: PASS.
-- [ ] **Step 5: Commit** `feat(cli): exit code 3 for the daily limit and a required ledger (ADR 0020)`.
+- [ ] **Step 5: Commit** `feat(cli): exit code 3 for the daily limit and a required ledger (ADR 0021)`.
 
 ### Task 5: The agent never gets the OIDC variables
 
@@ -197,7 +197,7 @@ Inputs (verbatim):
 ```yaml
       ledger_url:
         description: >-
-          Base URL of the ledger that keeps the daily spend limit across repositories (ADR 0020).
+          Base URL of the ledger that keeps the daily spend limit across repositories (ADR 0021).
           Unset: no daily limit. Set: the caller must grant `id-token: write`, and a run that
           cannot reach the ledger does not start.
         type: string
@@ -222,7 +222,7 @@ Inputs (verbatim):
 - [ ] **Step 2: Run** `bun test test/daily-limit.test.ts` — expected: FAIL.
 - [ ] **Step 3: Edit** the workflow, templates and docs. In `docs/costs.md` state plainly: the limit is soft by one call's overshoot; cancelled runs are over-counted; the ledger sees repository identity, run identity and dollars only.
 - [ ] **Step 4: Run** `bun test` and `docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color` — expected: PASS, no lint error.
-- [ ] **Step 5: Commit** with a breaking marker so release-please cuts a major: `feat(workflow)!: daily limit inputs; callers must grant id-token: write (ADR 0020)` with a `BREAKING CHANGE:` footer line naming the permission.
+- [ ] **Step 5: Commit** with a breaking marker so release-please cuts a major: `feat(workflow)!: daily limit inputs; callers must grant id-token: write (ADR 0021)` with a `BREAKING CHANGE:` footer line naming the permission.
 
 ### Task 7: The `ledger/` package and OIDC verification
 
@@ -245,7 +245,7 @@ export async function verifyGithubToken(token: string, audience: string, jwks: J
 - [ ] **Step 2: Run** `cd ledger && bun install && bun run test` — expected: FAIL.
 - [ ] **Step 3: Implement** `oidc.ts` with `crypto.subtle.importKey("jwk", …, {name: "RSASSA-PKCS1-v1_5", hash: "SHA-256"}, false, ["verify"])`.
 - [ ] **Step 4: Run** the tests — expected: PASS.
-- [ ] **Step 5: Commit** `feat(ledger): package scaffold and GitHub OIDC verification (ADR 0020)`.
+- [ ] **Step 5: Commit** `feat(ledger): package scaffold and GitHub OIDC verification (ADR 0021)`.
 
 ### Task 8: The account table
 
@@ -264,7 +264,7 @@ export function findAccount(accounts: Account[], repositoryId: string): { accoun
 
 - [ ] **Step 1: Write the failing tests**: a two-account table resolves each repository; an unknown id returns null; a duplicate id throws naming it; `limit_usd: 0` throws.
 - [ ] **Step 2: Run** — FAIL. **Step 3: Implement.** **Step 4: Run** — PASS.
-- [ ] **Step 5: Commit** `feat(ledger): the account table (ADR 0021)`.
+- [ ] **Step 5: Commit** `feat(ledger): the account table (ADR 0022)`.
 
 ### Task 9: The account Durable Object: reserve, settle, today
 
@@ -300,7 +300,7 @@ Rules (from the spec): `day = new Date(now).toISOString().slice(0, 10)`; `spent 
   - `"two concurrent reserves on $2 left grant at most $2 in total"`: `Promise.all([stub.reserve(4), stub.reserve(4)])` → sum of granted ≤ 2.
   - `"today sums by repository"`.
 - [ ] **Step 2: Run** — FAIL. **Step 3: Implement** `account-object.ts` with RPC methods (the Worker calls `stub.reserve(...)`). **Step 4: Run** — PASS.
-- [ ] **Step 5: Commit** `feat(ledger): the account Durable Object: reserve, settle, today (ADR 0020, 0021)`.
+- [ ] **Step 5: Commit** `feat(ledger): the account Durable Object: reserve, settle, today (ADR 0021, 0022)`.
 
 ### Task 10: Signed receipts
 
@@ -343,13 +343,13 @@ Deploy workflow: `on: workflow_dispatch` only; `environment: production`; `permi
 
 - [ ] **Step 1: Write the failing tests**: each row of the table with a minted token (Task 7's minter); forced from a `pull_request` token is recorded as `forced: false`; `/v1/public-key` needs no token; an unknown route is 404.
 - [ ] **Step 2: Run** — FAIL. **Step 3: Implement** `index.ts` (plain `switch` on method and pathname; no router library). Write the deploy workflow. **Step 4: Run** `bun run test` in `ledger/` and actionlint — PASS.
-- [ ] **Step 5: Commit** `feat(ledger): HTTP routes and a dispatch-only deploy workflow (ADR 0020)`.
+- [ ] **Step 5: Commit** `feat(ledger): HTTP routes and a dispatch-only deploy workflow (ADR 0021)`.
 
 ### Task 12: CI runs the ledger tests; handoff
 
 **Files:**
 - Modify: `.github/workflows/ci.yml` (a `ledger` job: setup Bun, `bun install --frozen-lockfile` and `bun run test` in `ledger/`)
-- Modify: `docs/architecture.md` (a short "The ledger" subsection under "The execution harness" linking ADR 0020 and `ledger/README.md`)
+- Modify: `docs/architecture.md` (a short "The ledger" subsection under "The execution harness" linking ADR 0021 and `ledger/README.md`)
 
 - [ ] **Step 1: Add the job**; run actionlint — PASS.
 - [ ] **Step 2: Run** `bun test` at the root and `bun run test` in `ledger/` — both PASS.

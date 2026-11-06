@@ -1,6 +1,6 @@
 # Wachiman ledger
 
-A Cloudflare Worker that keeps the daily spend ceiling for every repository Wachiman runs in. The engine reserves budget before a run and settles the real cost after it (ADR 0020, ADR 0021).
+A Cloudflare Worker that keeps the daily spend ceiling for every repository Wachiman runs in. The engine reserves budget before a run and settles the real cost after it (ADR 0021, ADR 0022).
 
 It is a separate package: the root `bun test` ignores it (`bunfig.toml`), and it has its own `bun.lock`.
 

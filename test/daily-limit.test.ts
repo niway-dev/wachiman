@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Textual checks, not a YAML parse: the repository has no YAML dependency (ADR 0002). They pin the
-// places that must agree for the daily limit (ADR 0020): the inputs, the OIDC permission and the
+// places that must agree for the daily limit (ADR 0021): the inputs, the OIDC permission and the
 // environment the engine reads.
 const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
@@ -12,7 +12,7 @@ const workflow = read(".github/workflows/review.yml");
 const input = (name: string) =>
   workflow.match(new RegExp(`\\n {6}${name}:\\n([\\s\\S]*?)(?=\\n {6}[a-z_]+:\\n|\\n {4}secrets:)`))?.[1] ?? "";
 
-describe("daily limit inputs (ADR 0020)", () => {
+describe("daily limit inputs (ADR 0021)", () => {
   test("ledger_url is a string, unset by default", () => {
     expect(input("ledger_url")).toMatch(/type: string/);
     expect(input("ledger_url")).toMatch(/default: ""/);

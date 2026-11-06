@@ -7,7 +7,7 @@ import { receiptPublicKeyPem, signReceipt } from "./receipt";
 export { LedgerAccount } from "./account-object";
 
 /**
- * The HTTP surface of the ledger (ADR 0020, ADR 0021). Snake_case JSON on the wire, one `switch`
+ * The HTTP surface of the ledger (ADR 0021, ADR 0022). Snake_case JSON on the wire, one `switch`
  * on method and path. Every route but `/v1/public-key` needs a GitHub OIDC bearer token.
  */
 export interface WorkerEnv {

@@ -1,4 +1,4 @@
-# Deploys the ledger Worker (ADR 0020). Manual only, from the `production` environment.
+# Deploys the ledger Worker (ADR 0021). Manual only, from the `production` environment.
 #
 # Nothing secret is committed. The Worker's secrets are set once, from a trusted machine:
 #   wrangler secret put ACCOUNTS_JSON

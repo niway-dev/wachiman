@@ -582,7 +582,7 @@ When the engine runs through the reusable workflow, the workflow always passes i
 workflow defaults are the ones consumers get; the `src/config.ts` defaults apply to direct CLI use
 and the copy-the-files install. The two sets must stay equal.
 
-With `ledger_url` set, the engine also talks to the daily-limit ledger ([ADR 0020](adr/0020-a-daily-spend-limit-kept-by-a-ledger-service.md),
+With `ledger_url` set, the engine also talks to the daily-limit ledger ([ADR 0021](adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md),
 service in `ledger/`) through `src/ledger.ts`: it requests a GitHub OIDC token with the ledger's
 URL as audience, reserves before the first model call and settles after the last, and writes the
 returned receipt into the review footer. A refusal or an unreachable ledger ends the run with exit

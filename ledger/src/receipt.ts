@@ -1,5 +1,5 @@
 /**
- * Signed receipts (ADR 0020, ADR 0021): Ed25519 over canonical JSON. The engine verifies the same
+ * Signed receipts (ADR 0021, ADR 0022): Ed25519 over canonical JSON. The engine verifies the same
  * bytes with a PEM SPKI public key, so the key order below is part of the contract.
  */
 

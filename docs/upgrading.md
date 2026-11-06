@@ -126,7 +126,7 @@ new `src/` and add the `threads` job from `templates/caller-workflow.yml`.
 
 ### The daily limit and `id-token: write` (next major release)
 
-The release that adds [ADR 0020](adr/0020-a-daily-spend-limit-kept-by-a-ledger-service.md) is a
+The release that adds [ADR 0021](adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md) is a
 **major** release, because the reusable workflow's jobs now request `id-token: write` and a reusable
 workflow cannot have more permission than its caller grants. A caller that does not grant it is
 rejected by GitHub, whether or not it uses the daily limit. Before moving the pin, add the

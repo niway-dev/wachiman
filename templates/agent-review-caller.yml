@@ -32,7 +32,7 @@ jobs:
       # review_on_push: false   # review only on open, ready for review and `/wachi review`
       # push_debounce_seconds: 180   # a push waits this long first; a newer push cancels it unspent (0 = no wait)
       # auto_budget_usd: 2      # most all automatic runs on one pull request may spend together
-      # ledger_url: https://ledger.example.com   # daily limit across repositories (ADR 0020); no trailing slash
+      # ledger_url: https://ledger.example.com   # daily limit across repositories (ADR 0021); no trailing slash
       # daily_budget_usd: 10    # a stricter daily number for this repository only
       # daily_limit_mode: notice   # at the limit post the comment and pass, instead of a red job
     secrets:

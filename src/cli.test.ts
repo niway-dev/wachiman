@@ -87,7 +87,7 @@ describe("cli", () => {
   });
 });
 
-describe("exit code 3: the daily limit and a required ledger (ADR 0020)", () => {
+describe("exit code 3: the daily limit and a required ledger (ADR 0021)", () => {
   /** `gh`, `claude` and `curl` as shell scripts: a one-file pull request, a probe that logs model calls, a scripted ledger. */
   function world() {
     const bin = mkdtempSync(join(tmpdir(), "wachiman-daily-bin-"));

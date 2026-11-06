@@ -109,7 +109,7 @@ env:
   # wait; `opened` and `ready_for_review` start at once. `0` disables the wait. The wait counts
   # toward the job's 30 minute limit.
   AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180
-  # The daily spend limit across repositories (ADR 0020). Set the ledger's base URL, without a
+  # The daily spend limit across repositories (ADR 0021). Set the ledger's base URL, without a
   # trailing slash, to turn it on; the ledger is configured with the same string as its audience.
   # AGENT_REVIEW_LEDGER_URL: https://ledger.example.com
   # AGENT_REVIEW_DAILY_BUDGET_USD: 10   # a stricter daily number for this repository only

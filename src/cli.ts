@@ -14,7 +14,7 @@
  *   agent-review --setup-profile [name] sign in an isolated Claude Code profile under ~/.wachiman
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error; 3 the
- * daily limit refused the run, or the ledger was required and unavailable (ADR 0020).
+ * daily limit refused the run, or the ledger was required and unavailable (ADR 0021).
  * The settings are documented in docs/cli.md.
  */
 import { existsSync, readFileSync, statSync, writeSync } from "node:fs";

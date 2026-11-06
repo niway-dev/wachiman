@@ -8,7 +8,7 @@
   the focus file. **Decision 5 amended** by [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md)
   (proposed 2026-11-01): the operator's thread replies also start an automatic run. **Decision 8 amended** by
   [ADR 0013](0013-license-fsl-1-1-alv2.md) (2026-11-01): the license is now FSL-1.1-ALv2. **Non-goal
-  "a hosted service" superseded in part** by [ADR 0020](0020-a-daily-spend-limit-kept-by-a-ledger-service.md)
+  "a hosted service" superseded in part** by [ADR 0021](0021-a-daily-spend-limit-kept-by-a-ledger-service.md)
   (proposed 2026-11-06): an optional ledger service for a daily spend limit, which never sees the key
   or the review; the caller grants `id-token: write` for it.
   **Decision 7 and the trust model amended** by
