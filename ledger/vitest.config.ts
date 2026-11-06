@@ -42,5 +42,7 @@ export default defineConfig({
       },
     }),
   ],
-  test: { include: ["test/**/*.test.ts"] },
+  // `*.vitest.ts`, not `*.test.ts`: the root `bun test` discovers `*.test.ts` everywhere, and these
+  // need the Workers runtime.
+  test: { include: ["test/**/*.vitest.ts"] },
 });

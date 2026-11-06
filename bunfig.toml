@@ -5,5 +5,3 @@
 [install]
 auto = "disable"
 
-[test]
-pathIgnorePatterns = ["ledger/**"]
