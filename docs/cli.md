@@ -10,7 +10,7 @@ they post and how they exit.
 bun src/cli.ts review <pr> [paths…] [--repo-dir <dir>]
 bun src/cli.ts comment <pr> [--repo-dir <dir>]   # the comment text comes from $REQUEST
 bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman threads, no review
-bun src/cli.ts local [paths…] [--base <ref>] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
+bun src/cli.ts local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
   [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
 bun src/cli.ts --setup-profile [<name>]          # sign in an isolated profile for `local`
 bun src/cli.ts --help
@@ -134,7 +134,7 @@ Like `comment`, `threads` needs a working provider binary and credential before 
 
 ### `local`
 
-`local` reviews `merge-base(base, HEAD) → HEAD` of the clone given by `--repo-dir` (default: the
+`local` reviews `merge-base(base, HEAD) → HEAD` (or one commit, or a commit forward: see `--commit` and `--from`) of the clone given by `--repo-dir` (default: the
 current directory): the committed change only, read from a `git archive` snapshot of the head, so
 edits made during the run change nothing. It builds the same `ReviewInput` the GitHub mode
 builds, with the `local-git` connector, and sends the same prompt
@@ -143,9 +143,11 @@ builds, with the `local-git` connector, and sends the same prompt
 | Option | Default | What it does |
 | --- | --- | --- |
 | `--base <ref>` | `origin/HEAD` when it resolves, else `main` | The branch the change is compared with. No fetch is made |
-| `--max-depth <n>` | `50` | The most commits from the start commit (the merge-base) to `HEAD`. A deeper range exits 2 before any call; a positive integer, for this run only. Size (files, lines, batches) never blocks a run. With no `--base`, a `HEAD` on the base branch itself is refused; `--base <commit>` names the start instead. Not checked for `--input` |
+| `--from <commit>` | none | Review from that commit forward, inclusive: `<commit>^ → HEAD`. The commit must be an ancestor of `HEAD`, and `HEAD` a branch. A root commit starts from the empty tree. The depth limit applies to `<commit>^..HEAD`. Excludes `--base`, `--commit` and `--input` |
+| `--commit <commit>` | none | Review exactly that commit: `<commit>^ → <commit>` (the first parent for a merge commit; the empty tree for a root commit). Any commit of the clone, whatever `HEAD` is, even detached; nothing in the working tree is touched. Depth is 1. Excludes `--base`, `--from` and `--input` |
+| `--max-depth <n>` | `50` | The most commits from the start commit (the merge-base, or `--from`'s parent) to `HEAD`. A deeper range exits 2 before any call; a positive integer, for this run only. Size (files, lines, batches) never blocks a run. With no `--base`, a `HEAD` on the base branch itself is refused; `--base <commit>` names the start instead. Not checked for `--input` |
 | `[paths…]` | the whole change | Only the changed files under these paths; a word that names no changed file is ignored with a line on stderr |
-| `--input <file>` | none | A `wachiman.review-input/1` file ([formats](formats/README.md)) instead of the local diff; its `change.head.sha` is snapshotted from `--repo-dir`. Takes no `--base` and no paths |
+| `--input <file>` | none | A `wachiman.review-input/1` file ([formats](formats/README.md)) instead of the local diff; its `change.head.sha` is snapshotted from `--repo-dir`. Takes no `--base`, `--from`, `--commit` or paths |
 | `--format terminal\|markdown\|json` | `terminal` | Plain text; a Markdown report with every finding and the prompt for your agent; or the `ReviewResult` JSON |
 | `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
 | `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
@@ -153,13 +155,14 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
-merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 50)`, `head: feat/x (…)`), the file
+merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 50)`, `head: feat/x (…)`); with `--commit` or
+`--from` it prints the mode and the start instead (`mode: one commit (abc1234)` or `mode: from abc1234 to HEAD`, then `start: …`, `depth: …`, `head: …`; `start: the empty tree (a root commit)` for a root commit). It also prints the file
 count and the number of batches on stderr; the provider's progress follows there too. **It
 prints, never posts:** the report goes to stdout (or `--output`), so `--format json` on stdout is
 the result alone.
 
 It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `AGENT_REVIEW_PROVIDER`
-is not `claude-code`, for a detached or unborn `HEAD`, a `HEAD` on the base branch without `--base`, a range deeper than `--max-depth`, a base with no merge-base, a refused
+is not `claude-code`, for a detached or unborn `HEAD`, a `HEAD` on the base branch without `--base`, a range deeper than `--max-depth`, a base with no merge-base, `--base`, `--from` and `--commit` used together, a `--from` that is not an ancestor of `HEAD`, a `--commit` or `--from` that is not a commit, a refused
 isolated profile, or an `--input` whose format is not `/1` or whose head is not in the clone.
 Each `claude` call runs in subscription mode: no key, `USER` and the no-telemetry switches in its
 environment, `--no-session-persistence` (see

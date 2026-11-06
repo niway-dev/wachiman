@@ -11,7 +11,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadConfig, UsageError } from "./config";
-import { buildLocalInput, DEFAULT_MAX_DEPTH, removeSnapshot, snapshotHead, warnSnapshotDifferences } from "./connectors/local-git";
+import { buildLocalInput, DEFAULT_MAX_DEPTH, EMPTY_TREE_LABEL, type LocalRefs, removeSnapshot, snapshotHead, warnSnapshotDifferences } from "./connectors/local-git";
 import {
   DEFAULT_EXCLUDE,
   filterFiles,
@@ -37,6 +37,8 @@ export type LocalFormat = (typeof FORMATS)[number];
 
 export interface LocalArgs {
   base?: string;
+  commit?: string;
+  from?: string;
   maxDepth?: number;
   paths: string[];
   format: LocalFormat;
@@ -47,7 +49,7 @@ export interface LocalArgs {
   input?: string;
 }
 
-export const localUsage = `agent-review local [paths…] [--base <ref>] [--max-depth <n>] [--repo-dir <dir>]
+export const localUsage = `agent-review local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                    [--input <file>] [--format terminal|markdown|json] [--output <file>]
                    [--profile default|isolated[:<name>]] [--agent-prompt] [--history]`;
 
@@ -55,6 +57,7 @@ export const localUsage = `agent-review local [paths…] [--base <ref>] [--max-d
 export function parseLocalArgs(argv: string[]): LocalArgs {
   const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined };
   let base: string | undefined;
+  const picked: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!arg.startsWith("--")) {
@@ -70,7 +73,13 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
     };
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
     else if (name === "--history" && eq === -1) args.history = true;
-    else if (name === "--base") base = value();
+    else if (name === "--base") {
+      base = value();
+      picked.push(name);
+    } else if (name === "--commit" || name === "--from") {
+      args[name === "--commit" ? "commit" : "from"] = value();
+      picked.push(name);
+    }
     else if (name === "--max-depth") {
       const v = value();
       if (!/^[1-9]\d*$/.test(v) || !Number.isSafeInteger(Number(v))) throw new UsageError(`--max-depth must be a positive integer, got "${v}".`);
@@ -87,9 +96,11 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
       args.input = v;
     } else throw new UsageError(`Unknown option ${name} for local.`);
   }
+  if (new Set(picked).size < picked.length) throw new UsageError(`${picked.find((n, i) => picked.indexOf(n) !== i)} was given twice.`);
+  if (picked.length > 1) throw new UsageError(`${picked[0]} and ${picked[1]} cannot be used together.`);
   if (base !== undefined) args.base = base;
-  if (args.input !== undefined && (base !== undefined || args.paths.length > 0)) {
-    throw new UsageError("--input reviews the file's change as it is: it takes no --base and no paths.");
+  if (args.input !== undefined && (picked.length > 0 || args.paths.length > 0)) {
+    throw new UsageError("--input reviews the file's change as it is: it takes no --base, --from or --commit, and no paths.");
   }
   return args;
 }
@@ -165,6 +176,8 @@ function interruptible(provider: ProviderAdapter, state: { interrupted: boolean 
 }
 
 const short = (sha: string) => sha.slice(0, 7);
+/** The start line of the `commit` and `from` modes: "the empty tree (a root commit)" or the short sha. */
+const startText = (refs: LocalRefs) => (refs.baseRef === EMPTY_TREE_LABEL ? `${EMPTY_TREE_LABEL} (a root commit)` : short(refs.mergeBase));
 
 export function runLocal(
   args: LocalArgs,
@@ -217,14 +230,28 @@ export function runLocal(
   try {
     let input: ReviewInput;
     if (args.input === undefined) {
-      const built = buildLocalInput({ repoDir, base: args.base, maxDepth: args.maxDepth ?? DEFAULT_MAX_DEPTH, paths: args.paths, log: io.stderr, warn: io.stderr });
+      const built = buildLocalInput({ repoDir, base: args.base, commit: args.commit, from: args.from, maxDepth: args.maxDepth ?? DEFAULT_MAX_DEPTH, paths: args.paths, log: io.stderr, warn: io.stderr });
       snapshotDir = built.snapshotDir;
       input = built.input;
       const { refs } = built;
-      io.stderr(`base: ${refs.baseRef} (${short(refs.baseSha)})`);
-      io.stderr(`merge-base: ${short(refs.mergeBase)}`);
-      io.stderr(`depth: ${refs.depth} commit${refs.depth === 1 ? "" : "s"} (max ${args.maxDepth ?? DEFAULT_MAX_DEPTH})`);
-      io.stderr(`head: ${refs.headRef} (${short(refs.headSha)})`);
+      const commits = `${refs.depth} commit${refs.depth === 1 ? "" : "s"}`;
+      const max = `(max ${args.maxDepth ?? DEFAULT_MAX_DEPTH})`;
+      if (refs.mode?.kind === "commit") {
+        io.stderr(`mode: one commit (${short(refs.mode.rev)})${refs.mode.merge ? ", a merge commit: first parent" : ""}`);
+        io.stderr(`start: ${startText(refs)}`);
+        io.stderr(`depth: ${commits}`);
+        io.stderr(`head: ${short(refs.headSha)}`);
+      } else if (refs.mode?.kind === "from") {
+        io.stderr(`mode: from ${short(refs.mode.rev)} to HEAD`);
+        io.stderr(`start: ${startText(refs)}`);
+        io.stderr(`depth: ${commits} ${max}`);
+        io.stderr(`head: ${refs.headRef} (${short(refs.headSha)})`);
+      } else {
+        io.stderr(`base: ${refs.baseRef} (${short(refs.baseSha)})`);
+        io.stderr(`merge-base: ${short(refs.mergeBase)}`);
+        io.stderr(`depth: ${commits} ${max}`);
+        io.stderr(`head: ${refs.headRef} (${short(refs.headSha)})`);
+      }
     } else {
       const fromFile = readInputFile(args.input);
       const head = fromFile.change.head.sha;

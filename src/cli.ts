@@ -34,7 +34,9 @@ export const USAGE = `Usage:
   agent-review threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
   ${localUsage}
                                                          Review the committed branch of a clone on your
-                                                         signed-in claude, and print it; nothing is posted
+                                                         signed-in claude, and print it; nothing is posted.
+                                                         --commit: that one commit (<commit>^ → <commit>);
+                                                         --from: that commit forward (<commit>^ → HEAD)
   ${historyUsage}
                                                          List, judge and forget the findings kept by
                                                          \`local --history\`; reads files and local git
