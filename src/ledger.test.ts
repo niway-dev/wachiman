@@ -187,3 +187,19 @@ describe("verifyReceipt", () => {
     expect(verifyReceipt(receipt, signature, other)).toBe(false);
   });
 });
+
+// Produced by ledger/src/receipt.ts (signReceipt, receiptPublicKeyPem) with a throwaway key: the
+// engine must verify what the ledger signs, byte for byte (ADR 0021 decision 6).
+const LEDGER_SIGNED = {
+  receipt: {"account": "niway", "repository": "niway-dev/wachiman", "run_id": "123456", "usd": 0.42, "day": "2026-11-06"},
+  signature: "MaRDeNMPljh9YBCVxW5aZ08MnIhlgEVQHV7mA1pt1xXHHxfHqP-50xDns-qUwpQzMQwet10z3L9mG3qqQnEoCw",
+  pem: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAwo528GLfLJwT+fEss8hoivbrzLiaHDOoGuLj5EO0OMU=\n-----END PUBLIC KEY-----\n",
+};
+
+describe("a receipt signed by the ledger", () => {
+  test("verifies with the ledger's PEM, and fails once a field changes", () => {
+    const { receipt, signature, pem } = LEDGER_SIGNED;
+    expect(verifyReceipt(receipt, signature, pem)).toBe(true);
+    expect(verifyReceipt({ ...receipt, usd: 0.43 }, signature, pem)).toBe(false);
+  });
+});
