@@ -44,15 +44,18 @@ describe("loadConfig", () => {
     expect(load({ AGENT_REVIEW_LEDGER_URL: "  " }).config.ledgerUrl).toBeUndefined();
   });
 
-  test("the daily limit needs the claude-code provider unless it is bypassed", () => {
+  test("a provider other than claude-code is refused wherever an OIDC request token is present", () => {
+    const message =
+      "AGENT_REVIEW_PROVIDER codex cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or remove id-token: write from this job.";
+    const token = { ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer" };
     const ledger = { AGENT_REVIEW_LEDGER_URL: "https://ledger.example" };
-    expect(() => load({ ...ledger, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(
-      "AGENT_REVIEW_LEDGER_URL needs the claude-code provider: other providers' sandboxes can read the OIDC request token from the engine's environment.",
-    );
-    expect(() => load({ ...ledger, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(UsageError);
-    expect(load({ ...ledger, AGENT_REVIEW_PROVIDER: "claude-code" }).config.ledgerUrl).toBe("https://ledger.example");
-    expect(load({ ...ledger, AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_DAILY_LIMIT_BYPASS: "true" }).config.provider).toBe("codex");
+    expect(() => load({ ...token, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(message);
+    expect(() => load({ ...token, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(UsageError);
+    expect(() => load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_DAILY_LIMIT_BYPASS: "true" })).toThrow(message);
+    expect(load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "claude-code" }).config.ledgerUrl).toBe("https://ledger.example");
+    // No token in the environment: Codex is fine, with or without a ledger url (the CLI case).
     expect(load({ AGENT_REVIEW_PROVIDER: "codex" }).config.provider).toBe("codex");
+    expect(load({ ...ledger, AGENT_REVIEW_PROVIDER: "codex" }).config.provider).toBe("codex");
   });
 
   test("ledger url loses a trailing slash; mode and bypass are read; a bad mode is a usage error", () => {

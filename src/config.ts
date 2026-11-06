@@ -162,9 +162,11 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   const dailyBypass = get("DAILY_LIMIT_BYPASS")?.trim();
   const dailyLimitBypass = dailyBypass === "1" || dailyBypass === "true";
   const ledgerUrl = get("LEDGER_URL")?.trim().replace(/\/+$/, "") || undefined;
-  if (ledgerUrl && provider !== "claude-code" && !dailyLimitBypass) {
+  // The workflows grant `id-token: write` unconditionally, so the request token is in the engine's
+  // environment even with no ledger; a Codex sandbox could read it from /proc.
+  if (provider !== "claude-code" && env.ACTIONS_ID_TOKEN_REQUEST_TOKEN !== undefined) {
     throw new UsageError(
-      "AGENT_REVIEW_LEDGER_URL needs the claude-code provider: other providers' sandboxes can read the OIDC request token from the engine's environment.",
+      `AGENT_REVIEW_PROVIDER ${provider} cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or remove id-token: write from this job.`,
     );
   }
   return {
