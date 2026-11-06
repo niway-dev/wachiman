@@ -49,8 +49,131 @@ function stripComments(line: string): string {
   return line.replace(/(?:^|\s)\/\/.*$/, "");
 }
 
+/** A `/` after one of these (or at the start) begins a regex literal; after an operand it divides. */
+const REGEX_CAN_FOLLOW = "(,=:[!&|?{};";
+
+/**
+ * End of the string, template, regex literal or comment that starts at `i`, or -1 when none does
+ * (or it never ends). `prev` is the last significant character before `i`. A template's `${ }`
+ * holds code, so it is scanned like the rest and may nest. This is a scanner for the shapes that
+ * hide parentheses, not a parser: no other syntax is interpreted.
+ */
+function skipLiteral(text: string, i: number, prev: string): number {
+  const ch = text[i];
+  if (ch === "'" || ch === '"') {
+    for (let n = i + 1; n < text.length; n++) {
+      if (text[n] === "\\") n++;
+      else if (text[n] === ch) return n + 1;
+      else if (text[n] === "\n") return -1;
+    }
+    return -1;
+  }
+  if (ch === "`") {
+    for (let n = i + 1; n < text.length; n++) {
+      if (text[n] === "\\") n++;
+      else if (text[n] === "`") return n + 1;
+      else if (text[n] === "$" && text[n + 1] === "{") {
+        n = endOfCode(text, n + 2);
+        if (n === -1) return -1;
+        n--; // the loop steps past the closing brace
+      }
+    }
+    return -1;
+  }
+  if (ch !== "/") return -1;
+  if (text[i + 1] === "/") {
+    const eol = text.indexOf("\n", i);
+    return eol === -1 ? text.length : eol;
+  }
+  if (text[i + 1] === "*") {
+    const close = text.indexOf("*/", i + 2);
+    return close === -1 ? -1 : close + 2;
+  }
+  if (prev !== "" && !REGEX_CAN_FOLLOW.includes(prev)) return -1;
+  let inClass = false;
+  for (let n = i + 1; n < text.length; n++) {
+    const c = text[n];
+    if (c === "\n") return -1;
+    if (c === "\\") n++;
+    else if (c === "[") inClass = true;
+    else if (c === "]") inClass = false;
+    else if (c === "/" && !inClass) {
+      let end = n + 1;
+      while (end < text.length && /[a-z]/i.test(text[end])) end++;
+      return end;
+    }
+  }
+  return -1;
+}
+
+/** Index just past the `}` that closes a `${` whose code starts at `from`; -1 if it never closes. */
+function endOfCode(text: string, from: number): number {
+  let depth = 1;
+  let prev = "{";
+  for (let i = from; i < text.length; i++) {
+    const lit = skipLiteral(text, i, prev);
+    if (lit !== -1) {
+      i = lit - 1;
+      prev = "a";
+    } else if (text[i] === "{") {
+      depth++;
+      prev = "{";
+    } else if (text[i] === "}") {
+      if (--depth === 0) return i + 1;
+      prev = "}";
+    } else if (!/\s/.test(text[i])) prev = text[i];
+  }
+  return -1;
+}
+
+/** Index just past the `)` that closes the call opened at `open`; -1 if it never closes. */
+function endOfCall(text: string, open: number): number {
+  let depth = 0;
+  let prev = "";
+  for (let i = open; i < text.length; i++) {
+    const lit = skipLiteral(text, i, prev);
+    if (lit !== -1) {
+      i = lit - 1;
+      if (text[i] !== "/" || text[i - 1] !== "*") prev = "a"; // a comment leaves `prev` as it was
+      continue;
+    }
+    if (text[i] === "(") depth++;
+    else if (text[i] === ")" && --depth === 0) return i + 1;
+    if (!/\s/.test(text[i])) prev = text[i];
+  }
+  return -1;
+}
+
+const LOG_CALL = /(?:console|logger|log)\.\w+\s*\(/y;
+
+/** `body` without its logging calls (and the comments outside them), so logging never counts as handling. */
 function removeLogging(body: string): string {
-  return body.replace(/\b(?:console|logger|log)\.\w+\s*\([^)]*\)\s*;?/g, "");
+  let out = "";
+  let prev = "";
+  for (let i = 0; i < body.length; i++) {
+    const lit = skipLiteral(body, i, prev);
+    if (lit !== -1) {
+      const comment = body[i] === "/" && (body[i + 1] === "/" || body[i + 1] === "*");
+      out += comment ? " " : body.slice(i, lit);
+      if (!comment) prev = "a";
+      i = lit - 1;
+      continue;
+    }
+    if (/\W/.test(body[i - 1] ?? " ")) {
+      LOG_CALL.lastIndex = i;
+      const m = LOG_CALL.exec(body);
+      const end = m ? endOfCall(body, i + m[0].length - 1) : -1;
+      if (end !== -1) {
+        i = end - 1;
+        const tail = /^\s*;?/.exec(body.slice(end));
+        if (tail) i += tail[0].length;
+        continue;
+      }
+    }
+    out += body[i];
+    if (!/\s/.test(body[i])) prev = body[i];
+  }
+  return out;
 }
 
 /** Text from `start` of line `i` to the brace that closes the block opened at `start`. */
@@ -76,10 +199,12 @@ function blockBody(lines: string[], i: number, start: number): string {
 
 /** True when a catch body falls back to a value instead of reporting the failure. */
 function defaultsOnError(body: string, expression = false): boolean {
-  if (HANDLED.test(body)) return false;
+  // Logging is not handling: `logger.error({ error })` names the error and the value is still empty.
+  const quiet = removeLogging(body);
+  if (HANDLED.test(quiet)) return false;
   // `.catch(() => value)`: whatever the arrow evaluates to replaces the read, unless it exits.
   if (expression) return body.trim() !== "" && !/\b(?:exit|abort)\b/.test(body);
-  const rest = removeLogging(body).replace(/[\s;{}]/g, "");
+  const rest = quiet.replace(/[\s;{}]/g, "");
   return rest === "" || /\breturn\b/.test(body) || EMPTY_DEFAULT.test(body);
 }
 
