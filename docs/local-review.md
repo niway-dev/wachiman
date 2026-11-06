@@ -186,6 +186,20 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
   `--forget --all` deletes `~/.wachiman/history`. Neither touches `~/.wachiman/claude-*`.
 - **Nothing is exported.** No upload, no sync. The files never leave the laptop unless you copy them.
 
+### Let your coding agent run it
+
+[`skills/wachiman-review`](../skills/wachiman-review/SKILL.md) is an agent skill. It teaches a coding
+agent, such as Claude Code or Codex, to run this review for you: it picks the range from what you
+ask ("my branch", "only commit X", "from X on"), chooses your isolated profile, runs `local` with
+`--history`, presents the findings, and records your verdicts with `history --verdict`. It never
+uses the GitHub modes and never reviews the code itself. To install it, link the folder into your
+agent's skills directory and set `WACHIMAN_DIR` to this clone:
+
+```sh
+ln -s "$PWD/skills/wachiman-review" ~/.claude/skills/wachiman-review
+export WACHIMAN_DIR="$PWD"   # in your shell profile
+```
+
 ## 6. Limits
 
 - **Work limits, and the estimate guard.** Each call is bounded by `AGENT_REVIEW_MAX_TURNS` and
