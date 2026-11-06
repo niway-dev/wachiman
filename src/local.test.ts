@@ -174,11 +174,11 @@ describe("parseLocalArgs", () => {
     expect(parseLocalArgs([]).maxDepth).toBeUndefined();
   });
 
-  test("--input takes no base and no paths", () => {
+  test("--input takes no base, no --from, no --commit and no paths", () => {
     const file = join(temp("wachiman-input-"), "in.json");
     writeFileSync(file, "{}");
     expect(parseLocalArgs(["--input", file]).input).toBe(file);
-    expect(() => parseLocalArgs(["--input", file, "src"])).toThrow("takes no --base and no paths");
+    expect(() => parseLocalArgs(["--input", file, "src"])).toThrow("takes no --base, --from or --commit, and no paths");
     expect(() => parseLocalArgs(["--input", file, "--base", "main"])).toThrow(UsageError);
   });
 });
@@ -700,5 +700,178 @@ describe("--history", () => {
     expect(r.code).toBe(0);
     expect(r.stderr).toContain("history: this run was not saved");
     expect(r.stdout).toContain("src/a.ts:2");
+  });
+});
+
+describe("--commit and --from", () => {
+  const sha = (dir: string, rev: string) => git(dir, "rev-parse", rev).trim();
+  const noReview = (r: { calls: () => string[]; canary: string }) => {
+    expect(r.calls()).toEqual([]);
+    expect(existsSync(r.canary)).toBe(false);
+  };
+  const filesLine = (stderr: string) => stderr.split("\n").find((l) => l.startsWith("files: "));
+
+  test("--commit on HEAD reviews that commit alone, from its parent", () => {
+    const repo = branchRepo();
+    const parent = sha(repo.dir, "HEAD~1");
+    const r = local("ok", ["--commit", "HEAD"], {}, repo);
+    expect(r.code).toBe(0);
+    const lines = r.stderr.split("\n");
+    expect(lines).toContain(`mode: one commit (${sha7(repo.head)})`);
+    expect(lines).toContain(`start: ${sha7(parent)}`);
+    expect(lines).toContain("depth: 1 commit");
+    expect(lines).toContain(`head: ${sha7(repo.head)}`);
+    // The head commit renames old.ts, changes the image and the rules; src/b.ts came one commit earlier.
+    expect(lines).toContain("files: 3 (0 excluded)");
+    const prompt = r.read("prompt") ?? "";
+    expect(prompt).toContain("src/new.ts");
+    expect(prompt).not.toContain("src/b.ts");
+    expect(r.stdout).toContain(`at ${sha7(repo.head)}`);
+  });
+
+  test("--commit on an older commit, with HEAD detached elsewhere: its diff and snapshot, working tree untouched", () => {
+    const repo = branchRepo();
+    const older = sha(repo.dir, "HEAD~1");
+    git(repo.dir, "switch", "-q", "--detach", "main");
+    writeFileSync(join(repo.dir, "scratch.txt"), "uncommitted\n");
+    const status = git(repo.dir, "status", "--porcelain");
+    const r = local("ok", ["--commit", older], {}, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr.split("\n")).toContain(`mode: one commit (${sha7(older)})`);
+    expect(r.stderr.split("\n")).toContain("files: 2 (0 excluded)");
+    const prompt = r.read("prompt") ?? "";
+    expect(prompt).toContain("src/b.ts");
+    expect(prompt).not.toContain("scratch.txt");
+    expect(prompt).not.toContain("src/new.ts");
+    expect(r.read("head-a")).toBe(A_HEAD);
+    expect(sha(repo.dir, "HEAD")).toBe(repo.mainTip);
+    expect(git(repo.dir, "status", "--porcelain")).toBe(status);
+    expect(readFileSync(join(repo.dir, "scratch.txt"), "utf8")).toBe("uncommitted\n");
+  });
+
+  test("--commit on a merge commit reviews it against its first parent, and says so", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "main");
+    git(repo.dir, "merge", "-q", "--no-ff", "-m", "merge feat/x", "feat/x");
+    const merge = sha(repo.dir, "HEAD");
+    const r = local("ok", ["--commit", merge], {}, repo);
+    expect(r.code).toBe(0);
+    const lines = r.stderr.split("\n");
+    expect(lines).toContain(`mode: one commit (${sha7(merge)}), a merge commit: first parent`);
+    expect(lines).toContain(`start: ${sha7(repo.mainTip)}`);
+    // main's own commit is in the first parent; what the merge brought is the feat/x change.
+    expect(lines).toContain("files: 5 (0 excluded)");
+    expect(r.read("prompt") ?? "").not.toContain("docs/later.md");
+  });
+
+  test("--commit on a root commit is diffed against the empty tree", () => {
+    const repo = branchRepo();
+    const r = local("ok", ["--commit", repo.mergeBase], {}, repo);
+    expect(r.code).toBe(0);
+    const lines = r.stderr.split("\n");
+    expect(lines).toContain(`mode: one commit (${sha7(repo.mergeBase)})`);
+    expect(lines).toContain("start: the empty tree (a root commit)");
+    expect(lines).toContain("files: 4 (0 excluded)");
+  });
+
+  test("--from reviews from that commit forward, inclusive of its own changes", () => {
+    const repo = branchRepo();
+    const first = sha(repo.dir, "HEAD~1");
+    const parent = repo.mergeBase;
+    const r = local("ok", ["--from", first], {}, repo);
+    expect(r.code).toBe(0);
+    const lines = r.stderr.split("\n");
+    expect(lines).toContain(`mode: from ${sha7(first)} to HEAD`);
+    expect(lines).toContain(`start: ${sha7(parent)}`);
+    expect(lines).toContain("depth: 2 commits (max 50)");
+    expect(lines).toContain(`head: feat/x (${sha7(repo.head)})`);
+    expect(r.read("prompt") ?? "").toContain("src/b.ts"); // added by the named commit itself
+
+    const last = local("ok", ["--from", repo.head], {}, repo);
+    expect(last.stderr.split("\n")).toContain("depth: 1 commit (max 50)");
+    expect(filesLine(last.stderr)).toBe("files: 3 (0 excluded)");
+  });
+
+  test("--from a root commit starts from the empty tree", () => {
+    const repo = branchRepo();
+    const r = local("ok", ["--from", repo.mergeBase], {}, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr.split("\n")).toContain("start: the empty tree (a root commit)");
+    expect(r.stderr.split("\n")).toContain("depth: 3 commits (max 50)");
+  });
+
+  test("--from a commit that is not an ancestor of HEAD: exit 2, zero calls", () => {
+    const repo = branchRepo();
+    const r = local("ok", ["--from", repo.mainTip], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(`--from ${sha7(repo.mainTip)} is not an ancestor of HEAD`);
+    noReview(r);
+    expect(r.read("dirs")).toBeUndefined();
+  });
+
+  test("--from needs a branch HEAD; --commit does not", () => {
+    const repo = branchRepo();
+    git(repo.dir, "switch", "-q", "--detach", "feat/x");
+    const from = local("ok", ["--from", "HEAD~1"], {}, repo);
+    expect(from.code).toBe(2);
+    expect(from.stderr).toContain("HEAD is detached");
+    noReview(from);
+  });
+
+  test("--from over the depth: exit 2, zero provider calls; --max-depth lifts it", () => {
+    const repo = branchRepo();
+    const first = sha(repo.dir, "HEAD~1");
+    emptyCommits(repo.dir, 50);
+    const r = local("ok", ["--from", first], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("is 52 commits, more than the maximum depth of 50");
+    noReview(r);
+    expect(r.read("dirs")).toBeUndefined();
+    const raised = local("ok", ["--from", first, "--max-depth", "52"], {}, repo);
+    expect(raised.code).toBe(0);
+  });
+
+  test("an unknown revision is a usage error", () => {
+    for (const flag of ["--commit", "--from"]) {
+      const r = local("ok", [flag, "nope"]);
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain(`${flag} nope is not a commit in this clone.`);
+      noReview(r);
+    }
+  });
+
+  test("--commit, --from and --base exclude each other, and --input excludes all three", () => {
+    const pairs = [
+      ["--commit", "HEAD", "--from", "HEAD"],
+      ["--commit", "HEAD", "--base", "main"],
+      ["--from", "HEAD", "--base", "main"],
+    ];
+    for (const args of pairs) {
+      const flags = [args[0], args[2]];
+      expect(() => parseLocalArgs(args)).toThrow(new UsageError(`${flags[0]} and ${flags[1]} cannot be used together.`));
+      const r = local("ok", args);
+      expect(r.code).toBe(2);
+      expect(r.stderr).toContain(`${flags[0]} and ${flags[1]} cannot be used together.`);
+      noReview(r);
+    }
+    const file = join(temp("wachiman-input-"), "input.json");
+    writeFileSync(file, "{}");
+    for (const flag of ["--commit", "--from", "--base"]) {
+      expect(() => parseLocalArgs(["--input", file, flag, "HEAD"])).toThrow(UsageError);
+    }
+  });
+
+  test("--history of an older commit leaves findings first seen at a newer head unsettled", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    const older = sha(repo.dir, "HEAD~1");
+    const first = local("ok", ["--history"], { HOME: home }, repo);
+    expect(first.stdout).toMatch(/src\/a\.ts:2  .* new · id /);
+    // The older commit touches src/a.ts and reports nothing: at the newer head that would settle it.
+    const old = local("none", ["--history", "--commit", older], { HOME: home }, repo);
+    expect(old.code).toBe(0);
+    expect(old.stdout).toMatch(/unknown +1 finding\(s\)/);
+    expect(old.stdout).not.toContain("probably fixed");
+    expect(old.stdout).not.toContain("not repeated");
   });
 });

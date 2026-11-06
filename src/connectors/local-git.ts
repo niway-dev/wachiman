@@ -32,14 +32,30 @@ const short = (sha: string) => sha.slice(0, 7);
 /** The most commits a local review may span, from its start commit to `HEAD`; `--max-depth` changes it for one run. */
 export const DEFAULT_MAX_DEPTH = 50;
 
+/** Which commits a local review spans; without one, the branch against its base (`merge-base(base, HEAD) → HEAD`). */
+/** `LocalRefs.baseRef` of a root commit, which has no parent to start from. */
+export const EMPTY_TREE_LABEL = "the empty tree";
+
+export interface RangeSelect {
+  /** Exactly this commit: `<rev>^ → <rev>`, any commit of the clone, whatever `HEAD` is. */
+  commit?: string;
+  /** From this commit forward, inclusive: `<rev>^ → HEAD`; it must be an ancestor of `HEAD`. */
+  from?: string;
+}
+
 export interface LocalRefs {
+  /** The base branch; for `commit` and `from`, the short start commit (or "the empty tree"). */
   baseRef: string;
   baseSha: string;
+  /** The start of the diff: the merge-base, or the parent of the named commit (the empty tree for a root commit). */
   mergeBase: string;
+  /** The branch of `HEAD`; for `commit`, the short sha unless `HEAD` is a branch at that commit. */
   headRef: string;
   headSha: string;
-  /** `git rev-list --count mergeBase..headSha`. */
+  /** `git rev-list --count mergeBase..headSha` (1 for `commit`). */
   depth: number;
+  /** Set for the `commit` and `from` modes only; `rev` is the resolved sha the user named. */
+  mode?: { kind: "commit"; rev: string; merge: boolean } | { kind: "from"; rev: string };
 }
 
 /** Runs git in the clone and returns stdout; a non-zero exit throws with the command and stderr. */
@@ -69,7 +85,10 @@ export function resolveRefs(
   base: string | undefined,
   git: GitRunner = spawnGit,
   maxDepth: number = DEFAULT_MAX_DEPTH,
+  select: RangeSelect = {},
 ): LocalRefs {
+  if (select.commit !== undefined) return resolveCommit(repoDir, select.commit, git);
+  if (select.from !== undefined) return resolveFrom(repoDir, select.from, git, maxDepth);
   if (base !== undefined && (base === "" || base.startsWith("-"))) throw new UsageError(`--base "${base}" is not a ref.`);
   const symbolic = git(["symbolic-ref", "-q", "--short", "HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
   if (symbolic.status !== 0) throw new UsageError("HEAD is detached; check out a branch, or pass --input");
@@ -106,6 +125,69 @@ export function resolveRefs(
     );
   }
   return { baseRef, baseSha, mergeBase, headRef, headSha, depth };
+}
+
+/** The commit `rev` names, as a sha; a usage error when it is not a commit of this clone. */
+function commitOf(git: GitRunner, repoDir: string, flag: string, rev: string) {
+  if (rev === "" || rev.startsWith("-") || !ok(git, repoDir, ["rev-parse", "--verify", "-q", `${rev}^{commit}`])) {
+    throw new UsageError(`${flag} ${rev} is not a commit in this clone.`);
+  }
+  return run(git, repoDir, ["rev-parse", "--verify", `${rev}^{commit}`]).trim();
+}
+
+/** Where a commit's review starts: its first parent, or the empty tree for a root commit. */
+function startOf(git: GitRunner, repoDir: string, sha: string) {
+  const [, ...parents] = run(git, repoDir, ["rev-list", "--parents", "-n", "1", sha]).trim().split(" ");
+  if (parents.length > 0) return { start: parents[0], baseRef: short(parents[0]), merge: parents.length > 1 };
+  // Not written to the repository: `-w` is absent. The empty tree differs in a SHA-256 clone.
+  const empty = run(git, repoDir, ["hash-object", "-t", "tree", "/dev/null"]).trim();
+  return { start: empty, baseRef: EMPTY_TREE_LABEL, merge: false };
+}
+
+function branchOfHead(git: GitRunner, repoDir: string) {
+  const symbolic = git(["symbolic-ref", "-q", "--short", "HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  return symbolic.status === 0 ? symbolic.stdout.trim() : undefined;
+}
+
+/** `--commit <rev>`: `<rev>^ → <rev>`. Needs no branch and no `HEAD`; depth is 1 whatever the cap. */
+function resolveCommit(repoDir: string, rev: string, git: GitRunner): LocalRefs {
+  const headSha = commitOf(git, repoDir, "--commit", rev);
+  const { start, baseRef, merge } = startOf(git, repoDir, headSha);
+  const branch = branchOfHead(git, repoDir);
+  const onBranch = branch !== undefined && git(["rev-parse", "-q", "--verify", "HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS }).stdout.trim() === headSha;
+  return {
+    baseRef,
+    baseSha: start,
+    mergeBase: start,
+    headRef: onBranch ? branch : short(headSha),
+    headSha,
+    depth: 1,
+    mode: { kind: "commit", rev: headSha, merge },
+  };
+}
+
+/** `--from <rev>`: `<rev>^ → HEAD`, `HEAD` a branch, `<rev>` one of its ancestors, the range within `maxDepth`. */
+function resolveFrom(repoDir: string, rev: string, git: GitRunner, maxDepth: number): LocalRefs {
+  const headRef = branchOfHead(git, repoDir);
+  if (headRef === undefined) throw new UsageError("HEAD is detached; check out a branch, or pass --input");
+  if (!ok(git, repoDir, ["rev-parse", "--verify", "-q", "HEAD"])) {
+    throw new UsageError(`HEAD (${headRef}) has no commit yet; commit the change first, or pass --input`);
+  }
+  const from = commitOf(git, repoDir, "--from", rev);
+  const headSha = run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
+  if (!ok(git, repoDir, ["merge-base", "--is-ancestor", from, headSha])) {
+    throw new UsageError(`--from ${short(from)} is not an ancestor of HEAD (${headRef}, ${short(headSha)}); pick a commit of this branch.`);
+  }
+  const { start, baseRef } = startOf(git, repoDir, from);
+  // A root start has no commit to exclude: the range is the whole history of HEAD.
+  const range = baseRef === EMPTY_TREE_LABEL ? [headSha] : [`${start}..${headSha}`];
+  const depth = Number(run(git, repoDir, ["rev-list", "--count", ...range]).trim());
+  if (depth > maxDepth) {
+    throw new UsageError(
+      `The range from ${short(from)} to ${short(headSha)} is ${depth} commits, more than the maximum depth of ${maxDepth}. Pass a closer --from <commit>, or raise the limit with --max-depth <n>.`,
+    );
+  }
+  return { baseRef, baseSha: start, mergeBase: start, headRef, headSha, depth, mode: { kind: "from", rev: from } };
 }
 
 /**
@@ -311,6 +393,20 @@ export function warnSnapshotDifferences(snapshot: { missing: string[]; extra: st
     warn(`The snapshot has ${snapshot.extra.length} file(s) that the head commit does not: ${listed(snapshot.extra)}`);
 }
 
+/** The commits whose subjects describe the change: one for `commit`, the range otherwise (all of `HEAD` from a root). */
+function subjectRange(refs: LocalRefs) {
+  if (refs.mode?.kind === "commit") return ["-1", refs.headSha];
+  return refs.baseRef === EMPTY_TREE_LABEL ? [refs.headSha] : [`${refs.mergeBase}..${refs.headSha}`];
+}
+
+/** The change's one sentence (the first line of the prompt and every report's headline). */
+function describeRange(refs: LocalRefs, name: string) {
+  const start = refs.baseRef === EMPTY_TREE_LABEL ? EMPTY_TREE_LABEL : short(refs.mergeBase);
+  if (refs.mode?.kind === "commit") return `commit ${short(refs.headSha)} of ${name} against its ${refs.mode.merge ? "first parent" : "parent"} (${start})`;
+  if (refs.mode?.kind === "from") return `branch \`${refs.headRef}\` of ${name} from commit ${short(refs.mode.rev)} (start ${start})`;
+  return `branch \`${refs.headRef}\` of ${name} against ${refs.baseRef} (merge-base ${start})`;
+}
+
 /**
  * The whole connector: refs, files, scope, instructions, the change's metadata, then the snapshot
  * (last, so a refusal before it leaves nothing to remove). The caller removes `snapshotDir`.
@@ -318,6 +414,8 @@ export function warnSnapshotDifferences(snapshot: { missing: string[]; extra: st
 export function buildLocalInput(p: {
   repoDir: string;
   base?: string;
+  commit?: string;
+  from?: string;
   maxDepth?: number;
   paths: string[];
   log: (line: string) => void;
@@ -325,7 +423,7 @@ export function buildLocalInput(p: {
   git?: GitRunner;
 }): { input: ReviewInput; snapshotDir: string; refs: LocalRefs } {
   const git = p.git ?? spawnGit;
-  const refs = resolveRefs(p.repoDir, p.base, git, p.maxDepth);
+  const refs = resolveRefs(p.repoDir, p.base, git, p.maxDepth, { commit: p.commit, from: p.from });
   const files = localFiles(p.repoDir, refs.mergeBase, refs.headSha, git);
   const { paths, ignored } = resolveScope(
     p.paths,
@@ -335,7 +433,7 @@ export function buildLocalInput(p: {
   const instructions = localInstructions(p.repoDir, refs.mergeBase, p.warn, git);
   const top = run(git, p.repoDir, ["rev-parse", "--show-toplevel"]).trim();
   const name = basename(top);
-  const subjects = run(git, p.repoDir, ["log", "--reverse", "--format=%s", `${refs.mergeBase}..${refs.headSha}`]).trim();
+  const subjects = run(git, p.repoDir, ["log", "--reverse", "--format=%s", ...subjectRange(refs)]).trim();
   const author = run(git, p.repoDir, ["log", "-1", "--format=%an", refs.headSha]).trim();
   const snapshot = snapshotHead(p.repoDir, refs.headSha, git);
   warnSnapshotDifferences(snapshot, p.warn);
@@ -343,11 +441,11 @@ export function buildLocalInput(p: {
     format: REVIEW_INPUT_FORMAT,
     change: {
       kind: "branch",
-      describe: `branch \`${refs.headRef}\` of ${name} against ${refs.baseRef} (merge-base ${short(refs.mergeBase)})`,
+      describe: describeRange(refs, name),
       repository: { name },
       base: { sha: refs.mergeBase, ref: refs.baseRef },
       head: { sha: refs.headSha, ref: refs.headRef },
-      title: refs.headRef,
+      title: refs.mode?.kind === "commit" ? subjects.split("\n")[0] : refs.headRef,
       description: subjects,
       ...(author ? { author } : {}),
     },
