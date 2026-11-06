@@ -189,7 +189,8 @@ export class LedgerAccount extends DurableObject {
     const repoLeft = i.repository_limit_usd !== undefined ? toMicro(i.repository_limit_usd) - repoSpent : null;
     const callerLeft = i.caller_limit_usd !== undefined ? toMicro(i.caller_limit_usd) - repoSpent : null;
 
-    if (!i.forced && (accountLeft <= 0 || (repoLeft !== null && repoLeft <= 0))) {
+    const repositoryFull = (repoLeft !== null && repoLeft <= 0) || (callerLeft !== null && callerLeft <= 0);
+    if (!i.forced && (accountLeft <= 0 || repositoryFull)) {
       return {
         ok: false,
         reason: accountLeft <= 0 ? "limit" : "repository_limit",
@@ -201,10 +202,10 @@ export class LedgerAccount extends DurableObject {
     }
 
     const wanted = toMicro(i.wanted_usd);
-    // The caller's own limit only lowers the grant; it never refuses, so clamp at zero.
+    // Past the checks above every left is positive for a non-forced call, so the grant is positive.
     const granted = i.forced
       ? wanted
-      : Math.max(0, Math.min(wanted, accountLeft, repoLeft ?? Infinity, callerLeft ?? Infinity));
+      : Math.min(wanted, accountLeft, repoLeft ?? Infinity, callerLeft ?? Infinity);
 
     const id = crypto.randomUUID();
     const createdAt = new Date(now).toISOString();

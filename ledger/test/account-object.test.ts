@@ -69,6 +69,14 @@ describe("LedgerAccount", () => {
     expect(other).toMatchObject({ ok: true, granted_usd: 1 });
   });
 
+  it("a repository with no room under its own caller_limit_usd is refused, not granted zero", async () => {
+    const stub = account();
+    await stub.reserve(input({ wanted_usd: 2, caller_limit_usd: 2 }));
+    const refused = await stub.reserve(input({ caller_limit_usd: 2 }));
+    expect(refused).toMatchObject({ ok: false, reason: "repository_limit", account_limit_usd: 6 });
+    expect(await stub.reserve(input({ caller_limit_usd: 2, forced: true }))).toMatchObject({ ok: true, granted_usd: 4 });
+  });
+
   it("caller_limit_usd only lowers the grant", async () => {
     const stub = account();
     expect(await stub.reserve(input({ caller_limit_usd: 2 }))).toMatchObject({ ok: true, granted_usd: 2 });
