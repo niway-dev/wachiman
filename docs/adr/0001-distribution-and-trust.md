@@ -7,7 +7,10 @@
   mechanism of decision 4. Severity rules live in `src/engine.ts`, and the only consumer input is
   the focus file. **Decision 5 amended** by [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md)
   (proposed 2026-11-01): the operator's thread replies also start an automatic run. **Decision 8 amended** by
-  [ADR 0013](0013-license-fsl-1-1-alv2.md) (2026-11-01): the license is now FSL-1.1-ALv2.
+  [ADR 0013](0013-license-fsl-1-1-alv2.md) (2026-11-01): the license is now FSL-1.1-ALv2. **Non-goal
+  "a hosted service" superseded in part** by [ADR 0021](0021-a-daily-spend-limit-kept-by-a-ledger-service.md)
+  (proposed 2026-11-06): an optional ledger service for a daily spend limit, which never sees the key
+  or the review; the caller grants `id-token: write` for it.
   **Decision 7 and the trust model amended** by
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
   (proposed 2026-11-03, not implemented): the provider adapter is no longer the only boundary; a

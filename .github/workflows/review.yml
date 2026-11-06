@@ -55,6 +55,25 @@ on:
           several push reviews
         type: number
         default: 6
+      ledger_url:
+        description: >-
+          Base URL of the ledger that keeps the daily spend limit across repositories (ADR 0021).
+          Unset: no daily limit. Set: the caller must grant `id-token: write`, and a run that
+          cannot reach the ledger does not start.
+        type: string
+        default: ""
+      daily_budget_usd:
+        description: A stricter daily number for this repository, in USD; it never raises the account's limit
+        type: number
+        default: 0
+      daily_limit_mode:
+        description: At the daily limit, `fail` ends the run with exit code 3 (red job); `notice` posts the comment and passes
+        type: string
+        default: fail
+      daily_limit_bypass:
+        description: Skip the ledger for this repository, at its own risk; the footer says so
+        type: boolean
+        default: false
       threads_budget_usd:
         description: Most one thread-reply run may spend, in USD (it counts against `auto_budget_usd`)
         type: number
@@ -164,6 +183,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write
     steps:
       # Before any model call. The concurrency group above cancels this run when a newer push
       # arrives, so a run cancelled here has spent nothing. Only `synchronize` waits.
@@ -286,6 +306,10 @@ jobs:
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_DAILY_LIMIT_MODE: ${{ inputs.daily_limit_mode }}
+          AGENT_REVIEW_DAILY_LIMIT_BYPASS: ${{ inputs.daily_limit_bypass }}
           # `opened`, `ready_for_review` or `synchronize`: each is an automatic run that counts
           # against `auto_budget_usd`.
           AGENT_REVIEW_TRIGGER: ${{ github.event.action }}
@@ -318,6 +342,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write
     steps:
       - name: Check the operator input
         env:
@@ -389,6 +414,10 @@ jobs:
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_DAILY_LIMIT_MODE: ${{ inputs.daily_limit_mode }}
+          AGENT_REVIEW_DAILY_LIMIT_BYPASS: ${{ inputs.daily_limit_bypass }}
         # Bun's working directory is `engine/`; see the `review` job.
         working-directory: engine
         run: bun --no-env-file --config=bunfig.toml src/cli.ts threads "$PR" --repo-dir "$GITHUB_WORKSPACE/head"
@@ -413,6 +442,7 @@ jobs:
       contents: read
       pull-requests: write
       issues: read
+      id-token: write
     steps:
       # The `if:` above cannot fail loudly, so a placeholder operator is refused here as well.
       - name: Check the operator input
@@ -508,6 +538,10 @@ jobs:
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_DAILY_LIMIT_MODE: ${{ inputs.daily_limit_mode }}
+          AGENT_REVIEW_DAILY_LIMIT_BYPASS: ${{ inputs.daily_limit_bypass }}
         # Bun's working directory is `engine/`; see the `review` job.
         working-directory: engine
         run: bun --no-env-file --config=bunfig.toml src/cli.ts comment "$PR" --repo-dir "$GITHUB_WORKSPACE/head"

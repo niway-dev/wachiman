@@ -15,13 +15,15 @@ name: Agent review
 # Each push can spend up to `budget_usd`, and all automatic runs on one pull request together up to
 # `auto_budget_usd` (default $2; `/wachi review` is not limited by it). To review only on open and on
 # `/wachi review`, remove `synchronize` here, or keep it and pass `review_on_push: false` below.
+# `id-token: write` lets a run prove to the daily-limit ledger which repository it is (`ledger_url`
+# below); with `ledger_url` unset it is unused. Callers that set `ledger_url` must keep it.
 # Remove `pull_request_review_comment` to stop answering thread replies. The triggers live in this
 # file: bumping the pinned release does not add them to a caller that already exists.
 on:
   pull_request: { types: [opened, ready_for_review, synchronize] }
   pull_request_review_comment: { types: [created] }
   issue_comment: { types: [created] }
-permissions: { contents: read, pull-requests: write, issues: read }
+permissions: { contents: read, pull-requests: write, issues: read, id-token: write }
 jobs:
   review:
     uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0
@@ -30,5 +32,8 @@ jobs:
       # review_on_push: false   # review only on open, ready for review and `/wachi review`
       # push_debounce_seconds: 180   # a push waits this long first; a newer push cancels it unspent (0 = no wait)
       # auto_budget_usd: 2      # most all automatic runs on one pull request may spend together
+      # ledger_url: https://ledger.example.com   # daily limit across repositories (ADR 0021); no trailing slash
+      # daily_budget_usd: 10    # a stricter daily number for this repository only
+      # daily_limit_mode: notice   # at the limit post the comment and pass, instead of a red job
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

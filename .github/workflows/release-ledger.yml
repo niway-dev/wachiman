@@ -1,0 +1,33 @@
+# Deploys the ledger Worker (ADR 0021). Manual only, from the `production` environment.
+#
+# Nothing secret is committed. The Worker's secrets are set once, from a trusted machine:
+#   wrangler secret put ACCOUNTS_JSON
+#   wrangler secret put RECEIPT_PRIVATE_KEY_JWK
+#   wrangler secret put RECEIPT_PUBLIC_KEY_JWK
+# This workflow only needs the `production` environment's CLOUDFLARE_API_TOKEN and
+# CLOUDFLARE_ACCOUNT_ID secrets. LEDGER_AUDIENCE is a plain var in ledger/wrangler.jsonc.
+name: Release ledger
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    defaults:
+      run:
+        working-directory: ledger
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2 # the version that wrote ledger/bun.lock
+      - run: bun install --frozen-lockfile
+      - run: bunx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

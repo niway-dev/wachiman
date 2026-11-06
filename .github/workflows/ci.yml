@@ -22,6 +22,23 @@ jobs:
         run: |
           if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi
       - run: bun test
+  ledger:
+    # The ledger Worker (ADR 0021) is its own package with its own tests; the root `bun test` ignores it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ledger
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2 # the ledger's lockfile format; the engine stays on the version consumers run
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - run: bunx tsc --noEmit
   actionlint:
     runs-on: ubuntu-latest
     timeout-minutes: 5

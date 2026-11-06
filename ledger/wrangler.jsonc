@@ -1,0 +1,13 @@
+{
+  "name": "wachiman-ledger",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  // The OIDC audience callers must request, compared exactly. Empty makes every request 401.
+  // Set it to the Worker's public URL in the deployed config.
+  "vars": { "LEDGER_AUDIENCE": "" },
+  "durable_objects": {
+    "bindings": [{ "name": "ACCOUNTS", "class_name": "LedgerAccount" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LedgerAccount"] }],
+  "observability": { "enabled": false }
+}

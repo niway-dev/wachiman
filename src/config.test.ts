@@ -29,8 +29,48 @@ describe("loadConfig", () => {
       mention: "/wachi",
       operator: "",
       exclude: [],
+      dailyLimitMode: "fail",
+      dailyLimitBypass: false,
     });
     expect(warnings).toEqual([]);
+  });
+
+  test("the daily limit settings: unset means no ledger, mode defaults to fail, bypass to false", () => {
+    const { config: c } = load({});
+    expect(c.ledgerUrl).toBeUndefined();
+    expect(c.dailyBudgetUsd).toBeUndefined();
+    expect(c.dailyLimitMode).toBe("fail");
+    expect(c.dailyLimitBypass).toBe(false);
+    expect(load({ AGENT_REVIEW_LEDGER_URL: "  " }).config.ledgerUrl).toBeUndefined();
+  });
+
+  test("a provider other than claude-code is refused wherever an OIDC request token is present", () => {
+    const message =
+      "AGENT_REVIEW_PROVIDER codex cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or remove id-token: write from this job.";
+    const token = { ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer" };
+    const ledger = { AGENT_REVIEW_LEDGER_URL: "https://ledger.example" };
+    expect(() => load({ ...token, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(message);
+    expect(() => load({ ...token, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(UsageError);
+    expect(() => load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_DAILY_LIMIT_BYPASS: "true" })).toThrow(message);
+    expect(load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "claude-code" }).config.ledgerUrl).toBe("https://ledger.example");
+    // No token in the environment: Codex is fine, with or without a ledger url (the CLI case).
+    expect(load({ AGENT_REVIEW_PROVIDER: "codex" }).config.provider).toBe("codex");
+    expect(load({ ...ledger, AGENT_REVIEW_PROVIDER: "codex" }).config.provider).toBe("codex");
+  });
+
+  test("ledger url loses a trailing slash; mode and bypass are read; a bad mode is a usage error", () => {
+    const { config: c } = load({
+      AGENT_REVIEW_LEDGER_URL: "https://ledger.example/",
+      AGENT_REVIEW_DAILY_LIMIT_MODE: "notice",
+      AGENT_REVIEW_DAILY_LIMIT_BYPASS: "true",
+      AGENT_REVIEW_DAILY_BUDGET_USD: "2.5",
+    });
+    expect(c.ledgerUrl).toBe("https://ledger.example");
+    expect(c.dailyLimitMode).toBe("notice");
+    expect(c.dailyLimitBypass).toBe(true);
+    expect(c.dailyBudgetUsd).toBe(2.5);
+    expect(() => load({ AGENT_REVIEW_DAILY_LIMIT_MODE: "warn" })).toThrow(/DAILY_LIMIT_MODE must be fail or notice/);
+    expect(() => load({ AGENT_REVIEW_DAILY_BUDGET_USD: "0" })).toThrow(UsageError);
   });
 
   test("a full review is a dry-run option only", () => {

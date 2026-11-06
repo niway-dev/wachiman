@@ -7,7 +7,9 @@ This page describes the code on the `main` branch, which release v1.5.0 carries.
 here are newer than v1.3.0, and each is marked with the release that added it. **New in v1.4.0:**
 [reasoning effort](#reasoning-effort), the turn cap and call timeout, and `review_on_push`.
 **New in v1.5.0:** the per-pull-request ceiling (`auto_budget_usd`), the thread-reply run
-(`threads_budget_usd`) and the `AGENT_REVIEW_TRIGGER` variable. Everything else on this page is
+(`threads_budget_usd`) and the `AGENT_REVIEW_TRIGGER` variable. **New in the next major release:**
+the [daily limit](#the-daily-limit) settings (`ledger_url`, `daily_budget_usd`, `daily_limit_mode`,
+`daily_limit_bypass`) and the `id-token: write` permission that goes with them. Everything else on this page is
 the same in v1.3.0. If your caller pins a tag, check
 `src/config.ts` and `.github/workflows/review.yml` at that tag. Wachiman is advisory: no setting
 here makes a review approve, request changes or block a merge.
@@ -64,6 +66,10 @@ engine through the environment variable in the third column; those variables are
 | `budget_usd` | number | `AGENT_REVIEW_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit: that is `auto_budget_usd`. See [Budgets](#budgets). |
 | `auto_budget_usd` | number | `AGENT_REVIEW_AUTO_BUDGET_USD` | `6` | The most **all automatic runs on one pull request** may spend together: the first review, push reviews and thread-reply runs ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)). **New in v1.5.0.** The engine sums it from the cost line of its own signed review footers marked automatic, so it needs no server. A run starts with at most what is left; at the ceiling it posts one notice and stops. The operator's `/wachi review` is not limited by it. A number greater than 0. See [Budgets](#budgets). |
 | `threads_budget_usd` | number | `AGENT_REVIEW_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in v1.5.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
+| `ledger_url` | string | `AGENT_REVIEW_LEDGER_URL` | empty | Base URL of the ledger that keeps the [daily limit](#the-daily-limit) across repositories ([ADR 0021](adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md)). **New in the next major release.** Set it without a trailing slash; the ledger is configured with the same string as its audience. Empty means no daily limit and no ledger call. When set, the caller must grant `id-token: write`, and a run that cannot reach the ledger does not start (exit 3). Any provider other than `claude-code` is refused while the job holds an OIDC request token, because its sandbox can read it from the engine's environment ([Validation and errors](#validation-and-errors)). |
+| `daily_budget_usd` | number | `AGENT_REVIEW_DAILY_BUDGET_USD` | `0` (unset) | A stricter daily number for this repository, in USD. **New in the next major release.** It never raises the account's limit in the ledger, only lowers what this repository may use. `0` means unset: the workflow sends an empty value. Ignored while `ledger_url` is empty. |
+| `daily_limit_mode` | string | `AGENT_REVIEW_DAILY_LIMIT_MODE` | `fail` | What a run does when the daily limit refuses it. **New in the next major release.** `fail` posts the "No credits today" comment and exits 3 (red job); `notice` posts the comment and exits 0. An unreachable ledger, a missing `id-token: write` or an unlinked repository exit 3 in both modes. |
+| `daily_limit_bypass` | boolean | `AGENT_REVIEW_DAILY_LIMIT_BYPASS` | `false` | Skip the ledger for this repository, at its own risk: no reservation, no limit, no receipt. **New in the next major release.** The run logs `ledger bypassed` and its footer carries `<!-- wachi:ledger bypassed -->`. |
 | `batch_budget_usd` | number | `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
 | `answer_budget_usd` | number | `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | The cap given to the one call that answers a question. Separate from `budget_usd`. |
 | `batch_lines` | number | `AGENT_REVIEW_BATCH_LINES` | `1000` | Changed lines (additions plus deletions) per batch. A whole number. |
@@ -103,14 +109,21 @@ input for a different token, an OpenAI key or a base URL.
 
 Each job declares what it needs. GitHub does not let a reusable workflow have more than the
 caller allows, so the caller's `permissions:` must grant at least this (the template grants
-`contents: read, pull-requests: write, issues: read`). If the caller grants less, GitHub refuses
+`contents: read, pull-requests: write, issues: read, id-token: write`). If the caller grants less, GitHub refuses
 to run the job.
 
-| Job | `contents` | `pull-requests` | `issues` |
-| --- | --- | --- | --- |
-| `review` (automatic) | read | write | not requested |
-| `threads` (thread replies) | read | write | not requested |
-| `on-demand` | read | write | read |
+| Job | `contents` | `pull-requests` | `issues` | `id-token` |
+| --- | --- | --- | --- | --- |
+| `review` (automatic) | read | write | not requested | write |
+| `threads` (thread replies) | read | write | not requested | write |
+| `on-demand` | read | write | read | write |
+
+`id-token: write` is **new in the next major release** and is a breaking change for installed
+callers: GitHub refuses to run a job that asks for more than the caller grants, so a caller that
+does not grant it fails on every job, even with `ledger_url` empty. It lets the engine ask GitHub
+for a short-lived identity token that names the repository and the run; the ledger verifies it, so
+there is no shared secret to store. The token request variables never reach the agent's process
+([providers/claude-code.md](providers/claude-code.md)). See [upgrading.md](upgrading.md).
 
 ### When each job runs
 
@@ -146,6 +159,10 @@ applies.
 | `AGENT_REVIEW_BUDGET_USD` | number | `3` | Finite, greater than 0 | Total for one `review` invocation. See [Budgets](#budgets). | both |
 | `AGENT_REVIEW_AUTO_BUDGET_USD` | number | `6` | Finite, greater than 0 | Ceiling for all automatic runs on one pull request, summed from the engine's own signed review footers. **New in v1.5.0.** Applies only when `AGENT_REVIEW_TRIGGER` names an automatic run; `/wachi review` (`comment`) ignores it. See [Budgets](#budgets). | both |
 | `AGENT_REVIEW_THREADS_BUDGET_USD` | number | `0.25` | Finite, greater than 0 | Cap for the one provider call of a `threads` run. **New in v1.5.0.** | same as the batch cap |
+| `AGENT_REVIEW_LEDGER_URL` | string | unset | A base URL; a trailing `/` is removed, an empty value counts as unset | The daily-limit ledger ([The daily limit](#the-daily-limit)). **New in the next major release.** Also the OIDC audience: the engine requests its identity token for exactly this string, so the ledger must be configured with the same one. | both |
+| `AGENT_REVIEW_DAILY_BUDGET_USD` | number | unset | Finite, greater than 0 | This repository's own daily ceiling, sent with each reservation; the ledger uses the smaller of it and the account's balance. **New in the next major release.** The workflow leaves it unset when the input is `0`. | both |
+| `AGENT_REVIEW_DAILY_LIMIT_MODE` | string | `fail` | `fail`, `notice` | `fail` ends a refused run with exit 3; `notice` exits 0 after posting the comment. **New in the next major release.** | both |
+| `AGENT_REVIEW_DAILY_LIMIT_BYPASS` | boolean | `false` | `1` or `true` | Skips the ledger: no reservation and no receipt. **New in the next major release.** | both |
 | `AGENT_REVIEW_TRIGGER` | string | unset | A lowercase event action: `opened`, `ready_for_review`, `synchronize`, `comment`, `thread`… | Why the run started. **New in v1.5.0.** `comment` is the operator's command and is never limited by the ceiling; any other value is an automatic run that is. Unset means a person ran the CLI by hand, which is not limited either. The workflow sets it (`github.event.action`, `comment`, `thread`); the `comment` and `threads` commands set it themselves, whatever the environment says. A value that is not a lowercase word is a usage error (exit 2). | both |
 | `AGENT_REVIEW_BATCH_BUDGET_USD` | number | `0.75` | Finite, greater than 0 | Cap passed with each provider call in a review, limited by what is left of the total. | Claude: sent as `--max-budget-usd`, a soft cap. Codex: used for accounting only, never enforced. |
 | `AGENT_REVIEW_ANSWER_BUDGET_USD` | number | `1` | Finite, greater than 0 | Cap for the one call that answers a `comment` question. | same as above |
@@ -376,7 +393,8 @@ How to use these commands day to day is in [reviews.md](reviews.md).
 There are five dollar settings and they bound different things. Four of them are per invocation: one
 automatic run, one comment, one thread-reply run, or one CLI call. A re-run, a second comment, or two
 jobs at once each start from the full budget. The fifth, `auto_budget_usd`, adds the automatic runs
-of one pull request together.
+of one pull request together. A sixth limit sits outside these: the [daily limit](#the-daily-limit),
+kept by a ledger across repositories, applies only when `ledger_url` is set.
 
 | Setting | Bounds |
 | --- | --- |
@@ -401,7 +419,8 @@ model writes, and the footer is read only at the very end of the body.
 - Otherwise the run's budget is the smaller of `budget_usd` (or `threads_budget_usd`) and what is
   left, so the pull request cannot go far past the ceiling (Claude's per-call cap is still soft).
 - The first review counts. A large first review can use most of the default $2.
-- `/wachi review` and `/wachi <question>` are not limited and not counted. A rebase or merge with
+- `/wachi review` and `/wachi <question>` are not limited and not counted by this ceiling (the
+  [daily limit](#the-daily-limit), when set, does count them). A rebase or merge with
   no change in the pull request's lines is still posted at the ceiling: it costs nothing and moves
   the marker.
 - **What is not counted.** A run cancelled by a newer push posts nothing, so its spend is in no
@@ -409,6 +428,29 @@ model writes, and the footer is read only at the very end of the body.
   push landed meanwhile) leaves its cost in the job log only. Footers show cents, so a very small
   cost rounds down. The ceiling is a guard rail on the engine's own accounting, not an invoice
   ([costs.md](costs.md)).
+
+### The daily limit
+
+**New in the next major release.** With `ledger_url` set, every run asks a ledger service how much
+it may spend today, before any model call, and tells it what it really spent afterwards
+([ADR 0021](adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md); the service itself is the
+code in `ledger/`, see [costs.md](costs.md#the-daily-limit-across-repositories)). The day is a UTC
+calendar day and the ledger's clock decides it. The run's budget becomes the smallest of its own
+budget, `daily_budget_usd` and what is left of the account's limit. Every run counts, including
+`/wachi review` and questions.
+
+| Situation | `daily_limit_mode: fail` (default) | `daily_limit_mode: notice` |
+| --- | --- | --- |
+| The day is spent | One "No credits today" comment per pull request per UTC day, no model call, exit 3 | The same comment, no model call, exit 0 |
+| `/wachi review --force` by the operator | Runs past the limit, is recorded and settled | Same |
+| Ledger unreachable, no `id-token: write`, repository not linked | No model call, exit 3 | No model call, exit 3 |
+| `ledger_url` empty | No ledger call, nothing changes | Same |
+| `daily_limit_bypass: true` | No ledger call, no receipt | Same |
+
+`--force` is honoured only in the operator's own `/wachi review` comment, never in an automatic
+run. After a review, the engine asks the ledger to settle and writes the ledger's signed receipt
+into the hidden footer, on the line before the cost line. If the settle call fails, the review is
+still posted without a receipt and the reservation stays counted at its reserved amount.
 
 What one review does, in order:
 
@@ -560,6 +602,8 @@ Each of these is a fixed behaviour of the engine at this release:
 | `AGENT_REVIEW_X must be a positive number, got "…".` (or `positive integer`) | A numeric setting is zero, negative, not finite, or (for lines and chars) not whole. | 2 |
 | `AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "…".` | The trigger has capitals, digits, spaces or punctuation. | 2 |
 | `AGENT_REVIEW_EFFORT must be one of low, medium, high, xhigh, max, got "…".` | The effort (new in v1.4.0) is not one of the five names. With only the deprecated variable set, the message names `AGENT_REVIEW_REASONING_EFFORT`. | 2 |
+| `AGENT_REVIEW_DAILY_LIMIT_MODE must be fail or notice, got "…".` | The mode is something else. | 2 |
+| `AGENT_REVIEW_PROVIDER … cannot run in a job that holds an OIDC request token: …` | A provider other than `claude-code` runs where `ACTIONS_ID_TOKEN_REQUEST_TOKEN` is in the environment (the job grants `id-token: write`), with or without `ledger_url` or `daily_limit_bypass`: that provider's sandbox can read the token from the engine's environment. Use `claude-code`, or remove `id-token: write` from the job. | 2 |
 | `Unknown provider "…". Accepted values: claude-code, codex.` | `AGENT_REVIEW_PROVIDER` is something else. | 2 |
 | `GH_TOKEN is not set`, `GITHUB_REPOSITORY is not set`, `REQUEST is not set` | A required variable is missing or empty. | 2 |
 | `--repo-dir … is not a directory.` | The directory does not exist. | 2 |
@@ -568,6 +612,7 @@ Each of these is a fixed behaviour of the engine at this release:
 | `The Claude Code binary "claude" did not run (--version)` / `The Codex binary "codex" did not run (--version)` | The binary is missing or broken. | 1 |
 | `No price is known for model "…"` | Codex model without a built-in price and without `AGENT_REVIEW_PRICE_PER_MTOK`. | 1 |
 | `The operator login is empty.` / `…is still the template placeholder "…".` | `comment` ran with an empty or placeholder operator. | 1 |
+| `agent-review: ledger: …` | With `ledger_url` set, the ledger could not be asked: `id-token: write` is not granted, the ledger is unreachable or answered with an error, or the repository is not linked to an account. No model call was made. | 3 |
 | Workflow annotation `operator is not set` | The `operator` input is empty or a placeholder. | job fails |
 
 The full list of exit codes, including ones that can follow a posted review, is in
