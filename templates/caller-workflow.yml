@@ -109,6 +109,11 @@ env:
   # wait; `opened` and `ready_for_review` start at once. `0` disables the wait. The wait counts
   # toward the job's 30 minute limit.
   AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180
+  # The daily spend limit across repositories (ADR 0020). Set the ledger's base URL, without a
+  # trailing slash, to turn it on; the ledger is configured with the same string as its audience.
+  # AGENT_REVIEW_LEDGER_URL: https://ledger.example.com
+  # AGENT_REVIEW_DAILY_BUDGET_USD: 10   # a stricter daily number for this repository only
+  # AGENT_REVIEW_DAILY_LIMIT_MODE: notice   # `fail` (default) ends the run with exit code 3
 
 jobs:
   review:
@@ -130,6 +135,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write # only used with AGENT_REVIEW_LEDGER_URL
     steps:
       # Before the checkout and any model call: a run cancelled here has spent nothing.
       - name: Wait for further pushes
@@ -200,6 +206,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write # only used with AGENT_REVIEW_LEDGER_URL
     steps:
       - name: Checkout the pull request head
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -251,6 +258,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write # only used with AGENT_REVIEW_LEDGER_URL
     steps:
       # `issue_comment` carries no head repository, so check it before anything reads the
       # head: on a fork's pull request the job stops instead of running its code with the key.

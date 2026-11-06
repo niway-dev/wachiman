@@ -236,6 +236,7 @@ Required for `review`, `comment` and `threads`:
 | `GH_TOKEN` | Token for `gh`. It is never given to the agent. Not read by `local` or `--setup-profile`. |
 | `GITHUB_REPOSITORY` | `owner/name` of the repository. Not read by `local` or `--setup-profile`. |
 | `REQUEST` | `comment` only: the comment text. Pass it through the environment, never interpolated into a shell command. |
+| `AGENT_REVIEW_LEDGER_URL` | Optional: the daily-limit ledger's base URL, without a trailing slash. Set, it makes the run ask the ledger first and requires `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`, which GitHub provides only when the job has `id-token: write`. The other daily-limit settings are in [configuration.md](configuration.md#the-daily-limit). |
 | `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs. |
 | Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`. For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
 
@@ -349,6 +350,10 @@ shrunk to what fits, or dropped, before the coverage table and the summary are t
 | `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help` and `--version` also exit 0. |
 | `1` | Engine error. **Not the same as "nothing was posted"**: see below. |
 | `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `AGENT_REVIEW_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
+| `3` | The daily limit refused the run (`daily_limit_mode: fail`, the default), or `ledger_url` is set and the ledger could not be asked: no `id-token: write` permission, an unreachable ledger or one that answers with an error, or a repository not linked to an account. No model call was made. With `daily_limit_mode: notice`, a run the limit refuses exits 0 after posting the "No credits today" comment; the other three causes still exit 3. See [configuration.md](configuration.md#the-daily-limit). |
+
+Exit 3 is new in the next major release and only appears when `ledger_url` is set. Codes 0, 1 and 2
+keep their meaning.
 
 Exit 1 covers:
 
@@ -368,6 +373,10 @@ Exit 1 covers:
 Before re-running after exit 1, look at the pull request: a review may already be there. A complete,
 unscoped review that was posted moves the incremental marker, so running again on the same head
 says `Already reviewed` instead of repeating the replies that failed.
+
+With `ledger_url` set, the engine asks the ledger before any model call, so a refusal is exit 3 and
+costs nothing. A run the ledger granted can still end in exit 1 or 0 as above; if the settle call
+fails afterwards, the review is posted without a receipt and the exit code is unchanged.
 
 A batch that fails or overruns does not end the review: the batches that ran are posted and the
 rest are listed as not reviewed.

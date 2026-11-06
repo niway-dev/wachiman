@@ -292,6 +292,30 @@ Check these before you assume a bug:
 The Anthropic Console shows what you were billed. The number in the review footer, `<sub>… · $0.00</sub>`,
 is the engine's own sum of what the provider reported.
 
+### "No credits today", or the job is red with exit 3
+
+**New in the next major release; only with `ledger_url` set.** The daily limit across repositories
+([costs.md](costs.md#the-daily-limit-across-repositories)) stopped the run before any model call, so
+nothing was spent.
+
+- **A comment says `No credits today`.** The account's UTC day is spent. One comment is posted per
+  pull request per day and later pushes post nothing more. It names the time the limit resets. With
+  `daily_limit_mode: fail` (default) the job is red with exit 3; with `notice` it is green. To review
+  now, the operator comments `/wachi review --force`, which runs past the limit and is recorded. To
+  change the number, edit the account in the ledger; a caller's `daily_budget_usd` can only lower it.
+- **The log says `agent-review: ledger: …` and there is no comment.** The ledger could not be asked,
+  which is exit 3 in both modes. Read the text after `ledger:`. `id-token: write is not granted`
+  means the job lacks the permission: add it to the caller's `permissions:` (the template has it).
+  `repository not linked to an account in the ledger` means the ledger has no account for this
+  repository: link it there. `the ledger did not accept this workflow's identity token` usually
+  means `ledger_url` differs from the string the ledger is configured with (a trailing slash
+  counts: set `ledger_url` without one). A network error or `HTTP 5xx` means the ledger is down or
+  unreachable; the run fails closed on purpose.
+- **To run without the ledger** in one repository, set `daily_limit_bypass: true` (at your own risk,
+  no limit and no receipt) or leave `ledger_url` empty.
+- A review without a receipt line in its footer means the settle call failed: the review was posted
+  and the reservation stays counted at its reserved amount until the day ends.
+
 ### `The agent did not answer (<reason>).`
 
 A question failed. The reason is `budget` when the answer cap ended the call, `turns` when it reached `max_turns`, `timeout` when `call_timeout_s` killed it, or `error`. Nothing is
@@ -390,6 +414,7 @@ The canonical table is in [cli.md](cli.md). What each code means when you read a
 | 0 | A review or an answer was posted, or there was nothing to do: not a command, not the operator, `Already reviewed`, `Nothing to review`, an all-budget `ran out of its budget` comment. | Green does not mean a review exists. |
 | 1 | An engine error: missing key or binary, a failed `gh` call, `The agent did not return a review for any batch.`, the credential-shaped output refusal, a failed answer. | Not always "nothing posted": see above. |
 | 2 | A usage error: unknown command, bad pull request number, a missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting such as `AGENT_REVIEW_BUDGET_USD must be a positive number, got "0".`, or an unknown provider. | Printed with the usage text. |
+| 3 | The daily limit refused the run, or `ledger_url` is set and the ledger could not be asked (new in the next major release). See [No credits today](#no-credits-today-or-the-job-is-red-with-exit-3). | Nothing was spent. `daily_limit_mode: notice` turns the limit refusal into exit 0; the other causes stay 3. |
 
 One setting breaks that pattern: a malformed `AGENT_REVIEW_PRICE_PER_MTOK` (the Codex price override)
 exits 1, not 2. That setting is available only in the CLI.
@@ -417,6 +442,9 @@ available from the command line only; see [providers/codex.md](providers/codex.m
   posting may leave the review and some replies, because the thread replies are separate requests
   sent after it. Check the pull request before rerunning. A re-run starts again from the beginning. To shorten a run, review a part with
   `/wachi review <paths>` or lower the batch size.
+- With `ledger_url` set, a run cancelled or killed before it settles keeps its reservation: the
+  ledger counts it at the reserved amount for the rest of the UTC day, so it can use up credits it
+  never spent.
 - A second `/wachi review` on the same pull request cancels the first run that is still in progress
   (concurrency is per pull request and per job, with `cancel-in-progress`). The automatic review has
   its own group, so a comment during it does not cancel it, and both run.

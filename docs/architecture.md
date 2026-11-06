@@ -582,6 +582,13 @@ When the engine runs through the reusable workflow, the workflow always passes i
 workflow defaults are the ones consumers get; the `src/config.ts` defaults apply to direct CLI use
 and the copy-the-files install. The two sets must stay equal.
 
+With `ledger_url` set, the engine also talks to the daily-limit ledger ([ADR 0020](adr/0020-a-daily-spend-limit-kept-by-a-ledger-service.md),
+service in `ledger/`) through `src/ledger.ts`: it requests a GitHub OIDC token with the ledger's
+URL as audience, reserves before the first model call and settles after the last, and writes the
+returned receipt into the review footer. A refusal or an unreachable ledger ends the run with exit
+code 3. The calls are synchronous and the client has no dependencies. The settings are in
+[configuration.md](configuration.md#the-daily-limit).
+
 ## Invariants a change must keep
 
 - The history under `~/.wachiman/history` is written only with `--history` or
@@ -610,6 +617,12 @@ and the copy-the-files install. The two sets must stay equal.
   install Codex).
 - Budgets and batch sizes come from the caller's inputs or the environment, never from the pull
   request.
+- The ledger sees repository identity, run identity and dollars only: never the key, a diff, a
+  prompt, a finding or any review text. Its calls happen before the first model call and after the
+  last, and the agent's child process never receives `ACTIONS_ID_TOKEN_REQUEST_URL` or
+  `ACTIONS_ID_TOKEN_REQUEST_TOKEN`.
+- `--force` is honoured only in the operator's own `/wachi review` comment, never in an automatic
+  run.
 - The core (`reviewChange`) has no `gh` in its dependencies and makes no network call of its own;
   the only senders are `defaultGh` and the provider adapter.
 - Each batch's run directory is removed after its call.

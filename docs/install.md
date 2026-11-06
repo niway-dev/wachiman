@@ -43,7 +43,7 @@ You need:
      pull_request: { types: [opened, ready_for_review, synchronize] }
      pull_request_review_comment: { types: [created] }
      issue_comment: { types: [created] }
-   permissions: { contents: read, pull-requests: write, issues: read }
+   permissions: { contents: read, pull-requests: write, issues: read, id-token: write }
    jobs:
      review:
        uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0
@@ -56,7 +56,9 @@ You need:
    The caller owns three decisions: when the workflow runs (`on:`), which secret it passes, and
    the permission ceiling (`permissions:`). The reusable workflow cannot exceed that ceiling.
    `pull-requests: write` is what lets it post the review; only the comment job requests
-   `issues: read`. [configuration.md](configuration.md) lists every other input.
+   `issues: read`. `id-token: write` (new in the next major release) lets a run prove to the
+   daily-limit ledger which repository it is; it is used only when you set `ledger_url`, but the
+   workflow requests it, so the caller must grant it. [configuration.md](configuration.md) lists every other input.
 2. **Add the secret.** Save the key as the repository secret `ANTHROPIC_API_KEY` (Settings,
    Secrets and variables, Actions, **Repository secrets**). An organisation secret shared with
    the repository also works. An *environment* secret does not: the job names no environment.
@@ -220,7 +222,7 @@ Only `operator` is required. Every other input, with its default, type and the e
 setting it becomes, is in [configuration.md](configuration.md#inputs); that page is the only place
 the inputs are listed. The ones people change first are `mention` (the command word), the budgets
 (`budget_usd`, `auto_budget_usd`, `batch_budget_usd`, `answer_budget_usd`), `skip_branch_prefixes` and
-`review_on_push`. Budgets apply per run, not per month, and the Claude Code limit on a call is a
+`review_on_push`. `ledger_url` turns on the [daily limit across repositories](costs.md#the-daily-limit-across-repositories). Budgets apply per run, not per month, and the Claude Code limit on a call is a
 soft client-side cap, so it can be exceeded ([costs.md](costs.md)).
 
 ## How updates arrive

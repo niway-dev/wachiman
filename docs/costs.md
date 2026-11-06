@@ -5,7 +5,7 @@ provider bills your account. This project runs no service and takes no payment. 
 what bounds the spend of one run, where those bounds are weaker than they sound, and how to read
 the cost a review reports.
 
-**Most budgets limit one run. One limit covers a pull request's automatic runs together: `auto_budget_usd` (default $6).** Nothing limits a month. For the supported
+**Most budgets limit one run. One limit covers a pull request's automatic runs together: `auto_budget_usd` (default $6). An optional daily limit across repositories needs a ledger (`ledger_url`, [below](#the-daily-limit-across-repositories)).** Nothing limits a month. For the supported
 Claude workflow the per-call cap is soft: a call can spend more than its cap. For Codex there is no
 per-call dollar cap at all. Treat the settings as guard rails, and set a spend limit at the provider
 if you need a hard ceiling.
@@ -34,7 +34,8 @@ the cost lines of its own signed review footers that carry the automatic flag
 posts one "Automatic reviews paused" notice and does nothing else, and later pushes post nothing
 until you raise the limit or ask yourself.
 
-- `/wachi review` and `/wachi <question>` are not limited and not counted.
+- `/wachi review` and `/wachi <question>` are not limited and not counted by this ceiling (the
+  daily limit below counts them when set).
 - The first review counts. A large first review ($1.36 on a big pull request) can use most of $2;
   the notice then tells you how to continue.
 - A run cancelled by a newer push posts nothing, so what it spent is in no footer and is not
@@ -43,6 +44,39 @@ until you raise the limit or ask yourself.
   says when this is reopened.
 - It bounds the engine's own accounting. For Claude the per-call cap is soft, so a pull request can
   still go past $2 by a call's overshoot.
+
+## The daily limit across repositories
+
+**New in the next major release.** `budget_usd` bounds a run and `auto_budget_usd` bounds a pull
+request; neither can see what another repository spent. With `ledger_url` set, one number bounds
+every repository of an account for a UTC day ([ADR 0020](adr/0020-a-daily-spend-limit-kept-by-a-ledger-service.md)).
+Before its first model call a run asks the ledger to reserve what it may spend, and after its last
+it tells the ledger the real cost. The ledger handles one request at a time per account, so two
+runs that start in the same second cannot both spend the same last dollars. The service is the code
+in `ledger/`; the number itself lives in the ledger and is edited there, not in your workflow. The
+settings are in [configuration.md](configuration.md#the-daily-limit).
+
+- A run gets the smallest of `budget_usd`, `daily_budget_usd` (when set) and what is left of the
+  account's day. Left above zero, even $0.30, it runs with that; at zero or below it does not run.
+- Every run counts: automatic runs, thread replies, `/wachi review` and `/wachi <question>`. Only
+  the operator's `/wachi review --force` runs past the limit, and its cost is still recorded.
+- At the limit, the run posts one "No credits today" comment per pull request per UTC day. With
+  `daily_limit_mode: fail` the job ends red (exit 3); with `notice` it passes. See
+  [troubleshooting.md](troubleshooting.md).
+- With `ledger_url` set, a ledger that cannot be reached, a caller without `id-token: write` or a
+  repository the ledger does not know ends the run with exit 3 before any model call, in both
+  modes. `daily_limit_bypass: true` skips the ledger instead, at the repository's own risk.
+- **The limit is soft by one call's overshoot.** The ledger bounds what the engine lets itself
+  spend; a Claude Code call can still finish above its cap ([below](#how-each-provider-enforces-its-cap)).
+- **Cancelled runs are over-counted.** A run cancelled or killed by the job timeout never settles,
+  so its reservation stays counted for the day at the amount reserved. A later attempt of the same
+  run replaces it. This is the opposite of the per-pull-request ceiling, which under-counts
+  cancelled runs. The same holds when a settle call fails: the review is posted without a receipt
+  and the reservation stays.
+- The day is decided by the ledger, not the run: a reservation made before midnight UTC counts for
+  that day even if it settles after.
+- **What the ledger sees:** the repository's identity, the run's identity and dollars. It never
+  receives your API key, the diff, prompts, findings or any review content.
 
 ## How the budgets work
 
