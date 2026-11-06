@@ -187,7 +187,7 @@ All names are in `src/engine.ts` unless a file is given.
    listed as "not reached: the pull request's budget was spent". `attempt` catches a call that
    died without a result and counts it at its cap, because what it spent is unknown. The budget is
    per run, not per pull request over time: every new `review` run starts again at zero, so an
-   automatic review plus later `/wachi review` runs each spend up to their own total. How firmly a
+   automatic review plus later `/wachiman review` runs each spend up to their own total. How firmly a
    cap is enforced depends on the adapter. Claude Code receives `--max-budget-usd`, a soft cap that
    can be overshot, so `spent` can exceed the total slightly. The Codex adapter is handed the cap
    but does not enforce it: it estimates cost from token events using a built-in or overridden
@@ -251,7 +251,7 @@ All names are in `src/engine.ts` unless a file is given.
 9. **The conversation path.** `comment` (called by `src/cli.ts comment`) first runs
    `operatorProblem` (an empty or template-placeholder operator is an error), then ignores a
    comment whose author is not `AGENT_REVIEW_OPERATOR`, then `parseCommand` looks in the first
-   matching line for the mention (the configured one, `/wachi` by default, or one of
+   matching line for the mention (the configured one, `/wachiman` by default, or one of
    `MENTION_ALIASES`: `/wachiman`, `@agent-review`, `@claude`; the keyword must start a word).
    `review [paths]` runs the pipeline above; anything else goes to `answer`: one provider call
    with `AGENT_REVIEW_ANSWER_BUDGET_USD`, free-text output, the pull request metadata, file list
@@ -288,7 +288,7 @@ All names are in `src/engine.ts` unless a file is given.
 [ADR 0019](adr/0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
 decision 1 cuts the pipeline above into a source-neutral core and two adapters around it: the
 GitHub connector and sink, and the `local-git` connector with the terminal, Markdown and JSON
-sinks of `agent-review local` (added by [#112](https://github.com/niway-dev/wachiman/pull/112),
+sinks of `wachiman local` (added by [#112](https://github.com/niway-dev/wachiman/pull/112),
 [spec](specs/2026-11-03-local-review-design.md)). The two formats are public and versioned: see
 [docs/formats](formats/README.md).
 
@@ -367,7 +367,7 @@ same `ReviewInput` from a clone, reading it with `git` only (the minimal environ
    -A -f`, no commit, every filter attribute unset); `git grep` then sees exactly the archived
    files. A snapshot that differs from `git ls-tree` of the head (`export-ignore`, submodules) is
    a warning.
-7. `agent-review local` (`src/local.ts`) removes the snapshot on every exit path.
+7. `wachiman local` (`src/local.ts`) removes the snapshot on every exit path.
 
 Two tests hold the connector to GitHub's: level (b) in `test/parity.test.ts` runs the core on
 recorded pull requests from both connectors with a fake provider and requires byte-identical
@@ -465,11 +465,9 @@ The reusable workflow cannot add a trigger: a caller that does not list `synchro
 reviews, and one that does not list `pull_request_review_comment` gets no thread replies, whatever the
 pinned release is.
 
-**The command gate.** The parser accepts `/wachiman` as an alias, but the workflow's `if:` only
-tests that the comment body contains the `mention` input, `@agent-review` or `@claude`. With the
-default `/wachi`, a `/wachiman` comment passes the gate because `/wachi` is a substring of it. With
-a custom `mention` that does not contain `/wachiman`, a `/wachiman` comment does not start the
-job. Use the configured mention as the command that always routes.
+**The command gate.** The workflow's `if:` tests that the comment body contains the `mention`
+input, `/wachi` (which also matches `/wachiman`), `@agent-review` or `@claude`, and the parser
+accepts the same words. The configured mention adds a word; it never removes the others.
 
 **Sibling checkout layout.** The head goes into `head/` with `persist-credentials: false`. The
 engine goes into `engine/`, checked out from `job.workflow_repository` at `job.workflow_sha`, so
@@ -508,8 +506,8 @@ The binary itself is installed by `src/install-claude-code.sh` at a pinned versi
 against a SHA-256. Third-party actions are pinned by commit SHA.
 
 **Review instructions come from the base commit.** Before the first batch, `review` (and
-`answer`) reads the pull request's `base.sha` and fetches `.github/agent-review.md` (or the old
-`.github/claude-review.md`), `CLAUDE.md` and `AGENTS.md` at that commit through
+`answer`) reads the pull request's `base.sha` and fetches `.github/wachiman.md` (or the old
+`.github/agent-review.md` or `.github/claude-review.md`), `CLAUDE.md` and `AGENTS.md` at that commit through
 `gh api repos/{repo}/contents/{path}?ref={base_sha}` (`readBaseInstructions`). A 404 means the file
 is absent, any other error stops the run, and each file is cut at 64 KB with a notice in the
 prompt. The text goes into the prompt under "Repository instructions (from the base commit
@@ -615,7 +613,7 @@ and the copy-the-files install. The two sets must stay equal.
 - Each batch's run directory is removed after its call.
 - The local mode never constructs a `gh` function (a test runs it with a `gh` that exits 99), and
   never forwards `ANTHROPIC_API_KEY`: it refuses to start when the key is set.
-- The snapshot and the run directory are removed on every exit path of `agent-review local`,
+- The snapshot and the run directory are removed on every exit path of `wachiman local`,
   `Ctrl-C` included.
 - Only the operator can start an on-demand run, and only replies from `OWNER`, `MEMBER` or
   `COLLABORATOR` reach the agent.

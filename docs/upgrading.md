@@ -9,7 +9,7 @@ your key is whatever your caller file names.
 
 ## What chooses the code that runs
 
-One line in your caller file, usually `.github/workflows/agent-review.yml`:
+One line in your caller file, usually `.github/workflows/wachiman-review.yml`:
 
 ```yaml
 jobs:
@@ -89,7 +89,7 @@ maintainer's rule, not something a workflow enforces, so do the comparison above
 Since the release that adds ADR 0011, the templates list `synchronize` and the reusable workflow has
 a `review_on_push` input (default `true`). **Bumping the pin alone does not turn this on.** The
 trigger lives in your caller file, and a reusable workflow cannot add one. A caller written earlier
-lists `types: [opened, ready_for_review]`, so it keeps reviewing only on open and on `/wachi review`
+lists `types: [opened, ready_for_review]`, so it keeps reviewing only on open and on `/wachiman review`
 until you edit it:
 
 ```yaml
@@ -117,7 +117,7 @@ on:
 
 Only the `operator`'s replies start the job, and it answers only once the head was reviewed. The
 same release adds two inputs, `auto_budget_usd` (default `2`: the most all automatic runs on one
-pull request may spend together; `/wachi review` is not limited by it) and `threads_budget_usd`
+pull request may spend together; `/wachiman review` is not limited by it) and `threads_budget_usd`
 (default `0.25`). **This changes cost behaviour on a pull request with many pushes:** after $2 of
 automatic runs the pushes stop being reviewed and one notice is posted. Raise `auto_budget_usd` in
 your caller if that is too low. Pass either input only after you move to a release that has it: a
@@ -182,10 +182,11 @@ Check these as well:
 | Before | Now | Status |
 | --- | --- | --- |
 | `CLAUDE_REVIEW_<NAME>` environment variables | `AGENT_REVIEW_<NAME>` | Both read. The old one prints `CLAUDE_REVIEW_<NAME> is deprecated; use AGENT_REVIEW_<NAME>.` and loses to the new one. `AGENT_REVIEW_COMMENT_AUTHOR` has no old name. The reusable workflow sets only the new names, so this matters for copy installs and direct CLI use. |
-| `.github/claude-review.md` | `.github/agent-review.md` | The old file is read only when the new one is missing, with a warning. Rename it. |
-| `<!-- claude-review sha=… -->` marker | `<!-- agent-review sha=… -->` | Both are read, so pull requests reviewed under the old name keep their incremental state. |
-| Default `mention` `@agent-review` (v1.0.0 and v1.1.0) | `/wachi` (v1.2.0 and later) | `@agent-review` and `@claude` still start a run. If you set `mention` yourself, your value stays. |
-| `/wachi` only | `/wachiman` also accepted by the parser (v1.3.0) | With the default `mention` it also starts the job. With a custom `mention` it does not: see [troubleshooting.md](troubleshooting.md). |
+| `.github/agent-review.md` (before the naming release) and the older `.github/claude-review.md` | `.github/wachiman.md` | Each old file is read only when the new one is missing, with a warning in the job log. Rename it with `git mv`. |
+| `<!-- claude-review sha=… -->` marker | `<!-- agent-review sha=… -->` | Both are read, so pull requests reviewed under the old name keep their incremental state. The marker keeps its name on purpose: renaming it would orphan every open review. |
+| Default `mention` `@agent-review` (v1.0.0 and v1.1.0), then `/wachi` (v1.2.0 to the naming release) | `/wachiman` | `/wachi`, `@agent-review` and `@claude` still start a run and are still read, whatever `mention` is. If you set `mention` yourself, your value stays and `/wachiman` works next to it. |
+| `.github/workflows/agent-review.yml` and `templates/agent-review-caller.yml` | `.github/workflows/wachiman-review.yml` and `templates/wachiman-review-caller.yml` | Cosmetic: a workflow runs under any file name. `git mv` the file instead of adding a second one, or both answer every pull request and you pay twice. The check names change with the workflow names (`Agent review` becomes `Wachiman review`, and likewise for the thread and on-demand jobs), so a required-status-check rule on the old name stops matching: advisory use is unaffected. |
+| The CLI `agent-review` | `wachiman` | `package.json` declares both bins; `agent-review` keeps working. The `AGENT_REVIEW_*` variables and the hidden `wachi:` signatures keep their names ([ADR 0023](adr/0023-one-name-for-every-surface-people-type.md)). |
 | Comments with no brand line | Every posted comment opens with `👮 **Wachiman**` (v1.3.0) | The engine recognises its own comments by hidden signatures and not by this text, so older comments stay valid. |
 | A caller that names an earlier repository path in `uses:` | `niway-dev/wachiman/.github/workflows/review.yml` | The project was renamed along the way. The links in [CHANGELOG.md](../CHANGELOG.md) show the earlier names. Whether GitHub redirects an old path in `uses:` was not checked for this page. Name the current one. |
 

@@ -26,7 +26,7 @@ describe("loadConfig", () => {
       maxTurns: 40,
       callTimeoutS: 900,
       onProviderUnavailable: "warn",
-      mention: "/wachi",
+      mention: "/wachiman",
       operator: "",
       exclude: [],
     });

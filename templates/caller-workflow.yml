@@ -1,11 +1,11 @@
-name: Agent review
+name: Wachiman review
 
 # An advisory code review by an agent CLI (today Claude Code), paid from the Anthropic Console
 # API credits through the `ANTHROPIC_API_KEY` secret. It is a GitHub review: each finding is a comment on its
 # line, labelled with a severity and a topic (for example "🟠📝 Fix · docs"), that the owner can
 # answer in its thread; information that needs no reply goes in the review body. It is
 # advisory: never a required check, never an approval or a change request, never a merge
-# gate. What to look for beyond the defaults is in `.github/agent-review.md`.
+# gate. What to look for beyond the defaults is in `.github/wachiman.md`.
 #
 # The "copy the files" workflow template. Copy it with the `src/` folder of niway-dev/wachiman
 # (as `scripts/agent-review/`, see docs/setup-copy.md), record the decision in the repository's ADRs, and edit the
@@ -14,8 +14,8 @@ name: Agent review
 #     push (`synchronize`), which reviews only the commits that are new since the last review.
 #     A rebase with no change in content posts a one-line marker and calls no model. Each push
 #     can spend up to AGENT_REVIEW_BUDGET_USD, and all automatic runs on one pull request
-#     together up to AGENT_REVIEW_AUTO_BUDGET_USD (`/wachi review` is not limited by it); to
-#     review only on open and on `/wachi review`, remove `synchronize` from the `pull_request`
+#     together up to AGENT_REVIEW_AUTO_BUDGET_USD (`/wachiman review` is not limited by it); to
+#     review only on open and on `/wachiman review`, remove `synchronize` from the `pull_request`
 #     types below.
 #   - `threads`: when the repository owner replies in a review thread (a
 #     `pull_request_review_comment`), Wachiman answers every thread that waits for an answer,
@@ -23,15 +23,15 @@ name: Agent review
 #     (otherwise the review of the push reads the replies). Remove the
 #     `pull_request_review_comment` trigger below to turn it off.
 #   - `on-demand`: when the repository owner comments on a pull request:
-#     `/wachi review` re-reviews what changed since the last complete, unscoped review and,
+#     `/wachiman review` re-reviews what changed since the last complete, unscoped review and,
 #     when that review has work to do, answers the owner's replies in the open threads;
-#     `/wachi review <path>…` reviews only those paths; any other `/wachi …` comment is a
+#     `/wachiman review <path>…` reviews only those paths; any other `/wachiman …` comment is a
 #     question, answered as a comment.
 #
 # Limit of this install: the copied engine lives in the consumer repository itself, so engine and
 # reviewed head cannot be fully separated here (on `pull_request` the engine is the pull request's
 # own copy, and the checkout is the process's working directory). The reusable workflow
-# (templates/agent-review-caller.yml) checks them out as siblings and is preferred; to move
+# (templates/wachiman-review-caller.yml) checks them out as siblings and is preferred; to move
 # an existing copy there, see docs/setup-copy.md. This copy
 # still runs `bun --no-env-file --config=scripts/agent-review/bunfig.toml ... --repo-dir .`, so
 # Bun reads no `bunfig.toml` or `.env` from the head; copy `bunfig.toml` next to `cli.ts`.
@@ -53,7 +53,7 @@ name: Agent review
 # repository), so everything the agent reads is trusted. A public repository needs more
 # before copying this file: prompt injection and outside contributors. Three things
 # already keep strangers out: fork pull requests are skipped (they get no secrets anyway),
-# only the operator's `/wachi` comment starts a run, and only replies from people with
+# only the operator's `/wachiman` comment starts a run, and only replies from people with
 # access reach the agent. Claude Code runs with `--restricted --strict-mcp-config
 # --tools Read,Glob,Grep --settings claude-code.settings.json` (docs/providers/claude-code.md):
 # the head's user, project and local settings (its `.claude/` hooks included) are ignored,
@@ -67,7 +67,7 @@ on:
     types: [opened, ready_for_review, synchronize]
   # GitHub runs `issue_comment` workflows from the default branch's copy of this file. The
   # pull request that installs the workflow therefore gets only the `pull_request` review;
-  # `/wachi review` starts working once the file is on the default branch. A reply in a review
+  # `/wachiman review` starts working once the file is on the default branch. A reply in a review
   # thread starts no run by itself.
   issue_comment:
     types: [created]
@@ -87,7 +87,7 @@ env:
   # Pinned: the version is part of what was verified to work (see above). Bump it by
   # hand, and re-run a review to check.
   CLAUDE_CODE_VERSION: 2.1.304
-  # Batch size, and the limits on one batch, one pull request and one `/wachi` question (soft
+  # Batch size, and the limits on one batch, one pull request and one `/wachiman` question (soft
   # caps per call, not a guaranteed ceiling). Past the pull request's budget the remaining
   # batches are listed as not reviewed.
   # A pull request edits these for its own `review` run, which the trust assumption above
@@ -96,7 +96,7 @@ env:
   AGENT_REVIEW_BATCH_BUDGET_USD: 0.75
   AGENT_REVIEW_BUDGET_USD: 3
   # The most all automatic runs on one pull request (first review, push reviews, thread replies)
-  # may spend together; the engine sums it from its own signed review footers. `/wachi review`
+  # may spend together; the engine sums it from its own signed review footers. `/wachiman review`
   # is not limited by it. A thread-reply run has its own cap, inside this one.
   AGENT_REVIEW_AUTO_BUDGET_USD: 2
   AGENT_REVIEW_THREADS_BUDGET_USD: 0.25
@@ -112,7 +112,7 @@ env:
 
 jobs:
   review:
-    name: Agent review
+    name: Wachiman review
     # Fork and Dependabot pull requests get no secrets, so the job could only fail there.
     # Release-please pull requests are a changelog and a version bump; reviewing them would
     # only spend.
@@ -178,7 +178,7 @@ jobs:
         run: bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts review "$PR" --repo-dir .
 
   threads:
-    name: Agent thread replies
+    name: Wachiman thread replies
     # EDIT THIS: replace 'your-github-login' below with the operator's login, and keep it equal to
     # AGENT_REVIEW_OPERATOR above. Only a reply by the operator (not a bot), on a head in this
     # repository, starts the job; the engine checks the login again and acts only when the head
@@ -230,7 +230,7 @@ jobs:
         run: bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts threads "$PR" --repo-dir .
 
   on-demand:
-    name: Agent on demand
+    name: Wachiman on demand
     # EDIT THIS: replace 'your-github-login' below with the operator's login, and keep it equal
     # to AGENT_REVIEW_OPERATOR above (a job `if:` cannot read `env`). Matching by login works
     # for user-owned and organisation-owned repositories alike (`author_association` is `OWNER`

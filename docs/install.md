@@ -34,11 +34,11 @@ You need:
 ## Three steps
 
 1. **Add the caller file.** Copy
-   [`templates/agent-review-caller.yml`](../templates/agent-review-caller.yml) to
-   `.github/workflows/agent-review.yml`. Its `uses:` line pins `v1.5.0`. The file is short:
+   [`templates/wachiman-review-caller.yml`](../templates/wachiman-review-caller.yml) to
+   `.github/workflows/wachiman-review.yml`. Its `uses:` line pins `v1.5.0`. The file is short:
 
    ```yaml
-   name: Agent review
+   name: Wachiman review
    on:
      pull_request: { types: [opened, ready_for_review, synchronize] }
      pull_request_review_comment: { types: [created] }
@@ -75,8 +75,8 @@ The pull request that adds the caller file is the first one reviewed, because a 
 workflow runs from the pull request's own branch.
 
 1. Open the pull request ready for review (not as a draft). The `opened` event starts the
-   **Agent review** job. A draft starts it later, when you mark it ready for review.
-2. In the repository's **Actions** tab, open the run named after your workflow (`Agent review`).
+   **Wachiman review** job. A draft starts it later, when you mark it ready for review.
+2. In the repository's **Actions** tab, open the run named after your workflow (`Wachiman review`).
    The job summary starts with a line such as `Engine niway-dev/wachiman@<sha>`. That is the
    exact commit of the engine that ran with your key; it should be the commit `v1.5.0` points to
    (see the next section).
@@ -116,14 +116,13 @@ Only the operator's comments count. Comment on the pull request:
 
 | You write | What happens |
 | --- | --- |
-| `/wachi review` | Reviews what changed since the last complete, unscoped review. With no such review yet, it reviews the whole pull request. |
-| `/wachi review src/auth docs/notes.md` | Reviews only those changed files or directories (an exact path or a directory prefix, not a glob). |
-| `/wachi` followed by anything else | Answers it as a pull request comment. One model call over the whole diff. |
+| `/wachiman review` | Reviews what changed since the last complete, unscoped review. With no such review yet, it reviews the whole pull request. |
+| `/wachiman review src/auth docs/notes.md` | Reviews only those changed files or directories (an exact path or a directory prefix, not a glob). |
+| `/wachiman` followed by anything else | Answers it as a pull request comment. One model call over the whole diff. |
 
-The command word is the workflow's `mention` input, `/wachi` by default. `@agent-review` and
-`@claude` are always accepted. The engine also accepts `/wachiman`, and with the default mention
-the workflow lets it through. If you set a different `mention`, use that one; `/wachiman` alone
-may not pass the workflow's filter. Comment requests need the caller file on the repository's
+The command word is the workflow's `mention` input, `/wachiman` by default. The older `/wachi`,
+`@agent-review` and `@claude` still work, so a caller or a habit from before the naming release
+keeps answering. Comment requests need the caller file on the repository's
 default branch, because GitHub runs `issue_comment` workflows from there. They work on any open
 pull request from then on, including ones opened earlier.
 
@@ -138,7 +137,7 @@ pull request from then on, including ones opened earlier.
 - **An unchanged head gets no new review.** If the head commit was already reviewed completely
   and you ask again without paths, the reply is a short review saying
   `Already reviewed at abc1234` and nothing is analysed. To look at it again anyway, name a
-  path: `/wachi review <path>`. Replies in finding threads are not processed in the
+  path: `/wachiman review <path>`. Replies in finding threads are not processed in the
   unchanged-head case either (next point).
 - **Your reply in a finding's thread gets an answer, with conditions.** The template lists
   `pull_request_review_comment`, so your reply (only yours, as `operator`) starts a short job that
@@ -148,12 +147,12 @@ pull request from then on, including ones opened earlier.
   ([upgrading.md](upgrading.md#answering-thread-replies-without-a-push)).
 - **Automatic runs share a ceiling.** The first review, push reviews and thread replies on one pull
   request together spend at most `auto_budget_usd` (default $6); then one notice is posted and
-  `/wachi review` still works ([costs.md](costs.md#the-ceiling-per-pull-request)).
+  `/wachiman review` still works ([costs.md](costs.md#the-ceiling-per-pull-request)).
 - **A mistyped path can widen the request.** Words after `review` that match no changed file
   are ignored. If none match, the request runs as an unscoped review, which may spend more than
   the scoped one you meant. Check the path spelling against the pull request's file list.
 - **A partial or scoped review does not move the starting point.** Only a complete, unscoped
-  review does, so the next plain `/wachi review` may cover more than you expect.
+  review does, so the next plain `/wachiman review` may cover more than you expect.
 - **A comment request is not gated like the automatic review.** The automatic review skips
   drafts, Dependabot and `release-please--` branches. A comment from the operator runs on any
   same-repository pull request, including those.
@@ -210,7 +209,7 @@ repository before you have seen it, so it is not recommended.
 
 ## Optional: a focus file
 
-Add `.github/agent-review.md` to say what this repository's reviews should look at beyond the
+Add `.github/wachiman.md` to say what this repository's reviews should look at beyond the
 defaults. It is read from the pull request's base commit, so a pull request cannot change the
 rules it is reviewed under. See [review-policy.md](review-policy.md).
 

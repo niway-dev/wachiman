@@ -15,9 +15,9 @@ approves, never requests changes and never blocks a merge, including when a find
 | --- | --- |
 | Open a pull request, or mark a draft ready for review | The automatic review runs. |
 | Push more commits | If your caller lists `synchronize` (the templates do), a review of only the commits that are new since the last complete review. See [Reviews on push](#reviews-on-push). Otherwise nothing. |
-| Comment `/wachi review` (as the operator) | A review of what is new since the last complete review, or of the whole pull request if there is none. |
-| Comment `/wachi review <path> [path…]` | A review of only those paths. See [Limit a review to some paths](#limit-a-review-to-some-paths). |
-| Comment `/wachi` followed by anything else | The comment is treated as a question and answered. See [Ask a question](#ask-a-question). |
+| Comment `/wachiman review` (as the operator) | A review of what is new since the last complete review, or of the whole pull request if there is none. |
+| Comment `/wachiman review <path> [path…]` | A review of only those paths. See [Limit a review to some paths](#limit-a-review-to-some-paths). |
+| Comment `/wachiman` followed by anything else | The comment is treated as a question and answered. See [Ask a question](#ask-a-question). |
 
 Rules that apply to all of them:
 
@@ -27,18 +27,16 @@ Rules that apply to all of them:
   requests and head branches that start with a skipped prefix (default `release-please--`).
   These checks apply only to the automatic review. A comment from the operator also works on a
   draft or on a skipped branch; it is refused only for a fork.
-- **The keyword.** The default is `/wachi`. `/wachiman`, `@agent-review` and `@claude` are
-  accepted as well. The keyword must start a word (`docs/wachi` is not a command), it is
-  matched case-sensitively (`/Wachi review` is ignored), and it can be on any line of the
-  comment. Only the rest of that line is read for `review` and paths.
+- **The keyword.** The default is `/wachiman`. The older `/wachi`, `@agent-review` and `@claude`
+  are accepted as well, but only `/wachiman` is documented. The keyword must start a word
+  (`docs/wachiman` is not a command), it is matched case-sensitively (`/Wachiman review` is
+  ignored), and it can be on any line of the comment. Only the rest of that line is read for
+  `review` and paths.
 - **A comment that contains the keyword is a command.** If the word after it is not `review`,
-  the comment becomes a question and spends a model call. A bare `/wachi` is treated the same
+  the comment becomes a question and spends a model call. A bare `/wachiman` is treated the same
   way.
-- **If you set a custom `mention`, use it.** The workflow decides whether to start a job by
-  looking for your `mention`, `@agent-review` or `@claude` in the comment. The engine also
-  understands `/wachiman`, but the workflow does not look for it on its own: with
-  `mention: /reviewbot`, a comment with only `/wachiman review` never starts a run. With the
-  default `/wachi`, `/wachiman review` works, because the text contains `/wachi`.
+- **A custom `mention` adds a word.** With `mention: /reviewbot`, both `/reviewbot review` and
+  `/wachiman review` start a run: the workflow and the engine accept the same words.
 - **A new comment cancels an unfinished one.** Two on-demand runs on the same pull request do
   not run side by side: starting the second cancels the first if it is still running.
 - **First install.** The pull request that adds the caller file gets only the automatic review.
@@ -166,7 +164,7 @@ The first line of the review says whether everything was covered:
 
 - Complete: "review of the changes since `a1b2c3d`, at `e4f5a6b`: all 3 files reviewed."
 - Partial: "⚠️ **Partial review**: the agent reviewed 3 of 4 files … Not reviewed: … Ask
-  `/wachi review <paths>` for the rest."
+  `/wachiman review <paths>` for the rest."
 
 Read the number as "files in this run", not "files in the pull request":
 
@@ -192,7 +190,7 @@ retry", "N file(s) left after a retry", "ran out of its budget", "the call faile
 budget spent".
 
 If every batch ran out of its budget before finishing, the review is a short body saying so and
-nothing was reviewed reliably. Ask for part of it with `/wachi review <path>`.
+nothing was reviewed reliably. Ask for part of it with `/wachiman review <path>`.
 
 ## Batches, and what "riskiest first" means
 
@@ -227,7 +225,7 @@ files into **batches** and makes one provider call per batch, one after another.
 
 With `synchronize` in the caller's `pull_request` types (both templates have it) and
 `review_on_push` left at `true`, every push to an open pull request starts the automatic review
-job. It is the same incremental review as `/wachi review`, so it covers only what is new since the
+job. It is the same incremental review as `/wachiman review`, so it covers only what is new since the
 last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). It still skips
 drafts, forks, Dependabot and the skipped branch prefixes. A burst of pushes runs once: the job's
 concurrency group cancels the older run, and the cancelled run posts nothing.
@@ -280,27 +278,27 @@ too large), nothing can be told apart and compare's patch is sent as it is.
 To turn it off, remove `synchronize` from the caller's types, or pass `review_on_push: false` to the
 reusable workflow. Each push can spend up to `budget_usd`, and all automatic runs on the pull request
 together up to `auto_budget_usd` ([costs.md](costs.md#the-ceiling-per-pull-request)): at the ceiling the
-push posts one "Automatic reviews paused" notice and no review, and `/wachi review` still works.
+push posts one "Automatic reviews paused" notice and no review, and `/wachiman review` still works.
 
-## Re-review: what a second `/wachi review` covers
+## Re-review: what a second `/wachiman review` covers
 
 | The operator comments… | …and the engine does |
 | --- | --- |
-| `/wachi review`, a complete review exists, the head moved ahead of it | Reviews only the files that changed since the commit of the last complete review. The first line says "changes since `…`". |
-| `/wachi review`, no complete review yet | Reviews the whole pull request. |
-| `/wachi review`, head unchanged since the last complete review | Posts "Already reviewed at `…`. Push changes, or ask `/wachi review <paths>`." No model call. |
-| `/wachi review`, the branch was rewritten since the last complete review (a rebase, a force-push) | Compares the pull request's lines as in [Reviews on push](#reviews-on-push): no model call if they are the same, only the files that differ otherwise, the whole pull request if that cannot be compared. |
-| `/wachi review`, but every changed file is excluded | Posts "Nothing to review at `…`", saying the files are lockfiles, build output, generated, or outside the requested paths. |
+| `/wachiman review`, a complete review exists, the head moved ahead of it | Reviews only the files that changed since the commit of the last complete review. The first line says "changes since `…`". |
+| `/wachiman review`, no complete review yet | Reviews the whole pull request. |
+| `/wachiman review`, head unchanged since the last complete review | Posts "Already reviewed at `…`. Push changes, or ask `/wachiman review <paths>`." No model call. |
+| `/wachiman review`, the branch was rewritten since the last complete review (a rebase, a force-push) | Compares the pull request's lines as in [Reviews on push](#reviews-on-push): no model call if they are the same, only the files that differ otherwise, the whole pull request if that cannot be compared. |
+| `/wachiman review`, but every changed file is excluded | Posts "Nothing to review at `…`", saying the files are lockfiles, build output, generated, or outside the requested paths. |
 
 Only a **complete, unscoped** review moves the starting point for the next one. A partial review
-or a scoped review does not, so after either, the next plain `/wachi review` starts from the last
+or a scoped review does not, so after either, the next plain `/wachiman review` starts from the last
 complete one and covers everything since, including files the partial or scoped review already
 read. A pull request that always comes back partial therefore keeps being reviewed from the same
 older commit.
 
 ## Limit a review to some paths
 
-`/wachi review src/billing docs/pricing.md` reviews only those paths.
+`/wachiman review src/billing docs/pricing.md` reviews only those paths.
 
 - A path is **an exact file name or a directory prefix**, as GitHub lists the changed files
   (`src/billing` or `src/billing/`). Globs (`src/**`), a leading `./` and a trailing slash on a
@@ -347,7 +345,7 @@ checked against the head, and a reply whose citation does not exist is not poste
 "read", never "tested". The second and last reply in a thread ends with what Wachiman waits for from
 you; after it, Wachiman stays silent in that thread.
 
-**During a review.** A `/wachi review` or a push review that reaches the model also reads the open
+**During a review.** A `/wachiman review` or a push review that reaches the model also reads the open
 threads and may answer them ("Looks addressed" or "Still open"), as before:
 
 - **Which threads.** The pull request's first 100 review threads, with at most 30 comments each,
@@ -385,7 +383,7 @@ A comment from the operator that contains the keyword but does not continue with
 answered as a question:
 
 ```text
-/wachi why does the retry loop ignore the budget?
+/wachiman why does the retry loop ignore the budget?
 ```
 
 - It makes **one model call** over the whole diff, with the pull request's title and body and the

@@ -16,7 +16,7 @@ describe("cli", () => {
   test("--help prints the usage and exits 0", () => {
     const out = run(["--help"]);
     expect(out.code).toBe(0);
-    expect(out.stdout).toContain("agent-review review <pr>");
+    expect(out.stdout).toContain("wachiman review <pr>");
   });
 
   test("--version prints the package version", () => {
@@ -35,7 +35,7 @@ describe("cli", () => {
   });
 
   test("threads is a command: it needs a pull request number and takes no paths", () => {
-    expect(run(["--help"]).stdout).toContain("agent-review threads <pr>");
+    expect(run(["--help"]).stdout).toContain("wachiman threads <pr>");
     expect(run(["threads"]).code).toBe(2);
     expect(run(["threads", "abc"]).code).toBe(2);
     expect(run(["threads", "7", "a.ts"]).code).toBe(2);

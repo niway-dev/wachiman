@@ -39,8 +39,8 @@ What changes when you migrate:
    ([review-policy.md](review-policy.md)).
 3. **Map your settings.** Use the table below. Anything marked "no input" does not carry over.
 4. **Make one pull request that swaps the workflows.** In that pull request, add the caller file
-   [`templates/agent-review-caller.yml`](../templates/agent-review-caller.yml) as
-   `.github/workflows/agent-review.yml` (replacing the copy workflow, which uses the same
+   [`templates/wachiman-review-caller.yml`](../templates/wachiman-review-caller.yml) as
+   `.github/workflows/wachiman-review.yml` (replacing the copy workflow, which uses the same
    file name) with `operator` set to the login you used before and your mapped inputs. Reuse the same
    repository secret `ANTHROPIC_API_KEY`. Leave `scripts/agent-review/` in place for now. A
    `pull_request` workflow runs from the pull request's own branch, so this pull request is
@@ -50,7 +50,7 @@ What changes when you migrate:
    [install.md](install.md#how-to-tell-it-worked). If you gave the caller a different file name, or
    kept the old workflow file, both workflows will answer the same pull requests and you will pay
    for both. Remove or disable the old one.
-6. **Merge, then validate the comment path on the next pull request.** `/wachi review` runs from
+6. **Merge, then validate the comment path on the next pull request.** `/wachiman review` runs from
    the default branch, so it can be tried only after the merge ([install.md](install.md#ask-for-a-review)).
 7. **Clean up in a later pull request.** Once the new setup has worked on a second pull request,
    delete `scripts/agent-review/` (including its `bunfig.toml`). Keep it until then; it is what
@@ -110,9 +110,9 @@ are in [costs.md](costs.md).
 | --- | --- |
 | A pull request opens ready for review, or leaves draft | A review in batches; after a complete, unscoped review, later requests cover only what changed since it |
 | A push to an open pull request (`synchronize`) | Review of only the commits new since the last review; a rebase with no change in the pull request's lines posts one line and calls no model. Each push can spend up to `AGENT_REVIEW_BUDGET_USD`; remove `synchronize` from the trigger to opt out |
-| The operator comments `/wachi review` | A review of what changed since the last complete, unscoped review; when it has work to do, it also answers the replies in its open threads |
-| `/wachi review <path>…` | A review of those paths only; words that name no changed file are ignored |
-| Any other `/wachi …` by the operator | The question is answered as a comment |
+| The operator comments `/wachiman review` | A review of what changed since the last complete, unscoped review; when it has work to do, it also answers the replies in its open threads |
+| `/wachiman review <path>…` | A review of those paths only; words that name no changed file are ignored |
+| Any other `/wachiman …` by the operator | The question is answered as a comment |
 | A batch hits its limit, or the pull request's budget is spent | The review posts what ran; batches that did not run are listed as not reviewed and the review is "partial" |
 
 The automatic job is skipped for draft pull requests, fork pull requests, Dependabot and
@@ -135,8 +135,8 @@ costs money.
 | --- | --- |
 | `scripts/agent-review/` | The whole `src/` folder of this repository: `cli.ts`, `engine.ts`, `config.ts`, `install-claude-code.sh` and `providers/` (including `providers/claude-code.settings.json`, which the adapter looks for next to itself and refuses to run without). Leave out the `*.test.ts` files, or keep them and run them with `bun test ./scripts/agent-review` |
 | `scripts/agent-review/bunfig.toml` | The `bunfig.toml` at the root of this repository. The workflow passes it with `--config=` so Bun reads no `bunfig.toml` from the pull request's checkout |
-| `.github/workflows/agent-review.yml` | `templates/caller-workflow.yml`: edit its trust paragraph, the operator login (twice) and the other `EDIT THIS` markers. Its `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables) is the copy's `push_debounce_seconds`: the first step of the `review` job sleeps that long on a push (`synchronize`) before the checkout or any model call, so a newer push cancels the run unspent |
-| `.github/agent-review.md` | Write it: the repository's review focus, as a short list. Optional |
+| `.github/workflows/wachiman-review.yml` | `templates/caller-workflow.yml`: edit its trust paragraph, the operator login (twice) and the other `EDIT THIS` markers. Its `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables) is the copy's `push_debounce_seconds`: the first step of the `review` job sleeps that long on a push (`synchronize`) before the checkout or any model call, so a newer push cancels the run unspent |
+| `.github/wachiman.md` | Write it: the repository's review focus, as a short list. Optional |
 
 The CLI contract (commands, environment, exit codes) is in [cli.md](cli.md). The CLI needs Bun
 (the workflow pins 1.3.4) and nothing else from the repository.
@@ -156,24 +156,24 @@ The CLI contract (commands, environment, exit codes) is in [cli.md](cli.md). The
 3. **Copy the files** above. Run
    `bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts --help`
    once to check the copy.
-4. **Write `.github/agent-review.md`**: the rules a reviewer of this repository must know, taken
+4. **Write `.github/wachiman.md`**: the rules a reviewer of this repository must know, taken
    from its `CLAUDE.md`, not invented.
 5. **Open the pull request that adds the files, ready for review.** A `pull_request` workflow
    runs from the pull request's own branch, so it reviews itself. The comment job runs from the
-   default branch, so `/wachi review` can only be tried once the workflow is merged. The pull
+   default branch, so `/wachiman review` can only be tried once the workflow is merged. The pull
    request that installs the files gets only the automatic review. A reply you write in a review
    thread starts the `threads` job once the file is on the default branch too.
 
 ### Things that will surprise you
 
 - **A pull request opened before the workflow reached the default branch gets no automatic
-  review.** Comment `/wachi review` on it after the merge.
+  review.** Comment `/wachiman review` on it after the merge.
 - **Toggling a pull request to draft and back re-runs the automatic review, but that does not
   force a new review.** If the head was already reviewed completely, the reply is
-  `Already reviewed at …`. The same is true of a plain `/wachi review`. Push a change, or name a
-  path: `/wachi review <path>` ([install.md](install.md#ask-for-a-review)).
+  `Already reviewed at …`. The same is true of a plain `/wachiman review`. Push a change, or name a
+  path: `/wachiman review <path>` ([install.md](install.md#ask-for-a-review)).
 - **Every comment on a pull request starts a workflow run**, skipped unless it is the operator's
-  `/wachi` (or the `@agent-review` and `@claude` aliases). Concurrency is per job for that reason:
+  `/wachiman` (or the `@agent-review` and `@claude` aliases). Concurrency is per job for that reason:
   a workflow-level group lets a skipped run cancel a review.
 - **`anthropics/claude-code-action@v1` failed with `billing_error`** in one setup while `claude -p`
   with the same key, version and runner worked. The tool calls `claude -p` directly. If you try the
@@ -215,6 +215,6 @@ covers):
 
 An older copy used `CLAUDE_REVIEW_*` variables, `scripts/claude-review.ts` and `@claude`. The
 current CLI reads each old variable when the new one is unset (with a notice on stderr), reads
-`.github/claude-review.md` when the new focus file is absent, and accepts `@claude` as an alias,
+`.github/claude-review.md` and `.github/agent-review.md` when the new focus file (`.github/wachiman.md`) is absent, and accepts `@claude` as an alias,
 so a repository can switch to the new files first and rename variables afterwards. Reviews that
 carry the old unsigned marker are covered in "Reviews you already have" above.

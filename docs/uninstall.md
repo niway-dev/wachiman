@@ -9,11 +9,11 @@ work that you do yourself.
 
 Pick the least disruptive of these.
 
-1. **Disable the workflow.** In the repository, open Actions, choose "Agent review" in the left
+1. **Disable the workflow.** In the repository, open Actions, choose "Wachiman review" in the left
    list, and use the menu to disable it. From a terminal:
 
    ```sh
-   gh workflow disable "Agent review" -R <owner>/<repo>
+   gh workflow disable "Wachiman review" -R <owner>/<repo>
    ```
 
    Nothing in your files changes, and you re-enable it the same way. A disabled workflow starts no
@@ -23,15 +23,15 @@ Pick the least disruptive of these.
    are paid. A review is posted only after its last batch, so a run cancelled before that posts
    nothing.
 3. **Remove the secret as a brake.** If you cannot disable the workflow quickly, deleting
-   `ANTHROPIC_API_KEY` makes every run stop at `agent-review: ANTHROPIC_API_KEY is not set` before
+   `ANTHROPIC_API_KEY` makes every run stop at `wachiman: ANTHROPIC_API_KEY is not set` before
    any paid call. The runs show red, which is noisy. Disabling is cleaner.
 
 ## Remove it
 
-1. **Delete the caller file**, `.github/workflows/agent-review.yml` if you used the template's name,
+1. **Delete the caller file**, `.github/workflows/wachiman-review.yml` if you used the template's name (`agent-review.yml` before the naming release),
    through your normal change process. Comment-triggered runs use the file on your default branch,
-   so `/wachi` stops when the deletion merges.
-2. **Check that nothing waits for the check.** If you made "Agent review" a required status check
+   so `/wachiman` stops when the deletion merges.
+2. **Check that nothing waits for the check.** If you made "Wachiman review" a required status check
    in branch protection or a ruleset, remove that requirement first. Otherwise a pull request
    waits for a check that never reports. The review is advisory by design and is not a required
    check unless you made it one.
@@ -49,15 +49,15 @@ Pick the least disruptive of these.
    created it. Do this when the key was dedicated to Wachiman, and always if you suspect it leaked.
    Do not delete a key that other tools still use.
 5. **Remove optional files you no longer need.** Only if nothing else in the repository uses them:
-   - `.github/agent-review.md` (or the older `.github/claude-review.md`): the review focus file.
+   - `.github/wachiman.md` (or the older `.github/agent-review.md` or `.github/claude-review.md`): the review focus file.
      Nothing else reads it. Leave `CLAUDE.md` and `AGENTS.md`: they are yours, and other tools read
      them.
    - `.github/dependabot.yml`: keep it if it also updates other actions, which is its normal use.
      The `github-actions` entry covers every workflow file, so it is rarely safe to delete.
    - A copied install ([setup-copy.md](setup-copy.md)): the `scripts/agent-review/` folder
      (including its `bunfig.toml` and `providers/`), the copied workflow
-     `.github/workflows/agent-review.yml`, and the decision record you wrote for it.
-6. **Confirm it is gone.** In Actions, check that no "Agent review" workflow is listed and that new
+     `.github/workflows/wachiman-review.yml`, and the decision record you wrote for it.
+6. **Confirm it is gone.** In Actions, check that no "Wachiman review" workflow is listed and that new
    pull requests and comments start no run of it. A `gh workflow list -R <owner>/<repo>` that does
    not show it is enough.
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  instructionsFrom,
   adrNotices,
   annotateDiff,
   attempt,
@@ -79,15 +80,16 @@ const output = (over: Partial<ReviewOutput> = {}): ReviewOutput => ({
 
 describe("parseCommand", () => {
   test("reads a review request, with or without paths", () => {
-    expect(parseCommand("/wachi review")).toEqual({ kind: "review", paths: [] });
     expect(parseCommand("/wachiman review")).toEqual({ kind: "review", paths: [] });
-    expect(parseCommand("/wachi review apps/api/src/main docs/")).toEqual({
+    expect(parseCommand("/wachiman review apps/api/src/main docs/")).toEqual({
       kind: "review",
       paths: ["apps/api/src/main", "docs/"],
     });
   });
 
-  test("accepts @agent-review and @claude as aliases for the configured keyword", () => {
+  test("accepts /wachi, @agent-review and @claude as aliases for the configured keyword", () => {
+    expect(parseCommand("/wachi review")).toEqual({ kind: "review", paths: [] });
+    expect(parseCommand("/wachi review docs/")).toEqual({ kind: "review", paths: ["docs/"] });
     expect(parseCommand("@agent-review review")).toEqual({ kind: "review", paths: [] });
     expect(parseCommand("@agent-review review docs/")).toEqual({ kind: "review", paths: ["docs/"] });
     expect(parseCommand("@claude review")).toEqual({ kind: "review", paths: [] });
@@ -102,21 +104,23 @@ describe("parseCommand", () => {
     });
     expect(parseCommand("@claude review", "@reviewer")).toEqual({ kind: "review", paths: [] });
     expect(parseCommand("@agent-review review", "@reviewer")).toEqual({ kind: "review", paths: [] });
-    expect(parseCommand("/wachi review", "@reviewer")).toBeNull();
+    expect(parseCommand("/wachiman review", "@reviewer")).toEqual({ kind: "review", paths: [] });
+    expect(parseCommand("/wachi review", "@reviewer")).toEqual({ kind: "review", paths: [] });
+    expect(parseCommand("/reviewbot review", "@reviewer")).toBeNull();
     // Regex characters in a keyword are literal.
     expect(parseCommand("@a.b review", "@a.b")).toEqual({ kind: "review", paths: [] });
     expect(parseCommand("@aXb review", "@a.b")).toBeNull();
   });
 
   test("reads only the first line, so a trailing sentence is not a path", () => {
-    expect(parseCommand("/wachi review again\n\nthanks")).toEqual({
+    expect(parseCommand("/wachiman review again\n\nthanks")).toEqual({
       kind: "review",
       paths: ["again"],
     });
   });
 
   test("treats any other mention as a question", () => {
-    expect(parseCommand("/wachi why is this async?")).toEqual({ kind: "answer" });
+    expect(parseCommand("/wachiman why is this async?")).toEqual({ kind: "answer" });
   });
 
   test("ignores comments that do not mention the tool", () => {
@@ -129,7 +133,35 @@ describe("parseCommand", () => {
     expect(parseCommand("see docs/wachi review")).toBeNull();
     expect(parseCommand("see https://example.com/wachi review")).toBeNull();
     expect(parseCommand("mail me@claude review")).toBeNull();
-    expect(parseCommand("thanks!\n/wachi review")).toEqual({ kind: "review", paths: [] });
+    expect(parseCommand("thanks!\n/wachiman review")).toEqual({ kind: "review", paths: [] });
+  });
+});
+
+describe("instructionsFrom", () => {
+  const file = (path: string) => ({ path, content: path, truncated: false });
+  const at = (paths: string[]) => (path: string) => (paths.includes(path) ? file(path) : null);
+
+  test("reads .github/wachiman.md and ignores the old names when it exists", () => {
+    const warnings: string[] = [];
+    const found = instructionsFrom(
+      "sha",
+      at([".github/wachiman.md", ".github/agent-review.md", ".github/claude-review.md"]),
+      (w) => warnings.push(w),
+    );
+    expect(found.files.map((f) => f.path)).toEqual([".github/wachiman.md"]);
+    expect(warnings).toEqual([]);
+  });
+
+  test("falls back to .github/agent-review.md, then .github/claude-review.md, with a notice", () => {
+    const warnings: string[] = [];
+    const first = instructionsFrom("sha", at([".github/agent-review.md", ".github/claude-review.md"]), (w) => warnings.push(w));
+    expect(first.files.map((f) => f.path)).toEqual([".github/agent-review.md"]);
+    const second = instructionsFrom("sha", at([".github/claude-review.md"]), (w) => warnings.push(w));
+    expect(second.files.map((f) => f.path)).toEqual([".github/claude-review.md"]);
+    expect(warnings).toEqual([
+      ".github/agent-review.md is deprecated; rename it to .github/wachiman.md.",
+      ".github/claude-review.md is deprecated; rename it to .github/wachiman.md.",
+    ]);
   });
 });
 
@@ -206,7 +238,7 @@ describe("fileKind", () => {
 describe("riskScore", () => {
   test("ranks process boundaries and CI above ordinary code, and tests and docs last", () => {
     const ipc = riskScore("apps/api/src/main/ipc/settings.ipc.ts");
-    const workflow = riskScore(".github/workflows/agent-review.yml");
+    const workflow = riskScore(".github/workflows/wachiman-review.yml");
     const main = riskScore("apps/api/src/main/session/session-manager.ts");
     const renderer = riskScore("apps/api/src/renderer/src/features/widget/widget.tsx");
     const test = riskScore("apps/api/src/main/ipc/settings.ipc.test.ts");

@@ -15,7 +15,7 @@ import { appendFileSync } from "node:fs";
  *   retry of a batch's unaccounted-for files.
  * - `re-review`: an incremental review of the changes since an earlier reviewed commit.
  * - `reply`: the one call that answers the pending review-thread replies.
- * - `on-demand`: an operator's `@wachiman <question>` answered as a comment.
+ * - `on-demand`: an operator's `/wachiman <question>` answered as a comment.
  *
  * There is no `description` kind: the engine never asks a model to write a pull request
  * description. The summary in a review is part of the review's own structured output.

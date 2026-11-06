@@ -159,7 +159,7 @@ no maintenance branch: if one is ever needed, add a second release-please config
 
 1. Confirm the release is backward compatible; if not, it is `2.0.0`.
 2. Check that the caller template in `templates/` still matches the workflow's inputs.
-3. Check that the exact tag named in `templates/agent-review-caller.yml` and in the install docs
+3. Check that the exact tag named in `templates/wachiman-review-caller.yml` and in the install docs
    is the release you are about to cut. release-please does not edit those files.
 4. Check that the defaults in `src/config.ts` and the reusable workflow's inputs still agree (the
    workflow always passes its inputs, so the workflow defaults are the ones consumers get), and

@@ -92,7 +92,7 @@ variables to the engine process either; see [SECURITY.md](../../SECURITY.md).
 
 ### In local mode (`auth: "subscription"`)
 
-`agent-review local` runs the adapter in subscription mode: the developer's own signed-in
+`wachiman local` runs the adapter in subscription mode: the developer's own signed-in
 `claude`, never a key ([the local review guide](../local-review.md), ADR 0019). The list above
 changes in these ways (`buildChildEnv(env, { auth: "subscription", configDir })`):
 
@@ -115,7 +115,7 @@ batch.
 
 **Profiles.** `--profile default` runs your `claude` as your shell would, with its configuration
 directory (`CLAUDE_CONFIG_DIR` passes through). `--profile isolated[:<name>]` forces
-`CLAUDE_CONFIG_DIR` to `~/.wachiman/claude-<name>`, created by `agent-review --setup-profile
+`CLAUDE_CONFIG_DIR` to `~/.wachiman/claude-<name>`, created by `wachiman --setup-profile
 [<name>]`, which starts `claude` there, from an empty directory and without a shell, for
 `/login`. Before a run, `src/profiles.ts` refuses an isolated profile that holds `CLAUDE.md`,
 `hooks/`, `skills/`, `agents/`, `commands/`, `.mcp.json`, or a `settings.json` with hooks or MCP

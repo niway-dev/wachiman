@@ -789,8 +789,8 @@ describe("review instructions come from the base commit", () => {
 
   test("the base copies reach the prompt, labelled with the base commit, and the head's do not", () => {
     const r = run(
-      { ".github/agent-review.md": "FOCUS-FROM-BASE", "CLAUDE.md": "RULES-FROM-BASE", "AGENTS.md": "AGENTS-FROM-BASE" },
-      { ".github/agent-review.md": "FOCUS-FROM-HEAD", "CLAUDE.md": "RULES-FROM-HEAD" },
+      { ".github/wachiman.md": "FOCUS-FROM-BASE", "CLAUDE.md": "RULES-FROM-BASE", "AGENTS.md": "AGENTS-FROM-BASE" },
+      { ".github/wachiman.md": "FOCUS-FROM-HEAD", "CLAUDE.md": "RULES-FROM-HEAD" },
     );
     const prompt = r.provider.requests[0].prompt;
     expect(r.provider.requests[0].cwd).toBe(r.headDir);
@@ -831,7 +831,7 @@ describe("review instructions come from the base commit", () => {
   });
 
   test("a head-only focus file is never used when the base has none", () => {
-    const r = run({}, { ".github/agent-review.md": "FOCUS-FROM-HEAD", "CLAUDE.md": "RULES-FROM-HEAD" });
+    const r = run({}, { ".github/wachiman.md": "FOCUS-FROM-HEAD", "CLAUDE.md": "RULES-FROM-HEAD" });
     const prompt = r.provider.requests[0].prompt;
     expect(prompt).not.toContain("FROM-HEAD");
     expect(prompt).toContain("The base commit has none of these files.");

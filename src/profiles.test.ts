@@ -124,7 +124,7 @@ describe("setupProfile", () => {
     expect(lines.join("\n")).toContain("/login");
     expect(lines.join("\n")).toContain("/exit");
     expect(lines.at(-1)).toBe(
-      "Wachiman did not check whether the sign-in succeeded; run `agent-review local --profile isolated:work` to find out.",
+      "Wachiman did not check whether the sign-in succeeded; run `wachiman local --profile isolated:work` to find out.",
     );
   });
 
@@ -132,7 +132,7 @@ describe("setupProfile", () => {
     const home = temp("profile-home-");
     const lines = setupProfile({ home, env: parentEnv(home), print: () => {}, spawn: () => ({ status: 0 }) });
     expect(existsSync(join(home, ".wachiman", "claude-isolated"))).toBe(true);
-    expect(lines.at(-1)).toContain("`agent-review local --profile isolated`");
+    expect(lines.at(-1)).toContain("`wachiman local --profile isolated`");
   });
 
   test("a populated directory is refused before claude is launched", () => {

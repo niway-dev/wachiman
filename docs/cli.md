@@ -1,6 +1,6 @@
 # Command-line contract
 
-`agent-review` is one command with four subcommands: three for GitHub and `local`, which reviews a
+`wachiman` is one command with four subcommands: three for GitHub and `local`, which reviews a
 branch on your own machine and posts nothing. The reusable workflow and the copied caller
 workflow both run exactly this; anything else that wants to drive a review can too. Every setting
 it reads is listed in [configuration.md](configuration.md); this page covers the commands, what
@@ -17,8 +17,9 @@ bun src/cli.ts --help
 bun src/cli.ts --version
 ```
 
-`package.json` declares `"bin": {"agent-review": "src/cli.ts"}` and the file starts with
-`#!/usr/bin/env bun`, so an installed copy can be run as `agent-review …`. Bun is required (the
+`package.json` declares `"bin": {"wachiman": "src/cli.ts", "agent-review": "src/cli.ts"}` and the file
+starts with `#!/usr/bin/env bun`, so an installed copy can be run as `wachiman …`; `agent-review …` is
+the name before the naming release and still works. Bun is required (the
 engine uses `Bun.Glob`), and so are the `gh` CLI and the provider's binary on the `PATH`.
 
 Argument rules, as implemented:
@@ -94,8 +95,8 @@ The checks run in this order:
 2. If `AGENT_REVIEW_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
    notice and exits 0 without doing anything. If it is unset, the engine does no author check: a
    caller that runs `comment` directly decides who may reach it.
-3. If the comment contains no command word (`AGENT_REVIEW_MENTION`, default `/wachi`, or the
-   aliases `/wachiman`, `@agent-review`, `@claude`), nothing happens and it exits 0.
+3. If the comment contains no command word (`AGENT_REVIEW_MENTION`, default `/wachiman`, or the
+   aliases `/wachi`, `@agent-review`, `@claude`), nothing happens and it exits 0.
 4. If the first word after the command word is `review`, it runs `review` with the remaining words
    as paths.
 5. Otherwise the whole comment is a question, and one agent call answers it as a pull request
@@ -170,7 +171,7 @@ environment, `--no-session-persistence` (see
 
 ### `history`
 
-`agent-review history` lists the findings that `local --history` kept for the repository of
+`wachiman history` lists the findings that `local --history` kept for the repository of
 `--repo-dir` (default: the current directory). It reads files and local git metadata only: the history files
 under `~/.wachiman/history`, plus `git rev-parse` and `git remote get-url` in `--repo-dir` to find the
 repository's key. It runs no `claude` and calls no GitHub. With no history, `--json` prints
@@ -259,8 +260,8 @@ fallback covers the engine settings only: [configuration.md](configuration.md#de
 
 ### Repository files
 
-The engine reads `.github/agent-review.md` (the review focus), the old `.github/claude-review.md`
-name, `CLAUDE.md` and `AGENTS.md` from the pull request's base commit, so a pull request cannot
+The engine reads `.github/wachiman.md` (the review focus), the old `.github/agent-review.md` and
+`.github/claude-review.md` names, `CLAUDE.md` and `AGENTS.md` from the pull request's base commit, so a pull request cannot
 change the rules it is reviewed under. Details, size limits and what these files cannot do:
 [configuration.md](configuration.md#repository-files). A YAML configuration file is not
 implemented.
@@ -321,7 +322,7 @@ so the rule can be checked. A finding
 without a confidence (the engine's own notices, reviews from before the field existed) shows none. The decision
 is in the [flow questions spec](specs/2026-10-31-flow-questions-and-evidence-design.md), decision 9.
 
-A repository's focus file (`.github/agent-review.md`) may say what to look for, but it may not add
+A repository's focus file (`.github/wachiman.md`) may say what to look for, but it may not add
 severities, topics or confidence levels: a label means the same thing in every repository that
 runs the reviewer.
 

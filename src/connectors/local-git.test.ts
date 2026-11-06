@@ -193,7 +193,7 @@ describe("localInstructions", () => {
     ]);
     expect(Buffer.byteLength(instr.files[1].content)).toBe(MAX_INSTRUCTION_BYTES);
     expect(warnings).toEqual([
-      ".github/claude-review.md is deprecated; rename it to .github/agent-review.md.",
+      ".github/claude-review.md is deprecated; rename it to .github/wachiman.md.",
       "AGENTS.md at the base commit is over 64 KB: cut.",
     ]);
   });

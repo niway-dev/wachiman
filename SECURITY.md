@@ -54,7 +54,7 @@ sentence says otherwise. If an assumption does not hold for your repository, do 
   the repository or the runner, or any credential of another shape, and an encoded or split key
   would pass. Text that merely looks like a key (an example key in a diff, say) also stops the
   post.
-- **Only trusted people can start a run on demand.** Only the operator's `/wachi` comment (or its `@agent-review` and `@claude` aliases) starts
+- **Only trusted people can start a run on demand.** Only the operator's `/wachiman` comment (or its `@agent-review` and `@claude` aliases) starts
   an on-demand run, and only replies from `OWNER`, `MEMBER` or `COLLABORATOR` reach the agent.
 
 - **Supply chain, and the maintainer.** The ref a consumer pins decides which code runs with
@@ -89,7 +89,7 @@ branch you do not trust.
 
 Never executed by the engine: the head's Bun configuration and environment files, and its Claude
 Code settings and hooks (see above). Still read as data: the head's files through the agent's read
-tools. The review instructions (the focus file `.github/agent-review.md`, `CLAUDE.md` and
+tools. The review instructions (the focus file `.github/wachiman.md`, `CLAUDE.md` and
 `AGENTS.md`) are read from the pull request's base commit, never from the head, and the prompt
 says the head's copies are content under review. Neither provider starts inside the head: each
 runs in an empty scratch directory and gets the head as a readable directory (`--add-dir` for

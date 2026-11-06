@@ -19,8 +19,8 @@
  * approves, requests changes or blocks a merge. On a re-review, the agent reads its open threads
  * and the operator's replies and answers in each thread. It never resolves one.
  *
- * What to look for beyond the defaults comes from `.github/agent-review.md` when the repository
- * has one (`.github/claude-review.md` is still read, with a notice).
+ * What to look for beyond the defaults comes from `.github/wachiman.md` when the repository
+ * has one (`.github/agent-review.md` and `.github/claude-review.md` are still read, with a notice).
  *
  * The engine holds the GitHub token and posts; the agent only reads and gets no token. The engine
  * throws, posting nothing, when the provider says any text to post holds a credential. That is
@@ -210,16 +210,18 @@ export const BRAND = "👮 **Wachiman**";
 export const branded = (text: string) => `${BRAND} · ${text}`;
 
 /** The default command keyword. A slash command, so writing it notifies no GitHub account. */
-export const DEFAULT_MENTION = "/wachi";
+export const DEFAULT_MENTION = "/wachiman";
 /**
- * Other keywords that keep working besides the configured one: the earlier ones (ADR 0005) and the
- * full name (ADR 0009). `/wachi` does not match `/wachiman`, since a keyword must end a word.
+ * Keywords that work whatever the configured one is, so a caller or a habit from before ADR 0023
+ * keeps answering: the full name (also the default), the short command (ADR 0005, 0010) and the
+ * earlier handles. Only the default is documented. `/wachi` does not match `/wachiman`, since a
+ * keyword must end a word, so both are listed.
  */
-export const MENTION_ALIASES = ["/wachiman", "@agent-review", "@claude"];
+export const MENTION_ALIASES = ["/wachiman", "/wachi", "@agent-review", "@claude"];
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command | null {
-  // Only the rest of the first line: "/wachi review\n\nthanks" asks for a review, not a path.
+  // Only the rest of the first line: "/wachiman review\n\nthanks" asks for a review, not a path.
   // The keyword must start a word, so "docs/wachi" or "me@claude" is not a command.
   const names = [keyword, ...MENTION_ALIASES].map(escapeRegExp).join("|");
   const match = body.match(new RegExp(`(?<![\\w./@-])(?:${names})(?![\\w-])(.*)`));
@@ -1161,9 +1163,9 @@ the files you would read as \`candidates\`. A field that does not apply is an em
 empty list. Cite only lines you read: the engine checks that each cited line exists, not that your
 answer is true. When an answer shows a defect, report it as a finding as well.`;
 
-export const FOCUS_PATH = ".github/agent-review.md";
-/** The path used before the rename; still read, with a notice. */
-export const OLD_FOCUS_PATH = ".github/claude-review.md";
+export const FOCUS_PATH = ".github/wachiman.md";
+/** The paths used before the rename, newest first; the first one found is still read, with a notice. */
+export const OLD_FOCUS_PATHS = [".github/agent-review.md", ".github/claude-review.md"] as const;
 
 /** Repository rules the engine reads from the pull request's base commit, in prompt order. */
 export const INSTRUCTION_PATHS = [FOCUS_PATH, "CLAUDE.md", "AGENTS.md"] as const;
@@ -1241,8 +1243,13 @@ export function instructionsFrom(
   for (const path of INSTRUCTION_PATHS) {
     let found = fileAt(path);
     if (!found && path === FOCUS_PATH) {
-      found = fileAt(OLD_FOCUS_PATH);
-      if (found) warn(`${OLD_FOCUS_PATH} is deprecated; rename it to ${FOCUS_PATH}.`);
+      for (const old of OLD_FOCUS_PATHS) {
+        found = fileAt(old);
+        if (found) {
+          warn(`${old} is deprecated; rename it to ${FOCUS_PATH}.`);
+          break;
+        }
+      }
     }
     if (found) files.push(found);
   }
@@ -1253,14 +1260,14 @@ export function instructionsFrom(
 
 /** Pull request files that are review instructions, so a change to them takes effect after merge. */
 export function changedInstructionFiles(filenames: string[]) {
-  const watched = new Set<string>([...INSTRUCTION_PATHS, OLD_FOCUS_PATH]);
+  const watched = new Set<string>([...INSTRUCTION_PATHS, ...OLD_FOCUS_PATHS]);
   return filenames.filter((f) => watched.has(f));
 }
 
 /** The prompt section holding the base commit's instructions, and what to make of the head's copies. */
 export function renderInstructions(instr: BaseInstructions) {
   const sha = instr.baseSha.slice(0, 7);
-  const names = [...INSTRUCTION_PATHS, OLD_FOCUS_PATH].join(", ");
+  const names = [...INSTRUCTION_PATHS, ...OLD_FOCUS_PATHS].join(", ");
   const body = instr.files.length
     ? instr.files
         .map(
@@ -1814,7 +1821,7 @@ export function automaticSpend(gh: GhFn, repo: string, pr: number) {
 
 /**
  * How much an automatic run may still spend on this pull request: `Infinity` for a run the
- * operator asked for (`/wachi review` is not limited), the dollars left otherwise. When less than
+ * operator asked for (`/wachiman review` is not limited), the dollars left otherwise. When less than
  * a batch's minimum is left, it posts the one notice for this ceiling (never twice) and returns
  * null: the caller does not start a model call.
  */

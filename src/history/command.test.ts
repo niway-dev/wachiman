@@ -79,7 +79,7 @@ describe("parseHistoryArgs", () => {
   });
 });
 
-describe("agent-review history", () => {
+describe("wachiman history", () => {
   test("lists a repository's findings with status, heads, runs, id and verdict", () => {
     const { home, repo } = seeded();
     const r = history(["--repo-dir", repo], home);
@@ -100,7 +100,7 @@ describe("agent-review history", () => {
     // A clone of a third repository sees nothing; --all-repos sees both keys.
     const stranger = emptyRepo();
     git(stranger, "remote", "add", "origin", "https://github.com/o/stranger");
-    expect(history(["--repo-dir", stranger], home).stdout).toBe("No history yet: run `agent-review local --history` to start one.\n");
+    expect(history(["--repo-dir", stranger], home).stdout).toBe("No history yet: run `wachiman local --history` to start one.\n");
     expect(history(["--repo-dir", repo], home).stdout.match(/^listed-/gm)).toHaveLength(1);
     const all = history(["--all-repos", "--repo-dir", stranger], home);
     expect(all.code).toBe(0);
@@ -134,7 +134,7 @@ describe("agent-review history", () => {
     const repo = emptyRepo();
     const r = history(["--repo-dir", repo], home);
     expect(r.code).toBe(0);
-    expect(r.stdout).toBe("No history yet: run `agent-review local --history` to start one.\n");
+    expect(r.stdout).toBe("No history yet: run `wachiman local --history` to start one.\n");
     expect(existsSync(join(home, ".wachiman"))).toBe(false);
   });
 
