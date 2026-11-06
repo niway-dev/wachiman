@@ -283,3 +283,75 @@ describe("buildLocalInput", () => {
     expect(after).toEqual([]);
   });
 });
+
+describe("the commit and from modes", () => {
+  const sha7 = (v: string) => v.slice(0, 7);
+  const sha = (dir: string, rev: string) => git(dir, "rev-parse", rev).trim();
+  const EMPTY_TREE = git(process.cwd(), "hash-object", "-t", "tree", "/dev/null").trim();
+
+  test("a commit: its first parent is the start, depth 1, the branch name only when HEAD is on it", () => {
+    const r = branchRepo();
+    const parent = sha(r.dir, "HEAD~1");
+    expect(resolveRefs(r.dir, undefined, undefined, 50, { commit: "HEAD" })).toEqual({
+      baseRef: sha7(parent),
+      baseSha: parent,
+      mergeBase: parent,
+      headRef: "feat/x",
+      headSha: r.head,
+      depth: 1,
+      mode: { kind: "commit", rev: r.head, merge: false },
+    });
+    const older = resolveRefs(r.dir, undefined, undefined, 50, { commit: parent });
+    expect(older.headRef).toBe(sha7(parent));
+    expect(older.mergeBase).toBe(r.mergeBase);
+  });
+
+  test("a root commit starts at the empty tree; a merge commit at its first parent", () => {
+    const r = branchRepo();
+    const root = resolveRefs(r.dir, undefined, undefined, 50, { commit: r.mergeBase });
+    expect(root.mergeBase).toBe(EMPTY_TREE);
+    expect(root.depth).toBe(1);
+    git(r.dir, "switch", "-q", "main");
+    git(r.dir, "merge", "-q", "--no-ff", "-m", "merge", "feat/x");
+    const merge = resolveRefs(r.dir, undefined, undefined, 50, { commit: "HEAD" });
+    expect(merge.mergeBase).toBe(r.mainTip);
+    expect(merge.mode).toEqual({ kind: "commit", rev: sha(r.dir, "HEAD"), merge: true });
+  });
+
+  test("--from: the range is <rev>^..HEAD, checked against the depth", () => {
+    const r = branchRepo();
+    const first = sha(r.dir, "HEAD~1");
+    const refs = resolveRefs(r.dir, undefined, undefined, 50, { from: first });
+    expect(refs).toMatchObject({ mergeBase: r.mergeBase, headSha: r.head, headRef: "feat/x", depth: 2, mode: { kind: "from", rev: first } });
+    expect(() => resolveRefs(r.dir, undefined, undefined, 1, { from: first })).toThrow(/is 2 commits, more than the maximum depth of 1/);
+    expect(resolveRefs(r.dir, undefined, undefined, 50, { from: r.mergeBase }).mergeBase).toBe(EMPTY_TREE);
+    expect(() => resolveRefs(r.dir, undefined, undefined, 50, { from: r.mainTip })).toThrow(UsageError);
+  });
+
+  test("the files and instructions of a one-commit review come from the start commit", () => {
+    const r = branchRepo();
+    const built = buildLocalInput({ repoDir: r.dir, commit: "HEAD", paths: [], log: () => {}, warn: () => {} });
+    try {
+      expect(built.input.files.map((f) => f.filename)).toEqual(["CLAUDE.md", "img.png", "src/new.ts"]);
+      expect(built.input.change.base.sha).toBe(sha(r.dir, "HEAD~1"));
+      expect(built.input.change.head).toEqual({ sha: r.head, ref: "feat/x" });
+      expect(built.input.change.kind).toBe("branch");
+      expect(built.input.change.description).toBe("rename old, change the image and the rules");
+      expect(built.input.instructions.baseSha).toBe(sha(r.dir, "HEAD~1"));
+      expect(JSON.stringify(built.input.instructions.files)).toContain("RULES-FROM-BASE");
+    } finally {
+      removeSnapshot(built.snapshotDir);
+    }
+  });
+
+  test("a root commit has no instructions and every file as added", () => {
+    const r = branchRepo();
+    const built = buildLocalInput({ repoDir: r.dir, commit: r.mergeBase, paths: [], log: () => {}, warn: () => {} });
+    try {
+      expect(built.input.files.map((f) => f.filename)).toEqual(["CLAUDE.md", "img.png", "src/a.ts", "src/old.ts"]);
+      expect(built.input.instructions.files).toEqual([]);
+    } finally {
+      removeSnapshot(built.snapshotDir);
+    }
+  });
+});

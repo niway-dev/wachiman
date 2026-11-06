@@ -81,12 +81,16 @@ alias wachi-local='bun --no-env-file --config=$HOME/src/wachiman/bunfig.toml $HO
 wachi-local --repo-dir .                      # the current branch against origin's default branch
 wachi-local --repo-dir . --base develop src   # against develop, only files under src/
 wachi-local --repo-dir . --format markdown --output review.md
+wachi-local --repo-dir . --commit abc1234      # exactly one commit
+wachi-local --repo-dir . --from abc1234        # that commit and everything after it, up to HEAD
 ```
 
 | Option | What it does |
 | --- | --- |
 | `--repo-dir <dir>` | The clone. Default: the current directory |
 | `--base <ref>` | What the branch is compared with. Default: `origin/HEAD` when it resolves (the remote's default branch), else `main`. No fetch is made: fetch first if your base is stale |
+| `--from <commit>` | Review from that commit forward, inclusive: `<commit>^ → HEAD`. It must be an ancestor of `HEAD`, which must be a branch |
+| `--commit <commit>` | Review exactly that commit: `<commit>^ → <commit>`. `HEAD` can be anywhere, even detached; your working tree is not touched |
 | `--max-depth <n>` | The most commits the review may span, from its start commit to `HEAD`. Default 50. Over it, the run stops with exit 2 before any call; raise it (or lower it) for one run. A positive integer; no environment variable |
 | `[paths…]` | Review only the changed files under these paths. A word that names no changed file is ignored, with a line on stderr |
 | `--input <file>` | Review a `wachiman.review-input/1` file ([formats](formats/README.md)) instead of computing the diff; its `change.head.sha` must exist in `--repo-dir` |
@@ -95,8 +99,23 @@ wachi-local --repo-dir . --format markdown --output review.md
 | `--agent-prompt` | With `terminal`: also print the prompt for your agent |
 | `--profile default\|isolated[:<name>]` | Which Claude Code profile runs the review (below). Default `default` |
 
-What is reviewed is the **committed** change: `merge-base(base, HEAD) → HEAD`. Uncommitted edits
-and untracked files are not part of it.
+What is reviewed is the **committed** change. Uncommitted edits and untracked files are never part
+of it. Which commits depend on the option:
+
+**Which range**
+
+| You pass | Reviewed range | `HEAD` | Depth |
+| --- | --- | --- | --- |
+| nothing, or `--base <ref>` | `merge-base(base, HEAD) → HEAD` | a branch (not the base itself, unless `--base` names a commit) | at most `--max-depth` (50) |
+| `--from <commit>` | `<commit>^ → HEAD`: the commit and everything after it | a branch that contains `<commit>` | at most `--max-depth` (50) of `<commit>^..HEAD` |
+| `--commit <commit>` | `<commit>^ → <commit>`: that commit alone | anywhere: any branch, or detached | 1 |
+
+`--commit`, `--from` and `--base` exclude each other, and `--input` excludes all three. For a merge
+commit, `<commit>^` is its first parent, and the preamble says so. A root commit (no parent) is
+compared with the empty tree. The instruction files (`CLAUDE.md` and the rest) are read from the
+start of the range, as at the merge-base: with `--commit` that is the commit's parent, so a commit
+that adds or edits `CLAUDE.md` is reviewed under the old rules. With `--history`, a run of an old
+commit never settles findings first seen at a newer head: they stay `unknown`.
 
 **The start commit and the depth.** The merge-base is the start commit of the review. A big range
 is fine, but not all of `main`: the range may span at most 50 commits (`--max-depth <n>` changes
@@ -117,6 +136,12 @@ head: feat/export (5d6e7f8)
 files: 6 (0 excluded)
 batches: 1
 ```
+
+With `--commit abc1234` the first lines are `mode: one commit (abc1234)`, `start: 9f8e7d6`
+(the parent), `depth: 1 commit` and `head: abc1234`; with `--from abc1234` they are `mode: from abc1234
+to HEAD`, `start: …`, `depth: … (max 50)` and `head: feat/export (…)`. The report's headline names
+the commit and its parent instead of a base branch. For `--commit`, `head.ref` in the JSON result is
+the branch when `HEAD` is on that commit, else the short sha.
 
 Progress and warnings go to stderr; the report goes to stdout (or `--output`), so
 `--format json | jq` works. Each batch is one `claude` call; the 2026-11-04 trial on a 6-file pull
