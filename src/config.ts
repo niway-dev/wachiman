@@ -14,6 +14,8 @@ export type Trigger = string;
 /** Whether a run started by `trigger` spends from the pull request's automatic ceiling. */
 export const isAutomatic = (trigger: Trigger | undefined) => trigger !== undefined && trigger !== "comment";
 
+export type DailyLimitMode = "fail" | "notice";
+
 export interface EngineConfig {
   /** Total per review invocation, USD. */
   budgetUsd: number;
@@ -23,6 +25,17 @@ export interface EngineConfig {
    * footers. The operator's `comment` is not limited by it.
    */
   autoBudgetUsd: number;
+  /**
+   * `AGENT_REVIEW_LEDGER_URL`: the daily-limit ledger service (ADR 0020), trimmed, without a
+   * trailing slash. Unset means no daily limit. It is also the OIDC audience, as configured.
+   */
+  ledgerUrl?: string;
+  /** `AGENT_REVIEW_DAILY_BUDGET_USD`: the caller's own daily ceiling, asked of the ledger with each reservation. */
+  dailyBudgetUsd?: number;
+  /** `AGENT_REVIEW_DAILY_LIMIT_MODE`: `fail` stops a refused run with exit code 3; `notice` posts a notice instead. */
+  dailyLimitMode: DailyLimitMode;
+  /** `AGENT_REVIEW_DAILY_LIMIT_BYPASS`: `1` or `true` skips the ledger for this run. */
+  dailyLimitBypass: boolean;
   /** `AGENT_REVIEW_THREADS_BUDGET_USD`: the one provider call of a thread-only run. */
   threadsBudgetUsd: number;
   /**
@@ -142,6 +155,11 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   if (trigger !== undefined && !/^[a-z_]+$/.test(trigger)) {
     throw new UsageError(`AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "${trigger}".`);
   }
+  const dailyLimitMode = get("DAILY_LIMIT_MODE") ?? "fail";
+  if (dailyLimitMode !== "fail" && dailyLimitMode !== "notice") {
+    throw new UsageError(`AGENT_REVIEW_DAILY_LIMIT_MODE must be fail or notice, got "${dailyLimitMode}".`);
+  }
+  const dailyBypass = get("DAILY_LIMIT_BYPASS")?.trim();
   return {
     budgetUsd: number("BUDGET_USD", 3),
     autoBudgetUsd: number("AUTO_BUDGET_USD", 6),
@@ -163,6 +181,10 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     mention: get("MENTION") ?? "/wachi",
     operator: get("OPERATOR") ?? "",
     exclude: (get("EXCLUDE") ?? "").split(",").filter(Boolean),
+    ledgerUrl: get("LEDGER_URL")?.trim().replace(/\/+$/, "") || undefined,
+    dailyBudgetUsd: get("DAILY_BUDGET_USD") === undefined ? undefined : number("DAILY_BUDGET_USD", 0),
+    dailyLimitMode,
+    dailyLimitBypass: dailyBypass === "1" || dailyBypass === "true",
   };
 }
 
