@@ -26,7 +26,9 @@ env -u ANTHROPIC_API_KEY bun --no-env-file --config="$WACHIMAN_DIR/bunfig.toml" 
 
 Run it from a directory outside the reviewed clone, and write `--output` to a temp directory:
 `--history` already keeps the result on the laptop. `--format json` writes the
-`wachiman.review-result/1` document; the history labels and ids go to stderr, hence `run.log`.
+`wachiman.review-result/1` document. The history goes to stderr, hence `run.log`: the
+`This run (history):` block gives each finding's label (`new` / `open since <sha7>`), id and any
+earlier verdict; `Since the last run` lists earlier findings this run did not repeat.
 
 ## Choose the range
 
