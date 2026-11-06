@@ -190,13 +190,15 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
   `origin` URL (credentials removed), so every clone and worktree of one repository shares a
   history; without an `origin` it comes from the clone's git directory.
 - **What it tells you.** Each finding is labelled `new` or `open since <sha7>`, with an id. A
-  finding is the same as an earlier one when the file (renames followed) and topic match and the
-  cited line has the same text, or the title is the same once digits and punctuation are ignored.
+  finding is the same as an earlier one when the file matches (renames followed) and the
+  cited line has the same text (the topic may differ), or the topic matches and the title is the
+  same once digits and punctuation are ignored.
   No model decides that. An earlier finding this run did not repeat is `probably fixed` (the file
   was reviewed and the cited code changed), `not repeated` (reviewed, code unchanged: the reviewer
   just did not say it again) or `unknown` (the file was not reviewed: a path scope, a skip, a usage
   limit). It says "probably" because a fix is inferred from absence, never observed. With
-  `--format json`, stdout is unchanged and this block goes to stderr.
+  `--format json`, stdout is unchanged; stderr lists this run's findings with their labels and ids
+  (`This run (history):`), then this block.
 - **`agent-review history`** lists what is tracked, per repository: status, first and last head,
   runs, id and your verdict. `--since 7d`, `--all-repos` and `--json` narrow or reshape it. It reads
   files and local git metadata only (it asks `git` for the repository's key): no `claude`, no GitHub.
