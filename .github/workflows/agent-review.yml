@@ -1,0 +1,18 @@
+name: Agent review
+# Wachiman reviews its own pull requests with the last released engine, pinned like every other
+# consumer (ADR 0001): a release reviews the pull requests after it, never itself.
+# The review runs once, when a pull request opens ready for review or leaves draft, and on
+# `/wachi review` from the operator. Add `synchronize` to the `pull_request` types to review every
+# push. The key is the repository secret ANTHROPIC_API_KEY. To update, resolve the new tag's SHA
+# and replace it together with the trailing version comment; never use a floating tag.
+on:
+  pull_request: { types: [opened, ready_for_review] }
+  issue_comment: { types: [created] }
+permissions: { contents: read, pull-requests: write, issues: read }
+jobs:
+  review:
+    uses: niway-dev/wachiman/.github/workflows/review.yml@983cd0a1d7d4b2fdf1da200f4052e9b98e5e1a63 # v1.8.0
+    with:
+      operator: csdev19
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
