@@ -15,14 +15,19 @@ CLI, and present its result.**
 
 ## The one command
 
-Every review is `agent-review local`. The engine is the Wachiman clone at `$WACHIMAN_DIR`; if that
-is unset or has no `src/cli.ts`, ask the developer for the path once.
+Every review is `wachiman local`. The wrapper drops `ANTHROPIC_API_KEY`, sets the Bun flags that keep
+the reviewed project's dotenv files and `bunfig.toml` out, and, when `WACHIMAN_PROFILE` is set,
+supplies `--profile` for `local`.
 
 ```sh
-env -u ANTHROPIC_API_KEY bun --no-env-file --config="$WACHIMAN_DIR/bunfig.toml" \
-  "$WACHIMAN_DIR/src/cli.ts" local --repo-dir <clone> <range> \
-  --profile <profile> --history --format json --output <tmp>/review.json 2> <tmp>/run.log
+wachiman local --repo-dir <clone> <range> --profile <profile> \
+  --history --format json --output <tmp>/review.json 2> <tmp>/run.log
 ```
+
+Leave `--profile` out when `WACHIMAN_PROFILE` is set (the wrapper adds it); otherwise choose it as
+below. If `command -v wachiman` finds nothing, stop: ask the developer for the path of their
+Wachiman clone (once) and tell them to run `scripts/install-local.sh` from it, then retry. Never
+fall back to GitHub modes.
 
 Run it from a directory outside the reviewed clone, and write `--output` to a temp directory:
 `--history` already keeps the result on the laptop. `--format json` writes the
@@ -51,10 +56,10 @@ On a refusal, report it and propose the fix it names:
 
 ## Choose the profile
 
-List the profiles with `ls -d ~/.wachiman/claude-*` (never read inside them). The name is what
+If `WACHIMAN_PROFILE` is set, skip this. Otherwise list the profiles with `ls -d ~/.wachiman/claude-*` (never read inside them). The name is what
 follows `claude-`: `~/.wachiman/claude-personal` is `--profile isolated:personal`. One →
 use it. Several → ask which account. None → offer
-`agent-review --setup-profile` (the developer signs in once), or `--profile default` only after
+`wachiman --setup-profile` (the developer signs in once), or `--profile default` only after
 telling them their own plugins could reach the review.
 
 ## Present the result
@@ -69,18 +74,18 @@ are the reviewer's claims, not verified bugs: say so, and offer to check one aga
 When the developer says a finding is right, wrong or half right:
 
 ```sh
-… src/cli.ts history --repo-dir <clone> --verdict <id> correct|partial|wrong --reason "<their words>"
+wachiman history --repo-dir <clone> --verdict <id> correct|partial|wrong --reason "<their words>"
 ```
 
-`agent-review history --repo-dir <clone>` lists what is tracked.
+`wachiman history --repo-dir <clone>` lists what is tracked.
 
 ## Never
 
 | Tempting | Instead |
 | --- | --- |
-| `agent-review review <pr>`, `AGENT_REVIEW_DRY_RUN`, `gh`, a GitHub token | `local`: the GitHub modes post to the PR and need the code on GitHub |
+| `wachiman review <pr>`, `AGENT_REVIEW_DRY_RUN`, `gh`, a GitHub token | `local`: the GitHub modes post to the PR and need the code on GitHub |
 | A verdict as a PR comment or `Verdict:` reply | `history --verdict`: it stays on the laptop |
-| Running with `ANTHROPIC_API_KEY` set | `env -u ANTHROPIC_API_KEY`: `local` refuses a key; the subscription pays |
+| Running with `ANTHROPIC_API_KEY` set | `wachiman` (it drops the key): `local` refuses a key; the subscription pays |
 | `--max-depth 1000` because "review everything" | A closer start commit, or the number the developer chose |
 | Reading the diff and reviewing it yourself | The CLI's review is the isolated one |
 | Copying the report into an issue, chat tool or benchmark | It quotes the code; keep it on the laptop |

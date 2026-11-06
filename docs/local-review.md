@@ -60,29 +60,35 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
 local mode refuses to start: with a key present `claude -p` would bill the key.
 
-Run the engine from its own directory, with its own Bun configuration, and point it at the clone
-you want reviewed:
+Install the global `wachiman` command, and the `wachiman-review` agent skill, once from your
+clone (not from a temporary worktree):
 
 ```sh
-bun --no-env-file --config=<engine>/bunfig.toml <engine>/src/cli.ts local --repo-dir <clone>
+scripts/install-local.sh              # links ~/.local/bin/wachiman and the skill; --uninstall removes them
 ```
 
-`--no-env-file` and `--config=` keep a `.env` or `bunfig.toml` of the reviewed repository out of
-the engine process (Bun reads both from its working directory, and `bunfig.toml` can run code);
-see [the command-line contract](cli.md#options). An alias is fine:
+It links `bin/wachiman` into `~/.local/bin` (put that on your `PATH`) and the skill into
+`~/.agents/skills` and every Claude Code config directory (`~/.claude`, `~/.claude-*`,
+`$CLAUDE_CONFIG_DIR`). It never touches `~/.wachiman`, replaces only its own symlinks, and moves
+any other file it finds to `~/.local/state/wachiman-install/backup/<timestamp>/`.
 
-```sh
-alias wachi-local='bun --no-env-file --config=$HOME/src/wachiman/bunfig.toml $HOME/src/wachiman/src/cli.ts local'
-```
+`wachiman` runs the engine from its clone (or `$WACHIMAN_DIR`), drops `ANTHROPIC_API_KEY`, and
+passes `--no-env-file` and `--config=` so a `.env` or `bunfig.toml` of the reviewed repository stays
+out of the engine process (Bun reads both from its working directory, and `bunfig.toml` can run
+code; see [the command-line contract](cli.md#options)). Set `WACHIMAN_PROFILE` (for example
+`isolated:personal`) and `wachiman local` uses it whenever you give no `--profile`.
+
+Prefer no install? The raw command is
+`bun --no-env-file --config=<engine>/bunfig.toml <engine>/src/cli.ts local --repo-dir <clone>`.
 
 ## 4. Run
 
 ```sh
-wachi-local --repo-dir .                      # the current branch against origin's default branch
-wachi-local --repo-dir . --base develop src   # against develop, only files under src/
-wachi-local --repo-dir . --format markdown --output review.md
-wachi-local --repo-dir . --commit abc1234      # exactly one commit
-wachi-local --repo-dir . --from abc1234        # that commit and everything after it, up to HEAD
+wachiman local --repo-dir .                      # the current branch against origin's default branch
+wachiman local --repo-dir . --base develop src   # against develop, only files under src/
+wachiman local --repo-dir . --format markdown --output review.md
+wachiman local --repo-dir . --commit abc1234      # exactly one commit
+wachiman local --repo-dir . --from abc1234        # that commit and everything after it, up to HEAD
 ```
 
 | Option | What it does |
