@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractRepoDir } from "./cli";
@@ -84,6 +84,99 @@ describe("cli", () => {
       rmSync(home, { recursive: true, force: true });
       rmSync(bin, { recursive: true, force: true });
     }
+  });
+});
+
+describe("exit code 3: the daily limit and a required ledger (ADR 0020)", () => {
+  /** `gh`, `claude` and `curl` as shell scripts: a one-file pull request, a probe that logs model calls, a scripted ledger. */
+  function world() {
+    const bin = mkdtempSync(join(tmpdir(), "wachiman-daily-bin-"));
+    const modelCalls = join(bin, "model-called");
+    const script = (name: string, body: string) => {
+      writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+      chmodSync(join(bin, name), 0o755);
+    };
+    script("claude", `case "$*" in *--version*) echo "9.9.9 (Claude Code)";; *) touch "${modelCalls}";; esac`);
+    script(
+      "gh",
+      [
+        'case "$*" in',
+        `  "pr view"*) printf '%s\\n' '{"headRefOid":"head1234567","title":"t","body":"b","author":{"login":"u"}}';;`,
+        `  *pulls/1/files*) printf '%s\\n' '{"filename":"a.ts","additions":1,"deletions":0,"patch":"@@ -0,0 +1 @@\\n+x"}';;`,
+        "  *pulls/1/reviews*|*pulls/1/comments*) ;;",
+        "  *) exit 1;;",
+        "esac",
+      ].join("\n"),
+    );
+    script(
+      "curl",
+      [
+        '[ -n "$CURL_EXIT" ] && exit "$CURL_EXIT"',
+        'for last; do :; done',
+        'case "$last" in',
+        `  https://tokens.test/*) printf '{"value":"jwt"}\\n200';;`,
+        `  *) printf '%s\\n%s' "$LEDGER_BODY" "$LEDGER_STATUS";;`,
+        "esac",
+      ].join("\n"),
+    );
+    const env = (extra: Record<string, string>) => ({
+      PATH: `${bin}:${process.env.PATH ?? ""}`,
+      GH_TOKEN: "x",
+      GITHUB_REPOSITORY: "o/r",
+      AGENT_REVIEW_DRY_RUN: "1",
+      AGENT_REVIEW_TRIGGER: "opened",
+      AGENT_REVIEW_LEDGER_URL: "https://ledger.test",
+      ACTIONS_ID_TOKEN_REQUEST_URL: "https://tokens.test/token?api=1",
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer",
+      ...extra,
+    });
+    return { bin, env, modelCalled: () => existsSync(modelCalls) };
+  }
+
+  const LIMIT = JSON.stringify({ reason: "limit", account_spent_usd: 6.12, account_limit_usd: 6, day: "2026-11-06" });
+
+  test("the daily limit exits 3 in fail mode and 0 in notice mode", () => {
+    const w = world();
+    try {
+      const failed = run(["review", "1"], w.env({ LEDGER_STATUS: "402", LEDGER_BODY: LIMIT }));
+      expect(failed.code).toBe(3);
+      expect(failed.stderr).toContain("daily limit reached");
+      expect(failed.stdout).toContain("No credits today");
+      const quiet = run(["review", "1"], w.env({ LEDGER_STATUS: "402", LEDGER_BODY: LIMIT, AGENT_REVIEW_DAILY_LIMIT_MODE: "notice" }));
+      expect(quiet.code).toBe(0);
+      expect(quiet.stdout).toContain("No credits today");
+      expect(w.modelCalled()).toBe(false);
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("an unreachable ledger exits 3 before any model call", () => {
+    const w = world();
+    try {
+      const out = run(["review", "1"], w.env({ CURL_EXIT: "7" }));
+      expect(out.code).toBe(3);
+      expect(out.stderr).toContain("agent-review: ledger:");
+      expect(w.modelCalled()).toBe(false);
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("an unlinked repository exits 3 with 'repository not linked'", () => {
+    const w = world();
+    try {
+      const out = run(["review", "1"], w.env({ LEDGER_STATUS: "403", LEDGER_BODY: JSON.stringify({ reason: "not_linked" }) }));
+      expect(out.code).toBe(3);
+      expect(out.stderr).toContain("repository not linked");
+      expect(w.modelCalled()).toBe(false);
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("--help lists exit code 3", () => {
+    expect(run(["--help"]).stdout).toContain("3 the daily limit");
   });
 });
 

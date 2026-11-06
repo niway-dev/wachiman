@@ -13,7 +13,8 @@
  *   agent-review history                list and judge what `local --history` kept on this laptop
  *   agent-review --setup-profile [name] sign in an isolated Claude Code profile under ~/.wachiman
  *
- * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error.
+ * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error; 3 the
+ * daily limit refused the run, or the ledger was required and unavailable (ADR 0020).
  * The settings are documented in docs/cli.md.
  */
 import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
@@ -21,7 +22,8 @@ import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
-import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
+import { DailyLimitReached, comment, defaultGh, review, threadReplies, type Deps } from "./engine";
+import { LedgerRefused, LedgerUnavailable } from "./ledger";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { setupProfile } from "./profiles";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
@@ -53,7 +55,8 @@ Environment:
   AGENT_REVIEW_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
   AGENT_REVIEW_*                     optional settings; see docs/cli.md
 
-Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
+Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error, 3 the daily limit refused the run
+(or the ledger was required and unavailable); with \`daily_limit_mode: notice\` the limit exits 0.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 Guide: docs/local-review.md`;
@@ -199,9 +202,30 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
       console.error(`agent-review: ${error.message}\n\n${USAGE}`);
       return 2;
     }
+    if (error instanceof DailyLimitReached) {
+      // The "No credits today" notice is already posted. `notice` mode keeps the job green.
+      if (error.mode === "notice") {
+        console.log(`agent-review: daily limit reached: ${error.message}`);
+        return 0;
+      }
+      console.error(`agent-review: daily limit reached: ${error.message}`);
+      return 3;
+    }
+    if (error instanceof LedgerUnavailable || error instanceof LedgerRefused) {
+      console.error(`agent-review: ledger: ${ledgerProblem(error)}`);
+      return 3;
+    }
     console.error(`agent-review: ${error instanceof Error ? error.message : error}`);
     return 1;
   }
+}
+
+/** What went wrong with the ledger, in words the job log can show. */
+function ledgerProblem(error: LedgerUnavailable | LedgerRefused) {
+  if (error instanceof LedgerUnavailable) return error.message;
+  if (error.refusal.reason === "not_linked") return "repository not linked to an account in the ledger.";
+  if (error.refusal.reason === "unauthorized") return "the ledger did not accept this workflow's identity token.";
+  return error.message;
 }
 
 if (import.meta.main) process.exit(main(process.argv.slice(2), process.env));
