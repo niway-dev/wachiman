@@ -227,7 +227,7 @@ Inputs (verbatim):
 ### Task 7: The `ledger/` package and OIDC verification
 
 **Files:**
-- Create: `ledger/package.json` (`name: "@wachiman/ledger"`, `private: true`, scripts `test: vitest run`, `deploy: wrangler deploy`; devDependencies `wrangler`, `vitest`, `@cloudflare/vitest-pool-workers`, `typescript`), `ledger/wrangler.jsonc` (name `wachiman-ledger`, `compatibility_date` = today, `durable_objects.bindings: [{name: "ACCOUNTS", class_name: "LedgerAccount"}]`, `migrations: [{tag: "v1", new_sqlite_classes: ["LedgerAccount"]}]`, `observability.enabled: false`, no secrets), `ledger/tsconfig.json`, `ledger/vitest.config.ts`, `ledger/README.md` (what it stores, the three secrets: `ACCOUNTS_JSON`, `RECEIPT_PRIVATE_KEY_JWK`, `RECEIPT_PUBLIC_KEY_PEM`)
+- Create: `ledger/package.json` (`name: "@wachiman/ledger"`, `private: true`, scripts `test: vitest run`, `deploy: wrangler deploy`; devDependencies `wrangler`, `vitest`, `@cloudflare/vitest-pool-workers`, `typescript`), `ledger/wrangler.jsonc` (name `wachiman-ledger`, `compatibility_date` = today, `durable_objects.bindings: [{name: "ACCOUNTS", class_name: "LedgerAccount"}]`, `migrations: [{tag: "v1", new_sqlite_classes: ["LedgerAccount"]}]`, `observability.enabled: false`, no secrets), `ledger/tsconfig.json`, `ledger/vitest.config.ts`, `ledger/README.md` (what it stores, the three secrets: `ACCOUNTS_JSON`, `RECEIPT_PRIVATE_KEY_JWK`, `RECEIPT_PUBLIC_KEY_JWK`)
 - Create: `ledger/src/oidc.ts`
 - Test: `ledger/test/oidc.test.ts`
 
@@ -339,7 +339,7 @@ export async function verifyReceipt(r: Receipt, signature: string, publicKeyJwk:
 
 `forced` is honoured only when the token's `event_name` is `issue_comment` (the on-demand job) — an automatic trigger cannot force even if it says so. The Worker builds `ReserveInput` from the claims plus the account's limits and calls `env.ACCOUNTS.get(env.ACCOUNTS.idFromName(account.account_id))`.
 
-Deploy workflow: `on: workflow_dispatch` only; `environment: production`; `permissions: contents: read`; checks out the ref the dispatch ran on; `bun install --frozen-lockfile` in `ledger/`; `wrangler deploy` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the environment's secrets; a comment at the top saying secrets are set with `wrangler secret put ACCOUNTS_JSON | RECEIPT_PRIVATE_KEY_JWK | RECEIPT_PUBLIC_KEY_PEM` and never committed.
+Deploy workflow: `on: workflow_dispatch` only; `environment: production`; `permissions: contents: read`; checks out the ref the dispatch ran on; `bun install --frozen-lockfile` in `ledger/`; `wrangler deploy` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the environment's secrets; a comment at the top saying secrets are set with `wrangler secret put ACCOUNTS_JSON | RECEIPT_PRIVATE_KEY_JWK | RECEIPT_PUBLIC_KEY_JWK` and never committed.
 
 - [ ] **Step 1: Write the failing tests**: each row of the table with a minted token (Task 7's minter); forced from a `pull_request` token is recorded as `forced: false`; `/v1/public-key` needs no token; an unknown route is 404.
 - [ ] **Step 2: Run** — FAIL. **Step 3: Implement** `index.ts` (plain `switch` on method and pathname; no router library). Write the deploy workflow. **Step 4: Run** `bun run test` in `ledger/` and actionlint — PASS.
