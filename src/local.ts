@@ -27,7 +27,7 @@ import { historyRoot, historySettings, saveRun } from "./history";
 import { inspectIsolatedProfile, parseProfile, populatedProfileError, profileDir, type ProfileChoice } from "./profiles";
 import { getProvider, type ProviderAdapter } from "./providers";
 import { InterruptedError, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
-import { sinceLastRunText, type HistoryAnnotation } from "./sinks/common";
+import { sinceLastRunText, thisRunText, type HistoryAnnotation } from "./sinks/common";
 import { renderJson } from "./sinks/json";
 import { renderMarkdown } from "./sinks/markdown";
 import { renderTerminal } from "./sinks/terminal";
@@ -269,7 +269,10 @@ export function runLocal(
         io.stderr(`history: this run was not saved (${error instanceof Error ? error.message : error})`);
       }
     }
-    if (annotation && args.format === "json") io.stderr(sinceLastRunText(annotation));
+    if (annotation && args.format === "json") {
+      io.stderr(thisRunText(result, annotation));
+      io.stderr(sinceLastRunText(annotation));
+    }
     const text =
       args.format === "json"
         ? renderJson(result)

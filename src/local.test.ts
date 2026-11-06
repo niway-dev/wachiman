@@ -618,6 +618,20 @@ describe("--history", () => {
     expect(without.stderr).not.toContain("Since the last run");
   });
 
+  test("--format json prints this run's labels and ids on stderr, before the settled block", () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    const first = local("ok", ["--history", "--format", "json"], { HOME: home }, repo);
+    expect(first.stderr).toMatch(/This run \(history\):\n  new  src\/a\.ts:2  T  \(id [0-9a-f]{10}\)\n/);
+    const second = local("ok", ["--history", "--format", "json"], { HOME: home }, repo);
+    const id = (text: string) => text.match(/\(id ([0-9a-f]{10})\)/)?.[1];
+    expect(second.stderr).toContain(`open since ${sha7(repo.head)}, 2 runs  src/a.ts:2  T  (id `);
+    expect(id(second.stderr)).toBe(id(first.stderr));
+    expect(second.stderr.indexOf("This run (history):")).toBeLessThan(second.stderr.indexOf("Since the last run"));
+    expect(second.stdout).not.toContain("This run");
+    expect(JSON.parse(second.stdout).format).toBe("wachiman.review-result/1");
+  });
+
   test("a second run labels the finding open since the first head, with its id", () => {
     const home = temp("wachiman-home-");
     const repo = branchRepo();

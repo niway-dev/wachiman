@@ -69,17 +69,19 @@ export function reconcile(p: ReconcileInput): { tracking: Tracking[]; settled: S
 
   // Two passes over the whole result: a line-hash match anywhere beats a title match, so a title
   // match cannot take a tracked finding that a later finding matches by its line.
-  const here = (t: TrackedFinding, f: ResultFinding) => pathOf(t) === f.path && t.topic === f.topic;
+  // The model's topic is not stable across runs, so the line hash needs the path only; the title
+  // key is weaker and also needs the same topic.
+  const samePath = (t: TrackedFinding, f: ResultFinding) => pathOf(t) === f.path;
   const fps = p.result.findings.map((f) => p.fingerprint(f));
   const found: ({ t: TrackedFinding; by: "line" | "title" } | undefined)[] = p.result.findings.map(() => undefined);
   p.result.findings.forEach((f, i) => {
     const hash = fps[i].lineHash;
-    const t = hash !== undefined ? take((c) => here(c, f) && c.lineHash === hash) : undefined;
+    const t = hash !== undefined ? take((c) => samePath(c, f) && c.lineHash === hash) : undefined;
     if (t) found[i] = { t, by: "line" };
   });
   p.result.findings.forEach((f, i) => {
     if (found[i]) return;
-    const t = take((c) => here(c, f) && c.titleKey === fps[i].titleKey);
+    const t = take((c) => samePath(c, f) && c.topic === f.topic && c.titleKey === fps[i].titleKey);
     if (t) found[i] = { t, by: "title" };
   });
 

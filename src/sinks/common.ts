@@ -151,6 +151,27 @@ export function sinceLastRunText(a: HistoryAnnotation) {
   return [head, ...lines].join("\n");
 }
 
+/**
+ * This run's findings with their history labels, as plain text, for `--format json` where the
+ * report itself carries none: stderr only, the public JSON stays unchanged.
+ */
+export function thisRunText(result: ReviewResult, a: HistoryAnnotation) {
+  const rows = result.findings.flatMap((f, i) => {
+    const e = a.byIndex.get(i);
+    if (!e) return [];
+    const word = e.status === "new" ? "new" : `open since ${sha7(e.firstHead)}, ${e.runs} runs`;
+    return [{ word, where: location(f), title: neutralise(f.title), id: e.id, verdict: e.verdict }];
+  });
+  if (rows.length === 0) return "This run (history): no findings.";
+  const wordWidth = Math.max(...rows.map((r) => r.word.length));
+  const whereWidth = Math.max(...rows.map((r) => r.where.length));
+  const titleWidth = Math.max(...rows.map((r) => r.title.length));
+  const lines = rows.map(
+    (r) => `  ${pad(r.word, wordWidth)}  ${pad(r.where, whereWidth)}  ${pad(r.title, titleWidth)}  (id ${r.id}${r.verdict ? `, verdict: ${r.verdict}` : ""})`,
+  );
+  return ["This run (history):", ...lines].join("\n");
+}
+
 /** The same facts as Markdown bullets, for the `## Since the last run` section. */
 export function sinceLastRunMarkdown(a: HistoryAnnotation) {
   const head = a.lastRun
