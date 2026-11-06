@@ -1,0 +1,207 @@
+/**
+ * The client of the daily-limit ledger service (ADR 0020): one synchronous call to reserve before
+ * a run, one to settle after it, and the signed receipt that settling returns. Like `gh`, the
+ * network goes through a binary the runner has (`curl`), so the engine stays synchronous and
+ * dependency-free (ADR 0002). Imports only `node:` builtins.
+ */
+import { spawnSync } from "node:child_process";
+import { createPublicKey, verify } from "node:crypto";
+
+/** `curl`'s exit status and output; the HTTP status is read from the output (see `call`). */
+export type CurlFn = (args: string[]) => { status: number; stdout: string; stderr: string };
+
+export const defaultCurl: CurlFn = (args) => {
+  const run = spawnSync("curl", ["--silent", "--show-error", "--max-time", "20", ...args], { encoding: "utf8" });
+  return { status: run.status ?? 1, stdout: run.stdout ?? "", stderr: run.stderr ?? run.error?.message ?? "" };
+};
+
+export interface LedgerEnv {
+  ACTIONS_ID_TOKEN_REQUEST_URL?: string;
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN?: string;
+}
+
+/** The ledger cannot answer: no id-token permission, a network error, a 5xx, an unparsable body. */
+export class LedgerUnavailable extends Error {}
+
+export interface Refusal {
+  reason: "limit" | "repository_limit" | "not_linked" | "unauthorized";
+  accountSpentUsd?: number;
+  accountLimitUsd?: number;
+  day?: string;
+  resetsAt?: string;
+}
+
+/** The ledger answered and said no. */
+export class LedgerRefused extends Error {
+  constructor(readonly refusal: Refusal) {
+    super(`The ledger refused the run: ${refusal.reason}.`);
+  }
+}
+
+export interface Reservation {
+  reservationId: string;
+  grantedUsd: number;
+  accountLeftUsd: number;
+  repositoryLeftUsd: number | null;
+  day: string;
+}
+
+export interface Receipt {
+  account: string;
+  repository: string;
+  run_id: string;
+  usd: number;
+  day: string;
+}
+
+export interface ReserveRequest {
+  wantedUsd: number;
+  callerLimitUsd?: number;
+  trigger: string;
+  forced: boolean;
+}
+
+const b64url = (text: string) => Buffer.from(text, "utf8").toString("base64url");
+
+/** The ledger url as configured, minus any trailing slashes, so `${base}/v1/...` has one slash. */
+const base = (ledgerUrl: string) => ledgerUrl.replace(/\/+$/, "");
+
+/** One request. The HTTP status is the last line of the output (`-w "\n%{http_code}"`). */
+function call(curl: CurlFn, args: string[]): { status: number; body: string } {
+  const run = curl(["-o", "-","-w", "\n%{http_code}", ...args]);
+  if (run.status !== 0) throw new LedgerUnavailable(`curl failed (exit ${run.status}): ${run.stderr.trim()}`);
+  const cut = run.stdout.lastIndexOf("\n");
+  const status = Number(run.stdout.slice(cut + 1).trim());
+  if (cut < 0 || !Number.isInteger(status)) throw new LedgerUnavailable("curl returned no HTTP status.");
+  return { status, body: run.stdout.slice(0, cut) };
+}
+
+const parseObject = (body: string): Record<string, unknown> | undefined => {
+  try {
+    const value: unknown = JSON.parse(body);
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const post = (ledgerUrl: string, route: string, token: string, payload: unknown, curl: CurlFn) =>
+  call(curl, [
+    "-X",
+    "POST",
+    "-H",
+    `Authorization: Bearer ${token}`,
+    "-H",
+    "Content-Type: application/json",
+    "--data",
+    JSON.stringify(payload),
+    `${base(ledgerUrl)}${route}`,
+  ]);
+
+/** A GitHub OIDC token for `audience`. Needs the caller's `id-token: write` permission. */
+export function requestIdToken(env: LedgerEnv, audience: string, curl: CurlFn): string {
+  const url = env.ACTIONS_ID_TOKEN_REQUEST_URL;
+  const bearer = env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
+  if (!url || !bearer) throw new LedgerUnavailable("id-token: write is not granted");
+  const { status, body } = call(curl, ["-H", `Authorization: Bearer ${bearer}`, `${url}&audience=${encodeURIComponent(audience)}`]);
+  const value = parseObject(body)?.value;
+  if (status !== 200 || typeof value !== "string" || value === "") {
+    throw new LedgerUnavailable(`GitHub did not issue an id token (HTTP ${status}).`);
+  }
+  return value;
+}
+
+const REASONS: readonly Refusal["reason"][] = ["limit", "repository_limit", "not_linked", "unauthorized"];
+const DEFAULT_REASON: Record<number, Refusal["reason"]> = { 402: "limit", 401: "unauthorized", 403: "not_linked" };
+
+/** A refusal from the documented JSON, or from the status alone when the body is something else. */
+function refusalOf(status: number, body: string): Refusal {
+  const json = parseObject(body) ?? {};
+  const reason = REASONS.find((r) => r === json.reason) ?? DEFAULT_REASON[status]!;
+  const refusal: Refusal = { reason };
+  if (typeof json.account_spent_usd === "number") refusal.accountSpentUsd = json.account_spent_usd;
+  if (typeof json.account_limit_usd === "number") refusal.accountLimitUsd = json.account_limit_usd;
+  if (typeof json.day === "string") refusal.day = json.day;
+  if (typeof json.resets_at === "string") refusal.resetsAt = json.resets_at;
+  return refusal;
+}
+
+export function reserve(ledgerUrl: string, token: string, req: ReserveRequest, curl: CurlFn): Reservation {
+  const payload = {
+    wanted_usd: req.wantedUsd,
+    ...(req.callerLimitUsd === undefined ? {} : { caller_limit_usd: req.callerLimitUsd }),
+    trigger: req.trigger,
+    forced: req.forced,
+  };
+  const { status, body } = post(ledgerUrl, "/v1/reserve", token, payload, curl);
+  if (status === 402 || status === 401 || status === 403) throw new LedgerRefused(refusalOf(status, body));
+  const json = parseObject(body);
+  if (status !== 200 || !json || typeof json.reservation_id !== "string" || typeof json.granted_usd !== "number") {
+    throw new LedgerUnavailable(`The ledger could not reserve (HTTP ${status}).`);
+  }
+  return {
+    reservationId: json.reservation_id,
+    grantedUsd: json.granted_usd,
+    accountLeftUsd: Number(json.account_left_usd),
+    repositoryLeftUsd: typeof json.repository_left_usd === "number" ? json.repository_left_usd : null,
+    day: String(json.day),
+  };
+}
+
+export function settle(
+  ledgerUrl: string,
+  token: string,
+  reservationId: string,
+  spentUsd: number,
+  curl: CurlFn,
+): { receipt: Receipt; signature: string } {
+  const { status, body } = post(ledgerUrl, "/v1/settle", token, { reservation_id: reservationId, spent_usd: spentUsd }, curl);
+  const json = parseObject(body);
+  const receipt = json?.receipt;
+  if (status !== 200 || !isReceipt(receipt) || typeof json?.signature !== "string") {
+    throw new LedgerUnavailable(`The ledger could not settle (HTTP ${status}).`);
+  }
+  return { receipt, signature: json.signature };
+}
+
+function isReceipt(value: unknown): value is Receipt {
+  const r = value as Record<string, unknown> | null;
+  return (
+    typeof r === "object" &&
+    r !== null &&
+    typeof r.account === "string" &&
+    typeof r.repository === "string" &&
+    typeof r.run_id === "string" &&
+    typeof r.usd === "number" &&
+    typeof r.day === "string"
+  );
+}
+
+export const receiptFooter = (receipt: Receipt, signature: string) => `<!-- wachi:receipt ${b64url(JSON.stringify(receipt))}.${signature} -->`;
+
+const RECEIPT_LINE = /<!-- wachi:receipt ([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+) -->/g;
+
+/** The last receipt line in `body`, or null when there is none or it is damaged. */
+export function readReceipt(body: string): { receipt: Receipt; signature: string } | null {
+  const last = [...body.matchAll(RECEIPT_LINE)].pop();
+  if (!last) return null;
+  try {
+    const receipt: unknown = JSON.parse(Buffer.from(last[1]!, "base64url").toString("utf8"));
+    return isReceipt(receipt) ? { receipt, signature: last[2]! } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The bytes the ledger signs: JSON with keys in a fixed order (shared contract with the Worker). */
+export const canonicalReceipt = (r: Receipt): Uint8Array =>
+  new TextEncoder().encode(JSON.stringify({ account: r.account, repository: r.repository, run_id: r.run_id, usd: r.usd, day: r.day }));
+
+/** Whether `signature` (base64url Ed25519) is the ledger's over `receipt`. A bad key or signature is false. */
+export function verifyReceipt(receipt: Receipt, signature: string, publicKeyPem: string): boolean {
+  try {
+    return verify(null, canonicalReceipt(receipt), createPublicKey(publicKeyPem), Buffer.from(signature, "base64url"));
+  } catch {
+    return false;
+  }
+}
