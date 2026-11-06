@@ -173,8 +173,10 @@ Ledger (`niway-dev/wachiman`, `ledger/`):
    per-pull-request ceiling, whichever is smaller).
 6. `POST /v1/settle` with `{reservation_id, spent_usd}`. The object replaces the reserved amount
    with the real spend and returns a receipt signed with the Worker's Ed25519 key.
-7. The engine writes `<!-- wachi:receipt <base64 json> -->` into the review's hidden footer,
-   after the cost line and before the signature, where the model cannot write (ADR 0012).
+7. The engine writes `<!-- wachi:receipt <base64url json>.<base64url signature> -->` into the
+   review's hidden footer, immediately before the cost line, where the model cannot write
+   (ADR 0012; the cost line, the automatic flag and the signature stay contiguous so
+   `readAutoCost` is unchanged).
 8. On 402 the engine posts the "No credits today" comment (once per pull request per day,
    deduplicated by a `<!-- wachi:nocredits day=YYYY-MM-DD -->` footer) and exits 3 (`fail`) or
    0 (`notice`).
