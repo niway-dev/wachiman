@@ -44,6 +44,8 @@ export type ReserveOutput =
 
 export interface SettleInput {
   reservation_id: string;
+  /** The caller's repository: an entry reserved by another repository is not found. */
+  repository_id: string;
   spent_usd: number;
   now?: number;
 }
@@ -259,7 +261,7 @@ export class LedgerAccount extends DurableObject {
   settle(i: SettleInput): SettleOutput {
     const sql = this.ctx.storage.sql;
     const row = sql.exec<Row>("SELECT * FROM entries WHERE id = ?", i.reservation_id).toArray()[0];
-    if (row === undefined) return { ok: false, status: 404 };
+    if (row === undefined || row.repository_id !== i.repository_id) return { ok: false, status: 404 };
     if (row.settled_micro !== null) return { ok: true, entry: toEntry(row) };
 
     const settled = { ...row, settled_micro: toMicro(i.spent_usd), settled_at: new Date(i.now ?? Date.now()).toISOString() };

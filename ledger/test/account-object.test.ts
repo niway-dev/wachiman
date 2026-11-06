@@ -97,15 +97,25 @@ describe("LedgerAccount", () => {
     const stub = account();
     const r = await stub.reserve(input({ wanted_usd: 4 }));
     if (!r.ok) throw new Error("expected a grant");
-    const settled = await stub.settle({ reservation_id: r.reservation_id, spent_usd: 1.25, now: NOON + 60_000 });
+    const settled = await stub.settle({ reservation_id: r.reservation_id, repository_id: "1", spent_usd: 1.25, now: NOON + 60_000 });
     expect(settled).toMatchObject({ ok: true, entry: { reserved_usd: 4, settled_usd: 1.25, day: "2026-11-06" } });
     expect((await stub.today(6, NOON)).spent_usd).toBe(1.25);
 
-    const again = await stub.settle({ reservation_id: r.reservation_id, spent_usd: 3, now: NOON + 120_000 });
+    const again = await stub.settle({ reservation_id: r.reservation_id, repository_id: "1", spent_usd: 3, now: NOON + 120_000 });
     expect(again).toEqual(settled);
     expect((await stub.today(6, NOON)).spent_usd).toBe(1.25);
 
-    expect(await stub.settle({ reservation_id: "nope", spent_usd: 1 })).toEqual({ ok: false, status: 404 });
+    expect(await stub.settle({ reservation_id: "nope", repository_id: "1", spent_usd: 1 })).toEqual({ ok: false, status: 404 });
+  });
+
+  it("a settle from another repository is 404 and leaves the entry unsettled", async () => {
+    const stub = account();
+    const r = await stub.reserve(input({ repository_id: "1", wanted_usd: 4 }));
+    if (!r.ok) throw new Error("expected a grant");
+    expect(await stub.settle({ reservation_id: r.reservation_id, repository_id: "2", spent_usd: 1 })).toEqual({ ok: false, status: 404 });
+    expect((await stub.today(6, NOON)).spent_usd).toBe(4);
+    const own = await stub.settle({ reservation_id: r.reservation_id, repository_id: "1", spent_usd: 1 });
+    expect(own).toMatchObject({ ok: true, entry: { settled_usd: 1 } });
   });
 
   it("an unsettled reservation stays counted; attempt 2 of the same run replaces attempt 1", async () => {
@@ -123,8 +133,8 @@ describe("LedgerAccount", () => {
     expect(attempt2.reservation_id).not.toBe(attempt1.reservation_id);
 
     // The dead attempt's id no longer settles anything.
-    expect(await stub.settle({ reservation_id: attempt1.reservation_id, spent_usd: 1 })).toEqual({ ok: false, status: 404 });
-    const settled = await stub.settle({ reservation_id: attempt2.reservation_id, spent_usd: 2 });
+    expect(await stub.settle({ reservation_id: attempt1.reservation_id, repository_id: "1", spent_usd: 1 })).toEqual({ ok: false, status: 404 });
+    const settled = await stub.settle({ reservation_id: attempt2.reservation_id, repository_id: "1", spent_usd: 2 });
     expect(settled).toMatchObject({ ok: true, entry: { run_attempt: "2", reserved_usd: 5, settled_usd: 2 } });
     expect((await stub.today(6, NOON)).spent_usd).toBe(2);
   });
@@ -133,7 +143,7 @@ describe("LedgerAccount", () => {
     const stub = account();
     const attempt1 = await stub.reserve(input({ run_id: "r43", run_attempt: "1", wanted_usd: 3 }));
     if (!attempt1.ok) throw new Error("expected a grant");
-    await stub.settle({ reservation_id: attempt1.reservation_id, spent_usd: 2.5 });
+    await stub.settle({ reservation_id: attempt1.reservation_id, repository_id: "1", spent_usd: 2.5 });
 
     const attempt2 = await stub.reserve(input({ run_id: "r43", run_attempt: "2", wanted_usd: 2 }));
     expect(attempt2).toMatchObject({ ok: true, granted_usd: 2 });
@@ -148,7 +158,7 @@ describe("LedgerAccount", () => {
     if (!r.ok) throw new Error("expected a grant");
     expect(r.day).toBe("2026-11-06");
 
-    const settled = await stub.settle({ reservation_id: r.reservation_id, spent_usd: 5, now: midnight + 30_000 });
+    const settled = await stub.settle({ reservation_id: r.reservation_id, repository_id: "1", spent_usd: 5, now: midnight + 30_000 });
     expect(settled).toMatchObject({ ok: true, entry: { day: "2026-11-06", settled_usd: 5 } });
 
     const fresh = await stub.reserve(input({ wanted_usd: 6, now: midnight }));
@@ -174,7 +184,7 @@ describe("LedgerAccount", () => {
     const b = await stub.reserve(input({ wanted_usd: 2 }));
     await stub.reserve(input({ repository_id: "2", repository: "acme/api", wanted_usd: 1 }));
     if (!b.ok) throw new Error("expected a grant");
-    await stub.settle({ reservation_id: b.reservation_id, spent_usd: 0.5 });
+    await stub.settle({ reservation_id: b.reservation_id, repository_id: "1", spent_usd: 0.5 });
     // An entry from yesterday is not part of today.
     await stub.reserve(input({ wanted_usd: 3, now: NOON - 86_400_000 }));
 

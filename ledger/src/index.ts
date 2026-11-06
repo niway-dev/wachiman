@@ -97,10 +97,10 @@ async function settle(request: Request, env: WorkerEnv, accounts: Account[], cla
   }
   const settled = await env.ACCOUNTS.get(env.ACCOUNTS.idFromName(link.account.account_id)).settle({
     reservation_id: body.reservation_id,
+    repository_id: claims.repository_id,
     spent_usd: body.spent_usd,
   });
-  // A reservation made by another repository's run is not this caller's to settle.
-  if (!settled.ok || settled.entry.repository_id !== claims.repository_id) return json({ reason: "not_found" }, 404);
+  if (!settled.ok) return json({ reason: "not_found" }, 404);
   const entry = settled.entry;
   const receipt = {
     account: link.account.account_id,
