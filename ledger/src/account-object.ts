@@ -161,8 +161,8 @@ export class LedgerAccount extends DurableObject {
    * the computation and the write run with no await in between and no other call to this object
    * can interleave. Concurrent reserves are serialized one after the other.
    *
-   * A reserve whose `run_id` already has an entry today from a lower `run_attempt` replaces that
-   * entry in place: the dead attempt is excluded from the day's spend, the row takes the new
+   * A reserve whose `run_id` already has an unsettled entry today from a lower `run_attempt`
+   * replaces that entry in place (a settled entry is real spend and is kept): the dead attempt is excluded from the day's spend, the row takes the new
    * attempt and amount, its settlement is cleared, and it gets a NEW reservation id, so a late
    * settle from the old attempt answers 404 instead of overwriting the retry's spend. An entry
    * from an earlier day is left on its day (that spend happened then) and the retry gets a new row.
@@ -175,13 +175,17 @@ export class LedgerAccount extends DurableObject {
     sql.exec("DELETE FROM entries WHERE day < ?", dayOf(now - RETENTION_DAYS * DAY_MS));
 
     const earlier = sql
-      .exec<{ id: string; run_attempt: string }>(
-        "SELECT id, run_attempt FROM entries WHERE run_id = ? AND day = ? ORDER BY created_at DESC LIMIT 1",
+      .exec<{ id: string; run_attempt: string; settled_micro: number | null }>(
+        "SELECT id, run_attempt, settled_micro FROM entries WHERE run_id = ? AND day = ? ORDER BY created_at DESC LIMIT 1",
         i.run_id,
         day,
       )
       .toArray()[0];
-    const replaced = earlier !== undefined && Number(earlier.run_attempt) < Number(i.run_attempt) ? earlier.id : null;
+    // A settled entry is real spend and is never replaced: the retry gets a new row beside it.
+    const replaced =
+      earlier !== undefined && earlier.settled_micro === null && Number(earlier.run_attempt) < Number(i.run_attempt)
+        ? earlier.id
+        : null;
 
     const spent = this.spent(day, null, replaced);
     const repoSpent = this.spent(day, i.repository_id, replaced);

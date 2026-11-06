@@ -129,6 +129,17 @@ describe("LedgerAccount", () => {
     expect((await stub.today(6, NOON)).spent_usd).toBe(2);
   });
 
+  it("a retry never replaces a settled entry: its spend stays and the new attempt adds a row", async () => {
+    const stub = account();
+    const attempt1 = await stub.reserve(input({ run_id: "r43", run_attempt: "1", wanted_usd: 3 }));
+    if (!attempt1.ok) throw new Error("expected a grant");
+    await stub.settle({ reservation_id: attempt1.reservation_id, spent_usd: 2.5 });
+
+    const attempt2 = await stub.reserve(input({ run_id: "r43", run_attempt: "2", wanted_usd: 2 }));
+    expect(attempt2).toMatchObject({ ok: true, granted_usd: 2 });
+    expect((await stub.today(6, NOON)).spent_usd).toBe(4.5);
+  });
+
   it("a reservation at 23:59:59 settles on the same day; a reserve at 00:00:00 sees zero", async () => {
     const stub = account();
     const late = Date.parse("2026-11-06T23:59:59Z");
