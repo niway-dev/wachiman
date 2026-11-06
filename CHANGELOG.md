@@ -5,6 +5,50 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.8.0](https://github.com/niway-dev/wachiman/compare/v1.7.0...v1.8.0) (2026-11-05)
+
+
+### Features
+
+* **cli:** a dry run can ignore the previous-review marker ([dc33978](https://github.com/niway-dev/wachiman/commit/dc339786fbf20f7e900c1af298432d58af650d1f))
+* **cli:** agent-review history lists, judges and forgets local runs ([6c8e954](https://github.com/niway-dev/wachiman/commit/6c8e9544286f4161ffc37a0b5894b16427baf752))
+* **cli:** agent-review local reviews the committed branch on the signed-in claude ([6ae3ceb](https://github.com/niway-dev/wachiman/commit/6ae3ceb15f30dab194abcf01d438c3e2559b029c))
+* **history:** an on-laptop store of local review runs ([62ee611](https://github.com/niway-dev/wachiman/commit/62ee61118f641d2b6a2053d0f61cb59a820e78d6))
+* **history:** deterministic fingerprints for findings ([c05cba5](https://github.com/niway-dev/wachiman/commit/c05cba502a1e4cb9c113e596be4618b544e6acb2))
+* **history:** match findings across runs and replay the state ([2cc84a4](https://github.com/niway-dev/wachiman/commit/2cc84a427bb6760fe051807dc9614cfd9e221e47))
+* local review on the developer's own subscription ([f70f3d4](https://github.com/niway-dev/wachiman/commit/f70f3d4e1c6976d3b91318f09522657d9168ab89))
+* **local:** --history saves the run and labels findings against earlier runs ([e3844b2](https://github.com/niway-dev/wachiman/commit/e3844b2d11a0a6f3ebb20654192ad94e5ad7f738))
+* **local:** a local-git connector that builds the review input from a clone ([29b1036](https://github.com/niway-dev/wachiman/commit/29b1036f142f2130175b46f48c93624b2d2249d3))
+* **local:** isolated Claude profiles under ~/.wachiman ([b2d45b7](https://github.com/niway-dev/wachiman/commit/b2d45b725a11c4d11f8f93291060653e766fc611))
+* **local:** review from a start commit with a maximum depth ([f93af04](https://github.com/niway-dev/wachiman/commit/f93af041649cc9efe6803a2ba6cef3ad54bbd7fe))
+* **local:** review from a start commit with a maximum depth ([a0a7446](https://github.com/niway-dev/wachiman/commit/a0a74462cc53c2501502d1b24ec15bf90440e068))
+* **local:** terminal, Markdown and JSON renderings of a review result ([51d355c](https://github.com/niway-dev/wachiman/commit/51d355cc18f315654e0f1ec5215fcfd7df9e9edb))
+* **providers:** a subscription mode for the Claude Code adapter ([1205965](https://github.com/niway-dev/wachiman/commit/1205965a61691bfeb139c974abe3425176a59c6e))
+
+
+### Bug Fixes
+
+* **engine:** remove each batch's run directory after the call ([d013ea1](https://github.com/niway-dev/wachiman/commit/d013ea196cbb3004b2b0b6a64bc133bdeb2b2745))
+* **history:** leave run files of another format version in place ([6dc2992](https://github.com/niway-dev/wachiman/commit/6dc2992f9a3103b18ab1f04740de20e32f1d5143))
+* **history:** match every finding by line hash before any by title ([b7a40be](https://github.com/niway-dev/wachiman/commit/b7a40bed190276ec597119701dbc760497725a14))
+* **history:** reject --all-repos together with --forget ([235f454](https://github.com/niway-dev/wachiman/commit/235f4549d01c22e6ab9537a059270104cf3cef3d))
+* **history:** report a failed prune on its own and keep the saved run's annotation ([3659d84](https://github.com/niway-dev/wachiman/commit/3659d848bb6417999a1835c6e23bf4af6d6cc6a7))
+* **history:** settle a finding only when its last head is an ancestor of this run's head ([4d583c0](https://github.com/niway-dev/wachiman/commit/4d583c040c6a8924cac3a8736ddadc18b82db40d))
+* **history:** strip userinfo before parsing the remote and never store an unparsed one ([bcde0c4](https://github.com/niway-dev/wachiman/commit/bcde0c44b056197c5706c8031ef28033762219a4))
+* **history:** tighten directory modes on every save and correct the docs ([0f9da86](https://github.com/niway-dev/wachiman/commit/0f9da86f30e538b9cbb0c5a1cc4249b37ffcfc76))
+* **history:** validate run files and make replay tolerate missing fields ([f756419](https://github.com/niway-dev/wachiman/commit/f7564196241dcbafcb642e10a5da6389ea5b71c0))
+* **local:** say "1 commit", not "1 commits", in the depth line ([494479c](https://github.com/niway-dev/wachiman/commit/494479c3ea42d70f97eef58bb89f9d6edd5a10c3))
+* **local:** show a cost under a cent instead of $0.00 ([01a0b61](https://github.com/niway-dev/wachiman/commit/01a0b61f3c9ebcb036a91638ad19bc5cf18a9918))
+* **local:** show a sub-cent batch cost in the Markdown table ([8846958](https://github.com/niway-dev/wachiman/commit/88469586474234bfec4a46c3e656ef494a564a09))
+* **local:** show a sub-cent batch cost in the Markdown table ([1754b4a](https://github.com/niway-dev/wachiman/commit/1754b4af74561d994783d33102e45fb213501cc5))
+
+
+### Code Refactoring
+
+* **engine:** extract reviewChange behind a source port and a sink port ([d2c4c8a](https://github.com/niway-dev/wachiman/commit/d2c4c8ae27c0c1ace5cc1b11ee1188c4b53de5a5))
+* **engine:** PrFile is ReviewFile; the old name stays as an alias ([d92334e](https://github.com/niway-dev/wachiman/commit/d92334edef96522b47b07f85d4a4d6d360cbea91))
+* **engine:** the batch pipeline reads its head directory and change description from its context ([423253b](https://github.com/niway-dev/wachiman/commit/423253b95cdbe4a6e4f0d489fdc6dda023649f85))
+
 ## [1.7.0](https://github.com/niway-dev/wachiman/compare/v1.6.0...v1.7.0) (2026-11-04)
 
 
