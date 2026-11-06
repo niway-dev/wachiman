@@ -1,7 +1,5 @@
-import { DurableObject } from "cloudflare:workers";
-
-/** Placeholder; the reserve, settle and today methods arrive with the account object task. */
-export class LedgerAccount extends DurableObject {}
+/** The Durable Object class must be exported from the Worker entry so the ACCOUNTS binding resolves. */
+export { LedgerAccount } from "./account-object";
 
 /** Minimal Worker; the routes arrive with the routes task. */
 export default {
