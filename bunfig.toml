@@ -4,3 +4,6 @@
 # Keep this file minimal: no `preload`, no `env`.
 [install]
 auto = "disable"
+
+[test]
+pathIgnorePatterns = ["ledger/**"]
