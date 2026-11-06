@@ -3,6 +3,8 @@
 export const GITHUB_ISSUER = "https://token.actions.githubusercontent.com";
 const DISCOVERY_URL = `${GITHUB_ISSUER}/.well-known/openid-configuration`;
 const JWKS_TTL_MS = 3_600_000;
+/** An unknown kid refetches the keys at most this often, so a stream of bad kids cannot hammer GitHub. */
+const JWKS_REFRESH_MIN_MS = 60_000;
 
 export interface GithubClaims {
   repository_id: string;
@@ -14,16 +16,19 @@ export interface GithubClaims {
   event_name?: string;
 }
 
-export type JwksFetch = () => Promise<{ keys: JsonWebKey[] }>;
+/** `refresh: true` asks the source to bypass any cache. */
+export type JwksFetch = (opts?: { refresh: boolean }) => Promise<{ keys: JsonWebKey[] }>;
 
 /** Thrown when a token fails a check; the message names the check. */
 export class TokenInvalid extends Error {}
 
 let cached: { at: number; jwks: { keys: JsonWebKey[] } } | null = null;
+/** When verification last refetched the keys for an unknown kid. */
+let lastRefreshAt = Number.NEGATIVE_INFINITY;
 
-/** Production JWKS source: the discovery document's `jwks_uri`, cached in module scope for one hour. */
-export const fetchGithubJwks: JwksFetch = async () => {
-  if (cached && Date.now() - cached.at < JWKS_TTL_MS) return cached.jwks;
+/** Production JWKS source: the discovery document's `jwks_uri`, cached in module scope for one hour unless `refresh`. */
+export const fetchGithubJwks: JwksFetch = async (opts) => {
+  if (!opts?.refresh && cached && Date.now() - cached.at < JWKS_TTL_MS) return cached.jwks;
   const discovery = await fetch(DISCOVERY_URL);
   if (!discovery.ok) throw new Error(`OIDC discovery failed: ${discovery.status}`);
   const { jwks_uri } = (await discovery.json()) as { jwks_uri: string };
@@ -64,7 +69,13 @@ export async function verifyGithubToken(
   const [h, p, s] = parts as [string, string, string];
   const header = parsePart(h, "header");
   if (header.alg !== "RS256") throw new TokenInvalid(`alg must be RS256, got ${String(header.alg)}`);
-  const jwk = (await jwks()).keys.find((k) => (k as { kid?: string }).kid === header.kid);
+  const findKey = (set: { keys: JsonWebKey[] }) => set.keys.find((k) => (k as { kid?: string }).kid === header.kid);
+  let jwk = findKey(await jwks());
+  if (!jwk && now - lastRefreshAt >= JWKS_REFRESH_MIN_MS) {
+    // GitHub may have rotated its keys since the cached set was fetched: look once more, at most once a minute.
+    lastRefreshAt = now;
+    jwk = findKey(await jwks({ refresh: true }));
+  }
   if (!jwk) throw new TokenInvalid(`unknown kid ${String(header.kid)}`);
 
   let valid = false;

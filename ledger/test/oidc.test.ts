@@ -51,6 +51,30 @@ describe("verifyGithubToken", () => {
     await expect(verifyGithubToken(token, AUD, jwks)).rejects.toThrow(/kid/);
   });
 
+  it("refetches once on an unknown kid, then not again within 60 s", async () => {
+    const rotated = await generateTestKey("k3");
+    const base = Date.now() + 2 * 3600_000;
+    let calls = 0;
+    let refreshes = 0;
+    const rotating = async (opts?: { refresh: boolean }) => {
+      calls += 1;
+      if (opts?.refresh) {
+        refreshes += 1;
+        return { keys: [key.jwk, rotated.jwk] };
+      }
+      return { keys: [key.jwk] };
+    };
+
+    const claims = await verifyGithubToken(await mintToken(rotated, {}, {}, base), AUD, rotating, base);
+    expect(claims.repository_id).toBe("1001");
+    expect(refreshes).toBe(1);
+
+    const unknown = await mintToken(key, {}, { kid: "nope" }, base + 10_000);
+    await expect(verifyGithubToken(unknown, AUD, rotating, base + 10_000)).rejects.toThrow(/kid/);
+    expect(refreshes).toBe(1);
+    expect(calls).toBe(3);
+  });
+
   it("rejects a signature from another key under the same kid", async () => {
     const token = await mintToken(other, {}, { kid: "k1" });
     await expect(verifyGithubToken(token, AUD, jwks)).rejects.toThrow(/signature/);
