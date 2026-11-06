@@ -2670,7 +2670,11 @@ export function review(deps: Deps, repo: string, pr: number, words: string[], fo
             ].join("\n\n"),
             comments: [],
           })
-        : bodyOnly(text);
+        : // A manual run keeps its receipt and forced/bypass markers, but not `SIGNATURE.auto`: the ceiling does not count it.
+          postReview(deps, repo, pr, headSha, {
+            body: [branded(text), ...(receiptLine ? [receiptLine] : [])].join("\n\n"),
+            comments: [],
+          });
     const { rejection, stop } = result.execution;
     const refused = rejection && rejection.kind !== "other" ? { kind: rejection.kind, text: rejection.text } : undefined;
     if (refused) {

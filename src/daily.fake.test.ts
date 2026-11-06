@@ -388,6 +388,19 @@ describe("review() with the daily ledger", () => {
     expect(readAutoCost(t.posted[0]!)).toBeGreaterThan(0.5);
   });
 
+  test("a failed manual --force review keeps its receipt and forced footer, and does not count toward the ceiling", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "comment" },
+      script: [() => ({ costUsd: 0.6, terminalReason: "budget", isError: true }), () => ({ costUsd: 0.4, terminalReason: "budget", isError: true })],
+    });
+    comment(t.deps, "o/r", 7, "/wachi review --force", "owner");
+    expect(t.posted).toHaveLength(1);
+    expect(t.posted[0]).toContain("ran out of its budget");
+    expect(readReceipt(t.posted[0]!)).not.toBeNull();
+    expect(t.posted[0]).toContain(LEDGER_FORCED_FOOTER);
+    expect(readAutoCost(t.posted[0]!)).toBeNull();
+  });
+
   test("a settle the ledger cannot take does not lose the review; it only has no receipt", () => {
     const t = setup({ env: WITH_LEDGER });
     const real = t.deps.curl!;
