@@ -19,6 +19,12 @@ describe("receipts", () => {
     expect(await verifyReceipt(receipt, sig, k.publicJwk)).toBe(true);
   });
 
+  it("accepts a Node-style JWK whose alg is EdDSA", async () => {
+    const k = await pair();
+    const sig = await signReceipt(receipt, { ...k.privateJwk, alg: "EdDSA" });
+    expect(await verifyReceipt(receipt, sig, { ...k.publicJwk, alg: "EdDSA" })).toBe(true);
+  });
+
   it("a changed usd fails", async () => {
     const k = await pair();
     const sig = await signReceipt(receipt, k.privateJwk);

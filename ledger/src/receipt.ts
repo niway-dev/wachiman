@@ -28,15 +28,24 @@ function fromBase64Url(s: string): Uint8Array {
   return Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
 }
 
+/**
+ * Drops the JWK `alg` before import: workerd names Ed25519 keys "Ed25519" and Node names them
+ * "EdDSA", and WebCrypto rejects the one it does not expect. The algorithm is passed explicitly.
+ */
+function withoutAlg(jwk: JsonWebKey): JsonWebKey {
+  const { alg: _alg, ...rest } = jwk;
+  return rest;
+}
+
 /** Base64url Ed25519 signature of the canonical receipt. */
 export async function signReceipt(r: Receipt, privateKeyJwk: JsonWebKey): Promise<string> {
-  const key = await crypto.subtle.importKey("jwk", privateKeyJwk, "Ed25519", false, ["sign"]);
+  const key = await crypto.subtle.importKey("jwk", withoutAlg(privateKeyJwk), "Ed25519", false, ["sign"]);
   return toBase64Url(await crypto.subtle.sign("Ed25519", key, canonicalReceipt(r)));
 }
 
 export async function verifyReceipt(r: Receipt, signature: string, publicKeyJwk: JsonWebKey): Promise<boolean> {
   try {
-    const key = await crypto.subtle.importKey("jwk", publicKeyJwk, "Ed25519", false, ["verify"]);
+    const key = await crypto.subtle.importKey("jwk", withoutAlg(publicKeyJwk), "Ed25519", false, ["verify"]);
     return await crypto.subtle.verify("Ed25519", key, fromBase64Url(signature), canonicalReceipt(r));
   } catch {
     return false;
@@ -45,7 +54,7 @@ export async function verifyReceipt(r: Receipt, signature: string, publicKeyJwk:
 
 /** The SPKI PEM of a public JWK: the form the engine imports with `node:crypto`. */
 export async function receiptPublicKeyPem(publicKeyJwk: JsonWebKey): Promise<string> {
-  const key = await crypto.subtle.importKey("jwk", publicKeyJwk, "Ed25519", true, ["verify"]);
+  const key = await crypto.subtle.importKey("jwk", withoutAlg(publicKeyJwk), "Ed25519", true, ["verify"]);
   const der = new Uint8Array((await crypto.subtle.exportKey("spki", key)) as ArrayBuffer);
   let bin = "";
   for (const b of der) bin += String.fromCharCode(b);

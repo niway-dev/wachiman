@@ -14,7 +14,13 @@ Set with `wrangler secret put <NAME>` and never committed:
 
 - `ACCOUNTS_JSON`: the account table (accounts, limits, linked repositories).
 - `RECEIPT_PRIVATE_KEY_JWK`: Ed25519 private key (JWK) that signs receipts.
-- `RECEIPT_PUBLIC_KEY_PEM`: the matching public key, served at `/v1/public-key`.
+- `RECEIPT_PUBLIC_KEY_JWK`: the matching public key as a JWK JSON string. It is a JWK, not a PEM: the Worker derives the SPKI PEM at runtime and serves both at `/v1/public-key`.
+
+Plain variable (in `wrangler.jsonc`, not secret): `LEDGER_AUDIENCE`, the OIDC audience callers must request (their `ledger_url`). It is compared exactly; while it is empty every request answers 401.
+
+## Routes
+
+`POST /v1/reserve`, `POST /v1/settle`, `GET /v1/today` take a GitHub OIDC bearer token. `GET /v1/public-key` takes none and returns `{alg: "Ed25519", jwk, pem}`. `forced` on a reserve counts only when the token's `event_name` is `issue_comment`.
 
 ## Develop
 
