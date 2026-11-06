@@ -57,7 +57,7 @@ in `ledger/`; the number itself lives in the ledger and is edited there, not in 
 settings are in [configuration.md](configuration.md#the-daily-limit).
 
 - A run gets the smallest of `budget_usd`, `daily_budget_usd` (when set) and what is left of the
-  account's day. Left above zero, even $0.30, it runs with that; at zero or below it does not run.
+  account's day. Left $0.05 or more, even $0.30, it runs with that; a balance below $0.05, the smallest batch, counts as no credits and the run does not start.
 - Every run counts: automatic runs, thread replies, `/wachi review` and `/wachi <question>`. Only
   the operator's `/wachi review --force` runs past the limit, and its cost is still recorded.
 - At the limit, the run posts one "No credits today" comment per pull request per UTC day. With

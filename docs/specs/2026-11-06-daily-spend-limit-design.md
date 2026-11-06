@@ -39,7 +39,7 @@ consumer's repository; the ledger sees repository names and dollars, nothing els
 | 3 | The ledger is a Cloudflare Worker with one SQLite-backed Durable Object per account; the Worker routes by the account the repository is linked to | A Durable Object is a single, globally unique instance per id, which is what makes a reservation atomic; the free plan covers this volume by orders of magnitude | 0021 |
 | 4 | Three concepts: **organization** (optional, cross-cutting admin), **account** (the wallet, the only hard-limit holder with its repositories), **repository** (linked once by hand, proven by OIDC on every call). **Tags** cross accounts and only group reports and alerts | Flexibility without coordination: hard limits live where atomicity lives; grouping for people is free-form | 0022 (new) |
 | 5 | Hard limits: per account (the daily number), per repository (optional, stricter), per organization (designed, not built: a second reservation in the organization's object). No limit per tag | A tag limit would need every reservation to coordinate several objects | 0022 |
-| 6 | `reserve` grants `min(run budget, repository left, account left)`; a positive balance starts a run with what is left; a balance of zero or below starts nothing | The owner's grace rule: $0.30 left still runs; negative does not | 0021 |
+| 6 | `reserve` grants `min(run budget, repository left, account left)`; a balance of $0.05 or more starts a run with what is left; a balance below $0.05, the smallest batch, counts as no credits and starts nothing | The owner's grace rule: $0.30 left still runs; below one batch ($0.05) a run could only end in an engine error | 0021 |
 | 7 | **Every** run counts and is limited, including `/wachi review` and `/wachi <question>`; `/wachi review --force` (operator only) runs past the limit and is still recorded | A money ceiling that a comment can skip is not a ceiling; the owner keeps one explicit override | amends 0012 |
 | 8 | Per repository, `daily_limit_mode: fail` (default) ends the run with exit code **3** and a red job; `notice` posts the comment and exits 0. Both post one "No credits today" comment per pull request per UTC day | The owner wants a visible pipeline error; a repository with a required check can choose the quiet mode | none |
 | 9 | The ledger's URL is a caller input (`ledger_url`); the global number lives in the ledger and is edited there; the caller's `daily_budget_usd` is optional and can only be stricter than the account's limit | One source of truth for the shared number; a repository can protect itself further | 0021 |
@@ -167,7 +167,7 @@ Ledger (`niway-dev/wachiman`, `ledger/`):
    account's Durable Object.
 4. The Durable Object computes the day (its own clock, UTC), sums today's reservations and
    settlements, and grants `min(wanted, caller_limit left, repository limit left, account limit
-   left)`. If the account's balance is ≤ 0 and `forced` is false, it answers 402 with the
+   left)`. If the account's balance is below $0.05 (the smallest batch, so it counts as no credits) and `forced` is false, it answers 402 with the
    totals. It records the reservation.
 5. The engine runs with the granted amount as its `budget_usd` (and still inside ADR 0012's
    per-pull-request ceiling, whichever is smaller).

@@ -91,6 +91,11 @@ type Row = {
 
 const MICRO = 1_000_000;
 const DAY_MS = 86_400_000;
+/**
+ * The smallest grant worth starting a run for: $0.05, the engine's MIN_BATCH_USD (src/engine.ts).
+ * A balance below one batch could only end in an engine error, so it counts as no credits.
+ */
+const MIN_GRANT_MICRO = 50_000;
 /** Raw rows are kept 90 days (spec, "Data"). */
 const RETENTION_DAYS = 90;
 
@@ -157,7 +162,7 @@ export class LedgerAccount extends DurableObject {
 
   /**
    * Reserves up to `wanted_usd` for a run (ADR 0021). Refuses when the account, or the
-   * repository's own limit, has nothing left today, unless `forced`.
+   * repository's own limit, has less than one batch ($0.05) left today, unless `forced`.
    *
    * Atomic by construction: the method is synchronous (sql.exec does not await), so the read,
    * the computation and the write run with no await in between and no other call to this object
@@ -195,11 +200,13 @@ export class LedgerAccount extends DurableObject {
     const repoLeft = i.repository_limit_usd !== undefined ? toMicro(i.repository_limit_usd) - repoSpent : null;
     const callerLeft = i.caller_limit_usd !== undefined ? toMicro(i.caller_limit_usd) - repoSpent : null;
 
-    const repositoryFull = (repoLeft !== null && repoLeft <= 0) || (callerLeft !== null && callerLeft <= 0);
-    if (!i.forced && (accountLeft <= 0 || repositoryFull)) {
+    const repositoryFull =
+      (repoLeft !== null && repoLeft < MIN_GRANT_MICRO) || (callerLeft !== null && callerLeft < MIN_GRANT_MICRO);
+    const accountFull = accountLeft < MIN_GRANT_MICRO;
+    if (!i.forced && (accountFull || repositoryFull)) {
       return {
         ok: false,
-        reason: accountLeft <= 0 ? "limit" : "repository_limit",
+        reason: accountFull ? "limit" : "repository_limit",
         account_spent_usd: toUsd(spent),
         account_limit_usd: i.account_limit_usd,
         day,
@@ -208,7 +215,7 @@ export class LedgerAccount extends DurableObject {
     }
 
     const wanted = toMicro(i.wanted_usd);
-    // Past the checks above every left is positive for a non-forced call, so the grant is positive.
+    // Past the checks above every left is at least MIN_GRANT_MICRO for a non-forced call.
     const granted = i.forced
       ? wanted
       : Math.min(wanted, accountLeft, repoLeft ?? Infinity, callerLeft ?? Infinity);

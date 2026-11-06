@@ -40,7 +40,7 @@ reason is a new requirement that no server-less design can satisfy atomically.
    repository is refused with 403. Nothing in a caller's yml can name another repository.
 3. **The day is UTC and belongs to the ledger's clock.** Balance = account limit minus the
    day's reservations and settlements. A run is granted `min(wanted, caller limit left,
-   repository limit left, account limit left)`; a balance at or below zero grants nothing
+   repository limit left, account limit left)`; a balance below $0.05 (the smallest batch) grants nothing
    unless the call is `forced`.
 4. **Every run counts.** Automatic runs, `/wachi review`, `/wachi <question>` and thread runs.
    `/wachi review --force`, operator only, is granted past the limit and settled like any run.

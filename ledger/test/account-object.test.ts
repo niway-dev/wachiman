@@ -59,6 +59,25 @@ describe("LedgerAccount", () => {
     });
   });
 
+  it("$0.04 left refuses with limit; $0.05 left still grants", async () => {
+    const stub = account();
+    await stub.reserve(input({ wanted_usd: 5.96 }));
+    const refused = await stub.reserve(input({ wanted_usd: 1 }));
+    expect(refused).toMatchObject({ ok: false, reason: "limit", account_spent_usd: 5.96 });
+    const other = account();
+    await other.reserve(input({ wanted_usd: 5.95 }));
+    expect(await other.reserve(input({ wanted_usd: 1 }))).toMatchObject({ ok: true, granted_usd: 0.05 });
+  });
+
+  it("a repository or caller limit leaving under $0.05 refuses with repository_limit", async () => {
+    const stub = account();
+    await stub.reserve(input({ wanted_usd: 1.96, repository_limit_usd: 2 }));
+    const byRepo = await stub.reserve(input({ wanted_usd: 1, repository_limit_usd: 2 }));
+    expect(byRepo).toMatchObject({ ok: false, reason: "repository_limit" });
+    const byCaller = await stub.reserve(input({ wanted_usd: 1, caller_limit_usd: 2 }));
+    expect(byCaller).toMatchObject({ ok: false, reason: "repository_limit" });
+  });
+
   it("a repository limit refuses with repository_limit while the account still has room", async () => {
     const stub = account();
     const first = await stub.reserve(input({ wanted_usd: 3, repository_limit_usd: 2 }));
