@@ -48,9 +48,9 @@ Semgrep's hash of path, rule and matched content. The spec cites each page read.
    credential-stripped, normalised `origin` fetch URL, or over the real path of the common git
    directory when there is no `origin`. Clones and worktrees of one remote share a history.
 5. **A finding's identity is deterministic, in two tiers.** Same repository, same path (a
-   rename in the later run's `previous_filename` is followed), same `topic`, then (a) the same
+   rename in the later run's `previous_filename` is followed), then (a) the same
    line hash (SHA-256 of the cited line's text without whitespace, valid only when that text has
-   at least 8 characters and occurs once in the file at that head) or (b) the same title key
+   at least 8 characters and occurs once in the file at that head) or (b) the same `topic` and the same title key
    (lowercased, backticks and punctuation removed, digit runs replaced by `#`, whitespace
    collapsed). `line: 0` findings use (b) only. Severity and confidence are not identity. A model
    is never asked whether two findings are the same.
@@ -124,6 +124,16 @@ Semgrep's hash of path, rule and matched content. The spec cites each page read.
   same text.
 - `src/local.ts` grows a save step between `reviewChange` and the snapshot removal, and the
   sinks grow an optional annotation; `src/cli.ts` grows a `history` command.
+
+## Amendment 2026-11-06: topic guards only the title tier
+
+A real run reported one finding on one cited line four times; the model called its topic `bug`
+three times and `cleanup` once, so the fourth run saw a new finding and settled the tracked one
+as `not repeated`. The line hash (tier a) therefore matches on repository key and path only, any
+topic; the weaker title key (tier b) still needs the same topic. A tier a match that changes
+topic keeps its first id and stores the latest topic. With `--format json`, stderr also lists
+this run's labels and ids (`This run (history):`) before the "Since the last run" block; the
+JSON is unchanged.
 
 ## Non-goals
 

@@ -125,12 +125,36 @@ describe("reconcile", () => {
     expect(out.tracking[1]).toMatchObject({ matchedBy: "line", firstId: first.tracking[0].firstId });
   });
 
+  test("a topic that drifts between runs on the same cited line stays open under the first id", () => {
+    const runs: HistoryRun[] = [];
+    const first = step(runs, { head: "h1", findings: [{ ...A, topic: "bug" }], reviewed: ["src/a.ts"] });
+    const out = step(runs, {
+      head: "h2",
+      findings: [{ ...A, topic: "cleanup", title: "Off by one in loop bounds" }],
+      reviewed: ["src/a.ts"],
+    });
+    expect(out.tracking[0]).toMatchObject({ status: "open", matchedBy: "line", firstId: first.tracking[0].firstId, runs: 2 });
+    expect(out.settled).toEqual([]);
+    // The latest topic is the one stored, and the next run still matches it.
+    expect(replay(runs, new Map()).findings[0]).toMatchObject({ topic: "cleanup", firstId: first.tracking[0].firstId });
+    const third = step(runs, { head: "h3", findings: [{ ...A, topic: "bug" }], reviewed: ["src/a.ts"] });
+    expect(third.tracking[0]).toMatchObject({ status: "open", firstId: first.tracking[0].firstId, runs: 3 });
+  });
+
+  test("a title-only match with another topic does not match", () => {
+    const runs: HistoryRun[] = [];
+    step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts"] });
+    const out = step(runs, { head: "h2", findings: [{ ...A, text: "returnitems[i+2];", topic: "cleanup" }], reviewed: ["src/a.ts"] });
+    expect(out.tracking[0].status).toBe("new");
+    expect(out.settled).toHaveLength(1);
+  });
+
   test("a different topic or path never matches", () => {
     const runs: HistoryRun[] = [];
     step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts", "src/b.ts"] });
     const out = step(runs, {
       head: "h2",
-      findings: [{ ...A, topic: "security" }, { ...A, path: "src/b.ts" }],
+      findings: [{ ...A, text: undefined, topic: "security" }, { ...A, path: "src/b.ts" }],
       reviewed: ["src/a.ts", "src/b.ts"],
     });
     expect(out.tracking.map((t) => t.status)).toEqual(["new", "new"]);
