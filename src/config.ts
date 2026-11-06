@@ -160,6 +160,13 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     throw new UsageError(`AGENT_REVIEW_DAILY_LIMIT_MODE must be fail or notice, got "${dailyLimitMode}".`);
   }
   const dailyBypass = get("DAILY_LIMIT_BYPASS")?.trim();
+  const dailyLimitBypass = dailyBypass === "1" || dailyBypass === "true";
+  const ledgerUrl = get("LEDGER_URL")?.trim().replace(/\/+$/, "") || undefined;
+  if (ledgerUrl && provider !== "claude-code" && !dailyLimitBypass) {
+    throw new UsageError(
+      "AGENT_REVIEW_LEDGER_URL needs the claude-code provider: other providers' sandboxes can read the OIDC request token from the engine's environment.",
+    );
+  }
   return {
     budgetUsd: number("BUDGET_USD", 3),
     autoBudgetUsd: number("AUTO_BUDGET_USD", 6),
@@ -181,10 +188,10 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     mention: get("MENTION") ?? "/wachi",
     operator: get("OPERATOR") ?? "",
     exclude: (get("EXCLUDE") ?? "").split(",").filter(Boolean),
-    ledgerUrl: get("LEDGER_URL")?.trim().replace(/\/+$/, "") || undefined,
+    ledgerUrl,
     dailyBudgetUsd: get("DAILY_BUDGET_USD") === undefined ? undefined : number("DAILY_BUDGET_USD", 0),
     dailyLimitMode,
-    dailyLimitBypass: dailyBypass === "1" || dailyBypass === "true",
+    dailyLimitBypass,
   };
 }
 
