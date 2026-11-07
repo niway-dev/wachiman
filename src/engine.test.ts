@@ -29,6 +29,9 @@ import {
   coverageGaps,
   filterFiles,
   fitList,
+  isBinaryAtHead,
+  readAutoCost,
+  splitUnreviewable,
   MAX_BODY_CHARS,
   assignThreads,
   batchGaps,
@@ -51,6 +54,9 @@ import {
   type Deps,
   type Review,
 } from "./engine";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { loadConfig } from "./config";
 import type { Contract } from "./contracts";
 
@@ -1862,4 +1868,99 @@ describe("postReview", () => {
       expect(t.sleeps).toEqual([]);
     });
   }
+});
+
+describe("binary files leave the expected list (deterministic, never the model)", () => {
+  const head = mkdtempSync(join(tmpdir(), "binary-head-"));
+  writeFileSync(join(head, "logo.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 1]));
+  writeFileSync(join(head, "big.ts"), "export const x = 1;\n".repeat(50));
+  // The NUL byte sits past the first 8000 bytes: git's sniff would not see it, so neither does this.
+  writeFileSync(join(head, "late.dat"), Buffer.concat([Buffer.alloc(8000, 0x61), Buffer.from([0])]));
+
+  test("a file with a NUL byte in its first 8000 bytes is binary", () => {
+    expect(isBinaryAtHead(head, "logo.png")).toBe(true);
+  });
+
+  test("readable text, even without a patch, is not binary", () => {
+    expect(isBinaryAtHead(head, "big.ts")).toBe(false);
+    expect(isBinaryAtHead(head, "late.dat")).toBe(false);
+  });
+
+  test("a file that is not at the head (a removed binary) counts as binary", () => {
+    expect(isBinaryAtHead(head, "gone.png")).toBe(true);
+  });
+
+  test("splitUnreviewable moves only patchless binaries out of the batch", () => {
+    const files = [
+      file("a.ts", 1, 0, "@@ -0,0 +1 @@\n+x"),
+      file("logo.png", 0, 0),
+      file("big.ts", 50, 0),
+      // A file with a patch is text: it is never read from the head.
+      file("gone.ts", 1, 0, "@@ -1 +0,0 @@\n-x"),
+    ];
+    const { reviewable, unreviewable } = splitUnreviewable(files, head);
+    expect(reviewable.map((f) => f.filename)).toEqual(["a.ts", "big.ts", "gone.ts"]);
+    expect(unreviewable).toEqual([{ path: "logo.png", reason: "binary" }]);
+  });
+});
+
+describe("readAutoCost", () => {
+  const footer = (line: string) => `body\n\n${line}\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
+
+  test("reads the last dollar figure of the footer, never an earlier PR so far figure", () => {
+    const line = "<sub>Model · re-review · 2 commits · PR so far $0.77 over 3 automatic runs · 4 in / 2 out · $0.11</sub>";
+    expect(readAutoCost(footer(line))).toBe(0.11);
+  });
+
+  test("a footer without the automatic flag records no cost", () => {
+    const line = "<sub>this run $0.11 · PR so far $0.77 over 3 automatic runs</sub>";
+    expect(readAutoCost(`reply\n\n${line}\n\n${SIGNATURE.reply}`)).toBeNull();
+  });
+});
+
+describe("buildReview with unreviewable files, commits and the running total", () => {
+  const base = {
+    files: [file("src/a.ts", 2, 0)],
+    headSha: "head1234567",
+    since: null,
+    scoped: false,
+    costUsd: 0.11,
+    modelLabel: "Test Model 1 via Test CLI 0.1",
+    output: output({ files_reviewed: ["src/a.ts"] }),
+  };
+
+  test("a binary is named in the headline and the review stays complete and marked", () => {
+    const review = buildReview({ ...base, unreviewable: [{ path: "mock.png", reason: "binary" }] });
+    expect(review.body).toContain("all 1 files reviewed, not reviewable: `mock.png` (binary).");
+    expect(review.body).not.toContain("Partial review");
+    expect(review.body).toContain(marker("head1234567"));
+  });
+
+  test("a re-review headline lists the commits, at most ten, then says how many more", () => {
+    const shas = Array.from({ length: 12 }, (_, i) => `${(i + 10).toString(16).padStart(2, "0")}${"0".repeat(38)}`);
+    const review = buildReview({ ...base, since: "e41c267".padEnd(40, "0"), commits: shas });
+    expect(review.body).toContain("the changes since `e41c267` (12 commits: `0a00000`");
+    expect(review.body).toContain("`1300000` and 2 more), at `head123`");
+    expect(review.body).not.toContain("`1400000`");
+  });
+
+  test("an automatic footer shows the pull request's total, this run included", () => {
+    const review = buildReview({
+      ...base,
+      automatic: true,
+      operation: "re-review",
+      since: "e41c267".padEnd(40, "0"),
+      commits: ["012efef".padEnd(40, "0"), "1e34f38".padEnd(40, "0")],
+      priorSpend: { spent: 0.66, runs: 2 },
+    });
+    expect(review.body).toContain(
+      "re-review · 2 commits · PR so far $0.77 over 3 automatic runs · $0.11</sub>",
+    );
+    expect(readAutoCost(review.body)).toBe(0.11);
+  });
+
+  test("an operator's run (not automatic) shows no running total", () => {
+    const review = buildReview({ ...base, priorSpend: { spent: 0.66, runs: 2 } });
+    expect(review.body).not.toContain("PR so far");
+  });
 });

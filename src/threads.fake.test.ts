@@ -239,7 +239,7 @@ describe("threadReplies (cli.ts threads)", () => {
     t.deps.costs = [];
     threadReplies(t.deps, "o/r", 7);
     expect(t.replies[0].body).toContain(
-      "<sub>Fake Model · effort high · reply · answers 1 thread(s) · 900 in / 150 out / 40k cache read / 2.0k cache write · $0.12</sub>",
+      "<sub>Fake Model · effort high · reply · answers 1 thread(s) · PR so far $0.12 over 1 automatic run · 900 in / 150 out / 40k cache read / 2.0k cache write · $0.12</sub>",
     );
     expect(readAutoCost(t.replies[0].body)).toBe(0.12);
     expect(t.deps.costs).toMatchObject([{ operation: "reply", label: "threads", model: "claude-sonnet-5-5", usage, costUsd: 0.12, pr: 7 }]);
@@ -268,7 +268,7 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(file[0].code).toContain("3: row 3");
   });
 
-  test("the first reply records the run's cost, flagged automatic, for the ceiling; later ones carry none", () => {
+  test("the first reply records the run's cost, flagged automatic, for the ceiling; later ones show the same total unflagged", () => {
     const t = setup({
       threads: [[thread([FINDING(7), OWNER_REPLY()]), thread([FINDING(8), OWNER_REPLY("nope", 901)])]],
       script: [
@@ -288,6 +288,9 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(readAutoCost(t.replies[0].body)).toBe(0.12);
     expect(readAutoCost(t.replies[1].body)).toBeNull();
     expect(t.replies[1].body).toContain("**Still applies**");
+    expect(t.replies[0].body).toContain("PR so far $0.12 over 1 automatic run");
+    // Said again for the reader, but unflagged: the ceiling counts the call once.
+    expect(t.replies[1].body).toContain("<sub>this run $0.12 · PR so far $0.12 over 1 automatic run</sub>");
   });
 
   test("an unreviewed push: no model call, no reply (the push's review will answer)", () => {

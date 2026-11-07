@@ -68,6 +68,19 @@
           "type": "integer",
           "minimum": 0
         },
+        "unreviewable": {
+          "description": "Files the engine left out of `expected` because no model can review them (binaries); they never make a review partial.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "reason"],
+            "properties": {
+              "path": { "type": "string" },
+              "reason": { "enum": ["binary"] }
+            }
+          }
+        },
         "partial": { "type": "boolean" }
       }
     },

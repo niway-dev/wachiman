@@ -310,7 +310,9 @@ describe("wachiman local", () => {
     const r = local("quota", [], { AGENT_REVIEW_BATCH_LINES: "1" });
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("batches: 1\n");
-    expect(r.stdout).toContain("stop: quota — the account's usage limit ended the run; 5 file(s) not reviewed:");
+    expect(r.stdout).toContain("stop: quota — the account's usage limit ended the run; 4 file(s) not reviewed:");
+    // The binary image is not a file the model could review, so it is not counted among the unreviewed.
+    expect(r.stdout).toContain("not reviewable: img.png (binary)");
     expect(r.stdout).toContain("not reached: the provider rejected the call");
     expect(r.calls()).toHaveLength(1);
   });

@@ -177,7 +177,9 @@ All names are in `src/engine.ts` unless a file is given.
    model claimed to cover every selected file; it is not a measurement of how much of a file was
    read, and the engine has no way to observe reads. The expected set holds only the selected
    files: lockfiles and other excluded files, files outside a requested scope and files missing
-   from GitHub's list are not in it, so "all N files reviewed" means all N selected files.
+   from GitHub's list are not in it, and neither are binary files: the engine (never the model) sets
+   aside a file with no patch whose first 8000 bytes at the head hold a NUL byte, and reports it in
+   `coverage.unreviewable`. So "all N files reviewed" means all N selected, reviewable files.
    *Why:* silence about a file is the failure that cannot be seen from the outside, so the code
    asks again once and then reports honestly what the model did and did not claim.
 

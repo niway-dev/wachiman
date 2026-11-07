@@ -142,7 +142,9 @@ The count line says how many findings there are and how many are Blockers, to fi
 "Info" findings are in the total but have no group of their own.
 
 The **model, effort, number of batches and cost are in the footer of the review body** (`Claude
-Sonnet 5.5 via Claude Code 2.1.304 · effort high · 2 batches · $0.42`). Releases up to v1.3.0 do
+Sonnet 5.5 via Claude Code 2.1.304 · effort high · 2 batches · $0.42`). An automatic run adds
+`PR so far $0.77 over 3 automatic runs` before the tokens, and the replies it posts end with
+`this run $0.11 · PR so far $0.77 over 3 automatic runs`. Releases up to v1.3.0 do
 not print the effort. The batch count appears only when there was more than one batch. Inline comments carry no footer and no cost. The cost is what the provider reported
 for the calls of that run (for Codex, an estimate from token counts), and a call that died
 without a result is counted at its cap. See [costs.md](costs.md).
@@ -162,7 +164,11 @@ full list is in the run's scratch directory as `evidence.json`; caps and limits 
 
 The first line of the review says whether everything was covered:
 
-- Complete: "review of the changes since `a1b2c3d`, at `e4f5a6b`: all 3 files reviewed."
+- Complete: "review of the changes since `a1b2c3d` (2 commits: `012efef`, `1e34f38`), at `e4f5a6b`: all 3 files reviewed."
+  On a re-review the headline lists the commits since the last review (at most 10, then "and N
+  more"). A binary file is named after the count, "all 3 files reviewed, not reviewable:
+  `mock.png` (binary)": the engine sets it aside before the model sees the batch, so it never makes
+  a review partial and does not keep the incremental marker from moving.
 - Partial: "⚠️ **Partial review**: the agent reviewed 3 of 4 files … Not reviewed: … Ask
   `/wachiman review <paths>` for the rest."
 
@@ -177,8 +183,9 @@ Read the number as "files in this run", not "files in the pull request":
   and the count is the number of scoped files that ran.
 - **Coverage is reported by the model.** The engine asks the model to list the files it reviewed
   and checks that each file of the batch is listed. It cannot measure which lines were actually
-  read. A file with a diff may not be skipped; only a file GitHub sent no diff for (binary, or too
-  large) may be skipped, and only with the reason `binary` or `no_diff_and_unreadable`.
+  read. A file with a diff may not be skipped; only a file GitHub sent no diff for and the engine
+  could not classify as binary (a text file too large for GitHub's diff) may be skipped, and only
+  with the reason `binary` or `no_diff_and_unreadable`.
 - **A file that is unaccounted for gets one retry**, in a second call with only those files, if
   budget remains. What is still missing after that is listed under "Not reviewed". A file the
   budget never reached is listed with the reason "not reached: the pull request's budget was

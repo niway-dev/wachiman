@@ -23,7 +23,12 @@
       "required": ["sha", "rebased"],
       "properties": {
         "sha": { "type": "string" },
-        "rebased": { "type": "boolean" }
+        "rebased": { "type": "boolean" },
+        "commits": {
+          "description": "The commits since `sha`, oldest first, named in the report's headline.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
       }
     },
     "conversation": {

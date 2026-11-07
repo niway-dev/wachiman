@@ -71,6 +71,9 @@ const spentBody = (cost: number, opts: { auto?: boolean; marker?: string; attemp
 const replyBody = (cost: number) =>
   `👮 **Wachiman** · **Still applies** at \`head123\`: no.\n\n<sub>Fake Model · effort high · answers 1 thread(s) · $${cost.toFixed(2)}</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.reply}`;
 
+/** The inline reply of a push-path run: the cost line without the automatic flag. */
+const unflaggedReply = `👮 **Wachiman** · **Looks addressed** at \`head123\`: yes.\n\n<sub>this run $0.11 · PR so far $0.77 over 3 automatic runs</sub>\n\n${SIGNATURE.reply}`;
+
 describe("readAutoCost: the cost of an automatic run, read only from the engine's footer", () => {
   test("reads a review footer with or without the marker and the attempt line, and a reply footer", () => {
     expect(readAutoCost(spentBody(0.42))).toBe(0.42);
@@ -192,7 +195,27 @@ describe("automaticSpend", () => {
   });
 
   test("no reviews at all is zero", () => {
-    expect(automaticSpend(world([], []), "o/r", 7).spent).toBe(0);
+    const none = automaticSpend(world([], []), "o/r", 7);
+    expect(none.spent).toBe(0);
+    expect(none.runs).toBe(0);
+  });
+
+  test("counts the bodies that record a cost as runs", () => {
+    const { runs } = automaticSpend(
+      world([spentBody(0.5, { marker: "aaa1111" }), spentBody(9, { auto: false })], [replyBody(0.1), unflaggedReply]),
+      "o/r",
+      7,
+    );
+    expect(runs).toBe(2);
+  });
+
+  test("a push-path reply's unflagged `this run · PR so far` line is not summed or counted", () => {
+    // The review body of the same run already carries the flagged $0.11; the reply repeats it for
+    // the reader. Summing both would count the run twice.
+    const { spent, runs } = automaticSpend(world([spentBody(0.11, { marker: "aaa1111" })], [unflaggedReply]), "o/r", 7);
+    expect(spent).toBeCloseTo(0.11, 10);
+    expect(runs).toBe(1);
+    expect(readAutoCost(unflaggedReply)).toBeNull();
   });
 });
 
@@ -227,6 +250,8 @@ describe("review() under the ceiling", () => {
         reviews.push(body);
         return "{}";
       }
+      // What the pull request changed up to the last review: nothing, so the file counts as changed since.
+      if (line.includes(`/compare/${"b".repeat(40)}...`)) return JSON.stringify({ status: "ahead", files: [] });
       if (line.includes("/compare/")) return JSON.stringify(opts.compare);
       if (line.startsWith("api repos/o/r/pulls/7 ")) return "b".repeat(40);
       if (line.startsWith("api graphql"))
@@ -266,7 +291,7 @@ describe("review() under the ceiling", () => {
     t.deps.costs = [];
     review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain(
-      "<sub>Fake Model · effort high · review · 1.2k in / 3.4k out / 560k cache read / 21k cache write · $0.10</sub>",
+      "<sub>Fake Model · effort high · review · PR so far $0.10 over 1 automatic run · 1.2k in / 3.4k out / 560k cache read / 21k cache write · $0.10</sub>",
     );
     expect(readAutoCost(t.posted[0])).toBeCloseTo(0.1, 10);
     expect(t.deps.costs).toEqual([
@@ -298,7 +323,7 @@ describe("review() under the ceiling", () => {
     const t = setup({
       env: { AGENT_REVIEW_TRIGGER: "synchronize" },
       reviews: [spentBody(0.2, { marker: "aaa1111" })],
-      compare: { status: "ahead", files: [{ filename: "a.ts" }] },
+      compare: { status: "ahead", files: [{ filename: "a.ts", patch: FILE.patch }] },
       // The first call leaves a.ts unaccounted for, so the engine retries it once.
       script: [
         () => ({ costUsd: 0.1, usage: USAGE, structuredOutput: out({ files_reviewed: [] }) }),
@@ -311,7 +336,10 @@ describe("review() under the ceiling", () => {
       ["re-review", "batch 1/1"],
       ["re-review", "batch 1/1 retry"],
     ]);
-    expect(t.posted[0]).toContain("effort high · re-review · 2.4k in / 6.8k out / 1.1M cache read / 42k cache write · $0.15</sub>");
+    // The earlier review cost $0.20, so this $0.15 run brings the pull request to $0.35 over 2 runs.
+    expect(t.posted[0]).toContain(
+      "effort high · re-review · PR so far $0.35 over 2 automatic runs · 2.4k in / 6.8k out / 1.1M cache read / 42k cache write · $0.15</sub>",
+    );
     expect(readAutoCost(t.posted[0])).toBe(0.15);
   });
 
@@ -319,7 +347,7 @@ describe("review() under the ceiling", () => {
     const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened" } });
     t.deps.costs = [];
     review(t.deps, "o/r", 7, []);
-    expect(t.posted[0]).toContain("<sub>Fake Model · effort high · review · $0.10</sub>");
+    expect(t.posted[0]).toContain("<sub>Fake Model · effort high · review · PR so far $0.10 over 1 automatic run · $0.10</sub>");
     expect(t.deps.costs?.[0]).toMatchObject({ model: t.deps.config.model, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } });
   });
 
@@ -441,7 +469,7 @@ describe("review() under the ceiling", () => {
       env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "2" },
       reviews: [spentBody(1.2, { marker: "aaa1111" }), spentBody(0.5)],
       comments: [replyBody(0)],
-      compare: { status: "ahead", files: [{ filename: "a.ts" }] },
+      compare: { status: "ahead", files: [{ filename: "a.ts", patch: FILE.patch }] },
     });
     review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
