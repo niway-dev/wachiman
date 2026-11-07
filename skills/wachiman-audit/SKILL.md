@@ -63,8 +63,10 @@ Then write `README.md` in the same folder, in this order:
    otherwise "not published", never an estimate.
 6. **Limits**: days, PRs, repositories, who judged, what is still `unverified`.
 
-Open the result as a draft PR on `wachiman-benchmarks`. Nothing about a comparison goes under
-`wachiman/docs`.
+Before pushing, check the audited repository's visibility (`gh repo view <owner/name> --json visibility`).
+Public: open the result as a draft PR on `wachiman-benchmarks`. Private: the folder holds counts
+only, no finding text, and the developer confirms before the push. Nothing about a comparison goes
+under `wachiman/docs`.
 
 ## Never
 
