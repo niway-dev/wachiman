@@ -143,8 +143,9 @@ The count line says how many findings there are and how many are Blockers, to fi
 
 The **model, effort, number of batches and cost are in the footer of the review body** (`Claude
 Sonnet 5.5 via Claude Code 2.1.304 · effort high · 2 batches · $0.42`). An automatic run adds
-`PR so far $0.77 over 3 automatic runs` before the tokens, and the replies it posts end with
-`this run $0.11 · PR so far $0.77 over 3 automatic runs`. Releases up to v1.3.0 do
+`PR so far $0.77 over 3 automatic runs` before the tokens, and the inline replies of a push
+review end with `this run $0.11 · PR so far $0.77 over 3 automatic runs` (a thread run's first
+reply carries the full footer instead; see the table in [costs.md](costs.md#what-each-run-shows)). Releases up to v1.3.0 do
 not print the effort. The batch count appears only when there was more than one batch. Inline comments carry no footer and no cost. The cost is what the provider reported
 for the calls of that run (for Codex, an estimate from token counts), and a call that died
 without a result is counted at its cap. See [costs.md](costs.md).
@@ -166,9 +167,12 @@ The first line of the review says whether everything was covered:
 
 - Complete: "review of the changes since `a1b2c3d` (2 commits: `012efef`, `1e34f38`), at `e4f5a6b`: all 3 files reviewed."
   On a re-review the headline lists the commits since the last review (at most 10, then "and N
-  more"). A binary file is named after the count, "all 3 files reviewed, not reviewable:
+  more"), except after a rebase: the branch's commits were rewritten, so the headline says "(after
+  a rebase)" and names none. A binary file is named after the count, "all 3 files reviewed, not reviewable:
   `mock.png` (binary)": the engine sets it aside before the model sees the batch, so it never makes
-  a review partial and does not keep the incremental marker from moving.
+  a review partial and does not keep the incremental marker from moving. A push that changes only
+  binaries posts a one-line "Nothing to review … not reviewable" notice with the marker and no
+  cost line: no model was called.
 - Partial: "⚠️ **Partial review**: the agent reviewed 3 of 4 files … Not reviewed: … Ask
   `/wachiman review <paths>` for the rest."
 

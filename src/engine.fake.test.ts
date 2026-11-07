@@ -1176,11 +1176,14 @@ describe("a push after a review (incremental, rebase-aware)", () => {
 
   test("a binary whose blob changed is part of the delta but never goes to a model", () => {
     // Same lines everywhere, but the logo's blob changed. The rebase delta still lists it, and the
-    // engine then sets it aside as binary: no call, a complete review, and the marker moves.
+    // engine then sets it aside as binary: no call, no ceiling check, no $0.00 automatic run in the
+    // footers, a one-line notice, and the marker moves.
     const r = run({ status: "diverged", old: oldFiles, current: withLogoBlob(rebasedFiles, "logo-blob-2") });
     expect(r.provider.requests).toHaveLength(0);
-    expect(r.posted?.body.split("\n")[0]).toContain(`all 0 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
+    expect(r.posted?.body.split("\n")[0]).toContain(`Nothing to review at \`head123\`: not reviewable: \`${LOGO}\` (binary).`);
     expect(r.posted?.body).toContain("agent-review sha=");
+    expect(r.posted?.body).not.toContain(SIGNATURE.auto);
+    expect(r.posted?.body).not.toContain("<sub>");
     // GitHub sent no blob for either side: nothing proves the logo is the same, so it is in the delta again.
     const unknown = run({ status: "diverged", old: withLogoBlob(prFiles, undefined), current: withLogoBlob(rebasedFiles, undefined) });
     expect(unknown.provider.requests).toHaveLength(0);

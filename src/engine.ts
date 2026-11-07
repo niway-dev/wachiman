@@ -261,39 +261,48 @@ export interface Unreviewable {
 /** How many leading bytes are searched for a NUL byte, the test git itself uses for "binary". */
 const BINARY_SNIFF_BYTES = 8000;
 
+/** What the head holds at a path: text, a binary (a NUL byte in its first 8000 bytes), or nothing. */
+export type HeadContent = "text" | "binary" | "missing";
+
 /**
- * Whether a file GitHub sent no patch for is one nobody can review as text: its first 8000 bytes
- * at the head hold a NUL byte, or it is not at the head any more (a removed binary, a submodule).
- * A file that reads as text stays reviewable: GitHub also omits the patch of a very large one.
+ * What the head holds at a path GitHub sent no patch for. `missing` is a path that cannot be read
+ * there: removed, or a submodule. A file that reads as text stays reviewable: GitHub also omits the
+ * patch of a very large one.
  */
-export function isBinaryAtHead(headDir: string, filename: string) {
+export function headContent(headDir: string, filename: string): HeadContent {
   let fd: number | undefined;
   try {
     fd = openSync(join(headDir, filename), "r");
     const buffer = Buffer.alloc(BINARY_SNIFF_BYTES);
     const read = readSync(fd, buffer, 0, BINARY_SNIFF_BYTES, 0);
-    return buffer.subarray(0, read).includes(0);
+    return buffer.subarray(0, read).includes(0) ? "binary" : "text";
   } catch {
-    return true;
+    return "missing";
   } finally {
     if (fd !== undefined) closeSync(fd);
   }
 }
 
+/** Whether a file GitHub sent no patch for is a binary at the head. Kept for callers of the first cut. */
+export const isBinaryAtHead = (headDir: string, filename: string) => headContent(headDir, filename) === "binary";
+
 /**
  * Splits the kept files into those a model can review and those it cannot. The engine decides it
  * from the file, never the model: a binary the model skipped as "binary" would leave the review
  * partial, and a partial review writes no incremental marker, so every push would be a full review.
- * A file with a patch is text by definition (GitHub sends none for a binary); one with an empty or
- * missing patch is read.
+ * A file with a patch is text by definition (GitHub sends none for a binary); one without is read
+ * at the head. One that is not there any more is a binary only when GitHub counted no lines for it
+ * either (`additions` and `deletions` both 0): a removed text file too large for a patch still has
+ * its deletions counted, and stays in the batch so the review is visibly partial if nobody reads it.
  */
 export function splitUnreviewable(files: ReviewFile[], headDir: string) {
   const reviewable: ReviewFile[] = [];
   const unreviewable: Unreviewable[] = [];
   for (const f of files) {
-    if (!f.patch && isBinaryAtHead(headDir, f.filename)) {
-      unreviewable.push({ path: f.filename, reason: "binary" });
-    } else reviewable.push(f);
+    const content = f.patch ? "text" : headContent(headDir, f.filename);
+    const binary = content === "binary" || (content === "missing" && f.additions === 0 && f.deletions === 0);
+    if (binary) unreviewable.push({ path: f.filename, reason: "binary" });
+    else reviewable.push(f);
   }
   return { reviewable, unreviewable };
 }
@@ -2582,6 +2591,24 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     );
     return;
   }
+  // A push whose kept files are all binaries has nothing to send a model: it costs nothing, so it
+  // neither consults the ceiling nor records a $0.00 automatic run. The marker moves, as after a
+  // rebase with no content change, unless the request was scoped.
+  const headDir = deps.repoDir ?? process.cwd();
+  const allBinary = splitUnreviewable(kept, headDir);
+  if (allBinary.reviewable.length === 0) {
+    const named = allBinary.unreviewable.map((u) => `\`${neutralise(u.path)}\` (${u.reason})`).join(", ");
+    deps.log(`Nothing to send a model: every kept file is not reviewable (${named}).`);
+    postReview(deps, repo, pr, headSha, {
+      body: [
+        branded(`Nothing to review at \`${short(headSha)}\`: not reviewable: ${named}.`),
+        SIGNATURE.review,
+        ...(paths.length === 0 ? [marker(headSha)] : []),
+      ].join("\n\n"),
+      comments: [],
+    });
+    return;
+  }
   // After the rebase exits above (they cost nothing and move the marker) and before any paid step.
   const ceiling = ceilingRoom(deps, repo, pr, headSha);
   if (ceiling === null) return;
@@ -2603,7 +2630,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     meta,
     files,
     instructions,
-    headDir: deps.repoDir ?? process.cwd(),
+    headDir,
     scope: paths,
     since,
     rebased,
@@ -2614,9 +2641,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   const { usage, costUsdEstimate: spent } = result.execution;
   const operation: Operation = since ? "re-review" : "review";
 
-  // A pull request whose only changed files are binaries has nothing to send a model: no call, and
-  // the review below is complete (`coverage.unreviewable` names the files).
-  if (result.execution.callsWithOutput === 0 && result.coverage.expected.length > 0) {
+  if (result.execution.callsWithOutput === 0) {
     // A failed automatic run still spent money: its notice carries the cost line the ceiling sums.
     const spentNotice = (text: string) =>
       isAutomatic(config.trigger)

@@ -29,6 +29,7 @@ import {
   coverageGaps,
   filterFiles,
   fitList,
+  headContent,
   isBinaryAtHead,
   readAutoCost,
   splitUnreviewable,
@@ -1878,16 +1879,18 @@ describe("binary files leave the expected list (deterministic, never the model)"
   writeFileSync(join(head, "late.dat"), Buffer.concat([Buffer.alloc(8000, 0x61), Buffer.from([0])]));
 
   test("a file with a NUL byte in its first 8000 bytes is binary", () => {
+    expect(headContent(head, "logo.png")).toBe("binary");
     expect(isBinaryAtHead(head, "logo.png")).toBe(true);
   });
 
   test("readable text, even without a patch, is not binary", () => {
-    expect(isBinaryAtHead(head, "big.ts")).toBe(false);
-    expect(isBinaryAtHead(head, "late.dat")).toBe(false);
+    expect(headContent(head, "big.ts")).toBe("text");
+    expect(headContent(head, "late.dat")).toBe("text");
   });
 
-  test("a file that is not at the head (a removed binary) counts as binary", () => {
-    expect(isBinaryAtHead(head, "gone.png")).toBe(true);
+  test("a path that is not at the head is missing, not binary", () => {
+    expect(headContent(head, "gone.png")).toBe("missing");
+    expect(isBinaryAtHead(head, "gone.png")).toBe(false);
   });
 
   test("splitUnreviewable moves only patchless binaries out of the batch", () => {
@@ -1897,10 +1900,18 @@ describe("binary files leave the expected list (deterministic, never the model)"
       file("big.ts", 50, 0),
       // A file with a patch is text: it is never read from the head.
       file("gone.ts", 1, 0, "@@ -1 +0,0 @@\n-x"),
+      // Removed, no patch, and GitHub counted no lines: a removed binary.
+      file("gone.png", 0, 0),
+      // Removed, no patch, but GitHub counted its deletions: a removed text file too large for a
+      // patch. It stays in the batch, so a review that cannot read it is visibly partial.
+      file("gone-big.sql", 0, 4000),
     ];
     const { reviewable, unreviewable } = splitUnreviewable(files, head);
-    expect(reviewable.map((f) => f.filename)).toEqual(["a.ts", "big.ts", "gone.ts"]);
-    expect(unreviewable).toEqual([{ path: "logo.png", reason: "binary" }]);
+    expect(reviewable.map((f) => f.filename)).toEqual(["a.ts", "big.ts", "gone.ts", "gone-big.sql"]);
+    expect(unreviewable).toEqual([
+      { path: "logo.png", reason: "binary" },
+      { path: "gone.png", reason: "binary" },
+    ]);
   });
 });
 
