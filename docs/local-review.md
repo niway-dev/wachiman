@@ -60,8 +60,8 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
 local mode refuses to start: with a key present `claude -p` would bill the key.
 
-Install the global `wachiman` command, and the `wachiman-review` agent skill, once from your
-clone (not from a temporary worktree):
+Install the global `wachiman` command, and the `wachiman-review` and `wachiman-audit` agent
+skills, once from your clone (not from a temporary worktree):
 
 ```sh
 scripts/install-local.sh              # links ~/.local/bin/wachiman and the skill; --uninstall removes them
@@ -225,8 +225,11 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
 agent, such as Claude Code or Codex, to run this review for you: it picks the range from what you
 ask ("my branch", "only commit X", "from X on"), chooses your isolated profile, runs `local` with
 `--history`, presents the findings, and records your verdicts with `history --verdict`. It never
-uses the GitHub modes and never reviews the code itself. To install it, link the folder into your
-agent's skills directory and set `WACHIMAN_DIR` to this clone:
+uses the GitHub modes and never reviews the code itself. Its sibling
+[`skills/wachiman-audit`](../skills/wachiman-audit/SKILL.md) compares Wachiman's posted findings with
+CodeRabbit's or Pullfrog's on the same commits, through `scripts/pair.ts` in
+[wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks). To install them by hand, link
+each folder into your agent's skills directory and set `WACHIMAN_DIR` to this clone:
 
 ```sh
 ln -s "$PWD/skills/wachiman-review" ~/.claude/skills/wachiman-review
