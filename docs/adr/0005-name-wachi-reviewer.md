@@ -2,6 +2,9 @@
 
 - **Status:** accepted; decision 1 (the name and the repository) is superseded by
   [ADR 0010](0010-name-wachiman.md). The `/wachi` command and everything else here still hold.
+  Decision 5 (no GitHub App, no backend) is superseded by
+  [ADR 0024](0024-three-modes-one-engine-and-an-identity-only-github-app.md) (proposed
+  2026-11-07, not implemented), reopened by the owner before its reopen condition was met.
 - **Date:** 2026-10-27
 
 ## Context
