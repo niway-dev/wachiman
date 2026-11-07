@@ -96,7 +96,9 @@ is sent to your configured Claude account for the review. Read
 [docs/local-review.md](docs/local-review.md) before running it on an employer's code.
 
 Run `scripts/install-local.sh` once from your clone to get a global `wachiman local …` command and
-the `wachiman-review` agent skill, usable from any project.
+the `wachiman-review` agent skill, usable from any project, and the `wachiman-audit` skill,
+which compares Wachiman's findings with another reviewer's on the same commits (data and
+procedure in [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks)).
 
 ## Documentation map
 
