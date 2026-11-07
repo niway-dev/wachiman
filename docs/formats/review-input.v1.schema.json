@@ -115,6 +115,11 @@
         "path": { "type": "string" },
         "line": { "type": ["integer", "null"] },
         "finding": { "type": "string" },
+        "wachi_replies": {
+          "description": "How many replies Wachiman already wrote in the thread; set when the connector lists only threads that wait for an answer.",
+          "type": "integer",
+          "minimum": 0
+        },
         "replies": {
           "type": "array",
           "items": {
