@@ -72,4 +72,4 @@ Open the result as a draft PR on `wachiman-benchmarks`. Nothing about a comparis
 | Writing the Wachiman version from the release of the day | `wachiman_version` column: #535 ran v1.7.0 on the night v1.8.0 shipped |
 | Guessing the other tool's cost | "not published" |
 | Scoring a finding only one tool made and nobody verified | `unverified`, listed, not scored |
-| Running the script on a private repository's text into the benchmarks repo | Counts only; the text stays on the laptop (ADR 0020) |
+| Committing a private repository's findings to the benchmarks repo | Counts only: the posted findings quote the code, and wachiman-benchmarks is public |
