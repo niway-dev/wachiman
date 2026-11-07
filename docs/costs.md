@@ -30,7 +30,9 @@ Reviewing every push and answering thread replies means a pull request pays for 
 **automatic** runs on one pull request (the first review, push reviews and thread-reply runs) share
 `auto_budget_usd`, default **$6**, which leaves room for one full review (`budget_usd`, $3) and several push reviews. There is no server: before each automatic run the engine adds up
 the cost lines of its own signed review footers that carry the automatic flag
-(`<!-- wachi:auto -->`), and the run gets at most what is left. When less than $0.05 is left, it
+(`<!-- wachi:auto -->`), and the run gets at most what is left. The `this run · PR so far` line under
+an inline reply carries no flag, so it is neither summed nor counted: the review body of the same run
+already records that cost ([What each run shows](#what-each-run-shows)). When less than $0.05 is left, it
 posts one "Automatic reviews paused" notice and does nothing else, and later pushes post nothing
 until you raise the limit or ask yourself.
 
@@ -209,8 +211,28 @@ Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · re-review · 4 batch
   a small cost can show as `$0.00`.
 - An answer to a question ends with the same line for its one call, tagged `on-demand`, with no batch
   count. The first reply of a thread run ends with it too, tagged `reply`.
-- The dollar figure is always last, and the only dollar sign in the line: the per-pull-request
-  ceiling reads it from the end ([above](#the-ceiling-per-pull-request)).
+- **`PR so far $0.77 over 3 automatic runs`** is what the pull request's automatic runs have cost
+  together, this one included. It is in the footer of every automatic run and is missing from an
+  operator's `/wachiman review`, which is not counted.
+- The dollar figure is always last. It is the run's own cost and the last dollar figure in the line
+  (an earlier one can sit in `PR so far`): the per-pull-request ceiling reads the last one
+  ([above](#the-ceiling-per-pull-request)).
+
+### What each run shows
+
+Every automatic run says what it cost and what the pull request has cost so far. "PR so far" is the
+sum of the flagged footers before this run plus this run, and the run count is the number of those
+footers plus one.
+
+| Where | What it says | Counted by the ceiling |
+| --- | --- | --- |
+| The review body's footer | `… · re-review · 2 commits · PR so far $0.77 over 3 automatic runs · 4 in / … · $0.11` | Yes (flagged) |
+| An inline reply of a push review | `<sub>this run $0.11 · PR so far $0.77 over 3 automatic runs</sub>` under the reply | No: unflagged, so the run is not counted twice |
+| The first reply of a thread run | The footer line with `reply · answers 2 thread(s) · PR so far …`, flagged | Yes |
+| The other replies of a thread run | The unflagged `this run · PR so far` line | No |
+| A notice for a run that failed (no credit, turn limit, budget) | The footer line with `PR so far …`, flagged | Yes |
+
+An operator's `/wachiman review` shows no running total and is not counted.
 
 ### Every model call, in the job summary and the log
 
@@ -303,7 +325,11 @@ checked only to make sure no file with a diff was left unaccounted for. Nothing 
 line by line.
 
 N counts only the files the engine selected. Lockfiles, build output, generated files and anything
-in `AGENT_REVIEW_EXCLUDE` are filtered out first and are not part of that count. See
+in `AGENT_REVIEW_EXCLUDE` are filtered out first and are not part of that count. So are binary files
+(a PNG, say): the engine, not the model, sets aside a file GitHub sent no diff for whose first 8000
+bytes at the head hold a NUL byte. The headline names them (`all 3 files reviewed, not reviewable:
+\`mock.png\` (binary)`), and they never make a review partial or keep it from moving the
+incremental marker. See
 [architecture.md](architecture.md) and [configuration.md](configuration.md).
 
 ## See also

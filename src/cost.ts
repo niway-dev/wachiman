@@ -72,15 +72,16 @@ export function formatTokens(n: number) {
 }
 
 /**
- * The footer's cost line. The dollar figure stays last and is the only `$` in it:
- * `readAutoCost` reads the ceiling's spend from the end of this line, so the details go before it.
+ * The footer's cost line. The run's own dollar figure stays last: `readAutoCost` reads the
+ * ceiling's spend as the last `$` figure before `</sub>`, so the details go before it. `extra` may
+ * hold earlier figures (`PR so far $0.77 over 3 automatic runs`); they are never the last one.
  */
 export function costLine(parts: {
   /** The model label, e.g. "Claude Sonnet 5.5 via Claude Code 2.1.304". */
   modelLabel: string;
   effort?: string;
   operation?: Operation;
-  /** Anything else for the line, e.g. `2 batches` or `answers 2 thread(s)`. */
+  /** Anything else for the line, e.g. `2 batches`, `answers 2 thread(s)` or `PR so far $0.77 over 3 automatic runs`. */
   extra?: string[];
   usage?: TokenUsage;
   costUsd: number;

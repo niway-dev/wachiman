@@ -9,6 +9,7 @@ import {
   comment,
   lastEngineMarker,
   ownChangeSince,
+  readAutoCost,
   rebaseDelta,
   review,
   SIGNATURE,
@@ -73,6 +74,18 @@ const prFiles = [
 
 const BASE = "b".repeat(40);
 
+/**
+ * A head checkout that holds the binary logo: a PNG header with NUL bytes, which is what makes the
+ * engine (not the model) set it aside. A head without the file counts as binary too, so only tests
+ * that want to show the real read need this.
+ */
+function headWithLogo() {
+  const dir = mkdtempSync(join(tmpdir(), "fake-head-"));
+  mkdirSync(join(dir, "assets"));
+  writeFileSync(join(dir, LOGO), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]));
+  return dir;
+}
+
 /** What the base commit holds, by path; a path that is absent answers 404 like GitHub. */
 type BaseFiles = Record<string, string | Buffer>;
 
@@ -109,16 +122,15 @@ function fakeGh(
 }
 
 describe("the batch loop against a fake provider", () => {
-  test("two batches, one skipped file and a retry: merged body and budget arithmetic", () => {
+  test("two batches, a binary set aside by the engine and a retry: merged body and budget arithmetic", () => {
     const posted: { review?: { body: string; comments: { path: string; line: number; body: string }[] } } = {};
     const provider = new FakeProvider([
-      // Batch 1 (manager, store, logo): store is left unaccounted for, the logo is skipped as binary.
+      // Batch 1 (manager, store): store is left unaccounted for. The logo never reaches a model.
       () => ({
         costUsd: 0.3,
         turns: 4,
         structuredOutput: out({
           files_reviewed: [MANAGER],
-          files_skipped: [{ path: LOGO, reason: "binary" }],
           findings: [
             {
               path: MANAGER,
@@ -155,6 +167,7 @@ describe("the batch loop against a fake provider", () => {
       }),
       log: () => {},
       warn: () => {},
+      repoDir: headWithLogo(),
     };
 
     review(deps, "o/r", 7, []);
@@ -170,22 +183,23 @@ describe("the batch loop against a fake provider", () => {
       expect(r.promptViaStdin).toBe(true);
       expect(r.outputSchema).toBeDefined();
     }
-    // The retry's prompt holds only the store; the first batch's holds three files.
+    // The retry's prompt holds only the store; the first batch's holds two files, and none lists the logo.
+    expect(provider.requests.every((r) => !r.prompt.includes(LOGO))).toBe(true);
     expect(provider.requests[1].prompt).toContain("second pass");
     expect(provider.requests[1].prompt).toContain(`- ${STORE} +3 −0`);
     expect(provider.requests[1].prompt).not.toContain(`- ${MANAGER} +6 −0\n\nThis`);
 
     const body = posted.review?.body ?? "";
-    // The binary logo is the only file not reviewed, so the review is partial and unmarked.
+    // The binary logo is not a file a model can review, so it is not expected: the review is complete
+    // and marked, and its headline names the logo.
     // Every comment opens with the brand, so a reader sees it is Wachi's despite the bot account.
     expect(body.startsWith("👮 **Wachiman** · ")).toBe(true);
     expect(posted.review?.comments[0].body.startsWith("👮 **Wachiman** · 🟠🐛")).toBe(true);
-    expect(body.split("\n")[0]).toContain("Partial review");
-    expect(body).toContain("reviewed 3 of 4 files");
-    expect(body).toContain(`\`${LOGO}\` (binary)`);
-    expect(body).not.toContain("agent-review sha=");
+    expect(body.split("\n")[0]).not.toContain("Partial review");
+    expect(body.split("\n")[0]).toContain(`all 3 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
+    expect(body).toContain("agent-review sha=");
     expect(body).toContain("1 finding(s): 1 to fix; 1 on their lines");
-    expect(body).toContain("| Batch 1 of 2 | 3 | 9 | 5 | reviewed after a retry | 6 | $0.40 |");
+    expect(body).toContain("| Batch 1 of 2 | 2 | 9 | 5 | reviewed after a retry | 6 | $0.40 |");
     expect(body).toContain("| Batch 2 of 2 | 1 | 4 | 1 | reviewed | 3 | $0.20 |");
     expect(body).toContain("**Batch 1 of 2.** Manager looks mostly fine.");
     expect(body).toContain("**Batch 2 of 2.** Guide fine.");
@@ -307,7 +321,8 @@ describe("the turn cap and the wall-clock kill", () => {
     expect(warnings.some((w) => w.includes("60 s call time limit"))).toBe(true);
     const body = posted.review?.body ?? "";
     expect(body).toContain("Partial review");
-    expect(body).toContain("3 file(s) left: the call timed out");
+    // The logo is not in the batch: only the manager and the store were left.
+    expect(body).toContain("2 file(s) left: the call timed out");
     expect(body).toContain(`\`${MANAGER}\``);
   });
 
@@ -569,24 +584,28 @@ describe("flow questions and contracts against a fake provider", () => {
 // objects seen on a pull request come from thread replies: GitHub gives each reply made through
 // the replies endpoint a review of its own, with no body (observed on niway-dev/kaipu-record#467,
 // where each of nine replies has its own empty review and the 8 findings share one review).
-describe("one review carries its inline comments (issue #17)", () => {
-  const THREAD = (id: number, path: string) => ({
-    isResolved: false,
-    path,
-    line: 2,
-    comments: {
-      nodes: [
-        {
-          databaseId: id,
-          author: { login: "github-actions" },
-          authorAssociation: "NONE",
-          body: `🟠🐛 **Fix · bug: earlier**\n\nOld finding.\n\n${SIGNATURE.finding}`,
-          createdAt: "2026-10-30T00:00:00Z",
-        },
-      ],
-    },
-  });
+/** A comment of a review thread, as GraphQL sends it. */
+const threadComment = (databaseId: number, login: string, association: string, body: string) => ({
+  databaseId,
+  author: { login },
+  authorAssociation: association,
+  body,
+  createdAt: "2026-10-30T00:00:00Z",
+});
+const FINDING_COMMENT = (id: number) =>
+  threadComment(id, "github-actions", "NONE", `🟠🐛 **Fix · bug: earlier**\n\nOld finding.\n\n${SIGNATURE.finding}`);
+const OWNER_REPLY = (id: number) => threadComment(id, "owner", "OWNER", "Done, please check.");
+const WACHI_REPLY = (id: number) => threadComment(id, "github-actions", "NONE", `**Still open**: not yet.\n\n${SIGNATURE.reply}`);
 
+/** A Wachiman thread: the finding, then the replies after it (by default, one by the owner, so it waits for an answer). */
+const THREAD = (id: number, path: string, after: ReturnType<typeof threadComment>[] = [OWNER_REPLY(id + 1000)]) => ({
+  isResolved: false,
+  path,
+  line: 2,
+  comments: { nodes: [FINDING_COMMENT(id), ...after] },
+});
+
+describe("one review carries its inline comments (issue #17)", () => {
   const PRIOR = `👮 **Wachiman** · review of the whole pull request, at \`old1111\`: all 4 files reviewed.\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=old1111111 -->\n\n<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->`;
 
   test("three findings and two thread replies: one POST to /reviews with all three comments, replies on the replies endpoint", () => {
@@ -642,6 +661,57 @@ describe("one review carries its inline comments (issue #17)", () => {
     ]);
     // Nothing else is posted: no per-finding review, no empty review from the engine itself.
     expect(posts).toHaveLength(3);
+  });
+
+  test("only threads waiting for an answer are read and answered: not one Wachiman answered last, not one at its cap", () => {
+    const posts: { url: string }[] = [];
+    const seen: { comment_id: number; wachi_replies?: number }[][] = [];
+    const base = fakeGh({});
+    const threads = [
+      THREAD(101, MANAGER), // the owner wrote last, no Wachiman reply yet
+      THREAD(102, MANAGER, [OWNER_REPLY(1102), WACHI_REPLY(2102)]), // Wachiman answered last
+      THREAD(103, STORE, [OWNER_REPLY(1103), WACHI_REPLY(2103), OWNER_REPLY(3103), WACHI_REPLY(4103), OWNER_REPLY(5103)]), // cap spent
+      THREAD(104, STORE, [OWNER_REPLY(1104), WACHI_REPLY(2104), OWNER_REPLY(3104)]), // one reply left
+    ];
+    const gh: GhFn = (args, input) => {
+      const line = args.join(" ");
+      if (line.startsWith("api graphql"))
+        return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: threads } } } } });
+      if (line.includes("/pulls/7/reviews") && !args.includes("POST"))
+        return JSON.stringify({ body: PRIOR, submitted_at: "2026-10-30T00:00:00Z" });
+      if (line.includes(`compare/${BASE}...`)) return JSON.stringify({ status: "ahead", files: [] });
+      if (line.includes("compare/")) return JSON.stringify({ status: "ahead", files: prFiles });
+      if (args.includes("POST")) {
+        posts.push({ url: args.find((a) => a.startsWith("repos/")) ?? line });
+        return "{}";
+      }
+      return base(args, input);
+    };
+    const provider = new FakeProvider([
+      (request) => {
+        const file = request.prompt.match(/(\S+\/threads\.json)/)?.[1];
+        seen.push(file ? JSON.parse(readFileSync(file, "utf8")) : []);
+        // The model answers every thread it can think of; the engine keeps only the ones it handed over.
+        return {
+          structuredOutput: out({
+            files_reviewed: [MANAGER, STORE, GUIDE],
+            thread_replies: [101, 102, 103, 104].map((id) => ({ comment_id: id, status: "still_open" as const, reply: "Still there." })),
+            summary: "ok",
+          }),
+        };
+      },
+    ]);
+    review({ gh, provider, config: loadConfig({}), log: () => {}, warn: () => {} }, "o/r", 7, []);
+
+    expect(seen[0].map((t) => [t.comment_id, t.wachi_replies])).toEqual([
+      [101, 0],
+      [104, 1],
+    ]);
+    expect(provider.requests[0].prompt).toContain("wachi_replies is how many replies Wachiman already wrote");
+    expect(posts.filter((p) => p.url.includes("/comments/")).map((p) => p.url)).toEqual([
+      "repos/o/r/pulls/7/comments/101/replies",
+      "repos/o/r/pulls/7/comments/104/replies",
+    ]);
   });
 });
 
@@ -1104,15 +1174,20 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(r.prompts[0]).not.toContain(`- ${MANAGER}`);
   });
 
-  test("a file with no patch is reviewed again unless its blob is the same", () => {
-    // Same lines everywhere, but the logo's blob changed: only the logo goes to the model.
+  test("a binary whose blob changed is part of the delta but never goes to a model", () => {
+    // Same lines everywhere, but the logo's blob changed. The rebase delta still lists it, and the
+    // engine then sets it aside as binary: no call, no ceiling check, no $0.00 automatic run in the
+    // footers, a one-line notice, and the marker moves.
     const r = run({ status: "diverged", old: oldFiles, current: withLogoBlob(rebasedFiles, "logo-blob-2") });
-    expect(r.provider.requests).toHaveLength(1);
-    expect(r.prompts[0]).toContain(`- ${LOGO} +0 −0`);
-    expect(r.prompts[0]).not.toContain(`- ${STORE}`);
-    // GitHub sent no blob for either side: nothing proves the logo is the same.
+    expect(r.provider.requests).toHaveLength(0);
+    expect(r.posted?.body.split("\n")[0]).toContain(`Nothing to review at \`head123\`: not reviewable: \`${LOGO}\` (binary).`);
+    expect(r.posted?.body).toContain("agent-review sha=");
+    expect(r.posted?.body).not.toContain(SIGNATURE.auto);
+    expect(r.posted?.body).not.toContain("<sub>");
+    // GitHub sent no blob for either side: nothing proves the logo is the same, so it is in the delta again.
     const unknown = run({ status: "diverged", old: withLogoBlob(prFiles, undefined), current: withLogoBlob(rebasedFiles, undefined) });
-    expect(unknown.provider.requests).toHaveLength(1);
+    expect(unknown.provider.requests).toHaveLength(0);
+    expect(unknown.posted?.body).toContain(`\`${LOGO}\` (binary)`);
   });
 
   test("when the old commit is gone, the change cannot be compared: full review, no crash", () => {
@@ -1563,5 +1638,121 @@ describe("data-path questions reach the batch the added lines select them for", 
     const r = run([files[1]]);
     expect(r.prompt).not.toContain("Risks this part's added lines show");
     expect(r.logs).toContain("Data-path questions for part 1 of 1: none");
+  });
+});
+
+// The audit of 2026-11-06: a pull request with one PNG never got the incremental marker, every push
+// paid a full review, answered threads were answered again, and no reply said what the run cost.
+describe("a pull request with a PNG, over three pushes", () => {
+  const SHA = ["head1111111", "head2222222", "head3333333"];
+  const COMMITS = ["c0ffee1aaaa", "c0ffee2bbbb"];
+  const THREAD_ID = 501;
+
+  function world() {
+    const reviews: string[] = [];
+    const replies: { id: number; body: string }[] = [];
+    const nodes: ReturnType<typeof THREAD>[] = [];
+    const state = { head: SHA[0], compare: false };
+    const files = [prFiles[0], prFiles[2], prFiles[3]]; // two text files and the logo
+    const gh: GhFn = (args, input) => {
+      const line = args.join(" ");
+      if (line.startsWith("pr view"))
+        return JSON.stringify({ headRefOid: state.head, title: "t", body: "b", author: { login: "u" } });
+      if (line.includes("/contents/")) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
+      if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
+      if (line.includes("/pulls/7/files")) return files.map((f) => JSON.stringify(f)).join("\n");
+      if (line.includes("/pulls/7/reviews") && !args.includes("POST"))
+        return reviews.map((body) => JSON.stringify({ body, submitted_at: "2026-11-06T00:00:00Z" })).join("\n");
+      if (line.includes("/pulls/7/comments") && !args.includes("POST"))
+        return replies.map((r) => JSON.stringify({ body: r.body })).join("\n");
+      if (line.includes("-X POST repos/o/r/pulls/7/reviews")) {
+        reviews.push(JSON.parse(input ?? "{}").body);
+        return "{}";
+      }
+      const reply = line.match(/-X POST repos\/o\/r\/pulls\/7\/comments\/(\d+)\/replies -f body=([\s\S]*)$/);
+      if (reply) {
+        replies.push({ id: Number(reply[1]), body: args[args.length - 1].replace(/^body=/, "") });
+        // GitHub now shows Wachiman's reply as the latest comment of the thread.
+        nodes[0].comments.nodes.push(WACHI_REPLY(9000 + replies.length));
+        return "{}";
+      }
+      // Nothing of the pull request's own change was reviewed before, so every file counts as changed since.
+      if (line.includes(`/compare/${BASE}...`)) return JSON.stringify({ status: "ahead", files: [] });
+      if (line.includes("/compare/"))
+        return JSON.stringify({
+          status: "ahead",
+          total: COMMITS.length,
+          commits: COMMITS.map((sha) => ({ sha, parents: 1 })),
+          files: [prFiles[0]],
+        });
+      if (line.startsWith("api graphql"))
+        return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes } } } } });
+      throw new Error(`unexpected gh call: ${line}`);
+    };
+    return { gh, reviews, replies, nodes, state };
+  }
+
+  test("complete and marked at once; a re-review lists commits and the total; the reply is unflagged; no second answer", () => {
+    const w = world();
+    const prompts: string[] = [];
+    const provider = new FakeProvider([
+      (r) => {
+        prompts.push(r.prompt);
+        return { costUsd: 0.1, structuredOutput: out({ files_reviewed: [MANAGER, GUIDE], summary: "first" }) };
+      },
+      (r) => {
+        prompts.push(r.prompt);
+        return {
+          costUsd: 0.2,
+          structuredOutput: out({
+            files_reviewed: [MANAGER],
+            thread_replies: [{ comment_id: THREAD_ID, status: "still_open" as const, reply: "Still there." }],
+            summary: "second",
+          }),
+        };
+      },
+      (r) => {
+        prompts.push(r.prompt);
+        return { costUsd: 0.15, structuredOutput: out({ files_reviewed: [MANAGER], summary: "third" }) };
+      },
+    ]);
+    const deps = (trigger: string): Deps => ({
+      gh: w.gh,
+      provider,
+      config: loadConfig({ AGENT_REVIEW_TRIGGER: trigger }),
+      log: () => {},
+      warn: () => {},
+      repoDir: headWithLogo(),
+    });
+
+    // Push 1: the PNG is not expected, so the review is complete and carries the marker.
+    review(deps("opened"), "o/r", 7, []);
+    expect(w.reviews).toHaveLength(1);
+    expect(w.reviews[0].split("\n")[0]).toContain(`all 2 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
+    expect(w.reviews[0]).toContain(`agent-review sha=${SHA[0]}`);
+    expect(readAutoCost(w.reviews[0])).toBeCloseTo(0.1, 10);
+
+    // Push 2: the owner answered Wachiman's finding. It is a re-review (incremental), not a full one.
+    w.state.head = SHA[1];
+    w.nodes.push(THREAD(THREAD_ID, MANAGER));
+    review(deps("synchronize"), "o/r", 7, []);
+    expect(prompts[1]).toContain("only the changes since commit");
+    expect(prompts[1]).toContain("threads.json");
+    const second = w.reviews[1];
+    expect(second.split("\n")[0]).toContain("(2 commits: `c0ffee1`, `c0ffee2`)");
+    expect(second).toContain("PR so far $0.30 over 2 automatic runs");
+    expect(second).toContain(`agent-review sha=${SHA[1]}`);
+    expect(w.replies.map((r) => r.id)).toEqual([THREAD_ID]);
+    expect(w.replies[0].body).toContain("<sub>this run $0.20 · PR so far $0.30 over 2 automatic runs</sub>");
+    // The reply repeats the cost for the reader; only the review body's flagged line is summed.
+    expect(readAutoCost(w.replies[0].body)).toBeNull();
+
+    // Push 3: Wachiman answered last, so the thread is not read and not answered again; the total
+    // does not count the second run twice ($0.10 + $0.20 + $0.15, over 3 runs).
+    w.state.head = SHA[2];
+    review(deps("synchronize"), "o/r", 7, []);
+    expect(prompts[2]).not.toContain("threads.json");
+    expect(w.replies).toHaveLength(1);
+    expect(w.reviews[2]).toContain("PR so far $0.45 over 3 automatic runs");
   });
 });

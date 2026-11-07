@@ -58,7 +58,8 @@ function branchInput(over: Partial<ReviewInput> = {}): ReviewInput {
   mkdirSync(join(headDir, "assets"));
   writeFileSync(join(headDir, "src/a.ts"), "const a = 1;\nconst b = 2;\nconst c = 3;\n");
   writeFileSync(join(headDir, "src/b.ts"), "export const d = 4;\nexport const e = 5;\n");
-  writeFileSync(join(headDir, "assets/icon.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  // The PNG signature and the start of its header: the NUL bytes are what make it binary to the engine.
+  writeFileSync(join(headDir, "assets/icon.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]));
   return { ...structuredClone(branchFixture), headDir, ...over };
 }
 
@@ -101,7 +102,6 @@ describe("reviewChange from a ReviewInput", () => {
         turns: 4,
         structuredOutput: out({
           files_reviewed: ["src/a.ts"],
-          files_skipped: [{ path: "assets/icon.png", reason: "binary" }],
           findings: [
             { path: "src/a.ts", line: 2, severity: "fix", topic: "bug", confidence: "high", title: "b is wrong", body: "It should be 3." },
             { path: "src/a.ts", line: 0, severity: "consider", topic: "tests", confidence: "medium", title: "No test", body: "Add one." },
@@ -118,11 +118,13 @@ describe("reviewChange from a ReviewInput", () => {
 
     expect(result.format).toBe("wachiman.review-result/1");
     expect(result.coverage).toEqual({
-      expected: ["src/a.ts", "assets/icon.png"],
+      // The engine, not the model, sets the binary icon aside: it is not expected, so the review is complete.
+      expected: ["src/a.ts"],
       reviewed: ["src/a.ts"],
-      skipped: [{ path: "assets/icon.png", reason: "binary" }],
+      skipped: [],
       excluded: 0,
-      partial: true,
+      unreviewable: [{ path: "assets/icon.png", reason: "binary" }],
+      partial: false,
     });
     expect(result.findings.map((f) => [f.line, f.anchor])).toEqual([
       [2, "diff"],
@@ -149,7 +151,6 @@ describe("reviewChange from a ReviewInput", () => {
         costUsd: 0.1,
         structuredOutput: out({
           files_reviewed: ["src/a.ts"],
-          files_skipped: [{ path: "assets/icon.png", reason: "binary" }],
           findings: [{ path: "src/a.ts", line: 3, severity: "info", topic: "docs", title: "Note", body: "Fine." }],
           summary: "ok",
         }),
@@ -229,7 +230,6 @@ describe("reviewChange from a ReviewInput", () => {
       () => ({
         structuredOutput: out({
           files_reviewed: ["src/a.ts"],
-          files_skipped: [{ path: "assets/icon.png", reason: "binary" }],
           thread_replies: [
             { comment_id: 11, status: "addressed", reply: "Fixed at src/a.ts:2." },
             { comment_id: 99, status: "still_open", reply: "Made up." },

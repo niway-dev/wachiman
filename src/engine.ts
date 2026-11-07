@@ -29,7 +29,7 @@
  */
 import { NO_USAGE, addUsage, costLine, costLogLine, type CallCost, type Operation, type TokenUsage } from "./cost";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isAutomatic, operatorProblem, type EngineConfig, type Trigger } from "./config";
@@ -250,6 +250,61 @@ export function filterFiles(files: ReviewFile[], exclude: string[], scope: strin
     (globs.some((g) => g.match(f.filename)) ? dropped : kept).push(f);
   }
   return { kept, dropped };
+}
+
+/** A file the engine cannot ask a model to review, and why. Only binary files today. */
+export interface Unreviewable {
+  path: string;
+  reason: "binary";
+}
+
+/** How many leading bytes are searched for a NUL byte, the test git itself uses for "binary". */
+const BINARY_SNIFF_BYTES = 8000;
+
+/** What the head holds at a path: text, a binary (a NUL byte in its first 8000 bytes), or nothing. */
+export type HeadContent = "text" | "binary" | "missing";
+
+/**
+ * What the head holds at a path GitHub sent no patch for. `missing` is a path that cannot be read
+ * there: removed, or a submodule. A file that reads as text stays reviewable: GitHub also omits the
+ * patch of a very large one.
+ */
+export function headContent(headDir: string, filename: string): HeadContent {
+  let fd: number | undefined;
+  try {
+    fd = openSync(join(headDir, filename), "r");
+    const buffer = Buffer.alloc(BINARY_SNIFF_BYTES);
+    const read = readSync(fd, buffer, 0, BINARY_SNIFF_BYTES, 0);
+    return buffer.subarray(0, read).includes(0) ? "binary" : "text";
+  } catch {
+    return "missing";
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/** Whether a file GitHub sent no patch for is a binary at the head. Kept for callers of the first cut. */
+export const isBinaryAtHead = (headDir: string, filename: string) => headContent(headDir, filename) === "binary";
+
+/**
+ * Splits the kept files into those a model can review and those it cannot. The engine decides it
+ * from the file, never the model: a binary the model skipped as "binary" would leave the review
+ * partial, and a partial review writes no incremental marker, so every push would be a full review.
+ * A file with a patch is text by definition (GitHub sends none for a binary); one without is read
+ * at the head. One that is not there any more is a binary only when GitHub counted no lines for it
+ * either (`additions` and `deletions` both 0): a removed text file too large for a patch still has
+ * its deletions counted, and stays in the batch so the review is visibly partial if nobody reads it.
+ */
+export function splitUnreviewable(files: ReviewFile[], headDir: string) {
+  const reviewable: ReviewFile[] = [];
+  const unreviewable: Unreviewable[] = [];
+  for (const f of files) {
+    const content = f.patch ? "text" : headContent(headDir, f.filename);
+    const binary = content === "binary" || (content === "missing" && f.additions === 0 && f.deletions === 0);
+    if (binary) unreviewable.push({ path: f.filename, reason: "binary" });
+    else reviewable.push(f);
+  }
+  return { reviewable, unreviewable };
 }
 
 export type FileKind = "code" | "test" | "docs";
@@ -806,6 +861,26 @@ export function renderContracts(contracts: Contract[], room = Number.POSITIVE_IN
   return null;
 }
 
+const countOf = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+/** How many commits a re-review headline lists by name before it says "and N more". */
+const MAX_LISTED_COMMITS = 10;
+
+/** ` (2 commits: \`012efef\`, \`1e34f38\`)`, or "" when the connector gave no list. */
+function commitsText(commits: string[] | undefined) {
+  if (!commits || commits.length === 0) return "";
+  const shown = commits.slice(0, MAX_LISTED_COMMITS).map((c) => `\`${short(c)}\``);
+  const more = commits.length - shown.length;
+  return ` (${countOf(commits.length, "commit")}: ${shown.join(", ")}${more > 0 ? ` and ${more} more` : ""})`;
+}
+
+/**
+ * What the pull request's automatic runs have spent, this run included: `PR so far $0.77 over 3
+ * automatic runs`. `prior` is what the footers before this run record (`automaticSpend`).
+ */
+export const prSoFar = (prior: { spent: number; runs: number }, thisRun: number) =>
+  `PR so far $${(prior.spent + thisRun).toFixed(2)} over ${countOf(prior.runs + 1, "automatic run")}`;
+
 export function buildReview(input: {
   /** A finding's `anchor`, when given (a `ReviewResult`'s), decides inline or body; else its file's patch does. */
   output: Omit<ReviewOutput, "findings"> & { findings: (Finding & { anchor?: "diff" | "outside" })[] };
@@ -830,6 +905,15 @@ export function buildReview(input: {
   automatic?: boolean;
   /** The configured mention keyword, for the hint on how to ask for the rest. */
   mention?: string;
+  /** Files the engine kept out of `files` because no model can review them (binaries). */
+  unreviewable?: Unreviewable[];
+  /** The commits since `since` (full shas, oldest first), named in a re-review's headline. */
+  commits?: string[];
+  /**
+   * What the pull request's automatic runs spent before this one. With `automatic`, the footer
+   * adds the running total, this run included.
+   */
+  priorSpend?: { spent: number; runs: number };
   /** Review-instruction files this pull request edits, and the base commit they were read from. */
   instructionChanges?: { files: string[]; baseSha: string };
 }): Review {
@@ -858,18 +942,23 @@ export function buildReview(input: {
   const notReviewed = expected.filter((f) => !reviewed.has(f));
   const reasons = new Map(output.files_skipped.map((s) => [s.path, s.reason]));
   const scope = since
-    ? `the changes since \`${short(since)}\`${input.rebased ? " (after a rebase)" : ""}`
+    ? `the changes since \`${short(since)}\`${input.rebased ? " (after a rebase)" : commitsText(input.commits)}`
     : "the whole pull request";
+  const unreviewable = input.unreviewable ?? [];
+  const notReviewable =
+    unreviewable.length > 0
+      ? `, not reviewable: ${unreviewable.map((u) => `\`${neutralise(u.path)}\` (${u.reason})`).join(", ")}`
+      : "";
   const parts: string[] = [];
   const list = notReviewed.map((f) => `\`${neutralise(f)}\`${reasons.has(f) ? ` (${neutralise(reasons.get(f) ?? "")})` : ""}`);
   const fullList = list.join(", ");
   if (notReviewed.length > 0) {
     parts.push(
-      branded(`⚠️ **Partial review**: the agent reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}. Ask \`${mention} review <paths>\` for the rest.`),
+      branded(`⚠️ **Partial review**: the agent reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}${notReviewable}. Ask \`${mention} review <paths>\` for the rest.`),
     );
   } else {
     parts.push(
-      branded(`review of ${scope}, at \`${short(headSha)}\`: all ${expected.length} files reviewed.`),
+      branded(`review of ${scope}, at \`${short(headSha)}\`: all ${expected.length} files reviewed${notReviewable}.`),
     );
   }
   if (input.instructionChanges && input.instructionChanges.files.length > 0) {
@@ -903,7 +992,11 @@ export function buildReview(input: {
       modelLabel,
       effort,
       operation: input.operation,
-      extra: batches.length > 1 ? [`${batches.length} batches`] : [],
+      extra: [
+        ...(batches.length > 1 ? [`${batches.length} batches`] : []),
+        ...(input.commits?.length && since && !input.rebased ? [countOf(input.commits.length, "commit")] : []),
+        ...(input.automatic && input.priorSpend ? [prSoFar(input.priorSpend, costUsd)] : []),
+      ],
       usage: input.usage,
       costUsd,
     }),
@@ -1440,14 +1533,14 @@ export interface Comparison {
   status: string;
   files: ReviewFile[];
   /** The commits compare lists (at most 250), each with its number of parents. Absent when GitHub sent none. */
-  commits?: { parents: number }[];
+  commits?: { parents: number; sha?: string }[];
   /** The number of commits between the two, which may be more than `commits` lists. */
   total?: number;
 }
 
 export function compareFiles(gh: GhFn, repo: string, base: string, head: string): Comparison {
   const jq =
-    "{status, total: .total_commits, commits: [.commits[]? | {parents: ((.parents // []) | length)}], files: [.files[] | {filename, additions, deletions, patch, sha, previous_filename}]}";
+    "{status, total: .total_commits, commits: [.commits[]? | {sha, parents: ((.parents // []) | length)}], files: [.files[] | {filename, additions, deletions, patch, sha, previous_filename}]}";
   return JSON.parse(gh(["api", `repos/${repo}/compare/${base}...${head}`, "--jq", jq]));
 }
 
@@ -1737,8 +1830,11 @@ export function openBotThreads(threads: RawThread[]) {
     }));
 }
 
-/** An open thread of the tool's own, as the model reads it (`threads.json`). */
-export type Thread = ReturnType<typeof openBotThreads>[number];
+/**
+ * An open thread of the tool's own, as the model reads it (`threads.json`). `wachi_replies` is how
+ * many replies Wachiman already wrote there; `pendingThreads` fills it, `openBotThreads` does not.
+ */
+export type Thread = ReturnType<typeof openBotThreads>[number] & { wachi_replies?: number };
 
 /** The pull request's first 100 review threads (30 comments each), as GitHub's GraphQL sends them. */
 export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
@@ -1804,7 +1900,9 @@ export const MIN_BATCH_USD = 0.05;
  * the owner about. Both come only from the engine's own signed footers (`readAutoCost`,
  * `readCeilingNotice`): `github-actions[bot]` is shared by every workflow of the repository, and
  * the footers are the one place a model cannot write. Reviews and inline replies are both read,
- * because a thread run records its cost in a reply.
+ * because a thread run records its cost in a reply. `runs` counts the bodies that record a cost.
+ * A push-path reply's `this run · PR so far` line carries no automatic flag, so it is neither
+ * summed nor counted: the review body of the same run already records that cost.
  */
 export function automaticSpend(gh: GhFn, repo: string, pr: number) {
   const jq = '.[] | select(.user.login == "github-actions[bot]") | {body} | @json';
@@ -1814,23 +1912,35 @@ export function automaticSpend(gh: GhFn, repo: string, pr: number) {
     );
   const all = [...bodies("reviews"), ...bodies("comments")];
   let spent = 0;
-  for (const body of all) spent += readAutoCost(body) ?? 0;
+  let runs = 0;
+  for (const body of all) {
+    const cost = readAutoCost(body);
+    if (cost === null) continue;
+    spent += cost;
+    runs += 1;
+  }
   const notified = new Set(all.map(readCeilingNotice).filter((c): c is string => c !== null));
-  return { spent, notified };
+  return { spent, runs, notified };
 }
 
 /**
- * How much an automatic run may still spend on this pull request: `Infinity` for a run the
- * operator asked for (`/wachiman review` is not limited), the dollars left otherwise. When less than
- * a batch's minimum is left, it posts the one notice for this ceiling (never twice) and returns
- * null: the caller does not start a model call.
+ * How much an automatic run may still spend on this pull request: `room` is `Infinity` for a run
+ * the operator asked for (`/wachiman review` is not limited, and is not counted: `spent` and `runs`
+ * are 0), the dollars left otherwise. `spent` and `runs` are what the automatic runs before this
+ * one cost, for the footer's running total. When less than a batch's minimum is left, it posts the
+ * one notice for this ceiling (never twice) and returns null: the caller does not start a model call.
  */
-export function ceilingRoom(deps: Deps, repo: string, pr: number, headSha: string): number | null {
+export function ceilingRoom(
+  deps: Deps,
+  repo: string,
+  pr: number,
+  headSha: string,
+): { room: number; spent: number; runs: number } | null {
   const { config } = deps;
-  if (!isAutomatic(config.trigger)) return Number.POSITIVE_INFINITY;
-  const { spent, notified } = automaticSpend(deps.gh, repo, pr);
+  if (!isAutomatic(config.trigger)) return { room: Number.POSITIVE_INFINITY, spent: 0, runs: 0 };
+  const { spent, runs, notified } = automaticSpend(deps.gh, repo, pr);
   const left = config.autoBudgetUsd - spent;
-  if (left >= MIN_BATCH_USD) return left;
+  if (left >= MIN_BATCH_USD) return { room: left, spent, runs };
   const ceiling = config.autoBudgetUsd;
   deps.log(
     `Automatic runs on this pull request have spent $${spent.toFixed(2)} of the $${ceiling.toFixed(2)} ceiling; not starting one.`,
@@ -2011,7 +2121,9 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
     },
   };
   const { change } = input;
-  const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...options.exclude], input.scope);
+  const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...options.exclude], input.scope);
+  const { dropped } = filtered;
+  const { reviewable: kept, unreviewable } = splitUnreviewable(filtered.kept, input.headDir);
   const totalBudget = options.totalBudgetUsd;
   const batchBudget = options.batchBudgetUsd;
   const batches = planBatches(kept, {
@@ -2220,6 +2332,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
       reviewed: merged.files_reviewed,
       skipped: merged.files_skipped,
       excluded: dropped.length,
+      unreviewable,
       partial: expected.some((f) => !reviewedSet.has(f)),
     },
     findings,
@@ -2258,6 +2371,7 @@ export function githubReviewInput(p: {
   scope: string[];
   since: string | null;
   rebased: boolean;
+  commits?: string[];
   threads: Thread[];
 }): ReviewInput {
   return {
@@ -2277,7 +2391,9 @@ export function githubReviewInput(p: {
     instructions: p.instructions,
     headDir: p.headDir,
     scope: p.scope,
-    ...(p.since ? { since: { sha: p.since, rebased: p.rebased } } : {}),
+    ...(p.since
+      ? { since: { sha: p.since, rebased: p.rebased, ...(p.commits?.length ? { commits: p.commits } : {}) } }
+      : {}),
     ...(p.threads.length > 0 ? { conversation: p.threads } : {}),
   };
 }
@@ -2288,6 +2404,10 @@ export function githubReview(
   github: {
     since: string | null;
     rebased: boolean;
+    /** The commits since `since`, for the headline of a re-review. */
+    commits?: string[];
+    /** What the automatic runs before this one spent, for the footer's running total. */
+    priorSpend?: { spent: number; runs: number };
     scoped: boolean;
     mention: string;
     automatic: boolean;
@@ -2309,6 +2429,9 @@ export function githubReview(
     headSha: result.change.head.sha,
     since: github.since,
     rebased: github.rebased,
+    commits: github.commits,
+    priorSpend: github.priorSpend,
+    unreviewable: result.coverage.unreviewable,
     scoped: github.scoped,
     costUsd: result.execution.costUsdEstimate,
     usage: result.execution.usage,
@@ -2348,6 +2471,8 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   }
   let since: string | null = null;
   let rebased = false;
+  // The commits since `since`, for the headline; only when compare lists every one of them.
+  let commits: string[] | undefined;
   let files = prFiles;
   if (last && paths.length === 0) {
     let status = "unavailable";
@@ -2367,6 +2492,8 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       // differs from the one reviewed at `last` are candidates, and of their patch only the rows
       // the author wrote (`ownChangeSince`) go to the model.
       since = last;
+      if (cmp.commits && cmp.commits.length > 0 && (cmp.total === undefined || cmp.total === cmp.commits.length))
+        commits = cmp.commits.flatMap((c) => (c.sha ? [c.sha] : []));
       const inPr = new Map(prFiles.map((f) => [f.filename, f]));
       const own = cmp.files.filter((f) => inPr.has(f.filename));
       const delta =
@@ -2464,14 +2591,37 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     );
     return;
   }
+  // A push whose kept files are all binaries has nothing to send a model: it costs nothing, so it
+  // neither consults the ceiling nor records a $0.00 automatic run. The marker moves, as after a
+  // rebase with no content change, unless the request was scoped.
+  const headDir = deps.repoDir ?? process.cwd();
+  const allBinary = splitUnreviewable(kept, headDir);
+  if (allBinary.reviewable.length === 0) {
+    const named = allBinary.unreviewable.map((u) => `\`${neutralise(u.path)}\` (${u.reason})`).join(", ");
+    deps.log(`Nothing to send a model: every kept file is not reviewable (${named}).`);
+    postReview(deps, repo, pr, headSha, {
+      body: [
+        branded(`Nothing to review at \`${short(headSha)}\`: not reviewable: ${named}.`),
+        SIGNATURE.review,
+        ...(paths.length === 0 ? [marker(headSha)] : []),
+      ].join("\n\n"),
+      comments: [],
+    });
+    return;
+  }
   // After the rebase exits above (they cost nothing and move the marker) and before any paid step.
-  const room = ceilingRoom(deps, repo, pr, headSha);
-  if (room === null) return;
+  const ceiling = ceilingRoom(deps, repo, pr, headSha);
+  if (ceiling === null) return;
+  // What the automatic runs before this one cost; an operator's run is not counted and shows none.
+  const automatic = isAutomatic(config.trigger);
+  const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
   const base = baseSha(gh, repo, pr);
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
-  const totalBudget = Math.min(config.budgetUsd, room);
+  const totalBudget = Math.min(config.budgetUsd, ceiling.room);
   const batchBudget = config.batchBudgetUsd;
-  const threads = last ? openThreads(gh, repo, pr) : [];
+  // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
+  // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
+  const threads = last ? pendingThreads(fetchThreads(gh, repo, pr)) : [];
   const input = githubReviewInput({
     repo,
     pr,
@@ -2480,10 +2630,11 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     meta,
     files,
     instructions,
-    headDir: deps.repoDir ?? process.cwd(),
+    headDir,
     scope: paths,
     since,
     rebased,
+    commits,
     threads,
   });
   const result = reviewChange(input, reviewOptionsOf(config, totalBudget), deps);
@@ -2497,7 +2648,14 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
         ? postReview(deps, repo, pr, headSha, {
             body: [
               branded(text),
-              costLine({ modelLabel: result.provider.label, effort: config.effort, operation, usage, costUsd: spent }),
+              costLine({
+                modelLabel: result.provider.label,
+                effort: config.effort,
+                operation,
+                extra: prior ? [prSoFar(prior, spent)] : [],
+                usage,
+                costUsd: spent,
+              }),
               SIGNATURE.auto,
               SIGNATURE.review,
             ].join("\n\n"),
@@ -2544,9 +2702,11 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   const built = githubReview(result, {
     since,
     rebased,
+    commits,
+    priorSpend: prior,
     scoped: paths.length > 0,
     mention: config.mention,
-    automatic: isAutomatic(config.trigger),
+    automatic,
     instructionChanges: {
       files: changedInstructionFiles(prFiles.map((f) => f.filename)),
       baseSha: instructions.baseSha,
@@ -2558,6 +2718,9 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     ...result.threadReplies.map((r) => r.reply),
   ]);
   postReview(deps, repo, pr, headSha, built);
+  // This run's cost and the pull request's total, under each reply. Not flagged automatic: the
+  // review body above carries the flagged line, so the ceiling would count the run twice.
+  const replyCost = prior ? `\n\n<sub>this run $${spent.toFixed(2)} · ${prSoFar(prior, spent)}</sub>` : "";
   for (const r of result.threadReplies) {
     const label = r.status === "addressed" ? "Looks addressed" : "Still open";
     if (config.dryRun) {
@@ -2570,7 +2733,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       "POST",
       `repos/${repo}/pulls/${pr}/comments/${r.comment_id}/replies`,
       "-f",
-      `body=${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(r.reply)}\n\n${SIGNATURE.reply}`,
+      `body=${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(r.reply)}${replyCost}\n\n${SIGNATURE.reply}`,
     ]);
   }
 }
@@ -2697,9 +2860,9 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     deps.log("No Wachiman thread waits for an answer.");
     return;
   }
-  const room = ceilingRoom(deps, repo, pr, headSha);
-  if (room === null) return;
-  const budgetUsd = Math.min(config.threadsBudgetUsd, room);
+  const ceiling = ceilingRoom(deps, repo, pr, headSha);
+  if (ceiling === null) return;
+  const budgetUsd = Math.min(config.threadsBudgetUsd, ceiling.room);
 
   const meta = JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,author"]));
   const repoDir = deps.repoDir ?? process.cwd();
@@ -2760,11 +2923,13 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
   }
   toPost.forEach(({ reply, cites }, i) => {
     const label = reply.status === "addressed" ? `Appears addressed in \`${neutralise(cites[0])}\`` : "Still applies";
-    // One call answered every thread: the first reply carries its cost, flagged automatic, for the ceiling.
+    // One call answered every thread: the first reply carries its cost, flagged automatic, for the
+    // ceiling. The others say the same total unflagged, so the ceiling does not count the call twice.
+    const prior = { spent: ceiling.spent, runs: ceiling.runs };
     const cost =
       i === 0
-        ? `\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`], usage: call.usage, costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
-        : "";
+        ? `\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`, prSoFar(prior, call.costUsd)], usage: call.usage, costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
+        : `\n\n<sub>this run $${call.costUsd.toFixed(2)} · ${prSoFar(prior, call.costUsd)}</sub>`;
     const body = `${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(reply.reply)}${cost}\n\n${SIGNATURE.reply}`;
     if (config.dryRun) {
       deps.log(`--- reply to ${reply.comment_id}: ${label} ---\n${body}`);
@@ -2850,10 +3015,12 @@ binary file, "no_diff_and_unreadable" when you could not read it in the reposito
 ${evidence ? `\n${EVIDENCE_PARAGRAPH}\n${evidence}\n` : ""}${
   hasThreads
     ? `
-Open review threads from earlier rounds on this part's files, with the owner's replies, are in
-${dir}/threads.json. For each one, decide whether the current code addresses it and add a
-thread_replies entry with a short reply to the owner. Do not repeat a finding that already has an
-open thread.
+${dir}/threads.json lists the review threads on this part's files that wait for an answer: the
+owner wrote last. wachi_replies is how many replies Wachiman already wrote in a thread; when it is
+1, this is the last reply allowed there, so end it with what Wachiman waits for from the owner. For
+each thread listed, decide whether the current code addresses it and add a thread_replies entry
+with a short reply to the owner. Answer no thread that is not in that file. Do not repeat a
+finding that already has an open thread.
 `
     : ""
 }
@@ -2978,7 +3145,7 @@ function reviewBatch(
   limits: CallLimits,
   ctx: ReviewContext,
   files: ReviewFile[],
-  threads: ReturnType<typeof openBotThreads>,
+  threads: Thread[],
   part: { index: number; total: number; retry?: boolean },
   budgetUsd: number,
 ) {

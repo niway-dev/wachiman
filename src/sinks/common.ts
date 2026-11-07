@@ -33,12 +33,17 @@ export function notReviewed(result: ReviewResult) {
 const withReason = (f: { path: string; reason?: string }) =>
   `${neutralise(f.path)}${f.reason ? ` (${neutralise(f.reason)})` : ""}`;
 
-/** `all 4 files reviewed`, or `Partial: reviewed 3 of 4; not reviewed: a (binary), b`. */
+/**
+ * `all 4 files reviewed`, or `Partial: reviewed 3 of 4; not reviewed: a (binary), b`. Files the
+ * engine left out because no model can review them follow on, in one line: `; not reviewable: logo.png (binary)`.
+ */
 export function coverageText(result: ReviewResult) {
   const missing = notReviewed(result);
   const total = result.coverage.expected.length;
-  if (missing.length === 0) return `all ${total} files reviewed`;
-  return `Partial: reviewed ${total - missing.length} of ${total}; not reviewed: ${missing.map(withReason).join(", ")}`;
+  const unreviewable = result.coverage.unreviewable ?? [];
+  const tail = unreviewable.length > 0 ? `; not reviewable: ${unreviewable.map((u) => withReason({ path: u.path, reason: u.reason })).join(", ")}` : "";
+  if (missing.length === 0) return `all ${total} files reviewed${tail}`;
+  return `Partial: reviewed ${total - missing.length} of ${total}; not reviewed: ${missing.map(withReason).join(", ")}${tail}`;
 }
 
 /** What each profile means, when the caller has nothing more specific to say. */

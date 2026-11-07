@@ -82,6 +82,10 @@ base and the old head fetched with a token, and would not be testable without a 
   a merge that brings nothing of the pull request's own posts a one-line marker, like a rebase.
   Amended 2026-11-02, see below: of a candidate file, only the rows the author wrote are sent.
 - A cancelled run (a newer push) posts nothing; what it had spent is not verified.
+- Binary files are excluded by the engine (it reads the head, never asks the model), so they are
+  not in the expected list. A pull request with images keeps its incremental reviews: before this,
+  the model skipped the PNG as `binary`, the review was partial, no marker was written, and every
+  push paid a full review (2026-11-06 audit of kaipu-record).
 - Callers on an old pin do not get push reviews until they edit their trigger; a copied install
   must edit its copy by hand ([upgrading.md](../upgrading.md)).
 

@@ -161,10 +161,12 @@ goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
 
-Open review threads from earlier rounds on this part's files, with the owner's replies, are in
-/tmp/d/threads.json. For each one, decide whether the current code addresses it and add a
-thread_replies entry with a short reply to the owner. Do not repeat a finding that already has an
-open thread.
+/tmp/d/threads.json lists the review threads on this part's files that wait for an answer: the
+owner wrote last. wachi_replies is how many replies Wachiman already wrote in a thread; when it is
+1, this is the last reply allowed there, so end it with what Wachiman waits for from the owner. For
+each thread listed, decide whether the current code addresses it and add a thread_replies entry
+with a short reply to the owner. Answer no thread that is not in that file. Do not repeat a
+finding that already has an open thread.
 
 ## What the change does to the running product
 
@@ -421,10 +423,12 @@ goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
 
-Open review threads from earlier rounds on this part's files, with the owner's replies, are in
-/tmp/d/threads.json. For each one, decide whether the current code addresses it and add a
-thread_replies entry with a short reply to the owner. Do not repeat a finding that already has an
-open thread.
+/tmp/d/threads.json lists the review threads on this part's files that wait for an answer: the
+owner wrote last. wachi_replies is how many replies Wachiman already wrote in a thread; when it is
+1, this is the last reply allowed there, so end it with what Wachiman waits for from the owner. For
+each thread listed, decide whether the current code addresses it and add a thread_replies entry
+with a short reply to the owner. Answer no thread that is not in that file. Do not repeat a
+finding that already has an open thread.
 
 ## What the change does to the running product
 
@@ -676,10 +680,12 @@ goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
 
-Open review threads from earlier rounds on this part's files, with the owner's replies, are in
-/tmp/d/threads.json. For each one, decide whether the current code addresses it and add a
-thread_replies entry with a short reply to the owner. Do not repeat a finding that already has an
-open thread.
+/tmp/d/threads.json lists the review threads on this part's files that wait for an answer: the
+owner wrote last. wachi_replies is how many replies Wachiman already wrote in a thread; when it is
+1, this is the last reply allowed there, so end it with what Wachiman waits for from the owner. For
+each thread listed, decide whether the current code addresses it and add a thread_replies entry
+with a short reply to the owner. Answer no thread that is not in that file. Do not repeat a
+finding that already has an open thread.
 
 ## What the change does to the running product
 

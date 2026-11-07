@@ -62,6 +62,11 @@ per pull request. The owner wants a limit in dollars per pull request, $2 by def
 - A cancelled run posts nothing, so its spend is in no footer and the ceiling under-counts it. So
   does a thread run whose replies were all dropped (a citation that does not exist, or a push that
   landed meanwhile), and so does a run that throws after its calls. Footers show cents.
+- Every run shows what it cost and the pull request's running total (`PR so far $… over N
+  automatic runs`). The review body's footer and the thread run's first reply keep the flagged
+  cost line the ceiling sums; the inline replies of a push review, and the later replies of a
+  thread run, repeat the total in an unflagged `this run · PR so far` line, so the ceiling does not
+  count one run twice (2026-11-06).
 - The workflow gains a job and an event. Permissions stay `contents: read` and
   `pull-requests: write`.
 - ADR 0001's Status line records the amendment of decision 5.

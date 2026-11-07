@@ -2,6 +2,10 @@
 
 - **Status:** proposed 2026-10-30. Not implemented. It depended on #40 (review identity), which is
   closed, and still depends on #42 (strict verdicts), which is open.
+- **Update 2026-11-06:** the push re-review now honours the pending filter (`pendingThreads`: the
+  owner wrote last) and the two-reply cap, as the thread-only run already did, so a thread Wachiman
+  answered last is neither read nor answered again. The decision to report and never resolve is
+  unchanged.
 - **Date:** 2026-10-30
 - **Spec:** [2026-10-30-review-memory-and-threads-design.md](../specs/2026-10-30-review-memory-and-threads-design.md)
 
@@ -64,7 +68,8 @@ agreement is not verification.
 - Resolving or replying to human threads.
 - Arguing past the cap.
 - Auto-resolve on model judgment. That needs its own ADR, backed by a measured
-  false-resolution rate.
+  false-resolution rate. A later opt-in setting could offer it to teams that want it; it is not
+  part of the 2026-11-06 change.
 
 ## Reopen if
 

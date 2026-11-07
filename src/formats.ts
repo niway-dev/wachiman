@@ -6,7 +6,7 @@
 import { UsageError } from "./config";
 import type { Contract } from "./contracts";
 import type { TokenUsage } from "./cost";
-import type { BaseInstructions, BatchReport, Finding, ReviewFile, ReviewOutput, Thread } from "./engine";
+import type { BaseInstructions, BatchReport, Finding, ReviewFile, ReviewOutput, Thread, Unreviewable } from "./engine";
 import type { ProviderErrorClass } from "./providers/errors";
 
 export const REVIEW_INPUT_FORMAT = "wachiman.review-input/1";
@@ -39,8 +39,11 @@ export interface ReviewInput {
   headDir: string;
   /** The words after `review`, or the local paths; empty for the whole change. */
   scope: string[];
-  /** Incremental context: the last reviewed commit, and whether the change was rebased since. */
-  since?: { sha: string; rebased: boolean };
+  /**
+   * Incremental context: the last reviewed commit, whether the change was rebased since, and
+   * (optional) the commits since it, oldest first, for the report's headline.
+   */
+  since?: { sha: string; rebased: boolean; commits?: string[] };
   /** Open threads for the model to answer. */
   conversation?: Thread[];
 }
@@ -69,6 +72,11 @@ export interface ReviewResult {
     skipped: { path: string; reason: string }[];
     /** How many files within the scope the excludes dropped (lockfiles, build output, generated). */
     excluded: number;
+    /**
+     * Files the engine left out of `expected` because no model can review them (binaries), so
+     * they never make a review partial. Absent in a result written before this field existed.
+     */
+    unreviewable?: Unreviewable[];
     partial: boolean;
   };
   /** After the confidence rule, the ADR notices and dedupe. */
