@@ -1,6 +1,6 @@
 ---
 name: wachiman-audit
-description: Use when the developer asks how Wachiman's findings compare with another reviewer's (CodeRabbit, Pullfrog, any bot) on real pull requests, what one found that the other missed, or whether a day or a release of reviews was worth its cost.
+description: Use when the developer asks to compare Wachiman's findings with CodeRabbit's or Pullfrog's on real pull requests, what one found that the other missed, or whether a day or a release of reviews was worth its cost. Not for reviewing code; that is wachiman-review.
 ---
 
 # Audit Wachiman against another reviewer
@@ -19,6 +19,9 @@ From a worktree of `niway-dev/wachiman-benchmarks`:
 ```sh
 bun scripts/pair.ts --repo <owner/name> --prs <a-b[,c]> --other coderabbit|pullfrog --out <YYYY-MM-DD-<topic>>/pairs
 ```
+
+`--other` accepts only those two tools. Asked about another bot, stop and say that `pair.ts` needs a
+parser for it first; do not compare by hand.
 
 It writes `pairs.csv`, `special-cases.csv`, `reviews.csv`, `findings.csv` and a generated `pairs.md`.
 Never edit those files, and never build the comparison from the PR page instead of them.
