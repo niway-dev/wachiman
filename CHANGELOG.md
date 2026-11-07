@@ -5,6 +5,32 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.9.0](https://github.com/niway-dev/wachiman/compare/v1.8.0...v1.9.0) (2026-11-07)
+
+
+### Features
+
+* **local:** a global wachiman command and a one-script install for the CLI and skill ([7ebf35f](https://github.com/niway-dev/wachiman/commit/7ebf35fdaf534bcbd331f6452a3ad3cbc33aad09))
+* **local:** a global wachiman command and a one-script install for the CLI and skill ([95322fd](https://github.com/niway-dev/wachiman/commit/95322fdbbc72c910b4df2910526fefae91e6973a))
+* **local:** review one commit, or from a commit forward ([d56996b](https://github.com/niway-dev/wachiman/commit/d56996ba38e8d360583643171fe9b65221292165))
+* **local:** review one commit, or from a commit forward ([4fd06a5](https://github.com/niway-dev/wachiman/commit/4fd06a54ece4ebbaa673699c2bf4d4864f4ba805))
+* one name, Wachiman, for the command, the CLI, the caller file and the focus file ([ecaa49c](https://github.com/niway-dev/wachiman/commit/ecaa49cf030c96cbec4163ea85e88f3ec7f0a382))
+* one name, Wachiman, for the command, the CLI, the caller file and the focus file ([56a1090](https://github.com/niway-dev/wachiman/commit/56a10902dd865c82e5032987dc60865b71f2795d))
+* **skills:** an agent skill that runs the local review ([e06f4ce](https://github.com/niway-dev/wachiman/commit/e06f4ceee673e6a4ed3e11dfaa1ae574675cdcec))
+* **skills:** an agent skill that runs the local review for the developer ([8723405](https://github.com/niway-dev/wachiman/commit/87234053d56c9f4bb781c6f4374c5f3ec45e4920))
+* **skills:** wachiman-audit, compare Wachiman with another reviewer on the same commits ([1ee3188](https://github.com/niway-dev/wachiman/commit/1ee31885ac926c388a6a8f8276b93f40ba0da44e))
+* **skills:** wachiman-audit, the procedure to compare Wachiman with another reviewer ([6afbb28](https://github.com/niway-dev/wachiman/commit/6afbb28f3a4b5e4c46d0ff276460d1197ad1f0e2))
+
+
+### Bug Fixes
+
+* **formats:** the review-input Thread schema allows the optional wachi_replies the engine now sends ([89d6e97](https://github.com/niway-dev/wachiman/commit/89d6e97d6023e7578f0973700f412f26c10d7546))
+* **history:** match a finding by its cited line across topic changes, and print this run's ids in JSON mode ([4c20ed4](https://github.com/niway-dev/wachiman/commit/4c20ed4092892f1e78710560b82294e92c2951c9))
+* **history:** match a finding by its cited line across topic changes, and print this run's ids in JSON mode ([71aa7d3](https://github.com/niway-dev/wachiman/commit/71aa7d3fb78cdf0ab0aeb785aea3ad1a2b3a4523))
+* **review:** a missing file is binary only when GitHub counted no lines, and a binary-only push skips the ceiling ([79eb122](https://github.com/niway-dev/wachiman/commit/79eb12278718cb016d78be57e4623018694cd383))
+* **review:** binaries never block the incremental marker, answered threads are not re-answered, and every run shows its cost ([dc55910](https://github.com/niway-dev/wachiman/commit/dc55910689a6c8c26f14927bd13e231202774195))
+* **review:** binaries never block the marker, answered threads stay quiet, every run shows its cost ([0f56b8d](https://github.com/niway-dev/wachiman/commit/0f56b8d401d4ac56aef406388f1c293b4589d879))
+
 ## [1.8.0](https://github.com/niway-dev/wachiman/compare/v1.7.0...v1.8.0) (2026-11-05)
 
 
