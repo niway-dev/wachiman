@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wachiman — how one review run flows</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    color: var(--foreground, #1f2328);
+    font-family: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  body { background: #fafaf7; }
+  .page {
+    width: 100%;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 28px 24px 36px;
+  }
+  /* Capped width: every lane wraps its cards into a 3-column grid so each card is readable. */
+  .legend { flex-wrap: wrap; }
+  .legend-item { flex: 1 1 45%; }
+  .lane { display: block; }
+  .stage { width: auto; display: flex; flex-direction: row; gap: 10px; align-items: baseline; margin-bottom: 8px; padding: 0; }
+  .stage .num { font-size: 18px; }
+  .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .flow .card { flex: none; }
+  .arrow { display: none; }
+  .legend-item, .card, .facts {
+    background: var(--card, #ffffff) !important;
+    color: var(--card-foreground, #1f2328);
+    border-color: var(--border, #ddd) !important;
+  }
+  .card .cd, .legend-item .desc, .stage .role { color: var(--muted-foreground, #4a4a44) !important; }
+  .badge { color: #1f2328; }
+  @media (max-width: 1000px) {
+    .legend { flex-wrap: wrap; }
+    .legend-item { flex: 1 1 45%; }
+    .lane { display: block; }
+    .stage { width: auto; display: flex; flex-direction: row; gap: 10px; align-items: baseline; margin-bottom: 8px; padding: 0; }
+    .stage .num { font-size: 18px; }
+    .flow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .flow .card { flex: none; }
+    .arrow { display: none; }
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 14px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .legend-item {
+    flex: 1 1 0;
+    min-width: 0;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .legend-item .desc {
+    margin-top: 6px;
+    color: #4a4a44;
+    overflow-wrap: anywhere;
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    white-space: nowrap;
+    color: #1f2328;
+  }
+  .b-engine { background: #e5e7eb; }
+  .b-side   { background: #fde68a; }
+  .b-prompt { background: #bfdbfe; }
+  .b-model  { background: #bbf7d0; }
+
+  /* Lanes */
+  .lanes {
+    border-top: 1px solid #d8d6cf;
+    border-bottom: 1px solid #d8d6cf;
+  }
+  .lane {
+    display: flex;
+    align-items: stretch;
+    padding: 14px 0;
+    border-bottom: 1px solid #e5e3dc;
+  }
+  .lane:last-child { border-bottom: none; }
+  .stage {
+    flex: 0 0 200px;
+    width: 200px;
+    padding-right: 18px;
+    display: flex;
+    flex-direction: column;
+  }
+  .stage .num {
+    font-size: 24px;
+    font-weight: 700;
+    color: #8a8a82;
+    line-height: 1.1;
+  }
+  .stage .name {
+    font-size: 15px;
+    font-weight: 700;
+    margin-top: 2px;
+    overflow-wrap: anywhere;
+  }
+  .stage .role {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #5b5b55;
+    overflow-wrap: anywhere;
+  }
+  .flow {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: stretch;
+  }
+  .arrow {
+    flex: 0 0 18px;
+    width: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8a8a82;
+    font-size: 16px;
+  }
+  .card {
+    flex: 1 1 0;
+    min-width: 0;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .card .ct {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .card .cd {
+    margin-top: 4px;
+    color: #33332e;
+    overflow-wrap: anywhere;
+  }
+  .card .badge {
+    margin-top: 8px;
+    white-space: normal;
+  }
+
+  /* Key facts */
+  .facts {
+    margin-top: 22px;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 14px 18px;
+  }
+  .facts h2 {
+    font-size: 15px;
+    margin: 0 0 8px;
+  }
+  .facts ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .facts li {
+    margin-bottom: 6px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  .facts li:last-child { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Wachiman — how one review run flows</h1>
+
+  <div class="legend">
+    <div class="legend-item">
+      <span class="badge b-engine">JSON · engine only</span>
+      <div class="desc">Never reaches the model.</div>
+    </div>
+    <div class="legend-item">
+      <span class="badge b-side">JSON · the model reads it</span>
+      <div class="desc">A side file the agent opens with its Read tool.</div>
+    </div>
+    <div class="legend-item">
+      <span class="badge b-prompt">Markdown + XML · to the model</span>
+      <div class="desc">The prompt text itself.</div>
+    </div>
+    <div class="legend-item">
+      <span class="badge b-model">JSON · from the model</span>
+      <div class="desc">Structured output via a JSON schema.</div>
+    </div>
+  </div>
+
+  <div class="lanes">
+
+    <!-- LANE 1 -->
+    <div class="lane">
+      <div class="stage">
+        <div class="num">1</div>
+        <div class="name">Triggers</div>
+        <div class="role">when a run starts</div>
+      </div>
+      <div class="flow">
+        <div class="card" style="flex-grow:3">
+          <div class="ct">GitHub Actions job: review</div>
+          <div class="cd">Reusable workflow review.yml. Fires on pull_request opened / ready_for_review / each push (push waits a debounce so a newer push cancels it unspent). Fork PRs and drafts never run. 30-min timeout.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">GitHub Actions job: threads</div>
+          <div class="cd">Fires on a pull_request_review_comment reply written by the operator. Answers pending Wachiman threads only when the head was already reviewed.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">GitHub Actions job: on-demand</div>
+          <div class="cd">Fires on an issue_comment by the operator containing /wachiman (or @agent-review, @claude). "review [paths]" runs the pipeline; anything else is one free-text answer call.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">wachiman local (laptop)</div>
+          <div class="cd">Same core, run on a developer's clone with git only. Refuses to start if ANTHROPIC_API_KEY is set (uses the Claude subscription). Optional --history.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANE 2 -->
+    <div class="lane">
+      <div class="stage">
+        <div class="num">2</div>
+        <div class="name">Connector</div>
+        <div class="role">builds the input; code decides, no model yet</div>
+      </div>
+      <div class="flow">
+        <div class="card" style="flex-grow:2">
+          <div class="ct">listFiles / git diff</div>
+          <div class="cd">GitHub connector reads the PR's changed files via gh; local-git connector runs one pinned git diff against the merge-base and splits it into GitHub's patch shape.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">lastReviewedSha → compareFiles / rebaseDelta</div>
+          <div class="cd">Finds the engine's own signed marker in earlier reviews. If that commit is behind the head: review only what changed since. If the branch was rewritten: compare per file and review only the files that really changed.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">resolveScope</div>
+          <div class="cd">"review src/a.ts docs/" words become paths; a word counts only as an exact changed file or a directory prefix.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">readBaseInstructions</div>
+          <div class="cd">Fetches .github/wachiman.md, CLAUDE.md, AGENTS.md at the BASE commit (never the head), each cut at 64 KB. A PR cannot rewrite the rules it is reviewed under.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">openThreads / ceilingRoom</div>
+          <div class="cd">Loads unresolved Wachiman threads where an OWNER/MEMBER/COLLABORATOR replied last. For automatic runs, sums the cost of earlier automatic runs from signed footers and caps this run at what is left of the per-PR ceiling.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">ReviewInput (wachiman.review-input/1)</div>
+          <div class="cd">The contract between connectors and the core: change, files with patches, instructions, scope, since, conversation. It is never shown to the model.</div>
+          <span class="badge b-engine">JSON · engine only</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANE 3 -->
+    <div class="lane">
+      <div class="stage">
+        <div class="num">3</div>
+        <div class="name">Core · before the model</div>
+        <div class="role">select, order, batch, assemble</div>
+      </div>
+      <div class="flow">
+        <div class="card" style="flex-grow:3">
+          <div class="ct">filterFiles</div>
+          <div class="cd">Drops DEFAULT_EXCLUDE (lockfiles, build output, snapshots, source maps, generated) plus configured excludes. Binary / too-large files stay: the model must read them or record a closed skip reason.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">riskScore</div>
+          <div class="cd">A weight from the PATH alone: 8 workflows, ipc/preload; 7 credential-like names, scripts/; 6 package.json, migrations, schema, infra/; 5 main/; else code 4, tests 2, docs 1. Orders work so a budget cut-off lands on the least risky files.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">planBatches</div>
+          <div class="cd">Groups files by module so code, tests and docs of one module share a call; orders modules by riskiest file; packs into batches capped by changed lines and diff characters. An oversized file gets its own batch.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:4">
+          <div class="ct">gatherEvidence → evidence.json</div>
+          <div class="cd">Extracts up to 12 call-like names from the batch's added lines, runs git grep -w -F for each in the head, keeps ≤6 call sites per name with 4 lines of context. File ≤16 KB; a ≤6 KB slice is inlined in the prompt inside &lt;evidence&gt;. 20-second wall clock; never fails the review.</div>
+          <span class="badge b-side">JSON · the model reads it</span>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">selectQuestions</div>
+          <div class="cd">One regex trigger per data-path question (a delete that does not re-verify its target, a read error treated as empty and written back, two calls in flight on one store, an unbounded wait, a cached write over another writer). Matching questions are added to the prompt.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">pr.json / threads.json</div>
+          <div class="cd">Written to a fresh mkdtemp run dir per batch call: PR title, body, author; the open threads for this batch's files with the code around each finding. Removed after the call.</div>
+          <span class="badge b-side">JSON · the model reads it</span>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:5">
+          <div class="ct">buildBatchPrompt + annotateDiff</div>
+          <div class="cd">In order: what is reviewed and the head sha; orientation list of every selected file; this batch's files; the line-number rule; evidence slice; thread instruction; FLOW_QUESTIONS; data-path questions; RULES (severity tests, topics, evidence rules, confidence); &lt;instruction-file&gt; blocks from the base commit; finally &lt;diff&gt; with every line prefixed by its line number at the head. Sent through stdin.</div>
+          <span class="badge b-prompt">Markdown + XML · to the model</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANE 4 -->
+    <div class="lane">
+      <div class="stage">
+        <div class="num">4</div>
+        <div class="name">The model</div>
+        <div class="role">the only part that judges</div>
+      </div>
+      <div class="flow">
+        <div class="card" style="flex-grow:4">
+          <div class="ct">Provider adapter (claude -p or codex)</div>
+          <div class="cd">Claude Code: --restricted, --strict-mcp-config, --tools Read,Glob,Grep, --max-budget-usd (soft cap), allowlisted env (no GH_TOKEN). Codex: read-only sandbox, no dollar cap, 15-min SIGKILL. The agent starts in an EMPTY scratch dir with the head as a readable extra dir, so the head's CLAUDE.md and hooks never auto-load.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">The agent reads</div>
+          <div class="cd">Opens files in full with Read/Glob/Grep, follows callers, opens pr.json, threads.json, evidence.json. The engine cannot observe what it read.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">Structured output (SCHEMA)</div>
+          <div class="cd">files_reviewed, files_skipped (closed reasons only: binary, no_diff_and_unreadable), findings (path, line, severity, topic, title, body, confidence), contracts (with cites), thread_replies, summary. Plus cost, turns, duration and a stop reason: success / budget / turns / timeout / error.</div>
+          <span class="badge b-model">JSON · from the model</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANE 5 -->
+    <div class="lane">
+      <div class="stage">
+        <div class="num">5</div>
+        <div class="name">Core · after the model</div>
+        <div class="role">verify what code can verify</div>
+      </div>
+      <div class="flow">
+        <div class="card" style="flex-grow:2">
+          <div class="ct">relativisePaths / checkOutput</div>
+          <div class="cd">Strips the absolute head path. Drops a confidence not in high/medium/low. Each contract cite must point to a file and line that exist in the head; otherwise evidence_checked: false and a warning.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">batchGaps → one retry</div>
+          <div class="cd">Files of the batch the model did not list in files_reviewed (a skip counts only with a closed reason and only for a file with no patch). If gaps and ≥ $0.05 left: rerun the batch with only those files. Still missing → the review is "Partial" and names them.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">Budget arithmetic</div>
+          <div class="cd">spent accumulates first calls and retries. Each call capped at min(per-batch cap, remaining). A batch is not started under $0.05: its files are "not reached". A call that died with no result counts at its full cap. Budget is per run, not per PR.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">mergeOutputs</div>
+          <div class="cd">dedupeFindings: one per path+line+topic, higher severity wins. mergeContracts: one per action+location, resolved-cites beats unresolved beats open. A file reviewed in the retry counts as reviewed.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">enforceConfidenceRule / adrNotices / anchor</div>
+          <div class="cd">A low-confidence Blocker or Fix is rewritten to the question topic. One Info·adr finding per reviewed docs/adr/ file. commentableLines decides whether a finding can sit inline on the diff.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">ReviewResult (wachiman.review-result/1)</div>
+          <div class="cd">coverage, findings with anchors, contracts, summary, per-batch reports, thread replies, execution (cost estimate, calls, stop reason).</div>
+          <span class="badge b-engine">JSON · engine only</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANE 6 -->
+    <div class="lane">
+      <div class="stage">
+        <div class="num">6</div>
+        <div class="name">Sinks</div>
+        <div class="role">render and post; the model never touches GitHub</div>
+      </div>
+      <div class="flow">
+        <div class="card" style="flex-grow:4">
+          <div class="ct">buildReview</div>
+          <div class="cd">Labels each finding (emoji + severity + topic); inline comments for findings on added/context lines; "Outside the diff" for the rest; every Info under "For your information". First line says complete or partial; then summary, collapsed "What the change connects to" (contracts), coverage-by-batch table, footer with model, batches and cost. Body kept under MAX_BODY_CHARS.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">neutralise + signatures</div>
+          <div class="cd">Every piece of model text and every repo-controlled string has &lt;!-- and --&gt; escaped, so neither can forge a marker. The engine then adds its own &lt;!-- wachi:review --&gt;, &lt;!-- wachi:finding --&gt;, &lt;!-- wachi:reply --&gt; and, only for a complete unscoped review, the incremental marker &lt;!-- agent-review sha=… --&gt;.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">refuseLeak → postReview (COMMENT)</div>
+          <div class="cd">Aborts the whole post if any text looks like a provider key. Posts one review with event COMMENT: never approve, never request changes. Transient 422 retried after 1 s and 3 s with an attempt id so a landed POST is not duplicated. A validation 422 moves inline comments into the body.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:2">
+          <div class="ct">Thread reply POSTs</div>
+          <div class="cd">Only for comment ids the engine itself handed to the model; one POST each, after the review.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="card" style="flex-grow:3">
+          <div class="ct">Local sinks + history</div>
+          <div class="cd">terminal, Markdown or JSON rendering of the same ReviewResult. With --history: reconcile against the repo's earlier runs under ~/.wachiman/history (never leaves the machine) and annotate new / persisting / gone findings.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="facts">
+    <h2>Key facts</h2>
+    <ul>
+      <li>Thesis: the model only judges. Everything code can decide (which files, in what order, how many per call, whether every file was accounted for, what gets posted) is decided by code before and after the call.</li>
+      <li>The prompt the model reads is Markdown with XML tags and a line-numbered diff. The JSON formats review-input/1 and review-result/1 are contracts between engine parts and never reach the model.</li>
+      <li>The only JSON the model reads are three small side files per batch: pr.json, threads.json, evidence.json (≤16 KB).</li>
+      <li>The model's answer is JSON constrained by a schema; that is what makes the coverage check and the cite verification deterministic.</li>
+      <li>"Reviewed" always means "reported as reviewed by the model": the engine cannot see what the agent actually read; it only checks the agent's own list against the selected files.</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

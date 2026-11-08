@@ -27,6 +27,13 @@ model actually read, so "reviewed" always means "reported as reviewed by the mod
 
 ## The flow
 
+![One review run: triggers, connector, core, one model call per batch, verification, merge, sinks](assets/review-flow.svg)
+
+The picture above is the run at a glance; the colours mark what format each piece of data has
+and whether the model ever sees it. [review-flow-stages.html](assets/review-flow-stages.html) is
+the same run as six stages with one card per function, for reading next to the code. Both are
+hand-written and follow this page; when the pipeline changes, this page changes first.
+
 ```
  review <pr>                                   comment <pr>  ($REQUEST)
      |                                              |
