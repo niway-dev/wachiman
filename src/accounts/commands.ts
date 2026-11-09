@@ -192,7 +192,7 @@ export function parseProfileArgs(argv: string[]): ProfileCommand {
 const WINDOWS_SHIMS = /\.(cmd|bat|ps1)$/i;
 
 /** Why `path` cannot be a stored `claude` binary, or undefined when it can. Checked at write time and again at run time. */
-function binaryProblem(path: string): string | undefined {
+export function binaryProblem(path: string): string | undefined {
   if (!isAbsolute(path) && !/^[A-Za-z]:[\\/]/.test(path)) return "is not an absolute path";
   if (WINDOWS_SHIMS.test(path)) {
     return "is a script shim (`claude.cmd` is an npm shim that starts Node); give the path of `claude.exe`, which `claude doctor` prints";
@@ -213,7 +213,7 @@ function binaryProblem(path: string): string | undefined {
   return undefined;
 }
 
-function expandHome(path: string, userHome: string) {
+export function expandHome(path: string, userHome: string) {
   if (path === "~") return userHome;
   if (path.startsWith("~/") || path.startsWith("~\\")) return join(userHome, path.slice(2));
   return path;
@@ -231,9 +231,8 @@ const realOrResolved = (path: string) => {
   }
 };
 
-function addProfile(cmd: Extract<ProfileCommand, { kind: "add" }>, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps) {
-  const home = wachimanHome(env);
-  const { name } = cmd;
+/** The refusals for a new profile name, before anything is written; the same for `profile add` and the `setup` wizard. */
+export function checkNewProfileName(name: string, home: string) {
   if (name === "default" || name === DEFAULT_ISOLATED_NAME) {
     throw new UsageError(`"${name}" is reserved (${name === "default" ? "the built-in profile" : "the managed profile of that name"}); choose another name.`);
   }
@@ -241,19 +240,34 @@ function addProfile(cmd: Extract<ProfileCommand, { kind: "add" }>, env: Record<s
   if (existsSync(managedDir(home, name))) {
     throw new UsageError(`${managedDir(home, name)} is the managed directory of a profile named "${name}"; choose another name.`);
   }
-  const expanded = expandHome(cmd.configDir, deps.userHome ?? homedir());
-  if (!isAbsolute(expanded)) throw new UsageError(`--config-dir must be an absolute path (a leading ~ is expanded), got "${cmd.configDir}".`);
+}
+
+/**
+ * The directory of an external profile: `~` expanded, absolute, existing, a directory, and not under
+ * the Wachiman home. Opens nothing inside it. `label` is how the refusals name the value (`--config-dir`).
+ */
+export function checkExternalConfigDir(raw: string, home: string, userHome: string, label = "--config-dir") {
+  const expanded = expandHome(raw, userHome);
+  if (!isAbsolute(expanded)) throw new UsageError(`${label} must be an absolute path (a leading ~ is expanded), got "${raw}".`);
   const configDir = resolve(expanded);
   let stat;
   try {
     stat = statSync(configDir);
   } catch {
-    throw new UsageError(`--config-dir ${configDir} does not exist.`);
+    throw new UsageError(`${label} ${configDir} does not exist.`);
   }
-  if (!stat.isDirectory()) throw new UsageError(`--config-dir ${configDir} is not a directory.`);
+  if (!stat.isDirectory()) throw new UsageError(`${label} ${configDir} is not a directory.`);
   if (isUnder(configDir, resolve(home)) || isUnder(realOrResolved(configDir), realOrResolved(home))) {
-    throw new UsageError(`--config-dir ${configDir} is under the Wachiman home ${home}, which holds the managed profiles; use \`wachiman profile create\` for those.`);
+    throw new UsageError(`${label} ${configDir} is under the Wachiman home ${home}, which holds the managed profiles; use \`wachiman profile create\` for those.`);
   }
+  return configDir;
+}
+
+function addProfile(cmd: Extract<ProfileCommand, { kind: "add" }>, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps) {
+  const home = wachimanHome(env);
+  const { name } = cmd;
+  checkNewProfileName(name, home);
+  const configDir = checkExternalConfigDir(cmd.configDir, home, deps.userHome ?? homedir());
   if (cmd.binary !== undefined) {
     const problem = binaryProblem(cmd.binary);
     if (problem) throw new UsageError(`--binary ${cmd.binary} ${problem}.`);
@@ -591,6 +605,24 @@ export function parseSetupArgs(argv: string[], repoDir: string): SetupOptions | 
 }
 
 /**
+ * The end of `setup`: the compact doctor summary and the suggested `wachiman local` line, on stderr.
+ * Returns the exit code the summary decides (1 when a required check failed; the binding stays written).
+ */
+export function closeSetup(repoDir: string, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps = {}): number {
+  const report = buildDoctorReport(
+    { repoDir, allProfiles: false, json: false, redactPaths: false },
+    env,
+    { spawn: deps.spawn, git: deps.git, userHome: deps.userHome, ...deps.doctor },
+  );
+  const width = Math.max(...report.checks.map((r) => r.id.length));
+  io.stderr(`doctor: ${report.checks.length} checks, ${report.failedRequired} required failed`);
+  for (const row of report.checks) if (row.status === "fail" || row.status === "warn") for (const line of renderRow(row, width)) io.stderr(line);
+  io.stderr(report.failedRequired > 0 ? `${report.failedRequired} required check(s) failed; the binding was written. Fix them, then run \`wachiman doctor\`.` : "All required checks passed.");
+  io.stderr(`next: wachiman local --repo-dir ${repoDir}`);
+  return report.exitCode;
+}
+
+/**
  * Binds the repository to a profile that already resolves: never a model call, never a file under
  * the repository, never a new profile entry. The write is one locked config transaction. A closing
  * doctor summary decides the exit code: the binding stays written when a required check fails.
@@ -642,16 +674,7 @@ export function runSetup(opts: SetupOptions, env: Record<string, string | undefi
   });
   io.stderr(`bound: ${repo.name} → ${opts.profile} (home config, nothing written in the repository)`);
 
-  const report = buildDoctorReport(
-    { repoDir: opts.repoDir, allProfiles: false, json: false, redactPaths: false },
-    env,
-    { spawn: deps.spawn, git: deps.git, userHome: deps.userHome, ...deps.doctor },
-  );
-  const width = Math.max(...report.checks.map((r) => r.id.length));
-  io.stderr(`doctor: ${report.checks.length} checks, ${report.failedRequired} required failed`);
-  for (const row of report.checks) if (row.status === "fail" || row.status === "warn") for (const line of renderRow(row, width)) io.stderr(line);
-  io.stderr(report.failedRequired > 0 ? `${report.failedRequired} required check(s) failed; the binding was written. Fix them, then run \`wachiman doctor\`.` : "All required checks passed.");
-  io.stderr(`next: wachiman local --repo-dir ${opts.repoDir}`);
+  const code = closeSetup(opts.repoDir, env, io, deps);
   if (opts.json) io.stdout(`${JSON.stringify(projectShow(opts.repoDir, env, deps), null, 2)}\n`);
-  return report.exitCode;
+  return code;
 }
