@@ -162,15 +162,19 @@ async function w5(exe: string, s: Scenario) {
   if (!windows) {
     const child = spawn(exe, args, { env, cwd: s.work, detached: true, stdio: ["ignore", "pipe", "pipe"] });
     const exited = new Promise<number | null>((done) => child.on("exit", (c) => done(c)));
-    check(await waitFor(ready, 60_000), "the fake claude never reached its review call");
-    during = leftovers(temp);
-    process.kill(-child.pid!, "SIGINT");
-    const outcome = await Promise.race([exited, sleep(60_000).then(() => "timeout" as const)]);
-    if (outcome === "timeout") {
-      process.kill(-child.pid!, "SIGKILL");
-      throw new Failed("the run did not stop within 60 s of Ctrl-C");
+    try {
+      check(await waitFor(ready, 60_000), "the fake claude never reached its review call");
+      during = leftovers(temp);
+      process.kill(-child.pid!, "SIGINT");
+      const outcome = await Promise.race([exited, sleep(60_000).then(() => "timeout" as const)]);
+      if (outcome === "timeout") throw new Failed("the run did not stop within 60 s of Ctrl-C");
+      code = outcome;
+    } finally {
+      // Whatever the outcome, nothing of this run (the executable, the fake `claude` it started) outlives it.
+      try {
+        process.kill(-child.pid!, "SIGKILL");
+      } catch {} // the group is already gone
     }
-    code = outcome;
   } else {
     ({ code, during } = await interruptOnWindows(exe, args, env, s, temp, ready));
   }
@@ -184,7 +188,8 @@ async function w5(exe: string, s: Scenario) {
  * Windows has no signals; Ctrl-C is a console event. The run starts in a console of its own (a new
  * window, through Start-Process), so the event reaches it and the fake `claude` it started but not
  * this script or the CI shell. A helper process attaches to that console, ignores the event
- * itself, and generates it. Unproven until it has run on `windows-latest`.
+ * itself, and generates it. Unproven until it has run on `windows-latest`; so is `taskkill /T /F`, which
+ * stops the run and the fake `claude` it started when the helper never got to send the event.
  */
 async function interruptOnWindows(exe: string, args: string[], env: Record<string, string>, s: Scenario, temp: string, ready: string) {
   const q = (text: string) => `'${text.replace(/'/g, "''")}'`;
@@ -194,10 +199,10 @@ async function interruptOnWindows(exe: string, args: string[], env: Record<strin
     "$null = $p.Handle",
     "$end = (Get-Date).AddSeconds(90)",
     `while (-not (Test-Path ${q(ready)}) -and -not $p.HasExited -and (Get-Date) -lt $end) { Start-Sleep -Milliseconds 200 }`,
-    `if (-not (Test-Path ${q(ready)})) { Write-Output 'NOT_READY'; try { $p.Kill() } catch {}; exit 3 }`,
+    `if (-not (Test-Path ${q(ready)})) { Write-Output 'NOT_READY'; try { & taskkill.exe /PID $p.Id /T /F *> $null } catch {}; exit 3 }`,
     `Write-Output ('DURING ' + ((Get-ChildItem -Name ${q(temp)}) -join ','))`,
     `& ${q(process.execPath)} ${q(join(root, "scripts", "smoke-exe.ts"))} --ctrl-c-helper $p.Id`,
-    "if (-not $p.WaitForExit(60000)) { try { $p.Kill() } catch {}; Write-Output 'TIMEOUT'; exit 4 }",
+    "if (-not $p.WaitForExit(60000)) { try { & taskkill.exe /PID $p.Id /T /F *> $null } catch {}; Write-Output 'TIMEOUT'; exit 4 }",
     "Write-Output ('EXIT ' + $p.ExitCode)",
   ].join("\n");
   const launcher = spawnSync(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"), ["-NoProfile", "-NonInteractive", "-Command", script], { env, encoding: "utf8", timeout: 240_000 });
