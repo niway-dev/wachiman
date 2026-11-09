@@ -15,6 +15,7 @@ import {
   resolveRefs,
   snapshotHead,
   splitPatches,
+  tarCommand,
 } from "./local-git";
 
 afterAll(removeTempRepos);
@@ -202,6 +203,26 @@ describe("localInstructions", () => {
     const dir = emptyRepo();
     const base = commit(dir, { "CLAUDE.md/inner.md": "not a file\n" }, "base");
     expect(localInstructions(dir, base, () => {}).files).toEqual([]);
+  });
+});
+
+describe("tarCommand", () => {
+  test("is plain tar on POSIX systems", () => {
+    expect(tarCommand("linux", {}, () => true)).toBe("tar");
+    expect(tarCommand("darwin", { SystemRoot: "C:\\Windows" }, () => true)).toBe("tar");
+  });
+
+  // GNU tar from Git for Windows reads `C:\x.tar` as a file on a host named `C`; the system's bsdtar does not.
+  test("on Windows it is the system's own tar.exe, found through SystemRoot in any case", () => {
+    const seen: string[] = [];
+    const exists = (path: string) => (seen.push(path), true);
+    expect(tarCommand("win32", { SYSTEMROOT: "D:\\Win" }, exists)).toBe(join("D:\\Win", "System32", "tar.exe"));
+    expect(seen).toEqual([join("D:\\Win", "System32", "tar.exe")]);
+  });
+
+  test("on Windows it falls back to tar on PATH when the system's is missing or SystemRoot is unset", () => {
+    expect(tarCommand("win32", { SystemRoot: "C:\\Windows" }, () => false)).toBe("tar");
+    expect(tarCommand("win32", {}, () => true)).toBe("tar");
   });
 });
 

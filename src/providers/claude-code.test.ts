@@ -339,6 +339,32 @@ describe("the child environment", () => {
     expect(buildChildEnv({ PATH: "/bin", CLAUDE_CONFIG_DIR: undefined })).toEqual({ PATH: "/bin" });
   });
 
+  // Windows keeps the search path in `Path` and needs a few more names for a child to start at all.
+  const windows = {
+    Path: "C:\\Windows\\System32",
+    SystemRoot: "C:\\Windows",
+    USERPROFILE: "C:\\Users\\dev",
+    USERNAME: "dev",
+    TEMP: "C:\\Temp",
+    TMP: "C:\\Temp",
+    APPDATA: "C:\\Users\\dev\\AppData\\Roaming",
+    LOCALAPPDATA: "C:\\Users\\dev\\AppData\\Local",
+    PATHEXT: ".COM;.EXE",
+    GH_TOKEN: "ghs_secret",
+    ANTHROPIC_BASE_URL: "https://example.invalid",
+    HTTPS_PROXY: "http://proxy.invalid",
+  };
+
+  test("on Windows, names match without regard to case and the user-profile names are kept", () => {
+    const { GH_TOKEN, ANTHROPIC_BASE_URL, HTTPS_PROXY, ...kept } = windows;
+    expect(buildChildEnv(windows, { platform: "win32" })).toEqual(kept);
+  });
+
+  test("on other systems the match stays exact, so a mixed-case name is dropped", () => {
+    expect(buildChildEnv({ Path: "/bin", PATH: "/usr/bin" }, { platform: "linux" })).toEqual({ PATH: "/usr/bin" });
+    expect(buildChildEnv({ Path: "/bin" }, { platform: "darwin" })).toEqual({});
+  });
+
   test("the spawned child sees none of the poisoned variables", () => {
     const binary = stubBinary(`
 if [ "$1" = "--version" ]; then echo "2.1.304 (Claude Code)"; exit 0; fi

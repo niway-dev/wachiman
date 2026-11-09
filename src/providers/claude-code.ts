@@ -58,6 +58,24 @@ export const CHILD_ENV_ALLOWLIST = [
   "GITHUB_ACTIONS",
 ] as const;
 
+/**
+ * What a child process needs on Windows to start and find its own sign-in: the profile and
+ * application-data directories, the system root, the temporary directories and the executable
+ * extensions. Not secrets; allowlisted only when the parent is Windows.
+ */
+export const WINDOWS_CHILD_ENV_ALLOWLIST = [
+  "USERPROFILE",
+  "USERNAME",
+  "SystemRoot",
+  "SystemDrive",
+  "ComSpec",
+  "TEMP",
+  "TMP",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PATHEXT",
+] as const;
+
 /** `LC_ALL`, `LC_CTYPE`, … along with the exact names above. */
 const LOCALE_PREFIX = "LC_";
 
@@ -86,14 +104,18 @@ export const SUBSCRIPTION_ENV = {
  */
 export function buildChildEnv(
   env: Record<string, string | undefined>,
-  opts: { auth?: ClaudeAuth; configDir?: string } = {},
+  opts: { auth?: ClaudeAuth; configDir?: string; platform?: string } = {},
 ) {
   const subscription = opts.auth === "subscription";
+  // Windows names are case-insensitive and the search path is usually `Path`, so match them so.
+  const windows = (opts.platform ?? process.platform) === "win32";
+  const allowed = new Set<string>([...CHILD_ENV_ALLOWLIST, ...(windows ? WINDOWS_CHILD_ENV_ALLOWLIST : [])].map((n) => (windows ? n.toUpperCase() : n)));
   const child: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined) continue;
-    if (subscription && name === "ANTHROPIC_API_KEY") continue;
-    if ((CHILD_ENV_ALLOWLIST as readonly string[]).includes(name) || name.startsWith(LOCALE_PREFIX)) {
+    const key = windows ? name.toUpperCase() : name;
+    if (subscription && key === "ANTHROPIC_API_KEY") continue;
+    if (allowed.has(key) || name.startsWith(LOCALE_PREFIX)) {
       child[name] = value;
     }
   }
