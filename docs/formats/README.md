@@ -8,19 +8,29 @@ change to review or read a review's result.
 | --- | --- | --- |
 | `wachiman.review-input/1` | [review-input.v1.schema.json](review-input.v1.schema.json) | A change to review: what changed (`change`), the per-file diffs (`files`), the instructions read from the base commit (`instructions`), the scope, and optionally the incremental context (`since`) and the open threads (`conversation`) |
 | `wachiman.review-result/1` | [review-result.v1.schema.json](review-result.v1.schema.json) | What the core found: coverage, findings (each with its `anchor`), contracts, the summary, per-batch reports, thread replies, and how the run went (`execution`: cost estimate, calls, turns, why it stopped) |
+| `wachiman.review-result/2` | [review-result.v2.schema.json](review-result.v2.schema.json) | The same result with the verifier's answer: each finding's `origin` (`introduced`, `pre-existing`, `unknown`), its `verification` (`supported`, `refuted`, `inconclusive`, `unverified`, with the reason and the lines checked in the `base` or `head` snapshot) and its display `tier`; a root `verification` record; and `provider.account` (a label, a kind and a rung, never a path) |
 
 The JSON Schemas are the contract; the TypeScript types in `src/formats.ts` follow them. A local
-history run file embeds a `wachiman.review-result/1` under `result`; the wrapper around it
-(`wachiman.history-run/1`) is internal and has no schema.
+history run file embeds a `wachiman.review-result/2` under `result` (and reads `/1` files written
+before it); the wrapper around it (`wachiman.history-run/1`) is internal and has no schema.
 
 ## Versioning
 
 - The `format` string is the only version. A producer writes the version it produces; the core
   refuses a `format` it does not know with a usage error.
-- Inside `/1`, only optional fields are added. Removing, renaming or retyping a field, or making
-  an optional field required, is `/2`.
-- A `/1` reader accepts unknown fields on a finding, a contract, a batch report and `execution`,
-  where later `/1` writers are expected to add them; everywhere else an unknown field is invalid.
+- Inside a version, only optional fields are added. Removing, renaming or retyping a field, or
+  making an optional field required, is the next version.
+- A reader accepts unknown fields on a finding, a contract, a batch report and `execution`, where
+  later writers are expected to add them; everywhere else an unknown field is invalid.
+- **Why `/2` exists.** The `/1` root and `provider` are closed, so a root `verification` block or a
+  `provider.account` would make every existing `/1` validator reject the file, and each finding
+  gains three required fields. `/2` carries them; `/1` is unchanged
+  ([ADR 0030](../adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)).
+- **Which version a command writes.** The core produces `/2`. `wachiman local --format json`
+  writes `/1` for a committed change, by `toResultV1` (src/formats.ts): the same findings, no
+  `/2`-only field, and one line in `execution.notices` saying what the verifier did.
+  `--result-version 2` writes `/2`. Changing the default is a separately announced major release.
+  A working-tree review has no `/1` form.
 
 ## What is never in a file
 

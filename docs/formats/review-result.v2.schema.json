@@ -1,0 +1,877 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/niway-dev/wachiman/docs/formats/review-result.v2.schema.json",
+  "title": "Wachiman review result, version 2",
+  "description": "What the review core returns for one review input, with the verifier's verdict and the origin of each finding. `wachiman local --format json --result-version 2` writes it; committed-change JSON stays on version 1 by default (docs/formats/README.md). Every sink renders this object.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "change",
+    "engine",
+    "provider",
+    "coverage",
+    "findings",
+    "contracts",
+    "summary",
+    "batches",
+    "threadReplies",
+    "instructionChanges",
+    "execution"
+  ],
+  "properties": {
+    "format": {
+      "const": "wachiman.review-result/2"
+    },
+    "change": {
+      "$ref": "#/$defs/ResultChange"
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version"
+      ],
+      "properties": {
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "model",
+        "effort",
+        "profile"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        },
+        "profile": {
+          "enum": [
+            "ci",
+            "default",
+            "isolated"
+          ]
+        },
+        "account": {
+          "description": "Which account ran the review: a label, a kind and the rung that chose it. Never a directory, an executable path, an e-mail or a URL.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "kind",
+            "rung"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "default",
+                "managed",
+                "external"
+              ]
+            },
+            "rung": {
+              "enum": [
+                "flag",
+                "binding",
+                "env",
+                "configDefault",
+                "builtIn"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "expected",
+        "reviewed",
+        "skipped",
+        "excluded",
+        "partial"
+      ],
+      "properties": {
+        "expected": {
+          "description": "The files kept for review, after the excludes and the scope.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reviewed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skipped": {
+          "description": "Closed skip reasons and the \"not reached\" entries.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "reason"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "excluded": {
+          "description": "How many files within the scope the excludes dropped (lockfiles, build output, generated).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "unreviewable": {
+          "description": "Files the engine left out of `expected` because no model can review them (binaries); they never make a review partial.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "reason"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "reason": {
+                "enum": [
+                  "binary"
+                ]
+              }
+            }
+          }
+        },
+        "partial": {
+          "type": "boolean"
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ResultFinding"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Contract"
+      }
+    },
+    "summary": {
+      "type": "string"
+    },
+    "batches": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/BatchReport"
+      }
+    },
+    "threadReplies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "comment_id",
+          "status",
+          "reply"
+        ],
+        "properties": {
+          "comment_id": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "addressed",
+              "still_open"
+            ]
+          },
+          "reply": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "instructionChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files",
+        "baseSha"
+      ],
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "baseSha": {
+          "type": "string"
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "costUsdEstimate",
+        "usage",
+        "calls",
+        "callsWithOutput",
+        "turns",
+        "durationMs",
+        "stop",
+        "notices"
+      ],
+      "properties": {
+        "costUsdEstimate": {
+          "description": "total_cost_usd summed: an API-equivalent estimate, never a bill on a subscription.",
+          "type": "number",
+          "minimum": 0
+        },
+        "usage": {
+          "$ref": "#/$defs/TokenUsage"
+        },
+        "calls": {
+          "description": "Provider calls, retries included.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "callsWithOutput": {
+          "description": "Calls (retries included) that returned a review; 0 means nothing was reviewed.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "durationMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "stop": {
+          "enum": [
+            "complete",
+            "budget",
+            "turns",
+            "timeout",
+            "quota",
+            "error"
+          ]
+        },
+        "rejection": {
+          "description": "The first provider rejection, when a call was refused.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "billing",
+                "auth",
+                "rate_limit",
+                "other"
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          }
+        },
+        "notices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "verification": {
+      "$ref": "#/$defs/ResultVerification"
+    }
+  },
+  "$defs": {
+    "ResultChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "describe",
+        "repository",
+        "base",
+        "head"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "pull-request",
+            "branch"
+          ]
+        },
+        "describe": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        },
+        "base": {
+          "$ref": "#/$defs/Commit"
+        },
+        "head": {
+          "$ref": "#/$defs/Commit"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "identifier": {
+          "type": "string"
+        },
+        "snapshot": {
+          "description": "The snapshot the review read, when the connector made one.",
+          "type": "string"
+        }
+      }
+    },
+    "Commit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha"
+      ],
+      "properties": {
+        "sha": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        }
+      }
+    },
+    "ResultFinding": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "path",
+        "line",
+        "severity",
+        "topic",
+        "title",
+        "body",
+        "anchor",
+        "origin",
+        "verification",
+        "tier"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "description": "A new-side line, or 0 for the whole file.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "severity": {
+          "enum": [
+            "blocker",
+            "fix",
+            "consider",
+            "info"
+          ]
+        },
+        "topic": {
+          "enum": [
+            "bug",
+            "security",
+            "rules",
+            "adr",
+            "docs",
+            "tests",
+            "perf",
+            "cleanup",
+            "question"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "anchor": {
+          "description": "Whether a diff-anchored comment can target the line.",
+          "enum": [
+            "diff",
+            "outside"
+          ]
+        },
+        "verification": {
+          "$ref": "#/$defs/FindingVerification"
+        },
+        "origin": {
+          "description": "Unknown unless base or head evidence establishes it.",
+          "enum": [
+            "introduced",
+            "pre-existing",
+            "unknown"
+          ]
+        },
+        "originReason": {
+          "type": "string"
+        },
+        "originEvidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          }
+        },
+        "tier": {
+          "description": "The display word, derived from severity and origin by the engine; never taken from a model.",
+          "enum": [
+            "Important",
+            "Nit",
+            "Pre-existing"
+          ]
+        }
+      }
+    },
+    "Contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "action",
+        "location",
+        "status",
+        "evidence"
+      ],
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "equivalent_path": {
+          "type": "string"
+        },
+        "before_after": {
+          "type": "string"
+        },
+        "visible_effect": {
+          "type": "string"
+        },
+        "failure_mode": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "closed",
+            "open"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "open_question": {
+          "type": "string"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evidence_checked": {
+          "type": "boolean"
+        }
+      }
+    },
+    "BatchReport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "label",
+        "files",
+        "lines",
+        "maxRisk",
+        "status",
+        "turns",
+        "costUsd"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxRisk": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string"
+        },
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsd": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "TokenUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input",
+        "output",
+        "cacheRead",
+        "cacheWrite"
+      ],
+      "properties": {
+        "input": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheRead": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheWrite": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Citation": {
+      "description": "A line the verifier read, in the snapshot it names. Line 0 is not evidence.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot",
+        "path",
+        "line"
+      ],
+      "properties": {
+        "snapshot": {
+          "enum": [
+            "base",
+            "head"
+          ]
+        },
+        "path": {
+          "description": "Repository-relative, forward slashes, inside that snapshot.",
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "FindingVerification": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "reason",
+        "checked"
+      ],
+      "properties": {
+        "candidateId": {
+          "description": "Absent when the finding was not selected for verification.",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "supported",
+            "refuted",
+            "inconclusive",
+            "unverified"
+          ]
+        },
+        "reason": {
+          "description": "A short rationale tied to the evidence, not hidden reasoning.",
+          "type": "string"
+        },
+        "checked": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          }
+        },
+        "disproof": {
+          "$ref": "#/$defs/Citation"
+        },
+        "claimed": {
+          "enum": [
+            "supported",
+            "refuted",
+            "inconclusive",
+            "none"
+          ]
+        }
+      }
+    },
+    "ResultVerification": {
+      "description": "The verifier's record, present only when it was turned on. `verified` means every candidate got a usable verdict, not that every bug was proved. `findings` holds what survived it; a dropped finding appears only here.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "model",
+        "effort",
+        "costUsd",
+        "entries",
+        "dropped",
+        "inconclusive"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "verified",
+            "partial",
+            "failed",
+            "nothing",
+            "skipped"
+          ]
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "costUsd": {
+          "description": "API-equivalent on a subscription, not a separate bill.",
+          "type": "number",
+          "minimum": 0
+        },
+        "stop": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "detail"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "budget",
+                "turns",
+                "timeout",
+                "quota",
+                "error"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VerificationEntry"
+          }
+        },
+        "dropped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inconclusive": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "VerificationEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "path",
+        "line",
+        "title",
+        "topic",
+        "severity",
+        "status",
+        "origin",
+        "reason",
+        "checked",
+        "outcome"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "title": {
+          "type": "string"
+        },
+        "topic": {
+          "enum": [
+            "bug",
+            "security",
+            "rules",
+            "adr",
+            "docs",
+            "tests",
+            "perf",
+            "cleanup",
+            "question"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "blocker",
+            "fix",
+            "consider",
+            "info"
+          ]
+        },
+        "status": {
+          "enum": [
+            "supported",
+            "refuted",
+            "inconclusive",
+            "unverified"
+          ]
+        },
+        "claimed": {
+          "enum": [
+            "supported",
+            "refuted",
+            "inconclusive",
+            "none"
+          ]
+        },
+        "origin": {
+          "enum": [
+            "introduced",
+            "pre-existing",
+            "unknown"
+          ]
+        },
+        "originReason": {
+          "type": "string"
+        },
+        "originEvidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          }
+        },
+        "reason": {
+          "type": "string"
+        },
+        "checked": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          }
+        },
+        "disproof": {
+          "$ref": "#/$defs/Citation"
+        },
+        "outcome": {
+          "enum": [
+            "dropped",
+            "kept",
+            "degraded",
+            "moved"
+          ]
+        },
+        "severityAfter": {
+          "enum": [
+            "blocker",
+            "fix",
+            "consider",
+            "info"
+          ]
+        }
+      }
+    }
+  }
+}
