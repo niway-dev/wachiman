@@ -198,7 +198,7 @@ wachiman profile remove work [--delete-dir]   # forget it (the directory stays u
 
 The binding is stored in `~/.wachiman/config.json`, keyed by the repository's origin URL (or its git
 directory when it has no origin), so every clone and worktree of one origin shares it. `setup`
-prints what it will write and asks first; nothing is written to the repository. Without a terminal
+prints what it will write and, on a terminal, asks first; nothing is written to the repository. Without a terminal
 it needs `--profile` (the guided wizard for the bare `wachiman setup` is not built yet, so for now
 it exits 2 and writes nothing). `WACHIMAN_HOME` (an absolute path) replaces `~/.wachiman`.
 

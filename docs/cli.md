@@ -217,12 +217,13 @@ and confirmations to stderr; `--json` prints the document named below.
 | `profile default <name> \| --none` | Sets or clears the configured default |
 | `project show [--json] [--repo-dir <dir>]` | The repository's key, its binding, and what `local` would use here now, with the rule and any ignored values. `--json` prints `wachiman.project/1` |
 | `project unbind [--repo-dir <dir>] [--yes]` | Removes this repository's binding |
-| `setup --profile <name> [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to an existing profile, prints exactly what it will write, asks `Bind <name> to <repo>?`, then runs the `doctor` summary |
+| `setup --profile <name> [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to an existing profile, prints exactly what it will write, asks `Bind <repo> to <profile>?` (only on a terminal), then runs the `doctor` summary |
 | `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `history`, `skills`, `isolation`. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
 
-`remove`, `unbind` and `setup` ask before writing. Without a terminal (or with `CI` set) they need
-`--yes`; without it they exit 2. `setup` without `--profile` needs a terminal and a wizard that is
-not built yet, so for now it exits 2 and writes nothing. In `doctor`, the `auth` row reports
+`remove` and `unbind` ask before writing. Without a terminal (or with `CI` set) they need `--yes`;
+without it they exit 2. `setup` asks only on a terminal: without one, with `CI` set or with `--yes`
+it skips the question and writes the binding. `setup` without `--profile` needs a wizard that is
+not built yet, so for now it exits 2 and writes nothing, on a terminal or not. In `doctor`, the `auth` row reports
 `networkObserved: "unknown"` always: Wachiman does not know what `claude auth status` contacts.
 With `ANTHROPIC_API_KEY` set, the `environment` row fails, because `local` would refuse to start.
 
