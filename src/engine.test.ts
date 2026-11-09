@@ -1148,10 +1148,10 @@ describe("openBotThreads", () => {
       line: 3,
       comments: { nodes: [{ ...comment("github-actions", "NONE", body, 5), createdAt }] },
     });
-    expect(openBotThreads([legacy("Important · 🟠🐛 **Fix · bug: X**\n\nbody")])).toHaveLength(1);
+    expect(openBotThreads([legacy("🟠🐛 **Fix · bug: X**\n\nbody")])).toHaveLength(1);
     expect(openBotThreads([legacy("**Should fix (correctness): X**\n\nbody")])).toHaveLength(1);
     // A label with a different workflow's signature is not legacy.
-    expect(openBotThreads([legacy("Important · 🟠🐛 **Fix · bug: X**\n\n<!-- wachi:reply -->")])).toHaveLength(0);
+    expect(openBotThreads([legacy("🟠🐛 **Fix · bug: X**\n\n<!-- wachi:reply -->")])).toHaveLength(0);
   });
 
   test("an unsigned comment in the old format created after the cutoff is rejected", () => {
@@ -1162,7 +1162,7 @@ describe("openBotThreads", () => {
       comments: {
         nodes: [
           {
-            ...comment("github-actions", "NONE", "Important · 🟠🐛 **Fix · bug: X**\n\nbody", 5),
+            ...comment("github-actions", "NONE", "🟠🐛 **Fix · bug: X**\n\nbody", 5),
             createdAt: "2026-11-01T00:00:00Z",
           },
         ],
@@ -1170,7 +1170,7 @@ describe("openBotThreads", () => {
     };
     expect(openBotThreads([imitation])).toEqual([]);
     // With no date it is not trusted either.
-    const undated = { ...imitation, comments: { nodes: [comment("github-actions", "NONE", "Important · 🟠🐛 **Fix · bug: X**\n\nbody", 5)] } };
+    const undated = { ...imitation, comments: { nodes: [comment("github-actions", "NONE", "🟠🐛 **Fix · bug: X**\n\nbody", 5)] } };
     expect(openBotThreads([undated])).toEqual([]);
   });
 });
