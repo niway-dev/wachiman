@@ -1,0 +1,146 @@
+{
+  "format": "wachiman.review-result/1",
+  "change": {
+    "kind": "pull-request",
+    "describe": "pull request #7 in o/r",
+    "repository": {
+      "name": "o/r",
+      "url": "https://github.com/o/r"
+    },
+    "base": {
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "head": {
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "title": "Session export",
+    "description": "Adds the session store.",
+    "author": "octocat",
+    "identifier": "#7"
+  },
+  "engine": {
+    "version": "1.6.0"
+  },
+  "provider": {
+    "label": "Claude Code · claude-sonnet-5-5",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "profile": "ci"
+  },
+  "coverage": {
+    "expected": [
+      "apps/api/src/main/session/session-manager.ts",
+      "apps/api/src/main/session/store.ts",
+      "assets/logo.png",
+      "docs/guides/2026-01-01-export-format.md"
+    ],
+    "reviewed": [
+      "apps/api/src/main/session/session-manager.ts",
+      "apps/api/src/main/session/store.ts",
+      "docs/guides/2026-01-01-export-format.md"
+    ],
+    "skipped": [
+      {
+        "path": "assets/logo.png",
+        "reason": "binary"
+      }
+    ],
+    "excluded": 0,
+    "partial": false
+  },
+  "findings": [
+    {
+      "path": "apps/api/src/main/session/store.ts",
+      "line": 2,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "The store drops the last session",
+      "body": "`y` overwrites `x` before it is flushed.",
+      "anchor": "diff"
+    },
+    {
+      "path": "apps/api/src/main/session/session-manager.ts",
+      "line": 3,
+      "severity": "fix",
+      "topic": "bug",
+      "confidence": "high",
+      "title": "The manager never closes the store",
+      "body": "`close()` is not called on the error path.",
+      "anchor": "outside"
+    },
+    {
+      "path": "apps/api/src/main/session/session-manager.ts",
+      "line": 0,
+      "severity": "consider",
+      "topic": "tests",
+      "confidence": "low",
+      "title": "No test covers the export",
+      "body": "Add a test that exports two sessions.",
+      "anchor": "outside"
+    },
+    {
+      "path": "docs/guides/2026-01-01-export-format.md",
+      "line": 0,
+      "severity": "info",
+      "topic": "adr",
+      "title": "Edits an accepted decision record",
+      "body": "This pull request edits an accepted decision record.",
+      "anchor": "outside"
+    }
+  ],
+  "contracts": [
+    {
+      "action": "Export a session",
+      "location": "apps/api/src/main/session/session-manager.ts:3",
+      "status": "closed",
+      "evidence": [
+        "apps/api/src/main/session/store.ts:1-3"
+      ],
+      "evidence_checked": true
+    }
+  ],
+  "summary": "**Batch 1 of 2.** The store has one ordering bug.\n\n**Batch 2 of 2.** The guide matches the code.",
+  "batches": [
+    {
+      "label": "Batch 1 of 2",
+      "files": 3,
+      "lines": 9,
+      "maxRisk": 7,
+      "status": "reviewed",
+      "turns": 6,
+      "costUsd": 0.3
+    },
+    {
+      "label": "Batch 2 of 2",
+      "files": 1,
+      "lines": 4,
+      "maxRisk": 1,
+      "status": "reviewed",
+      "turns": 3,
+      "costUsd": 0.1
+    }
+  ],
+  "threadReplies": [],
+  "instructionChanges": {
+    "files": [],
+    "baseSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "execution": {
+    "costUsdEstimate": 0.7,
+    "usage": {
+      "input": 1200,
+      "output": 800,
+      "cacheRead": 30000,
+      "cacheWrite": 5000
+    },
+    "calls": 3,
+    "callsWithOutput": 2,
+    "turns": 14,
+    "durationMs": 61234,
+    "stop": "complete",
+    "notices": [
+      "Verification (not carried in result /1): partly verified by Claude Code · claude-opus-5-5, stopped on budget; 1 dropped, 1 inconclusive, 1 pre-existing; $0.30."
+    ]
+  }
+}

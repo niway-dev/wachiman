@@ -545,7 +545,7 @@ describe("enforceConfidenceRule", () => {
 
   test("the label of a rewritten finding shows the question topic and the low confidence", () => {
     const [rewritten] = enforceConfidenceRule([f("fix", "bug", "low")]).findings;
-    expect(label(rewritten)).toBe("🟠❓ **Fix · question: Title (confidence low)**");
+    expect(label(rewritten)).toBe("Important · 🟠❓ **Fix · question: Title (confidence low)**");
   });
 });
 
@@ -600,28 +600,28 @@ describe("label", () => {
 
   test("puts both emojis first, then the severity, topic and title in words", () => {
     expect(label(f("fix", "docs", "stale 'Read by' cell"))).toBe(
-      "🟠📝 **Fix · docs: stale 'Read by' cell**",
+      "Important · 🟠📝 **Fix · docs: stale 'Read by' cell**",
     );
     expect(label(f("blocker", "security", "DATABASE_URL printed"))).toBe(
-      "🔴🔐 **Blocker · security: DATABASE_URL printed**",
+      "Important · 🔴🔐 **Blocker · security: DATABASE_URL printed**",
     );
     expect(label(f("consider", "cleanup", "Duplicate schema"))).toBe(
-      "🟡🧹 **Consider · cleanup: Duplicate schema**",
+      "Nit · 🟡🧹 **Consider · cleanup: Duplicate schema**",
     );
-    expect(label(f("info", "adr", "Edits a record"))).toBe("⚪🏛️ **Info · adr: Edits a record**");
+    expect(label(f("info", "adr", "Edits a record"))).toBe("Nit · ⚪🏛️ **Info · adr: Edits a record**");
   });
 
   test("shows the confidence after the title, inside the bold label", () => {
     expect(label({ ...f("fix", "bug", "Face is lost"), confidence: "high" })).toBe(
-      "🟠🐛 **Fix · bug: Face is lost (confidence high)**",
+      "Important · 🟠🐛 **Fix · bug: Face is lost (confidence high)**",
     );
     expect(label({ ...f("consider", "question", "Is it deliberate?"), confidence: "low" })).toBe(
-      "🟡❓ **Consider · question: Is it deliberate? (confidence low)**",
+      "Nit · 🟡❓ **Consider · question: Is it deliberate? (confidence low)**",
     );
   });
 
   test("shows no confidence when the model gave none", () => {
-    expect(label(f("fix", "bug", "Old output"))).toBe("🟠🐛 **Fix · bug: Old output**");
+    expect(label(f("fix", "bug", "Old output"))).toBe("Important · 🟠🐛 **Fix · bug: Old output**");
   });
 
   test("has an emoji and a word for every severity and topic", () => {
@@ -927,13 +927,13 @@ describe("buildReview", () => {
         path: "src/a.ts",
         line: 2,
         side: "RIGHT",
-        body: "👮 **Wachiman** · 🟠🐛 **Fix · bug: Off by one**\n\nFails for an empty list.\n\n<!-- wachi:finding -->",
+        body: "👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Off by one**\n\nFails for an empty list.\n\n<!-- wachi:finding -->",
       },
       {
         path: "src/a.ts",
         line: 1,
         side: "RIGHT",
-        body: "👮 **Wachiman** · 🟡🧹 **Consider · cleanup: Naming**\n\nConsider a clearer name.\n\n<!-- wachi:finding -->",
+        body: "👮 **Wachiman** · Nit · 🟡🧹 **Consider · cleanup: Naming**\n\nConsider a clearer name.\n\n<!-- wachi:finding -->",
       },
     ]);
     expect(review.body).toContain("2 finding(s): 1 to fix, 1 to consider; 2 on their lines");
@@ -960,7 +960,7 @@ describe("buildReview", () => {
     });
     expect(review.comments).toEqual([]);
     expect(review.body).toContain("### Outside the diff");
-    expect(review.body).toContain("🔴🔐 **Blocker · security: Key in log** (`src/b.ts:9`)");
+    expect(review.body).toContain("Important · 🔴🔐 **Blocker · security: Key in log** (`src/b.ts:9`)");
   });
 
   test("puts info findings in the body under their own heading, never inline, even on a diff line", () => {
@@ -985,9 +985,9 @@ describe("buildReview", () => {
     expect(review.body).not.toContain("### Outside the diff");
     expect(review.body).toContain("2 finding(s); 0 on their lines");
     const info = review.body.slice(review.body.indexOf("### For your information"));
-    expect(info).toContain("- ⚪❓ **Info · question: Heads up** (`src/a.ts:2`): Nothing to change.");
+    expect(info).toContain("- Nit · ⚪❓ **Info · question: Heads up** (`src/a.ts:2`): Nothing to change.");
     expect(info).toContain(
-      "- ⚪🏛️ **Info · adr: Edits an accepted decision record** (`docs/adr/0001-x.md`): This pull request edits",
+      "- Nit · ⚪🏛️ **Info · adr: Edits an accepted decision record** (`docs/adr/0001-x.md`): This pull request edits",
     );
     expect(review.body.indexOf("### For your information")).toBeLessThan(
       review.body.indexOf("### Summary"),
@@ -1059,12 +1059,12 @@ describe("moveCommentsToBody", () => {
     const moved = moveCommentsToBody({
       body: "Summary",
       comments: [
-        { path: "a.ts", line: 3, side: "RIGHT", body: "🟠🐛 **Fix · bug: X**\n\nY" },
+        { path: "a.ts", line: 3, side: "RIGHT", body: "Important · 🟠🐛 **Fix · bug: X**\n\nY" },
       ],
     });
     expect(moved.comments).toEqual([]);
     expect(moved.body).toContain("`a.ts:3`");
-    expect(moved.body).toContain("- `a.ts:3`: 🟠🐛 **Fix · bug: X** Y");
+    expect(moved.body).toContain("- `a.ts:3`: Important · 🟠🐛 **Fix · bug: X** Y");
   });
 });
 
@@ -1439,8 +1439,8 @@ describe("contracts in the review body", () => {
       ...base,
       output: output({ files_reviewed: ["src/a.ts"], findings: [fix, { ...fix, line: 99, confidence: "low", title: "Outside" }] }),
     });
-    expect(comments[0].body.split("\n")[0]).toBe("👮 **Wachiman** · 🟠🐛 **Fix · bug: Face is lost (confidence high)**");
-    expect(body).toContain("🟠🐛 **Fix · bug: Outside (confidence low)** (`src/a.ts:99`)");
+    expect(comments[0].body.split("\n")[0]).toBe("👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Face is lost (confidence high)**");
+    expect(body).toContain("Important · 🟠🐛 **Fix · bug: Outside (confidence low)** (`src/a.ts:99`)");
   });
 
   test("a body over the limit loses its contracts down to what fits, never a finding", () => {
@@ -1467,6 +1467,45 @@ describe("contracts in the review body", () => {
     const withoutContracts = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], findings: outside }) }).body;
     if (withoutContracts.length > MAX_BODY_CHARS - 600) expect(body).not.toContain(CONTRACTS_SUMMARY);
     expect(body).toContain("Outside 399");
+  });
+
+  test("pre-existing and inconclusive sections are cut to what fits, with the footer and the marker kept", () => {
+    const old = Array.from({ length: 500 }, (_, i) => ({ ...fix, line: 100 + i, title: `Old ${i}`, body: "z".repeat(200), origin: "pre-existing" as const }));
+    const unsettled = Array.from({ length: 500 }, (_, i) => ({
+      ...fix,
+      line: 700 + i,
+      title: `Open ${i}`,
+      body: "q".repeat(200),
+      verification: { status: "inconclusive" as const, reason: "no verdict", checked: [] },
+    }));
+    const input = { ...base, output: output({ files_reviewed: ["src/a.ts"], findings: [...old, ...unsettled] }) };
+    const { body } = buildReview(input);
+    expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+    expect(body).toMatch(/- … and \d+ more \(see the JSON result \/ logs\)/);
+    expect(body.match(/… and \d+ more \(see the JSON result \/ logs\)/g)).toHaveLength(2);
+    expect(body).toContain("### Pre-existing");
+    expect(body).toContain("### Inconclusive");
+    expect(body).toContain("Old 0");
+    expect(body).toContain("Open 0");
+    expect(body).toContain("<summary>Coverage by batch");
+    expect(body).toContain("### Summary");
+    expect(body).toContain(SIGNATURE.review);
+    expect(body.endsWith(marker("head1234567"))).toBe(true);
+    // Under the limit nothing is cut and no note appears.
+    const few = buildReview({ ...input, output: output({ files_reviewed: ["src/a.ts"], findings: [...old.slice(0, 3), ...unsettled.slice(0, 3)] }) }).body;
+    expect(few).not.toContain("see the JSON result");
+    expect(few).toContain("Old 2");
+  });
+
+  test("a long list of unreviewed files gives way before pre-existing findings that fit", () => {
+    const old = Array.from({ length: 40 }, (_, i) => ({ ...fix, line: 100 + i, title: `Old ${i}`, body: "z".repeat(200), origin: "pre-existing" as const }));
+    const many = Array.from({ length: 3000 }, (_, i) => file(`packages/some/deeply/nested/module/file-${i}.ts`, 1, 0, "@@ -0,0 +1 @@\n+x"));
+    const input = { ...base, files: [...base.files, ...many], output: output({ files_reviewed: ["src/a.ts"], findings: old }) };
+    const { body } = buildReview(input);
+    expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+    expect(body).toContain("Old 39");
+    expect(body).not.toContain("see the JSON result");
+    expect(body).toContain("(see the Coverage by batch table)");
   });
 
   describe("when GitHub refuses the inline comments", () => {

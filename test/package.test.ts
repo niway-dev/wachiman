@@ -49,9 +49,10 @@ describe("package.json", () => {
 describe.skipIf(!npm)("npm pack --json", () => {
   // Bun runs the body of a skipped describe, so `npm pack` must not run here, only in beforeAll.
   let files: string[] = [];
+  // The 5 s default hook limit is too short for npm's cold start through cmd.exe on a Windows runner.
   beforeAll(() => {
     files = packedFiles();
-  });
+  }, 60_000);
 
   test("ships the launcher, the engine, the skills, the templates, bunfig.toml, the licence and the manifest", () => {
     for (const path of ["package.json", "bin/wachiman.js", "bin/launcher-args.js", "src/cli.ts", "src/install-kind.ts", "src/providers/claude-code.settings.json", "bunfig.toml", "LICENSE", "README.md"]) {

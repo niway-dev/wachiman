@@ -128,8 +128,8 @@ rung 5  built-in "default"               the shell's claude, as is
 
 ### 5.1 `review`, `comment`, `threads` (implemented, unchanged)
 
-As documented in `docs/cli.md`. The verifier runs inside them when `AGENT_REVIEW_VERIFY=1`
-(planned, from `findings-verifier-impl`). No new flag.
+As documented in `docs/cli.md`. The verifier runs inside them unless `AGENT_REVIEW_VERIFY` is `0` or `false`
+(on by default, ADR 0027 amendment of 2026-11-09). No new flag.
 
 ### 5.2 `local` (changed)
 
@@ -153,7 +153,7 @@ wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit> | 
 | `--result-version 1\|2` | `1` for committed changes; `2` for working-tree review | planned | only with `--format json`; `1` runs `toResultV1()`; with another format it is a usage error |
 | `--output <file>` | stdout | implemented | path printed on stderr |
 | `--profile <name>` | rung 2–5 | changed | any name of section 4; `default`, `isolated`, `isolated:<name>` keep working |
-| `--verify` / `--no-verify` | `AGENT_REVIEW_VERIFY`, else off | planned | the verifier call; `--no-verify` wins over the variable; both flags is a usage error |
+| `--verify` / `--no-verify` | `AGENT_REVIEW_VERIFY`, else on (ADR 0027 amendment) | planned | the verifier call; `--no-verify` wins over the variable; both flags is a usage error |
 | `--agent-prompt` | off | implemented | terminal only |
 | `--history` | off, or `AGENT_REVIEW_HISTORY=1` | implemented | save the run |
 
