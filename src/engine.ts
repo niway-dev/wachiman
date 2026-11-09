@@ -3038,12 +3038,16 @@ ${annotateDiff(files)}
  * `/runner/work/repo/src/a.ts` where the engine matches `src/a.ts` against the diff. Strips the
  * head's location (as given and as resolved, since a symlinked temp dir differs) from every path.
  */
-export function relativisePaths(output: ReviewOutput, repoDir: string): ReviewOutput {
+export function relativisePaths(output: ReviewOutput, repoDir: string, platform: NodeJS.Platform = process.platform): ReviewOutput {
   const roots = new Set<string>();
-  for (const root of [repoDir, safeRealpath(repoDir)]) if (root) roots.add(root.replace(/\/+$/, ""));
+  // On Windows both sides are compared with forward slashes, so a head at `C:\...\snapshot` strips a path
+  // reported either way; elsewhere a backslash is a legal file-name character and is left alone.
+  const slashed = (p: string) => (platform === "win32" ? p.replaceAll("\\", "/") : p);
+  for (const root of [repoDir, safeRealpath(repoDir)]) if (root) roots.add(slashed(root).replace(/\/+$/, ""));
   const strip = (path: string) => {
+    const p = slashed(path);
     for (const root of roots) {
-      if (root !== "" && path.startsWith(`${root}/`)) return path.slice(root.length + 1);
+      if (root !== "" && p.startsWith(`${root}/`)) return p.slice(root.length + 1);
     }
     return path;
   };
