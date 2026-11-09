@@ -141,12 +141,12 @@ describe("init --mode github without --dry-run", () => {
 
   test("a workflow directory that is a symbolic link is refused, even to a place inside the repository", async () => {
     const w = world();
-    const outside = mkdtempSync(join(tmpdir(), "wachiman-outside-"));
-    scratch.push(outside);
+    const inside = join(w.repo, "elsewhere");
+    mkdirSync(inside);
     mkdirSync(join(w.repo, ".github"));
-    symlinkSync(outside, join(w.repo, ".github", "workflows"));
+    symlinkSync(inside, join(w.repo, ".github", "workflows"));
     expect(await exit2(init(w, ["--mode", "github", "--operator", "me"]))).toContain("symbolic link");
-    expect(readdirSync(outside)).toEqual([]);
+    expect(readdirSync(inside)).toEqual([]);
   });
 
   test("a .github that is a symbolic link out of the repository is refused", async () => {
