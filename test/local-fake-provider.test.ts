@@ -6,7 +6,7 @@
  * shim would not be found on Windows. No model, no network, no GitHub.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { branchRepo, removeTempRepos } from "./support/temp-repo";
@@ -99,7 +99,11 @@ describe.skipIf(!node)("wachiman local through the launcher, with a fake claude"
   test("without Bun on PATH it is exit 2 with the Bun line, before any review", () => {
     const repo = branchRepo();
     const home = temp("wachiman-launcher-home-");
-    const bare = { ...env(home), PATH: dirname(node!), Path: dirname(node!) };
+    // Node's own directory may also hold bun (Homebrew, `npm i -g bun`), so PATH is an empty directory with only node in it.
+    const nodeOnly = temp("wachiman-node-only-");
+    if (process.platform === "win32") copyFileSync(node!, join(nodeOnly, "node.exe"));
+    else symlinkSync(node!, join(nodeOnly, "node"));
+    const bare = { ...env(home), PATH: nodeOnly, Path: nodeOnly };
     const out = Bun.spawnSync([node!, launcher, "local", "--repo-dir", repo.dir, "--base", "main"], { env: bare, stdin: "ignore" });
     expect(out.exitCode).toBe(2);
     expect(out.stderr.toString()).toContain("Bun");
