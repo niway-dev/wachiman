@@ -15,6 +15,7 @@
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
+ *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error.
@@ -29,6 +30,7 @@ import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { parseProfileArgs, parseProjectArgs, parseSetupArgs, profileUsage, projectUsage, runProfile, runProject, runSetup, setupUsage } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
+import { parseSkillsArgs, runSkills, skillsUsage } from "./skills/install";
 import { doctorUsage, parseDoctorArgs, runDoctor } from "./doctor/run";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
@@ -59,6 +61,11 @@ export const USAGE = `Usage:
                                                      ~/.wachiman/claude-<name>, an external one is your own
                                                      Claude configuration directory, used in place
   ${projectUsage.split("\n").join("\n  ")}
+  ${skillsUsage.split("\n").join("\n  ")}
+                                                     Copy the wachiman-review and wachiman-audit agent
+                                                     skills into ~/.agents/skills and each Claude Code
+                                                     config directory; uninstall removes only the copies
+                                                     it marked. Never touches ~/.wachiman
   wachiman --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
                                                      (an alias of \`wachiman profile create\`)
   wachiman --help | --version
@@ -80,6 +87,7 @@ Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 \`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
+\`skills\`: 0 done (copies left in place are warned about), 1 a copy could not be written, 2 usage error or a refused target.
 Guide: docs/local-review.md`;
 
 declare const WACHIMAN_VERSION: string | undefined;
@@ -190,6 +198,12 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
       console.error(`wachiman: --setup-profile is kept as an alias of \`wachiman profile create ${argv[1] ?? DEFAULT_ISOLATED_NAME}\`.`);
       setupProfile({ name: argv[1], home: wachimanHome(env), env });
       return 0;
+    }
+    if (mode === "skills") {
+      // Before extractRepoDir: no repository is read, so `--repo-dir` is a usage error here.
+      const parsed = parseSkillsArgs(argv.slice(1));
+      if ("help" in parsed) return (writeAll(1, `${skillsUsage}\n`), 0);
+      return runSkills(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
     }
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {

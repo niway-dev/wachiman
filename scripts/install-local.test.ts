@@ -62,6 +62,12 @@ describe("install-local.sh", () => {
     expect(r.out).toMatch(/^link /m);
   });
 
+  test("tells package users to run `wachiman skills install`, on install only", () => {
+    const r = install();
+    expect(r.out).toMatch(/^note +.*contributors.*`wachiman skills install`/m);
+    expect(install("--uninstall").out).not.toContain("wachiman skills install");
+  });
+
   test("is idempotent", () => {
     mkdirSync(join(home, ".claude"));
     install();
