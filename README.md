@@ -99,7 +99,7 @@ is sent to your configured Claude account for the review. Read
 [docs/local-review.md](docs/local-review.md) before running it on an employer's code.
 
 Install it from source: run `scripts/install-local.sh` once from your clone. The npm package
-(`npm i -g wachiman` or `bun add -g wachiman`, in Git Bash or PowerShell too: it ships the
+(`npm i -g wachiman` or `bun add -g wachiman`; it is written to work on Windows (Git Bash, PowerShell) and is tested on `windows-latest` in CI, and the Windows tier stays pending until that job has passed on a published commit: it ships the
 TypeScript source and a small Node launcher, and it installs Bun for you by depending on the
 official npm package `bun`, which means installing it downloads Bun, 23 to 42 MB compressed; with
 `--ignore-scripts` it uses a Bun already on your `PATH`; details and the supply-chain note are in

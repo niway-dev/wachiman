@@ -100,8 +100,10 @@ neither, it exits 2 with the message above. `bun add -g wachiman` was tried on m
 and a packed tarball: Bun installed the dependency with a working binary, and `wachiman --version`
 ran with only Node on `PATH`.
 
-Windows works in Git Bash and in PowerShell: the launcher is a Node script and npm creates the
-`wachiman.cmd` and `wachiman.ps1` shims. See the Windows note below for what CI proves.
+On Windows the package is written to work, in Git Bash and in PowerShell, and is tested on
+`windows-latest` in CI: the launcher is a Node script and npm creates the `wachiman.cmd` and
+`wachiman.ps1` shims. The Windows tier stays pending until that job has passed on a published
+commit (see the Windows note below).
 
 Supply chain: Bun's own `postinstall` runs when `bun` is installed and copies the platform binary
 from `@oven/bun-<platform>` into place. Wachiman's provenance statement covers Wachiman's files,
