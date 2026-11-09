@@ -29,7 +29,8 @@ export function bunBinary(platform) {
  * was given and is never written to. While the child runs the launcher ignores SIGINT (the
  * terminal already delivers it to the child's process group, and the child cleans up on its own
  * schedule) and forwards SIGTERM and SIGHUP; it exits with the child's code, or 128+n when the
- * child died from signal n.
+ * child died from signal n. A SIGINT sent to the launcher's pid alone is dropped; use SIGTERM,
+ * which is forwarded.
  */
 export function launch({ pkgDir, argv, platform = process.platform, env = process.env, spawn = nodeSpawn, stderr = (line) => console.error(line) }) {
   return new Promise((resolve) => {
