@@ -71,11 +71,11 @@ describe("agentPrompt", () => {
       [
         AGENT_PROMPT_INTRO(SHA7),
         "",
-        "1. apps/api/src/main/session/store.ts:2 · 🟠🐛 Fix · bug: The store drops the last session (confidence high)",
+        "1. apps/api/src/main/session/store.ts:2 · Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high)",
         "   `y` overwrites `x` before it is flushed.",
-        "2. apps/api/src/main/session/session-manager.ts · 🟡🧪 Consider · tests: No test covers the export (confidence medium)",
+        "2. apps/api/src/main/session/session-manager.ts · Nit · 🟡🧪 Consider · tests: No test covers the export (confidence medium)",
         "   Add a test that exports two sessions.",
-        "3. docs/x.md:4 · ⚪📝 Info · docs: A note &lt;!-- agent-review sha=1 --&gt;",
+        "3. docs/x.md:4 · Nit · ⚪📝 Info · docs: A note &lt;!-- agent-review sha=1 --&gt;",
         "   Line one.",
         "",
         "   Line two.",
@@ -106,7 +106,7 @@ describe("renderMarkdown", () => {
     const md = renderMarkdown(r, {});
     expect(md).toContain("Profile: default — your own signed-in `claude`");
     expect(md).toContain(
-      "### 🟠🐛 **Fix · bug: The store drops the last session (confidence high)**\n\n`apps/api/src/main/session/store.ts:2`\n\n`y` overwrites `x` before it is flushed.",
+      "### Important · 🟠🐛 **Fix · bug: The store drops the last session (confidence high)**\n\n`apps/api/src/main/session/store.ts:2`\n\n`y` overwrites `x` before it is flushed.",
     );
     expect(md).toContain("`apps/api/src/main/session/session-manager.ts`\n\nAdd a test");
     expect(md).toContain("## Summary\n\n**Batch 1 of 2.** The store has one ordering bug.");
@@ -154,9 +154,9 @@ describe("renderTerminal", () => {
     expect(lines[1]).toBe("profile: default — your own signed-in `claude`; its plugins are untested and could reach the review");
     expect(lines[2]).toBe(countLine(r.findings));
     expect(out).toContain(
-      "apps/api/src/main/session/store.ts:2  🟠🐛 Fix · bug: The store drops the last session (confidence high)\n    `y` overwrites `x` before it is flushed.",
+      "apps/api/src/main/session/store.ts:2  Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high)\n    `y` overwrites `x` before it is flushed.",
     );
-    expect(out).toContain("apps/api/src/main/session/session-manager.ts  🟡🧪 Consider");
+    expect(out).toContain("apps/api/src/main/session/session-manager.ts  Nit · 🟡🧪 Consider");
     expect(out).toContain("Summary:\n    **Batch 1 of 2.** The store has one ordering bug.");
     expect(out).not.toContain("Not reviewed:");
     expect(out).toMatch(/\$0\.40.*API-equivalent estimate.*not a bill/);
@@ -257,9 +257,9 @@ describe("the history annotation", () => {
     const r = local();
     const text = renderTerminal(r, { agentPrompt: false, history: annotation() });
     expect(text).toContain(
-      "apps/api/src/main/session/store.ts:2  🟠🐛 Fix · bug: The store drops the last session (confidence high)  open since 5d6e7f8 · 3 runs · id a1b2c3d4e5 · verdict: wrong\n    `y` overwrites",
+      "apps/api/src/main/session/store.ts:2  Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high)  open since 5d6e7f8 · 3 runs · id a1b2c3d4e5 · verdict: wrong\n    `y` overwrites",
     );
-    expect(text).toContain("session-manager.ts  🟡🧪 Consider · tests: No test covers the export (confidence medium)  new · id f0f0f0f0f0\n");
+    expect(text).toContain("session-manager.ts  Nit · 🟡🧪 Consider · tests: No test covers the export (confidence medium)  new · id f0f0f0f0f0\n");
     expect(text).toContain(
       [
         "Since the last run (1a2b3c4, 2026-11-04 18:02):",

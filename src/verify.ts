@@ -110,6 +110,22 @@ export function tierWord(f: { severity: Severity; origin?: Origin }): Tier {
   return f.severity === "blocker" || f.severity === "fix" ? "Important" : "Nit";
 }
 
+/** Where a finding is listed: the main list, or one of the two sections that keep it out of the threads. */
+export type Section = "main" | "inconclusive" | "pre-existing";
+
+/**
+ * Pre-existing findings are true but not this change's doing; a fix the verifier looked at and could
+ * not settle is a question for the author, not a thread. A finding the verifier never reached
+ * (`not verified: ...`) is not doubt about it, so it stays in the main list, and so do nits and info.
+ */
+export function sectionOf(f: { severity: Severity; origin?: Origin; verification?: Pick<FindingVerification, "status" | "reason"> }): Section {
+  if (f.severity === "info") return "main";
+  if (f.origin === "pre-existing") return "pre-existing";
+  const demanding = f.severity === "blocker" || f.severity === "fix";
+  if (demanding && f.verification?.status === "inconclusive" && !f.verification.reason.startsWith("not verified:")) return "inconclusive";
+  return "main";
+}
+
 const UNVERIFIED: FindingVerification = { status: "unverified", reason: "", checked: [] };
 
 /** Findings nobody verified (verification off, or an info notice): origin unknown, status unverified. */

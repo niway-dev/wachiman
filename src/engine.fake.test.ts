@@ -197,7 +197,7 @@ describe("the batch loop against a fake provider", () => {
     // and marked, and its headline names the logo.
     // Every comment opens with the brand, so a reader sees it is Wachi's despite the bot account.
     expect(body.startsWith("👮 **Wachiman** · ")).toBe(true);
-    expect(posted.review?.comments[0].body.startsWith("👮 **Wachiman** · 🟠🐛")).toBe(true);
+    expect(posted.review?.comments[0].body.startsWith("👮 **Wachiman** · Important · 🟠🐛")).toBe(true);
     expect(body.split("\n")[0]).not.toContain("Partial review");
     expect(body.split("\n")[0]).toContain(`all 3 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
     expect(body).toContain("agent-review sha=");
@@ -596,7 +596,7 @@ const threadComment = (databaseId: number, login: string, association: string, b
   createdAt: "2026-10-30T00:00:00Z",
 });
 const FINDING_COMMENT = (id: number) =>
-  threadComment(id, "github-actions", "NONE", `🟠🐛 **Fix · bug: earlier**\n\nOld finding.\n\n${SIGNATURE.finding}`);
+  threadComment(id, "github-actions", "NONE", `Important · 🟠🐛 **Fix · bug: earlier**\n\nOld finding.\n\n${SIGNATURE.finding}`);
 const OWNER_REPLY = (id: number) => threadComment(id, "owner", "OWNER", "Done, please check.");
 const WACHI_REPLY = (id: number) => threadComment(id, "github-actions", "NONE", `**Still open**: not yet.\n\n${SIGNATURE.reply}`);
 
@@ -745,9 +745,9 @@ describe("the confidence rule through review()", () => {
     };
     review(deps, "o/r", 7, []);
     const heads = (posted.review?.comments ?? []).map((c) => c.body.split("\n")[0]);
-    expect(heads).toContain("👮 **Wachiman** · 🟠❓ **Fix · question: Maybe leaks (confidence low)**");
-    expect(heads).toContain("👮 **Wachiman** · 🟠🐛 **Fix · bug: Off by one (confidence high)**");
-    expect(heads).toContain("👮 **Wachiman** · 🟡🧹 **Consider · cleanup: Name (confidence low)**");
+    expect(heads).toContain("👮 **Wachiman** · Important · 🟠❓ **Fix · question: Maybe leaks (confidence low)**");
+    expect(heads).toContain("👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Off by one (confidence high)**");
+    expect(heads).toContain("👮 **Wachiman** · Nit · 🟡🧹 **Consider · cleanup: Name (confidence low)**");
     expect(posted.review?.comments.find((c) => c.line === 2)?.body).toContain("Is the handle closed on error?");
     expect(logs.filter((l) => l.startsWith("Confidence rule:"))).toEqual([
       "Confidence rule: 1 finding(s) with low confidence at severity fix or above posted as questions.",
@@ -809,7 +809,7 @@ describe("the ADR notice", () => {
     const body = posted?.body ?? "";
     expect(posted?.comments).toEqual([]);
     expect(body).toContain("### For your information");
-    expect(body).toContain(`⚪🏛️ **Info · adr: Edits an accepted decision record** (\`${ADR}\`)`);
+    expect(body).toContain(`Nit · ⚪🏛️ **Info · adr: Edits an accepted decision record** (\`${ADR}\`)`);
     expect(body).not.toContain("ADR edited");
     expect(body).toContain("1 finding(s); 0 on their lines");
   });

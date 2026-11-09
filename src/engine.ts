@@ -66,6 +66,7 @@ import {
   tierWord,
   VERIFY_SCHEMA,
   verificationSegment,
+  sectionOf,
   type Snapshots,
   type VerifiedFinding,
   type VerifierVerdict,
@@ -81,6 +82,7 @@ import {
   REVIEW_INPUT_FORMAT,
   REVIEW_RESULT_V2,
   assertReviewInputFormat,
+  type Origin,
   type Profile,
   type ResultFinding,
   type ResultVerificationV2,
@@ -209,11 +211,17 @@ export const DEFAULT_EXCLUDE = [
 const MARKER_SOURCE = "<!-- (?:agent-review|claude-review) sha=([A-Za-z0-9]+) -->";
 const short = (sha: string) => sha.slice(0, 7);
 /**
- * `🟠📝 **Fix · docs: stale cell (confidence high)**`: both emojis, then the severity, topic and
- * title in words, then the model's confidence when it gave one.
+ * `Important · 🟠📝 **Fix · docs: stale cell (confidence high)**`: the tier word, both emojis, then
+ * the severity, topic and title in words, then the model's confidence when it gave one. The tier
+ * stays outside the bold: the precision report reads the bold part.
  */
-export const label = (f: Finding) =>
-  `${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} **${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${f.confidence ? ` (confidence ${f.confidence})` : ""}**`;
+export const label = (f: Finding & { origin?: Origin }, status?: string) =>
+  `${tierWord(f)} · ${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} **${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${detail(f, status)}**`;
+/** ` (confidence high, supported)`: the confidence the model gave and, for a local report, what the verifier found. */
+export const detail = (f: Finding, status?: string) => {
+  const parts = [f.confidence ? `confidence ${f.confidence}` : "", status ?? ""].filter(Boolean);
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
+};
 const at = (f: { path: string; line: number }) =>
   neutralise(f.line > 0 ? `${f.path}:${f.line}` : f.path);
 
@@ -899,7 +907,7 @@ export const prSoFar = (prior: { spent: number; runs: number }, thisRun: number)
 
 export function buildReview(input: {
   /** A finding's `anchor`, when given (a `ReviewResult`'s), decides inline or body; else its file's patch does. */
-  output: Omit<ReviewOutput, "findings"> & { findings: (Finding & { anchor?: "diff" | "outside" })[] };
+  output: Omit<ReviewOutput, "findings"> & { findings: (Finding & Partial<Pick<ResultFinding, "anchor" | "origin" | "verification">>)[] };
   files: ReviewFile[];
   headSha: string;
   since: string | null;
@@ -940,10 +948,22 @@ export function buildReview(input: {
   const commentable = new Map(files.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
   const comments: InlineComment[] = [];
   const outsideDiff: Finding[] = [];
+  const preExisting: Finding[] = [];
+  const inconclusive: Finding[] = [];
   // Information asks for no reply, so it never opens a thread, even on a diff line.
   const forInfo = output.findings.filter((f) => f.severity === "info");
   for (const f of output.findings) {
     if (f.severity === "info") continue;
+    // Not this change's doing, or a fix the verifier could not settle: listed in the body, no thread.
+    const section = sectionOf(f);
+    if (section === "pre-existing") {
+      preExisting.push(f);
+      continue;
+    }
+    if (section === "inconclusive") {
+      inconclusive.push(f);
+      continue;
+    }
     const onLine = f.anchor ? f.anchor === "diff" : commentable.get(f.path)?.has(f.line);
     if (onLine) {
       comments.push({
@@ -993,8 +1013,10 @@ export function buildReview(input: {
   } else if (input.verification?.status === "partial") {
     parts.push("⚠️ **Partly verified**: the second reader that checks each finding stopped early, so some findings are posted as the review wrote them.");
   }
-  const listed = (f: Finding) => `- ${label(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
+  const listed = (f: Finding & { origin?: Origin }) => `- ${label(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
   if (outsideDiff.length > 0) parts.push("### Outside the diff", ...outsideDiff.map(listed));
+  if (inconclusive.length > 0) parts.push("### Inconclusive", ...inconclusive.map(listed));
+  if (preExisting.length > 0) parts.push("### Pre-existing", ...preExisting.map(listed));
   if (forInfo.length > 0) parts.push("### For your information", ...forInfo.map(listed));
   parts.push("### Summary", neutralise(output.summary));
   // After the findings and the summary, before the coverage table: it is cut first when the body is long.

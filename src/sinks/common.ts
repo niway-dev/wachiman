@@ -2,15 +2,61 @@
  * What the local sinks share: the lines that must read the same in the terminal and in the
  * Markdown report. Every sink reads only the `ReviewResult` and computes no anchor.
  */
-import { neutralise, oneLine, SEVERITY, TOPIC, type Finding, type Profile, type ReviewResult } from "../engine";
-import { verificationSegment } from "../verify";
+import { detail, label, neutralise, oneLine, SEVERITY, TOPIC, type Finding, type Profile, type ReviewResult } from "../engine";
+import type { Citation, ResultFinding } from "../formats";
+import { sectionOf, tierWord, verificationSegment, type Section } from "../verify";
 import type { Settled } from "../history/types";
 
 export const sha7 = (sha: string) => sha.slice(0, 7);
 
-/** `🟠🐛 Fix · bug: <title> (confidence high)`: `label` without the Markdown bold. */
-export const plainLabel = (f: Finding) =>
-  `${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} ${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${f.confidence ? ` (confidence ${f.confidence})` : ""}`;
+/** A finding as a sink sees it: the verification fields are there on a `/2` result. */
+export type Reported = Finding & Partial<Pick<ResultFinding, "origin" | "originReason" | "originEvidence" | "verification">>;
+
+/** What the verifier found, for the label: nothing for a finding nobody verified. */
+const statusOf = (f: Reported) => (f.verification && f.verification.status !== "unverified" ? f.verification.status : undefined);
+
+/** `Important · 🟠🐛 Fix · bug: <title> (confidence high, supported)`: `label` without the Markdown bold. */
+export const plainLabel = (f: Reported) =>
+  `${tierWord(f)} · ${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} ${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${detail(f, statusOf(f))}`;
+
+/** `Important · 🟠🐛 **Fix · bug: <title> (confidence high, supported)**`: the GitHub label plus the verdict, for a report. */
+export const markdownLabel = (f: Reported) => label(f, statusOf(f));
+
+const cite = (c: Citation) => neutralise(`${c.snapshot === "base" ? "base:" : ""}${c.path}:${c.line}`);
+
+/** One part of what verification says about a finding: a name, a sentence, and the lines it rests on. */
+export interface Note {
+  name: "Verified" | "Inconclusive" | "Not verified" | "Pre-existing";
+  text: string;
+  /** Present on the first note of a finding that has citations: `Checked:` follows it. */
+  cites?: string[];
+}
+
+/** The lines every local report prints under a finding's body; empty for a finding nobody verified. */
+export function verificationNotes(f: Reported): Note[] {
+  const v = f.verification;
+  if (!v || v.status === "unverified") return [];
+  const notes: Note[] = [];
+  const citations = [...v.checked, ...(f.originEvidence ?? [])].map(cite);
+  const cites = [...new Set(citations)];
+  if (v.status === "supported") notes.push({ name: "Verified", text: neutralise(v.reason), ...(cites.length > 0 ? { cites } : {}) });
+  else if (v.reason.startsWith("not verified:")) notes.push({ name: "Not verified", text: neutralise(v.reason.slice("not verified:".length).trim()) });
+  else notes.push({ name: "Inconclusive", text: neutralise(v.reason), ...(cites.length > 0 ? { cites } : {}) });
+  if (f.origin === "pre-existing" && f.originReason) notes.push({ name: "Pre-existing", text: neutralise(f.originReason) });
+  return notes;
+}
+
+export const SECTION_TITLES: Record<Exclude<Section, "main">, { heading: string; note: string }> = {
+  inconclusive: { heading: "Inconclusive", note: "The verifier looked at these and could not settle them." },
+  "pre-existing": { heading: "Pre-existing", note: "True, but not introduced by this change." },
+};
+
+/** The findings of a result by section, each with its index in `result.findings` (the history labels use it). */
+export function sections(result: ReviewResult): Record<Section, { f: ResultFinding; index: number }[]> {
+  const out: Record<Section, { f: ResultFinding; index: number }[]> = { main: [], inconclusive: [], "pre-existing": [] };
+  result.findings.forEach((f, index) => out[sectionOf(f)].push({ f, index }));
+  return out;
+}
 
 /** `path:line`, or the path alone for a finding about a whole file (line 0). */
 export const location = (f: { path: string; line: number }) => neutralise(f.line > 0 ? `${f.path}:${f.line}` : f.path);

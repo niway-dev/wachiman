@@ -226,7 +226,7 @@ describe("wachiman local", () => {
     expect(firstCall).toBeGreaterThan(-1);
     for (const line of progress) expect(r.stderr.indexOf(line)).toBeLessThan(firstCall);
     expect(r.stdout).toStartWith("Wachiman · review of branch `feat/x`");
-    expect(r.stdout).toContain("src/a.ts:2  🟠🐛 Fix · bug: T (confidence high)");
+    expect(r.stdout).toContain("src/a.ts:2  Important · 🟠🐛 Fix · bug: T (confidence high)");
     expect(r.stdout).toContain("API-equivalent estimate");
     expect(existsSync(r.canary)).toBe(false);
     const env = r.env();
@@ -645,7 +645,7 @@ describe("--history", () => {
     const home = temp("wachiman-home-");
     const repo = branchRepo();
     const first = local("ok", ["--history"], { HOME: home }, repo);
-    expect(first.stdout).toMatch(/src\/a\.ts:2  🟠🐛 Fix · bug: T \(confidence high\)  new · id [0-9a-f]{10}\n/);
+    expect(first.stdout).toMatch(/src\/a\.ts:2  Important · 🟠🐛 Fix · bug: T \(confidence high\)  new · id [0-9a-f]{10}\n/);
     const second = local("ok", ["--history"], { HOME: home }, repo);
     expect(second.code).toBe(0);
     expect(second.stdout).toMatch(new RegExp(`open since ${sha7(repo.head)} · 2 runs · id [0-9a-f]{10}\\n`));
