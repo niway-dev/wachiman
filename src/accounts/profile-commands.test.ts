@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
@@ -264,6 +264,34 @@ describe("profile remove", () => {
     expect(h.asked.some((q) => q.includes(dir) && /Keychain/.test(q))).toBe(true);
   });
 
+  test("--delete-dir keeps the entry and the directory when the second confirmation is declined (0) or cancelled (130)", () => {
+    for (const [second, code] of [["no", 0], ["cancel", 130]] as const) {
+      const h = harness({ answers: ["yes", second] });
+      const dir = managedWithDir(h);
+      writeFileSync(join(dir, "anything"), "x");
+      seed(h, { profiles: { scratch: { kind: "managed", configDir: dir, createdAt: "t" } } });
+      expect(h.run(["remove", "scratch", "--delete-dir"])).toBe(code);
+      expect(h.asked).toHaveLength(2);
+      expect(readFileSync(join(dir, "anything"), "utf8")).toBe("x");
+      expect(h.config()?.profiles.scratch).toBeDefined();
+    }
+  });
+
+  test("--delete-dir refuses a symlinked managed directory before asking anything, and removes nothing", () => {
+    const h = harness({ answers: ["yes", "yes"] });
+    const target = temp("wachiman-link-target-");
+    writeFileSync(join(target, "precious"), "kept");
+    mkdirSync(h.home, { recursive: true });
+    const dir = join(h.home, "claude-scratch");
+    symlinkSync(target, dir);
+    seed(h, { profiles: { scratch: { kind: "managed", configDir: dir, createdAt: "t" } } });
+    expect(() => h.run(["remove", "scratch", "--delete-dir"])).toThrow(/symbolic link/);
+    expect(h.asked).toEqual([]);
+    expect(readFileSync(join(target, "precious"), "utf8")).toBe("kept");
+    expect(lstatSync(dir).isSymbolicLink()).toBe(true);
+    expect(h.config()?.profiles.scratch).toBeDefined();
+  });
+
   test("declining or cancelling a confirm changes nothing (0 for no, 130 for cancel); no TTY without --yes is a usage error", () => {
     const h = harness({ answers: ["no", "cancel"] });
     const dir = temp("claude-w-");
@@ -320,6 +348,10 @@ describe("profile create", () => {
     expect(call.args).toEqual([]);
     expect(call.stdio).toBe("inherit");
     expect(call.env).toEqual(buildChildEnv(h.env, { auth: "subscription", configDir: dir }));
+    // A throwaway directory outside the Wachiman home and the profile directory, removed afterwards.
+    expect(call.cwd.startsWith(join(tmpdir(), "wachiman-setup-"))).toBe(true);
+    expect(call.cwd.startsWith(h.home)).toBe(false);
+    expect(existsSync(call.cwd)).toBe(false);
   });
 });
 
