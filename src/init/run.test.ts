@@ -327,7 +327,9 @@ describe("init with scripted prompts", () => {
 
   test("Ctrl-D (the input ends) at the Write it? question exits 130 and writes nothing", async () => {
     const w = world();
-    expect(await init(w, [], { interactive: true, promptIO: scripted(["1", "me", "", ""].slice(0, 3)) })).toBe(130);
+    const io = scripted(["1", "me", "", ""]); // mode, operator, tag, file: the input ends at Write it?
+    expect(await init(w, [], { interactive: true, promptIO: io })).toBe(130);
+    expect(io.printed()).toContain("Write it?");
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
   });
 
