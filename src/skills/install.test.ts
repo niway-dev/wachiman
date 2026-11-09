@@ -6,7 +6,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { UsageError } from "../config";
 import { MARKER_FILE, SKILL_NAMES, installSkills, type SkillsDeps } from "./install";
 
@@ -284,5 +284,104 @@ describe("skills install: copies it does not own", () => {
     const report = only(f);
     expect(readFileSync(outside, "utf8")).toBe("outside\n");
     expect(report.entries.find((e) => e.target === copy)!.action).toBe("preserved");
+  });
+});
+
+describe("skills uninstall: only what it installed", () => {
+  const install = (f: ReturnType<typeof fixture>) => installSkills({ action: "install", dirs: [] }, f.env, f.deps);
+  const uninstall = (f: ReturnType<typeof fixture>) => installSkills({ action: "uninstall", dirs: [] }, f.env, f.deps);
+
+  test("marked copies are removed, with their empty directories, and the skills directory itself stays", () => {
+    const f = fixture();
+    install(f);
+    const report = uninstall(f);
+    for (const dir of [".agents", ".claude", ".claude-work"]) {
+      for (const name of SKILL_NAMES) expect(existsSync(join(f.userHome, dir, "skills", name))).toBe(false);
+      expect(existsSync(join(f.userHome, dir, "skills"))).toBe(true);
+    }
+    expect(report.entries.every((e) => e.action === "removed")).toBe(true);
+    expect(report.entries).toHaveLength(3 * SKILL_NAMES.length);
+    expect(report.exitCode).toBe(0);
+    expect(f.warnings).toEqual([]);
+  });
+
+  test("a copy without a marker is not removed, whatever its name, and is warned about", () => {
+    const f = fixture();
+    install(f);
+    const unmarked = join(f.userHome, ".claude", "skills", "wachiman-review");
+    rmSync(join(unmarked, MARKER_FILE));
+    const report = uninstall(f);
+
+    expect(readFileSync(join(unmarked, "SKILL.md"), "utf8")).toBe("# wachiman-review\n");
+    expect(report.entries.find((e) => e.target === unmarked)!.action).toBe("preserved");
+    expect(f.warnings.some((w) => w.includes(unmarked))).toBe(true);
+    expect(existsSync(join(f.userHome, ".agents", "skills", "wachiman-review"))).toBe(false);
+    expect(existsSync(join(f.userHome, ".claude", "skills", "wachiman-audit"))).toBe(false);
+  });
+
+  test("a symlink is never followed or removed", () => {
+    const f = fixture();
+    const clone = temp("wachiman-clone-skill-");
+    writeFileSync(join(clone, "SKILL.md"), "the clone\n");
+    mkdirSync(join(f.userHome, ".claude", "skills"));
+    symlinkSync(clone, join(f.userHome, ".claude", "skills", "wachiman-review"));
+    uninstall(f);
+    expect(lstatSync(join(f.userHome, ".claude", "skills", "wachiman-review")).isSymbolicLink()).toBe(true);
+    expect(readFileSync(join(clone, "SKILL.md"), "utf8")).toBe("the clone\n");
+    expect(f.warnings.some((w) => w.includes("symlink"))).toBe(true);
+  });
+
+  test("a marked copy a symlink was swapped into is not followed: the symlinked file is kept, nothing outside is touched", () => {
+    const f = fixture();
+    install(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    const outside = join(temp("outside-"), "victim.md");
+    writeFileSync(outside, "outside\n");
+    rmSync(join(copy, "references"), { recursive: true });
+    symlinkSync(dirname(outside), join(copy, "references"));
+    uninstall(f);
+    expect(readFileSync(outside, "utf8")).toBe("outside\n");
+    expect(lstatSync(join(copy, "references")).isSymbolicLink()).toBe(true);
+    expect(existsSync(join(copy, "SKILL.md"))).toBe(false);
+  });
+
+  test("an edited file and an unrecognised file in a marked copy are kept with a warning; untouched files go", () => {
+    const f = fixture();
+    install(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    writeFileSync(join(copy, "SKILL.md"), "# my edits\n");
+    writeFileSync(join(copy, "MY-NOTES.md"), "mine\n");
+    const report = uninstall(f);
+
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# my edits\n");
+    expect(readFileSync(join(copy, "MY-NOTES.md"), "utf8")).toBe("mine\n");
+    expect(existsSync(join(copy, "references"))).toBe(false);
+    expect(report.entries.find((e) => e.target === copy)!.action).toBe("preserved");
+    expect(f.warnings.some((w) => w.includes(copy) && w.includes("SKILL.md"))).toBe(true);
+    // A second uninstall after the user reverts nothing still preserves the edit, and still removes nothing else.
+    const again = uninstall(f);
+    expect(again.entries.find((e) => e.target === copy)!.action).toBe("preserved");
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# my edits\n");
+  });
+
+  test("an unrecognised file alone keeps the directory but the copy still counts as removed, with a warning", () => {
+    const f = fixture();
+    install(f);
+    const copy = join(f.userHome, ".agents", "skills", "wachiman-audit");
+    writeFileSync(join(copy, "MY-NOTES.md"), "mine\n");
+    const report = uninstall(f);
+    expect(readdirSync(copy)).toEqual(["MY-NOTES.md"]);
+    const entry = report.entries.find((e) => e.target === copy)!;
+    expect(entry.action).toBe("removed");
+    expect(entry.reason).toContain("MY-NOTES.md");
+  });
+
+  test("a skills directory with nothing installed in it is left alone and nothing is reported for it", () => {
+    const f = fixture();
+    mkdirSync(join(f.userHome, ".claude", "skills", "someone-elses-skill"), { recursive: true });
+    const report = uninstall(f);
+    expect(report.entries).toEqual([]);
+    expect(existsSync(join(f.userHome, ".claude", "skills", "someone-elses-skill"))).toBe(true);
+    expect(existsSync(join(f.userHome, ".agents"))).toBe(false);
   });
 });
