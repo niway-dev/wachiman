@@ -122,8 +122,10 @@ export function setupProfile(p: {
     const found = inspectIsolatedProfile(dir);
     if (found.length > 0) throw populatedProfileError(dir, found);
   }
+  // The home may be an existing directory (`WACHIMAN_HOME`): only one Wachiman creates is made private.
+  const homeCreated = !existsSync(p.home);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  chmodSync(p.home, 0o700);
+  if (homeCreated) chmodSync(p.home, 0o700);
   chmodSync(dir, 0o700);
   updateConfig({ home: p.home }, (c) => claimManagedProfile(c, name, dir));
   const flag = name === DEFAULT_ISOLATED_NAME ? "isolated" : `isolated:${name}`;

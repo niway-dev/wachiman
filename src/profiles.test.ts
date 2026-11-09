@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
@@ -91,6 +91,18 @@ describe("setupProfile", () => {
     CLAUDE_CONFIG_DIR: "/elsewhere",
     ANTHROPIC_API_KEY: "sk-ant-test",
     GH_TOKEN: "t",
+  });
+
+  test("an existing Wachiman home keeps its mode, and a home it creates is private", () => {
+    const shared = temp("profile-home-");
+    chmodSync(shared, 0o755);
+    setupProfile({ name: "work", home: shared, env: parentEnv(shared), print: () => {}, spawn: () => ({ status: 0 }) });
+    expect(statSync(shared).mode & 0o777).toBe(0o755);
+    expect(statSync(join(shared, "claude-work")).mode & 0o777).toBe(0o700);
+
+    const fresh = join(temp("profile-home-"), "made-by-wachiman");
+    setupProfile({ name: "work", home: fresh, env: parentEnv(fresh), print: () => {}, spawn: () => ({ status: 0 }) });
+    expect(statSync(fresh).mode & 0o777).toBe(0o700);
   });
 
   test("creates the directory, launches claude in an empty directory with the forced config dir, and cleans up", () => {
