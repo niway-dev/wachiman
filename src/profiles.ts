@@ -81,13 +81,6 @@ type SpawnFn = (
 
 const defaultSpawn: SpawnFn = (command, args, opts) => spawnSync(command, args, opts);
 
-/**
- * `wachiman --setup-profile [<name>]`: creates `<home>/claude-<name>` (mode 0700), registers it as
- * a managed profile in `<home>/config.json`, and launches the developer's `claude` in it, interactively, from an empty directory, so they can
- * sign in with Claude Code's own flow. The binary is spawned directly, without a shell, with the
- * subscription environment: a `claude` shell function or alias cannot change its
- * `CLAUDE_CONFIG_DIR`. Wachiman never sees the sign-in and does not check that it worked.
- */
 /** The config mutation of `profile create`, re-checked under the config lock: an external entry that appeared since the pre-check is never replaced. */
 export function claimManagedProfile(c: WachimanConfigV1, name: string, dir: string): WachimanConfigV1 {
   const current = c.profiles[name];
@@ -96,6 +89,14 @@ export function claimManagedProfile(c: WachimanConfigV1, name: string, dir: stri
   return { ...c, profiles: { ...c.profiles, [name]: { kind: "managed", configDir: dir, createdAt: new Date().toISOString() } } };
 }
 
+/**
+ * `wachiman --setup-profile [<name>]`: creates `<home>/claude-<name>` (mode 0700), registers it as
+ * a managed profile in `<home>/config.json`, and launches the developer's `claude` in it,
+ * interactively, from an empty directory, so they can sign in with Claude Code's own flow. The
+ * binary is spawned directly, without a shell, with the subscription environment: a `claude` shell
+ * function or alias cannot change its `CLAUDE_CONFIG_DIR`. Wachiman never sees the sign-in and
+ * does not check that it worked.
+ */
 export function setupProfile(p: {
   name?: string;
   /** The Wachiman home itself (`wachimanHome(env)`), not the user's home directory. */
