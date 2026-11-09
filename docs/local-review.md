@@ -57,7 +57,7 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 - Claude Code (`claude` on your `PATH`), signed in. The local mode was exercised with Claude Code
   2.1.311 (see section 7).
 - The engine: the npm package `wachiman` (Node 20 or later runs its launcher) or a clone of this
-  repository. A clone needs no `bun install`: the engine has no dependencies.
+  repository. A clone needs no `bun install`: the engine has no dependencies of its own.
 
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
 local mode refuses to start: with a key present `claude -p` would bill the key.

@@ -7,7 +7,7 @@
   last slice deletes this file; git keeps it.
 - **Nothing here has been built, run or tested.** Each slice is one pull request with a
   `## Proof` table whose rows are the acceptance criteria of the design that the slice covers.
-- **Rules for every slice:** TypeScript on Bun, no runtime dependency (ADR 0002); tests are
+- **Rules for every slice:** TypeScript on Bun, no runtime dependency besides the pinned `bun` package (ADR 0002, amended); tests are
   behaviour tests of the public functions named, not mirrors of private ones; every `spawnSync`
   is injectable; no model call in any test; English in code, comments, commits and docs.
 

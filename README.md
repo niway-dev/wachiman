@@ -137,7 +137,7 @@ status are in [docs/local-review.md](docs/local-review.md#3-install).
 
 Design decisions are recorded as ADRs in [docs/adr/](docs/adr/), starting with
 [ADR 0001: distribution and trust](docs/adr/0001-distribution-and-trust.md) and
-[ADR 0002: TypeScript on Bun, no runtime dependencies](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
+[ADR 0002: TypeScript on Bun, no runtime dependencies besides Bun itself](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
 
 ## License
 

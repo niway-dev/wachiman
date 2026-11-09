@@ -64,3 +64,10 @@ reviews and the artefact is pinned by hash with a manifest. First candidate: ven
 WASM for the risk map ([spec](../specs/2026-10-31-flow-questions-and-evidence-design.md),
 decision 14). `package.json` stays free of runtime dependencies; vendored files count as
 dependencies for review and licensing purposes.
+
+## Amendment 2026-11-09
+
+The npm package `wachiman` declares exactly one runtime dependency: the official `bun` package,
+pinned to one version, so that npm installs the runtime ([ADR 0028](0028-the-npm-package-installs-bun-itself-behind-a-node-launcher-and-no-windows-executable.md)).
+Everything else stays as decided: the engine has no dependency of its own, and the statements above
+that `package.json` declares none now read "none besides `bun`".

@@ -13,9 +13,10 @@
   decision 5 (zero dependencies: the package now has one, the runtime). Whichever of #135 and
   this record merges first, the other's rebase adds the cross-reference in the Status line.
   Amends [ADR 0001](0001-distribution-and-trust.md) as draft 0026 already does (npm taken up with
-  provenance); consistent with [ADR 0002](0002-typescript-on-bun-zero-dependencies.md) (Bun stays
-  the runtime; the engine has no dependency of its own; the one package dependency is the
-  runtime itself) and [ADR 0023](0023-one-name-for-every-surface-people-type.md). Supersedes
+  provenance); **amends** [ADR 0002](0002-typescript-on-bun-zero-dependencies.md) (its "no
+  runtime dependencies" now allows exactly one, the pinned `bun` package; Bun stays the runtime and
+  the engine has no dependency of its own); consistent with
+  [ADR 0023](0023-one-name-for-every-surface-people-type.md). Supersedes
   decision 3 of the [design spec](../specs/2026-11-09-cli-and-verified-reviews-design.md), which
   proposed a Windows executable.
 - **Date:** 2026-11-09
