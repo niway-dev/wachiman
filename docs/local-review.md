@@ -107,7 +107,7 @@ one rung of the precedence below.
 Check the setup any time with `wachiman doctor`: it lists what a local run would use and what would
 fail, makes no model call and no request of its own, and exits 1 when a required check fails.
 
-**Windows: built and smoke-tested; WSL is the supported path meanwhile.** Two things are built
+**Windows: pending CI; WSL is the supported path meanwhile.** Two things are built
 for Windows. The npm package works with Node and Bun (the launcher looks for `bun.exe`), and the CI
 job `windows` runs it on `windows-latest`. A standalone `wachiman.exe`, built with
 `bun build --compile --target bun-windows-x64`, is attached to each release with `SHA256SUMS` and a
@@ -115,9 +115,9 @@ build attestation; the CI job `windows-exe` runs it against a fake `claude` (ver
 bunfig autoload, the same result as the source run with forward-slash paths, the embedded settings
 passed as a temp file, Ctrl-C, a profile with `--binary claude.exe`). No real `claude` has run on
 Windows yet, and the executable is unsigned. The bash wrapper (`bin/wachiman`) and
-`scripts/install-local.sh` are POSIX only. This paragraph changes to "supported" in a later,
-docs-only change, once those jobs are green on a published commit and the owner has made one real
-run on Windows.
+`scripts/install-local.sh` are POSIX only. Neither job has run yet. This paragraph says "built and smoke-tested"
+once both jobs are green on a published commit, and "supported" in a later, docs-only change, after
+the owner has also made one real run on Windows.
 
 On Windows the launcher looks for `bun.exe` on `PATH` (the official installer); a Bun installed only through `npm i -g bun` (a `bun.cmd` shim) is not found.
 

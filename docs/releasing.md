@@ -103,8 +103,8 @@ yet), use "Re-run failed jobs" on that run: it publishes the same tarball from t
 
 Windows: the CI jobs `windows` (Node and Bun on `windows-latest`) and `windows-exe` (the compiled
 `wachiman.exe` against a fake `claude`) must be green on a published commit, and the owner must have
-made one real run on Windows, before the README and `docs/local-review.md` say "Windows: supported"
-instead of "built and smoke-tested". Neither CI job is part of the release gate for npm, so a red
+made one real run on Windows, before the README and `docs/local-review.md` say "Windows: supported".
+Until both jobs are green they say "Windows: pending CI", and "built and smoke-tested" after. Neither CI job is part of the release gate for npm, so a red
 Windows job does not block the npm publish; it keeps the docs honest.
 
 The release also builds the executable: the job `windows-exe` (`contents: read`, runs the repository's

@@ -4,7 +4,8 @@
   source path) are implemented by the npm packaging slice (branch `feat/npm-package`); decision 3
   (the Windows executable) is implemented by the Windows executable slice (branch
   `feat/windows-exe`): the build script, the smoke rows W1 to W3, W5 and W6, the `windows-exe` CI
-  job and the release jobs. Its tier is **built and smoke-tested**; promotion to "supported" waits
+  job and the release jobs. Its tier is **pending CI** until those rows are green
+  on `windows-latest`, then **built and smoke-tested**; promotion to "supported" waits
   for those rows to be green on `windows-latest` on a published commit and for the owner's one real
   run (row W7), and is a docs-only change. Not yet published to npm: the first publish happens
   when the release workflow runs on a release that contains the npm slice.

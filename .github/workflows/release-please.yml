@@ -253,7 +253,7 @@ jobs:
         with:
           name: wachiman-exe
           path: dist
-      - name: The files are the ones that were smoke-tested
+      - name: The artifact arrived intact and holds only the executable and its checksums
         run: |
           cd dist
           sha256sum -c SHA256SUMS

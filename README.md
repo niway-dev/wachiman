@@ -75,7 +75,7 @@ with a notice; see [docs/upgrading.md](docs/upgrading.md).
 - **npm:** the package `wachiman` is built and tested for npm (Node launcher, Bun required;
   [docs/local-review.md](docs/local-review.md#3-install)) and is published by the release workflow
   from the first release that includes this change. Until the first publish succeeds, install from
-  source (`scripts/install-local.sh`). macOS and Linux are covered by CI. **Windows: built and smoke-tested; WSL is the supported path meanwhile.**
+  source (`scripts/install-local.sh`). macOS and Linux are covered by CI. **Windows: pending CI; WSL is the supported path meanwhile.**
 
 ## Install
 
