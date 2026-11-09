@@ -4,7 +4,7 @@
  * the real home.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { UsageError } from "../config";
@@ -364,6 +364,53 @@ describe("skills install: copies it does not own", () => {
     expect(retry.entries.find((e) => e.target === copy)!.action).toBe("installed");
     expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# v2\n");
     expect(readFileSync(join(copy, "ref", "x.md"), "utf8")).toBe("x\n");
+  });
+
+  // A read-only directory makes the second write of an upgrade fail after the first one succeeded.
+  // Skipped as root, which ignores directory permissions.
+  const interrupted = process.getuid?.() === 0 ? test.skip : test;
+
+  /** Installs v1, then runs a v2 upgrade whose write into `references/` fails after `SKILL.md` was replaced. */
+  function failedUpgrade() {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    writeFileSync(join(f.source, "wachiman-review", "SKILL.md"), "# v2\n");
+    writeFileSync(join(f.source, "wachiman-review", "references", "notes.md"), "notes v2\n");
+    chmodSync(join(copy, "references"), 0o555);
+    const failed = only(f);
+    chmodSync(join(copy, "references"), 0o755);
+    return { f, copy, failed };
+  }
+
+  interrupted("an upgrade that fails after the first file leaves a copy the next install finishes", () => {
+    const { f, copy, failed } = failedUpgrade();
+    const entry = failed.entries.find((e) => e.target === copy)!;
+    expect(entry.action).toBe("failed");
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# v2\n");
+
+    const retry = only(f);
+    const again = retry.entries.find((e) => e.target === copy)!;
+    expect(again.reason).toBeUndefined();
+    expect(again.action).toBe("installed");
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# v2\n");
+    expect(readFileSync(join(copy, "references", "notes.md"), "utf8")).toBe("notes v2\n");
+  });
+
+  interrupted("after a failed upgrade, a file the user edits is still never overwritten or deleted", () => {
+    const { f, copy } = failedUpgrade();
+    writeFileSync(join(copy, "references", "notes.md"), "my notes\n");
+
+    const retry = only(f);
+    const again = retry.entries.find((e) => e.target === copy)!;
+    expect(again.action).toBe("preserved");
+    expect(again.reason).toContain("references/notes.md");
+    expect(readFileSync(join(copy, "references", "notes.md"), "utf8")).toBe("my notes\n");
+
+    const removed = installSkills({ action: "uninstall", dirs: [] }, f.env, f.deps);
+    expect(removed.entries.find((e) => e.target === copy)!.action).toBe("preserved");
+    expect(readFileSync(join(copy, "references", "notes.md"), "utf8")).toBe("my notes\n");
+    expect(existsSync(join(copy, "SKILL.md"))).toBe(false);
   });
 });
 

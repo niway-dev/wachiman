@@ -4,7 +4,7 @@
  * only what it installed (command contract section 5.9).
  */
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { wachimanHome } from "../accounts/config";
@@ -178,8 +178,12 @@ function writeInside(dest: string, rel: string, bytes: Uint8Array) {
   const temp = `${path}.wachiman-${process.pid}.tmp`;
   // A leftover at the temporary name (even a symlink) is removed, never written through.
   if (lstatOrUndefined(temp) !== undefined) unlinkSync(temp);
-  writeFileSync(temp, bytes, { flag: "wx" });
-  renameSync(temp, path);
+  try {
+    writeFileSync(temp, bytes, { flag: "wx" });
+    renameSync(temp, path);
+  } finally {
+    rmSync(temp, { force: true }); // gone after a rename; a failed write or rename must not leave it behind
+  }
 }
 
 /** Removes the directories that held `rels` and are now empty, deepest first, never through a symlink. */
@@ -247,19 +251,35 @@ function installOne(dest: string, source: string, deps: SkillsDeps): Entry {
     if (collisions.length > 0) return { target: dest, action: "preserved", reason: `the new version would overwrite or cross paths wachiman did not install (${collisions.join(", ")})` };
   }
   const hashes: Record<string, string> = {};
-  mkdirSync(dest, { recursive: true });
-  for (const rel of files) {
-    const bytes = readFileSync(join(source, ...rel.split("/")));
-    hashes[rel] = sha256(bytes);
-    writeInside(dest, rel, bytes);
+  const writeMarker = (listed: Record<string, string>) => {
+    const marker: SkillInstallMarker = { format: "wachiman.skill-install/1", version: deps.version ?? "unknown", installedAt: (deps.now?.() ?? new Date()).toISOString(), files: listed };
+    writeInside(dest, MARKER_FILE, Buffer.from(`${JSON.stringify(marker, null, 2)}\n`));
+  };
+  try {
+    mkdirSync(dest, { recursive: true });
+    for (const rel of files) {
+      const bytes = readFileSync(join(source, ...rel.split("/")));
+      hashes[rel] = sha256(bytes);
+      writeInside(dest, rel, bytes);
+    }
+    if (replaced) {
+      const dropped = Object.keys(replaced.files).filter((rel) => !(rel in hashes));
+      for (const rel of dropped) if (fileState(dest, rel, replaced.files[rel]) === "intact") unlinkSync(join(dest, ...rel.split("/")));
+      pruneEmptyDirs(dest, dropped);
+    }
+    writeMarker(hashes);
+  } catch (error) {
+    // Record what is on disk now: a file this run wrote under its new hash, anything else still under its old one,
+    // so the next install or uninstall finds the copy ours, and a file the user edited still reads as modified.
+    try {
+      const now: Record<string, string> = { ...replaced?.files };
+      for (const [rel, hash] of Object.entries(hashes)) if (fileState(dest, rel, hash) === "intact") now[rel] = hash;
+      writeMarker(now);
+    } catch {
+      // The original error is the one to report.
+    }
+    throw error;
   }
-  if (replaced) {
-    const dropped = Object.keys(replaced.files).filter((rel) => !(rel in hashes));
-    for (const rel of dropped) if (fileState(dest, rel, replaced.files[rel]) === "intact") unlinkSync(join(dest, ...rel.split("/")));
-    pruneEmptyDirs(dest, dropped);
-  }
-  const marker: SkillInstallMarker = { format: "wachiman.skill-install/1", version: deps.version ?? "unknown", installedAt: (deps.now?.() ?? new Date()).toISOString(), files: hashes };
-  writeInside(dest, MARKER_FILE, Buffer.from(`${JSON.stringify(marker, null, 2)}\n`));
   return { target: dest, action: "installed" };
 }
 
