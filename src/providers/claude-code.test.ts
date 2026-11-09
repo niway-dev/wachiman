@@ -372,8 +372,9 @@ describe("the child environment", () => {
     expect(buildChildEnv({ Path: "/bin" }, { platform: "darwin" })).toEqual({});
   });
 
-  // The stub is a POSIX shell script and Windows cannot start it; the Windows rules are covered by the
-  // buildChildEnv tests above and the real spawn by test/local-fake-provider.test.ts (a compiled claude.exe).
+  // The stub is a POSIX shell script and Windows cannot start it. On Windows the environment rules are
+  // covered only by the buildChildEnv tests above; test/local-fake-provider.test.ts spawns a compiled
+  // claude.exe there, but its fake does not inspect the environment it receives.
   test.skipIf(process.platform === "win32")("the spawned child sees none of the poisoned variables", () => {
     const binary = stubBinary(`
 if [ "$1" = "--version" ]; then echo "2.1.304 (Claude Code)"; exit 0; fi

@@ -8,7 +8,7 @@ import { EventEmitter } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bunBinary, BUN_INSTALL_LINE, launch, launcherArgs } from "../bin/launcher-args.js";
+import { bunBinary, BUN_INSTALL_LINE, launch, launcherArgs, resolveBun } from "../bin/launcher-args.js";
 
 const root = join(import.meta.dir, "..");
 
@@ -49,6 +49,40 @@ describe("bunBinary", () => {
   });
 });
 
+describe("resolveBun", () => {
+  const present = (...files: string[]) => (path: string) => files.includes(path);
+
+  test("on Windows the first absolute PATH entry holding bun.exe wins", () => {
+    const env = { PATH: "C:\\one;C:\\two;C:\\three" };
+    const exists = present("C:\\two\\bun.exe", "C:\\three\\bun.exe");
+    expect(resolveBun("win32", env, exists)).toBe("C:\\two\\bun.exe");
+  });
+
+  test("on Windows an empty or relative entry is ignored even if a bun.exe would exist there", () => {
+    const env = { PATH: ";.;bin;..\\x;C:\\real" };
+    const always = (path: string) => !path.startsWith("C:\\real");
+    expect(resolveBun("win32", env, always)).toBeNull();
+    expect(resolveBun("win32", env, present("C:\\real\\bun.exe"))).toBe("C:\\real\\bun.exe");
+  });
+
+  test("on Windows the variable may be spelled Path", () => {
+    expect(resolveBun("win32", { Path: "C:\\tools" }, present("C:\\tools\\bun.exe"))).toBe("C:\\tools\\bun.exe");
+  });
+
+  test("on Windows it is null when no entry holds bun.exe or there is no PATH", () => {
+    expect(resolveBun("win32", { PATH: "C:\\one;C:\\two" }, () => false)).toBeNull();
+    expect(resolveBun("win32", {}, () => true)).toBeNull();
+  });
+
+  test("elsewhere it is bun, left to the OS, without touching the file system", () => {
+    const never = () => {
+      throw new Error("exists must not be called");
+    };
+    expect(resolveBun("linux", { PATH: "/usr/bin" }, never)).toBe("bun");
+    expect(resolveBun("darwin", {}, never)).toBe("bun");
+  });
+});
+
 type Call = { binary: string; args: string[]; options: Record<string, unknown> };
 /** A fake child: reports `error`, or closes with the given status and signal, on the next tick. */
 function stub(result: Record<string, unknown>) {
@@ -64,12 +98,12 @@ function stub(result: Record<string, unknown>) {
   };
   return { calls, spawn };
 }
-async function run(result: Record<string, unknown>, platform = "linux") {
+async function run(result: Record<string, unknown>, platform = "linux", exists: (path: string) => boolean = () => true) {
   const { calls, spawn } = stub(result);
-  const env = { PATH: "/usr/bin", WACHIMAN_PROFILE: "isolated:x", ANTHROPIC_API_KEY: "k" };
+  const env = { PATH: platform === "win32" ? "C:\\bin" : "/usr/bin", WACHIMAN_PROFILE: "isolated:x", ANTHROPIC_API_KEY: "k" };
   const snapshot = { ...env };
   const errors: string[] = [];
-  const code = await launch({ pkgDir: "/pkg", argv: ["--version"], platform, env, spawn, stderr: (line: string) => errors.push(line) });
+  const code = await launch({ pkgDir: "/pkg", argv: ["--version"], platform, env, spawn, stderr: (line: string) => errors.push(line), exists });
   return { calls, env, snapshot, errors, code };
 }
 
@@ -91,8 +125,18 @@ describe("launch", () => {
     expect(r.calls[0].args.join(" ")).not.toContain("--profile");
   });
 
-  test("uses bun.exe on Windows", async () => {
-    expect((await run({ status: 0, signal: null }, "win32")).calls[0].binary).toBe("bun.exe");
+  test("on Windows it spawns the absolute bun.exe found on PATH", async () => {
+    const r = await run({ status: 0, signal: null }, "win32", (path) => path === "C:\\bin\\bun.exe");
+    expect(r.code).toBe(0);
+    expect(r.calls).toHaveLength(1);
+    expect(r.calls[0].binary).toBe("C:\\bin\\bun.exe");
+  });
+
+  test("on Windows with no bun.exe on an absolute PATH entry it never spawns, prints the install line and exits 2", async () => {
+    const r = await run({ status: 0, signal: null }, "win32", () => false);
+    expect(r.code).toBe(2);
+    expect(r.calls).toHaveLength(0);
+    expect(r.errors).toEqual([BUN_INSTALL_LINE]);
   });
 
   test("exits with the child's exit code", async () => {
