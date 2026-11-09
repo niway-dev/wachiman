@@ -7,4 +7,4 @@ import { launch } from "./launcher-args.js";
 
 // Node resolves the symlink npm puts in `bin/`, so this is the real package directory.
 const pkgDir = dirname(dirname(fileURLToPath(import.meta.url)));
-process.exitCode = launch({ pkgDir, argv: process.argv.slice(2) });
+process.exitCode = await launch({ pkgDir, argv: process.argv.slice(2) });
