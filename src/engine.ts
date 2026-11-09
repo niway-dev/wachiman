@@ -71,6 +71,7 @@ import {
   type VerifiedFinding,
   type VerifierVerdict,
 } from "./verify";
+import { validate as validateSchema } from "./json-schema";
 import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
@@ -2443,10 +2444,13 @@ function stopOf(result: { terminalReason: string; isError: boolean; providerErro
   return { kind: quota ? "quota" : "error", detail: oneLine(result.errorText ?? reason, 200) };
 }
 
-/** A well-formed answer: an object whose `verdicts` is an array. Nothing is salvaged from anything else. */
+/**
+ * A complete, schema-valid envelope (ADR 0030 §5): the whole answer is checked against
+ * `VERIFY_SCHEMA`, so one violation anywhere voids it. Nothing is salvaged from anything else.
+ */
 function verdictsOf(structured: unknown): VerifierVerdict[] | undefined {
-  const verdicts = (structured as { verdicts?: unknown } | null | undefined)?.verdicts;
-  return Array.isArray(verdicts) ? (verdicts as VerifierVerdict[]) : undefined;
+  if (validateSchema(VERIFY_SCHEMA, structured).length > 0) return undefined;
+  return (structured as { verdicts: VerifierVerdict[] }).verdicts;
 }
 
 /**

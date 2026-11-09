@@ -243,6 +243,23 @@ describe("the verifier through the review core", () => {
     expect(result.findings).toHaveLength(3);
   });
 
+  test("a schema-invalid envelope is not used, even when it carries a valid refutation", () => {
+    const provider = new FakeProvider([batch(three)]);
+    const refutation = { id: "c1", verdict: "refuted", reason: "b is set on line 2", checked: [{ snapshot: "head", path: "src/a.ts", line: 2 }], disproof: { snapshot: "head", path: "src/a.ts", line: 2 } };
+    const verifier = new FakeProvider([() => ({ costUsd: 0.2, structuredOutput: { verdicts: [refutation], notes: "an extra field the schema forbids" } })]);
+    const result = reviewChange(branchInput(), options(), deps(provider, verifier).deps);
+    expect(result.verification).toMatchObject({ status: "failed", dropped: 0, inconclusive: 3 });
+    expect(result.findings).toHaveLength(3);
+    // The same envelope without the violation does drop the finding.
+    const clean = new FakeProvider([() => ({ costUsd: 0.2, structuredOutput: { verdicts: [refutation] } })]);
+    expect(reviewChange(branchInput(), options(), deps(new FakeProvider([batch(three)]), clean).deps).verification?.dropped).toBe(1);
+    // A wrong enum inside one verdict also voids the whole envelope.
+    const wrongEnum = new FakeProvider([() => ({ costUsd: 0.2, structuredOutput: { verdicts: [refutation, { id: "c2", verdict: "maybe", reason: "x", checked: [] }] } })]);
+    const second = reviewChange(branchInput(), options(), deps(new FakeProvider([batch(three)]), wrongEnum).deps);
+    expect(second.verification).toMatchObject({ status: "failed", dropped: 0 });
+    expect(second.findings).toHaveLength(3);
+  });
+
   test("a verifier call that throws is counted at its cap and the review still posts", () => {
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
