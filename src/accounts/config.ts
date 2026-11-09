@@ -70,7 +70,7 @@ export type ConfigRead =
 export interface ConfigIo {
   read: (path: string) => string;
   exists: (path: string) => boolean;
-  /** True only when the path itself is missing (ENOENT on lstat); a broken link or an unreadable path is not. */
+  /** True only when the path itself is missing (ENOENT or ENOTDIR on lstat); a broken link or an unreadable path is not. */
   isAbsent?: (path: string) => boolean;
 }
 
@@ -80,7 +80,9 @@ const realIo: ConfigIo = { read: (p) => readFileSync(p, "utf8"), exists: (p) => 
       lstatSync(p);
       return false;
     } catch (error) {
-      return (error as NodeJS.ErrnoException).code === "ENOENT";
+      // ENOTDIR: a parent is a plain file, so nothing can exist at the path either.
+      const code = (error as NodeJS.ErrnoException).code;
+      return code === "ENOENT" || code === "ENOTDIR";
     }
   },
 };
