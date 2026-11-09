@@ -16,7 +16,7 @@ modifications, and some organizations forbid AGPL code outright.
 What was true when this was decided:
 
 - One copyright author. The only other commits are two Dependabot bumps of a workflow action.
-- The engine has no runtime and no dev dependencies (ADR 0002), so no third-party license limits
+- The engine has no runtime dependency besides the pinned `bun` package, and no dev dependencies (ADR 0002, amended), so no third-party license limits
   the choice.
 - No outside contributions, forks or stars.
 - Every release up to v1.3.0 shipped a `LICENSE` that said "version 3 … or any later version",

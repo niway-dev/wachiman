@@ -31,11 +31,21 @@ describe("package.json", () => {
     expect(pkg.engines).toEqual({ bun: ">=1.3", node: ">=20" });
   });
 
-  test("has no runtime dependency of any kind (ADR 0002)", () => {
-    for (const key of ["dependencies", "optionalDependencies", "peerDependencies", "bundledDependencies", "bundleDependencies"]) expect(pkg[key]).toBeUndefined();
+  test("depends on the official npm package bun at one exact version, and on nothing else (ADR 0028)", () => {
+    expect(Object.keys(pkg.dependencies)).toEqual(["bun"]);
+    expect(pkg.dependencies.bun).toMatch(/^\d+\.\d+\.\d+$/);
+    for (const key of ["optionalDependencies", "peerDependencies", "bundledDependencies", "bundleDependencies"]) expect(pkg[key]).toBeUndefined();
   });
 
-  test("publishes publicly with provenance and runs no install-time script", () => {
+  test("the pinned Bun is the version CI tests and meets the floor in engines.bun", () => {
+    const ci = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
+    const versions = new Set([...ci.matchAll(/bun-version:\s*([\d.]+)/g)].map((m) => m[1]));
+    expect([...versions]).toEqual([pkg.dependencies.bun]);
+    const [major, minor] = pkg.dependencies.bun.split(".").map(Number);
+    expect(major > 1 || (major === 1 && minor >= 3)).toBe(true);
+  });
+
+  test("publishes publicly with provenance and runs no install-time script of its own", () => {
     expect(pkg.publishConfig).toEqual({ access: "public", provenance: true });
     for (const hook of ["preinstall", "install", "postinstall", "prepare", "prepublishOnly", "prepack", "postpack"]) expect(pkg.scripts?.[hook]).toBeUndefined();
   });

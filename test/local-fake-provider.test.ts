@@ -6,7 +6,7 @@
  * shim would not be found on Windows. No model, no network, no GitHub.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { branchRepo, removeTempRepos } from "./support/temp-repo";
@@ -96,14 +96,18 @@ describe.skipIf(!node)("wachiman local through the launcher, with a fake claude"
     expect(calls.filter((c) => c.startsWith("-p ") || c.includes(" --output-format")).length).toBeGreaterThanOrEqual(1);
   }, 120_000);
 
-  test("without Bun on PATH it is exit 2 with the Bun line, before any review", () => {
+  test("without a usable Bun, bundled or on PATH, it is exit 2 with the Bun line, before any review", () => {
     const repo = branchRepo();
     const home = temp("wachiman-launcher-home-");
     // Node's own directory may also hold bun (Homebrew, `npm i -g bun`), so PATH is an empty directory:
     // node runs by absolute path and the launcher only looks up bun.
     const empty = temp("wachiman-empty-path-");
     const bare = { ...env(home), PATH: empty, Path: empty };
-    const out = Bun.spawnSync([node!, launcher, "local", "--repo-dir", repo.dir, "--base", "main"], { env: bare, stdin: "ignore" });
+    // A copy of the launcher in a directory with no node_modules above it: a checkout that ran
+    // `bun install` has the bundled Bun next to the real launcher, and that one would work.
+    const lone = temp("wachiman-lone-launcher-");
+    cpSync(join(root, "bin"), join(lone, "bin"), { recursive: true });
+    const out = Bun.spawnSync([node!, join(lone, "bin", "wachiman.js"), "local", "--repo-dir", repo.dir, "--base", "main"], { env: bare, stdin: "ignore" });
     expect(out.exitCode).toBe(2);
     expect(out.stderr.toString()).toContain("Bun");
   }, 60_000);

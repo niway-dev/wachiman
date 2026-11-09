@@ -72,7 +72,8 @@ with a notice; see [docs/upgrading.md](docs/upgrading.md).
 - **Codex CLI** (`codex exec`, for OpenAI models) is a second adapter, available only from the
   command line. The reusable workflow does not install it or pass an OpenAI key
   ([docs/providers/codex.md](docs/providers/codex.md)).
-- **npm:** the package `wachiman` is built and tested for npm (Node launcher, Bun required;
+- **npm:** the package `wachiman` is built and tested for npm (a Node launcher; the package installs
+  Bun through its `bun` dependency;
   [docs/local-review.md](docs/local-review.md#3-install)) and is published by the release workflow
   from the first release that includes this change. Until the first publish succeeds, install from
   source (`scripts/install-local.sh`). macOS and Linux are covered by CI; **Windows: pending CI**.
@@ -98,9 +99,12 @@ is sent to your configured Claude account for the review. Read
 [docs/local-review.md](docs/local-review.md) before running it on an employer's code.
 
 Install it from source: run `scripts/install-local.sh` once from your clone. The npm package
-(`npm i -g wachiman`, with Bun 1.3 or later installed too: it ships the TypeScript source and a
-small Node launcher that runs it with Bun) is published from the first release that includes this
-change; until the first publish succeeds, use the script. Both give a global `wachiman local …`
+(`npm i -g wachiman` or `bun add -g wachiman`; it is written to work on Windows (Git Bash, PowerShell) and is tested on `windows-latest` in CI, and the Windows tier stays pending until that job has passed on a published commit: it ships the
+TypeScript source and a small Node launcher, and it installs Bun for you by depending on the
+official npm package `bun`, which means installing it downloads Bun, 23 to 42 MB compressed; with
+`--ignore-scripts` it uses a Bun already on your `PATH`; details and the supply-chain note are in
+[docs/local-review.md](docs/local-review.md#from-npm)) is published from the first release that
+includes this change; until the first publish succeeds, use the script. Both give a global `wachiman local …`
 command; the script also links the `wachiman-review` agent skill, usable from any project, and the
 `wachiman-audit` skill, which compares Wachiman's findings with another reviewer's on the same
 commits (data and procedure in
@@ -133,7 +137,7 @@ status are in [docs/local-review.md](docs/local-review.md#3-install).
 
 Design decisions are recorded as ADRs in [docs/adr/](docs/adr/), starting with
 [ADR 0001: distribution and trust](docs/adr/0001-distribution-and-trust.md) and
-[ADR 0002: TypeScript on Bun, no runtime dependencies](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
+[ADR 0002: TypeScript on Bun, no runtime dependencies besides Bun itself](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
 
 ## License
 
