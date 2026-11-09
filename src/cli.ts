@@ -11,7 +11,7 @@
  *   wachiman local [paths…]         review the committed branch of a clone on the signed-in
  *                                       `claude`, and print it; no GitHub call (src/local.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
- *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under ~/.wachiman
+ *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error.
  * The settings are documented in docs/cli.md.
@@ -23,7 +23,8 @@ import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
-import { setupProfile } from "./profiles";
+import { wachimanHome } from "./accounts/config";
+import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 
 export const USAGE = `Usage:
@@ -40,6 +41,7 @@ export const USAGE = `Usage:
                                                      \`local --history\`; reads files and local git
                                                      metadata only: no claude, no GitHub
   wachiman --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
+                                                     (an alias of \`wachiman profile create\`)
   wachiman --help | --version
 
 Options:
@@ -135,9 +137,10 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
   try {
     if (mode === "--setup-profile") {
       if (argv.length > 2) throw new UsageError("--setup-profile takes at most one profile name.");
-      const home = env.HOME;
-      if (!home) throw new UsageError("HOME is not set.");
-      setupProfile({ name: argv[1], home, env });
+      // One notice per run, before anything is created: the command is kept, but `profile create` is
+      // where it is going (ADR 0029).
+      console.error(`wachiman: --setup-profile is kept as an alias of \`wachiman profile create ${argv[1] ?? DEFAULT_ISOLATED_NAME}\`.`);
+      setupProfile({ name: argv[1], home: wachimanHome(env), env });
       return 0;
     }
     const { repoDir, rest: args } = extractRepoDir(argv);

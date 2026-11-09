@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import type { ProjectBinding, WachimanConfigV1 } from "./config";
-import { parseProfileRef, profileLine, resolveProfile, type Rung } from "./resolve";
+import { failureText, parseProfileRef, profileLine, resolveProfile, type Rung } from "./resolve";
 
 const home = "/wh";
 const config: WachimanConfigV1 = {
@@ -194,5 +194,16 @@ describe("profileLine", () => {
     expect(line({ flag: "work-b", binding: "work-a", env: "personal", configDefault: "legacy" })).toBe(
       "profile: work-b (external, /Users/me/.claude-work-b; chosen by --profile; project binding=work-a ignored; WACHIMAN_PROFILE=personal ignored; config default=legacy ignored)",
     );
+  });
+});
+
+describe("failureText", () => {
+  test("names the rung, the value and the problem", () => {
+    const result = run({ env: "ghost" });
+    if (result.ok) throw new Error("should fail");
+    const text = failureText(result.failure);
+    expect(text).toStartWith('WACHIMAN_PROFILE "ghost": ');
+    expect(text).toContain("is not registered");
+    expect(failureText({ rung: "binding", value: "x", problem: "p" })).toBe('project binding "x": p');
   });
 });

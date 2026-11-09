@@ -145,3 +145,8 @@ export function profileLine(resolved: ResolvedProfile) {
   const parts = [`chosen by ${RUNG_LABEL[resolved.rung]}`, ...resolved.overridden.map((o) => `${RUNG_LABEL[o.rung]}=${o.value} ignored`)];
   return `profile: ${name} (${what}; ${parts.join("; ")})`;
 }
+
+/** A failed rung as one message: which rung, which value, why. */
+export function failureText(failure: ResolveFailure) {
+  return `${RUNG_LABEL[failure.rung]} "${failure.value}": ${failure.problem}`;
+}

@@ -13,34 +13,27 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { readConfig, updateConfig } from "./accounts/config";
+import { checkProfileName, ISOLATED_NAME, parseProfileRef } from "./accounts/resolve";
 import { UsageError } from "./config";
 import { buildChildEnv } from "./providers/claude-code";
 
-export type ProfileChoice = { kind: "default" } | { kind: "isolated"; name: string };
-
 /** The name a bare `isolated` and a bare `--setup-profile` mean. */
-export const DEFAULT_ISOLATED_NAME = "isolated";
-const NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
+export const DEFAULT_ISOLATED_NAME = ISOLATED_NAME;
 
-function checkName(name: string) {
-  if (!NAME.test(name)) {
-    throw new UsageError(
-      `"${name}" is not a profile name: use 1 to 32 lowercase letters, digits or dashes, starting with a letter or digit.`,
-    );
-  }
-  return name;
+/**
+ * A `--profile` value as `resolveProfile` takes it: `default`, `isolated`, `isolated:<name>` or a
+ * profile name. Only the spelling is checked here; whether it names a profile is the resolver's
+ * business, because that depends on the config and the home directory.
+ */
+export function parseProfile(value: string): string {
+  parseProfileRef(value);
+  return value;
 }
 
-/** `default`, `isolated` (the name `isolated`) or `isolated:<name>`. */
-export function parseProfile(value: string): ProfileChoice {
-  if (value === "default") return { kind: "default" };
-  if (value === "isolated") return { kind: "isolated", name: DEFAULT_ISOLATED_NAME };
-  if (value.startsWith("isolated:")) return { kind: "isolated", name: checkName(value.slice("isolated:".length)) };
-  throw new UsageError(`--profile must be default, isolated or isolated:<name>, got "${value}".`);
-}
-
-export function profileDir(name: string, home: string) {
-  return join(home, ".wachiman", `claude-${checkName(name)}`);
+/** A managed profile's directory under the Wachiman home (`WACHIMAN_HOME`, else `~/.wachiman`). */
+export function profileDir(name: string, wachimanHome: string) {
+  return join(wachimanHome, `claude-${checkProfileName(name)}`);
 }
 
 /** Files and folders whose presence alone means the profile is not only a sign-in. */
@@ -89,20 +82,21 @@ type SpawnFn = (
 const defaultSpawn: SpawnFn = (command, args, opts) => spawnSync(command, args, opts);
 
 /**
- * `wachiman --setup-profile [<name>]`: creates `~/.wachiman/claude-<name>` (mode 0700) and
- * launches the developer's `claude` in it, interactively, from an empty directory, so they can
+ * `wachiman --setup-profile [<name>]`: creates `<home>/claude-<name>` (mode 0700), registers it as
+ * a managed profile in `<home>/config.json`, and launches the developer's `claude` in it, interactively, from an empty directory, so they can
  * sign in with Claude Code's own flow. The binary is spawned directly, without a shell, with the
  * subscription environment: a `claude` shell function or alias cannot change its
  * `CLAUDE_CONFIG_DIR`. Wachiman never sees the sign-in and does not check that it worked.
  */
 export function setupProfile(p: {
   name?: string;
+  /** The Wachiman home itself (`wachimanHome(env)`), not the user's home directory. */
   home: string;
   env: Record<string, string | undefined>;
   print?: (line: string) => void;
   spawn?: SpawnFn;
 }): string[] {
-  const name = checkName(p.name ?? DEFAULT_ISOLATED_NAME);
+  const name = checkProfileName(p.name ?? DEFAULT_ISOLATED_NAME);
   const dir = profileDir(name, p.home);
   const print = p.print ?? ((line: string) => console.error(line));
   const lines: string[] = [];
@@ -110,14 +104,24 @@ export function setupProfile(p: {
     lines.push(line);
     print(line);
   };
+  // Before anything is created or launched: a corrupt store, or a name an external profile holds.
+  const existing = readConfig(p.home, undefined, { structural: true });
+  if (existing.kind === "corrupt") throw new UsageError(`${existing.path} is corrupt (${existing.problem}); fix or remove it.`);
+  if (existing.kind === "ok" && existing.config.profiles[name]?.kind === "external") {
+    throw new UsageError(`"${name}" is already registered as an external profile; choose another name.`);
+  }
   if (existsSync(dir)) {
     const found = inspectIsolatedProfile(dir);
     if (found.length > 0) throw populatedProfileError(dir, found);
   }
-  const parent = join(p.home, ".wachiman");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
-  chmodSync(parent, 0o700);
+  chmodSync(p.home, 0o700);
   chmodSync(dir, 0o700);
+  updateConfig({ home: p.home }, (c) =>
+    c.profiles[name]?.kind === "managed"
+      ? c
+      : { ...c, profiles: { ...c.profiles, [name]: { kind: "managed", configDir: dir, createdAt: new Date().toISOString() } } },
+  );
   const flag = name === DEFAULT_ISOLATED_NAME ? "isolated" : `isolated:${name}`;
   say(`Setting up the isolated profile ${dir}.`);
   say("Claude Code starts next: run /login and sign in with the account the review should use, then /exit.");

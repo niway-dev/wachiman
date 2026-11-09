@@ -3,8 +3,10 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
+import type { WachimanConfigV1 } from "./accounts/config";
 import { localFiles } from "./connectors/local-git";
-import { parseLocalArgs, readInputFile } from "./local";
+import { parseLocalArgs, readInputFile, runLocal } from "./local";
+import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
 import { A_HEAD, branchRepo, commit, emptyCommits, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
 
@@ -55,13 +57,21 @@ const QUOTA_RESULT = JSON.stringify({
 });
 
 type Variant = "ok" | "none" | "quota" | "edit" | "garbage" | "interrupt";
+type AuthVariant = "claude.ai" | "api_key" | "signed-out" | "no-directory";
 
 /**
  * A temporary `bin/` with a `gh` that leaves a canary and fails, and a `claude` that records its
  * calls, arguments, environment, prompt and the head it was given, then answers per `variant`.
  * Every path is baked into the script text: the child environment is allowlisted.
  */
-function stubs(variant: Variant, repoDir: string) {
+function stubs(variant: Variant, repoDir: string, auth: AuthVariant = "claude.ai") {
+  /** `claude auth status`: signed in with claude.ai and reporting the directory it was given, unless told otherwise. */
+  const authAnswer =
+    auth === "signed-out"
+      ? `echo '{"loggedIn":false,"authMethod":"none"}'; exit 1`
+      : auth === "no-directory"
+        ? `echo '{"loggedIn":true,"authMethod":"claude.ai"}'; exit 0`
+        : `printf '{"loggedIn":true,"authMethod":"%s","configDirectory":"%s"}\\n' "${auth}" "$CLAUDE_CONFIG_DIR"; exit 0`;
   const bin = temp("wachiman-bin-");
   const log = join(bin, "log");
   const canary = join(bin, "gh-called");
@@ -79,6 +89,10 @@ function stubs(variant: Variant, repoDir: string) {
   writeFileSync(
     join(bin, "claude"),
     `#!/bin/sh
+if [ "$1" = "auth" ]; then
+  echo "auth $CLAUDE_CONFIG_DIR" >> "${log}.probes"
+  ${authAnswer}
+fi
 echo "$*" >> "${log}.calls"
 if [ "$1" = "--version" ]; then echo "9.9.9 (Claude Code)"; exit 0; fi
 env | sort > "${log}.env"
@@ -102,6 +116,8 @@ ${answer}
     canary,
     read,
     /** Review calls only, not the `--version` probe. */
+    /** `claude auth status` probes, with the CLAUDE_CONFIG_DIR each ran under. */
+    probes: () => (read("probes") ?? "").split("\n").filter(Boolean),
     calls: () => (read("calls") ?? "").split("\n").filter((l) => l !== "" && l !== "--version"),
     env: () =>
       Object.fromEntries(
@@ -121,8 +137,8 @@ function runCli(args: string[], env: Record<string, string>) {
 }
 
 /** `wachiman local` on a fresh branch repository, with the stubs first on PATH and a temporary HOME. */
-function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: BranchRepo = branchRepo()) {
-  const s = stubs(variant, repo.dir);
+function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: BranchRepo = branchRepo(), auth: AuthVariant = "claude.ai") {
+  const s = stubs(variant, repo.dir, auth);
   const home = extraEnv.HOME ?? temp("wachiman-home-");
   const out = runCli(["local", "--repo-dir", repo.dir, ...args], {
     PATH: `${s.bin}:${process.env.PATH ?? ""}`,
@@ -142,12 +158,12 @@ describe("parseLocalArgs", () => {
       paths: ["src", "docs"],
       format: "markdown",
       output: "r.md",
-      profile: { kind: "isolated", name: "work" },
+      profile: "isolated:work",
       agentPrompt: true,
       history: false,
       input: undefined,
     });
-    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined });
+    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: undefined, agentPrompt: false, history: false, input: undefined });
     expect(parseLocalArgs(["--format=json", "--base=origin/main"])).toMatchObject({ format: "json", base: "origin/main" });
   });
 
@@ -395,6 +411,10 @@ describe("wachiman local", () => {
     expect(env).not.toContain("ANTHROPIC_API_KEY");
     expect(env).toContain("DISABLE_TELEMETRY=1");
     expect(out.stderr.toString()).toContain("wachiman local --profile isolated:work");
+    // The alias notice, and the managed entry it registered.
+    expect(out.stderr.toString()).toContain("alias of `wachiman profile create work`");
+    const config = JSON.parse(readFileSync(join(home, ".wachiman", "config.json"), "utf8"));
+    expect(config.profiles.work).toMatchObject({ kind: "managed", configDir: join(home, ".wachiman", "claude-work") });
   });
 
   test("codex is refused in local mode", () => {
@@ -889,5 +909,182 @@ describe("--commit and --from", () => {
     expect(old.stdout).toMatch(/unknown +1 finding\(s\)/);
     expect(old.stdout).not.toContain("probably fixed");
     expect(old.stdout).not.toContain("not repeated");
+  });
+});
+
+describe("accounts in local", () => {
+  const wrapper = join(import.meta.dir, "..", "bin", "wachiman");
+
+  /** An external profile whose directory exists, a binding for `repo`, and a Wachiman home that holds both. */
+  function accounts(repo: BranchRepo, opts: { binding?: string; defaultProfile?: string; binary?: string } = {}) {
+    const whome = temp("wachiman-whome-");
+    const workDir = temp("wachiman-work-a-");
+    const config: WachimanConfigV1 = {
+      version: 1,
+      ...(opts.defaultProfile ? { defaultProfile: opts.defaultProfile } : {}),
+      profiles: {
+        "work-a": { kind: "external", configDir: workDir, ...(opts.binary ? { binary: opts.binary } : {}), createdAt: "t" },
+        "work-b": { kind: "external", configDir: temp("wachiman-work-b-"), createdAt: "t" },
+      },
+      projects: opts.binding
+        ? { [repositoryKey(repo.dir).key]: { profile: opts.binding, keyedBy: "path", name: "r", boundAt: "t", boundFrom: repo.dir } }
+        : {},
+    };
+    writeFileSync(join(whome, "config.json"), JSON.stringify(config));
+    return { whome, workDir };
+  }
+
+  test("a binding beats WACHIMAN_PROFILE: the profile line prints the ignored value and the binding's directory is used", () => {
+    const repo = branchRepo();
+    const { whome, workDir } = accounts(repo, { binding: "work-a" });
+    const r = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "work-b" }, repo);
+    expect(r.code).toBe(0);
+    const line = r.stderr.split("\n").find((l) => l.startsWith("profile: "));
+    expect(line).toBe(`profile: work-a (external, ${workDir}; chosen by project binding; WACHIMAN_PROFILE=work-b ignored)`);
+    // Before every other pre-call line.
+    expect(r.stderr.split("\n").indexOf(line!)).toBeLessThan(r.stderr.split("\n").findIndex((l) => l.startsWith("base: ")));
+    expect(r.env().CLAUDE_CONFIG_DIR).toBe(workDir);
+    // The confirmation ran under the same directory; the /1 result maps an external profile to `default`.
+    expect(r.probes()).toEqual([`auth ${workDir}`]);
+    expect(r.stdout).toContain("profile: default");
+  });
+
+  test("the configured default and WACHIMAN_PROFILE rungs, and the built-in default line", () => {
+    const repo = branchRepo();
+    const { whome, workDir } = accounts(repo, { defaultProfile: "work-a" });
+    const byDefault = local("ok", [], { WACHIMAN_HOME: whome }, repo);
+    expect(byDefault.stderr).toContain(`profile: work-a (external, ${workDir}; chosen by config default)`);
+    const byEnv = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "work-b" }, repo);
+    expect(byEnv.stderr).toMatch(/profile: work-b \(external, .*; chosen by WACHIMAN_PROFILE; config default=work-a ignored\)/);
+    const builtIn = local("ok", [], { WACHIMAN_HOME: temp("wachiman-empty-") });
+    expect(builtIn.stderr).toContain("profile: default (your shell's claude; chosen by built-in default)");
+  });
+
+  test("a stored binary is the one that runs, with no claude on PATH", () => {
+    const repo = branchRepo();
+    const s = stubs("ok", repo.dir);
+    const { whome, workDir } = accounts(repo, { binding: "work-a", binary: join(s.bin, "claude") });
+    const out = runCli(["local", "--repo-dir", repo.dir], { PATH: "/usr/bin:/bin", HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_HOME: whome });
+    expect(out.code).toBe(0);
+    expect(out.stderr).toContain(`binary ${join(s.bin, "claude")}`);
+    expect(s.env().CLAUDE_CONFIG_DIR).toBe(workDir);
+    expect(s.calls().length).toBeGreaterThan(0);
+  });
+
+  test("a name that resolves to nothing, on any rung, is exit 2 with no call and no fall-through", () => {
+    const repo = branchRepo();
+    const { whome } = accounts(repo, { defaultProfile: "work-a" });
+    const flag = local("ok", ["--profile", "ghost"], { WACHIMAN_HOME: whome }, repo);
+    expect(flag.code).toBe(2);
+    expect(flag.stderr).toContain('profile "ghost" is not registered');
+    expect(flag.read("calls")).toBeUndefined();
+    expect(flag.probes()).toEqual([]);
+    expect(flag.stderr).not.toContain("profile: ");
+    const env = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "ghost" }, repo);
+    expect(env.code).toBe(2);
+    expect(env.stderr).toContain("ghost");
+    expect(env.read("calls")).toBeUndefined();
+  });
+
+  test("a corrupt config is exit 2 with the problem named, and no call", () => {
+    const repo = branchRepo();
+    const whome = temp("wachiman-whome-");
+    writeFileSync(join(whome, "config.json"), JSON.stringify({ version: 2, profiles: {}, projects: {} }));
+    const r = local("ok", [], { WACHIMAN_HOME: whome }, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("config.json");
+    expect(r.stderr).toContain("version");
+    expect(r.read("calls")).toBeUndefined();
+  });
+
+  test.each([
+    ["signed-out" as const, "wachiman profile login work-a"],
+    ["api_key" as const, "billed to a key"],
+    ["no-directory" as const, "unverified"],
+  ])("an unconfirmed profile (%s) is exit 2 before any review call", (auth, expected) => {
+    const repo = branchRepo();
+    const { whome } = accounts(repo, { binding: "work-a" });
+    const r = local("ok", [], { WACHIMAN_HOME: whome }, repo, auth);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(expected);
+    expect(r.stderr).toContain("profile: work-a");
+    // The probes ran; the review never did.
+    expect(r.probes().length).toBe(1);
+    expect(r.read("args")).toBeUndefined();
+    expect(r.calls()).toEqual([]);
+  });
+
+  test("the built-in default is confirmed too: a key sign-in stops it", () => {
+    const r = local("ok", [], { WACHIMAN_HOME: temp("wachiman-empty-") }, branchRepo(), "api_key");
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("billed to a key");
+    expect(r.calls()).toEqual([]);
+  });
+
+  test("an unconfirmed profile makes no provider call: a fake provider is never touched", () => {
+    const repo = branchRepo();
+    const { whome } = accounts(repo, { binding: "work-a" });
+    const touched: string[] = [];
+    const provider = new Proxy({} as never, { get: (_t, name) => (touched.push(String(name)), () => undefined) });
+    const stderr: string[] = [];
+    const run = () =>
+      runLocal(
+        parseLocalArgs([]),
+        repo.dir,
+        { WACHIMAN_HOME: whome, PATH: process.env.PATH },
+        { stdout: () => {}, stderr: (l) => stderr.push(l), engineVersion: "0" },
+        {
+          spawn: (_bin, args) => ({ status: args[0] === "--version" ? 0 : 1, stdout: args[0] === "--version" ? "9.9.9" : "{}", stderr: "" }),
+          getProvider: () => provider,
+        },
+      );
+    expect(run).toThrow(UsageError);
+    expect(run).toThrow("wachiman profile login work-a");
+    expect(touched).toEqual([]);
+    expect(stderr.some((l) => l.startsWith("profile: work-a"))).toBe(true);
+  });
+
+  test("a planted configuration in the reviewed repository changes nothing, and WACHIMAN_CLAUDE_BIN names no binary", () => {
+    const repo = branchRepo();
+    const { whome } = accounts(repo, { binding: "work-b" });
+    const evil = temp("wachiman-evil-");
+    writeFileSync(join(evil, "claude"), "#!/bin/sh\ntouch \"$0.ran\"\nexit 0\n");
+    chmodSync(join(evil, "claude"), 0o755);
+    writeFileSync(join(repo.dir, ".wachiman.json"), JSON.stringify({ profile: "work-a", binary: join(evil, "claude") }));
+    mkdirSync(join(repo.dir, ".wachiman"), { recursive: true });
+    writeFileSync(join(repo.dir, ".wachiman", "config.json"), JSON.stringify({ profile: "work-a", binary: join(evil, "claude") }));
+    writeFileSync(join(repo.dir, "package.json"), JSON.stringify({ name: "x", wachiman: { profile: "work-a", binary: join(evil, "claude") } }));
+    const r = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_CLAUDE_BIN: join(evil, "claude") }, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toMatch(/profile: work-b \(external, .*; chosen by project binding\)/);
+    expect(existsSync(join(evil, "claude.ran"))).toBe(false);
+    expect(r.calls().length).toBeGreaterThan(0);
+  });
+
+  test("bin/wachiman: a binding beats a conflicting WACHIMAN_PROFILE, and the wrapper no longer drops the API key", () => {
+    const repo = branchRepo();
+    const { whome, workDir } = accounts(repo, { binding: "work-a" });
+    const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+    fixture.change.head.sha = repo.head;
+    fixture.files = localFiles(repo.dir, repo.mergeBase, repo.head);
+    const input = join(temp("wachiman-input-"), "input.json");
+    writeFileSync(input, JSON.stringify(fixture));
+
+    const s = stubs("ok", repo.dir);
+    const env = { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "work-b" };
+    const out = Bun.spawnSync([wrapper, "local", "--input", input, "--repo-dir", repo.dir], { env, stdin: "ignore" });
+    expect(out.exitCode).toBe(0);
+    expect(out.stderr.toString()).toContain(`profile: work-a (external, ${workDir}; chosen by project binding; WACHIMAN_PROFILE=work-b ignored)`);
+    expect(s.env().CLAUDE_CONFIG_DIR).toBe(workDir);
+
+    // The key now reaches the command, which refuses it itself, identically to `bun src/cli.ts`.
+    const keyed = stubs("ok", repo.dir);
+    const refused = Bun.spawnSync([wrapper, "local", "--input", input, "--repo-dir", repo.dir], {
+      env: { ...env, PATH: `${keyed.bin}:${process.env.PATH ?? ""}`, ANTHROPIC_API_KEY: "sk-ant-test" },
+      stdin: "ignore",
+    });
+    expect(refused.exitCode).toBe(2);
+    expect(refused.stderr.toString()).toContain(SUBSCRIPTION_KEY_REFUSAL);
+    expect(keyed.read("calls")).toBeUndefined();
   });
 });

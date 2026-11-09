@@ -57,7 +57,8 @@ export function historySettings(env: Record<string, string | undefined>, flag: b
   return { enabled, days: Number(raw) };
 }
 
-export const historyRoot = (home: string) => join(home, ".wachiman", "history");
+/** `wachimanHome` is the Wachiman home itself (`wachimanHome(env)`): `WACHIMAN_HOME`, else `~/.wachiman`. */
+export const historyRoot = (wachimanHome: string) => join(wachimanHome, "history");
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 const GIT_TIMEOUT_MS = 30_000;
