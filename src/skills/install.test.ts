@@ -139,12 +139,19 @@ describe("skills install: the Wachiman home is refused", () => {
     expect(tree(f.userHome)).toEqual(before);
   });
 
-  test("WACHIMAN_HOME moves the protected directory; the default ~/.wachiman is then an ordinary path", () => {
+  test("a custom WACHIMAN_HOME is protected, and so is the default ~/.wachiman", () => {
     const f = fixture();
     const custom = temp("custom-wachiman-home-");
     refuses(f, { action: "install", dirs: [join(custom, "skills")] }, { WACHIMAN_HOME: custom });
-    const report = installSkills({ action: "install", dirs: [join(f.userHome, ".wachiman", "skills")] }, { WACHIMAN_HOME: custom }, f.deps);
-    expect(report.exitCode).toBe(0);
+    refuses(f, { action: "install", dirs: [join(f.userHome, ".wachiman", "skills")] }, { WACHIMAN_HOME: custom });
+    expect(existsSync(join(f.userHome, ".wachiman"))).toBe(false);
+  });
+
+  test("a malformed (relative) WACHIMAN_HOME does not fail uninstall, and the default ~/.wachiman stays protected", () => {
+    const f = fixture();
+    const env = { WACHIMAN_HOME: "relative/home" };
+    expect(installSkills({ action: "uninstall", dirs: [] }, env, f.deps).exitCode).toBe(0);
+    refuses(f, { action: "uninstall", dirs: [join(f.userHome, ".wachiman", "skills")] }, env, "uninstall");
   });
 
   test("a skills directory that is a symlink into ~/.wachiman is refused", () => {

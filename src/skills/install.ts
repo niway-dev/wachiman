@@ -93,13 +93,25 @@ function resolveThroughExisting(path: string): string {
   }
 }
 
-/** Throws before anything is written when a target is the Wachiman home or below it, as written or through a symlink. */
-function refuseWachimanHome(targets: string[], home: string) {
-  const protectedPaths = [...new Set([resolve(home), resolveThroughExisting(home)])];
+/** The default `~/.wachiman` of `userHome` plus `WACHIMAN_HOME` when it is well formed; a malformed one is ignored. */
+function protectedHomes(env: Record<string, string | undefined>, userHome: string): string[] {
+  const homes = [join(userHome, ".wachiman")];
+  try {
+    homes.push(wachimanHome(env));
+  } catch {
+    // A relative WACHIMAN_HOME is not this command's business; the default stays protected.
+  }
+  return homes;
+}
+
+/** Throws before anything is written when a target is a Wachiman home or below it, as written or through a symlink. */
+function refuseWachimanHome(targets: string[], homes: string[]) {
+  const protectedPaths = [...new Set(homes.flatMap((home) => [resolve(home), resolveThroughExisting(home)]))];
   for (const target of targets) {
     const seen = [resolve(target), resolveThroughExisting(target)];
-    if (seen.some((path) => protectedPaths.some((p) => isUnder(path, p)))) {
-      throw new UsageError(`refusing ${target}: it is under the Wachiman home ${resolve(home)}, which holds isolated review profiles that must stay empty.`);
+    const hit = protectedPaths.find((p) => seen.some((path) => isUnder(path, p)));
+    if (hit !== undefined) {
+      throw new UsageError(`refusing ${target}: it is under the Wachiman home ${hit}, which holds isolated review profiles that must stay empty.`);
     }
   }
 }
@@ -284,7 +296,7 @@ export function installSkills(opts: SkillsOptions, env: Record<string, string | 
   const source = deps.sourceDir ?? skillsSourceDir();
   const warn = deps.warn ?? (() => {});
   const targets = targetDirs(opts, env, userHome);
-  refuseWachimanHome(targets, wachimanHome(env));
+  refuseWachimanHome(targets, protectedHomes(env, userHome));
   const entries: Entry[] = [];
   for (const target of targets) {
     for (const name of SKILL_NAMES) {
