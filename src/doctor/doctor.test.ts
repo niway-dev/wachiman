@@ -2,9 +2,9 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SpawnFn } from "../accounts/confirm";
 import { UsageError } from "../config";
 import { repositoryKey } from "../history/store";
+import { fakeToolchain, signedIn, type RecordedCall, type Tools } from "../../test/support/fake-toolchain";
 import { emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { buildDoctorReport, parseDoctorArgs, runDoctor, type DoctorDeps } from "./run";
 import { renderJson, renderText } from "./render";
@@ -28,46 +28,16 @@ interface Machine {
   userHome: string;
   env: Record<string, string>;
   deps: DoctorDeps;
-  calls: { binary: string; args: string[]; cwd: string; env: Record<string, string> }[];
+  calls: RecordedCall[];
   report: (opts?: Partial<Parameters<typeof buildDoctorReport>[0]>, env?: Record<string, string>) => ReturnType<typeof buildDoctorReport>;
 }
-
-interface Tools {
-  bun?: string | null;
-  git?: string | null;
-  tar?: string | null;
-  claudeVersion?: string | null;
-  /** The JSON `claude auth status` prints, per configuration directory (undefined key: the shell's). */
-  auth?: (configDir: string | undefined) => { status: number; stdout: string };
-}
-
-const signedIn = (configDir: string | undefined, extra: Record<string, unknown> = {}) => ({
-  status: 0,
-  stdout: JSON.stringify({ loggedIn: true, authMethod: "claude.ai", ...(configDir ? { configDirectory: configDir } : {}), email: "me@example.com", ...extra }),
-});
 
 /** A machine fixture: temp Wachiman and user homes and a fake toolchain; no real claude, git, bun or tar is started. */
 function machine(tools: Tools = {}, extra: Partial<DoctorDeps> = {}): Machine {
   const home = join(temp("wachiman-doctor-"), ".wachiman");
   const userHome = temp("wachiman-doctor-user-");
   const env = { PATH: "/usr/bin", HOME: userHome, USER: "me", WACHIMAN_HOME: home };
-  const calls: Machine["calls"] = [];
-  const spawn: SpawnFn = (binary, args, options) => {
-    calls.push({ binary, args, cwd: options.cwd, env: options.env });
-    const answer = (value: string | null | undefined, fallback: string) => {
-      const text = value === undefined ? fallback : value;
-      return text === null ? { status: null, stdout: "", stderr: "", error: new Error(`spawn ${binary} ENOENT`) } : { status: 0, stdout: `${text}\n`, stderr: "" };
-    };
-    if (binary === "bun") return answer(tools.bun, "1.4.2");
-    if (binary === "git") return answer(tools.git, "git version 2.43.0");
-    if (binary === "tar") return answer(tools.tar, "bsdtar 3.5.3 - libarchive 3.5.3");
-    if (args[0] === "--version") return answer(tools.claudeVersion, "2.1.321 (Claude Code)");
-    if (args[0] === "auth" && args[1] === "status") {
-      const out = (tools.auth ?? ((dir) => signedIn(dir)))(options.env.CLAUDE_CONFIG_DIR);
-      return { status: out.status, stdout: out.stdout, stderr: "" };
-    }
-    throw new Error(`unexpected spawn ${binary} ${args.join(" ")}`);
-  };
+  const { spawn, calls } = fakeToolchain(tools);
   const deps: DoctorDeps = {
     spawn,
     install: { kind: "source", root: "/opt/wachiman" },

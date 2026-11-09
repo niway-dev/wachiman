@@ -13,13 +13,18 @@ import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readSync, re
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { UsageError } from "../config";
+import { buildDoctorReport, type DoctorDeps } from "../doctor/run";
+import { renderRow } from "../doctor/render";
+import type { GitRunner } from "../evidence";
 import { parseFlags } from "../flags";
+import { repositoryKey } from "../history/store";
+import type { HistoryRepository } from "../history/types";
 import { buildChildEnv } from "../providers/claude-code";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "../profiles";
-import { readConfig, updateConfig, wachimanHome, type ConfigRead, type ProfileEntry, type WachimanConfigV1 } from "./config";
+import { readConfig, updateConfig, wachimanHome, type ConfigRead, type ProfileEntry, type ProjectBinding, type WachimanConfigV1 } from "./config";
 import type { SpawnFn, SpawnResult } from "./confirm";
 import { buildProfileList, managedDir, refersTo, type ProfileList } from "./profile-list";
-import { checkProfileName, lookupProfileRef, parseProfileRef } from "./resolve";
+import { checkProfileName, failureText, lookupProfileRef, parseProfileRef, profileLine, resolveProfile, type ProfileRef } from "./resolve";
 
 export interface CommandIo {
   /** The result of a command: a list, a document, a report. */
@@ -47,6 +52,10 @@ export interface AccountDeps {
   interactive?: boolean;
   /** Asks one yes/no question. Default: a line read from the terminal. */
   ask?: (question: string, defaultYes: boolean) => Answer;
+  /** The git runner that finds a repository's identity. */
+  git?: GitRunner;
+  /** What `setup`'s closing doctor summary runs with. */
+  doctor?: DoctorDeps;
 }
 
 const defaultSpawn: SpawnFn = (binary, args, options): SpawnResult => {
@@ -441,4 +450,205 @@ export function runProfile(cmd: ProfileCommand, env: Record<string, string | und
     case "default":
       return setDefault(cmd, env, io);
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// project
+
+export type ProjectCommand =
+  | { kind: "help" }
+  | { kind: "show"; repoDir: string; json: boolean }
+  | { kind: "unbind"; repoDir: string; yes: boolean };
+
+export const projectUsage = `wachiman project show [--json] [--repo-dir <dir>]
+wachiman project unbind [--repo-dir <dir>] [--yes]`;
+
+/** The arguments after `project` (`--repo-dir` is already taken out and arrives as `repoDir`). */
+export function parseProjectArgs(argv: string[], repoDir: string): ProjectCommand {
+  const [sub, ...rest] = argv;
+  if (sub === undefined) throw new UsageError("project needs a subcommand: show or unbind.");
+  if (sub === "--help" || sub === "-h" || rest.includes("--help")) return { kind: "help" };
+  if (sub !== "show" && sub !== "unbind") throw new UsageError(`Unknown project subcommand "${sub}".`);
+  const command = `project ${sub}`;
+  const { positionals, booleans } = parseFlags(rest, { values: [], booleans: sub === "show" ? ["--json"] : ["--yes"] }, command);
+  if (positionals.length > 0) throw new UsageError(`${command} takes no argument "${positionals[0]}".`);
+  return sub === "show" ? { kind: "show", repoDir, json: booleans["--json"] === true } : { kind: "unbind", repoDir, yes: booleans["--yes"] === true };
+}
+
+export interface ProjectShow {
+  format: "wachiman.project/1";
+  repository: { key: string; name: string; keyedBy: "remote" | "path"; remote?: string; path: string };
+  binding?: ProjectBinding;
+  /** What `local` would use here right now, with the rung and the ignored values. */
+  resolved:
+    | { profile: string; kind: ProfileRef["kind"]; rung: string; overridden: { rung: string; value: string }[] }
+    | { error: string };
+}
+
+const repositoryOf = (repo: HistoryRepository): ProjectShow["repository"] => ({
+  key: repo.key,
+  name: repo.name,
+  keyedBy: repo.keyedBy,
+  ...(repo.remote ? { remote: repo.remote } : {}),
+  path: repo.path,
+});
+
+/** The repository's identity, its binding, and what the full resolution would choose here. Reads the home and git metadata only. */
+function inspectProject(repoDir: string, env: Record<string, string | undefined>, deps: AccountDeps) {
+  const home = wachimanHome(env);
+  const config = loadConfig(home);
+  const repo = repositoryKey(repoDir, deps.git);
+  const binding = config && Object.hasOwn(config.projects, repo.key) ? config.projects[repo.key] : undefined;
+  const result = resolveProfile({
+    binding,
+    env: { WACHIMAN_PROFILE: env.WACHIMAN_PROFILE },
+    config,
+    managedDirExists: (name) => existsSync(managedDir(home, name)),
+    home,
+  });
+  const resolved: ProjectShow["resolved"] = result.ok
+    ? {
+        profile: result.resolved.profile.kind === "default" ? "default" : result.resolved.profile.name,
+        kind: result.resolved.profile.kind,
+        rung: result.resolved.rung,
+        overridden: result.resolved.overridden,
+      }
+    : { error: failureText(result.failure) };
+  const shown: ProjectShow = { format: "wachiman.project/1", repository: repositoryOf(repo), ...(binding ? { binding } : {}), resolved };
+  return { shown, line: result.ok ? profileLine(result.resolved) : `resolved: ${failureText(result.failure)}` };
+}
+
+export const projectShow = (repoDir: string, env: Record<string, string | undefined>, deps: AccountDeps = {}): ProjectShow =>
+  inspectProject(repoDir, env, deps).shown;
+
+export function runProject(cmd: ProjectCommand, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps = {}): number {
+  if (cmd.kind === "help") {
+    io.stdout(`${projectUsage}\n`);
+    return 0;
+  }
+  if (cmd.kind === "show") {
+    const { shown, line } = inspectProject(cmd.repoDir, env, deps);
+    const { repository: r, binding } = shown;
+    io.stdout(
+      cmd.json
+        ? `${JSON.stringify(shown, null, 2)}\n`
+        : [
+            `repository: ${r.name} (${r.keyedBy === "remote" ? `origin ${r.remote ?? "(unparsed)"}` : `path ${r.path}`})`,
+            `key: ${r.key}`,
+            binding ? `bound to: ${binding.profile} (since ${binding.boundAt}, from ${binding.boundFrom})` : "bound to: nothing",
+            line,
+            "",
+          ].join("\n"),
+    );
+    return 0;
+  }
+  const home = wachimanHome(env);
+  // Structural: a binding whose profile is gone must stay removable.
+  const config = loadConfig(home, true);
+  const repo = repositoryKey(cmd.repoDir, deps.git);
+  const binding = config && Object.hasOwn(config.projects, repo.key) ? config.projects[repo.key] : undefined;
+  if (!binding) {
+    io.stdout("not bound\n");
+    return 0;
+  }
+  const answer = confirm("project unbind", env, deps, {
+    yes: cmd.yes,
+    defaultYes: false,
+    question: `Remove the binding of ${repo.name} (${repo.key}) to profile ${binding.profile}? Every clone and worktree of this origin goes back to the lower rungs.`,
+  });
+  if (answer !== "yes") return answer === "no" ? 0 : 130;
+  updateConfig({ home }, (current) => ({
+    ...current,
+    projects: Object.fromEntries(Object.entries(current.projects).filter(([key]) => key !== repo.key)),
+  }));
+  io.stderr(`unbound ${repo.name} from ${binding.profile}.`);
+  return 0;
+}
+
+// ---------------------------------------------------------------------------------------------
+// setup (the non-interactive path; the wizard is a later slice)
+
+export interface SetupOptions {
+  repoDir: string;
+  profile?: string;
+  yes: boolean;
+  json: boolean;
+}
+
+export const setupUsage = "wachiman setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]";
+
+/** The arguments after `setup` (`--repo-dir` is already taken out and arrives as `repoDir`). */
+export function parseSetupArgs(argv: string[], repoDir: string): SetupOptions | { help: true } {
+  if (argv.includes("--help") || argv.includes("-h")) return { help: true };
+  const { positionals, values, booleans } = parseFlags(argv, { values: ["--profile"], booleans: ["--yes", "--json"] }, "setup");
+  if (positionals.length > 0) throw new UsageError(`setup takes no argument "${positionals[0]}".`);
+  const profile = values["--profile"];
+  if (profile !== undefined) parseProfileRef(profile);
+  return { repoDir, ...(profile !== undefined ? { profile } : {}), yes: booleans["--yes"] === true, json: booleans["--json"] === true };
+}
+
+/**
+ * Binds the repository to a profile that already resolves: never a model call, never a file under
+ * the repository, never a new profile entry. The write is one locked config transaction. A closing
+ * doctor summary decides the exit code: the binding stays written when a required check fails.
+ */
+export function runSetup(opts: SetupOptions, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps = {}): number {
+  const interactive = !opts.yes && (deps.interactive ?? isInteractive(env, { stdin: process.stdin.isTTY === true, stdout: process.stdout.isTTY === true }));
+  if (opts.profile === undefined) {
+    throw new UsageError(
+      interactive
+        ? "the interactive setup wizard is not available yet; run `wachiman setup --profile <name>` (see `wachiman profile list`)."
+        : "setup needs --profile <name> when it cannot ask; run wachiman profile list",
+    );
+  }
+  const home = wachimanHome(env);
+  const config = loadConfig(home);
+  const repo = repositoryKey(opts.repoDir, deps.git);
+  const lookup = (profiles: WachimanConfigV1["profiles"]) =>
+    lookupProfileRef(opts.profile!, { profiles, home, managedDirExists: (name) => existsSync(managedDir(home, name)) });
+  const found = lookup(config?.profiles ?? {});
+  if (!found.ok) throw new UsageError(found.problem);
+  const { profile } = found;
+
+  const current = config && Object.hasOwn(config.projects, repo.key) ? config.projects[repo.key] : undefined;
+  io.stderr(`repository: ${repo.name} (${repo.keyedBy === "remote" ? `origin ${repo.remote ?? "(unparsed)"}` : `path ${repo.path}`})`);
+  if (current) io.stderr(`currently bound to ${current.profile}`);
+  io.stderr(
+    `profile: ${profile.kind === "default" ? "default (your shell's claude)" : `${profile.name} (${profile.kind}, ${profile.configDir}${profile.kind === "external" && profile.binary ? `, binary ${profile.binary}` : ""})`}`,
+  );
+  io.stderr(`identity: keyed by ${repo.keyedBy === "remote" ? `origin: ${repo.remote ?? "(unparsed)"}` : `path: ${repo.path}`}; every clone and worktree of this origin will use it`);
+  io.stderr(`will write: ${join(home, "config.json")} (nothing is written in the repository)`);
+  if (interactive) {
+    const answer = (deps.ask ?? askOnTerminal)(`Bind ${repo.name} to ${opts.profile}?`, true);
+    if (answer !== "yes") return answer === "no" ? 0 : 130;
+  }
+
+  const binding: ProjectBinding = {
+    profile: opts.profile,
+    keyedBy: repo.keyedBy,
+    ...(repo.keyedBy === "remote" && repo.remote ? { remote: repo.remote } : {}),
+    name: repo.name,
+    boundAt: (deps.now ?? (() => new Date().toISOString()))(),
+    boundFrom: opts.repoDir,
+  };
+  updateConfig({ home }, (latest) => {
+    // Revalidated under the lock: the profile may have been removed since it was read.
+    const again = lookup(latest.profiles);
+    if (!again.ok) throw new UsageError(again.problem);
+    return { ...latest, projects: { ...latest.projects, [repo.key]: binding } };
+  });
+  io.stderr(`bound: ${repo.name} → ${opts.profile} (home config, nothing written in the repository)`);
+
+  const report = buildDoctorReport(
+    { repoDir: opts.repoDir, allProfiles: false, json: false, redactPaths: false },
+    env,
+    { spawn: deps.spawn, git: deps.git, userHome: deps.userHome, ...deps.doctor },
+  );
+  const width = Math.max(...report.checks.map((r) => r.id.length));
+  io.stderr(`doctor: ${report.checks.length} checks, ${report.failedRequired} required failed`);
+  for (const row of report.checks) if (row.status === "fail" || row.status === "warn") for (const line of renderRow(row, width)) io.stderr(line);
+  io.stderr(report.failedRequired > 0 ? `${report.failedRequired} required check(s) failed; the binding was written. Fix them, then run \`wachiman doctor\`.` : "All required checks passed.");
+  io.stderr(`next: wachiman local --repo-dir ${opts.repoDir}`);
+  if (opts.json) io.stdout(`${JSON.stringify(projectShow(opts.repoDir, env, deps), null, 2)}\n`);
+  return report.exitCode;
 }
