@@ -124,7 +124,7 @@ export function resolveProfile(input: {
   return { ok: true, resolved: { profile: found.profile, rung: chosen.rung, overridden } };
 }
 
-const RUNG_LABEL: Record<Rung, string> = {
+export const RUNG_LABEL: Record<Rung, string> = {
   flag: "--profile",
   binding: "project binding",
   env: "WACHIMAN_PROFILE",
