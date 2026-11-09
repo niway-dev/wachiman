@@ -11,7 +11,9 @@ const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const npm = Bun.which("npm");
 
 function packedFiles(): string[] {
-  const out = Bun.spawnSync([npm!, "pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, env: { ...process.env, npm_config_offline: "true" } });
+  // On Windows npm is `npm.cmd`, which only a shell can start.
+  const command = process.platform === "win32" ? ["cmd.exe", "/d", "/s", "/c", "npm"] : [npm!];
+  const out = Bun.spawnSync([...command, "pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, env: { ...process.env, npm_config_offline: "true" } });
   expect(out.exitCode).toBe(0);
   const [report] = JSON.parse(out.stdout.toString());
   return report.files.map((f: { path: string }) => f.path.replaceAll("\\", "/"));
