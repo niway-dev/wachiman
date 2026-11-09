@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../test/support/temp-repo";
 import { snapshotTree } from "../test/support/tree-snapshot";
+import { DEFAULT_WORKFLOW_REF } from "./init/options";
 
 const cli = join(import.meta.dir, "cli.ts");
 const scratch: string[] = [];
@@ -41,7 +42,16 @@ describe("init through the CLI, without a terminal", () => {
     const m = machine();
     const out = m.run(["init", "--mode", "github", "--operator", "me", "--dry-run"]);
     expect(out.code).toBe(0);
-    expect(out.stdout).toContain("review.yml@v1.9.0\n");
+    // The constant, not a literal: release-please moves it on every release.
+    expect(out.stdout).toContain(`review.yml@${DEFAULT_WORKFLOW_REF}\n`);
+  });
+
+  test("--repo-dir inside .git has no work tree: exit 2 and nothing is written there", () => {
+    const m = machine();
+    const out = m.run(["init", "--mode", "github", "--operator", "me", "--repo-dir", join(m.repo, ".git")]);
+    expect(out.code).toBe(2);
+    expect(out.stderr).toContain("not inside a git work tree");
+    expect(existsSync(join(m.repo, ".git", ".github"))).toBe(false);
   });
 
   test("--mode github --operator me --version v1.5.0 --dry-run prints the rendered file and writes nothing", () => {

@@ -83,7 +83,11 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   repositoryKey(options.repoDir, deps.git);
   // `--path` is relative to the repository top level: GitHub only runs workflows under <top level>/.github/workflows.
   const top = (deps.git ?? spawnGit)(["rev-parse", "--show-toplevel"], { cwd: options.repoDir, timeoutMs: 10_000 });
-  const root = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : options.repoDir;
+  if (top.status !== 0 || top.stdout.trim() === "") {
+    // A bare repository or a directory inside .git: there is no work tree for GitHub to run a workflow from.
+    throw new UsageError(`${options.repoDir} is not inside a git work tree; run init from the repository or pass --repo-dir <its top level>.`);
+  }
+  const root = top.stdout.trim();
   const { github } = options;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
