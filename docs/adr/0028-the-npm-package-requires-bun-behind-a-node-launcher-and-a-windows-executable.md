@@ -7,8 +7,10 @@
   job and the release jobs. Its tier is **pending CI** until those rows are green
   on `windows-latest`, then **built and smoke-tested**; promotion to "supported" waits
   for those rows to be green on `windows-latest` on a published commit and for the owner's one real
-  run (row W7), and is a docs-only change. Not yet published to npm: the first publish happens
-  when the release workflow runs on a release that contains the npm slice.
+  run (row W7), and is a docs-only change. The npm package on Windows (the Node launcher finding
+  `bun.exe`) is also **pending CI** until the `windows` job is green on `windows-latest`. Not yet
+  published to npm: the first publish happens when the release workflow runs on a release that
+  contains the npm slice.
   **Amends** draft
   [ADR 0026 in PR #135](https://github.com/niway-dev/wachiman/pull/135) (PR #135, unmerged): keeps its
   decisions 1 (package `wachiman`, trusted publishing), 3 (`skills install`) and 5 (zero
