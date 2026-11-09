@@ -898,3 +898,71 @@ describe("--commit and --from", () => {
     expect(old.stdout).not.toContain("not repeated");
   });
 });
+
+describe("verification flags", () => {
+  const schema = (name: string) => JSON.parse(readFileSync(join(import.meta.dir, `../docs/formats/${name}`), "utf8"));
+  const loadedValidate = async () => (await import("../test/support/json-schema")).validate;
+
+  test("--no-verify is parsed; with --verify it is a usage error", () => {
+    expect(parseLocalArgs(["--no-verify"])).toMatchObject({ verify: false });
+    expect(() => parseLocalArgs(["--verify", "--no-verify"])).toThrow(new UsageError("--verify and --no-verify cannot be used together."));
+  });
+
+  test("--result-version takes 1 or 2 and only with --format json", () => {
+    expect(parseLocalArgs(["--format", "json", "--result-version", "2"]).resultVersion).toBe(2);
+    expect(parseLocalArgs(["--result-version=1", "--format=json"]).resultVersion).toBe(1);
+    expect(parseLocalArgs([]).resultVersion).toBeUndefined();
+    expect(() => parseLocalArgs(["--format", "json", "--result-version", "3"])).toThrow("--result-version must be 1 or 2");
+    expect(() => parseLocalArgs(["--result-version", "1"])).toThrow(new UsageError("--result-version applies only with --format json."));
+    expect(() => parseLocalArgs(["--format", "markdown", "--result-version", "2"])).toThrow("--result-version applies only with --format json.");
+  });
+
+  test("--result-version 1 without --format json exits 2 before any call", () => {
+    const r = local("ok", ["--result-version", "1"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("--result-version applies only with --format json.");
+    expect(r.calls()).toEqual([]);
+  });
+
+  test("a committed change writes result /1 by default, and /2 on request, each valid against its schema", async () => {
+    const validate = await loadedValidate();
+    const one = local("ok", ["--format", "json"]);
+    expect(one.code).toBe(0);
+    expect(JSON.parse(one.stdout).format).toBe("wachiman.review-result/1");
+    expect(validate(schema("review-result.v1.schema.json"), JSON.parse(one.stdout))).toEqual([]);
+    const two = local("ok", ["--format", "json", "--result-version", "2"]);
+    expect(JSON.parse(two.stdout).format).toBe("wachiman.review-result/2");
+    expect(validate(schema("review-result.v2.schema.json"), JSON.parse(two.stdout))).toEqual([]);
+  });
+
+  test("the verify line follows batches: off by default, on with the model and the reserve", () => {
+    const off = local("ok");
+    const lines = off.stderr.split("\n");
+    expect(lines[lines.indexOf("batches: 1") + 1]).toBe("verify: off");
+    expect(off.calls()).toHaveLength(1);
+
+    const on = local("ok", ["--verify"]);
+    const onLines = on.stderr.split("\n");
+    expect(onLines[onLines.indexOf("batches: 1") + 1]).toBe("verify: on (claude-opus-5-5, reserve $1.00)");
+    // The verifier is a second call, from its own adapter on the same profile.
+    expect(on.calls()).toHaveLength(2);
+  });
+
+  test("--no-verify wins over AGENT_REVIEW_VERIFY=1", () => {
+    const r = local("ok", ["--no-verify"], { AGENT_REVIEW_VERIFY: "1" });
+    expect(r.stderr.split("\n")).toContain("verify: off");
+    expect(r.calls()).toHaveLength(1);
+    expect(local("ok", [], { AGENT_REVIEW_VERIFY: "1" }).stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
+  });
+
+  test("the verifier can read the base commit, and the base snapshot is gone afterwards", () => {
+    const r = local("ok", ["--verify"]);
+    const dirs = (r.read("dirs") ?? "").split("\n").filter(Boolean);
+    const snapshots = dirs.filter((d) => d.includes("wachiman-snapshot-"));
+    // Head for the review call; head and the base for the verifier call.
+    expect(snapshots).toHaveLength(3);
+    expect(new Set(snapshots).size).toBe(2);
+    for (const dir of snapshots) expect(existsSync(dir)).toBe(false);
+    expect(r.read("prompt")).toContain("read-only copy of the base commit");
+  });
+});
