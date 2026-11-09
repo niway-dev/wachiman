@@ -15,17 +15,18 @@ CLI, and present its result.**
 
 ## The one command
 
-Every review is `wachiman local`. The wrapper drops `ANTHROPIC_API_KEY`, sets the Bun flags that keep
-the reviewed project's dotenv files and `bunfig.toml` out, and, when `WACHIMAN_PROFILE` is set,
-supplies `--profile` for `local`.
+Every review is `wachiman local`. The wrapper only sets the Bun flags that keep the reviewed
+project's dotenv files and `bunfig.toml` out. It changes no environment variable and adds no flag:
+`local` itself decides which account runs (see "Choose the profile") and refuses to start when
+`ANTHROPIC_API_KEY` is set, so run it as `env -u ANTHROPIC_API_KEY wachiman local ...` when the
+variable may be set in the developer's shell.
 
 ```sh
-wachiman local --repo-dir <clone> <range> --profile <profile> \
+env -u ANTHROPIC_API_KEY wachiman local --repo-dir <clone> <range> [--profile <name>] \
   --history --format json --output <tmp>/review.json 2> <tmp>/run.log
 ```
 
-Leave `--profile` out when `WACHIMAN_PROFILE` is set (the wrapper adds it); otherwise choose it as
-below. If `command -v wachiman` finds nothing, stop: ask the developer for the path of their
+Pass `--profile` only when no project binding exists, as below. If `command -v wachiman` finds nothing, stop: ask the developer for the path of their
 Wachiman clone (once) and tell them to run `scripts/install-local.sh` from it, then retry. Never
 fall back to GitHub modes.
 
@@ -56,11 +57,22 @@ On a refusal, report it and propose the fix it names:
 
 ## Choose the profile
 
-If `WACHIMAN_PROFILE` is set, skip this. Otherwise list the profiles with `ls -d ~/.wachiman/claude-*` (never read inside them). The name is what
-follows `claude-`: `~/.wachiman/claude-personal` is `--profile isolated:personal`. One →
-use it. Several → ask which account. None → offer
-`wachiman --setup-profile` (the developer signs in once), or `--profile default` only after
-telling them their own plugins could reach the review.
+Ask Wachiman, never the file system. Do not read inside any profile directory.
+
+1. Run `wachiman project show --json --repo-dir <clone>`. If `binding` is present, the project is
+   bound to a profile: **do not pass `--profile`** (a flag would override the binding the developer
+   chose). `resolved.profile` says which account `local` will use; mention it in one line.
+2. If there is no `binding`, run `wachiman profile list --json`. `profiles[].name` is what
+   `--profile` takes. One registered profile, or `defaultProfile` set → `local` already uses it;
+   pass `--profile` only if the developer names another. Several and no default → ask which
+   account, then pass `--profile <name>`. Offer `wachiman setup --profile <name>` to bind the
+   choice to this project so nobody has to ask again (it writes only under `~/.wachiman`, never in
+   the repository).
+3. `profiles` empty → offer `wachiman profile create` (the developer signs in once), or
+   `--profile default` only after telling them their own plugins could reach the review.
+
+If `resolved` holds an `error`, relay it: it names the setting to fix, and `wachiman doctor` shows
+the rest.
 
 ## Present the result
 
@@ -85,7 +97,7 @@ wachiman history --repo-dir <clone> --verdict <id> correct|partial|wrong --reaso
 | --- | --- |
 | `wachiman review <pr>`, `AGENT_REVIEW_DRY_RUN`, `gh`, a GitHub token | `local`: the GitHub modes post to the PR and need the code on GitHub |
 | A verdict as a PR comment or `Verdict:` reply | `history --verdict`: it stays on the laptop |
-| Running with `ANTHROPIC_API_KEY` set | `wachiman` (it drops the key): `local` refuses a key; the subscription pays |
+| Running with `ANTHROPIC_API_KEY` set | `env -u ANTHROPIC_API_KEY wachiman local ...`: `local` refuses a key; the subscription pays |
 | `--max-depth 1000` because "review everything" | A closer start commit, or the number the developer chose |
 | Reading the diff and reviewing it yourself | The CLI's review is the isolated one |
 | Copying the report into an issue, chat tool or benchmark | It quotes the code; keep it on the laptop |
