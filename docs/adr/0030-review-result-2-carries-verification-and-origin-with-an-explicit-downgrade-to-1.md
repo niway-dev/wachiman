@@ -1,6 +1,8 @@
 # ADR 0030: Verified findings use result /2 with explicit origin and a committed-only /1 downgrade
 
-- **Status:** proposed 2026-11-09; implementation not started by this task. Amends the verifier
+- **Status:** accepted 2026-11-09; implemented by slice 2 of the CLI plan (branch
+  `feat/verified-result-v2`), except working-tree results (slice 6) and base evidence in GitHub
+  mode, whose shallow credential-free checkout (ADR 0011) has no base commit. Amends the verifier
   contract proposed in [PR #138](https://github.com/niway-dev/wachiman/pull/138); whichever design
   lands second must cross-reference the other Status line. Reuses
   [ADR 0003](0003-two-axis-finding-labels.md) and
