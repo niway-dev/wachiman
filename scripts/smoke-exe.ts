@@ -256,6 +256,10 @@ export async function runSmoke(opts: { exe: string; version: string; rows?: Row[
     const repo = branchRepo();
     const fixture = JSON.parse(readFileSync(join(root, "test", "fixtures", "formats", "review-input.branch.json"), "utf8"));
     fixture.change.head.sha = repo.head;
+    // The fixture's base commits are placeholders. The verifier snapshots the base, and a commit that
+    // is not in this repo makes a notice with a random temporary path in it, which differs between two runs.
+    fixture.change.base.sha = repo.mergeBase;
+    fixture.instructions.baseSha = repo.mergeBase;
     fixture.files = localFiles(repo.dir, repo.mergeBase, repo.head);
     const input = join(work, "input.json");
     writeFileSync(input, JSON.stringify(fixture));
