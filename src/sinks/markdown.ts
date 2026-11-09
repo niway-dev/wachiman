@@ -44,10 +44,6 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
         parts.push(`History: ${where}, id \`${entry.id}\`${entry.verdict ? `, verdict: ${entry.verdict}` : ""}`);
       }
       parts.push(neutralise(f.body));
-      if (f.verification) {
-        const v = f.verification;
-        parts.push(`Verified: ${neutralise(v.checked)}${v.example ? ` — ${neutralise(v.example)}` : ""}`);
-      }
     });
   }
   const missing = notReviewed(result);

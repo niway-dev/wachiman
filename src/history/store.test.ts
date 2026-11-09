@@ -3,7 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
-import { REVIEW_RESULT_FORMAT } from "../formats";
+import { REVIEW_RESULT_V2 } from "../formats";
 import { spawnGit } from "../evidence";
 import { emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import {
@@ -39,7 +39,7 @@ function run(savedAt: string, firstIds: string[] = ["aaaaaaaaaa"], key = "r-1234
     savedAt,
     engine: { version: "0.0.0" },
     repository: { key, name: "r", keyedBy: "remote", remote: "https://github.com/o/r", path: "/x" },
-    result: { format: REVIEW_RESULT_FORMAT, change: { head: { sha: "1a2b3c4d5e6f".padEnd(40, "0") } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [] } as any,
+    result: { format: REVIEW_RESULT_V2, change: { head: { sha: "1a2b3c4d5e6f".padEnd(40, "0") } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [] } as any,
     tracking: firstIds.map((id) => ({ id, status: "new", firstId: id, firstHead: "h", runs: 1, reopened: 0, titleKey: "t" })),
     settled: [],
     unknown: 0,
@@ -187,6 +187,36 @@ describe("writeRun / readRuns", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("wachiman.history-run/2");
     expect(readFileSync(join(dir, "b.json"), "utf8")).toBe(foreign);
+    expect(readdirSync(dir).filter((n) => n.includes(".unreadable-"))).toEqual([]);
+  });
+
+  test("a run that embeds result /1 is read as /2: unverified findings, origin unknown", () => {
+    const root = historyRoot(home());
+    const old: any = run("2026-11-05T09:00:00.000Z");
+    old.result = {
+      ...old.result,
+      format: "wachiman.review-result/1",
+      findings: [{ path: "src/a.ts", line: 3, severity: "fix", topic: "bug", confidence: "high", title: "T", body: "B", anchor: "diff" }],
+    };
+    const dir = join(root, "r-12345678", "runs");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "old.json"), JSON.stringify(old));
+    const [read] = readRuns(root, "r-12345678", () => {});
+    expect(read.result.format).toBe(REVIEW_RESULT_V2);
+    expect(read.result.findings[0]).toMatchObject({ anchor: "diff", origin: "unknown", tier: "Important", verification: { status: "unverified", checked: [] } });
+  });
+
+  test("a run that embeds a result version this engine does not know is skipped and left in place", () => {
+    const root = historyRoot(home());
+    const dir = join(root, "r-12345678", "runs");
+    mkdirSync(dir, { recursive: true });
+    const future = JSON.stringify({ ...run("2026-11-05T09:00:00.000Z"), result: { format: "wachiman.review-result/9" } });
+    writeFileSync(join(dir, "future.json"), future);
+    const warnings: string[] = [];
+    expect(readRuns(root, "r-12345678", (l) => warnings.push(l))).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("wachiman.review-result/9");
+    expect(readFileSync(join(dir, "future.json"), "utf8")).toBe(future);
     expect(readdirSync(dir).filter((n) => n.includes(".unreadable-"))).toEqual([]);
   });
 });

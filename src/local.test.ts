@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
+import { toResultV1 } from "./formats";
 import { localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile } from "./local";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
@@ -582,7 +583,9 @@ describe("--history", () => {
     expect(mode(join(r.home, ".wachiman", "history"))).toBe(0o700);
     const saved = JSON.parse(readFileSync(files[0], "utf8"));
     expect(saved.format).toBe("wachiman.history-run/1");
-    expect(saved.result).toEqual(JSON.parse(r.stdout));
+    // The history keeps the full /2 result; the JSON sink writes its /1 form for a committed change.
+    expect(saved.result.format).toBe("wachiman.review-result/2");
+    expect(toResultV1(saved.result)).toEqual(JSON.parse(r.stdout));
     expect(saved.tracking).toHaveLength(1);
     expect(saved.tracking[0].status).toBe("new");
   });

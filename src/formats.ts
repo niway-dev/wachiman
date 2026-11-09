@@ -20,15 +20,12 @@ import type {
   Unreviewable,
 } from "./engine";
 import type { ProviderErrorClass } from "./providers/errors";
-import type { ResultVerification } from "./verify";
 
 export const REVIEW_INPUT_FORMAT = "wachiman.review-input/1";
 /** The result as committed-change JSON consumers know it: closed root, no verification block. */
 export const REVIEW_RESULT_V1 = "wachiman.review-result/1";
 /** The result the core produces: `/1` plus origin, per-finding verification and the verification record. */
 export const REVIEW_RESULT_V2 = "wachiman.review-result/2";
-/** Still the `/1` string until the engine produces `/2`; removed in the same change. */
-export const REVIEW_RESULT_FORMAT = REVIEW_RESULT_V1;
 
 export type { ReviewFile };
 
@@ -244,11 +241,9 @@ export interface ReviewResultV2 {
   verification?: ResultVerificationV2;
 }
 
-/** Transitional: what the engine returns until it produces `/2` (the next commits replace both). */
-export type ResultFinding = ResultFindingV1;
-export interface ReviewResult extends ReviewResultV1 {
-  verification?: ResultVerification;
-}
+/** What the core returns and every sink renders: the `/2` result. `toResultV1` makes the `/1` form. */
+export type ReviewResult = ReviewResultV2;
+export type ResultFinding = ResultFindingV2;
 
 /** The core refuses a version it does not know (D15). A usage error, not an engine error. */
 export function assertReviewInputFormat(input: { format?: unknown }): asserts input is { format: typeof REVIEW_INPUT_FORMAT } {

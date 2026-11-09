@@ -24,7 +24,8 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 import { UsageError } from "../config";
 import { spawnGit, type GitRunner } from "../evidence";
-import { REVIEW_RESULT_FORMAT } from "../formats";
+import { REVIEW_RESULT_V1, REVIEW_RESULT_V2, type ReviewResultV2 } from "../formats";
+import { annotateUnverified } from "../verify";
 import {
   HISTORY_RUN_FORMAT,
   VERDICT_WORDS,
@@ -174,7 +175,11 @@ function parseRun(path: string): HistoryRun {
     const message = `format ${JSON.stringify(parsed.format)}`;
     throw typeof parsed.format === "string" && parsed.format.startsWith("wachiman.history-run/") ? new ForeignFormat(message) : new Error(message);
   }
-  if (parsed.result?.format !== REVIEW_RESULT_FORMAT) throw new Error("result is not a review result");
+  const resultFormat = parsed.result?.format;
+  if (typeof resultFormat === "string" && resultFormat.startsWith("wachiman.review-result/") && resultFormat !== REVIEW_RESULT_V1 && resultFormat !== REVIEW_RESULT_V2) {
+    throw new ForeignFormat(`result format ${JSON.stringify(resultFormat)}`);
+  }
+  if (resultFormat !== REVIEW_RESULT_V1 && resultFormat !== REVIEW_RESULT_V2) throw new Error("result is not a review result");
   const { result } = parsed;
   if (typeof parsed.savedAt !== "string" || !Array.isArray(parsed.tracking) || !Array.isArray(result.findings)) {
     throw new Error("missing savedAt or tracking");
@@ -190,6 +195,15 @@ function parseRun(path: string): HistoryRun {
   }
   if (parsed.unknownIds === undefined) parsed.unknownIds = [];
   else if (!Array.isArray(parsed.unknownIds)) throw new Error("malformed unknownIds");
+  // A run saved before result /2 has no verification fields: read it as unverified, origin unknown, so every sink sees one shape.
+  if (resultFormat === REVIEW_RESULT_V1) {
+    const upgraded = annotateUnverified(result.findings);
+    parsed.result = {
+      ...result,
+      format: REVIEW_RESULT_V2,
+      findings: result.findings.map((f: { anchor?: "diff" | "outside" }, i: number) => ({ ...upgraded[i], anchor: f.anchor ?? "outside" })),
+    } satisfies Partial<ReviewResultV2>;
+  }
   return parsed as HistoryRun;
 }
 

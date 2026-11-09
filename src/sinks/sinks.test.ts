@@ -2,13 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { countLine, MAX_BODY_CHARS, type ReviewResult } from "../engine";
+import { REVIEW_RESULT_V2, toResultV1 } from "../formats";
+import { annotateUnverified } from "../verify";
 import { AGENT_PROMPT_INTRO, agentPrompt } from "./agent-prompt";
 import { renderJson } from "./json";
 import { renderMarkdown } from "./markdown";
 import { renderTerminal } from "./terminal";
 
-const example = (): ReviewResult =>
-  JSON.parse(readFileSync(join(import.meta.dir, "../../test/fixtures/formats/review-result.example.json"), "utf8"));
+/** The /1 example, read as a /2 result: every finding unverified, origin unknown. */
+const example = (): ReviewResult => {
+  const v1 = JSON.parse(readFileSync(join(import.meta.dir, "../../test/fixtures/formats/review-result.example.json"), "utf8"));
+  const verified = annotateUnverified(v1.findings);
+  return { ...v1, format: REVIEW_RESULT_V2, findings: v1.findings.map((f: { anchor: "diff" | "outside" }, i: number) => ({ ...verified[i], anchor: f.anchor })) };
+};
 
 /** The example as a local run with every file reviewed. */
 const local = (): ReviewResult => {
@@ -103,8 +109,6 @@ describe("renderMarkdown", () => {
       "### 🟠🐛 **Fix · bug: The store drops the last session (confidence high)**\n\n`apps/api/src/main/session/store.ts:2`\n\n`y` overwrites `x` before it is flushed.",
     );
     expect(md).toContain("`apps/api/src/main/session/session-manager.ts`\n\nAdd a test");
-    expect(md.match(/^Verified: /gm)).toHaveLength(1);
-    expect(md).toContain("Verified: Searched the test directory for `export`. — exportSessions([a, b])");
     expect(md).toContain("## Summary\n\n**Batch 1 of 2.** The store has one ordering bug.");
     expect(md).toContain("<details><summary>What the change connects to (1 closed, 0 open)</summary>");
     expect(md).toContain("| Batch 1 of 2 | 3 | 9 | 7 | reviewed | 6 | $0.30 |");
@@ -195,9 +199,12 @@ describe("renderTerminal", () => {
 describe("renderJson", () => {
   test("is the result itself, with a final newline", () => {
     const r = example();
-    const text = renderJson(r);
+    const text = renderJson(r, 2);
     expect(JSON.parse(text)).toEqual(r);
     expect(text).toEndWith("}\n");
+    // The default is the /1 form a committed change is saved in.
+    expect(JSON.parse(renderJson(r))).toEqual(toResultV1(r));
+    expect(JSON.parse(renderJson(r)).format).toBe("wachiman.review-result/1");
   });
 });
 
