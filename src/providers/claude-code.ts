@@ -3,10 +3,11 @@
  * hardening is documented in docs/providers/claude-code.md.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
+import { bunEmbeddedAssets, detectInstall, type EmbeddedAssets, type InstallKind } from "../install-kind";
 import type { TokenUsage } from "../cost";
 import { locatePrompt } from "./locate";
 import { classifyProviderError } from "./errors";
@@ -249,6 +250,9 @@ export class ClaudeCodeProvider implements ProviderAdapter {
   private version: string | null = null;
   private readonly binary: string;
   private readonly settingsDir: string;
+  private readonly install: InstallKind;
+  private readonly embedded: EmbeddedAssets | undefined;
+  private readonly spawn: typeof spawnSync;
 
   constructor(
     private readonly opts: {
@@ -268,10 +272,53 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       binary?: string;
       /** For tests: another folder for the settings file. */
       settingsDir?: string;
+      /** For tests: where the assets live. Default: this process's own layout. */
+      install?: InstallKind;
+      /** For tests: the files compiled into an executable. Default: `Bun.embeddedFiles`. */
+      embedded?: EmbeddedAssets;
+      /** For tests: replaces `spawnSync` for the calls to `claude`. */
+      spawn?: typeof spawnSync;
     },
   ) {
     this.binary = opts.binary ?? BINARY;
     this.settingsDir = opts.settingsDir ?? import.meta.dir;
+    this.install = opts.install ?? detectInstall("unknown");
+    this.embedded = opts.embedded;
+    this.spawn = opts.spawn ?? spawnSync;
+  }
+
+  /** In a compiled executable the settings exist only as embedded bytes. */
+  private get embeddedSettings() {
+    return this.install.kind === "exe";
+  }
+
+  /**
+   * The settings file for one call. From a clone or a package it is the file on disk. From an
+   * executable it is a private temp file written now, because `claude` is another process and
+   * cannot read the executable's embedded file system; `release` removes it.
+   */
+  private settingsForCall(): { path: string; release(): void } {
+    if (!this.embeddedSettings) return { path: findEngineSettings(this.settingsDir), release() {} };
+    const bytes = this.readEmbeddedSettings();
+    // Its own directory (0700 where the platform has modes), apart from the session's scratch
+    // directory: nothing the agent can discover from its working directory.
+    const dir = mkdtempSync(join(tmpdir(), "agent-review-settings-"));
+    const path = join(dir, SETTINGS_FILE);
+    try {
+      writeFileSync(path, bytes, { mode: 0o600 });
+    } catch (error) {
+      rmSync(dir, { recursive: true, force: true });
+      throw error;
+    }
+    return { path, release: () => rmSync(dir, { recursive: true, force: true }) };
+  }
+
+  private readEmbeddedSettings() {
+    const embedded = this.embedded ?? bunEmbeddedAssets();
+    const name = `src/providers/${SETTINGS_FILE}`;
+    // Never run without it: the deny rules and the hardening flags come together.
+    if (!embedded.has(name)) throw new Error(`${SETTINGS_FILE} is not embedded in this executable`);
+    return embedded.read(name);
   }
 
   private get subscription() {
@@ -290,8 +337,9 @@ export class ClaudeCodeProvider implements ProviderAdapter {
   preflight() {
     // First, before anything runs: with a key present, `claude -p` would bill the key.
     if (this.subscription && process.env.ANTHROPIC_API_KEY) throw new UsageError(SUBSCRIPTION_KEY_REFUSAL);
-    findEngineSettings(this.settingsDir);
-    const probe = spawnSync(this.binary, ["--version"], {
+    if (this.embeddedSettings) this.readEmbeddedSettings();
+    else findEngineSettings(this.settingsDir);
+    const probe = this.spawn(this.binary, ["--version"], {
       encoding: "utf8",
       env: this.childEnv(),
     });
@@ -322,23 +370,25 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     // must not supply instructions. The head is only an `--add-dir`, which does not load them.
     const workDir = mkdtempSync(join(tmpdir(), "agent-review-claude-"));
     const prompt = locatePrompt(request.prompt, request.cwd, request.addDirs, { shell: false });
-    const args = buildClaudeArgs({
-      addDirs: [request.cwd, ...request.addDirs],
-      budgetUsd: request.maxBudgetUsd,
-      maxTurns: request.maxTurns,
-      model: this.opts.model,
-      effort: this.opts.effort ?? DEFAULT_EFFORT,
-      settings: findEngineSettings(this.settingsDir),
-      tools: request.allowedTools,
-      schema: request.outputSchema,
-      prompt: request.promptViaStdin ? undefined : prompt,
-      sessionPersistence: !this.subscription,
-    });
     const timeoutMs = request.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_CALL_TIMEOUT_S * 1000;
     const started = Date.now();
+    let settings: { path: string; release(): void } | undefined;
     let run: ReturnType<typeof spawnSync<string>>;
     try {
-      run = spawnSync(this.binary, args, {
+      settings = this.settingsForCall();
+      const args = buildClaudeArgs({
+        addDirs: [request.cwd, ...request.addDirs],
+        budgetUsd: request.maxBudgetUsd,
+        maxTurns: request.maxTurns,
+        model: this.opts.model,
+        effort: this.opts.effort ?? DEFAULT_EFFORT,
+        settings: settings.path,
+        tools: request.allowedTools,
+        schema: request.outputSchema,
+        prompt: request.promptViaStdin ? undefined : prompt,
+        sessionPersistence: !this.subscription,
+      });
+      run = this.spawn(this.binary, args, {
         cwd: workDir,
         input: request.promptViaStdin ? prompt : undefined,
         env: childEnv,
@@ -349,8 +399,10 @@ export class ClaudeCodeProvider implements ProviderAdapter {
         // only when it ends, so a SIGTERM grace period would save nothing either.
         timeout: timeoutMs,
         killSignal: "SIGKILL",
-      });
+      }) as ReturnType<typeof spawnSync<string>>;
     } finally {
+      // Both go together, also when the settings could not be read or the process could not start.
+      settings?.release();
       rmSync(workDir, { recursive: true, force: true });
     }
     const durationMs = Date.now() - started;
