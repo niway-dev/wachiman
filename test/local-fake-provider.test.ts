@@ -66,9 +66,9 @@ afterAll(() => {
   for (const dir of scratch) rmSync(dir, { recursive: true, force: true });
 });
 
-/** A small environment: the fake first on PATH, then node and bun, and a temporary home on both families of variables. */
+/** A small environment: the fake first on PATH, then node and bun (and Git for Windows, which is not in System32), and a temporary home on both families of variables. */
 function env(home: string) {
-  const path = [fakeBin, dirname(node!), dirname(Bun.which("bun") ?? process.execPath), ...(process.platform === "win32" ? [join(process.env.SystemRoot ?? "C:\\Windows", "System32")] : ["/usr/bin", "/bin"])].join(delimiter);
+  const path = [fakeBin, dirname(node!), dirname(Bun.which("bun") ?? process.execPath), ...(process.platform === "win32" ? [dirname(Bun.which("git") ?? "git"), join(process.env.SystemRoot ?? "C:\\Windows", "System32")] : ["/usr/bin", "/bin"])].join(delimiter);
   const keep = ["SystemRoot", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "PATHEXT", "ComSpec", "APPDATA", "LOCALAPPDATA"];
   return {
     ...Object.fromEntries(keep.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k] as string])),
