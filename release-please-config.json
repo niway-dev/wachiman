@@ -20,7 +20,7 @@
   ],
   "packages": {
     ".": {
-      "package-name": "agent-review",
+      "package-name": "wachiman",
       "changelog-path": "CHANGELOG.md"
     }
   }
