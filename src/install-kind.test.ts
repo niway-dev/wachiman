@@ -37,6 +37,7 @@ describe("detectInstall", () => {
   test("a bundled executable's module directory is the exe layout and carries the version", () => {
     expect(detectInstall("1.2.3", "/$bunfs/root")).toEqual({ kind: "exe", version: "1.2.3" });
     expect(detectInstall("1.2.3", "B:\\~BUN\\root")).toEqual({ kind: "exe", version: "1.2.3" });
+    expect(detectInstall("1.2.3", "B:/~BUN/root")).toEqual({ kind: "exe", version: "1.2.3" });
   });
 
   test("the doctor's entry point, called from src/doctor, agrees with this module", () => {

@@ -38,7 +38,8 @@ function rootOf(dir: string) {
  * executable it starts with `/$bunfs/` (`B:\~BUN` on Windows).
  */
 export function detectInstall(version: string, dir = import.meta.dir): InstallKind {
-  if (dir.startsWith("/$bunfs/") || dir.startsWith("B:\\~BUN")) return { kind: "exe", version };
+  const slashed = dir.replaceAll("\\", "/");
+  if (slashed.startsWith("/$bunfs/") || slashed.startsWith("B:/~BUN")) return { kind: "exe", version };
   return { kind: dir.split(/[\\/]/).includes("node_modules") ? "npm" : "source", root: rootOf(dir) };
 }
 
