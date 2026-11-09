@@ -591,4 +591,14 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
       else process.env.ANTHROPIC_API_KEY = saved;
     }
   });
+
+  test("getProvider hands an external profile's binary to the subscription provider, and preflight names that path", () => {
+    const stored = "/nonexistent/opt/claude/claude";
+    const provider = getProvider("claude-code", { model: "m", dryRun: false, effort: "high", auth: "subscription", configDir: "/work", binary: stored });
+    expect((provider as ClaudeCodeProvider).binaryPath).toBe(stored);
+    expect(() => provider.preflight()).toThrow(stored);
+    // The API-key (CI) path never takes a stored binary.
+    const ci = getProvider("claude-code", { model: "m", dryRun: true, effort: "high", binary: stored });
+    expect((ci as ClaudeCodeProvider).binaryPath).toBe("claude");
+  });
 });

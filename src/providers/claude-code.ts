@@ -230,8 +230,12 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       auth?: ClaudeAuth;
       /** Subscription mode only: the isolated profile's directory, forced as `CLAUDE_CONFIG_DIR`. */
       configDir?: string;
-      /** For tests: another executable, and another folder for the settings file. */
+      /**
+       * The executable to run instead of `claude` from PATH: the stored path of an external
+       * profile (ADR 0029 decision 6), or a stub in a test.
+       */
       binary?: string;
+      /** For tests: another folder for the settings file. */
       settingsDir?: string;
     },
   ) {
@@ -245,6 +249,11 @@ export class ClaudeCodeProvider implements ProviderAdapter {
 
   private childEnv() {
     return buildChildEnv(process.env, { auth: this.opts.auth, configDir: this.opts.configDir });
+  }
+
+  /** The executable every call runs: a bare `claude` is found on PATH, anything else is a path. */
+  get binaryPath() {
+    return this.binary;
   }
 
   preflight() {

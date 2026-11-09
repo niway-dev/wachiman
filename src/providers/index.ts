@@ -25,6 +25,8 @@ export function getProvider(
     /** Claude Code only; the local command refuses Codex before it gets here. */
     auth?: ClaudeAuth;
     configDir?: string;
+    /** Claude Code, subscription mode: the stored path of an external profile's binary. */
+    binary?: string;
   },
 ): ProviderAdapter {
   if (name === "claude-code") {
@@ -33,7 +35,7 @@ export function getProvider(
       model: options.model,
       requireApiKey: !subscription && !options.dryRun,
       effort: options.effort,
-      ...(subscription ? { auth: options.auth, configDir: options.configDir } : {}),
+      ...(subscription ? { auth: options.auth, configDir: options.configDir, binary: options.binary } : {}),
     });
   }
   if (name === "codex") {
