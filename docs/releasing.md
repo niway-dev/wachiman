@@ -101,9 +101,19 @@ If `publish` fails after the tag exists (the registry was down, the trusted publ
 yet), use "Re-run failed jobs" on that run: it publishes the same tarball from the same artifact
 (kept 30 days). Do not move the tag. If the artifact has expired, ship a fix as a new release.
 
-Windows: the CI job `windows` (Node and Bun on `windows-latest`) must be green before the README
-and `docs/local-review.md` stop saying "Windows: pending CI". It is not part of the release gate,
-so a red Windows job does not block a release; it keeps the docs honest.
+Windows: the CI jobs `windows` (Node and Bun on `windows-latest`) and `windows-exe` (the compiled
+`wachiman.exe` against a fake `claude`) must be green on a published commit, and the owner must have
+made one real run on Windows, before the README and `docs/local-review.md` say "Windows: supported"
+instead of "built and smoke-tested". Neither CI job is part of the release gate for npm, so a red
+Windows job does not block the npm publish; it keeps the docs honest.
+
+The release also builds the executable: the job `windows-exe` (`contents: read`, runs the repository's
+code on `windows-latest` after `verify`) cross-builds `wachiman.exe` with the release version baked
+in, runs the smoke rows, and uploads it with `SHA256SUMS` as an artifact. The job `windows-exe-release`
+(`contents: write`, `id-token: write`, `attestations: write`, no checkout) checks the checksums,
+attests `wachiman.exe`, attaches both files to the GitHub release and adds the tier to the notes. If
+it fails, "Re-run failed jobs" repeats it from the same artifact; the upload uses `--clobber`, so a
+re-run replaces the files. The executable is unsigned.
 
 Contributors can check the package without publishing: `scripts/verify-package.sh` packs the
 checkout, installs it into a temporary prefix with a closed registry and runs it

@@ -2,9 +2,12 @@
 
 - **Status:** accepted 2026-11-09; decisions 1, 2 and 4 (the npm package, the Node launcher, the
   source path) are implemented by the npm packaging slice (branch `feat/npm-package`); decision 3
-  (the Windows executable) is proposed and **not implemented**, it belongs to slice 5. Not yet
-  published to npm: the first publish happens when the release workflow runs on a release that
-  contains this slice. **Windows with Node and Bun is pending the `windows-latest` CI job.**
+  (the Windows executable) is implemented by the Windows executable slice (branch
+  `feat/windows-exe`): the build script, the smoke rows W1 to W3, W5 and W6, the `windows-exe` CI
+  job and the release jobs. Its tier is **built and smoke-tested**; promotion to "supported" waits
+  for those rows to be green on `windows-latest` on a published commit and for the owner's one real
+  run (row W7), and is a docs-only change. Not yet published to npm: the first publish happens
+  when the release workflow runs on a release that contains the npm slice.
   **Amends** draft
   [ADR 0026 in PR #135](https://github.com/niway-dev/wachiman/pull/135) (PR #135, unmerged): keeps its
   decisions 1 (package `wachiman`, trusted publishing), 3 (`skills install`) and 5 (zero
