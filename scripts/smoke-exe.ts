@@ -126,7 +126,8 @@ function w2(exe: string, version: string, s: Scenario) {
 
 function w3(s: Scenario) {
   // Runs right after `w2`, whose last call to `claude` was the executable's.
-  const shipped = readFileSync(join(root, "src", "providers", "claude-code.settings.json"));
+  // The committed bytes, not the working tree: a checkout that converted line endings must not pass.
+  const shipped = Buffer.from(spawnSync("git", ["show", "HEAD:src/providers/claude-code.settings.json"], { cwd: root }).stdout);
   const seen = s.fake.read("settings-seen.json");
   const where = s.fake.read("settings-path.txt")?.toString();
   check(seen !== undefined && where !== undefined, "the executable never passed --settings to claude");
@@ -196,7 +197,7 @@ async function interruptOnWindows(exe: string, args: string[], env: Record<strin
     "if (-not $p.WaitForExit(60000)) { try { $p.Kill() } catch {}; Write-Output 'TIMEOUT'; exit 4 }",
     "Write-Output ('EXIT ' + $p.ExitCode)",
   ].join("\n");
-  const launcher = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { env, encoding: "utf8", timeout: 240_000 });
+  const launcher = spawnSync(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"), ["-NoProfile", "-NonInteractive", "-Command", script], { env, encoding: "utf8", timeout: 240_000 });
   const out = `${launcher.stdout ?? ""}${launcher.stderr ?? ""}`;
   check(!/NOT_READY|TIMEOUT/.test(out) && /EXIT -?\d+/.test(out), `the Ctrl-C launcher failed: ${out.slice(-600)}`);
   return {

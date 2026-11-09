@@ -1,2 +1,8 @@
 # The launcher and the shipped bin scripts must keep LF: a CRLF shebang makes the kernel look for "node\r".
 bin/* text eol=lf
+# What the executable embeds and what `skills install` copies must be the bytes of the commit on
+# every OS: a Windows checkout would otherwise convert them to CRLF before `bun build --compile`.
+*.json text eol=lf
+*.yml text eol=lf
+skills/** text eol=lf
+templates/** text eol=lf
