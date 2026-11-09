@@ -95,7 +95,7 @@ describe("applyVerdicts", () => {
     expect(findings[0].verification).toMatchObject({ candidateId: "c2", status: "inconclusive", claimed: "refuted" });
   });
 
-  test("a disproof is looked up in the snapshot it names: a base line that is not in head is a disproof only as base", () => {
+  test("a disproof is looked up in the snapshot it names: a base line is never a disproof", () => {
     const { entries } = run([f({ line: 1 }), f({ line: 2 }), f({ line: 3 })], [
       { id: "c1", verdict: "refuted", reason: "r", checked: [base("old.ts", 5)], disproof: base("old.ts", 5) },
       { id: "c2", verdict: "refuted", reason: "r", checked: [head("a.ts", 1)], disproof: head("old.ts", 5) },
@@ -107,7 +107,10 @@ describe("applyVerdicts", () => {
       { id: "c1", verdict: "refuted", reason: "r", checked: [base("old.ts", 5)], disproof: base("old.ts", 5) },
       { id: "c2", verdict: "refuted", reason: "r", checked: [head("a.ts", 1)], disproof: head("old.ts", 5) },
     ]);
-    expect(withBase.entries.map((e) => e.outcome)).toEqual(["dropped", "degraded"]);
+    // A base-only line cannot disprove a claim about the head: it degrades, whatever the base holds.
+    expect(withBase.entries.map((e) => [e.outcome, e.claimed])).toEqual([["degraded", "refuted"], ["degraded", "refuted"]]);
+    const headDisproof = run([f({ line: 1 })], [{ id: "c1", verdict: "refuted", reason: "r", checked: [head("a.ts", 1)], disproof: head("a.ts", 5) }]);
+    expect(headDisproof.entries.map((e) => e.outcome)).toEqual(["dropped"]);
   });
 
   test("a disproof at line 0, a missing file or a path that leaves the snapshot is not a disproof", () => {

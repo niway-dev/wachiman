@@ -37,7 +37,8 @@ hidden as a refutation; unknown causal origin must not be invented.
 4. The falsifier investigates original code, not a reviewer summary. Provide immutable head and
    a lazily materialised base snapshot once per review when candidates exist. Validate citation
    paths/positive lines and containment against the declared snapshot. Existing code at a cited
-   line proves reference existence, not correctness of the model's semantic argument.
+   line proves reference existence, not correctness of the model's semantic argument. A refutation's
+   disproof must be a line of the head snapshot; a base-only disproof degrades it to inconclusive.
 5. supported requires rationale plus checked evidence. refuted additionally requires an existing
    disproof; invalid evidence/duplicates/missing verdicts become inconclusive and never remove
    a finding. Unknown candidate ids are ignored. Only complete schema-valid response envelopes

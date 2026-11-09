@@ -199,9 +199,9 @@ Another model proposed the findings below. Your job is to try to prove each one 
 For each candidate, read the code it cites and whatever else you need (Read, Glob, Grep), then
 answer with one verdict:
 
-- \`refuted\`: the claim is false for this code. Give \`disproof\`: the snapshot, path and line of
-  the code that shows it (a guard, a type, a caller, the behaviour in the base). A refutation
-  without a line that exists in that snapshot is not accepted. A claim that is true but was
+- \`refuted\`: the claim is false for this code. Give \`disproof\`: the head snapshot, path and line of
+  the code that shows it (a guard, a type, a caller). A refutation without a line that exists
+  in the head is not accepted; a base line cannot refute a claim about the head. A claim that is true but was
   already there before this change is not refuted: see \`supported\` and \`origin\`.
 - \`supported\`: you checked and the claim holds. If its severity is wrong by one step, give the
   right one in \`severity\`; otherwise leave it out. A bug that is true but was already there
@@ -339,12 +339,14 @@ export function applyVerdicts(
     const downgrade = (claimed: Claimed, problem: string) =>
       settle("inconclusive", `evidence not accepted (${problem}): ${reason || "no reason given"}`, "degraded", { claimed, checked });
     if (known === "refuted") {
-      const disproof = citationOf(v.disproof, snapshots);
+      // The claim is about the head, so only a line of the head can disprove it; a base line is context, not a refutation.
+      const cited = citationOf(v.disproof, snapshots);
+      const disproof = cited?.snapshot === "head" ? cited : null;
       if (reason && checked.length > 0 && disproof) {
         changed.set(f, null);
         entries.push({ ...base, status: "refuted", origin: "unknown", reason, checked, disproof, outcome: "dropped" });
       } else {
-        downgrade("refuted", !reason ? "no reason" : checked.length === 0 ? "no checked line exists" : "the disproof is not a line that exists in its snapshot");
+        downgrade("refuted", !reason ? "no reason" : checked.length === 0 ? "no checked line exists" : "the disproof is not a line that exists in the head");
       }
       continue;
     }
