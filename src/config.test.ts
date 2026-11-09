@@ -20,7 +20,7 @@ describe("loadConfig", () => {
       batchChars: 140000,
       dryRun: false,
       fullReview: false,
-      model: "claude-sonnet-5-5",
+      model: "claude-haiku-5-5",
       provider: "claude-code",
       effort: "high",
       maxTurns: 40,
@@ -29,8 +29,25 @@ describe("loadConfig", () => {
       mention: "/wachiman",
       operator: "",
       exclude: [],
+      verify: true,
+      verifyBudgetUsd: 1,
+      verifierModel: "claude-opus-5-5",
     });
     expect(warnings).toEqual([]);
+  });
+
+  test("the verifier is on by default, off with 0 or false, and needs a model outside Claude Code", () => {
+    expect(load({ AGENT_REVIEW_VERIFY: "1" }).config).toMatchObject({ verify: true, verifierModel: "claude-opus-5-5", verifyBudgetUsd: 1 });
+    expect(load({ AGENT_REVIEW_VERIFY: "true", AGENT_REVIEW_VERIFIER_MODEL: "claude-sonnet-5-5", AGENT_REVIEW_VERIFY_BUDGET_USD: "0.5" }).config).toMatchObject({ verify: true, verifierModel: "claude-sonnet-5-5", verifyBudgetUsd: 0.5 });
+    expect(load({ AGENT_REVIEW_VERIFY: "0" }).config.verify).toBe(false);
+    expect(load({ AGENT_REVIEW_VERIFY: "false" }).config.verify).toBe(false);
+    expect(load({ AGENT_REVIEW_VERIFY: "" }).config.verify).toBe(true);
+    expect(load({}).config.verify).toBe(true);
+    // Codex has no default verifier model: off unless one is given or the owner insists.
+    expect(load({ AGENT_REVIEW_PROVIDER: "codex" }).config.verify).toBe(false);
+    expect(load({ AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_VERIFIER_MODEL: "claude-opus-5-5" }).config.verify).toBe(true);
+    expect(() => load({ AGENT_REVIEW_VERIFY: "yes" })).toThrow(/AGENT_REVIEW_VERIFY must be/);
+    expect(() => load({ AGENT_REVIEW_VERIFY: "1", AGENT_REVIEW_PROVIDER: "codex" })).toThrow(/AGENT_REVIEW_VERIFIER_MODEL/);
   });
 
   test("a full review is a dry-run option only", () => {
