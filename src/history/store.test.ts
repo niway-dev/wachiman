@@ -121,11 +121,12 @@ describe("repositoryKey", () => {
 
 describe("writeRun / readRuns", () => {
   test("creates the directories 0700 and the file 0600, atomically", () => {
-    const h = home();
+    // `h` is the Wachiman home (`~/.wachiman`), which the first save creates too.
+    const h = join(home(), ".wachiman");
     const root = historyRoot(h);
     const path = writeRun(root, run("2026-11-05T10:00:00.000Z"));
     expect(path).toMatch(/runs\/2026-11-05T10-00-00-000Z-1a2b3c4\.json$/);
-    for (const d of [join(h, ".wachiman"), root, join(root, "r-12345678"), join(root, "r-12345678", "runs")]) expect(mode(d)).toBe(0o700);
+    for (const d of [h, root, join(root, "r-12345678"), join(root, "r-12345678", "runs")]) expect(mode(d)).toBe(0o700);
     expect(mode(path)).toBe(0o600);
     expect(readdirSync(join(root, "r-12345678", "runs")).filter((n) => n.endsWith(".tmp"))).toEqual([]);
     const runs = readRuns(root, "r-12345678", () => {});
@@ -134,16 +135,16 @@ describe("writeRun / readRuns", () => {
   });
 
   test("every save tightens the history root and the repository directories to 0700", () => {
-    const h = home();
+    const h = join(home(), ".wachiman");
     const root = historyRoot(h);
     const dirs = [root, join(root, "r-12345678"), join(root, "r-12345678", "runs")];
     for (const d of dirs) mkdirSync(d, { recursive: true, mode: 0o755 });
     for (const d of dirs) chmodSync(d, 0o755);
-    chmodSync(join(h, ".wachiman"), 0o755);
+    chmodSync(h, 0o755);
     writeRun(root, run("2026-11-05T10:00:00.000Z"));
     for (const d of dirs) expect(mode(d)).toBe(0o700);
     // Only the history is the tool's to tighten: ~/.wachiman itself, which holds other things, is not touched.
-    expect(mode(join(h, ".wachiman"))).toBe(0o755);
+    expect(mode(h)).toBe(0o755);
   });
 
   test("runs come back in savedAt order", () => {
@@ -287,8 +288,8 @@ describe("verdicts", () => {
 
 describe("forget", () => {
   test("removes one key's directory, or the whole history, and never a claude-* profile", () => {
-    const h = home();
-    const profile = join(h, ".wachiman", "claude-isolated");
+    const h = join(home(), ".wachiman");
+    const profile = join(h, "claude-isolated");
     mkdirSync(profile, { recursive: true });
     const root = historyRoot(h);
     writeRun(root, run("2026-11-05T10:00:00.000Z", ["aaaaaaaaaa"], "one-11111111"));

@@ -24,8 +24,12 @@ import {
 import { spawnGit } from "./evidence";
 import { assertReviewInputFormat } from "./formats";
 import { historyRoot, historySettings, saveRun } from "./history";
-import { inspectIsolatedProfile, parseProfile, populatedProfileError, profileDir, type ProfileChoice } from "./profiles";
-import { getProvider, type ProviderAdapter } from "./providers";
+import { readConfig, wachimanHome } from "./accounts/config";
+import { confirmProfile, type SpawnFn } from "./accounts/confirm";
+import { failureText, profileLine, resolveProfile } from "./accounts/resolve";
+import { repositoryKey } from "./history/store";
+import { inspectIsolatedProfile, parseProfile, populatedProfileError, profileDir } from "./profiles";
+import { getProvider as defaultGetProvider, type ProviderAdapter } from "./providers";
 import { InterruptedError, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
 import { sinceLastRunText, thisRunText, type HistoryAnnotation } from "./sinks/common";
 import { renderJson } from "./sinks/json";
@@ -43,7 +47,8 @@ export interface LocalArgs {
   paths: string[];
   format: LocalFormat;
   output?: string;
-  profile: ProfileChoice;
+  /** The `--profile` value as typed; `resolveProfile` decides what it names. Absent: the lower rungs decide. */
+  profile?: string;
   agentPrompt: boolean;
   history: boolean;
   /** `--verify` forces the verifier on, `--no-verify` off; unset follows `AGENT_REVIEW_VERIFY` (on by default, ADR 0027). */
@@ -55,12 +60,12 @@ export interface LocalArgs {
 
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
-               [--profile default|isolated[:<name>]] [--agent-prompt] [--history] [--verify | --no-verify]
+               [--profile <name>] [--agent-prompt] [--history] [--verify | --no-verify]
                [--result-version 1|2]`;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLocalArgs(argv: string[]): LocalArgs {
-  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: undefined, input: undefined };
+  const args: LocalArgs = { paths: [], format: "terminal", profile: undefined, agentPrompt: false, history: false, verify: undefined, input: undefined };
   let base: string | undefined;
   let sawVerify = false;
   let sawNoVerify = false;
@@ -200,11 +205,18 @@ const short = (sha: string) => sha.slice(0, 7);
 /** The start line of the `commit` and `from` modes: "the empty tree (a root commit)" or the short sha. */
 const startText = (refs: LocalRefs) => (refs.baseRef === EMPTY_TREE_LABEL ? `${EMPTY_TREE_LABEL} (a root commit)` : short(refs.mergeBase));
 
+/** Seams for tests: the `claude` probes of the confirmation, and the provider factory. */
+export interface LocalDeps {
+  spawn?: SpawnFn;
+  getProvider?: typeof defaultGetProvider;
+}
+
 export function runLocal(
   args: LocalArgs,
   repoDir: string,
   env: Record<string, string | undefined>,
   io: { stdout: (text: string) => void; stderr: (line: string) => void; engineVersion: string },
+  deps: LocalDeps = {},
 ): number {
   const loaded = loadConfig(env, io.stderr);
   if (loaded.provider !== "claude-code") {
@@ -219,32 +231,67 @@ export function runLocal(
   // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.
   // A bad AGENT_REVIEW_HISTORY_DAYS stops here, before any call is paid for.
   const history = historySettings(env, args.history);
-  if (history.enabled && !env.HOME) throw new UsageError("HOME is not set, so the history cannot be kept.");
+
+  // Which account (ADR 0029): nothing in the reviewed repository takes part. A corrupt store, a
+  // value that resolves to nothing, or a profile that does not confirm is exit 2 before any call.
+  const home = wachimanHome(env);
+  const stored = readConfig(home);
+  if (stored.kind === "corrupt") throw new UsageError(`${stored.path} is corrupt (${stored.problem}); fix or remove it.`);
+  const accounts = stored.kind === "ok" ? stored.config : undefined;
+  const bindingKey = accounts && Object.keys(accounts.projects).length > 0 ? repositoryKey(repoDir).key : undefined;
+  const resolution = resolveProfile({
+    flag: args.profile,
+    binding: bindingKey !== undefined && Object.hasOwn(accounts!.projects, bindingKey) ? accounts!.projects[bindingKey] : undefined,
+    env: { WACHIMAN_PROFILE: env.WACHIMAN_PROFILE },
+    config: accounts,
+    managedDirExists: (name) => existsSync(profileDir(name, home)),
+    home,
+  });
+  if (!resolution.ok) throw new UsageError(failureText(resolution.failure));
+  const { resolved } = resolution;
+  io.stderr(profileLine(resolved));
+  const { profile } = resolved;
 
   let configDir: string | undefined;
   let profileNote: string | undefined;
-  if (args.profile.kind === "isolated") {
-    const home = env.HOME;
-    if (!home) throw new UsageError("HOME is not set, so the isolated profile cannot be found.");
-    configDir = profileDir(args.profile.name, home);
-    const flag = args.profile.name === "isolated" ? "" : ` ${args.profile.name}`;
-    if (!existsSync(configDir)) {
-      throw new UsageError(`The isolated profile ${configDir} does not exist; run \`wachiman --setup-profile${flag}\` first.`);
-    }
+  if (profile.kind === "managed") {
+    configDir = profile.configDir;
     const found = inspectIsolatedProfile(configDir);
     if (found.length > 0) throw populatedProfileError(configDir, found);
     profileNote = `${configDir}, a Claude Code profile that holds only a sign-in`;
+  } else if (profile.kind === "external") {
+    configDir = profile.configDir;
+    profileNote = `${profile.name}, an external Claude Code profile (${configDir}); its plugins are untested and could reach the review`;
   }
+  const confirmation = confirmProfile(resolved, env, deps.spawn);
+  if (!confirmation.ok) throw new UsageError(`${confirmation.problem} Fix: ${confirmation.fix}.`);
 
   const state = { interrupted: false };
   const provider = interruptible(
-    getProvider("claude-code", { ...config, dryRun: false, auth: "subscription", configDir }),
+    (deps.getProvider ?? defaultGetProvider)("claude-code", {
+      ...config,
+      dryRun: false,
+      auth: "subscription",
+      configDir,
+      binary: profile.kind === "external" ? profile.binary : undefined,
+    }),
     state,
   );
   provider.preflight();
   // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
   const verifier = config.verify
-    ? interruptible(getProvider("claude-code", { ...config, model: config.verifierModel, effort: "high", dryRun: false, auth: "subscription", configDir }), state)
+    ? interruptible(
+        (deps.getProvider ?? defaultGetProvider)("claude-code", {
+          ...config,
+          model: config.verifierModel,
+          effort: "high",
+          dryRun: false,
+          auth: "subscription",
+          configDir,
+          binary: profile.kind === "external" ? profile.binary : undefined,
+        }),
+        state,
+      )
     : undefined;
   verifier?.preflight();
 
@@ -296,7 +343,7 @@ export function runLocal(
     io.stderr(`batches: ${batches.length}`);
     io.stderr(config.verify ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})` : "verify: off");
 
-    const result = reviewChange(input, reviewOptionsOf(config, config.budgetUsd, args.profile.kind), {
+    const result = reviewChange(input, reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), {
       provider,
       ...(verifier ? { verifier } : {}),
       // The verifier reads the code before the change too; made once, only when there is something to check.
@@ -321,7 +368,7 @@ export function runLocal(
     if (history.enabled) {
       try {
         annotation = saveRun({
-          root: historyRoot(env.HOME!),
+          root: historyRoot(home),
           repoDir,
           input,
           result,

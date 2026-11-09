@@ -7,6 +7,7 @@ import { UsageError } from "../config";
 import { SEVERITY, TOPIC } from "../engine";
 import { location, sha7 } from "../sinks/common";
 import { replay, type Replayed, type ReplayedFinding } from "./match";
+import { wachimanHome } from "../accounts/config";
 import { appendVerdict, forget, historyRoot, listKeys, readRuns, readVerdicts, repositoryKey } from "./store";
 import { VERDICT_WORDS, type HistoryRun, type VerdictWord } from "./types";
 
@@ -113,9 +114,7 @@ export function runHistory(
   env: Record<string, string | undefined>,
   io: { stdout: (text: string) => void; stderr: (line: string) => void; now?: () => Date },
 ): number {
-  const home = env.HOME;
-  if (!home) throw new UsageError("HOME is not set, so the history cannot be found.");
-  const root = historyRoot(home);
+  const root = historyRoot(wachimanHome(env));
   const warn = io.stderr;
 
   if (args.forget) {

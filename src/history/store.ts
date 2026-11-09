@@ -58,7 +58,8 @@ export function historySettings(env: Record<string, string | undefined>, flag: b
   return { enabled, days: Number(raw) };
 }
 
-export const historyRoot = (home: string) => join(home, ".wachiman", "history");
+/** `wachimanHome` is the Wachiman home itself (`wachimanHome(env)`): `WACHIMAN_HOME`, else `~/.wachiman`. */
+export const historyRoot = (wachimanHome: string) => join(wachimanHome, "history");
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 const GIT_TIMEOUT_MS = 30_000;
@@ -111,7 +112,7 @@ export function repositoryKey(repoDir: string, git: GitRunner = spawnGit): Histo
   return { key: `${name}-${sha256(commonDir).slice(0, 8)}`, name, keyedBy: "path", path };
 }
 
-const KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const assertKey = (key: string) => {
   if (!KEY_PATTERN.test(key)) throw new Error(`"${key}" is not a history key.`);
 };

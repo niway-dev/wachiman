@@ -55,10 +55,32 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 - [Bun](https://bun.sh) 1.3 or later.
 - Claude Code (`claude` on your `PATH`), signed in. The local mode was exercised with Claude Code
   2.1.311 (see section 7).
-- A clone of this repository: the engine. It needs no `bun install` (no dependencies).
+- The engine: the npm package `wachiman` (Node 20 or later runs its launcher) or a clone of this
+  repository. Neither needs a `bun install`: there are no dependencies.
 
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
 local mode refuses to start: with a key present `claude -p` would bill the key.
+
+### From npm
+
+The npm package is published from the first release that includes this change; until the first
+publish succeeds, install from source (next section).
+
+```sh
+npm i -g wachiman          # or, without installing: npx wachiman doctor
+wachiman --version
+```
+
+The package contains the TypeScript source, the skills and the templates, and no dependency. Its
+`bin` is a Node script that finds `bun` on your `PATH` and runs the package's own `src/cli.ts`
+with the two isolation flags described below. Without Bun it prints
+`wachiman needs Bun 1.3 or later: https://bun.sh` and exits 2. The launcher changes no
+environment variable and downloads nothing. The package is published by the release workflow
+(see [releasing](releasing.md#publishing-to-npm)). `agent-review` is installed as a second name for the same
+command. Copying the agent skills out of the package is a separate step that this version does
+not do; use the clone path below for the skills until it does.
+
+### From a clone (unreleased source, and the agent skills)
 
 Install the global `wachiman` command, and the `wachiman-review` and `wachiman-audit` agent
 skills, once from your clone (not from a temporary worktree):
@@ -72,11 +94,33 @@ It links `bin/wachiman` into `~/.local/bin` (put that on your `PATH`) and the sk
 `$CLAUDE_CONFIG_DIR`). It never touches `~/.wachiman`, replaces only its own symlinks, and moves
 any other file it finds to `~/.local/state/wachiman-install/backup/<timestamp>/`.
 
-`wachiman` runs the engine from its clone (or `$WACHIMAN_DIR`), drops `ANTHROPIC_API_KEY`, and
-passes `--no-env-file` and `--config=` so a `.env` or `bunfig.toml` of the reviewed repository stays
-out of the engine process (Bun reads both from its working directory, and `bunfig.toml` can run
-code; see [the command-line contract](cli.md#options)). Set `WACHIMAN_PROFILE` (for example
-`isolated:personal`) and `wachiman local` uses it whenever you give no `--profile`.
+That script is for contributors: the links point into your clone. Whoever runs Wachiman from a
+package runs `wachiman skills install` instead. From a clone, run `bun src/cli.ts skills install`,
+which is the same command. It copies the two skills into the same directories (it does not install
+the command), refuses anything under `~/.wachiman`, marks every copy it makes, leaves any copy
+without that marker (or with edits) in place with a warning, and `wachiman skills uninstall` removes
+only the marked copies. See [`skills`](cli.md#skills).
+
+From either install, `wachiman` runs the engine of its own package, or of its clone (or
+`$WACHIMAN_DIR`), and passes `--no-env-file` and `--config=` so a `.env` or `bunfig.toml` of the
+reviewed repository stays out of the engine process (Bun reads both from its working directory, and `bunfig.toml` can run code; see
+[the command-line contract](cli.md#options)). It changes no environment variable and adds no flag:
+the account is chosen inside the command (see "Profiles" below), and `ANTHROPIC_API_KEY` is refused
+there, so `bun src/cli.ts local` and `wachiman local` behave the same. If your shell exports a key,
+run `env -u ANTHROPIC_API_KEY wachiman local ...`. Earlier versions of the wrapper dropped the key and
+turned `WACHIMAN_PROFILE` into `--profile`; it no longer does either, and `WACHIMAN_PROFILE` is now
+one rung of the precedence below.
+
+Check the setup any time with `wachiman doctor`: it lists what a local run would use and what would
+fail, makes no model call and no request of its own, and exits 1 when a required check fails.
+
+**Windows: pending CI.** The npm package is written to work on Windows with Node and Bun (the
+launcher looks for `bun.exe`), and CI has a `windows-latest` job for it, but that job has not yet
+passed on a published commit, so Windows is not a supported platform yet. The bash wrapper
+(`bin/wachiman`) and `scripts/install-local.sh` are POSIX only. This paragraph changes when the
+job is green.
+
+On Windows the launcher looks for `bun.exe` on `PATH` (the official installer); a Bun installed only through `npm i -g bun` (a `bun.cmd` shim) is not found.
 
 Prefer no install? The raw command is
 `bun --no-env-file --config=<engine>/bunfig.toml <engine>/src/cli.ts local --repo-dir <clone>`.
@@ -154,21 +198,52 @@ Progress and warnings go to stderr; the report goes to stdout (or `--output`), s
 request took 34 s for its one call. `Ctrl-C` stops the review after the call it interrupts,
 removes the snapshot and exits 130.
 
-**Profiles.** `default` is your own `claude` with its usual configuration directory.
-`isolated` (or `isolated:<name>`) is a separate Claude Code configuration directory,
-`~/.wachiman/claude-<name>`, that holds only a sign-in, so none of your own `CLAUDE.md`, skills,
-hooks or MCP servers can reach the review. Create one once:
+**Profiles.** A profile is the Claude account (a Claude Code configuration directory) that runs the
+review. There are three kinds:
+
+- `default`: your own `claude` with its usual configuration directory.
+- A **managed** profile: `~/.wachiman/claude-<name>`, a directory that holds only a sign-in, so none
+  of your own `CLAUDE.md`, skills, hooks or MCP servers can reach the review.
+- An **external** profile: a configuration directory you already use, registered in place with
+  `wachiman profile add`. Wachiman never writes into it.
+
+`local` picks the account by the first rule that applies, and a rule that applies and fails stops
+the run (exit 2) instead of falling to the next:
+
+1. `--profile <name>` (also `default`, `isolated` and `isolated:<name>`, which mean the managed
+   profile of that name).
+2. The project binding made by `wachiman setup`.
+3. `WACHIMAN_PROFILE`.
+4. The default set by `wachiman profile default <name>`.
+5. The built-in `default`.
+
+Before any call, stderr shows the choice, for example `profile: work (managed; chosen by project
+binding; WACHIMAN_PROFILE=other ignored)`.
 
 ```sh
-bun --no-env-file --config=<engine>/bunfig.toml <engine>/src/cli.ts --setup-profile [<name>]
+wachiman profile create work                  # managed profile; starts claude, run /login, then /exit
+wachiman profile add personal --config-dir ~/.claude-personal   # an external profile, used in place
+wachiman profile list                         # what exists, and which projects use it (--json too)
+wachiman setup --profile work                 # bind this repository to it; run from the clone
+wachiman project show                         # what local would use here, and why
+wachiman profile default work                 # the fallback for repositories with no binding
+wachiman profile login work                   # sign in again
+wachiman profile remove work [--delete-dir]   # forget it (the directory stays unless --delete-dir)
 ```
 
-It starts `claude` in that directory; run `/login`, sign in, then `/exit`. Wachiman never sees the
-sign-in and does not check that it worked: run `local --profile isolated` to find out. A profile
-that holds more than a sign-in (a `CLAUDE.md`, `hooks/`, `skills/`, `agents/`, `commands/`,
-`.mcp.json`, or a `settings.json` with hooks or MCP servers) is refused. On macOS the sign-in is
-stored in the keychain under the directory's path: moving or renaming `~/.wachiman` signs the
-profile out.
+The binding is stored in `~/.wachiman/config.json`, keyed by the repository's origin URL (or its git
+directory when it has no origin), so every clone and worktree of one origin shares it. `setup`
+prints what it will write and, on a terminal, asks first; nothing is written to the repository. Without a terminal
+it needs `--profile` (the guided wizard for the bare `wachiman setup` is not built yet, so for now
+it exits 2 and writes nothing). `WACHIMAN_HOME` (an absolute path) replaces `~/.wachiman`.
+
+`wachiman --setup-profile [<name>]` is the old spelling of `profile create`. Wachiman never sees the
+sign-in and does not check that it worked: run `wachiman doctor` (the `auth` row) or `local` to find
+out. A managed profile that holds more than a sign-in (a `CLAUDE.md`, `hooks/`, `skills/`,
+`agents/`, `commands/`, `.mcp.json`, or a `settings.json` with hooks or MCP servers) is refused. On
+macOS the sign-in is stored in the keychain under the directory's path: moving or renaming
+`~/.wachiman` signs the profile out, and `profile remove --delete-dir` does not remove the keychain
+entry.
 
 ## 5. Read the report
 
@@ -223,13 +298,14 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
 
 [`skills/wachiman-review`](../skills/wachiman-review/SKILL.md) is an agent skill. It teaches a coding
 agent, such as Claude Code or Codex, to run this review for you: it picks the range from what you
-ask ("my branch", "only commit X", "from X on"), chooses your isolated profile, runs `local` with
+ask ("my branch", "only commit X", "from X on"), finds your profile with `project show` and `profile list`, runs `local` with
 `--history`, presents the findings, and records your verdicts with `history --verdict`. It never
 uses the GitHub modes and never reviews the code itself. Its sibling
 [`skills/wachiman-audit`](../skills/wachiman-audit/SKILL.md) compares Wachiman's posted findings with
 CodeRabbit's or Pullfrog's on the same commits, through `scripts/pair.ts` in
-[wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks). To install them by hand, link
-each folder into your agent's skills directory and set `WACHIMAN_DIR` to this clone:
+[wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks). `wachiman skills install`
+copies both (see section 3). To link them by hand from a clone instead, link each folder into your
+agent's skills directory and set `WACHIMAN_DIR` to this clone:
 
 ```sh
 ln -s "$PWD/skills/wachiman-review" ~/.claude/skills/wachiman-review
@@ -273,7 +349,7 @@ of those rows is unconfirmed.
 | You see | Why, and what to do |
 | --- | --- |
 | `ANTHROPIC_API_KEY is set. The local review runs on your signed-in claude; …` (exit 2) | The key would bill instead of your subscription. `unset ANTHROPIC_API_KEY` for the run, or use the GitHub mode |
-| `stop: error — the provider refused the call (auth): Not logged in · Please run /login` (exit 1) | The profile is not signed in. Run `claude` and `/login` for `default`, or `--setup-profile` for an isolated profile |
+| `stop: error — the provider refused the call (auth): Not logged in · Please run /login` (exit 1) | The profile is not signed in. Run `claude` and `/login` for `default`, or `wachiman profile login <name>` for another profile; `wachiman doctor` shows which one is in use |
 | `` `main` and HEAD have no common ancestor `` (exit 2) | The base is unrelated history. Pass the right `--base` |
 | `No base branch found; pass --base <ref>` (exit 2) | No `origin/HEAD` and no `main`. Pass `--base`, or run `git remote set-head origin --auto` |
 | `HEAD is on main, which is the base: there is no branch to review. …` (exit 2) | You are on the base branch, or on a branch with no commit past it. Check out your branch, or pass `--base <commit>` to review from that commit |
@@ -281,7 +357,7 @@ of those rows is unconfirmed.
 | `HEAD is detached; check out a branch, or pass --input` (exit 2) | Check out a branch (`git switch -c review-me`) |
 | `The snapshot lacks N file(s) that the head commit has …` | `export-ignore` or a submodule. The review goes on without those files; remove the attribute on a temporary branch if they matter |
 | `history: … cannot be read (…); moved to … .unreadable-<seconds>` | A history run file is not JSON or is structurally invalid. It was moved aside as `<name>.json.unreadable-<seconds>` (renamed, not deleted) and skipped; the run went on. Delete it when you no longer need it. A file written by another format version (say, after a downgrade) is skipped with a warning and left where it is |
-| An isolated profile seems to use another account | A `claude` **shell function or alias** that sets `CLAUDE_CONFIG_DIR` does not affect Wachiman (it starts the binary from `PATH`, without a shell), but it does affect a `claude` you run by hand to sign in. That is why `--setup-profile` exists: it starts the binary itself with the profile's directory. Check with `type claude` |
+| An isolated profile seems to use another account | A `claude` **shell function or alias** that sets `CLAUDE_CONFIG_DIR` does not affect Wachiman (it starts the binary from `PATH`, without a shell), but it does affect a `claude` you run by hand to sign in. That is why `profile create` and `profile login` exist: they start the binary themselves with the profile's directory. Check with `type claude` |
 
 Exit codes: 0 a report was printed (complete, partial, or ended by a usage limit), 1 no call
 returned a review, 2 usage error, 130 interrupted. See [cli.md](cli.md#local).

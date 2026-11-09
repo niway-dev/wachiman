@@ -3,9 +3,11 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
+import type { WachimanConfigV1 } from "./accounts/config";
 import { toResultV1 } from "./formats";
 import { localFiles } from "./connectors/local-git";
-import { parseLocalArgs, readInputFile } from "./local";
+import { parseLocalArgs, readInputFile, runLocal } from "./local";
+import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
 import { A_HEAD, branchRepo, commit, emptyCommits, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
 
@@ -56,13 +58,21 @@ const QUOTA_RESULT = JSON.stringify({
 });
 
 type Variant = "ok" | "none" | "quota" | "edit" | "garbage" | "interrupt";
+type AuthVariant = "claude.ai" | "api_key" | "signed-out" | "no-directory";
 
 /**
  * A temporary `bin/` with a `gh` that leaves a canary and fails, and a `claude` that records its
  * calls, arguments, environment, prompt and the head it was given, then answers per `variant`.
  * Every path is baked into the script text: the child environment is allowlisted.
  */
-function stubs(variant: Variant, repoDir: string) {
+function stubs(variant: Variant, repoDir: string, auth: AuthVariant = "claude.ai") {
+  /** `claude auth status`: signed in with claude.ai and reporting the directory it was given, unless told otherwise. */
+  const authAnswer =
+    auth === "signed-out"
+      ? `echo '{"loggedIn":false,"authMethod":"none"}'; exit 1`
+      : auth === "no-directory"
+        ? `echo '{"loggedIn":true,"authMethod":"claude.ai"}'; exit 0`
+        : `printf '{"loggedIn":true,"authMethod":"%s","configDirectory":"%s"}\\n' "${auth}" "$CLAUDE_CONFIG_DIR"; exit 0`;
   const bin = temp("wachiman-bin-");
   const log = join(bin, "log");
   const canary = join(bin, "gh-called");
@@ -80,6 +90,10 @@ function stubs(variant: Variant, repoDir: string) {
   writeFileSync(
     join(bin, "claude"),
     `#!/bin/sh
+if [ "$1" = "auth" ]; then
+  echo "auth $CLAUDE_CONFIG_DIR" >> "${log}.probes"
+  ${authAnswer}
+fi
 echo "$*" >> "${log}.calls"
 if [ "$1" = "--version" ]; then echo "9.9.9 (Claude Code)"; exit 0; fi
 env | sort > "${log}.env"
@@ -102,6 +116,8 @@ ${answer}
     bin,
     canary,
     read,
+    /** `claude auth status` probes, with the CLAUDE_CONFIG_DIR each ran under. */
+    probes: () => (read("probes") ?? "").split("\n").filter(Boolean),
     /** Review calls only, not the `--version` probe. */
     calls: () => (read("calls") ?? "").split("\n").filter((l) => l !== "" && l !== "--version"),
     env: () =>
@@ -122,8 +138,8 @@ function runCli(args: string[], env: Record<string, string>) {
 }
 
 /** `wachiman local` on a fresh branch repository, with the stubs first on PATH and a temporary HOME. */
-function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: BranchRepo = branchRepo()) {
-  const s = stubs(variant, repo.dir);
+function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: BranchRepo = branchRepo(), auth: AuthVariant = "claude.ai") {
+  const s = stubs(variant, repo.dir, auth);
   const home = extraEnv.HOME ?? temp("wachiman-home-");
   // `"<unset>"` removes a variable the helper sets, to test the real default.
   const env: Record<string, string> = {
@@ -147,13 +163,13 @@ describe("parseLocalArgs", () => {
       paths: ["src", "docs"],
       format: "markdown",
       output: "r.md",
-      profile: { kind: "isolated", name: "work" },
+      profile: "isolated:work",
       agentPrompt: true,
       history: false,
       verify: undefined,
       input: undefined,
     });
-    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: undefined, input: undefined });
+    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: undefined, agentPrompt: false, history: false, verify: undefined, input: undefined });
     expect(parseLocalArgs(["--verify"]).verify).toBe(true);
     expect(parseLocalArgs(["--no-verify"]).verify).toBe(false);
     expect(parseLocalArgs(["--format=json", "--base=origin/main"])).toMatchObject({ format: "json", base: "origin/main" });
@@ -245,7 +261,7 @@ describe("wachiman local", () => {
       expect(dir.startsWith(repo.dir)).toBe(false);
       expect(repo.dir.startsWith(dir)).toBe(false);
     }
-  });
+  }, 30_000);
 
   test("prints the depth after the merge-base, before any call", () => {
     const r = local("ok");
@@ -254,7 +270,7 @@ describe("wachiman local", () => {
     // branchRepo's feat/x has two commits past the merge-base.
     expect(lines).toContain("depth: 2 commits (max 50)");
     expect(lines.indexOf("depth: 2 commits (max 50)")).toBe(lines.indexOf(`merge-base: ${sha7(r.repo.mergeBase)}`) + 1);
-  });
+  }, 30_000);
 
   test("the review runs against the snapshot, not the working tree", () => {
     const repo = branchRepo();
@@ -268,7 +284,7 @@ describe("wachiman local", () => {
     expect(r.read("head-a")).toBe(A_HEAD);
     // The stub's edit landed in the working tree, not in what the agent read.
     expect(readFileSync(join(repo.dir, "src/a.ts"), "utf8")).toContain("export const edited = true;");
-  });
+  }, 30_000);
 
   test("--format json writes only the result on stdout", () => {
     const r = local("ok", ["--format", "json"]);
@@ -279,7 +295,7 @@ describe("wachiman local", () => {
     expect(result.change.kind).toBe("branch");
     expect(result.execution.costUsdEstimate).toBe(0.01);
     expect(r.stderr).toContain(`merge-base: ${sha7(r.repo.mergeBase)}`);
-  });
+  }, 30_000);
 
   test("--output writes the Markdown file and prints the path", () => {
     const out = join(temp("wachiman-out-"), "review.md");
@@ -290,14 +306,14 @@ describe("wachiman local", () => {
     const md = readFileSync(out, "utf8");
     expect(md).toStartWith("# Wachiman review of branch `feat/x`");
     expect(md).toContain("## Prompt for your agent");
-  });
+  }, 30_000);
 
   test("ANTHROPIC_API_KEY set: exit 2 before any call", () => {
     const r = local("ok", [], { ANTHROPIC_API_KEY: "sk-ant-test" });
     expect(r.code).toBe(2);
     expect(r.stderr).toContain(SUBSCRIPTION_KEY_REFUSAL);
     expect(r.read("calls")).toBeUndefined();
-  });
+  }, 30_000);
 
   test("the snapshot and the run directory are removed on success and on a thrown error", () => {
     const ok = local("ok");
@@ -312,7 +328,7 @@ describe("wachiman local", () => {
     const badDirs = (bad.read("dirs") ?? "").split("\n").filter(Boolean);
     expect(badDirs.length).toBeGreaterThan(0);
     for (const dir of badDirs) expect(existsSync(dir)).toBe(false);
-  });
+  }, 30_000);
 
   test("a usage-limit rejection ends with stop: quota, exit 0, and lists what was not reviewed", () => {
     const r = local("quota", [], { AGENT_REVIEW_BATCH_LINES: "1" });
@@ -323,7 +339,7 @@ describe("wachiman local", () => {
     expect(r.stdout).toContain("not reviewable: img.png (binary)");
     expect(r.stdout).toContain("not reached: the provider rejected the call");
     expect(r.calls()).toHaveLength(1);
-  });
+  }, 30_000);
 
   test("Ctrl-C stops the review after the call it interrupted, removes the snapshot and exits 130", () => {
     const r = local("interrupt", [], { AGENT_REVIEW_BATCH_LINES: "1" });
@@ -331,7 +347,7 @@ describe("wachiman local", () => {
     expect(r.stderr).toContain("Interrupted");
     expect(r.calls()).toHaveLength(1);
     for (const dir of (r.read("dirs") ?? "").split("\n").filter(Boolean)) expect(existsSync(dir)).toBe(false);
-  });
+  }, 30_000);
 
   test("--input reviews a ReviewInput file and snapshots its head from --repo-dir", () => {
     const repo = branchRepo();
@@ -356,7 +372,7 @@ describe("wachiman local", () => {
     expect(absent.code).toBe(2);
     expect(absent.stderr).toContain("is not a commit");
     expect(absent.read("calls")?.includes("-p")).toBeFalsy();
-  });
+  }, 30_000);
 
   test("--profile isolated refuses a populated profile and uses the directory otherwise", () => {
     const home = temp("wachiman-home-");
@@ -377,7 +393,7 @@ describe("wachiman local", () => {
     const missing = local("ok", ["--profile", "isolated:work"], { HOME: home });
     expect(missing.code).toBe(2);
     expect(missing.stderr).toContain("wachiman --setup-profile work");
-  });
+  }, 30_000);
 
   test("--setup-profile launches claude in an empty directory with the forced config dir", () => {
     const home = temp("wachiman-home-");
@@ -403,14 +419,18 @@ describe("wachiman local", () => {
     expect(env).not.toContain("ANTHROPIC_API_KEY");
     expect(env).toContain("DISABLE_TELEMETRY=1");
     expect(out.stderr.toString()).toContain("wachiman local --profile isolated:work");
-  });
+    // The alias notice, and the managed entry it registered.
+    expect(out.stderr.toString()).toContain("alias of `wachiman profile create work`");
+    const config = JSON.parse(readFileSync(join(home, ".wachiman", "config.json"), "utf8"));
+    expect(config.profiles.work).toMatchObject({ kind: "managed", configDir: join(home, ".wachiman", "claude-work") });
+  }, 30_000);
 
   test("codex is refused in local mode", () => {
     const r = local("ok", [], { AGENT_REVIEW_PROVIDER: "codex" });
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("only on Claude Code");
     expect(r.read("calls")).toBeUndefined();
-  });
+  }, 30_000);
 
   test("--help lists local and --setup-profile; GH_TOKEN is not required for them", () => {
     const help = runCli(["--help"], { PATH: process.env.PATH ?? "" });
@@ -420,7 +440,7 @@ describe("wachiman local", () => {
     const r = local("ok");
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("GH_TOKEN");
-  });
+  }, 30_000);
 });
 
 describe("the start commit and the maximum depth", () => {
@@ -443,7 +463,7 @@ describe("the start commit and the maximum depth", () => {
     expect(r.stdout).toBe("");
     // The refusal came before the snapshot: no temporary directory was handed to a call.
     expect(r.read("dirs")).toBeUndefined();
-  });
+  }, 30_000);
 
   test("exactly 50 commits runs", () => {
     const repo = branchRepo();
@@ -451,7 +471,7 @@ describe("the start commit and the maximum depth", () => {
     const r = local("ok", [], {}, repo);
     expect(r.code).toBe(0);
     expect(r.stderr).toContain("depth: 50 commits (max 50)");
-  });
+  }, 30_000);
 
   test("--max-depth 100 lets 51 commits run; a lower one refuses a short branch", () => {
     const repo = branchRepo();
@@ -464,7 +484,7 @@ describe("the start commit and the maximum depth", () => {
     expect(narrow.code).toBe(2);
     expect(narrow.stderr).toContain("is 2 commits, more than the maximum depth of 1.");
     noReview(narrow);
-  });
+  }, 30_000);
 
   test.each(["0", "abc"])("--max-depth %s is a usage error before any call", (value) => {
     const r = local("ok", ["--max-depth", value]);
@@ -482,7 +502,7 @@ describe("the start commit and the maximum depth", () => {
       "HEAD is on main, which is the base: there is no branch to review. Check out your branch, or pass --base <commit> to review from that commit.",
     );
     noReview(r);
-  });
+  }, 30_000);
 
   test("on the base branch with --base <older commit> within the depth: runs", () => {
     const repo = branchRepo();
@@ -492,7 +512,7 @@ describe("the start commit and the maximum depth", () => {
     expect(r.stderr).toContain(`merge-base: ${sha7(repo.mergeBase)}`);
     expect(r.stderr).toContain("depth: 1 commit (max 50)");
     expect(r.calls().length).toBeGreaterThan(0);
-  });
+  }, 30_000);
 
   test("on the base branch with --base further back than the depth: exit 2, zero calls", () => {
     const repo = branchRepo();
@@ -502,7 +522,7 @@ describe("the start commit and the maximum depth", () => {
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("is 61 commits, more than the maximum depth of 50.");
     noReview(r);
-  });
+  }, 30_000);
 
   test("a feature branch with no commit of its own is the base too", () => {
     const repo = branchRepo();
@@ -511,7 +531,7 @@ describe("the start commit and the maximum depth", () => {
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("which is the base");
     noReview(r);
-  });
+  }, 30_000);
 
   test("uncommitted work, staged, unstaged and untracked, is not reviewed", () => {
     const repo = branchRepo();
@@ -524,7 +544,7 @@ describe("the start commit and the maximum depth", () => {
     const prompt = r.read("prompt") ?? "";
     for (const text of ["unstagedEdit", "stagedEdit", "untrackedFile", "untracked.ts"]) expect(prompt).not.toContain(text);
     expect(r.stderr).toContain("files: 5 (0 excluded)");
-  });
+  }, 30_000);
 
   test("--input has no git range, so the depth is not checked", () => {
     const repo = branchRepo();
@@ -537,7 +557,7 @@ describe("the start commit and the maximum depth", () => {
     const r = local("ok", ["--input", file], {}, repo);
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("depth:");
-  });
+  }, 30_000);
 });
 
 describe("--history", () => {
@@ -574,7 +594,7 @@ describe("--history", () => {
     expect(again.stdout).not.toContain("· id ");
     expect(again.stdout).not.toContain("Since the last run");
     expect(again.stderr).not.toContain("history:");
-  });
+  }, 30_000);
 
   test("--history saves one run file, 0600, whose result is the JSON sink's output", () => {
     const r = local("ok", ["--history", "--format", "json"]);
@@ -591,14 +611,14 @@ describe("--history", () => {
     expect(toResultV1(saved.result)).toEqual(JSON.parse(r.stdout));
     expect(saved.tracking).toHaveLength(1);
     expect(saved.tracking[0].status).toBe("new");
-  });
+  }, 30_000);
 
   test("AGENT_REVIEW_HISTORY=1 is the same switch", () => {
     const r = local("ok", [], { AGENT_REVIEW_HISTORY: "1" });
     expect(r.code).toBe(0);
     expect(runFiles(r.home)).toHaveLength(1);
     expect(r.stdout).toContain("· id ");
-  });
+  }, 30_000);
 
   test("the prompts are byte-identical with and without --history", () => {
     const repo = branchRepo();
@@ -611,7 +631,7 @@ describe("--history", () => {
     expect(withHistory.read("args")?.split("\n").filter((a) => !a.startsWith("/"))).toEqual(
       without.read("args")?.split("\n").filter((a) => !a.startsWith("/")),
     );
-  });
+  }, 30_000);
 
   test("--format json on stdout is unchanged with --history, and the block goes to stderr", () => {
     const repo = branchRepo();
@@ -628,7 +648,7 @@ describe("--history", () => {
     expect(withHistory.stdout).not.toContain("tracking");
     expect(withHistory.stderr).toContain("Since the last run: this is the first saved run of this repository.");
     expect(without.stderr).not.toContain("Since the last run");
-  });
+  }, 30_000);
 
   test("--format json prints this run's labels and ids on stderr, before the settled block", () => {
     const home = temp("wachiman-home-");
@@ -642,7 +662,7 @@ describe("--history", () => {
     expect(second.stderr.indexOf("This run (history):")).toBeLessThan(second.stderr.indexOf("Since the last run"));
     expect(second.stdout).not.toContain("This run");
     expect(JSON.parse(second.stdout).format).toBe("wachiman.review-result/1");
-  });
+  }, 30_000);
 
   test("a second run labels the finding open since the first head, with its id", () => {
     const home = temp("wachiman-home-");
@@ -656,7 +676,7 @@ describe("--history", () => {
     expect(runFiles(home)).toHaveLength(2);
     const id = (text: string) => text.match(/· id ([0-9a-f]{10})/)?.[1];
     expect(id(second.stdout)).toBe(id(first.stdout));
-  });
+  }, 30_000);
 
   test("a finding absent after its line changed is probably-fixed; unchanged, not-repeated", () => {
     const home = temp("wachiman-home-");
@@ -674,7 +694,7 @@ describe("--history", () => {
     const same = local("none", ["--history"], { HOME: home2 }, repo2);
     expect(same.stdout).toMatch(/not repeated  src\/a\.ts:2  T  \(id [0-9a-f]{10}\)/);
     expect(same.stdout).not.toContain("probably fixed");
-  });
+  }, 30_000);
 
   test("a scoped run and a quota stop leave the finding unknown", () => {
     const home = temp("wachiman-home-");
@@ -689,7 +709,7 @@ describe("--history", () => {
     const quota = local("quota", ["--history"], { HOME: home }, repo);
     expect(quota.stdout).toMatch(/unknown +1 finding\(s\) in files this run did not review/);
     expect(quota.stdout).not.toContain("probably fixed");
-  });
+  }, 30_000);
 
   test("AGENT_REVIEW_HISTORY_DAYS prunes old runs at save time, and a bad value exits 2 before any call", () => {
     const home = temp("wachiman-home-");
@@ -711,13 +731,13 @@ describe("--history", () => {
     expect(bad.stderr).toContain("AGENT_REVIEW_HISTORY_DAYS");
     expect(bad.calls()).toEqual([]);
     expect(runFiles(home)).toHaveLength(1);
-  });
+  }, 30_000);
 
   test("Ctrl-C saves nothing", () => {
     const r = local("interrupt", ["--history"], { AGENT_REVIEW_BATCH_LINES: "1" });
     expect(r.code).toBe(130);
     expect(runFiles(r.home)).toEqual([]);
-  });
+  }, 30_000);
 
   test("a failure to save is a warning, and the report is still printed", () => {
     const home = temp("wachiman-home-");
@@ -726,7 +746,7 @@ describe("--history", () => {
     expect(r.code).toBe(0);
     expect(r.stderr).toContain("history: this run was not saved");
     expect(r.stdout).toContain("src/a.ts:2");
-  });
+  }, 30_000);
 });
 
 describe("--commit and --from", () => {
@@ -753,7 +773,7 @@ describe("--commit and --from", () => {
     expect(prompt).toContain("src/new.ts");
     expect(prompt).not.toContain("src/b.ts");
     expect(r.stdout).toContain(`at ${sha7(repo.head)}`);
-  });
+  }, 30_000);
 
   test("--commit on an older commit, with HEAD detached elsewhere: its diff and snapshot, working tree untouched", () => {
     const repo = branchRepo();
@@ -773,7 +793,7 @@ describe("--commit and --from", () => {
     expect(sha(repo.dir, "HEAD")).toBe(repo.mainTip);
     expect(git(repo.dir, "status", "--porcelain")).toBe(status);
     expect(readFileSync(join(repo.dir, "scratch.txt"), "utf8")).toBe("uncommitted\n");
-  });
+  }, 30_000);
 
   test("--commit on a merge commit reviews it against its first parent, and says so", () => {
     const repo = branchRepo();
@@ -788,7 +808,7 @@ describe("--commit and --from", () => {
     // main's own commit is in the first parent; what the merge brought is the feat/x change.
     expect(lines).toContain("files: 5 (0 excluded)");
     expect(r.read("prompt") ?? "").not.toContain("docs/later.md");
-  });
+  }, 30_000);
 
   test("--commit on a root commit is diffed against the empty tree", () => {
     const repo = branchRepo();
@@ -798,7 +818,7 @@ describe("--commit and --from", () => {
     expect(lines).toContain(`mode: one commit (${sha7(repo.mergeBase)})`);
     expect(lines).toContain("start: the empty tree (a root commit)");
     expect(lines).toContain("files: 4 (0 excluded)");
-  });
+  }, 30_000);
 
   test("--from reviews from that commit forward, inclusive of its own changes", () => {
     const repo = branchRepo();
@@ -816,7 +836,7 @@ describe("--commit and --from", () => {
     const last = local("ok", ["--from", repo.head], {}, repo);
     expect(last.stderr.split("\n")).toContain("depth: 1 commit (max 50)");
     expect(filesLine(last.stderr)).toBe("files: 3 (0 excluded)");
-  });
+  }, 30_000);
 
   test("--from a root commit starts from the empty tree", () => {
     const repo = branchRepo();
@@ -824,7 +844,7 @@ describe("--commit and --from", () => {
     expect(r.code).toBe(0);
     expect(r.stderr.split("\n")).toContain("start: the empty tree (a root commit)");
     expect(r.stderr.split("\n")).toContain("depth: 3 commits (max 50)");
-  });
+  }, 30_000);
 
   test("--from a commit that is not an ancestor of HEAD: exit 2, zero calls", () => {
     const repo = branchRepo();
@@ -833,7 +853,7 @@ describe("--commit and --from", () => {
     expect(r.stderr).toContain(`--from ${sha7(repo.mainTip)} is not an ancestor of HEAD`);
     noReview(r);
     expect(r.read("dirs")).toBeUndefined();
-  });
+  }, 30_000);
 
   test("--from needs a branch HEAD; --commit does not", () => {
     const repo = branchRepo();
@@ -842,7 +862,7 @@ describe("--commit and --from", () => {
     expect(from.code).toBe(2);
     expect(from.stderr).toContain("HEAD is detached");
     noReview(from);
-  });
+  }, 30_000);
 
   test("--from over the depth: exit 2, zero provider calls; --max-depth lifts it", () => {
     const repo = branchRepo();
@@ -855,7 +875,7 @@ describe("--commit and --from", () => {
     expect(r.read("dirs")).toBeUndefined();
     const raised = local("ok", ["--from", first, "--max-depth", "52"], {}, repo);
     expect(raised.code).toBe(0);
-  });
+  }, 30_000);
 
   test("an unknown revision is a usage error", () => {
     for (const flag of ["--commit", "--from"]) {
@@ -864,7 +884,7 @@ describe("--commit and --from", () => {
       expect(r.stderr).toContain(`${flag} nope is not a commit in this clone.`);
       noReview(r);
     }
-  });
+  }, 30_000);
 
   test("--commit, --from and --base exclude each other, and --input excludes all three", () => {
     const pairs = [
@@ -885,7 +905,7 @@ describe("--commit and --from", () => {
     for (const flag of ["--commit", "--from", "--base"]) {
       expect(() => parseLocalArgs(["--input", file, flag, "HEAD"])).toThrow(UsageError);
     }
-  });
+  }, 30_000);
 
   test("--history of an older commit leaves findings first seen at a newer head unsettled", () => {
     const home = temp("wachiman-home-");
@@ -899,7 +919,184 @@ describe("--commit and --from", () => {
     expect(old.stdout).toMatch(/unknown +1 finding\(s\)/);
     expect(old.stdout).not.toContain("probably fixed");
     expect(old.stdout).not.toContain("not repeated");
+  }, 30_000);
+});
+
+describe("accounts in local", () => {
+  const wrapper = join(import.meta.dir, "..", "bin", "wachiman");
+
+  /** An external profile whose directory exists, a binding for `repo`, and a Wachiman home that holds both. */
+  function accounts(repo: BranchRepo, opts: { binding?: string; defaultProfile?: string; binary?: string } = {}) {
+    const whome = temp("wachiman-whome-");
+    const workDir = temp("wachiman-work-a-");
+    const config: WachimanConfigV1 = {
+      version: 1,
+      ...(opts.defaultProfile ? { defaultProfile: opts.defaultProfile } : {}),
+      profiles: {
+        "work-a": { kind: "external", configDir: workDir, ...(opts.binary ? { binary: opts.binary } : {}), createdAt: "t" },
+        "work-b": { kind: "external", configDir: temp("wachiman-work-b-"), createdAt: "t" },
+      },
+      projects: opts.binding
+        ? { [repositoryKey(repo.dir).key]: { profile: opts.binding, keyedBy: "path", name: "r", boundAt: "t", boundFrom: repo.dir } }
+        : {},
+    };
+    writeFileSync(join(whome, "config.json"), JSON.stringify(config));
+    return { whome, workDir };
+  }
+
+  test("a binding beats WACHIMAN_PROFILE: the profile line prints the ignored value and the binding's directory is used", () => {
+    const repo = branchRepo();
+    const { whome, workDir } = accounts(repo, { binding: "work-a" });
+    const r = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "work-b" }, repo);
+    expect(r.code).toBe(0);
+    const line = r.stderr.split("\n").find((l) => l.startsWith("profile: "));
+    expect(line).toBe(`profile: work-a (external, ${workDir}; chosen by project binding; WACHIMAN_PROFILE=work-b ignored)`);
+    // Before every other pre-call line.
+    expect(r.stderr.split("\n").indexOf(line!)).toBeLessThan(r.stderr.split("\n").findIndex((l) => l.startsWith("base: ")));
+    expect(r.env().CLAUDE_CONFIG_DIR).toBe(workDir);
+    // The confirmation ran under the same directory; the /1 result maps an external profile to `default`.
+    expect(r.probes()).toEqual([`auth ${workDir}`]);
+    expect(r.stdout).toContain("profile: default");
+  }, 30_000);
+
+  test("the configured default and WACHIMAN_PROFILE rungs, and the built-in default line", () => {
+    const repo = branchRepo();
+    const { whome, workDir } = accounts(repo, { defaultProfile: "work-a" });
+    const byDefault = local("ok", [], { WACHIMAN_HOME: whome }, repo);
+    expect(byDefault.stderr).toContain(`profile: work-a (external, ${workDir}; chosen by config default)`);
+    const byEnv = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "work-b" }, repo);
+    expect(byEnv.stderr).toMatch(/profile: work-b \(external, .*; chosen by WACHIMAN_PROFILE; config default=work-a ignored\)/);
+    const builtIn = local("ok", [], { WACHIMAN_HOME: temp("wachiman-empty-") });
+    expect(builtIn.stderr).toContain("profile: default (your shell's claude; chosen by built-in default)");
+  }, 30_000);
+
+  test("a stored binary is the one that runs, with no claude on PATH", () => {
+    const repo = branchRepo();
+    const s = stubs("ok", repo.dir);
+    const { whome, workDir } = accounts(repo, { binding: "work-a", binary: join(s.bin, "claude") });
+    const out = runCli(["local", "--repo-dir", repo.dir], { PATH: "/usr/bin:/bin", HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_HOME: whome });
+    expect(out.code).toBe(0);
+    expect(out.stderr).toContain(`binary ${join(s.bin, "claude")}`);
+    expect(s.env().CLAUDE_CONFIG_DIR).toBe(workDir);
+    expect(s.calls().length).toBeGreaterThan(0);
+  }, 30_000);
+
+  test("a name that resolves to nothing, on any rung, is exit 2 with no call and no fall-through", () => {
+    const repo = branchRepo();
+    const { whome } = accounts(repo, { defaultProfile: "work-a" });
+    const flag = local("ok", ["--profile", "ghost"], { WACHIMAN_HOME: whome }, repo);
+    expect(flag.code).toBe(2);
+    expect(flag.stderr).toContain('profile "ghost" is not registered');
+    expect(flag.read("calls")).toBeUndefined();
+    expect(flag.probes()).toEqual([]);
+    expect(flag.stderr).not.toContain("profile: ");
+    const env = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "ghost" }, repo);
+    expect(env.code).toBe(2);
+    expect(env.stderr).toContain("ghost");
+    expect(env.read("calls")).toBeUndefined();
+  }, 30_000);
+
+  test("a corrupt config is exit 2 with the problem named, and no call", () => {
+    const repo = branchRepo();
+    const whome = temp("wachiman-whome-");
+    writeFileSync(join(whome, "config.json"), JSON.stringify({ version: 2, profiles: {}, projects: {} }));
+    const r = local("ok", [], { WACHIMAN_HOME: whome }, repo);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("config.json");
+    expect(r.stderr).toContain("version");
+    expect(r.read("calls")).toBeUndefined();
+  }, 30_000);
+
+  test.each([
+    ["signed-out" as const, "wachiman profile login work-a"],
+    ["api_key" as const, "billed to a key"],
+    ["no-directory" as const, "unverified"],
+  ])("an unconfirmed profile (%s) is exit 2 before any review call", (auth, expected) => {
+    const repo = branchRepo();
+    const { whome } = accounts(repo, { binding: "work-a" });
+    const r = local("ok", [], { WACHIMAN_HOME: whome }, repo, auth);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(expected);
+    expect(r.stderr).toContain("profile: work-a");
+    // The probes ran; the review never did.
+    expect(r.probes().length).toBe(1);
+    expect(r.read("args")).toBeUndefined();
+    expect(r.calls()).toEqual([]);
   });
+
+  test("the built-in default is confirmed too: a key sign-in stops it", () => {
+    const r = local("ok", [], { WACHIMAN_HOME: temp("wachiman-empty-") }, branchRepo(), "api_key");
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("billed to a key");
+    expect(r.calls()).toEqual([]);
+  }, 30_000);
+
+  test("an unconfirmed profile makes no provider call: a fake provider is never touched", () => {
+    const repo = branchRepo();
+    const { whome } = accounts(repo, { binding: "work-a" });
+    const touched: string[] = [];
+    const provider = new Proxy({} as never, { get: (_t, name) => (touched.push(String(name)), () => undefined) });
+    const stderr: string[] = [];
+    const run = () =>
+      runLocal(
+        parseLocalArgs([]),
+        repo.dir,
+        { WACHIMAN_HOME: whome, PATH: process.env.PATH },
+        { stdout: () => {}, stderr: (l) => stderr.push(l), engineVersion: "0" },
+        {
+          spawn: (_bin, args) => ({ status: args[0] === "--version" ? 0 : 1, stdout: args[0] === "--version" ? "9.9.9" : "{}", stderr: "" }),
+          getProvider: () => provider,
+        },
+      );
+    expect(run).toThrow(UsageError);
+    expect(run).toThrow("wachiman profile login work-a");
+    expect(touched).toEqual([]);
+    expect(stderr.some((l) => l.startsWith("profile: work-a"))).toBe(true);
+  });
+
+  test("a planted configuration in the reviewed repository changes nothing, and WACHIMAN_CLAUDE_BIN names no binary", () => {
+    const repo = branchRepo();
+    const { whome } = accounts(repo, { binding: "work-b" });
+    const evil = temp("wachiman-evil-");
+    writeFileSync(join(evil, "claude"), "#!/bin/sh\ntouch \"$0.ran\"\nexit 0\n");
+    chmodSync(join(evil, "claude"), 0o755);
+    writeFileSync(join(repo.dir, ".wachiman.json"), JSON.stringify({ profile: "work-a", binary: join(evil, "claude") }));
+    mkdirSync(join(repo.dir, ".wachiman"), { recursive: true });
+    writeFileSync(join(repo.dir, ".wachiman", "config.json"), JSON.stringify({ profile: "work-a", binary: join(evil, "claude") }));
+    writeFileSync(join(repo.dir, "package.json"), JSON.stringify({ name: "x", wachiman: { profile: "work-a", binary: join(evil, "claude") } }));
+    const r = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_CLAUDE_BIN: join(evil, "claude") }, repo);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toMatch(/profile: work-b \(external, .*; chosen by project binding\)/);
+    expect(existsSync(join(evil, "claude.ran"))).toBe(false);
+    expect(r.calls().length).toBeGreaterThan(0);
+  }, 30_000);
+
+  test("bin/wachiman: a binding beats a conflicting WACHIMAN_PROFILE, and the wrapper no longer drops the API key", () => {
+    const repo = branchRepo();
+    const { whome, workDir } = accounts(repo, { binding: "work-a" });
+    const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+    fixture.change.head.sha = repo.head;
+    fixture.files = localFiles(repo.dir, repo.mergeBase, repo.head);
+    const input = join(temp("wachiman-input-"), "input.json");
+    writeFileSync(input, JSON.stringify(fixture));
+
+    const s = stubs("ok", repo.dir);
+    const env = { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "work-b" };
+    const out = Bun.spawnSync([wrapper, "local", "--input", input, "--repo-dir", repo.dir], { env, stdin: "ignore" });
+    expect(out.exitCode).toBe(0);
+    expect(out.stderr.toString()).toContain(`profile: work-a (external, ${workDir}; chosen by project binding; WACHIMAN_PROFILE=work-b ignored)`);
+    expect(s.env().CLAUDE_CONFIG_DIR).toBe(workDir);
+
+    // The key now reaches the command, which refuses it itself, identically to `bun src/cli.ts`.
+    const keyed = stubs("ok", repo.dir);
+    const refused = Bun.spawnSync([wrapper, "local", "--input", input, "--repo-dir", repo.dir], {
+      env: { ...env, PATH: `${keyed.bin}:${process.env.PATH ?? ""}`, ANTHROPIC_API_KEY: "sk-ant-test" },
+      stdin: "ignore",
+    });
+    expect(refused.exitCode).toBe(2);
+    expect(refused.stderr.toString()).toContain(SUBSCRIPTION_KEY_REFUSAL);
+    expect(keyed.read("calls")).toBeUndefined();
+  }, 30_000);
 });
 
 describe("verification flags", () => {

@@ -58,6 +58,24 @@ export const CHILD_ENV_ALLOWLIST = [
   "GITHUB_ACTIONS",
 ] as const;
 
+/**
+ * What a child process needs on Windows to start and find its own sign-in: the profile and
+ * application-data directories, the system root, the temporary directories and the executable
+ * extensions. Not secrets; allowlisted only when the parent is Windows.
+ */
+export const WINDOWS_CHILD_ENV_ALLOWLIST = [
+  "USERPROFILE",
+  "USERNAME",
+  "SystemRoot",
+  "SystemDrive",
+  "ComSpec",
+  "TEMP",
+  "TMP",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PATHEXT",
+] as const;
+
 /** `LC_ALL`, `LC_CTYPE`, … along with the exact names above. */
 const LOCALE_PREFIX = "LC_";
 
@@ -86,21 +104,34 @@ export const SUBSCRIPTION_ENV = {
  */
 export function buildChildEnv(
   env: Record<string, string | undefined>,
-  opts: { auth?: ClaudeAuth; configDir?: string } = {},
+  opts: { auth?: ClaudeAuth; configDir?: string; platform?: string } = {},
 ) {
   const subscription = opts.auth === "subscription";
+  // Windows names are case-insensitive and the search path is usually `Path`, so match them so.
+  const windows = (opts.platform ?? process.platform) === "win32";
+  const allowed = new Set<string>([...CHILD_ENV_ALLOWLIST, ...(windows ? WINDOWS_CHILD_ENV_ALLOWLIST : [])].map((n) => (windows ? n.toUpperCase() : n)));
   const child: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined) continue;
-    if (subscription && name === "ANTHROPIC_API_KEY") continue;
-    if ((CHILD_ENV_ALLOWLIST as readonly string[]).includes(name) || name.startsWith(LOCALE_PREFIX)) {
+    const key = windows ? name.toUpperCase() : name;
+    if (subscription && key === "ANTHROPIC_API_KEY") continue;
+    if (allowed.has(key) || name.startsWith(LOCALE_PREFIX)) {
       child[name] = value;
     }
   }
   if (!subscription) return child;
-  if (env.USER !== undefined) child.USER = env.USER;
+  // On Windows a parent `claude_config_dir` would survive next to the names set below.
+  const drop = (name: string) => {
+    if (windows) for (const key of Object.keys(child)) if (key.toUpperCase() === name) delete child[key];
+  };
+  if (env.USER !== undefined) {
+    child.USER = env.USER;
+  }
   Object.assign(child, SUBSCRIPTION_ENV);
-  if (opts.configDir) child.CLAUDE_CONFIG_DIR = opts.configDir;
+  if (opts.configDir) {
+    drop("CLAUDE_CONFIG_DIR");
+    child.CLAUDE_CONFIG_DIR = opts.configDir;
+  }
   return child;
 }
 
@@ -230,8 +261,12 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       auth?: ClaudeAuth;
       /** Subscription mode only: the isolated profile's directory, forced as `CLAUDE_CONFIG_DIR`. */
       configDir?: string;
-      /** For tests: another executable, and another folder for the settings file. */
+      /**
+       * The executable to run instead of `claude` from PATH: the stored path of an external
+       * profile (ADR 0029 decision 6), or a stub in a test.
+       */
       binary?: string;
+      /** For tests: another folder for the settings file. */
       settingsDir?: string;
     },
   ) {
@@ -245,6 +280,11 @@ export class ClaudeCodeProvider implements ProviderAdapter {
 
   private childEnv() {
     return buildChildEnv(process.env, { auth: this.opts.auth, configDir: this.opts.configDir });
+  }
+
+  /** The executable every call runs: a bare `claude` is found on PATH, anything else is a path. */
+  get binaryPath() {
+    return this.binary;
   }
 
   preflight() {

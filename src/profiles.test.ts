@@ -1,9 +1,10 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
-import { inspectIsolatedProfile, parseProfile, profileDir, setupProfile } from "./profiles";
+import { readConfig, updateConfig } from "./accounts/config";
+import { claimManagedProfile, inspectIsolatedProfile, parseProfile, profileDir, setupProfile } from "./profiles";
 import { SUBSCRIPTION_ENV } from "./providers/claude-code";
 
 const temps: string[] = [];
@@ -17,13 +18,11 @@ afterAll(() => {
 });
 
 describe("parseProfile", () => {
-  test("default, a bare isolated, and a named isolated profile", () => {
-    expect(parseProfile("default")).toEqual({ kind: "default" });
-    expect(parseProfile("isolated")).toEqual({ kind: "isolated", name: "isolated" });
-    expect(parseProfile("isolated:work")).toEqual({ kind: "isolated", name: "work" });
+  test("returns the spelling for resolveProfile: default, isolated, isolated:<name> or a profile name", () => {
+    for (const value of ["default", "isolated", "isolated:work", "work-a"]) expect(parseProfile(value)).toBe(value);
   });
 
-  test.each(["Work", "isolated:", "isolated:../x", "isolated:Work", "isolated:-x", "other", ""])(
+  test.each(["Work", "isolated:", "isolated:../x", "isolated:Work", "isolated:-x", ""])(
     "%p is a usage error",
     (value) => {
       expect(() => parseProfile(value)).toThrow(UsageError);
@@ -32,8 +31,8 @@ describe("parseProfile", () => {
 });
 
 describe("profileDir", () => {
-  test("is claude-<name> under ~/.wachiman", () => {
-    expect(profileDir("work", "/home/me")).toBe("/home/me/.wachiman/claude-work");
+  test("is claude-<name> under the Wachiman home", () => {
+    expect(profileDir("work", "/home/me/.wachiman")).toBe("/home/me/.wachiman/claude-work");
   });
 });
 
@@ -84,6 +83,7 @@ describe("inspectIsolatedProfile", () => {
 });
 
 describe("setupProfile", () => {
+  /** `home` here is the Wachiman home itself (`~/.wachiman`), not the user's home. */
   const parentEnv = (home: string) => ({
     PATH: "/usr/bin:/bin",
     HOME: home,
@@ -91,6 +91,18 @@ describe("setupProfile", () => {
     CLAUDE_CONFIG_DIR: "/elsewhere",
     ANTHROPIC_API_KEY: "sk-ant-test",
     GH_TOKEN: "t",
+  });
+
+  test("an existing Wachiman home keeps its mode, and a home it creates is private", () => {
+    const shared = temp("profile-home-");
+    chmodSync(shared, 0o755);
+    setupProfile({ name: "work", home: shared, env: parentEnv(shared), print: () => {}, spawn: () => ({ status: 0 }) });
+    expect(statSync(shared).mode & 0o777).toBe(0o755);
+    expect(statSync(join(shared, "claude-work")).mode & 0o777).toBe(0o700);
+
+    const fresh = join(temp("profile-home-"), "made-by-wachiman");
+    setupProfile({ name: "work", home: fresh, env: parentEnv(fresh), print: () => {}, spawn: () => ({ status: 0 }) });
+    expect(statSync(fresh).mode & 0o777).toBe(0o700);
   });
 
   test("creates the directory, launches claude in an empty directory with the forced config dir, and cleans up", () => {
@@ -107,10 +119,10 @@ describe("setupProfile", () => {
         return { status: 0 };
       },
     });
-    const dir = join(home, ".wachiman", "claude-work");
+    const dir = join(home, "claude-work");
     expect(statSync(dir).isDirectory()).toBe(true);
     expect(statSync(dir).mode & 0o777).toBe(0o700);
-    expect(statSync(join(home, ".wachiman")).mode & 0o777).toBe(0o700);
+    expect(statSync(home).mode & 0o777).toBe(0o700);
     expect(calls).toHaveLength(1);
     const [call] = calls;
     expect(call.command).toBe("claude");
@@ -131,13 +143,13 @@ describe("setupProfile", () => {
   test("the default name is isolated, and its hint needs no name", () => {
     const home = temp("profile-home-");
     const lines = setupProfile({ home, env: parentEnv(home), print: () => {}, spawn: () => ({ status: 0 }) });
-    expect(existsSync(join(home, ".wachiman", "claude-isolated"))).toBe(true);
+    expect(existsSync(join(home, "claude-isolated"))).toBe(true);
     expect(lines.at(-1)).toContain("`wachiman local --profile isolated`");
   });
 
   test("a populated directory is refused before claude is launched", () => {
     const home = temp("profile-home-");
-    const dir = join(home, ".wachiman", "claude-work");
+    const dir = join(home, "claude-work");
     mkdirSync(join(dir, "skills"), { recursive: true });
     writeFileSync(join(dir, "CLAUDE.md"), "rules");
     let launched = false;
@@ -160,5 +172,68 @@ describe("setupProfile", () => {
   test("an invalid name is a usage error", () => {
     const home = temp("profile-home-");
     expect(() => setupProfile({ name: "../x", home, env: parentEnv(home), print: () => {}, spawn: () => ({ status: 0 }) })).toThrow(UsageError);
+  });
+
+  const readOk = (home: string) => {
+    const read = readConfig(home);
+    if (read.kind !== "ok") throw new Error(`config is ${read.kind}`);
+    return read.config;
+  };
+  const noSpawn = () => ({ status: 0 });
+
+  test("registers the managed profile in the config, keeps every other entry, and is idempotent", () => {
+    const home = temp("profile-home-");
+    updateConfig({ home }, (c) => ({
+      ...c,
+      profiles: { "work-a": { kind: "external", configDir: "/Users/me/.claude-work-a", createdAt: "t" } },
+      future: { keep: true },
+    } as typeof c));
+    setupProfile({ name: "work", home, env: parentEnv(home), print: () => {}, spawn: noSpawn });
+    setupProfile({ name: "work", home, env: parentEnv(home), print: () => {}, spawn: noSpawn });
+    const config = readOk(home);
+    expect(Object.keys(config.profiles).sort()).toEqual(["work", "work-a"]);
+    expect(config.profiles.work).toMatchObject({ kind: "managed", configDir: join(home, "claude-work") });
+    expect(typeof (config.profiles.work as { createdAt: string }).createdAt).toBe("string");
+    expect((config as unknown as { future: unknown }).future).toEqual({ keep: true });
+  });
+
+  test("a name that an external profile already holds is refused before anything is created or launched", () => {
+    const home = temp("profile-home-");
+    updateConfig({ home }, (c) => ({ ...c, profiles: { work: { kind: "external", configDir: "/Users/me/.claude-work", createdAt: "t" } } }));
+    let launched = false;
+    expect(() =>
+      setupProfile({ name: "work", home, env: parentEnv(home), print: () => {}, spawn: () => ((launched = true), { status: 0 }) }),
+    ).toThrow(/external/);
+    expect(launched).toBe(false);
+    expect(existsSync(join(home, "claude-work"))).toBe(false);
+  });
+
+  test("a corrupt config stops the setup before claude is launched", () => {
+    const home = temp("profile-home-");
+    writeFileSync(join(home, "config.json"), "{ nope");
+    let launched = false;
+    expect(() =>
+      setupProfile({ name: "work", home, env: parentEnv(home), print: () => {}, spawn: () => ((launched = true), { status: 0 }) }),
+    ).toThrow(UsageError);
+    expect(launched).toBe(false);
+    expect(existsSync(join(home, "claude-work"))).toBe(false);
+  });
+});
+
+describe("claimManagedProfile", () => {
+  const config = (profiles: Record<string, any>): any => ({ version: 1, profiles, projects: {} });
+
+  test("refuses when an external entry appeared under the name after the pre-check, and changes nothing", () => {
+    const external = { kind: "external", configDir: "/Users/me/.claude-work", binary: "/opt/claude/claude", createdAt: "2026-11-09T10:00:00Z" };
+    const current = config({ work: external });
+    expect(() => claimManagedProfile(current, "work", "/wh/claude-work")).toThrow('"work" is already registered as an external profile');
+    expect(current.profiles.work).toBe(external);
+  });
+
+  test("adds a managed entry when the name is free and keeps an existing managed one", () => {
+    const added = claimManagedProfile(config({}), "work", "/wh/claude-work");
+    expect(added.profiles.work).toMatchObject({ kind: "managed", configDir: "/wh/claude-work" });
+    const managed = config({ work: { kind: "managed", configDir: "/wh/claude-work", createdAt: "x" } });
+    expect(claimManagedProfile(managed, "work", "/wh/claude-work")).toBe(managed);
   });
 });
