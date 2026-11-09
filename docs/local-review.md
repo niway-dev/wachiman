@@ -113,6 +113,8 @@ passed on a published commit, so Windows is not a supported platform yet. The ba
 (`bin/wachiman`) and `scripts/install-local.sh` are POSIX only. This paragraph changes when the
 job is green.
 
+On Windows the launcher looks for `bun.exe` on `PATH` (the official installer); a Bun installed only through `npm i -g bun` (a `bun.cmd` shim) is not found.
+
 Prefer no install? The raw command is
 `bun --no-env-file --config=<engine>/bunfig.toml <engine>/src/cli.ts local --repo-dir <clone>`.
 
