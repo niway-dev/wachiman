@@ -56,8 +56,9 @@ every `bin` on every OS and runs it with Node.
    `bun build --compile --target bun-windows-x64 --no-compile-autoload-dotenv
    --no-compile-autoload-bunfig`, with the version as a build-time define and the settings JSON,
    skills and templates embedded. It is attached to the GitHub Release with a SHA-256 and a
-   build attestation. Its tier is **built and smoke-tested** until the Windows acceptance rows
-   pass on `windows-latest`; only then may the documentation say "Windows: supported". No macOS
+   build attestation. Its tier is **pending CI** until the Windows acceptance rows pass on
+   `windows-latest`, then **built and smoke-tested**; "Windows: supported" also needs the owner's
+   one real run (row W7) and is a docs-only change. No macOS
    or Linux executable is built.
 4. **The source path stays supported for contributors:** `bin/wachiman` (bash) and
    `scripts/install-local.sh`, with `WACHIMAN_DIR`. The wrapper removes env-to-flag translation and API-key stripping so all entry points

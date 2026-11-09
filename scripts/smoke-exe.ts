@@ -127,7 +127,9 @@ function w2(exe: string, version: string, s: Scenario) {
 function w3(s: Scenario) {
   // Runs right after `w2`, whose last call to `claude` was the executable's.
   // The committed bytes, not the working tree: a checkout that converted line endings must not pass.
-  const shipped = Buffer.from(spawnSync("git", ["show", "HEAD:src/providers/claude-code.settings.json"], { cwd: root }).stdout);
+  const committed = spawnSync("git", ["show", "HEAD:src/providers/claude-code.settings.json"], { cwd: root });
+  check(committed.status === 0 && committed.stdout, "could not read the committed settings with git show HEAD:src/providers/claude-code.settings.json");
+  const shipped = Buffer.from(committed.stdout);
   const seen = s.fake.read("settings-seen.json");
   const where = s.fake.read("settings-path.txt")?.toString();
   check(seen !== undefined && where !== undefined, "the executable never passed --settings to claude");
