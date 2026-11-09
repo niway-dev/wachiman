@@ -56,7 +56,11 @@ describe("release-please.yml", () => {
     const build = workflow.jobs["windows-exe"];
     const release = workflow.jobs["windows-exe-release"];
     const ci = Bun.YAML.parse(readFileSync(join(import.meta.dir, "..", ".github", "workflows", "ci.yml"), "utf8")) as { jobs: Record<string, any> };
-    const bunVersions = (job: any) => job.steps.filter((s: any) => String(s.uses).startsWith("oven-sh/setup-bun@")).map((s: any) => s.with["bun-version"]);
+    // Every Bun pin in a job: a setup-bun step's bun-version, and a `bun@<version>` installed by npm in a run step.
+    const bunPins = (job: any) => [
+      ...job.steps.filter((s: any) => String(s.uses).startsWith("oven-sh/setup-bun@")).map((s: any) => String(s.with["bun-version"])),
+      ...job.steps.flatMap((s: any) => [...String(s.run ?? "").matchAll(/\bbun@(\d+\.\d+\.\d+)\b/g)].map((m) => m[1])),
+    ];
 
     test("both jobs run only when a release was created, and the build also waits for the verified tagged commit", () => {
       expect(String(build.if)).toContain("release_created == 'true'");
@@ -86,8 +90,19 @@ describe("release-please.yml", () => {
     });
 
     test("every Bun in CI and in the release is the same version, so the build is the one that was tested", () => {
-      const versions = new Set([...bunVersions(build), ...bunVersions(verify), ...bunVersions(ci.jobs.test), ...bunVersions(ci.jobs.windows), ...bunVersions(ci.jobs["windows-exe"])]);
-      expect([...versions]).toEqual(["1.3.4"]);
+      const pins: Record<string, string[]> = {
+        "release-please.yml windows-exe": bunPins(build),
+        "release-please.yml verify": bunPins(verify),
+        "ci.yml test": bunPins(ci.jobs.test),
+        "ci.yml package": bunPins(ci.jobs.package),
+        "ci.yml windows": bunPins(ci.jobs.windows),
+        "ci.yml windows-exe": bunPins(ci.jobs["windows-exe"]),
+      };
+      // The reference is whatever the first job pins; no version is written here, so a bump needs no test edit.
+      // Each job must have exactly one pin equal to the reference, and a failure lists the jobs that differ.
+      const reference = Object.values(pins).flat()[0];
+      const drifted = Object.fromEntries(Object.entries(pins).filter(([, v]) => v.length !== 1 || v[0] !== reference));
+      expect(drifted).toEqual({});
     });
 
     test("attests the file by a commit-pinned action, attaches it with its checksums, and states the tier in the notes", () => {
