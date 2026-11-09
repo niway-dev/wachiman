@@ -192,18 +192,18 @@ describe("configuration, profile and project rows", () => {
     seed(m, {
       profiles: {
         "work-a": { kind: "external", configDir: dir, createdAt: "t" },
-        "work-b": { kind: "external", configDir: other, createdAt: "t" },
+        "ignored-profile": { kind: "external", configDir: other, createdAt: "t" },
       },
       projects: { [key]: { profile: "work-a", keyedBy: "remote", remote: "ssh://github.com/acme/app", name: "app", boundAt: "t", boundFrom: repo } },
     });
-    const report = m.report({ repoDir: repo }, { WACHIMAN_PROFILE: "work-b" });
+    const report = m.report({ repoDir: repo }, { WACHIMAN_PROFILE: "ignored-profile" });
     expect(report.profile).toEqual({ name: "work-a", kind: "external", rung: "binding" });
     expect(row(report, "profile").evidence).toContain("project binding");
     expect(row(report, "auth").status).toBe("ok");
     expect(row(report, "project")).toMatchObject({ status: "ok", detail: { key, bound: true, profile: "work-a" } });
     expect(row(report, "environment").evidence).toContain("WACHIMAN_PROFILE");
     expect(row(report, "environment").evidence).toContain("ignored");
-    expect(JSON.stringify(report)).not.toContain("work-b");
+    expect(JSON.stringify(report)).not.toContain("ignored-profile");
     expect(JSON.stringify(report)).not.toContain("user:pw");
     expect(row(report, "isolation")).toMatchObject({ status: "warn", level: "optional" });
     expect(report.exitCode).toBe(0);
