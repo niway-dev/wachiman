@@ -125,13 +125,16 @@ function runCli(args: string[], env: Record<string, string>) {
 function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: BranchRepo = branchRepo()) {
   const s = stubs(variant, repo.dir);
   const home = extraEnv.HOME ?? temp("wachiman-home-");
-  const out = runCli(["local", "--repo-dir", repo.dir, ...args], {
+  // `"<unset>"` removes a variable the helper sets, to test the real default.
+  const env: Record<string, string> = {
     PATH: `${s.bin}:${process.env.PATH ?? ""}`,
     HOME: home,
     USER: "dev",
     AGENT_REVIEW_VERIFY: "0",
     ...extraEnv,
-  });
+  };
+  for (const [k, v] of Object.entries(env)) if (v === "<unset>") delete env[k];
+  const out = runCli(["local", "--repo-dir", repo.dir, ...args], env);
   return { ...out, ...s, repo, home };
 }
 
@@ -946,6 +949,15 @@ describe("verification flags", () => {
     expect(onLines[onLines.indexOf("batches: 1") + 1]).toBe("verify: on (claude-opus-5-5, reserve $1.00)");
     // The verifier is a second call, from its own adapter on the same profile.
     expect(on.calls()).toHaveLength(2);
+  });
+
+  test("with AGENT_REVIEW_VERIFY unset the verifier is on, and --no-verify turns it off", () => {
+    const on = local("ok", [], { AGENT_REVIEW_VERIFY: "<unset>" });
+    expect(on.stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
+    expect(on.calls()).toHaveLength(2);
+    const off = local("ok", ["--no-verify"], { AGENT_REVIEW_VERIFY: "<unset>" });
+    expect(off.stderr.split("\n")).toContain("verify: off");
+    expect(off.calls()).toHaveLength(1);
   });
 
   test("--no-verify wins over AGENT_REVIEW_VERIFY=1", () => {

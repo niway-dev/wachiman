@@ -2547,7 +2547,7 @@ function verifyFindings(
     };
   };
   // The same account refused a batch; the verifier would most likely be refused too.
-  if (refused) return unanswered("skipped", { kind: "error", detail: `the provider rejected an earlier call: ${refused}` }, 0);
+  if (refused) return unanswered("failed", { kind: "error", detail: `the provider rejected an earlier call: ${refused}` }, 0);
   if (budgetUsd < MIN_BATCH_USD) return unanswered("skipped", { kind: "budget", detail: "no budget left for the verifier" }, 0);
   // Made now, once, and released whatever happens next; a snapshot that cannot be made costs only the base evidence.
   let baseSnap: { dir: string; release(): void } | undefined;

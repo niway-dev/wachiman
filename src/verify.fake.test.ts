@@ -402,7 +402,7 @@ describe("the verifier through the review core", () => {
     const { deps: d } = deps(provider, verifier);
     const result = reviewChange(twoFiles, options({ batchLines: 1 }), d);
     expect(verifier.requests).toHaveLength(0);
-    expect(result.verification).toMatchObject({ status: "skipped", costUsd: 0, stop: { kind: "error" } });
+    expect(result.verification).toMatchObject({ status: "failed", costUsd: 0, stop: { kind: "error" } });
     expect(result.verification?.stop?.detail).toContain("credit balance");
     expect(result.findings).toHaveLength(1);
   });
