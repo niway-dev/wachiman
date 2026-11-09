@@ -153,6 +153,14 @@ and spends again.
 ## Things that add to the total
 
 - **Retries.** Described above: a second call, with its own cap, for files the first call missed.
+- **The verifier, when turned on** (`verify`, [ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)).
+  One more call per review that has findings above `info`, on `verifier_model` (Opus 5.5 by
+  default). Its reserve, `verify_budget_usd` ($1, at most half of `budget_usd`), comes out of the
+  review's own budget before the batches run, so a large pull request may get one batch less. Its
+  input is the findings and the code they cite, not the diff, so its cost grows with the number of
+  findings. On the nightly kaipu-record field run an Opus verifier cost $0.21 to $0.80 per pull
+  request (an API-equivalent estimate on a subscription, 13 pull requests with findings); a review
+  with no findings above `info` makes no verifier call.
 - **Pushes.** With `synchronize` in the caller (the templates have it), every push to an open pull
   request starts a review with its own `budget_usd`, until the pull request's automatic runs reach
   `auto_budget_usd` ([above](#the-ceiling-per-pull-request)). It reads only what is new since the last

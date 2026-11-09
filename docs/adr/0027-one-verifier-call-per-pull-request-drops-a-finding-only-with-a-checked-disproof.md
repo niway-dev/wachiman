@@ -1,7 +1,8 @@
 # ADR 0027: One verifier call per pull request, and a finding is dropped only with a disproof the engine can check
 
-- **Status:** proposed 2026-11-08. Not implemented; off by default until the gate in the spec is
-  met. Takes decision B3 out of the draft ADR 0018 (#90, "degrade, never delete") and changes its
+- **Status:** accepted 2026-11-09. **Implemented, opt-in,** by the pull request that adds this
+  line (`feat/findings-verifier`); off by default until the gate in the spec is met (arm 2 on the
+  Martian bench, not run yet). Takes decision B3 out of the draft ADR 0018 (#90, "degrade, never delete") and changes its
   rule for deletion; #90's ADR 0018 should drop B3 when rebased. Keeps "one judge per pull
   request" from the draft ADR 0014 (#80) and nothing else of it. Consistent with
   [ADR 0009](0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md): the
@@ -45,7 +46,7 @@ design (spend tier, obligation ledger, reader/judge split) that has not moved.
 4. **Dropped findings are recorded**: in the result JSON (`verification`, additive), as a count in
    the footer, and in the log. The author sees the count, the benchmark sees the findings.
 5. **The verifier's money is reserved first** (`verify_budget_usd`, default $1.00, out of
-   `budget_usd`), so the batches cannot spend it. No candidates, no call.
+   `budget_usd`, at most half of it), so the batches cannot spend it. No candidates, no call.
 6. **It fails open.** A failed or stopped call posts the unverified review with a footer line.
 7. **Opus 5.5 at `high` by default**, independent of the reviewer's model.
 

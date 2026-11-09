@@ -83,6 +83,18 @@ on:
         description: Reasoning effort the model runs at (low, medium, high, xhigh or max); printed in every review footer
         type: string
         default: high
+      verify:
+        description: After the batches, one more call tries to refute every finding above info before it is posted; a finding is dropped only with a disproof whose line exists at head (ADR 0027). Off until the benchmark gate is met
+        type: boolean
+        default: false
+      verify_budget_usd:
+        description: The verifier's reserve, taken out of budget_usd before the batches run (at most half of it)
+        type: number
+        default: 1
+      verifier_model:
+        description: Model the verifier uses; it always runs at effort high
+        type: string
+        default: claude-opus-5-5
       max_turns:
         description: Most agent turns one call may take (Claude Code --max-turns); a call that reaches it is reported, and its files are retried once
         type: number
@@ -280,6 +292,9 @@ jobs:
           AGENT_REVIEW_BATCH_CHARS: ${{ inputs.batch_chars }}
           AGENT_REVIEW_MODEL: ${{ inputs.model }}
           AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
+          AGENT_REVIEW_VERIFY: ${{ inputs.verify }}
+          AGENT_REVIEW_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
+          AGENT_REVIEW_VERIFIER_MODEL: ${{ inputs.verifier_model }}
           AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
           AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
           AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
@@ -503,6 +518,9 @@ jobs:
           AGENT_REVIEW_BATCH_CHARS: ${{ inputs.batch_chars }}
           AGENT_REVIEW_MODEL: ${{ inputs.model }}
           AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
+          AGENT_REVIEW_VERIFY: ${{ inputs.verify }}
+          AGENT_REVIEW_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
+          AGENT_REVIEW_VERIFIER_MODEL: ${{ inputs.verifier_model }}
           AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
           AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
           AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}

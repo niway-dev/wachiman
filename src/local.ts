@@ -46,16 +46,18 @@ export interface LocalArgs {
   profile: ProfileChoice;
   agentPrompt: boolean;
   history: boolean;
+  /** `--verify`: the verifier call after the batches (ADR 0027); `AGENT_REVIEW_VERIFY=1` does the same. */
+  verify: boolean;
   input?: string;
 }
 
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
-               [--profile default|isolated[:<name>]] [--agent-prompt] [--history]`;
+               [--profile default|isolated[:<name>]] [--agent-prompt] [--history] [--verify]`;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLocalArgs(argv: string[]): LocalArgs {
-  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined };
+  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: false, input: undefined };
   let base: string | undefined;
   const picked: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -73,6 +75,7 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
     };
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
     else if (name === "--history" && eq === -1) args.history = true;
+    else if (name === "--verify" && eq === -1) args.verify = true;
     else if (name === "--base") {
       base = value();
       picked.push(name);
@@ -192,7 +195,7 @@ export function runLocal(
     );
   }
   // A person ran it: no automatic ceiling (decision 14).
-  const config = { ...loaded, trigger: undefined };
+  const config = { ...loaded, trigger: undefined, verify: loaded.verify || args.verify };
   // Before the provider exists; the adapter's own check in preflight() is the second line.
   if (env.ANTHROPIC_API_KEY) throw new UsageError(SUBSCRIPTION_KEY_REFUSAL);
   // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.
@@ -221,6 +224,11 @@ export function runLocal(
     state,
   );
   provider.preflight();
+  // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
+  const verifier = config.verify
+    ? interruptible(getProvider("claude-code", { ...config, model: config.verifierModel, effort: "high", dryRun: false, auth: "subscription", configDir }), state)
+    : undefined;
+  verifier?.preflight();
 
   let snapshotDir: string | undefined;
   const onSigint = () => {
@@ -271,6 +279,7 @@ export function runLocal(
 
     const result = reviewChange(input, reviewOptionsOf(config, config.budgetUsd, args.profile.kind), {
       provider,
+      ...(verifier ? { verifier } : {}),
       log: io.stderr,
       warn: io.stderr,
       engineVersion: io.engineVersion,

@@ -3,6 +3,7 @@
  * Markdown report. Every sink reads only the `ReviewResult` and computes no anchor.
  */
 import { neutralise, oneLine, SEVERITY, TOPIC, type Finding, type Profile, type ReviewResult } from "../engine";
+import { verificationSegment } from "../verify";
 import type { Settled } from "../history/types";
 
 export const sha7 = (sha: string) => sha.slice(0, 7);
@@ -100,7 +101,8 @@ export function stopLine(result: ReviewResult) {
 
 /** The provider, effort, profile and engine version, for the last line. */
 export function providerLine(result: ReviewResult) {
-  return `${result.provider.label} · effort ${result.provider.effort} · profile ${result.provider.profile} · Wachiman ${result.engine.version}`;
+  const verified = result.verification ? verificationSegment(result.verification) : undefined;
+  return `${result.provider.label} · effort ${result.provider.effort} · profile ${result.provider.profile} · Wachiman ${result.engine.version}${verified ? ` · ${verified}` : ""}`;
 }
 
 /** The note on review-instruction files the change edits, or null. */

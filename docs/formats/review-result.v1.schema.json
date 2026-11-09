@@ -142,9 +142,53 @@
         },
         "notices": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "verification": {
+      "description": "The verifier's verdicts (ADR 0027), present only when it was turned on. `findings` holds what survived it; a dropped finding appears only here. Added in 1.10.0.",
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "model", "effort", "costUsd", "entries", "dropped"],
+      "properties": {
+        "status": { "enum": ["verified", "failed", "nothing"] },
+        "model": { "type": "string" },
+        "effort": { "type": "string" },
+        "label": { "type": "string" },
+        "costUsd": { "type": "number", "minimum": 0 },
+        "detail": { "type": "string" },
+        "dropped": { "type": "integer", "minimum": 0 },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["id", "path", "line", "title", "topic", "severity", "verdict", "reason", "checked", "outcome"],
+            "properties": {
+              "id": { "type": "string" },
+              "path": { "type": "string" },
+              "line": { "type": "integer", "minimum": 0 },
+              "title": { "type": "string" },
+              "topic": { "type": "string" },
+              "severity": { "enum": ["blocker", "fix", "consider", "info"] },
+              "verdict": { "enum": ["refuted", "confirmed", "unconfirmed"] },
+              "claimed": { "enum": ["refuted", "confirmed", "unconfirmed", "none"] },
+              "reason": { "type": "string" },
+              "checked": { "type": "array", "items": { "$ref": "#/$defs/Citation" } },
+              "disproof": { "$ref": "#/$defs/Citation" },
+              "outcome": { "enum": ["dropped", "kept", "degraded", "moved"] },
+              "severityAfter": { "enum": ["blocker", "fix", "consider", "info"] }
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
+    "Citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line"],
+      "properties": { "path": { "type": "string" }, "line": { "type": "integer", "minimum": 0 } }
+    },
     "ResultChange": {
       "type": "object",
       "additionalProperties": false,

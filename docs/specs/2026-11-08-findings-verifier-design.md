@@ -1,6 +1,14 @@
 # A verifier call that refutes findings before they are posted
 
-- **Status:** proposed 2026-11-08. Not implemented. Written on Claude Fable 5.1 from the owner's
+- **Status:** accepted 2026-11-09 by the owner ("ya leí el plan y me gusta"); open questions
+  answered with their defaults. **Implemented, opt-in,** by the pull request that adds this line
+  (`feat/findings-verifier`): `src/verify.ts` and `verifyFindings` in `src/engine.ts`, the `verify`,
+  `verify_budget_usd` and `verifier_model` inputs, `local --verify`. Two deviations from the text
+  below, made while building it: the reserve is **at most half** of `budget_usd` (decision 6),
+  so a small budget still runs a batch, since a review without findings has nothing to verify;
+  and the verifier call gets **no retry at all**, not even the rate-limit backoff (open question
+  4): a rate-limited verifier fails open. The last acceptance criterion (arm 2 on the Martian
+  bench) has not run. Written on Claude Fable 5.1 from the owner's
   decision of 2026-11-08: "we keep a verifier, even if it raises the price a little; not seeing
   false positives makes the review manageable", and "I want it inside the process, because it will
   run in a GitHub Action".
@@ -43,7 +51,7 @@ says it pays, and never blocks a review: if it fails, the unverified review is p
 | 3 | **Three verdicts, each with a reason:** `refuted` (with `disproof: {path, line}`), `confirmed` (with an optional severity one step up or down), `unconfirmed`. The verifier never adds a finding | A bare keep/drop hides why. The Martian plan's rule: the falsifier must show the claim, the paths it checked with lines, and the counterexample | 0027 |
 | 4 | **Dropped only with a checked disproof.** `refuted` drops the finding only if the disproof's path and line exist at the head commit; otherwise it is treated as `unconfirmed`. `unconfirmed` keeps the finding and sets `confidence: low`, so `enforceConfidenceRule` posts a `fix`/`blocker` as a question. `confirmed` keeps it, with the verifier's severity if it moved one step | #90's "degrade, never delete" protects real bugs the verifier misses, but the owner's goal is not to see false positives. The compromise: deletion needs evidence code can check; doubt degrades. Reuses the confidence rule instead of a new label | 0027 |
 | 5 | **Refuted findings are recorded, not posted:** in the result JSON under a new additive `verification` block (every verdict, reason and disproof), in the footer as a count ("3 findings dropped after verification"), and in the log | Precision is measured from what was dropped as much as from what was posted; the Martian judge needs the dropped ones to count lost goldens. The author sees a count, not the noise | 0027 |
-| 6 | **Budget:** a reserve `verify_budget_usd` (default $1.00) is taken from `budget_usd` before the batches start, so the verifier always has money when the batches end. No findings to verify, no call, no cost. It counts against `auto_budget_usd` like every automatic call (ADR 0012) | The field prototype's cap was $1.50 and no call reached it (max $0.80). Taking it up front avoids the case where the batches spend everything and the verifier, the part the owner asked for, never runs | reuses 0001, 0012 |
+| 6 | **Budget:** a reserve `verify_budget_usd` (default $1.00, at most half of `budget_usd`) is taken from `budget_usd` before the batches start, so the verifier always has money when the batches end. No findings to verify, no call, no cost. It counts against `auto_budget_usd` like every automatic call (ADR 0012) | The field prototype's cap was $1.50 and no call reached it (max $0.80). Taking it up front avoids the case where the batches spend everything and the verifier, the part the owner asked for, never runs | reuses 0001, 0012 |
 | 7 | **Model and effort:** `verifier_model`, default Opus 5.5; effort always `high`. Independent of the reviewer's model so arm 3 (Haiku proposer) can run | The role that decides is never cheapened (#90, A3). Cross-model research found a lightweight reviewer of another model scores no higher than the same model reviewing itself; the field run shows Sonnet keeping half of what Opus keeps, and nobody has judged which is right. Opus is the safe default; Sonnet is measured, not assumed | 0027 |
 | 8 | **Fail open.** A failed, timed-out or budget-stopped verifier call posts the unverified review with a footer line saying so. It never blocks or delays the review beyond its own cap | The review is advisory; a verifier that can fail closed would turn a cost cap into a missing review | 0027 |
 | 9 | **Off by default** behind `verify` (Action input) / `--verify` / `AGENT_REVIEW_VERIFY=1` until arm 2 passes the gate in [Measurement](#measurement) | The measurement must run the product, not a script (the owner rejected a benchmark-only prototype). A flag lets the bench run arms 2 and 3 on the real code path before any consumer pays for it | — |
@@ -90,19 +98,19 @@ says it pays, and never blocks a review: if it fails, the unverified review is p
 
 ## Acceptance criteria
 
-- [ ] `bun test` has a fake-provider test where three findings go in and the verifier returns
+- [x] `bun test` has a fake-provider test where three findings go in and the verifier returns
   `refuted` with a valid disproof, `refuted` with a disproof whose line does not exist, and
   `confirmed` with a severity one step down: the review posts two findings, the second at the
   verifier's severity, and the third at `confidence: low` as a question when it was `fix`.
-- [ ] A test where the verifier call fails: the review posts every finding and its footer says the
+- [x] A test where the verifier call fails: the review posts every finding and its footer says the
   verification did not run.
-- [ ] A test where the batches leave less than `MIN_BATCH_USD` after the reserve: the batches are
+- [x] A test where the batches leave less than `MIN_BATCH_USD` after the reserve: the batches are
   cut, the verifier still runs.
-- [ ] A test where no finding is above `info`: no verifier call is made and the cost is unchanged.
-- [ ] `wachiman local --format json --verify` on a repository with findings writes a
+- [x] A test where no finding is above `info`: no verifier call is made and the cost is unchanged.
+- [x] `wachiman local --format json --verify` on a repository with findings writes a
   `verification` block that lists every verdict, reason and disproof, and the JSON validates
   against `review-result.v1.schema.json` (additive field).
-- [ ] The review footer shows the verifier's model and cost, and the dropped count.
+- [x] The review footer shows the verifier's model and cost, and the dropped count.
 - [ ] Arm 2 on the Martian bench (`history.md` row): false positives down by at least 30% against
   the 2026-11-07 Opus row, High+Critical found within 3 of it, cost per PR reported. Then the
   flag defaults on.

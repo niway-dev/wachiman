@@ -45,7 +45,7 @@ model actually read, so "reviewed" always means "reported as reviewed by the mod
                   (diff in stdin)      (read-only,       |-- gaps: one     |
                                         JSON schema,     |   retry         |
                                         per-batch cap)   v                 |
-                                              mergeOutputs --> buildReview |
+                          mergeOutputs --> [verifyFindings] --> buildReview |
                                                                   |        |
                               refuseLeak --> postReview (COMMENT) <+-------+
                                              inline + body + coverage + marker
@@ -206,7 +206,25 @@ All names are in `src/engine.ts` unless a file is given.
    closed entry whose citations resolved beats one whose did not, which beats an open one), and
    treats a file reviewed in a retry as reviewed. `adrNotices` then adds one
    `⚪🏛️ Info · adr` finding for every reviewed file under a `docs/adr/` directory, deduplicated with
-   the model's findings the same way. `buildReview` labels each finding with `label` (two emojis,
+   the model's findings the same way.
+
+   **Verification (opt-in, `AGENT_REVIEW_VERIFY=1`, `verify` input, `local --verify`).** When on,
+   `verifyFindings` makes one more call after dedupe ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)).
+   `selectCandidates` takes every finding above `info`; `buildVerifyPrompt` (`src/verify.ts`)
+   gives each one 15 head lines on each side of its cited line, plus the hunks of the cited files
+   (60,000 characters at most), never the whole diff. The verifier runs on its own adapter
+   (`verifier_model`, default Opus 5.5, always effort `high`) with the same read-only tools and a
+   JSON schema, and answers `refuted`, `confirmed` or `unconfirmed` per candidate. `applyVerdicts`
+   drops a finding only when the refutation's `disproof` path and line exist in the head; any
+   other refutation, an `unconfirmed` and a missing verdict set `confidence: low`, and
+   `enforceConfidenceRule` runs again, so a doubted `fix` or `blocker` is posted as a question. A
+   `confirmed` may move the severity one step. Its money is reserved before the batches run
+   (`verify_budget_usd`, at most half of the total), and it gets whatever the batches left. It
+   fails open: a failed call posts every finding with a "Not verified" line. Every verdict is in
+   the result's `verification` block; the footer says how many findings were dropped. *Why:* the
+   remaining false positives are wrong in their premise, which only reading the code decides.
+
+   `buildReview` labels each finding with `label` (two emojis,
    then severity, topic and title in words, from the `SEVERITY` and `TOPIC` tables, the only place
    the emojis live), turns findings on commentable lines (`commentableLines`: added and context
    lines of the patch) into inline comments, puts the rest under "Outside the diff", and puts every

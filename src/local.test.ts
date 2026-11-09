@@ -145,9 +145,11 @@ describe("parseLocalArgs", () => {
       profile: { kind: "isolated", name: "work" },
       agentPrompt: true,
       history: false,
+      verify: false,
       input: undefined,
     });
-    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined });
+    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: false, input: undefined });
+    expect(parseLocalArgs(["--verify"]).verify).toBe(true);
     expect(parseLocalArgs(["--format=json", "--base=origin/main"])).toMatchObject({ format: "json", base: "origin/main" });
   });
 
