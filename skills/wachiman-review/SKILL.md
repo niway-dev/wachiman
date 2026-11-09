@@ -63,9 +63,11 @@ Ask Wachiman, never the file system. Do not read inside any profile directory.
    bound to a profile: **do not pass `--profile`** (a flag would override the binding the developer
    chose). `resolved.profile` says which account `local` will use; mention it in one line.
 2. If there is no `binding`, run `wachiman profile list --json`. `profiles[].name` is what
-   `--profile` takes. One registered profile, or `defaultProfile` set → `local` already uses it;
-   pass `--profile` only if the developer names another. Several and no default → ask which
-   account, then pass `--profile <name>`. Offer `wachiman setup --profile <name>` to bind the
+   `--profile` takes. Without a binding, `local` uses a profile on its own only when `resolved.rung`
+   in the `project show` output is `env` or `configDefault`; pass `--profile` then only if the
+   developer names another. A lone registered profile is not used automatically: with
+   `resolved.rung` `builtIn`, `local` runs on the developer's own `claude`. Ask which account
+   (name the only one, if there is one), then pass `--profile <name>`. Offer `wachiman setup --profile <name>` to bind the
    choice to this project so nobody has to ask again (it writes only under `~/.wachiman`, never in
    the repository).
 3. `profiles` empty → offer `wachiman profile create` (the developer signs in once), or
