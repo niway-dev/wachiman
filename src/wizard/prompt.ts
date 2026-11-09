@@ -62,7 +62,6 @@ export function createPrompter(io: PromptIO): Prompter {
     if (rl) return;
     const mine = createInterface({ input: io.input, ...(terminal ? { output: io.output } : {}), terminal, crlfDelay: Infinity });
     rl = mine;
-    mine.setPrompt("");
     mine.on("line", (line) => {
       if (waiter) {
         const w = waiter;
@@ -126,7 +125,12 @@ export function createPrompter(io: PromptIO): Prompter {
   };
   const say = (line: string) => void io.output.write(`${line}\n`);
   const ask = (question: string) => {
-    io.output.write(question);
+    open();
+    // On a terminal readline owns the prompt, so its line refresh (Backspace, cursor keys) redraws the question too.
+    if (terminal && rl) {
+      rl.setPrompt(question);
+      rl.prompt();
+    } else io.output.write(question);
     return nextLine();
   };
 
