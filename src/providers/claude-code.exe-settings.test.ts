@@ -6,7 +6,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { ClaudeCodeProvider } from "./claude-code";
+import { ClaudeCodeProvider, InterruptedError } from "./claude-code";
 import type { EmbeddedAssets } from "../install-kind";
 
 const SETTINGS_NAME = "src/providers/claude-code.settings.json";
@@ -85,5 +85,36 @@ describe("the executable's engine settings", () => {
     expect(seen[0].settings).toEndWith("claude-code.settings.json");
     expect(seen[0].settings).toBe(join(import.meta.dir, "claude-code.settings.json"));
     expect(existsSync(seen[0].settings)).toBe(true);
+  });
+});
+
+describe("Ctrl-C on Windows", () => {
+  // A process stopped by Ctrl-C on Windows has no signal: it ends with STATUS_CONTROL_C_EXIT.
+  const STATUS_CONTROL_C_EXIT = 0xc000013a;
+  const subscription = (platform: string, run: Record<string, unknown>) =>
+    new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription", binary: "claude", install: exe, embedded, platform, spawn: (() => run) as never });
+
+  test("a claude that ended with the Ctrl-C status stops the review, as SIGINT does elsewhere", () => {
+    for (const status of [STATUS_CONTROL_C_EXIT, STATUS_CONTROL_C_EXIT - 2 ** 32]) {
+      expect(() => subscription("win32", { status, signal: null, stdout: "", stderr: "" }).run(request)).toThrow(InterruptedError);
+    }
+    expect(() => subscription("linux", { status: null, signal: "SIGINT", stdout: "", stderr: "" }).run(request)).toThrow(InterruptedError);
+  });
+
+  test("the same number on another OS is an ordinary failure, not an interruption", () => {
+    const error = (() => {
+      try {
+        subscription("linux", { status: STATUS_CONTROL_C_EXIT, signal: null, stdout: "", stderr: "" }).run(request);
+      } catch (e) {
+        return e;
+      }
+    })();
+    expect(error).toBeInstanceOf(Error);
+    expect(error).not.toBeInstanceOf(InterruptedError);
+  });
+
+  test("in the GitHub mode a stopped call stays an ordinary failure: only the local review treats Ctrl-C as 'stop'", () => {
+    const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: "claude", install: exe, embedded, platform: "win32", spawn: (() => ({ status: STATUS_CONTROL_C_EXIT, signal: null, stdout: "", stderr: "" })) as never });
+    expect(() => provider.run(request)).toThrow(/claude did not run/);
   });
 });

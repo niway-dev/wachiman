@@ -136,6 +136,19 @@ export function buildChildEnv(
   return child;
 }
 
+/** How Windows reports a process that Ctrl-C stopped: STATUS_CONTROL_C_EXIT, unsigned or as a signed 32-bit number. */
+const WINDOWS_CONTROL_C_STATUS = [0xc000013a, 0xc000013a - 2 ** 32];
+
+/**
+ * What stopped the process, when it was the developer: a signal on POSIX, which `spawnSync` reports
+ * as `signal`; on Windows there are no signals, and the same Ctrl-C shows up as the exit status.
+ */
+export function interruptionOf(run: { status: number | null; signal: NodeJS.Signals | null }, platform: string = process.platform) {
+  if (run.signal === "SIGINT" || run.signal === "SIGTERM") return run.signal;
+  if (platform === "win32" && run.status !== null && WINDOWS_CONTROL_C_STATUS.includes(run.status)) return "Ctrl-C";
+  return undefined;
+}
+
 /** Subscription mode: the developer stopped `claude` (Ctrl-C reaches the whole process group). */
 export class InterruptedError extends Error {}
 
@@ -253,6 +266,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
   private readonly install: InstallKind;
   private readonly embedded: EmbeddedAssets | undefined;
   private readonly spawn: typeof spawnSync;
+  private readonly platform: string;
 
   constructor(
     private readonly opts: {
@@ -278,6 +292,8 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       embedded?: EmbeddedAssets;
       /** For tests: replaces `spawnSync` for the calls to `claude`. */
       spawn?: typeof spawnSync;
+      /** For tests: the OS whose process-exit conventions apply. Default: this process's. */
+      platform?: string;
     },
   ) {
     this.binary = opts.binary ?? BINARY;
@@ -285,6 +301,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     this.install = opts.install ?? detectInstall("unknown");
     this.embedded = opts.embedded;
     this.spawn = opts.spawn ?? spawnSync;
+    this.platform = opts.platform ?? process.platform;
   }
 
   /** In a compiled executable the settings exist only as embedded bytes. */
@@ -420,8 +437,9 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       };
     }
     // Only locally: a Ctrl-C there means "stop the review", not "this batch failed, try the next".
-    if (this.subscription && (run.signal === "SIGINT" || run.signal === "SIGTERM")) {
-      throw new InterruptedError(`claude was stopped by ${run.signal}`);
+    if (this.subscription) {
+      const stopped = interruptionOf(run, this.platform);
+      if (stopped) throw new InterruptedError(`claude was stopped by ${stopped}`);
     }
     if (run.error || !run.stdout) {
       throw new Error(`claude did not run (status ${run.status}): ${run.error ?? run.stderr}`);
