@@ -1,12 +1,12 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import { repositoryKey } from "../history/store";
 import { fakeToolchain, type Tools } from "../../test/support/fake-toolchain";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
+import { snapshotTree as snapshot } from "../../test/support/tree-snapshot";
 import { type AccountDeps, parseProjectArgs, parseSetupArgs, projectShow, runProject, runSetup } from "./commands";
 import { readConfig, type WachimanConfigV1 } from "./config";
 
@@ -22,18 +22,6 @@ afterAll(() => {
 });
 
 const NOW = "2026-11-09T12:00:00.000Z";
-
-/** Every file under `dir` (the .git directory included) with a digest of its bytes and its mode. */
-function snapshot(dir: string, prefix = ""): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const name of readdirSync(dir).sort()) {
-    const path = join(dir, name);
-    const stat = statSync(path);
-    if (stat.isDirectory()) Object.assign(out, snapshot(path, `${prefix}${name}/`));
-    else out[`${prefix}${name}`] = `${stat.mode}:${createHash("sha256").update(readFileSync(path)).digest("hex")}`;
-  }
-  return out;
-}
 
 interface World {
   home: string;
