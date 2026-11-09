@@ -55,11 +55,15 @@ export function redactReport(report: DoctorReport, where: { home: string; userHo
     if (!map.has(path)) map.set(path, map.size + 1);
     return `<${kind}-path-${map.get(path)}>`;
   };
-  const clean = (text: string) =>
-    text.replace(URL, "<remote>").replace(PATH, (whole) => {
-      const trailing = whole.match(/[.:]+$/)?.[0] ?? "";
-      return holder(trailing ? whole.slice(0, -trailing.length) : whole) + trailing;
-    });
+  const shorten = (whole: string) => {
+    const trailing = whole.match(/[.:]+$/)?.[0] ?? "";
+    return holder(trailing ? whole.slice(0, -trailing.length) : whole) + trailing;
+  };
+  // A known root is matched as a literal prefix, so a space inside it (`/Users/Jane Doe`) does not end the path.
+  const known = [...new Set(roots)]
+    .sort((a, b) => b.length - a.length)
+    .map((root) => new RegExp(`(?<![\\w.:/\\\\-])${root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![^\\s/\\\\,;()"'\`])[^\\s,;()"'\`]*`, "g"));
+  const clean = (text: string) => known.reduce((t, re) => t.replace(re, shorten), text.replace(URL, "<remote>")).replace(PATH, shorten);
   return {
     ...report,
     checks: report.checks.map((r) => ({

@@ -7,8 +7,8 @@ import { repositoryKey } from "../history/store";
 import { fakeToolchain, signedIn, type RecordedCall, type Tools } from "../../test/support/fake-toolchain";
 import { emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { buildDoctorReport, parseDoctorArgs, runDoctor, type DoctorDeps } from "./run";
-import { renderJson, renderText } from "./render";
-import { tierOf, type DoctorRow } from "./checks";
+import { redactReport, renderJson, renderText } from "./render";
+import { tierOf, type DoctorReport, type DoctorRow } from "./checks";
 
 const scratch: string[] = [];
 const temp = (prefix: string) => {
@@ -324,6 +324,20 @@ describe("--redact-paths", () => {
     expect(row(redacted, "profile").detail?.directory).toBe(placeholder);
     expect(row(redacted, "auth").evidence).not.toContain(dir);
     expect(JSON.stringify(plain).split(dir).length).toBeGreaterThan(2);
+  });
+});
+
+describe("--redact-paths with a space in the home", () => {
+  test("a known root is replaced whole, so the rest of the path is not left behind", () => {
+    const userHome = "/Users/Jane Doe";
+    const home = `${userHome}/.wachiman`;
+    const row = { id: "wachiman", level: "required", status: "ok", evidence: `config ${home}/config.json and ${userHome}/proj, plain /opt/x`, detail: { path: `${home}/config.json` } };
+    const report = { format: "wachiman.doctor/1", version: "1", install: "source", platform: "x", tier: 0, checks: [row], failedRequired: 0, exitCode: 0 } as unknown as DoctorReport;
+    const out = JSON.stringify(redactReport(report, { home, userHome }));
+    expect(out).not.toContain("Doe");
+    expect(out).not.toContain("config.json");
+    expect(out).toContain("<home-path-1> and <home-path-2>");
+    expect(out).toContain("<external-path-1>");
   });
 });
 
