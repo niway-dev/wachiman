@@ -366,7 +366,9 @@ export function snapshotHead(repoDir: string, head: string, git: GitRunner = spa
   // Beside the snapshot, not inside it: a file of the same name in the head would collide.
   const tar = `${dir}.tar`;
   try {
-    run(git, repoDir, ["archive", "--format=tar", `--output=${tar}`, head]);
+    // core.autocrlf=true (the Git for Windows default) would write CRLF into the archive; the snapshot
+    // must hold the committed bytes, so the conversion is switched off for this one command.
+    run(git, repoDir, ["-c", "core.autocrlf=false", "archive", "--format=tar", `--output=${tar}`, head]);
     const untar = spawnSync(tarCommand(), ["-xf", tar], { cwd: dir, encoding: "utf8", timeout: TIMEOUT_MS });
     if (untar.status !== 0) throw new Error(`tar -xf failed: ${untar.stderr || untar.error}`);
     rmSync(tar, { force: true });
