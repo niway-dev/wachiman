@@ -208,7 +208,7 @@ All names are in `src/engine.ts` unless a file is given.
    `⚪🏛️ Info · adr` finding for every reviewed file under a `docs/adr/` directory, deduplicated with
    the model's findings the same way.
 
-   **Verification (opt-in, `AGENT_REVIEW_VERIFY=1`, `verify` input, `local --verify`).** When on,
+   **Verification (on by default; off with `AGENT_REVIEW_VERIFY=0`, `verify: false` or `local --no-verify`).** When on,
    `verifyFindings` makes one more call after dedupe ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)).
    `selectCandidates` takes every finding above `info`; `buildVerifyPrompt` (`src/verify.ts`)
    gives each one 15 head lines on each side of its cited line, plus the hunks of the cited files

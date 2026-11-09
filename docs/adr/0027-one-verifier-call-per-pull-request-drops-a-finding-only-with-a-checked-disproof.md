@@ -7,6 +7,7 @@
   request" from the draft ADR 0014 (#80) and nothing else of it. Consistent with
   [ADR 0009](0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md): the
   verifier reads findings and code, not summaries.
+  **Amendment 2026-11-09:** The owner turned the verifier on by default and made Haiku 5.5 high the default reviewer before the Martian arm 2 gate ran; the gate is now a check on this default, not a condition for it. Off with `verify: false`, `AGENT_REVIEW_VERIFY=0` or `local --no-verify`.
 - **Spec:** [A verifier call that refutes findings before they are posted](../specs/2026-11-08-findings-verifier-design.md)
 - **Issue:** #137
 - **Numbering:** 0027 because open pull requests hold 0014, 0015, 0017, 0018 and 0024 to 0026.

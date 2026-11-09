@@ -12,6 +12,7 @@
   decision of 2026-11-08: "we keep a verifier, even if it raises the price a little; not seeing
   false positives makes the review manageable", and "I want it inside the process, because it will
   run in a GitHub Action".
+  **Amendment 2026-11-09:** The owner turned the verifier on by default and made Haiku 5.5 high the default reviewer before the Martian arm 2 gate ran; the gate is now a check on this default, not a condition for it. Off with `verify: false`, `AGENT_REVIEW_VERIFY=0` or `local --no-verify`.
 - **Issue:** [#137](https://github.com/niway-dev/wachiman/issues/137).
 - **Creates:** [ADR 0027](../adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)
   (one verifier call per pull request; a finding is dropped only with a disproof the engine can

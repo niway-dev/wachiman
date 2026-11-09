@@ -153,7 +153,7 @@ and spends again.
 ## Things that add to the total
 
 - **Retries.** Described above: a second call, with its own cap, for files the first call missed.
-- **The verifier, when turned on** (`verify`, [ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)).
+- **The verifier, on by default** (`verify`; set `false` to skip it, [ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)).
   One more call per review that has findings above `info`, on `verifier_model` (Opus 5.5 by
   default). Its reserve, `verify_budget_usd` ($1, at most half of `budget_usd`), comes out of the
   review's own budget before the batches run, so a large pull request may get one batch less. Its
