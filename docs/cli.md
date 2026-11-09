@@ -244,6 +244,9 @@ wachiman skills uninstall [--dir <path>]…
 exists: `~/.claude`, each `~/.claude-*` directory and `$CLAUDE_CONFIG_DIR`. `--dir <path>` adds a
 skills directory of your own and may repeat. It makes no model call and no request.
 
+`--json` belongs to `install`: it prints `wachiman.skills/1` on stdout, one entry per copy, with
+action `installed`, `preserved` or `failed`. `uninstall --json` is a usage error (exit 2).
+
 Each copy gets a `.wachiman-skill.json` marker (`wachiman.skill-install/1`: the version, the time
 and the SHA-256 of every installed file). The marker is how Wachiman tells its copies from yours:
 
@@ -258,8 +261,8 @@ and the SHA-256 of every installed file). The marker is how Wachiman tells its c
 
 `uninstall` removes only the files that the marker lists and whose content still matches. An edited
 file, a file you added and anything that is not a marked copy stay, with a warning; empty folders it
-leaves behind are removed. `--json` prints `wachiman.skills/1` (one entry per copy: `installed`,
-`removed`, `preserved` or `failed`) on stdout; warnings always go to stderr.
+leaves behind are removed. Each removed copy is printed as `removed <path>` on stdout; warnings
+always go to stderr.
 
 Exit codes: 0 done (copies left in place are warnings, not failures), 1 a copy could not be written
 or removed, 2 usage error or a refused target.
