@@ -110,7 +110,7 @@ export function repositoryKey(repoDir: string, git: GitRunner = spawnGit): Histo
   return { key: `${name}-${sha256(commonDir).slice(0, 8)}`, name, keyedBy: "path", path };
 }
 
-const KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const assertKey = (key: string) => {
   if (!KEY_PATTERN.test(key)) throw new Error(`"${key}" is not a history key.`);
 };
