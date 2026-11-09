@@ -49,7 +49,7 @@ export const USAGE = `Usage:
   ${setupUsage}
                                                      Bind this repository to an account profile that
                                                      already exists; written in the Wachiman home, never
-                                                     in the repository. Without --profile it needs a TTY
+                                                     in the repository. --profile is required for now
                                                      (the guided wizard comes later)
   ${doctorUsage}
                                                      Explain what a local run would use and what would
