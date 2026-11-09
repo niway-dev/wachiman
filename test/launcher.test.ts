@@ -120,14 +120,30 @@ describe("probeBun", () => {
     expect(typeof calls[0].options.timeout).toBe("number");
   });
 
-  test("a stub that exits 1, a missing executable, a timeout and garbage output are all unusable", () => {
+  test("a placeholder that exits 1, a missing executable and garbage output are all unusable", () => {
     const unusable = { ok: false, reason: "unusable" };
     const probe = (answer: Sync) => probeBun("/b/bun", { env, spawnSync: fakeProbe({}, answer).spawnSync });
     expect(probe({ status: 1, stdout: "" })).toEqual(unusable);
     expect(probe({ status: null, error: Object.assign(new Error("spawnSync ENOEXEC"), { code: "ENOEXEC" }) })).toEqual(unusable);
-    expect(probe({ status: null, error: Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }) })).toEqual(unusable);
     expect(probe({ status: 0, stdout: "not a version\n" })).toEqual(unusable);
     expect(probe({ status: 0, stdout: "" })).toEqual(unusable);
+  });
+
+  test("a timeout is its own reason, whether reported as ETIMEDOUT or by the kill signal", () => {
+    const probe = (answer: Record<string, unknown>) => probeBun("/b/bun", { env, spawnSync: (() => answer) as never });
+    expect(probe({ status: null, error: Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }) })).toEqual({ ok: false, reason: "timeout" });
+    expect(probe({ status: null, signal: "SIGTERM" })).toEqual({ ok: false, reason: "timeout" });
+  });
+
+  test("the default timeout allows a slow first start (15 seconds)", () => {
+    const { calls, spawnSync } = fakeProbe({});
+    probeBun("/b/bun", { env, spawnSync });
+    expect(calls[0].options.timeout).toBe(15000);
+  });
+
+  test("a placeholder that cannot run (ENOEXEC) is unusable", () => {
+    const spawnSync = (() => ({ error: { code: "ENOEXEC" } })) as never;
+    expect(probeBun("/b/bun", { env, spawnSync })).toEqual({ ok: false, reason: "unusable" });
   });
 
   test("a throwing spawnSync is unusable, not a crash", () => {
@@ -219,7 +235,7 @@ describe("findBun", () => {
 
   test("nothing usable: binary is null and an old Bun is reported with its version and path", () => {
     const stub = fakeProbe({ "/usr/bin/bun": { status: 0, stdout: "1.2.23\n" } }, { status: 1 });
-    expect(findBun({ ...base, spawnSync: stub.spawnSync, bundled: () => "/m/bun.exe" })).toEqual({ binary: null, old: { version: "1.2.23", path: "/usr/bin/bun" } });
+    expect(findBun({ ...base, spawnSync: stub.spawnSync, bundled: () => "/m/bun.exe" })).toEqual({ binary: null, old: { version: "1.2.23", path: "/usr/bin/bun" }, failed: "/m/bun.exe" });
     const none = fakeProbe({}, { status: 1 });
     expect(findBun({ ...base, exists: () => false, spawnSync: none.spawnSync, bundled: () => null })).toEqual({ binary: null, old: null });
     expect(none.calls).toHaveLength(0);
@@ -262,6 +278,16 @@ describe("missingBunLines", () => {
     expect(win).toContain("npm install -g bun");
     expect(win).toContain('powershell -c "irm bun.sh/install.ps1|iex"');
     expect(win).toContain("open a new terminal");
+  });
+
+  test("not found keeps its original text; a candidate that did not run gets a neutral line with its path", () => {
+    expect(missingBunLines({ old: null }, "linux")[1]).toContain("and no Bun is on PATH. Install one:");
+    const failed = missingBunLines({ old: null, failed: "/m/bun/bin/bun.exe" }, "linux");
+    expect(failed[0]).toBe(BUN_INSTALL_LINE);
+    expect(failed[1]).toContain("A Bun was found (/m/bun/bin/bun.exe) but did not run");
+    expect(failed[1]).toContain("placeholder that cannot run");
+    expect(failed[1]).toContain("try again");
+    expect(failed[1]).not.toContain("no Bun is on PATH");
   });
 
   test("found but too old: names the version and the path, and differs from not found", () => {
@@ -347,6 +373,14 @@ describe("launch", () => {
     expect(r.errors[0]).toContain("found Bun 1.2.23");
     expect(r.errors.join("\n")).toContain("npm install -g bun");
     expect(r.errors).not.toContain(BUN_INSTALL_LINE);
+  });
+
+  test("a candidate that timed out is reported as found but not run, never as 'no Bun is on PATH'", async () => {
+    const r = await run({ status: 0, signal: null }, { bundled: () => "/m/bun.exe", probeDefault: { status: null, error: Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }) } });
+    expect(r.code).toBe(2);
+    expect(r.errors[0]).toBe(BUN_INSTALL_LINE);
+    expect(r.errors[1]).toContain("A Bun was found (/m/bun.exe) but did not run");
+    expect(r.errors.join("\n")).not.toContain("no Bun is on PATH");
   });
 
   test("nothing usable: it never spawns the engine, exits 2 and prints the Bun line and the install commands", async () => {

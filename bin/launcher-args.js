@@ -27,7 +27,7 @@ export function launcherArgs(pkgDir, argv) {
  * `<package>/bin/bun.exe`, on every OS. Resolved from this file's own location through Node's
  * module lookup, never from the working directory, so a `node_modules/bun` inside the reviewed
  * repository is never reached. Null when the package is not installed. The file may still be the
- * stub the package ships when its postinstall did not run (`--ignore-scripts`): see `probeBun`.
+ * placeholder the package ships when its postinstall did not run (`--ignore-scripts`): see `probeBun`.
  */
 export function bundledBunPath(resolve = createRequire(import.meta.url).resolve) {
   try {
@@ -51,17 +51,18 @@ export function versionAtLeast(a, b = MIN_BUN) {
 
 /**
  * Runs `<binary> --version` and judges the answer. A file that exists is not enough: with
- * `--ignore-scripts` the `bun` package leaves a stub in `bin/bun.exe` that exits 1 (or is not an
- * executable at all). Returns `{ ok: true, version }`, `{ ok: false, reason: "old", version }`
- * or `{ ok: false, reason: "unusable" }`. No shell, a short timeout, the caller's environment.
+ * `--ignore-scripts` the `bun` package leaves a placeholder in `bin/bun.exe` that cannot run. Returns `{ ok: true, version }`, `{ ok: false, reason: "old", version }`
+ * `{ ok: false, reason: "timeout" }` or `{ ok: false, reason: "unusable" }`. No shell, a timeout generous
+ * enough for the first start of a freshly installed binary, the caller's environment.
  */
-export function probeBun(binary, { env, cwd, spawnSync = nodeSpawnSync, timeout = 5000 }) {
+export function probeBun(binary, { env, cwd, spawnSync = nodeSpawnSync, timeout = 15000 }) {
   let result;
   try {
     result = spawnSync(binary, ["--version"], { shell: false, timeout, env, cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
   } catch {
     return { ok: false, reason: "unusable" };
   }
+  if (result?.error?.code === "ETIMEDOUT" || (result?.signal && !result.error?.code)) return { ok: false, reason: "timeout" };
   if (!result || result.error || result.status !== 0) return { ok: false, reason: "unusable" };
   const version = parseBunVersion(String(result.stdout ?? "").split("\n")[0]);
   if (version === null) return { ok: false, reason: "unusable" };
@@ -93,18 +94,22 @@ export function resolveBun(platform, env, exists = existsSync) {
 
 /**
  * The Bun to run: the bundled one when it works, else a Bun on PATH when it works, else the
- * reason there is none. Returns `{ binary, version }`, or `{ binary: null, old }` where `old` is
- * the `{ version, path }` of the first Bun that runs but is older than 1.3 (null when none).
+ * reason there is none. Returns `{ binary, version }`, or `{ binary: null, old, failed }` where `old`
+ * is the `{ version, path }` of the first Bun that runs but is older than 1.3 (null when none) and
+ * `failed` is the path of the first candidate that did not run at all (a placeholder, an error or
+ * a timeout), undefined when there was none.
  */
 export function findBun({ platform, env, cwd, exists = existsSync, spawnSync = nodeSpawnSync, bundled = bundledBunPath }) {
   let old = null;
+  let failed;
   const candidates = [bundled(), resolveBun(platform, env, exists)].filter((path) => path !== null && path !== undefined);
   for (const binary of [...new Set(candidates)]) {
     const probe = probeBun(binary, { env, cwd, spawnSync });
     if (probe.ok) return { binary, version: probe.version };
     if (probe.reason === "old" && old === null) old = { version: probe.version, path: binary };
+    else if (probe.reason !== "old" && failed === undefined) failed = binary;
   }
-  return { binary: null, old };
+  return { binary: null, old, failed };
 }
 
 /** Pure. The stderr lines for "no usable Bun": which case it is, then the commands. */
@@ -114,7 +119,11 @@ export function missingBunLines(found, platform) {
     : BUN_INSTALL_LINE;
   const lines = [
     first,
-    found.old ? "Upgrade it, or install a newer one:" : "The Bun that npm installs with wachiman did not run (an install with --ignore-scripts leaves a stub) and no Bun is on PATH. Install one:",
+    found.old
+      ? "Upgrade it, or install a newer one:"
+      : found.failed
+        ? `A Bun was found (${found.failed}) but did not run (an install with --ignore-scripts leaves a placeholder that cannot run; a first start can also be slow, try again). Install or repair one:`
+        : "The Bun that npm installs with wachiman did not run (an install with --ignore-scripts leaves a stub) and no Bun is on PATH. Install one:",
     "  npm install -g bun",
   ];
   if (platform === "win32") lines.push('  powershell -c "irm bun.sh/install.ps1|iex"   (then open a new terminal)');
@@ -134,9 +143,9 @@ export function missingBunLines(found, platform) {
  */
 export function launch({ pkgDir, argv, platform = process.platform, env = process.env, spawn = nodeSpawn, stderr = (line) => console.error(line), exists = existsSync, spawnSync = nodeSpawnSync, bundled = bundledBunPath }) {
   return new Promise((resolve) => {
-    const { binary, old } = findBun({ platform, env, cwd: pkgDir, exists, spawnSync, bundled });
+    const { binary, old, failed } = findBun({ platform, env, cwd: pkgDir, exists, spawnSync, bundled });
     if (binary === null) {
-      for (const line of missingBunLines({ old }, platform)) stderr(line);
+      for (const line of missingBunLines({ old, failed }, platform)) stderr(line);
       resolve(2);
       return;
     }
