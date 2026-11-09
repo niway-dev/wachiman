@@ -496,9 +496,9 @@ export function assignThreads<T extends { path: string }>(threads: T[], batches:
  * wins. Two findings on one line with different topics (a bug and a rule violation on one
  * statement) are two defects and both stay.
  */
-export function dedupeFindings(findings: Finding[]): Finding[] {
+export function dedupeFindings<T extends Finding>(findings: T[]): T[] {
   const rank = (f: Finding) => SEVERITIES.indexOf(f.severity);
-  const kept = new Map<string, Finding>();
+  const kept = new Map<string, T>();
   for (const f of findings) {
     const key = `${f.path}:${f.line}:${f.topic}`;
     const old = kept.get(key);
