@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -17,6 +17,9 @@ import {
   splitPatches,
   tarCommand,
 } from "./local-git";
+
+// These tests start many git and tar processes; a Windows runner needs 4-6 s for some of them, past Bun's 5 s default.
+setDefaultTimeout(30_000);
 
 afterAll(removeTempRepos);
 
