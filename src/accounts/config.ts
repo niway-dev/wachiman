@@ -223,7 +223,8 @@ function release(lock: string, token: string) {
  * Read-modify-write under `config.json.lock`: the lock is created exclusively, the new file is
  * written to a private temp file, flushed, and renamed over `config.json`. A killed writer leaves
  * the old file or the new one, never half of either. `mutate` is pure and may throw a UsageError
- * to abort; the result must be a well-formed config with no dangling reference.
+ * to abort; the result must be well-formed and must not add a dangling reference. A dangling
+ * reference already in the file is tolerated, so the commands can repair it.
  */
 export function updateConfig(opts: ConfigWriteOptions, mutate: (current: WachimanConfigV1) => WachimanConfigV1): WachimanConfigV1 {
   const { home } = opts;
