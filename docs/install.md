@@ -33,6 +33,19 @@ You need:
 
 ## Three steps
 
+Steps 1 and 3 can be done by `wachiman init`, which writes the caller file with your operator and
+the release tag you pin; step 2 stays yours, because the key is only ever saved in GitHub:
+
+```sh
+wachiman init --mode github --operator <your-github-login> --version v1.5.0
+```
+
+On a terminal, `wachiman init` asks for whatever the flags leave out: the review mode, your
+operator login, the release tag and the workflow file path. It previews the file before it
+writes it. `--dry-run` prints the file and writes nothing; `--force` replaces an existing file
+and keeps a `.bak` copy. It never commits, pushes or opens the pull request. Copying the file by
+hand, as below, works the same.
+
 1. **Add the caller file.** Copy
    [`templates/wachiman-review-caller.yml`](../templates/wachiman-review-caller.yml) to
    `.github/workflows/wachiman-review.yml`. Its `uses:` line pins `v1.5.0`. The file is short:

@@ -104,6 +104,12 @@ export function setupProfile(p: {
   env: Record<string, string | undefined>;
   print?: (line: string) => void;
   spawn?: SpawnFn;
+  /**
+   * Whether the profile is entered in the configuration (default: yes). The `setup` wizard creates
+   * the directory and signs in first and registers the profile together with the binding, once the
+   * person confirms; until then the directory is an unregistered managed profile.
+   */
+  register?: boolean;
 }): string[] {
   const name = checkProfileName(p.name ?? DEFAULT_ISOLATED_NAME);
   const dir = profileDir(name, p.home);
@@ -128,7 +134,7 @@ export function setupProfile(p: {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   if (homeCreated) chmodSync(p.home, 0o700);
   chmodSync(dir, 0o700);
-  updateConfig({ home: p.home }, (c) => claimManagedProfile(c, name, dir));
+  if (p.register !== false) updateConfig({ home: p.home }, (c) => claimManagedProfile(c, name, dir));
   const flag = name === DEFAULT_ISOLATED_NAME ? "isolated" : `isolated:${name}`;
   say(`Setting up the isolated profile ${dir}.`);
   say("Claude Code starts next: run /login and sign in with the account the review should use, then /exit.");
