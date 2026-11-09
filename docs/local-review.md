@@ -55,7 +55,7 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 - [Bun](https://bun.sh) 1.3 or later.
 - Claude Code (`claude` on your `PATH`), signed in. The local mode was exercised with Claude Code
   2.1.311 (see section 7).
-- The engine: the npm package `wachiman` (Node 18 or later runs its launcher) or a clone of this
+- The engine: the npm package `wachiman` (Node 20 or later runs its launcher) or a clone of this
   repository. Neither needs a `bun install`: there are no dependencies.
 
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
