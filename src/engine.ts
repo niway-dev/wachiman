@@ -2318,7 +2318,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   // After dedupe, so a finding two batches repeated is verified once; before the anchors.
   let verification: ResultVerification | undefined;
   if (options.verify && parts.length > 0) {
-    const verified = verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0));
+    const verified = verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0), rejection?.text);
     spent += verified.record.costUsd;
     usage = addUsage(usage, verified.usage);
     merged.findings = verified.findings;
@@ -2408,6 +2408,7 @@ function verifyFindings(
   findings: Finding[],
   files: ReviewFile[],
   budgetUsd: number,
+  refused?: string,
 ): { findings: Finding[]; record: ResultVerification; usage: TokenUsage } {
   const verifier = deps.verifier ?? deps.provider;
   const base = { model: options.verify.model, effort: "high", label: verifier.modelLabel() };
@@ -2419,6 +2420,8 @@ function verifyFindings(
     deps.warn(`The verifier did not run to the end (${detail}); the findings are posted unverified.`);
     return { findings, usage, record: { ...base, status: "failed" as const, costUsd, detail, entries: [], dropped: 0 } };
   };
+  // The same account refused a batch; the verifier would most likely be refused too.
+  if (refused) return failed(`the provider rejected an earlier call: ${refused}`, 0);
   if (budgetUsd < MIN_BATCH_USD) return failed("no budget left", 0);
   const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, candidates, files });
   const dir = mkdtempSync(join(tmpdir(), "agent-verify-"));

@@ -214,6 +214,23 @@ describe("the verifier through the review core", () => {
     expect(result.findings.map((f) => [f.line, f.topic, f.severity, f.title])).toEqual([[2, "question", "fix", "b is wrong"]]);
   });
 
+  test("after the provider refused a batch, the verifier is not called and the record says why", () => {
+    const twoFiles = branchInput();
+    twoFiles.files.push({ filename: "src/b.ts", additions: 2, deletions: 0, patch: "@@ -0,0 +1,2 @@\n+export const d = 4;\n+export const e = 5;" });
+    const credit = "API Error: 400 Your credit balance is too low to access the Anthropic API.";
+    const provider = new FakeProvider([
+      batch([finding({})]),
+      () => ({ isError: true, terminalReason: "error", turns: 1, errorText: credit, providerError: "billing" }),
+    ]);
+    const verifier = new FakeProvider([]);
+    const { deps: d } = deps(provider, verifier);
+    const result = reviewChange(twoFiles, options({ batchLines: 1 }), d);
+    expect(verifier.requests).toHaveLength(0);
+    expect(result.verification).toMatchObject({ status: "failed", costUsd: 0 });
+    expect(result.verification?.detail).toContain("credit balance");
+    expect(result.findings).toHaveLength(1);
+  });
+
   test("off by default: no reserve, no call, no verification block", () => {
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
