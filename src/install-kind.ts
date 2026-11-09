@@ -7,8 +7,8 @@
  * - `exe`: a Bun-compiled executable (the Windows `wachiman.exe`, planned: ADR 0028, slice 5),
  *   whose assets are embedded and read through `Bun.embeddedFiles`.
  *
- * Only the `exe` branch of `readAsset` is missing. It throws rather than guess, and slice 5 fills
- * it in; nothing else here changes when it does.
+ * Nothing calls `readAsset` yet. It is the tested seam for slice 5 (the Windows executable), where
+ * commands start reading assets through it; its `exe` branch throws until then.
  */
 import { readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
