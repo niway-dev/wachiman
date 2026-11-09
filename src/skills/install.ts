@@ -4,9 +4,11 @@
  * only what it installed (command contract section 5.9).
  */
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { wachimanHome } from "../accounts/config";
+import { UsageError } from "../config";
 
 export const SKILL_NAMES = ["wachiman-review", "wachiman-audit"] as const;
 export const MARKER_FILE = ".wachiman-skill.json";
@@ -70,11 +72,45 @@ function targetDirs(opts: SkillsOptions, env: Record<string, string | undefined>
   return [...new Set(dirs)];
 }
 
+const isUnder = (path: string, parent: string) => {
+  const rel = relative(parent, path);
+  return rel === "" || (rel !== ".." && !rel.startsWith("../") && !rel.startsWith("..\\") && !isAbsolute(rel));
+};
+
+/** `path` with its deepest existing ancestor resolved through symlinks; the rest is appended as written. */
+function resolveThroughExisting(path: string): string {
+  const missing: string[] = [];
+  let current = resolve(path);
+  for (;;) {
+    try {
+      return join(realpathSync.native(current), ...missing.reverse());
+    } catch {
+      const parent = dirname(current);
+      if (parent === current) return resolve(path);
+      missing.push(current.slice(parent.length + 1));
+      current = parent;
+    }
+  }
+}
+
+/** Throws before anything is written when a target is the Wachiman home or below it, as written or through a symlink. */
+function refuseWachimanHome(targets: string[], home: string) {
+  const protectedPaths = [...new Set([resolve(home), resolveThroughExisting(home)])];
+  for (const target of targets) {
+    const seen = [resolve(target), resolveThroughExisting(target)];
+    if (seen.some((path) => protectedPaths.some((p) => isUnder(path, p)))) {
+      throw new UsageError(`refusing ${target}: it is under the Wachiman home ${resolve(home)}, which holds isolated review profiles that must stay empty.`);
+    }
+  }
+}
+
 export function installSkills(opts: SkillsOptions, env: Record<string, string | undefined>, deps: SkillsDeps = {}): SkillInstallReport {
   const userHome = deps.userHome ?? homedir();
   const source = deps.sourceDir ?? skillsSourceDir();
   const entries: SkillInstallReport["entries"] = [];
-  for (const target of targetDirs(opts, env, userHome)) {
+  const targets = targetDirs(opts, env, userHome);
+  refuseWachimanHome(targets, wachimanHome(env));
+  for (const target of targets) {
     for (const name of SKILL_NAMES) {
       const dest = join(target, name);
       const files = listFiles(join(source, name));
