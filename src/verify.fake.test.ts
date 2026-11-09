@@ -231,6 +231,14 @@ describe("the verifier through the review core", () => {
     expect(result.findings).toHaveLength(1);
   });
 
+  test("without its own adapter the record names the reviewer's model and effort, the ones that ran", () => {
+    const provider = new FakeProvider([batch([finding({})]), () => ({ structuredOutput: { verdicts: [{ id: "c1", verdict: "confirmed", reason: "yes", checked: [] }] } })]);
+    const { deps: d } = deps(provider);
+    const opts = options();
+    const result = reviewChange(branchInput(), opts, d);
+    expect(result.verification).toMatchObject({ status: "verified", model: opts.model, effort: opts.effort });
+  });
+
   test("off by default: no reserve, no call, no verification block", () => {
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);

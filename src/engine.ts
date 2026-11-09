@@ -2411,7 +2411,9 @@ function verifyFindings(
   refused?: string,
 ): { findings: Finding[]; record: ResultVerification; usage: TokenUsage } {
   const verifier = deps.verifier ?? deps.provider;
-  const base = { model: options.verify.model, effort: "high", label: verifier.modelLabel() };
+  // Without its own adapter the call runs on the reviewer's, whose model and effort are fixed at construction.
+  const ran = deps.verifier ? { model: options.verify.model, effort: "high" } : { model: options.model, effort: options.effort };
+  const base = { ...ran, label: verifier.modelLabel() };
   const candidates = selectCandidates(findings);
   if (candidates.length === 0) {
     return { findings, usage: NO_USAGE, record: { ...base, status: "nothing", costUsd: 0, entries: [], dropped: 0 } };
@@ -2430,7 +2432,7 @@ function verifyFindings(
       () =>
         runProvider(
           { ...deps, provider: verifier },
-          { ...options, model: options.verify.model },
+          { ...options, model: ran.model },
           ctx.headDir,
           { operation: "verify", label: "verifier", ...ctx.costTags },
           prompt,
