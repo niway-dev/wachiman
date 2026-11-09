@@ -58,29 +58,39 @@ import {
 } from "./contracts";
 import { describeCall } from "./call-message";
 import {
+  annotateUnverified,
   applyVerdicts,
   buildVerifyPrompt,
+  coverageOf,
   selectCandidates,
+  tierWord,
   VERIFY_SCHEMA,
   verificationSegment,
-  type ResultVerification,
+  sectionOf,
+  type Snapshots,
+  type VerifiedFinding,
   type VerifierVerdict,
 } from "./verify";
+import { validate as validateSchema } from "./json-schema";
 import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 
 export type { Profile, ResultFinding, ReviewChange, ReviewInput, ReviewResult, Stop } from "./formats";
-export { REVIEW_INPUT_FORMAT, REVIEW_RESULT_FORMAT } from "./formats";
+export { REVIEW_INPUT_FORMAT, REVIEW_RESULT_V1, REVIEW_RESULT_V2 } from "./formats";
+export { tierWord };
 import {
   REVIEW_INPUT_FORMAT,
-  REVIEW_RESULT_FORMAT,
+  REVIEW_RESULT_V2,
   assertReviewInputFormat,
+  type Origin,
   type Profile,
   type ResultFinding,
+  type ResultVerificationV2,
   type ReviewInput,
   type ReviewResult,
   type Stop,
+  type VerifierStop,
 } from "./formats";
 
 /** One changed file, as GitHub's files list has it; every connector fills this shape (spec Q8). */
@@ -202,11 +212,17 @@ export const DEFAULT_EXCLUDE = [
 const MARKER_SOURCE = "<!-- (?:agent-review|claude-review) sha=([A-Za-z0-9]+) -->";
 const short = (sha: string) => sha.slice(0, 7);
 /**
- * `🟠📝 **Fix · docs: stale cell (confidence high)**`: both emojis, then the severity, topic and
- * title in words, then the model's confidence when it gave one.
+ * `Important · 🟠📝 **Fix · docs: stale cell (confidence high)**`: the tier word, both emojis, then
+ * the severity, topic and title in words, then the model's confidence when it gave one. The tier
+ * stays outside the bold: the precision report reads the bold part.
  */
-export const label = (f: Finding) =>
-  `${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} **${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${f.confidence ? ` (confidence ${f.confidence})` : ""}**`;
+export const label = (f: Finding & { origin?: Origin }, status?: string) =>
+  `${tierWord(f)} · ${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} **${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${detail(f, status)}**`;
+/** ` (confidence high, supported)`: the confidence the model gave and, for a local report, what the verifier found. */
+export const detail = (f: Finding, status?: string) => {
+  const parts = [f.confidence ? `confidence ${f.confidence}` : "", status ?? ""].filter(Boolean);
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
+};
 const at = (f: { path: string; line: number }) =>
   neutralise(f.line > 0 ? `${f.path}:${f.line}` : f.path);
 
@@ -480,9 +496,9 @@ export function assignThreads<T extends { path: string }>(threads: T[], batches:
  * wins. Two findings on one line with different topics (a bug and a rule violation on one
  * statement) are two defects and both stay.
  */
-export function dedupeFindings(findings: Finding[]): Finding[] {
+export function dedupeFindings<T extends Finding>(findings: T[]): T[] {
   const rank = (f: Finding) => SEVERITIES.indexOf(f.severity);
-  const kept = new Map<string, Finding>();
+  const kept = new Map<string, T>();
   for (const f of findings) {
     const key = `${f.path}:${f.line}:${f.topic}`;
     const old = kept.get(key);
@@ -501,9 +517,9 @@ export function dedupeFindings(findings: Finding[]): Finding[] {
  * below "fix", and any "medium" or "high" confidence finding are returned as they are. Pure; the
  * count is for the caller to log.
  */
-export function enforceConfidenceRule(findings: Finding[]): { findings: Finding[]; rewritten: number } {
+export function enforceConfidenceRule<T extends Finding>(findings: T[]): { findings: T[]; rewritten: number } {
   let rewritten = 0;
-  const out = findings.map((f): Finding => {
+  const out = findings.map((f): T => {
     const demanding = f.severity === "blocker" || f.severity === "fix";
     if (f.confidence !== "low" || !demanding || f.topic === "question") return f;
     rewritten++;
@@ -776,6 +792,28 @@ export function fitList(items: string[], room: number): string {
   return kept.length > 0 ? `${kept.join(", ")}, ${more}` : more;
 }
 
+/** The note that ends a finding section cut to fit the body. */
+const sectionNote = (left: number) => `… and ${left} more (see the JSON result / logs)`;
+
+/**
+ * A body section (`heading`, then one paragraph per item) that costs at most `room` characters,
+ * each paragraph counting the "\n\n" before it. When the items do not all fit, as many as fit
+ * are kept, then one `sectionNote`; the heading and the note stay even when no item fits.
+ */
+function boundSection(heading: string, items: string[], room: number): string {
+  const cost = (part: string) => part.length + 2;
+  const kept: string[] = [];
+  let used = cost(heading);
+  for (const [i, item] of items.entries()) {
+    const left = items.length - (i + 1);
+    if (used + cost(item) + (left > 0 ? cost(`- ${sectionNote(left)}`) : 0) > room) break;
+    kept.push(item);
+    used += cost(item);
+  }
+  const left = items.length - kept.length;
+  return [heading, ...kept, ...(left > 0 ? [`- ${sectionNote(left)}`] : [])].join("\n\n");
+}
+
 /**
  * "3 finding(s): 1 blocker(s), 2 to fix", with only the groups that have findings: a reader
  * scanning the body sees at once whether anything blocks. "info" is in the total, not a group.
@@ -892,7 +930,7 @@ export const prSoFar = (prior: { spent: number; runs: number }, thisRun: number)
 
 export function buildReview(input: {
   /** A finding's `anchor`, when given (a `ReviewResult`'s), decides inline or body; else its file's patch does. */
-  output: Omit<ReviewOutput, "findings"> & { findings: (Finding & { anchor?: "diff" | "outside" })[] };
+  output: Omit<ReviewOutput, "findings"> & { findings: (Finding & Partial<Pick<ResultFinding, "anchor" | "origin" | "verification">>)[] };
   files: ReviewFile[];
   headSha: string;
   since: string | null;
@@ -926,17 +964,29 @@ export function buildReview(input: {
   /** Review-instruction files this pull request edits, and the base commit they were read from. */
   instructionChanges?: { files: string[]; baseSha: string };
   /** The verifier's record (ADR 0027): its outcome goes in the footer's cost line. */
-  verification?: ResultVerification;
+  verification?: ResultVerificationV2;
 }): Review {
   const { output, files, headSha, since, scoped, costUsd, batches = [], modelLabel, effort } = input;
   const mention = input.mention ?? DEFAULT_MENTION;
   const commentable = new Map(files.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
   const comments: InlineComment[] = [];
   const outsideDiff: Finding[] = [];
+  const preExisting: Finding[] = [];
+  const inconclusive: Finding[] = [];
   // Information asks for no reply, so it never opens a thread, even on a diff line.
   const forInfo = output.findings.filter((f) => f.severity === "info");
   for (const f of output.findings) {
     if (f.severity === "info") continue;
+    // Not this change's doing, or a fix the verifier could not settle: listed in the body, no thread.
+    const section = sectionOf(f);
+    if (section === "pre-existing") {
+      preExisting.push(f);
+      continue;
+    }
+    if (section === "inconclusive") {
+      inconclusive.push(f);
+      continue;
+    }
     const onLine = f.anchor ? f.anchor === "diff" : commentable.get(f.path)?.has(f.line);
     if (onLine) {
       comments.push({
@@ -983,9 +1033,21 @@ export function buildReview(input: {
   );
   if (input.verification?.status === "failed") {
     parts.push("⚠️ **Not verified**: the second reader that checks each finding did not finish, so these findings are posted as the review wrote them.");
+  } else if (input.verification?.status === "partial") {
+    parts.push("⚠️ **Partly verified**: the second reader that checks each finding stopped early, so some findings are posted as the review wrote them.");
   }
-  const listed = (f: Finding) => `- ${label(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
+  const listed = (f: Finding & { origin?: Origin }) => `- ${label(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
   if (outsideDiff.length > 0) parts.push("### Outside the diff", ...outsideDiff.map(listed));
+  // Each of these two is one part, so a long body can cut it by its index.
+  const cuttable: { at: number; heading: string; items: string[] }[] = [];
+  const addCuttable = (heading: string, found: Finding[]) => {
+    if (found.length === 0) return;
+    const items = found.map(listed);
+    cuttable.push({ at: parts.length, heading, items });
+    parts.push([heading, ...items].join("\n\n"));
+  };
+  addCuttable("### Inconclusive", inconclusive);
+  addCuttable("### Pre-existing", preExisting);
   if (forInfo.length > 0) parts.push("### For your information", ...forInfo.map(listed));
   parts.push("### Summary", neutralise(output.summary));
   // After the findings and the summary, before the coverage table: it is cut first when the body is long.
@@ -1021,15 +1083,36 @@ export function buildReview(input: {
   // The next `review` request starts from this commit, so only a review that covered everything
   // may move it; a scoped or partial one would leave the rest never reviewed.
   if (!scoped && notReviewed.length === 0) parts.push(marker(headSha));
-  let body = parts.join("\n\n");
+  // A part another text replaces (or `null`, none) while the body is being fitted.
+  const replaced = new Map<number, string | null>();
+  const render = () =>
+    parts.flatMap((part, i) => (replaced.has(i) ? (replaced.get(i) === null ? [] : [replaced.get(i) as string]) : [part])).join("\n\n");
+  let body = render();
   if (body.length > MAX_BODY_CHARS && contractsBlock) {
     // The contracts go before anything else is cut: shrink them to what fits, or drop them.
-    const without = [...parts.slice(0, contractsAt), ...parts.slice(contractsAt + 1)].join("\n\n");
-    const shrunk = renderContracts(output.contracts ?? [], MAX_BODY_CHARS - without.length - 2);
-    body = shrunk ? [...parts.slice(0, contractsAt), shrunk, ...parts.slice(contractsAt + 1)].join("\n\n") : without;
+    replaced.set(contractsAt, null);
+    const without = render();
+    replaced.set(contractsAt, renderContracts(output.contracts ?? [], MAX_BODY_CHARS - without.length - 2) || null);
+    body = render();
+  }
+  if (body.length > MAX_BODY_CHARS && cuttable.length > 0) {
+    // Then the Pre-existing and Inconclusive lists: each keeps the entries that fit in its share of
+    // what the rest of the body leaves, then says how many it left out. The list of unreviewed
+    // files is counted at its shortest form here: it is cut below, before any finding is.
+    const full = (c: (typeof cuttable)[number]) => parts[c.at].length + 2;
+    const listSlack = notReviewed.length > 0 ? fullList.length - fitList(list, 0).length : 0;
+    let remaining = MAX_BODY_CHARS - (body.length - listSlack - cuttable.reduce((sum, c) => sum + full(c), 0));
+    const bySize = [...cuttable].sort((a, b) => full(a) - full(b));
+    for (const [i, c] of bySize.entries()) {
+      const share = Math.floor(remaining / (bySize.length - i));
+      const text = full(c) <= share ? parts[c.at] : boundSection(c.heading, c.items, share);
+      replaced.set(c.at, text);
+      remaining -= text.length + 2;
+    }
+    body = render();
   }
   if (body.length <= MAX_BODY_CHARS || notReviewed.length === 0) return { body, comments };
-  // Past the contracts, only the list of unreviewed files can be long enough to matter: cut it to what fits.
+  // Last, the list of unreviewed files is cut to whatever room the rest of the body left.
   const room = MAX_BODY_CHARS - (body.length - fullList.length);
   return { body: body.replace(fullList, () => fitList(list, Math.max(room, 0))), comments };
 }
@@ -1464,6 +1547,12 @@ export interface CoreDeps {
   provider: ProviderAdapter;
   /** The verifier's adapter, on its own model (ADR 0027). Default: `provider`. */
   verifier?: ProviderAdapter;
+  /**
+   * A read-only copy of the base commit, made only when the verifier has candidates and is about
+   * to run, and released when it ends (ADR 0030 decision 4). Absent: the verifier cannot cite the
+   * base, so no finding earns the origin `pre-existing`. A throw is a warning, not a failure.
+   */
+  baseSnapshot?: () => { dir: string; release(): void };
   log: (line: string) => void;
   warn: (line: string) => void;
   /**
@@ -2315,15 +2404,17 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
       ...ruled.findings,
     ]);
   }
-  // After dedupe, so a finding two batches repeated is verified once; before the anchors.
-  let verification: ResultVerification | undefined;
+  // After dedupe, so a finding two batches repeated is verified once; before the anchors. With the
+  // verifier off, every finding is still annotated: unverified, origin unknown.
+  let verification: ResultVerificationV2 | undefined;
+  let checked: VerifiedFinding[];
   if (options.verify && parts.length > 0) {
     const verified = verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0), rejection?.text);
     spent += verified.record.costUsd;
     usage = addUsage(usage, verified.usage);
-    merged.findings = verified.findings;
+    checked = verified.findings;
     verification = verified.record;
-  }
+  } else checked = annotateUnverified(merged.findings);
   for (const path of notRun)
     merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
   for (const path of rejectedFiles)
@@ -2331,7 +2422,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
 
   // The anchor is decided here, so a sink needs no patch to know which findings sit on a diff line.
   const commentable = new Map(kept.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
-  const findings: ResultFinding[] = merged.findings.map((f) => ({
+  const findings: ResultFinding[] = checked.map((f) => ({
     ...f,
     anchor: commentable.get(f.path)?.has(f.line) ? "diff" : "outside",
   }));
@@ -2359,7 +2450,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   const expected = kept.map((f) => f.filename);
   const reviewedSet = new Set(merged.files_reviewed);
   return {
-    format: REVIEW_RESULT_FORMAT,
+    format: REVIEW_RESULT_V2,
     change,
     engine: { version: deps.engineVersion ?? "unknown" },
     provider: { label: deps.provider.modelLabel(), model: options.model, effort: options.effort, profile: options.profile },
@@ -2395,11 +2486,33 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   };
 }
 
+/** Why a verifier call ended without answering everything, from how it ended; undefined for a clean finish. */
+function stopOf(result: { terminalReason: string; isError: boolean; providerError?: ProviderErrorClass; errorText?: string }): VerifierStop | undefined {
+  const { terminalReason: reason } = result;
+  if (reason === "budget" || reason === "turns" || reason === "timeout") return { kind: reason, detail: `the verifier call ended on its ${reason} limit` };
+  if (!result.isError) return undefined;
+  const quota = result.providerError === "billing" || result.providerError === "rate_limit";
+  return { kind: quota ? "quota" : "error", detail: oneLine(result.errorText ?? reason, 200) };
+}
+
 /**
- * The verifier call (ADR 0027): every finding above `info`, with the head code it cites and the
- * hunks of the cited files, goes to one call that tries to refute each. It fails open: when the
- * call fails or answers nothing usable, every finding is posted as it was and the record says so.
- * Findings it left at low confidence go through the confidence rule again.
+ * A complete, schema-valid envelope (ADR 0030 §5): the whole answer is checked against
+ * `VERIFY_SCHEMA`, so one violation anywhere voids it. Nothing is salvaged from anything else.
+ */
+function verdictsOf(structured: unknown): VerifierVerdict[] | undefined {
+  if (validateSchema(VERIFY_SCHEMA, structured).length > 0) return undefined;
+  return (structured as { verdicts: VerifierVerdict[] }).verdicts;
+}
+
+/**
+ * The verifier call (ADR 0027, ADR 0030): every finding above `info`, with the head code it cites
+ * and the hunks of the cited files, goes to one call that tries to refute each. The call reads the
+ * immutable head, and a base snapshot made once, only now, when the connector can make one. It
+ * fails open: when the call fails or answers nothing usable, every finding is posted as it was,
+ * each marked `inconclusive`, and the record says so. A call that stopped early (budget, turns,
+ * time, quota) keeps the verdicts it did return; the candidates it never answered are
+ * `inconclusive` with the stop as their reason. Findings it left at low confidence go through the
+ * confidence rule again.
  */
 function verifyFindings(
   deps: CoreDeps,
@@ -2409,25 +2522,47 @@ function verifyFindings(
   files: ReviewFile[],
   budgetUsd: number,
   refused?: string,
-): { findings: Finding[]; record: ResultVerification; usage: TokenUsage } {
+): { findings: VerifiedFinding[]; record: ResultVerificationV2; usage: TokenUsage } {
   const verifier = deps.verifier ?? deps.provider;
   // Without its own adapter the call runs on the reviewer's, whose model and effort are fixed at construction.
   const ran = deps.verifier ? { model: options.verify.model, effort: "high" } : { model: options.model, effort: options.effort };
   const base = { ...ran, label: verifier.modelLabel() };
   const candidates = selectCandidates(findings);
   if (candidates.length === 0) {
-    return { findings, usage: NO_USAGE, record: { ...base, status: "nothing", costUsd: 0, entries: [], dropped: 0 } };
+    return {
+      findings: annotateUnverified(findings),
+      usage: NO_USAGE,
+      record: { ...base, status: "nothing", costUsd: 0, entries: [], dropped: 0, inconclusive: 0 },
+    };
   }
-  const failed = (detail: string, costUsd: number, usage: TokenUsage = NO_USAGE) => {
-    deps.warn(`The verifier did not run to the end (${detail}); the findings are posted unverified.`);
-    return { findings, usage, record: { ...base, status: "failed" as const, costUsd, detail, entries: [], dropped: 0 } };
+  const headOnly: Snapshots = { headDir: ctx.headDir, head: deps.lineCounter ?? repoLineCounter(ctx.headDir) };
+  // Every candidate unanswered: the call did not happen, or said nothing usable. The findings stay as they were.
+  const unanswered = (status: "failed" | "skipped", stop: VerifierStop, costUsd: number, usage: TokenUsage = NO_USAGE) => {
+    deps.warn(`The verifier did not run to the end (${stop.detail}); the findings are posted unverified.`);
+    const applied = applyVerdicts(findings, candidates, [], headOnly, stop);
+    return {
+      findings: applied.findings,
+      usage,
+      record: { ...base, status, costUsd, stop, entries: applied.entries, dropped: 0, inconclusive: applied.entries.length },
+    };
   };
   // The same account refused a batch; the verifier would most likely be refused too.
-  if (refused) return failed(`the provider rejected an earlier call: ${refused}`, 0);
-  if (budgetUsd < MIN_BATCH_USD) return failed("no budget left", 0);
-  const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, candidates, files });
-  const dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
+  if (refused) return unanswered("failed", { kind: "error", detail: `the provider rejected an earlier call: ${refused}` }, 0);
+  if (budgetUsd < MIN_BATCH_USD) return unanswered("skipped", { kind: "budget", detail: "no budget left for the verifier" }, 0);
+  // Made now, once, and released whatever happens next; a snapshot that cannot be made costs only the base evidence.
+  let baseSnap: { dir: string; release(): void } | undefined;
+  if (deps.baseSnapshot) {
+    try {
+      baseSnap = deps.baseSnapshot();
+    } catch (error) {
+      deps.warn(`The base snapshot could not be made (${oneLine(String(error), 160)}); the verifier cannot cite the base, so no finding is marked pre-existing.`);
+    }
+  }
+  let dir: string | undefined;
   try {
+    const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files });
+    dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
+    const runDir = dir;
     const call = attempt(
       () =>
         runProvider(
@@ -2436,27 +2571,43 @@ function verifyFindings(
           ctx.headDir,
           { operation: "verify", label: "verifier", ...ctx.costTags },
           prompt,
-          dir,
+          runDir,
           budgetUsd,
           VERIFY_SCHEMA,
+          baseSnap ? [baseSnap.dir] : [],
         ),
       budgetUsd,
     );
-    if (!call.ok) return failed(call.error, call.costUsd);
+    if (!call.ok) return unanswered("failed", { kind: "error", detail: call.error }, call.costUsd);
     const result = call.value;
     const usage = result.usage ?? NO_USAGE;
-    const answer = result.isError ? undefined : (result.structuredOutput as { verdicts?: VerifierVerdict[] } | undefined);
-    if (!answer || !Array.isArray(answer.verdicts)) return failed(result.terminalReason || "no answer", result.costUsd, usage);
-    const applied = applyVerdicts(findings, candidates, answer.verdicts, deps.lineCounter ?? repoLineCounter(ctx.headDir), ctx.headDir);
+    const stop = stopOf(result);
+    // A complete, well-formed answer is used even when the call also reports a stop; anything else is not salvaged.
+    const verdicts = verdictsOf(result.structuredOutput);
+    if (!verdicts) return unanswered("failed", stop ?? { kind: "error", detail: result.terminalReason || "no answer" }, result.costUsd, usage);
+    const snapshots: Snapshots = baseSnap
+      ? { ...headOnly, baseDir: baseSnap.dir, base: repoLineCounter(baseSnap.dir) }
+      : headOnly;
+    const applied = applyVerdicts(findings, candidates, verdicts, snapshots, stop);
+    if (applied.answered === 0) {
+      return unanswered("failed", stop ?? { kind: "error", detail: "the verifier returned no usable verdict" }, result.costUsd, usage);
+    }
     const ruled = enforceConfidenceRule(applied.findings);
     // A finding the rule just turned into a question can share its line with another question.
     const dropped = applied.entries.filter((e) => e.outcome === "dropped").length;
+    const inconclusive = applied.entries.filter((e) => e.status === "inconclusive").length;
+    const status = coverageOf(candidates.length, applied.answered);
     deps.log(
-      `Verifier: ${candidates.length} finding(s) checked, ${dropped} dropped, ${applied.entries.filter((e) => e.outcome === "degraded").length} unconfirmed, ${applied.entries.filter((e) => e.outcome === "moved").length} moved one severity.`,
+      `Verifier: ${candidates.length} finding(s) checked, ${dropped} dropped, ${inconclusive} inconclusive, ${applied.entries.filter((e) => e.outcome === "moved").length} moved one severity, ${applied.entries.filter((e) => e.origin === "pre-existing").length} pre-existing${stop ? `; stopped on ${stop.kind}` : ""}.`,
     );
-    return { findings: dedupeFindings(ruled.findings), usage, record: { ...base, status: "verified", costUsd: result.costUsd, entries: applied.entries, dropped } };
+    return {
+      findings: dedupeFindings(ruled.findings),
+      usage,
+      record: { ...base, status, costUsd: result.costUsd, ...(stop ? { stop } : {}), entries: applied.entries, dropped, inconclusive },
+    };
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    baseSnap?.release();
+    if (dir) rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -3362,6 +3513,8 @@ function runProvider(
   dir: string,
   budgetUsd: number,
   schema?: object,
+  /** More directories the agent may read: the verifier's base snapshot. */
+  extraDirs: string[] = [],
 ) {
   const started = Date.now();
   let result: ReturnType<ProviderAdapter["run"]>;
@@ -3369,7 +3522,7 @@ function runProvider(
     result = deps.provider.run({
       prompt,
       cwd,
-      addDirs: [dir],
+      addDirs: [dir, ...extraDirs],
       allowedTools: ["read", "glob", "grep"],
       maxBudgetUsd: budgetUsd,
       maxTurns: limits.maxTurns,

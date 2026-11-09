@@ -2,7 +2,7 @@
  * `--format markdown`: the whole review as one Markdown file. Unlike the GitHub review body it has
  * no size limit, so it holds every finding, and it ends with the prompt for the developer's agent.
  */
-import { countLine, label, neutralise, renderContracts, type ReviewResult } from "../engine";
+import { countLine, neutralise, renderContracts, type ReviewResult } from "../engine";
 import { agentPrompt } from "./agent-prompt";
 import {
   coverageText,
@@ -11,8 +11,12 @@ import {
   instructionNote,
   location,
   notReviewed,
+  markdownLabel,
   profileText,
   providerLine,
+  SECTION_TITLES,
+  sections,
+  verificationNotes,
   sha7,
   sinceLastRunMarkdown,
   stopLine,
@@ -34,21 +38,28 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
   parts.push(`${sentenceCase(coverageText(result))}.`, `Profile: ${profileText(result, opts.profileNote)}`, countLine(result.findings));
   const note = instructionNote(result);
   if (note) parts.push(note);
-  if (result.findings.length > 0) {
+  const grouped = sections(result);
+  const finding = ({ f, index }: (typeof grouped.main)[number]) => {
+    parts.push(`### ${markdownLabel(f)}`, `\`${location(f)}\``);
+    const entry = opts.history?.byIndex.get(index);
+    if (entry) {
+      const where = entry.status === "new" ? "new" : `open since \`${sha7(entry.firstHead)}\`, ${entry.runs} runs`;
+      parts.push(`History: ${where}, id \`${entry.id}\`${entry.verdict ? `, verdict: ${entry.verdict}` : ""}`);
+    }
+    parts.push(neutralise(f.body));
+    for (const n of verificationNotes(f)) {
+      parts.push(`${n.name}: ${n.text}`);
+      if (n.cites) parts.push(`Checked: ${n.cites.map((c) => `\`${c}\``).join(", ")}`);
+    }
+  };
+  if (grouped.main.length > 0) {
     parts.push("## Findings");
-    result.findings.forEach((f, i) => {
-      parts.push(`### ${label(f)}`, `\`${location(f)}\``);
-      const entry = opts.history?.byIndex.get(i);
-      if (entry) {
-        const where = entry.status === "new" ? "new" : `open since \`${sha7(entry.firstHead)}\`, ${entry.runs} runs`;
-        parts.push(`History: ${where}, id \`${entry.id}\`${entry.verdict ? `, verdict: ${entry.verdict}` : ""}`);
-      }
-      parts.push(neutralise(f.body));
-      if (f.verification) {
-        const v = f.verification;
-        parts.push(`Verified: ${neutralise(v.checked)}${v.example ? ` — ${neutralise(v.example)}` : ""}`);
-      }
-    });
+    grouped.main.forEach(finding);
+  }
+  for (const section of ["inconclusive", "pre-existing"] as const) {
+    if (grouped[section].length === 0) continue;
+    parts.push(`## ${SECTION_TITLES[section].heading}`, SECTION_TITLES[section].note);
+    grouped[section].forEach(finding);
   }
   const missing = notReviewed(result);
   if (missing.length > 0) {
