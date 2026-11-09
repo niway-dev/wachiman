@@ -138,21 +138,22 @@ describe("bin/wachiman", () => {
       ...env,
     });
 
-  test("drops the API key and passes the Bun flags", () => {
+  test("passes the Bun flags and leaves the environment alone, the API key included", () => {
     const r = call(["history", "--repo-dir", "."]);
-    expect(r.out).toContain("KEY=unset");
+    // The command refuses a key itself, identically through every entry point.
+    expect(r.out).toContain("KEY=sk-x");
     expect(r.out).toContain("ARG=--no-env-file");
     expect(r.out).toContain(`ARG=--config=${root}/bunfig.toml`);
     expect(r.out).toContain(`ARG=${root}/src/cli.ts`);
   });
 
-  test("appends --profile only for local, when set and not given", () => {
+  test("never turns WACHIMAN_PROFILE into a --profile flag: the resolver reads it in-process", () => {
     const env = { WACHIMAN_PROFILE: "isolated:me" };
-    expect(call(["local"], env).out).toContain("ARG=--profile\nARG=isolated:me");
-    expect(call(["history"], env).out).not.toContain("--profile");
-    expect(call(["local", "--profile", "default"], env).out).not.toContain("isolated:me");
-    expect(call(["local", "--profile=default"], env).out).not.toContain("isolated:me");
-    expect(call(["local"]).out).not.toContain("--profile");
+    for (const args of [["local"], ["history"], ["local", "--profile", "default"]]) {
+      const out = call(args, env).out;
+      expect(out).not.toContain("isolated:me");
+      expect(out.split("\n").filter((l) => l.startsWith("ARG=")).slice(3)).toEqual(args.map((a) => `ARG=${a}`));
+    }
   });
 
   test("follows a symlink to find the engine", () => {
