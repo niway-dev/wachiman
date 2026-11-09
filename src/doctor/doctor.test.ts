@@ -242,6 +242,10 @@ describe("configuration, profile and project rows", () => {
     expect(row(clean, "isolation")).toMatchObject({ status: "ok", level: "required" });
     writeFileSync(join(dir, "CLAUDE.md"), "rules");
     const populated = m.report({ profile: "isolated:scratch" });
+    // The remediation appears once, in `fix`, not also inside the evidence (asserted before toMatchObject, which rewrites the received row).
+    const { evidence, fix } = row(populated, "isolation");
+    expect(evidence).not.toContain("use another profile name");
+    expect(fix).toContain("use another profile name");
     expect(row(populated, "isolation")).toMatchObject({ status: "fail", level: "required", evidence: expect.stringContaining("CLAUDE.md") });
     expect(populated.exitCode).toBe(1);
   });

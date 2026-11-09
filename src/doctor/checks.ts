@@ -13,7 +13,7 @@ import type { ConfigRead } from "../accounts/config";
 import type { Confirmation, Env, SpawnFn } from "../accounts/confirm";
 import { failureText, RUNG_LABEL, type ProfileRef, type ResolveFailure, type ResolvedProfile } from "../accounts/resolve";
 import type { HistoryRepository } from "../history/types";
-import { inspectIsolatedProfile, populatedProfileError } from "../profiles";
+import { inspectIsolatedProfile } from "../profiles";
 import { buildChildEnv } from "../providers/claude-code";
 
 export type CheckLevel = "required" | "optional";
@@ -428,7 +428,7 @@ export const CHECKS: DoctorCheck[] = [
           id: "isolation",
           level: "required",
           status: "fail",
-          evidence: populatedProfileError(profile.configDir, found).message,
+          evidence: `the isolated profile ${profile.configDir} holds more than a sign-in: ${found.join(", ")}`,
           fix: "remove those, or use another profile name",
           detail: { found: found.join(", ") },
         });
