@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Finding } from "./engine";
@@ -118,6 +118,22 @@ describe("the prompt", () => {
     writeFileSync(join(head, "a.ts"), "x\ny\n");
     expect(snippet(head, { path: "a.ts", line: 0 })).toStartWith("1  x");
     expect(snippet(head, { path: "nope.ts", line: 3 })).toBe("(the file is not in the head)");
+  });
+
+  test("the newline that ends a file is not shown as one more line", () => {
+    const head = mkdtempSync(join(tmpdir(), "verify-snippet-"));
+    writeFileSync(join(head, "a.ts"), "x\ny\n");
+    expect(snippet(head, { path: "a.ts", line: 2 })).toBe("1  x\n2  y");
+  });
+
+  test("a path that leaves the head is never read, through .. or a symlink", () => {
+    const outside = mkdtempSync(join(tmpdir(), "verify-outside-"));
+    writeFileSync(join(outside, "secret.txt"), "token\n");
+    const head = mkdtempSync(join(tmpdir(), "verify-snippet-"));
+    symlinkSync(join(outside, "secret.txt"), join(head, "link.txt"));
+    const relative = join("..", outside.split("/").pop() ?? "", "secret.txt");
+    for (const path of [relative, "link.txt", join(outside, "secret.txt")])
+      expect(snippet(head, { path, line: 1 })).toBe("(the file is not in the head)");
   });
 });
 

@@ -9,8 +9,7 @@
  * as doubt, and doubt lowers the finding's confidence instead of hiding it.
  */
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import type { LineCounter } from "./contracts";
+import { countLines, type LineCounter, repoFileResolver } from "./contracts";
 import type { Confidence, Finding, ReviewFile, Severity, Topic } from "./engine";
 
 export const VERDICTS = ["refuted", "confirmed", "unconfirmed"] as const;
@@ -112,9 +111,13 @@ export function selectCandidates(findings: Finding[]): Candidate[] {
   return findings.filter((f) => f.severity !== "info").map((finding, i) => ({ id: `c${i + 1}`, finding }));
 }
 
+/** The head file's lines, or null when the path leaves the head (`..`, absolute, a symlink out) or is not a file: the path is the model's and the head is untrusted. */
 function headLines(headDir: string, path: string): string[] | null {
+  const real = repoFileResolver(headDir)(path);
+  if (real === null) return null;
   try {
-    return readFileSync(join(headDir, path), "utf8").split("\n");
+    const text = readFileSync(real, "utf8");
+    return text.split("\n").slice(0, countLines(text));
   } catch {
     return null;
   }
