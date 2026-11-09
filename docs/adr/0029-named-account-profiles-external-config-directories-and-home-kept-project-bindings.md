@@ -1,6 +1,7 @@
 # ADR 0029: Named account profiles, external configuration directories, and project bindings kept in the home directory
 
-- **Status:** proposed 2026-11-09. Not implemented. **Amends**
+- **Status:** accepted 2026-11-09; implemented by slice 0 of the CLI plan (branch
+  `feat/cli-accounts-doctor`), except the interactive `setup` wizard (slice 1). **Amends**
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
   open question 4's mechanism (the `default | isolated[:name]` flag grows into named profiles;
   decisions 4 and 5 of 0019 are unchanged). **Reuses** [ADR 0020](0020-an-opt-in-on-laptop-review-history-with-deterministic-finding-tracking.md)'s
