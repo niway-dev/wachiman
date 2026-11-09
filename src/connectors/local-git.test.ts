@@ -252,6 +252,16 @@ describe("snapshotHead", () => {
     expect(readFileSync(join(snapshot.dir, "src/a.ts"), "utf8")).toBe(A_HEAD);
   });
 
+  test("a text=auto attribute with core.eol=crlf does not put CRLF into the snapshot either", () => {
+    const r = branchRepo();
+    commit(r.dir, { ".gitattributes": "* text=auto\n" }, "text=auto");
+    git(r.dir, "config", "core.eol", "crlf");
+    const head = git(r.dir, "rev-parse", "HEAD").trim();
+    const snapshot = snapshotHead(r.dir, head);
+    snapshots.push(snapshot.dir);
+    expect(readFileSync(join(snapshot.dir, "src/a.ts"), "utf8")).toBe(A_HEAD);
+  });
+
   test("export-ignore makes the snapshot differ from ls-tree, and that is a warning", () => {
     const r = branchRepo();
     commit(r.dir, { ".gitattributes": "secret.txt export-ignore\n", "secret.txt": "kept out\n" }, "export-ignore");
