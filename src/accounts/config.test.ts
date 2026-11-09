@@ -65,6 +65,18 @@ describe("readConfig", () => {
     expect(readConfig(home, { read: () => "never", exists: () => false })).toEqual({ kind: "absent" });
   });
 
+  test("a real missing config.json on disk is absent", () => {
+    expect(readConfig(temp("wh-absent-"))).toEqual({ kind: "absent" });
+  });
+
+  test("a dangling config.json symlink is corrupt, naming the path, never absent", () => {
+    const real = temp("wh-dangling-");
+    symlinkSync(join(real, "nowhere.json"), join(real, "config.json"));
+    const read = readConfig(real);
+    expect(read.kind).toBe("corrupt");
+    if (read.kind === "corrupt") expect(read.path).toBe(join(real, "config.json"));
+  });
+
   test("a valid file is returned as it is, with its path", () => {
     const config = valid(home);
     const read = readOf(home, config);

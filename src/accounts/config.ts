@@ -70,9 +70,20 @@ export type ConfigRead =
 export interface ConfigIo {
   read: (path: string) => string;
   exists: (path: string) => boolean;
+  /** True only when the path itself is missing (ENOENT on lstat); a broken link or an unreadable path is not. */
+  isAbsent?: (path: string) => boolean;
 }
 
-const realIo: ConfigIo = { read: (p) => readFileSync(p, "utf8"), exists: (p) => existsSync(p) };
+const realIo: ConfigIo = { read: (p) => readFileSync(p, "utf8"), exists: (p) => existsSync(p),
+  isAbsent: (p) => {
+    try {
+      lstatSync(p);
+      return false;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "ENOENT";
+    }
+  },
+};
 
 /**
  * The directory that holds the config, the managed profiles and the history: `WACHIMAN_HOME` when
@@ -155,10 +166,16 @@ function danglingOf(home: string, config: WachimanConfigV1, exists: (path: strin
  */
 export function readConfig(home: string, io: ConfigIo = realIo, opts: { structural?: boolean } = {}): ConfigRead {
   const path = configPath(home);
-  if (!io.exists(path)) return { kind: "absent" };
+  if (io.isAbsent ? io.isAbsent(path) : !io.exists(path)) return { kind: "absent" };
+  let text: string;
+  try {
+    text = io.read(path);
+  } catch (error) {
+    return { kind: "corrupt", path, problem: `cannot be read (${error instanceof Error ? error.message : error})` };
+  }
   let parsed: unknown;
   try {
-    parsed = JSON.parse(io.read(path));
+    parsed = JSON.parse(text);
   } catch (error) {
     return { kind: "corrupt", path, problem: `not valid JSON (${error instanceof Error ? error.message : error})` };
   }
