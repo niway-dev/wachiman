@@ -2,7 +2,7 @@
  * What `npm publish` would upload, checked from `npm pack --dry-run --json` (no tarball is written,
  * no registry is contacted): the source tree is not the package, so the packed file list is.
  */
-import { describe, expect, test } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -47,7 +47,11 @@ describe("package.json", () => {
 });
 
 describe.skipIf(!npm)("npm pack --json", () => {
-  const files = packedFiles();
+  // Bun runs the body of a skipped describe, so `npm pack` must not run here, only in beforeAll.
+  let files: string[] = [];
+  beforeAll(() => {
+    files = packedFiles();
+  });
 
   test("ships the launcher, the engine, the skills, the templates, bunfig.toml, the licence and the manifest", () => {
     for (const path of ["package.json", "bin/wachiman.js", "bin/launcher-args.js", "src/cli.ts", "src/install-kind.ts", "src/providers/claude-code.settings.json", "bunfig.toml", "LICENSE", "README.md"]) {
