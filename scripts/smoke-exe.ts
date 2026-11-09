@@ -49,13 +49,14 @@ interface Scenario {
 function envFor(s: Scenario, extra: Record<string, string> = {}) {
   const git = Bun.which("git");
   const path = [s.fake.binDir, ...(git ? [dirname(git)] : []), ...(windows ? [join(process.env.SystemRoot ?? "C:\\Windows", "System32")] : ["/usr/bin", "/bin"])].join(delimiter);
-  const keep = ["SystemRoot", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "PATHEXT", "ComSpec", "APPDATA", "LOCALAPPDATA"];
+  // One spelling of each name: Windows treats `PATH`/`Path` and `SystemRoot`/`SYSTEMROOT` as the same
+  // variable, and `Start-Process` throws "Key in dictionary" when the environment holds both.
+  const keep = ["SystemRoot", "TEMP", "TMP", "TMPDIR", "PATHEXT", "ComSpec", "APPDATA", "LOCALAPPDATA"];
   const home = join(s.work, "home");
   mkdirSync(home, { recursive: true });
   return {
     ...Object.fromEntries(keep.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k] as string])),
     PATH: path,
-    Path: path,
     HOME: home,
     USERPROFILE: home,
     USER: "dev",

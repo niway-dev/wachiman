@@ -72,7 +72,6 @@ jobs:
         shell: bash
         run: |
           bun test ./test/launcher.test.ts ./src/install-kind.test.ts ./test/package.test.ts ./test/local-fake-provider.test.ts ./src/connectors/local-git.test.ts
-          bun test ./src/providers/claude-code.test.ts -t "child environment"
       # Row W4 of the Windows executable rows: the suites that need no real `claude` and no POSIX
       # shell script standing in for it. Left out on purpose: tests that write `#!/bin/sh` stubs,
       # make symlinks or chmod files (src/providers/claude-code.test.ts, src/local.test.ts,
