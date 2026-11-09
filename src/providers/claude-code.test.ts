@@ -339,7 +339,42 @@ describe("the child environment", () => {
     expect(buildChildEnv({ PATH: "/bin", CLAUDE_CONFIG_DIR: undefined })).toEqual({ PATH: "/bin" });
   });
 
-  test("the spawned child sees none of the poisoned variables", () => {
+  // Windows keeps the search path in `Path` and needs a few more names for a child to start at all.
+  const windows = {
+    Path: "C:\\Windows\\System32",
+    SystemRoot: "C:\\Windows",
+    USERPROFILE: "C:\\Users\\dev",
+    USERNAME: "dev",
+    TEMP: "C:\\Temp",
+    TMP: "C:\\Temp",
+    APPDATA: "C:\\Users\\dev\\AppData\\Roaming",
+    LOCALAPPDATA: "C:\\Users\\dev\\AppData\\Local",
+    PATHEXT: ".COM;.EXE",
+    GH_TOKEN: "ghs_secret",
+    ANTHROPIC_BASE_URL: "https://example.invalid",
+    HTTPS_PROXY: "http://proxy.invalid",
+  };
+
+  test("on Windows, names match without regard to case and the user-profile names are kept", () => {
+    const { GH_TOKEN, ANTHROPIC_BASE_URL, HTTPS_PROXY, ...kept } = windows;
+    expect(buildChildEnv(windows, { platform: "win32" })).toEqual(kept);
+  });
+
+  test("on Windows a parent claude_config_dir does not survive next to the profile's CLAUDE_CONFIG_DIR", () => {
+    const child = buildChildEnv({ Path: "C:\\Windows", claude_config_dir: "C:\\evil" }, { platform: "win32", auth: "subscription", configDir: "C:\\profile" });
+    const keys = Object.keys(child).filter((k) => /^claude_config_dir$/i.test(k));
+    expect(keys).toHaveLength(1);
+    expect(child[keys[0]]).toBe("C:\\profile");
+  });
+
+  test("on other systems the match stays exact, so a mixed-case name is dropped", () => {
+    expect(buildChildEnv({ Path: "/bin", PATH: "/usr/bin" }, { platform: "linux" })).toEqual({ PATH: "/usr/bin" });
+    expect(buildChildEnv({ Path: "/bin" }, { platform: "darwin" })).toEqual({});
+  });
+
+  // The stub is a POSIX shell script and Windows cannot start it; the Windows rules are covered by the
+  // buildChildEnv tests above and the real spawn by test/local-fake-provider.test.ts (a compiled claude.exe).
+  test.skipIf(process.platform === "win32")("the spawned child sees none of the poisoned variables", () => {
     const binary = stubBinary(`
 if [ "$1" = "--version" ]; then echo "2.1.304 (Claude Code)"; exit 0; fi
 cat >/dev/null

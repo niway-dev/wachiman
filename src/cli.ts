@@ -111,7 +111,7 @@ export function readVersion(dir = import.meta.dir) {
     const path = join(dir, "..", "package.json");
     if (!existsSync(path)) return "unknown";
     const pkg = JSON.parse(readFileSync(path, "utf8"));
-    return pkg.name === "agent-review" ? String(pkg.version) : "unknown";
+    return pkg.name === "wachiman" || pkg.name === "agent-review" ? String(pkg.version) : "unknown";
   } catch {
     return "unknown";
   }

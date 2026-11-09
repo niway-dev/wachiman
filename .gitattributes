@@ -1,0 +1,2 @@
+# The launcher and the shipped bin scripts must keep LF: a CRLF shebang makes the kernel look for "node\r".
+bin/* text eol=lf

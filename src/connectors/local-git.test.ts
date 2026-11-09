@@ -15,6 +15,7 @@ import {
   resolveRefs,
   snapshotHead,
   splitPatches,
+  tarCommand,
 } from "./local-git";
 
 afterAll(removeTempRepos);
@@ -205,6 +206,26 @@ describe("localInstructions", () => {
   });
 });
 
+describe("tarCommand", () => {
+  test("is plain tar on POSIX systems", () => {
+    expect(tarCommand("linux", {}, () => true)).toBe("tar");
+    expect(tarCommand("darwin", { SystemRoot: "C:\\Windows" }, () => true)).toBe("tar");
+  });
+
+  // GNU tar from Git for Windows reads `C:\x.tar` as a file on a host named `C`; the system's bsdtar does not.
+  test("on Windows it is the system's own tar.exe, found through SystemRoot in any case", () => {
+    const seen: string[] = [];
+    const exists = (path: string) => (seen.push(path), true);
+    expect(tarCommand("win32", { SYSTEMROOT: "D:\\Win" }, exists)).toBe(join("D:\\Win", "System32", "tar.exe"));
+    expect(seen).toEqual([join("D:\\Win", "System32", "tar.exe")]);
+  });
+
+  test("on Windows it falls back to tar on PATH when the system's is missing or SystemRoot is unset", () => {
+    expect(tarCommand("win32", { SystemRoot: "C:\\Windows" }, () => false)).toBe("tar");
+    expect(tarCommand("win32", {}, () => true)).toBe("tar");
+  });
+});
+
 describe("snapshotHead", () => {
   test("the snapshot holds the committed head, not the working tree, and git grep works in it", () => {
     const r = branchRepo();
@@ -221,6 +242,14 @@ describe("snapshotHead", () => {
     expect(existsSync(`${snapshot.dir}.tar`)).toBe(false);
     removeSnapshot(snapshot.dir);
     expect(existsSync(snapshot.dir)).toBe(false);
+  });
+
+  test("core.autocrlf=true (the Git for Windows default) does not put CRLF into the snapshot", () => {
+    const r = branchRepo();
+    git(r.dir, "config", "core.autocrlf", "true");
+    const snapshot = snapshotHead(r.dir, r.head);
+    snapshots.push(snapshot.dir);
+    expect(readFileSync(join(snapshot.dir, "src/a.ts"), "utf8")).toBe(A_HEAD);
   });
 
   test("export-ignore makes the snapshot differ from ls-tree, and that is a warning", () => {

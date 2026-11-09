@@ -20,7 +20,7 @@
   ],
   "packages": {
     ".": {
-      "package-name": "agent-review",
+      "package-name": "wachiman",
       "changelog-path": "CHANGELOG.md",
       "extra-files": [{ "type": "generic", "path": "src/init/options.ts" }]
     }

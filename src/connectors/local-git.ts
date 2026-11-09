@@ -9,7 +9,7 @@
  * head, and in a plain directory that fails (spec correction 1 of the plan).
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { UsageError } from "../config";
@@ -345,6 +345,18 @@ export function localInstructions(
 const names = (out: string) => out.split("\0").filter(Boolean);
 
 /**
+ * The `tar` that extracts the archive. On Windows that is the system's bsdtar: a GNU `tar` earlier
+ * on PATH (Git for Windows ships one) reads `C:\dir\x.tar` as a file on a remote host named `C`.
+ */
+export function tarCommand(platform: string = process.platform, env: Record<string, string | undefined> = process.env, exists: (path: string) => boolean = existsSync) {
+  if (platform !== "win32") return "tar";
+  const root = Object.entries(env).find(([name]) => name.toUpperCase() === "SYSTEMROOT")?.[1];
+  if (!root) return "tar";
+  const system = join(root, "System32", "tar.exe");
+  return exists(system) ? system : "tar";
+}
+
+/**
  * The committed `head` as a directory: `git archive` extracted with the system `tar`, then an
  * index of its own so `git grep` sees exactly the archived files. `missing` and `extra` compare the
  * snapshot with `git ls-tree` of the head (export-ignore and submodules make them differ).
@@ -354,8 +366,10 @@ export function snapshotHead(repoDir: string, head: string, git: GitRunner = spa
   // Beside the snapshot, not inside it: a file of the same name in the head would collide.
   const tar = `${dir}.tar`;
   try {
-    run(git, repoDir, ["archive", "--format=tar", `--output=${tar}`, head]);
-    const untar = spawnSync("tar", ["-xf", tar], { cwd: dir, encoding: "utf8", timeout: TIMEOUT_MS });
+    // core.autocrlf=true (the Git for Windows default) would write CRLF into the archive; the snapshot
+    // must hold the committed bytes, so the conversion is switched off for this one command.
+    run(git, repoDir, ["-c", "core.autocrlf=false", "archive", "--format=tar", `--output=${tar}`, head]);
+    const untar = spawnSync(tarCommand(), ["-xf", tar], { cwd: dir, encoding: "utf8", timeout: TIMEOUT_MS });
     if (untar.status !== 0) throw new Error(`tar -xf failed: ${untar.stderr || untar.error}`);
     rmSync(tar, { force: true });
     run(git, dir, ["init", "-q", "--template="]);

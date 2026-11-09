@@ -13,6 +13,7 @@ import type { ConfigRead } from "../accounts/config";
 import type { Confirmation, Env, SpawnFn } from "../accounts/confirm";
 import { failureText, RUNG_LABEL, type ProfileRef, type ResolveFailure, type ResolvedProfile } from "../accounts/resolve";
 import type { HistoryRepository } from "../history/types";
+import { detectInstall, type InstallKind } from "../install-kind";
 import { inspectIsolatedProfile } from "../profiles";
 import { buildChildEnv } from "../providers/claude-code";
 
@@ -31,14 +32,8 @@ export interface DoctorRow {
   detail?: Record<string, string | number | boolean | null>;
 }
 
-export type InstallKind = { kind: "source"; root: string } | { kind: "npm"; root: string } | { kind: "exe"; version: string };
-
-/** `dir` is this module's directory: inside a bundled executable it starts with `/$bunfs/`. */
-export function detectInstall(version: string, dir = import.meta.dir): InstallKind {
-  if (dir.startsWith("/$bunfs/") || dir.startsWith("B:\\~BUN")) return { kind: "exe", version };
-  const root = join(dir, "..", "..");
-  return { kind: dir.split(/[\\/]/).includes("node_modules") ? "npm" : "source", root };
-}
+/** Moved to `src/install-kind.ts`; re-exported so the doctor's public names stay as they were. */
+export { detectInstall, type InstallKind };
 
 export type Tier = "supported" | "built-and-smoke-tested" | "built-untested";
 
