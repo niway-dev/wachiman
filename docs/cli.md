@@ -66,6 +66,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `setup [--profile <name>]` | Binds this repository to an existing profile. See [`setup`](#setup-doctor-profile-and-project). |
 | `doctor` | Reports what a local run would use and what would fail. |
 | `profile …`, `project …` | Manage account profiles and the repository's binding. |
+| `skills install\|uninstall` | Copies the `wachiman-review` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
 ### Incremental reviews
@@ -230,6 +231,38 @@ With `ANTHROPIC_API_KEY` set, the `environment` row fails, because `local` would
 Exit codes: `doctor` 0 when every required check passed and 1 when one failed; `setup` 1 when the
 closing `doctor` summary failed (the binding is already written); `profile` and `project` 0 done
 (including a "no" answer), 2 usage error, 130 cancelled.
+
+### `skills`
+
+```
+wachiman skills install [--dir <path>]… [--json]
+wachiman skills uninstall [--dir <path>]…
+```
+
+`install` copies `skills/wachiman-review` and `skills/wachiman-audit` (copies, not symlinks) into
+`~/.agents/skills` and into the `skills` folder of every Claude Code configuration directory that
+exists: `~/.claude`, each `~/.claude-*` directory and `$CLAUDE_CONFIG_DIR`. `--dir <path>` adds a
+skills directory of your own and may repeat. It makes no model call and no request.
+
+Each copy gets a `.wachiman-skill.json` marker (`wachiman.skill-install/1`: the version, the time
+and the SHA-256 of every installed file). The marker is how Wachiman tells its copies from yours:
+
+- A copy whose marker is intact and whose files are unmodified is replaced by the new version.
+- A copy without a marker (your own skill of that name, a symlink such as the one
+  `scripts/install-local.sh` makes for contributors, or a plain file), and a marked copy with a file
+  you edited, are left exactly as they are, and each one is warned about on stderr. A symlink is
+  never followed.
+- Any target under the Wachiman home (`~/.wachiman`, or `WACHIMAN_HOME`), as written or through a
+  symlink, is refused with exit 2 before anything is written. That includes a `CLAUDE_CONFIG_DIR`
+  that points at a managed profile.
+
+`uninstall` removes only the files that the marker lists and whose content still matches. An edited
+file, a file you added and anything that is not a marked copy stay, with a warning; empty folders it
+leaves behind are removed. `--json` prints `wachiman.skills/1` (one entry per copy: `installed`,
+`removed`, `preserved` or `failed`) on stdout; warnings always go to stderr.
+
+Exit codes: 0 done (copies left in place are warnings, not failures), 1 a copy could not be written
+or removed, 2 usage error or a refused target.
 
 ### `history`
 
