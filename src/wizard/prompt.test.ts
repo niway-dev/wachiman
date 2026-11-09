@@ -110,3 +110,22 @@ describe("one session", () => {
     expect(await pending).toBeNull();
   });
 });
+
+describe("suspend", () => {
+  test("answers typed ahead survive giving the terminal away and taking it back", async () => {
+    const p = createPrompter(scripted(["first", "second", "third"]));
+    expect(await p.text("a", undefined)).toBe("first");
+    p.suspend();
+    expect(await p.text("b", undefined)).toBe("second");
+    p.suspend();
+    p.suspend();
+    expect(await p.text("c", undefined)).toBe("third");
+  });
+
+  test("a script that ran out is still cancellation after a suspend", async () => {
+    const p = createPrompter(scripted(["only"]));
+    expect(await p.text("a", undefined)).toBe("only");
+    p.suspend();
+    expect(await p.text("b", undefined)).toBeNull();
+  });
+});

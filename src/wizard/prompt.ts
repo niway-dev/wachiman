@@ -8,7 +8,7 @@
  * stream a line that is only Escape (U+001B) or Ctrl-C (U+0003) cancels as well, which is how a
  * script says it.
  */
-import { createInterface, emitKeypressEvents } from "node:readline";
+import { createInterface, emitKeypressEvents, type Interface } from "node:readline";
 
 export interface PromptIO {
   input: NodeJS.ReadableStream;
@@ -29,6 +29,8 @@ export interface Prompter {
   confirm(label: string, defaultYes: boolean): Promise<boolean | null>;
   /** Prints a line to the prompt output (a preview, a summary, an error). */
   say(line: string): void;
+  /** Gives the terminal back (raw mode off, input paused) so a child process can use it; the next question takes it again. Typed-ahead answers are kept. */
+  suspend(): void;
   close(): void;
 }
 
@@ -36,9 +38,9 @@ const CANCEL_LINES = new Set(["\u001b", "\u0003", "\u0004"]);
 
 export function createPrompter(io: PromptIO): Prompter {
   const terminal = (io.input as { isTTY?: boolean }).isTTY === true;
-  const rl = createInterface({ input: io.input, ...(terminal ? { output: io.output } : {}), terminal, crlfDelay: Infinity });
-  rl.setPrompt("");
   const queue: string[] = [];
+  let rl: Interface | undefined;
+  let onKey: ((text: string, key?: { name?: string }) => void) | undefined;
   let waiter: ((line: string | null) => void) | undefined;
   let ended = false;
   let cancelled = false;
@@ -49,34 +51,58 @@ export function createPrompter(io: PromptIO): Prompter {
     waiter = undefined;
     w?.(null);
   };
-  rl.on("line", (line) => {
-    if (waiter) {
-      const w = waiter;
-      waiter = undefined;
-      w(line);
-    } else queue.push(line);
-  });
-  rl.on("close", () => {
+  // The stream itself ending (a script that ran out, a closed pipe) is Ctrl-D whether or not a reader is attached.
+  io.input.once("end", () => {
     ended = true;
     if (waiter) cancel();
   });
-  rl.on("SIGINT", () => {
-    io.output.write("\n");
-    cancel();
-  });
-  if (terminal) {
-    emitKeypressEvents(io.input, rl);
-    io.input.on("keypress", (_text: string, key?: { name?: string }) => {
-      if (key?.name === "escape") {
-        io.output.write("\n");
-        cancel();
-      }
+
+  /** The terminal belongs to the prompts only while a question is open; a child that needs it calls `suspend` first. */
+  const open = () => {
+    if (rl) return;
+    const mine = createInterface({ input: io.input, ...(terminal ? { output: io.output } : {}), terminal, crlfDelay: Infinity });
+    rl = mine;
+    mine.setPrompt("");
+    mine.on("line", (line) => {
+      if (waiter) {
+        const w = waiter;
+        waiter = undefined;
+        w(line);
+      } else queue.push(line);
     });
-  }
+    mine.on("close", () => {
+      if (rl !== mine) return; // closed by `suspend`, not by the person
+      ended = true;
+      if (waiter) cancel();
+    });
+    mine.on("SIGINT", () => {
+      io.output.write("\n");
+      cancel();
+    });
+    if (terminal) {
+      emitKeypressEvents(io.input, mine);
+      onKey = (_text, key) => {
+        if (key?.name === "escape") {
+          io.output.write("\n");
+          cancel();
+        }
+      };
+      io.input.on("keypress", onKey);
+    }
+  };
+  const suspend = () => {
+    const mine = rl;
+    if (!mine) return;
+    rl = undefined;
+    if (onKey) io.input.off("keypress", onKey);
+    onKey = undefined;
+    mine.close();
+  };
 
   /** The next line the person submits, or null once they cancelled. */
   const nextLine = (): Promise<string | null> => {
     if (cancelled) return Promise.resolve(null);
+    open();
     const queued = queue.shift();
     if (queued !== undefined) {
       if (CANCEL_LINES.has(queued.trim())) {
@@ -106,7 +132,8 @@ export function createPrompter(io: PromptIO): Prompter {
 
   return {
     say,
-    close: () => rl.close(),
+    suspend,
+    close: suspend,
     async select(label, choices, defaultIndex) {
       say(label);
       choices.forEach((c, i) => say(`  ${i + 1}. ${c.label}${i === defaultIndex ? " (default)" : ""}`));
