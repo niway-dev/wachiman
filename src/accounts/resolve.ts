@@ -9,7 +9,7 @@
  */
 import { join } from "node:path";
 import { UsageError } from "../config";
-import type { ProfileEntry } from "./config";
+import type { ProfileEntry, ProjectBinding, WachimanConfigV1 } from "./config";
 
 /** A registered or managed profile's name; `default` is a built-in, never a name. */
 export const PROFILE_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
@@ -77,4 +77,71 @@ export function lookupProfileRef(value: string, lookup: ProfileLookup): { ok: tr
     ok: false,
     problem: `profile "${name}" is not registered and ${join(lookup.home, `claude-${name}`)} does not exist; run \`wachiman profile list\`, or \`wachiman --setup-profile ${name}\` to create it.`,
   };
+}
+
+export type Rung = "flag" | "binding" | "env" | "configDefault" | "builtIn";
+
+export interface ResolvedProfile {
+  profile: ProfileRef;
+  rung: Rung;
+  /** Lower rungs that had a value and were ignored, for the `profile:` line. */
+  overridden: { rung: Rung; value: string }[];
+}
+
+/** A rung whose value resolved to nothing: a usage error, exit 2. */
+export type ResolveFailure = { rung: Rung; value: string; problem: string };
+
+/**
+ * Precedence: `--profile` flag, then the repository's binding, then `WACHIMAN_PROFILE`, then the
+ * configured default, then the built-in `default`. The first rung with a value is the only one
+ * resolved; if it resolves to nothing the result is that failure, never a lower rung.
+ * `home` is the Wachiman home, where managed profiles live as `claude-<name>`.
+ */
+export function resolveProfile(input: {
+  flag?: string;
+  binding?: ProjectBinding;
+  env: { WACHIMAN_PROFILE?: string };
+  config: WachimanConfigV1 | undefined;
+  managedDirExists: (name: string) => boolean;
+  home: string;
+}): { ok: true; resolved: ResolvedProfile } | { ok: false; failure: ResolveFailure } {
+  const given: { rung: Rung; value: string }[] = [];
+  const add = (rung: Rung, value: string | undefined) => {
+    if (value !== undefined && value !== "") given.push({ rung, value });
+  };
+  add("flag", input.flag);
+  add("binding", input.binding?.profile);
+  add("env", input.env.WACHIMAN_PROFILE);
+  add("configDefault", input.config?.defaultProfile);
+  const [chosen, ...overridden] = given;
+  if (!chosen) return { ok: true, resolved: { profile: { kind: "default" }, rung: "builtIn", overridden: [] } };
+  const found = lookupProfileRef(chosen.value, {
+    profiles: input.config?.profiles ?? {},
+    home: input.home,
+    managedDirExists: input.managedDirExists,
+  });
+  if (!found.ok) return { ok: false, failure: { rung: chosen.rung, value: chosen.value, problem: found.problem } };
+  return { ok: true, resolved: { profile: found.profile, rung: chosen.rung, overridden } };
+}
+
+const RUNG_LABEL: Record<Rung, string> = {
+  flag: "--profile",
+  binding: "project binding",
+  env: "WACHIMAN_PROFILE",
+  configDefault: "config default",
+  builtIn: "built-in default",
+};
+
+/** The one stderr line printed before any call: which account, how it was found, what it overrode. */
+export function profileLine(resolved: ResolvedProfile) {
+  const { profile } = resolved;
+  const what =
+    profile.kind === "default"
+      ? "your shell's claude"
+      : profile.kind === "managed"
+        ? `managed, ${profile.configDir}`
+        : `external, ${profile.configDir}${profile.binary ? `, binary ${profile.binary}` : ""}`;
+  const name = profile.kind === "default" ? "default" : profile.name;
+  const parts = [`chosen by ${RUNG_LABEL[resolved.rung]}`, ...resolved.overridden.map((o) => `${RUNG_LABEL[o.rung]}=${o.value} ignored`)];
+  return `profile: ${name} (${what}; ${parts.join("; ")})`;
 }
