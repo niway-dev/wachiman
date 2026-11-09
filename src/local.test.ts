@@ -115,9 +115,9 @@ ${answer}
     bin,
     canary,
     read,
-    /** Review calls only, not the `--version` probe. */
     /** `claude auth status` probes, with the CLAUDE_CONFIG_DIR each ran under. */
     probes: () => (read("probes") ?? "").split("\n").filter(Boolean),
+    /** Review calls only, not the `--version` probe. */
     calls: () => (read("calls") ?? "").split("\n").filter((l) => l !== "" && l !== "--version"),
     env: () =>
       Object.fromEntries(
