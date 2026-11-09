@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { CommandIo } from "../accounts/commands";
 import { UsageError } from "../config";
-import type { GitRunner } from "../evidence";
+import { spawnGit, type GitRunner } from "../evidence";
 import { repositoryKey } from "../history/store";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
@@ -81,6 +81,9 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const cwd = deps.cwd ?? process.cwd();
   // Before anything is rendered or written: this must be a git repository.
   repositoryKey(options.repoDir, deps.git);
+  // `--path` is relative to the repository top level: GitHub only runs workflows under <top level>/.github/workflows.
+  const top = (deps.git ?? spawnGit)(["rev-parse", "--show-toplevel"], { cwd: options.repoDir, timeoutMs: 10_000 });
+  const root = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : options.repoDir;
   const { github } = options;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
@@ -92,7 +95,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       tag: github.tag,
       header: callerHeader({ version: deps.version ?? "unknown", now }),
     });
-    const inspected = inspectTarget(options.repoDir, github.path);
+    const inspected = inspectTarget(root, github.path);
     const shown = github.path;
 
     if (github.dryRun) {
@@ -118,7 +121,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     } else {
       io.stderr(`writing ${shown} (${inspected.exists ? "replacing the existing file; a .bak copy is kept" : "new"}).`);
     }
-    const result = writeWorkflow({ repoDir: options.repoDir, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
+    const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
     written = shown;
     io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
     io.stderr("Two things are left to do in GitHub:");

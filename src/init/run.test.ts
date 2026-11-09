@@ -392,3 +392,15 @@ describe("init with scripted prompts", () => {
     expect(w.err.join("\n")).not.toMatch(/rolled back|removed/);
   });
 });
+
+describe("init from a subdirectory of the repository", () => {
+  test("the workflow lands under the repository top level, never under the subdirectory", async () => {
+    const w = world();
+    const sub = join(w.repo, "sub");
+    mkdirSync(sub);
+    const argv = ["--mode", "github", "--operator", "me", "--version", "v1.5.0"];
+    expect(await runInitCommand(parseInitFlags(argv, sub), {}, w.io, w.deps())).toBe(0);
+    expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
+    expect(existsSync(join(sub, ".github"))).toBe(false);
+  });
+});
