@@ -318,6 +318,32 @@ describe("skills install: copies it does not own", () => {
     expect(entry.action).toBe("preserved");
     expect(entry.reason).toContain("notes.md");
   });
+
+  test("a late collision (a user file where the new version needs a directory) leaves the old copy byte-identical, and a retry installs", () => {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    writeFileSync(join(copy, "ref"), "user file\n");
+    mkdirSync(join(f.source, "wachiman-review", "ref"));
+    writeFileSync(join(f.source, "wachiman-review", "ref", "x.md"), "x\n");
+    writeFileSync(join(f.source, "wachiman-review", "SKILL.md"), "# v2\n");
+    const skill = readFileSync(join(copy, "SKILL.md"), "utf8");
+    const marker = readFileSync(join(copy, MARKER_FILE), "utf8");
+    const report = only(f);
+
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe(skill);
+    expect(readFileSync(join(copy, MARKER_FILE), "utf8")).toBe(marker);
+    expect(readFileSync(join(copy, "ref"), "utf8")).toBe("user file\n");
+    const entry = report.entries.find((e) => e.target === copy)!;
+    expect(["preserved", "failed"]).toContain(entry.action);
+    expect(entry.reason).toContain("ref");
+
+    rmSync(join(copy, "ref"));
+    const retry = only(f);
+    expect(retry.entries.find((e) => e.target === copy)!.action).toBe("installed");
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# v2\n");
+    expect(readFileSync(join(copy, "ref", "x.md"), "utf8")).toBe("x\n");
+  });
 });
 
 describe("skills uninstall: only what it installed", () => {

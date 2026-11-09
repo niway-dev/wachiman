@@ -192,6 +192,31 @@ function ownership(dest: string): { marker: SkillInstallMarker } | { reason: str
   return marker ? { marker } : { reason: `it has no ownership marker (${MARKER_FILE}), so it was not installed by wachiman` };
 }
 
+/**
+ * Every path the new version needs that the user already holds: a destination the old marker does
+ * not list, or an existing parent that is not a real directory. Checked before the first write.
+ */
+function replaceCollisions(dest: string, files: string[], old: SkillInstallMarker): string[] {
+  const found = new Set<string>();
+  for (const rel of files) {
+    const parts = rel.split("/");
+    let current = dest;
+    for (const [index, part] of parts.entries()) {
+      current = join(current, part);
+      const stat = lstatOrUndefined(current);
+      if (stat === undefined) break;
+      const path = parts.slice(0, index + 1).join("/");
+      if (index === parts.length - 1) {
+        if (!(rel in old.files)) found.add(path);
+      } else if (!stat.isDirectory()) {
+        found.add(path);
+        break;
+      }
+    }
+  }
+  return [...found].sort();
+}
+
 function installOne(dest: string, source: string, deps: SkillsDeps): Entry {
   const stat = lstatOrUndefined(dest);
   let replaced: SkillInstallMarker | undefined;
@@ -204,9 +229,8 @@ function installOne(dest: string, source: string, deps: SkillsDeps): Entry {
   }
   const files = listFiles(source);
   if (replaced) {
-    const known = replaced.files;
-    const collisions = files.filter((rel) => !(rel in known) && lstatOrUndefined(join(dest, ...rel.split("/"))) !== undefined);
-    if (collisions.length > 0) return { target: dest, action: "preserved", reason: `the new version would overwrite files wachiman did not install (${collisions.join(", ")})` };
+    const collisions = replaceCollisions(dest, files, replaced);
+    if (collisions.length > 0) return { target: dest, action: "preserved", reason: `the new version would overwrite or cross paths wachiman did not install (${collisions.join(", ")})` };
   }
   const hashes: Record<string, string> = {};
   mkdirSync(dest, { recursive: true });
