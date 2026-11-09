@@ -142,7 +142,9 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     prompter.suspend();
     let status = probe();
     const signedOut = !status.ok && status.stage === "auth" && status.auth !== undefined && status.auth.exitCode !== 0;
-    if (!status.ok && signedOut && found.profile.kind !== "default") {
+    // True once the user was told the account state in its own words, so the generic warning would repeat it.
+    let explained = false;
+    if (signedOut && found.profile.kind !== "default") {
       io.stderr(status.problem);
       const answer = await prompter.confirm("Sign in now?", true);
       if (answer === null) {
@@ -159,10 +161,11 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
         status = probe();
       } else {
         io.stderr(`not signed in: run \`wachiman profile login ${name}\` before \`wachiman local\`.`);
+        explained = true;
       }
     }
     if (status.ok) io.stderr(`account: signed in (${status.auth.authMethod}; claude ${status.binary.version})`);
-    else if (!(signedOut && found.profile.kind !== "default")) io.stderr(`warning: ${status.problem} Fix: ${status.fix}`);
+    else if (!explained) io.stderr(`warning: ${status.problem} Fix: ${status.fix}`);
 
     const code = closeSetup(repoDir, env, io, deps);
     if (flags.json) io.stdout(`${JSON.stringify(projectShow(repoDir, env, deps), null, 2)}\n`);

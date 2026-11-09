@@ -462,6 +462,16 @@ describe("setup: the account check after the save", () => {
     expect(errText(w)).toContain("account: signed in");
   });
 
+  test("signed out: yes, but the sign-in did not take, still prints the warning", async () => {
+    const w = world();
+    const toolchain = fakeToolchain({ auth: () => ({ status: 1, stdout: JSON.stringify({ loggedIn: false }) }) });
+    const { run } = setup(w, ["--profile", "work-a"], ["", "", "y"], { spawn: (b, a, o) => (a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o)) });
+    expect(await run).toBe(1);
+    expect(w.interactiveCalls).toHaveLength(1);
+    expect(errText(w)).toContain("warning:");
+    expect(errText(w)).toContain("Fix:");
+  });
+
   test("the terminal is handed back before the blocking account probe, so typed-ahead input is not read live", async () => {
     const w = world();
     const toolchain = signedOutUntilLogin(w);
