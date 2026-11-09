@@ -36,6 +36,8 @@ if [[ -z "$tarball" ]]; then
   tarball="$work/pack/$name"
 fi
 [[ -f "$tarball" ]] || fail "no tarball at $tarball"
+# Absolute, because the npm exec check below runs from another directory.
+tarball="$(cd "$(dirname "$tarball")" && pwd -P)/$(basename "$tarball")"
 ok "tarball $(basename "$tarball") sha256 $(node -e 'const c=require("crypto"),f=require("fs");console.log(c.createHash("sha256").update(f.readFileSync(process.argv[1])).digest("hex"))' "$tarball")"
 
 prefix="$work/prefix"
