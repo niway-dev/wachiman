@@ -8,6 +8,7 @@ import type { Contract } from "./contracts";
 import type { TokenUsage } from "./cost";
 import type { BaseInstructions, BatchReport, Finding, ReviewFile, ReviewOutput, Thread, Unreviewable } from "./engine";
 import type { ProviderErrorClass } from "./providers/errors";
+import type { ResultVerification } from "./verify";
 
 export const REVIEW_INPUT_FORMAT = "wachiman.review-input/1";
 export const REVIEW_RESULT_FORMAT = "wachiman.review-result/1";
@@ -103,6 +104,11 @@ export interface ReviewResult {
     /** Every warning the core logged. */
     notices: string[];
   };
+  /**
+   * The verifier's verdicts (ADR 0027), present only when it was turned on. `findings` above is
+   * what survived it; a dropped finding is only here.
+   */
+  verification?: ResultVerification;
 }
 
 /** The core refuses a version it does not know (D15). A usage error, not an engine error. */

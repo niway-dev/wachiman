@@ -57,6 +57,15 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
+import {
+  applyVerdicts,
+  buildVerifyPrompt,
+  selectCandidates,
+  VERIFY_SCHEMA,
+  verificationSegment,
+  type ResultVerification,
+  type VerifierVerdict,
+} from "./verify";
 import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
@@ -916,6 +925,8 @@ export function buildReview(input: {
   priorSpend?: { spent: number; runs: number };
   /** Review-instruction files this pull request edits, and the base commit they were read from. */
   instructionChanges?: { files: string[]; baseSha: string };
+  /** The verifier's record (ADR 0027): its outcome goes in the footer's cost line. */
+  verification?: ResultVerification;
 }): Review {
   const { output, files, headSha, since, scoped, costUsd, batches = [], modelLabel, effort } = input;
   const mention = input.mention ?? DEFAULT_MENTION;
@@ -970,6 +981,9 @@ export function buildReview(input: {
   parts.push(
     `${countLine(output.findings)}; ${comments.length} on their lines. Reply in a comment's thread to answer it.`,
   );
+  if (input.verification?.status === "failed") {
+    parts.push("⚠️ **Not verified**: the second reader that checks each finding did not finish, so these findings are posted as the review wrote them.");
+  }
   const listed = (f: Finding) => `- ${label(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
   if (outsideDiff.length > 0) parts.push("### Outside the diff", ...outsideDiff.map(listed));
   if (forInfo.length > 0) parts.push("### For your information", ...forInfo.map(listed));
@@ -995,6 +1009,7 @@ export function buildReview(input: {
       extra: [
         ...(batches.length > 1 ? [`${batches.length} batches`] : []),
         ...(input.commits?.length && since && !input.rebased ? [countOf(input.commits.length, "commit")] : []),
+        ...(input.verification && verificationSegment(input.verification) ? [verificationSegment(input.verification) as string] : []),
         ...(input.automatic && input.priorSpend ? [prSoFar(input.priorSpend, costUsd)] : []),
       ],
       usage: input.usage,
@@ -1447,6 +1462,8 @@ export const defaultGh: GhFn = (args, input) => {
 /** What the review core needs from outside: the agent and the engine's own I/O. No GitHub. */
 export interface CoreDeps {
   provider: ProviderAdapter;
+  /** The verifier's adapter, on its own model (ADR 0027). Default: `provider`. */
+  verifier?: ProviderAdapter;
   log: (line: string) => void;
   warn: (line: string) => void;
   /**
@@ -2078,6 +2095,11 @@ export interface ReviewOptions {
   effort: Effort;
   trigger?: Trigger;
   profile: Profile;
+  /**
+   * The verifier (ADR 0027): when set, one more call after the batches tries to refute every
+   * finding above `info`. Its money is reserved out of `totalBudgetUsd` before the batches run.
+   */
+  verify?: { model: string; budgetUsd: number };
 }
 
 /** Today's settings as the core's options. */
@@ -2094,6 +2116,7 @@ export function reviewOptionsOf(config: EngineConfig, totalBudgetUsd: number, pr
     effort: config.effort,
     trigger: config.trigger,
     profile,
+    ...(config.verify ? { verify: { model: config.verifierModel, budgetUsd: config.verifyBudgetUsd } } : {}),
   };
 }
 
@@ -2125,6 +2148,10 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   const { dropped } = filtered;
   const { reviewable: kept, unreviewable } = splitUnreviewable(filtered.kept, input.headDir);
   const totalBudget = options.totalBudgetUsd;
+  // The verifier's reserve is taken first, so the batches cannot spend it; at most half the total,
+  // so a small budget still reviews something (a review with no findings has nothing to verify).
+  const reserve = options.verify ? Math.min(options.verify.budgetUsd, totalBudget / 2) : 0;
+  const batchTotal = totalBudget - reserve;
   const batchBudget = options.batchBudgetUsd;
   const batches = planBatches(kept, {
     maxLines: options.batchLines,
@@ -2171,7 +2198,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
 
   batches.forEach((batch, i) => {
     const label = `Batch ${i + 1} of ${batches.length}`;
-    const remaining = () => totalBudget - spent;
+    const remaining = () => batchTotal - spent;
     if (rejection) {
       rejectedFiles.push(...batch.files.map((f) => f.filename));
       reports.push({
@@ -2288,6 +2315,15 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
       ...ruled.findings,
     ]);
   }
+  // After dedupe, so a finding two batches repeated is verified once; before the anchors.
+  let verification: ResultVerification | undefined;
+  if (options.verify && parts.length > 0) {
+    const verified = verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0), rejection?.text);
+    spent += verified.record.costUsd;
+    usage = addUsage(usage, verified.usage);
+    merged.findings = verified.findings;
+    verification = verified.record;
+  }
   for (const path of notRun)
     merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
   for (const path of rejectedFiles)
@@ -2355,7 +2391,73 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
       ...(firstRejection ? { rejection: firstRejection } : {}),
       notices,
     },
+    ...(verification ? { verification } : {}),
   };
+}
+
+/**
+ * The verifier call (ADR 0027): every finding above `info`, with the head code it cites and the
+ * hunks of the cited files, goes to one call that tries to refute each. It fails open: when the
+ * call fails or answers nothing usable, every finding is posted as it was and the record says so.
+ * Findings it left at low confidence go through the confidence rule again.
+ */
+function verifyFindings(
+  deps: CoreDeps,
+  options: ReviewOptions & { verify: { model: string; budgetUsd: number } },
+  ctx: ReviewContext,
+  findings: Finding[],
+  files: ReviewFile[],
+  budgetUsd: number,
+  refused?: string,
+): { findings: Finding[]; record: ResultVerification; usage: TokenUsage } {
+  const verifier = deps.verifier ?? deps.provider;
+  // Without its own adapter the call runs on the reviewer's, whose model and effort are fixed at construction.
+  const ran = deps.verifier ? { model: options.verify.model, effort: "high" } : { model: options.model, effort: options.effort };
+  const base = { ...ran, label: verifier.modelLabel() };
+  const candidates = selectCandidates(findings);
+  if (candidates.length === 0) {
+    return { findings, usage: NO_USAGE, record: { ...base, status: "nothing", costUsd: 0, entries: [], dropped: 0 } };
+  }
+  const failed = (detail: string, costUsd: number, usage: TokenUsage = NO_USAGE) => {
+    deps.warn(`The verifier did not run to the end (${detail}); the findings are posted unverified.`);
+    return { findings, usage, record: { ...base, status: "failed" as const, costUsd, detail, entries: [], dropped: 0 } };
+  };
+  // The same account refused a batch; the verifier would most likely be refused too.
+  if (refused) return failed(`the provider rejected an earlier call: ${refused}`, 0);
+  if (budgetUsd < MIN_BATCH_USD) return failed("no budget left", 0);
+  const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, candidates, files });
+  const dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
+  try {
+    const call = attempt(
+      () =>
+        runProvider(
+          { ...deps, provider: verifier },
+          { ...options, model: ran.model },
+          ctx.headDir,
+          { operation: "verify", label: "verifier", ...ctx.costTags },
+          prompt,
+          dir,
+          budgetUsd,
+          VERIFY_SCHEMA,
+        ),
+      budgetUsd,
+    );
+    if (!call.ok) return failed(call.error, call.costUsd);
+    const result = call.value;
+    const usage = result.usage ?? NO_USAGE;
+    const answer = result.isError ? undefined : (result.structuredOutput as { verdicts?: VerifierVerdict[] } | undefined);
+    if (!answer || !Array.isArray(answer.verdicts)) return failed(result.terminalReason || "no answer", result.costUsd, usage);
+    const applied = applyVerdicts(findings, candidates, answer.verdicts, deps.lineCounter ?? repoLineCounter(ctx.headDir), ctx.headDir);
+    const ruled = enforceConfidenceRule(applied.findings);
+    // A finding the rule just turned into a question can share its line with another question.
+    const dropped = applied.entries.filter((e) => e.outcome === "dropped").length;
+    deps.log(
+      `Verifier: ${candidates.length} finding(s) checked, ${dropped} dropped, ${applied.entries.filter((e) => e.outcome === "degraded").length} unconfirmed, ${applied.entries.filter((e) => e.outcome === "moved").length} moved one severity.`,
+    );
+    return { findings: dedupeFindings(ruled.findings), usage, record: { ...base, status: "verified", costUsd: result.costUsd, entries: applied.entries, dropped } };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /** The GitHub connector: today's pull request facts as a `ReviewInput`. Pure; `review()` read them. */
@@ -2442,6 +2544,7 @@ export function githubReview(
     automatic: github.automatic,
     mention: github.mention,
     instructionChanges: github.instructionChanges,
+    ...(result.verification ? { verification: result.verification } : {}),
   });
 }
 

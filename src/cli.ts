@@ -166,6 +166,8 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
     const loaded = loadConfig(env);
     const config = mode === "comment" ? { ...loaded, trigger: "comment" } : mode === "threads" ? { ...loaded, trigger: "thread" } : loaded;
     const provider = getProvider(config.provider, config);
+    // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
+    const verifier = config.verify && mode !== "threads" ? getProvider(config.provider, { ...config, model: config.verifierModel, effort: "high" }) : undefined;
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
     const request = mode === "comment" ? required(env, "REQUEST") : "";
@@ -174,6 +176,7 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
       costs,
       gh: defaultGh,
       provider,
+      ...(verifier ? { verifier } : {}),
       config,
       repoDir,
       engineVersion: readVersion(),
@@ -183,6 +186,7 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
     // Before any call is paid for: a missing binary or settings file would fail every batch.
     try {
       provider.preflight();
+      verifier?.preflight();
     } catch (error) {
       console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
       return 1;

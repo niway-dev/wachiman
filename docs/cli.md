@@ -153,6 +153,7 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
 | `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
 | `--profile default\|isolated[:<name>]` | `default` | `default` is your own `claude`; `isolated` (the name `isolated`) or `isolated:<name>` uses `~/.wachiman/claude-<name>`, which must exist and hold nothing but a sign-in |
+| `--verify`, `--no-verify` | on (follows `AGENT_REVIEW_VERIFY`, on unless set to `0`/`false`); `--verify` forces it on, `--no-verify` off | After the batches, one more call on `AGENT_REVIEW_VERIFIER_MODEL` (default Opus 5.5) tries to refute each finding above `info`; refuted findings with a checked disproof are dropped and listed under `verification` in `--format json` ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)) |
 | `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
