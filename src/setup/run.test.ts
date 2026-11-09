@@ -12,6 +12,7 @@ import { repositoryKey } from "../history/store";
 import { UsageError } from "../config";
 import { parseSetupFlags } from "./args";
 import { runSetupCommand, type SetupDeps } from "./run";
+import { createPrompter } from "../wizard/prompt";
 
 const scratch: string[] = [];
 const temp = (prefix: string) => {
@@ -419,6 +420,18 @@ describe("setup: creating a managed profile", () => {
     expect(await run).toBe(130);
     expect(io.printed()).toContain('"work-a" is already registered');
     expect(w.interactiveCalls).toEqual([]);
+  });
+});
+
+describe("setup: a failed sign-in step", () => {
+  test("claude missing: the created managed directory is still reported, and the error is unchanged", async () => {
+    const w = world();
+    const dir = join(w.home, "claude-isolated");
+    const { run } = setup(w, [], ["", "4", "", ""], { interactiveSpawn: () => ({ error: new Error("ENOENT") }) });
+    await expect(run).rejects.toThrow();
+    expect(existsSync(dir)).toBe(true);
+    expect(errText(w)).toContain("These already happened and were not undone:");
+    expect(errText(w)).toContain(`created the managed directory ${dir}`);
   });
 });
 

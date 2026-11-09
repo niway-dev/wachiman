@@ -101,7 +101,14 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   };
 
   try {
-    const answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged }, prompter);
+    let answers;
+    try {
+      answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged }, prompter);
+    } catch (error) {
+      // A failed sign-in step still leaves the managed directory behind; say so before the error surfaces.
+      reportEffects();
+      throw error;
+    }
     if (answers.kind === "cancelled") {
       io.stderr("cancelled: no configuration changes saved.");
       reportEffects();
