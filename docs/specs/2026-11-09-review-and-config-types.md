@@ -552,7 +552,7 @@ function readAsset(install: InstallKind, name: "templates/wachiman-review-caller
   "bin": { "wachiman": "bin/wachiman.js", "agent-review": "bin/wachiman.js" },
   "type": "module",
   "files": ["bin/wachiman.js", "bin/launcher-args.js", "src/", "skills/", "templates/", "bunfig.toml", "LICENSE", "README.md"],
-  "engines": { "bun": ">=1.3", "node": ">=18" },
+  "engines": { "bun": ">=1.3", "node": ">=20" },
   "repository": { "type": "git", "url": "git+https://github.com/niway-dev/wachiman.git" },
   "publishConfig": { "access": "public", "provenance": true }
 }

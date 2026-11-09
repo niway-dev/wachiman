@@ -28,7 +28,7 @@ describe("package.json", () => {
   });
 
   test("requires Bun 1.3 and a Node that can run the launcher", () => {
-    expect(pkg.engines).toEqual({ bun: ">=1.3", node: ">=18" });
+    expect(pkg.engines).toEqual({ bun: ">=1.3", node: ">=20" });
   });
 
   test("has no runtime dependency of any kind (ADR 0002)", () => {
