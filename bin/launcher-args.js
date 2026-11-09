@@ -123,7 +123,7 @@ export function missingBunLines(found, platform) {
       ? "Upgrade it, or install a newer one:"
       : found.failed
         ? `A Bun was found (${found.failed}) but did not run (an install with --ignore-scripts leaves a placeholder that cannot run; a first start can also be slow, try again). Install or repair one:`
-        : "The Bun that npm installs with wachiman did not run (an install with --ignore-scripts leaves a stub) and no Bun is on PATH. Install one:",
+        : "No Bun was found: the `bun` package that npm installs with wachiman is missing and no Bun is on PATH. Install one:",
     "  npm install -g bun",
   ];
   if (platform === "win32") lines.push('  powershell -c "irm bun.sh/install.ps1|iex"   (then open a new terminal)');

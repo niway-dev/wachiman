@@ -72,8 +72,9 @@ download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 
    neither works, the launcher prints one message for "not found" and another for "found, but
    version X is too old", each with the install commands, and exits 2. It sets and unsets no
    environment variable, translates none into a flag, and never downloads or installs anything.
-   `npm i -g wachiman`, `bun add -g wachiman` and `npx wachiman` are supported, in Git Bash and
-   in PowerShell.
+   `npm i -g wachiman`, `bun add -g wachiman` and `npx wachiman` are the install paths, written
+   to work in Git Bash and in PowerShell; Windows support is declared only once the tier below
+   is no longer pending.
 3. **There is no Windows executable.** It was tried and abandoned (Context). Windows is served by
    the same Node launcher and bundled Bun as every other OS. Its tier stays pending until the
    `windows-latest` job, which installs the packed tarball with its real dependency and runs it
