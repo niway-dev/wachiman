@@ -83,7 +83,7 @@ describe("init --mode github without --dry-run", () => {
     const w = world();
     expect(await init(w, ["--mode", "github", "--operator", "me"])).toBe(0);
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
-    expect(readFileSync(w.target, "utf8")).toContain("      operator: me\n");
+    expect(readFileSync(w.target, "utf8")).toContain('      operator: "me"\n');
     expect(statSync(w.target).mode & 0o777).toBe(0o644);
     const said = w.err.join("\n");
     expect(said).toContain("ANTHROPIC_API_KEY");
@@ -293,7 +293,7 @@ describe("init with scripted prompts", () => {
     const io = scripted(["1", "octocat", "", "", "y"]);
     await init(w, [], { interactive: true, promptIO: io });
     expect(w.err.join("\n")).toContain("--- .github/workflows/wachiman-review.yml (new)");
-    expect(w.err.join("\n")).toContain("operator: octocat");
+    expect(w.err.join("\n")).toContain('operator: "octocat"');
   });
 
   test("an invalid answer is shown and asked again; flags already given are not asked", async () => {
@@ -304,7 +304,7 @@ describe("init with scripted prompts", () => {
     expect(io.printed()).toContain("is not a GitHub login");
     expect(io.printed()).not.toContain("Release tag to pin");
     expect(io.printed()).not.toContain("How will Wachiman review");
-    expect(readFileSync(w.target, "utf8")).toContain("operator: me\n");
+    expect(readFileSync(w.target, "utf8")).toContain('operator: "me"\n');
   });
 
   test("a bad value given on the command line is exit 2 before any question", async () => {

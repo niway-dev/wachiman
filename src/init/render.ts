@@ -11,7 +11,8 @@ export function callerHeader(p: { version: string; now: string }) {
 }
 
 /**
- * Replaces `operator: EDIT-THIS-github-login` with the login and the tag after `review.yml@` with
+ * Replaces `operator: EDIT-THIS-github-login` with the login, double-quoted so YAML never reads a
+ * login such as `null`, `true` or `123` as another type (the login regex allows no quote), and the tag after `review.yml@` with
  * `tag`; nothing else in the template changes, so its comments and triggers ship as written. With a
  * `header`, that comment line goes first. Throws when either anchor is not found exactly once: the
  * template and this renderer are tested together.
@@ -24,7 +25,7 @@ export function renderCallerWorkflow(template: string, p: { operator: string; ta
     throw new Error("the caller template must pin the reusable workflow once, as `…/review.yml@<tag>`; init and templates/wachiman-review-caller.yml are out of step.");
   }
   const body = template
-    .replace(OPERATOR_ANCHOR, () => `operator: ${p.operator}`)
+    .replace(OPERATOR_ANCHOR, () => `operator: "${p.operator}"`)
     .replace(PIN_ANCHOR, (_match, prefix: string) => `${prefix}${p.tag}`);
   return p.header === undefined ? body : `${p.header}\n${body}`;
 }

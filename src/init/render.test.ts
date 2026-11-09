@@ -27,12 +27,12 @@ describe("renderCallerWorkflow on the real template", () => {
     expect(changed[0].before).toBe("    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0");
     expect(changed[0].after).toBe("    uses: niway-dev/wachiman/.github/workflows/review.yml@v2.0.1");
     expect(changed[1].before).toBe("      operator: EDIT-THIS-github-login");
-    expect(changed[1].after).toBe("      operator: octocat");
+    expect(changed[1].after).toBe('      operator: "octocat"');
   });
 
   test("without a header the output is the template with the two lines replaced", () => {
     const out = renderCallerWorkflow(template, { operator: "me", tag: "v1.5.0" });
-    expect(out).toBe(template.replace("EDIT-THIS-github-login", "me"));
+    expect(out).toBe(template.replace("EDIT-THIS-github-login", '"me"'));
   });
 
   test("a commit SHA pins like a tag", () => {
@@ -53,7 +53,7 @@ describe("renderCallerWorkflow on the real template", () => {
 
   test("characters that mean something to String.replace are written literally", () => {
     const out = renderCallerWorkflow(template, { operator: "a-$&-b", tag: "v1.5.0" });
-    expect(out).toContain("operator: a-$&-b\n");
+    expect(out).toContain('operator: "a-$&-b"\n');
   });
 });
 
@@ -70,5 +70,11 @@ describe("renderCallerWorkflow throws when a template lacks an anchor", () => {
 
   test("an anchor found twice is as wrong as one not found", () => {
     expect(() => renderCallerWorkflow(`${template}\n# operator: EDIT-THIS-github-login\n`, { operator: "me", tag: "v1.5.0" })).toThrow(/operator/);
+  });
+
+  test("the login is a quoted YAML string, so a login YAML would read as null, a boolean or a number stays the login", () => {
+    for (const login of ["null", "true", "no", "123", "1e5", "0x1F"]) {
+      expect(renderCallerWorkflow(template, { operator: login, tag: "v1.5.0" })).toContain(`      operator: "${login}"\n`);
+    }
   });
 });
