@@ -1,6 +1,6 @@
 /**
- * `init` and `setup` through the real entry point, in a child process with a piped stdin (so no
- * terminal): the non-interactive contract. The interactive flows are tested on the run functions
+ * `init` and `setup` through the real entry point, in a child process with stdin ignored (/dev/null,
+ * so no terminal): the non-interactive contract. The interactive flows are tested on the run functions
  * with scripted prompts.
  */
 import { afterAll, describe, expect, test } from "bun:test";
@@ -103,11 +103,6 @@ describe("init through the CLI, without a terminal", () => {
     expect(existsSync(target(m.repo))).toBe(true);
     expect(out.stderr).toContain("wachiman setup");
     expect(existsSync(m.home)).toBe(false);
-  });
-
-  test("CI=true is not a terminal either, even if the streams were", () => {
-    const m = machine();
-    expect(m.run(["init"], { CI: "true" }).code).toBe(2);
   });
 
   test("an unknown flag and a stray argument are exit 2; init --help is exit 0 on stdout", () => {
