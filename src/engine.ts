@@ -2503,9 +2503,11 @@ function verifyFindings(
       deps.warn(`The base snapshot could not be made (${oneLine(String(error), 160)}); the verifier cannot cite the base, so no finding is marked pre-existing.`);
     }
   }
-  const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files });
-  const dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
+  let dir: string | undefined;
   try {
+    const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files });
+    dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
+    const runDir = dir;
     const call = attempt(
       () =>
         runProvider(
@@ -2514,7 +2516,7 @@ function verifyFindings(
           ctx.headDir,
           { operation: "verify", label: "verifier", ...ctx.costTags },
           prompt,
-          dir,
+          runDir,
           budgetUsd,
           VERIFY_SCHEMA,
           baseSnap ? [baseSnap.dir] : [],
@@ -2550,7 +2552,7 @@ function verifyFindings(
     };
   } finally {
     baseSnap?.release();
-    rmSync(dir, { recursive: true, force: true });
+    if (dir) rmSync(dir, { recursive: true, force: true });
   }
 }
 

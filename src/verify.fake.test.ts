@@ -275,6 +275,25 @@ describe("the verifier through the review core", () => {
     expect(failing.made).toMatchObject({ acquired: 1, released: 1 });
   });
 
+  test("the base snapshot is released when the verifier's temp directory cannot be made", () => {
+    const leaking = baseSnapshot();
+    const provider = new FakeProvider([batch(three)]);
+    const before = process.env.TMPDIR;
+    // Acquiring the snapshot breaks the temp directory, so the next step (mkdtemp) throws.
+    const make = () => {
+      const snap = leaking.make();
+      process.env.TMPDIR = join(snap.dir, "missing", "tmp");
+      return snap;
+    };
+    try {
+      expect(() => reviewChange(branchInput(), options(), deps(provider, undefined, make).deps)).toThrow();
+    } finally {
+      if (before === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = before;
+    }
+    expect(leaking.made).toMatchObject({ acquired: 1, released: 1 });
+  });
+
   test("a base snapshot that cannot be made warns and the review goes on without base evidence", () => {
     const provider = new FakeProvider([batch(three)]);
     const verifier = new FakeProvider([
