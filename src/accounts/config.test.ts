@@ -187,6 +187,21 @@ describe("updateConfig", () => {
     expect(readdirSync(home)).toEqual([]);
   });
 
+  test("a store with dangling references can be repaired step by step, but a mutation cannot add a new one", () => {
+    const home = temp("wh-repair-");
+    const bound = (profile: string) => ({ profile, keyedBy: "path" as const, name: "r", boundAt: "t", boundFrom: "/r" });
+    writeFileSync(
+      join(home, "config.json"),
+      JSON.stringify({ version: 1, profiles: {}, projects: { r_aaaaaaaa: bound("ghost1") }, defaultProfile: "ghost2" }),
+    );
+    expect(() => updateConfig({ home }, (c) => ({ ...c, defaultProfile: "ghost3" }))).toThrow(/ghost3/);
+    expect(() => updateConfig({ home }, (c) => ({ ...c, projects: { ...c.projects, s_bbbbbbbb: bound("ghost4") } }))).toThrow(/ghost4/);
+    const unbound = updateConfig({ home }, (c) => ({ ...c, projects: {} }));
+    expect(unbound.defaultProfile).toBe("ghost2");
+    const { defaultProfile: _gone, ...rest } = unbound;
+    expect(updateConfig({ home }, () => rest).defaultProfile).toBeUndefined();
+  });
+
   test("a held lock past the timeout throws naming the lock file and its pid, and is left alone", () => {
     const home = temp("wh-lock-");
     const lock = join(home, "config.json.lock");

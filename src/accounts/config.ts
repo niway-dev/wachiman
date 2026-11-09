@@ -136,6 +136,19 @@ function problemOf(home: string, parsed: unknown, exists: (path: string) => bool
   return undefined;
 }
 
+/** Every dangling reference of a structurally valid config, keyed by where it is and what it names. */
+function danglingOf(home: string, config: WachimanConfigV1, exists: (path: string) => boolean): Map<string, string> {
+  const lookup = { profiles: config.profiles, home, managedDirExists: (n: string) => exists(join(home, `claude-${n}`)) };
+  const found = new Map<string, string>();
+  const check = (value: string, at: string) => {
+    const r = lookupProfileRef(value, lookup);
+    if (!r.ok) found.set(`${at}=${value}`, `${at} "${value}" does not resolve (dangling): ${r.problem}`);
+  };
+  for (const [key, binding] of Object.entries(config.projects)) check(binding.profile, `projects.${key}.profile`);
+  if (config.defaultProfile !== undefined) check(config.defaultProfile, "defaultProfile");
+  return found;
+}
+
 /**
  * Strict read. `structural` skips only the "does this reference resolve" checks, for the recovery
  * commands that remove a broken reference; the shape and path rules still apply.
@@ -227,7 +240,11 @@ export function updateConfig(opts: ConfigWriteOptions, mutate: (current: Wachima
     const current: WachimanConfigV1 = read.kind === "ok" ? read.config : { version: 1, profiles: {}, projects: {} };
     const next = mutate(current);
     const text = `${JSON.stringify(next, null, 2)}\n`;
-    const problem = problemOf(home, JSON.parse(text), existsSync, false);
+    // Shape problems always refuse. A dangling reference refuses only when this mutation introduced
+    // it, so a store that already has one can still be repaired.
+    const after = JSON.parse(text) as WachimanConfigV1;
+    const before = danglingOf(home, current, existsSync);
+    const problem = problemOf(home, after, existsSync, true) ?? [...danglingOf(home, after, existsSync)].find(([k]) => !before.has(k))?.[1];
     if (problem) throw new UsageError(`${path} would be left invalid (${problem}); nothing was written.`);
     const temp = `${path}.tmp-${process.pid}-${randomBytes(4).toString("hex")}`;
     const fd = openSync(temp, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600);
