@@ -221,7 +221,8 @@ All names are in `src/engine.ts` unless a file is given.
    `confirmed` may move the severity one step. Its money is reserved before the batches run
    (`verify_budget_usd`, at most half of the total), and it gets whatever the batches left. It
    fails open: a failed call posts every finding with a "Not verified" line. Every verdict is in
-   the result's `verification` block; the footer says how many findings were dropped. *Why:* the
+   the result's `verification` block; the footer says how many findings were dropped. The batch
+   summary is not rewritten, so it may still mention a finding the verifier dropped. *Why:* the
    remaining false positives are wrong in their premise, which only reading the code decides.
 
    `buildReview` labels each finding with `label` (two emojis,

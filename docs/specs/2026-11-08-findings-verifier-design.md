@@ -46,12 +46,12 @@ says it pays, and never blocks a review: if it fails, the unverified review is p
 
 | # | Decision | Why | ADR |
 | --- | --- | --- | --- |
-| 1 | **One verifier call per pull request**, after `mergeOutputs`, the confidence rule and `dedupeFindings`, before `buildReview`. Not one per batch | A per-batch verifier cannot see a duplicate across batches and pays one call per batch. One call sees every finding and the cost is bounded by one cap. The field prototype runs this way and its cost stayed between $0.21 and $0.80 on PRs from 41 to 10,787 changed lines | 0027 (new) |
+| 1 | **One verifier call per pull request**, after `mergeOutputs`, the confidence rule and `dedupeFindings`, before `buildReview`. Not one per batch | A per-batch verifier cannot see a duplicate across batches and pays one call per batch. One call sees every finding and the cost is one more call per review, capped by what the batches left. The field prototype runs this way and its cost stayed between $0.21 and $0.80 on PRs from 41 to 10,787 changed lines | 0027 (new) |
 | 2 | **What it receives:** every `blocker`, `fix` and `consider` finding with the 15 lines of head code around its cited line, and the diff hunks of the files those findings cite, capped. Never the whole diff, never a batch summary. Read-only tools (Read, Glob, Grep) under the same `claude -p` restrictions as a batch | A finding is a claim about specific lines; the verifier needs those lines and the change that touched them. The whole diff would make the call cost what a batch costs. This is not the "pass over summaries" ADR 0009 rejected: the verifier reads findings and code, never a conclusion that something is correct | 0027 |
 | 3 | **Three verdicts, each with a reason:** `refuted` (with `disproof: {path, line}`), `confirmed` (with an optional severity one step up or down), `unconfirmed`. The verifier never adds a finding | A bare keep/drop hides why. The Martian plan's rule: the falsifier must show the claim, the paths it checked with lines, and the counterexample | 0027 |
 | 4 | **Dropped only with a checked disproof.** `refuted` drops the finding only if the disproof's path and line exist at the head commit; otherwise it is treated as `unconfirmed`. `unconfirmed` keeps the finding and sets `confidence: low`, so `enforceConfidenceRule` posts a `fix`/`blocker` as a question. `confirmed` keeps it, with the verifier's severity if it moved one step | #90's "degrade, never delete" protects real bugs the verifier misses, but the owner's goal is not to see false positives. The compromise: deletion needs evidence code can check; doubt degrades. Reuses the confidence rule instead of a new label | 0027 |
-| 5 | **Refuted findings are recorded, not posted:** in the result JSON under a new additive `verification` block (every verdict, reason and disproof), in the footer as a count ("3 findings dropped after verification"), and in the log | Precision is measured from what was dropped as much as from what was posted; the Martian judge needs the dropped ones to count lost goldens. The author sees a count, not the noise | 0027 |
-| 6 | **Budget:** a reserve `verify_budget_usd` (default $1.00, at most half of `budget_usd`) is taken from `budget_usd` before the batches start, so the verifier always has money when the batches end. No findings to verify, no call, no cost. It counts against `auto_budget_usd` like every automatic call (ADR 0012) | The field prototype's cap was $1.50 and no call reached it (max $0.80). Taking it up front avoids the case where the batches spend everything and the verifier, the part the owner asked for, never runs | reuses 0001, 0012 |
+| 5 | **Refuted findings are recorded, not posted:** in the result JSON under a new additive `verification` block (every verdict, reason and disproof), in the footer as counts and cost ("verified by Opus 5.5: 3 dropped, 1 unconfirmed, $0.24"), and in the log | Precision is measured from what was dropped as much as from what was posted; the Martian judge needs the dropped ones to count lost goldens. The author sees a count, not the noise | 0027 |
+| 6 | **Budget:** a reserve `verify_budget_usd` (default $1.00, at most half of `budget_usd`) is taken from `budget_usd` before the batches start, so the verifier always has money when the batches end. The reserve is a floor, not the call's cap: the call may spend everything the batches left, which is the reserve plus what they did not use. No findings to verify, no call, no cost. It counts against `auto_budget_usd` like every automatic call (ADR 0012) | The field prototype's cap was $1.50 and no call reached it (max $0.80). Taking it up front avoids the case where the batches spend everything and the verifier, the part the owner asked for, never runs | reuses 0001, 0012 |
 | 7 | **Model and effort:** `verifier_model`, default Opus 5.5; effort always `high`. Independent of the reviewer's model so arm 3 (Haiku proposer) can run | The role that decides is never cheapened (#90, A3). Cross-model research found a lightweight reviewer of another model scores no higher than the same model reviewing itself; the field run shows Sonnet keeping half of what Opus keeps, and nobody has judged which is right. Opus is the safe default; Sonnet is measured, not assumed | 0027 |
 | 8 | **Fail open.** A failed, timed-out or budget-stopped verifier call posts the unverified review with a footer line saying so. It never blocks or delays the review beyond its own cap | The review is advisory; a verifier that can fail closed would turn a cost cap into a missing review | 0027 |
 | 9 | **Off by default** behind `verify` (Action input) / `--verify` / `AGENT_REVIEW_VERIFY=1` until arm 2 passes the gate in [Measurement](#measurement) | The measurement must run the product, not a script (the owner rejected a benchmark-only prototype). A flag lets the bench run arms 2 and 3 on the real code path before any consumer pays for it | — |
@@ -70,6 +70,8 @@ says it pays, and never blocks a review: if it fails, the unverified review is p
 3. **Should `unconfirmed` degrade `consider` too?** `consider` already means "may decline" and
    the confidence rule leaves it alone. Default: **no change below `fix`**.
 4. **The verifier's own retry.** Default: **none** beyond the rate-limit backoff every call has.
+   As built: no retry at all, not even that backoff (see the status line); and after the provider
+   refused a batch (billing, auth, rate limit) the verifier is not called.
 
 ## Out of scope
 
@@ -100,8 +102,9 @@ says it pays, and never blocks a review: if it fails, the unverified review is p
 
 - [x] `bun test` has a fake-provider test where three findings go in and the verifier returns
   `refuted` with a valid disproof, `refuted` with a disproof whose line does not exist, and
-  `confirmed` with a severity one step down: the review posts two findings, the second at the
-  verifier's severity, and the third at `confidence: low` as a question when it was `fix`.
+  `confirmed` with a severity one step down: the review posts two findings, the original second
+  at `confidence: low` as a question (it was `fix`), and the original third at the verifier's
+  severity.
 - [x] A test where the verifier call fails: the review posts every finding and its footer says the
   verification did not run.
 - [x] A test where the batches leave less than `MIN_BATCH_USD` after the reserve: the batches are
@@ -129,7 +132,7 @@ The verifier is one more step between dedupe and `buildReview`:
 mergeOutputs → enforceConfidenceRule → dedupeFindings
   → selectCandidates (severity > info, not an engine notice)
   → buildVerifyPrompt (candidates + head code around each line + hunks of cited files)
-  → runProvider (one call, VERIFY_SCHEMA, verify_budget_usd, same restrictions)
+  → runProvider (one call, VERIFY_SCHEMA, capped at the budget left, same restrictions)
   → applyVerdicts (check disproofs exist; drop / degrade / keep)
   → enforceConfidenceRule again (for the ones now at low)
   → buildReview
@@ -141,8 +144,8 @@ Everything before `selectCandidates` is unchanged. `applyVerdicts` is pure and t
 
 Per candidate: an id (`c1`, `c2`, …), severity, topic, confidence, `path:line`, title, body, and
 the head file's lines `line − 15 … line + 15` with numbers (the prototype's `snippet`). Then, once
-per cited file, the diff hunks of that file against the base, capped at a total the engine logs
-when it truncates. Then the instruction: for each candidate, try to show it is wrong for the code
+per cited file, the diff hunks of that file against the base, capped at 60,000 characters; when it
+truncates, the prompt tells the verifier to read those files instead (nothing is logged). Then the instruction: for each candidate, try to show it is wrong for the code
 at this commit, or not caused or made reachable by this change; cite the lines you checked; if you
 cannot refute it and cannot confirm it from the code, say `unconfirmed`. Never invent a finding.
 
@@ -234,7 +237,8 @@ as the plan fixes.
 | Action input / env | `verifier_model` / `AGENT_REVIEW_VERIFIER_MODEL` | `claude-opus-5-5` |
 | CLI | `--verify` | off |
 
-The footer names the verifier's model and effort next to the reviewer's, as it names cost.
+The footer names the verifier's model (its label) with its counts and cost next to the reviewer's;
+the effort is in the result's `verification` block, not in the footer.
 
 ## Sources and unverified claims
 
