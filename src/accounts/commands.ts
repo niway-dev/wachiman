@@ -366,6 +366,9 @@ function loginProfile(cmd: Extract<ProfileCommand, { kind: "login" }>, env: Reco
   if (parseProfileRef(cmd.profile).kind === "default") {
     throw new UsageError("`default` is your own claude: sign in with your own claude (run it and use /login).");
   }
+  if (!(deps.interactive ?? isInteractive(env, { stdin: process.stdin.isTTY === true, stdout: process.stdout.isTTY === true }))) {
+    throw new UsageError("profile login needs a terminal: run it yourself in a terminal, not from an agent or a pipe.");
+  }
   const config = loadConfig(home);
   const found = lookupProfileRef(cmd.profile, { profiles: config?.profiles ?? {}, home, managedDirExists: (n) => existsSync(managedDir(home, n)) });
   if (!found.ok) throw new UsageError(found.problem);

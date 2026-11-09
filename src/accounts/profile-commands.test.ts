@@ -339,6 +339,15 @@ describe("profile login", () => {
     expect(h.err.join("\n")).toContain("wachiman doctor --profile work-a");
   });
 
+  test("without a terminal it refuses with a usage error and starts nothing", () => {
+    const h = harness();
+    const dir = temp("claude-w-");
+    seed(h, { profiles: { "work-a": { kind: "external", configDir: dir, binary: fakeBinary(), createdAt: "t" } } });
+    expect(() => h.run(["login", "work-a"], { interactive: false })).toThrow(/needs a terminal/);
+    expect(h.probes).toEqual([]);
+    expect(h.interactiveCalls).toEqual([]);
+  });
+
   test("a binary without `auth login` gets no arguments and the /login instruction", () => {
     const h = harness({ authHelp: "Commands:\n  status\n" });
     const dir = temp("claude-w-");
