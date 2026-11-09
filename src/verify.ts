@@ -162,7 +162,8 @@ export function snippet(headDir: string, f: Pick<Finding, "path" | "line">): str
 }
 
 /** Model-written text goes inside XML-like tags: `<` and `>` become entities so it cannot close one or open another. */
-const esc = (t: string) => t.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+/** Markup in model-written text, paths and repository code cannot forge prompt structure. */
+const esc = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 /** The prompt of the verifier call: the candidates with their code, then the hunks of the files they cite. */
 export function buildVerifyPrompt(p: { describe: string; headSha: string; headDir: string; baseDir?: string; candidates: Candidate[]; files: ReviewFile[] }): string {
@@ -187,7 +188,7 @@ export function buildVerifyPrompt(p: { describe: string; headSha: string; headDi
         `<candidate id="${id}" severity="${f.severity}" topic="${f.topic}"${f.confidence ? ` confidence="${f.confidence}"` : ""} at="${esc(f.path)}:${f.line}">`,
         `<title>${esc(f.title)}</title>`,
         `<body>\n${esc(f.body)}\n</body>`,
-        `<code path="${esc(f.path)}">\n${snippet(p.headDir, f)}\n</code>`,
+        `<code path="${esc(f.path)}">\n${esc(snippet(p.headDir, f))}\n</code>`,
         "</candidate>",
       ].join("\n"),
     )
