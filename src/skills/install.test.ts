@@ -171,3 +171,118 @@ describe("skills install: the Wachiman home is refused", () => {
     refuses(f, { action: "uninstall", dirs: [join(f.wachimanHome, "skills")] }, f.env, "uninstall");
   });
 });
+
+describe("skills install: copies it does not own", () => {
+  const only = (f: ReturnType<typeof fixture>) => installSkills({ action: "install", dirs: [] }, f.env, f.deps);
+
+  test("a copy without a marker is left as it is and warned about, and the other copies are still installed", () => {
+    const f = fixture();
+    const own = join(f.userHome, ".claude", "skills", "wachiman-review");
+    mkdirSync(own, { recursive: true });
+    writeFileSync(join(own, "SKILL.md"), "my own edited skill\n");
+    const report = only(f);
+
+    expect(readFileSync(join(own, "SKILL.md"), "utf8")).toBe("my own edited skill\n");
+    expect(readdirSync(own)).toEqual(["SKILL.md"]);
+    const entry = report.entries.find((e) => e.target === own)!;
+    expect(entry.action).toBe("preserved");
+    expect(entry.reason).toContain("no ownership marker");
+    expect(f.warnings.filter((w) => w.includes(own))).toHaveLength(1);
+    expect(f.warnings[0]).toMatch(/^left .* in place: /);
+    expect(existsSync(join(f.userHome, ".claude", "skills", "wachiman-audit", MARKER_FILE))).toBe(true);
+    expect(existsSync(join(f.userHome, ".agents", "skills", "wachiman-review", MARKER_FILE))).toBe(true);
+    expect(report.exitCode).toBe(0);
+  });
+
+  test("a symlink where the copy goes (the contributor link of install-local.sh) is left and warned, never followed", () => {
+    const f = fixture();
+    const clone = temp("wachiman-clone-skill-");
+    writeFileSync(join(clone, "SKILL.md"), "the contributor's clone\n");
+    const link = join(f.userHome, ".claude", "skills", "wachiman-review");
+    mkdirSync(join(f.userHome, ".claude", "skills"));
+    symlinkSync(clone, link);
+    const report = only(f);
+
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(readdirSync(clone)).toEqual(["SKILL.md"]);
+    expect(readFileSync(join(clone, "SKILL.md"), "utf8")).toBe("the contributor's clone\n");
+    expect(report.entries.find((e) => e.target === link)!.action).toBe("preserved");
+    expect(f.warnings.some((w) => w.includes(link))).toBe(true);
+  });
+
+  test("a plain file where the copy goes is left and warned", () => {
+    const f = fixture();
+    const target = join(f.userHome, ".agents", "skills", "wachiman-audit");
+    mkdirSync(join(f.userHome, ".agents", "skills"), { recursive: true });
+    writeFileSync(target, "a file\n");
+    only(f);
+    expect(readFileSync(target, "utf8")).toBe("a file\n");
+    expect(f.warnings.some((w) => w.includes(target))).toBe(true);
+  });
+
+  test("a marker that is not ours (wrong format, unsafe path) counts as no marker", () => {
+    const f = fixture();
+    const copy = join(f.userHome, ".agents", "skills", "wachiman-review");
+    mkdirSync(copy, { recursive: true });
+    writeFileSync(join(copy, "SKILL.md"), "mine\n");
+    writeFileSync(join(copy, MARKER_FILE), JSON.stringify({ format: "wachiman.skill-install/1", version: "1", installedAt: "x", files: { "../escape.md": "00" } }));
+    only(f);
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("mine\n");
+    expect(f.warnings.some((w) => w.includes(copy))).toBe(true);
+  });
+
+  test("an unmodified marked copy is replaced by the new version, and a file the new version dropped is removed", () => {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    writeFileSync(join(f.source, "wachiman-review", "SKILL.md"), "# wachiman-review v2\n");
+    rmSync(join(f.source, "wachiman-review", "references"), { recursive: true });
+    const report = installSkills({ action: "install", dirs: [] }, f.env, { ...f.deps, version: "10.0.0" });
+
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# wachiman-review v2\n");
+    expect(existsSync(join(copy, "references", "notes.md"))).toBe(false);
+    expect(JSON.parse(readFileSync(join(copy, MARKER_FILE), "utf8")).version).toBe("10.0.0");
+    expect(report.entries.find((e) => e.target === copy)!.action).toBe("installed");
+    expect(f.warnings).toEqual([]);
+  });
+
+  test("a locally modified marked copy is left in place with a warning", () => {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    writeFileSync(join(copy, "SKILL.md"), "# edited by me\n");
+    writeFileSync(join(f.source, "wachiman-review", "SKILL.md"), "# wachiman-review v2\n");
+    const report = only(f);
+
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# edited by me\n");
+    expect(readFileSync(join(copy, "references", "notes.md"), "utf8")).toBe("notes of wachiman-review\n");
+    const entry = report.entries.find((e) => e.target === copy)!;
+    expect(entry.action).toBe("preserved");
+    expect(entry.reason).toContain("SKILL.md");
+    expect(f.warnings.some((w) => w.includes(copy) && w.includes("modified"))).toBe(true);
+    // The unmodified sibling copies were replaced.
+    expect(readFileSync(join(f.userHome, ".agents", "skills", "wachiman-review", "SKILL.md"), "utf8")).toBe("# wachiman-review v2\n");
+  });
+
+  test("an unrecognised file the user added to a marked copy survives a reinstall", () => {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    writeFileSync(join(copy, "MY-NOTES.md"), "keep me\n");
+    only(f);
+    expect(readFileSync(join(copy, "MY-NOTES.md"), "utf8")).toBe("keep me\n");
+  });
+
+  test("a marked file replaced by a symlink counts as modified and is not written through", () => {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    const outside = join(temp("outside-"), "victim.md");
+    writeFileSync(outside, "outside\n");
+    rmSync(join(copy, "SKILL.md"));
+    symlinkSync(outside, join(copy, "SKILL.md"));
+    const report = only(f);
+    expect(readFileSync(outside, "utf8")).toBe("outside\n");
+    expect(report.entries.find((e) => e.target === copy)!.action).toBe("preserved");
+  });
+});
