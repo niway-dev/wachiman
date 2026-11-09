@@ -273,8 +273,8 @@ commits, pushes, opens a pull request or creates a secret.
 | --- | --- |
 | `--mode` | Mandatory without a terminal |
 | `--operator <login>` | Mandatory for `github` and `both` without a terminal; a GitHub login |
-| `--version <tag>` | `vX.Y.Z` or a 40-character commit SHA, written after `review.yml@`. This build bundles no known-published tag, so it is mandatory; the CLI's own version is never used as a tag |
-| `--path <file>` | Default `.github/workflows/wachiman-review.yml`; a `.yml` or `.yaml` file directly in `.github/workflows/` |
+| `--version <tag>` | `vX.Y.Z` or a 40-character commit SHA, written after `review.yml@`. Default: the release tag bundled in this build (`DEFAULT_WORKFLOW_REF`, moved by release-please at each release commit); the CLI's own version is never used as a tag |
+| `--path <file>` | Default `.github/workflows/wachiman-review.yml`, relative to the repository top level (also when run from a subdirectory); a `.yml` or `.yaml` file directly in `.github/workflows/` |
 | `--force` | Replaces an existing file after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it an existing file is exit 2 |
 | `--dry-run` | Prints the rendered file to stdout and writes nothing |
 | `--yes` | No prompts |
