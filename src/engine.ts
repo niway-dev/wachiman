@@ -3049,7 +3049,7 @@ export function relativisePaths(output: ReviewOutput, repoDir: string, platform:
     for (const root of roots) {
       if (root !== "" && p.startsWith(`${root}/`)) return p.slice(root.length + 1);
     }
-    return path;
+    return p;
   };
   return {
     ...output,

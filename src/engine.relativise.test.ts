@@ -7,7 +7,7 @@ const output = (paths: string[]) =>
 describe("relativisePaths", () => {
   test("on Windows an absolute path inside the head is made repository-relative, with either slash", () => {
     const head = "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\wachiman-snapshot-x";
-    const out = relativisePaths(output([`${head}\\src\\a.ts`, "C:/Users/RUNNER~1/AppData/Local/Temp/wachiman-snapshot-x/src/b.ts", "src/c.ts"]), head, "win32");
+    const out = relativisePaths(output([`${head}\\src\\a.ts`, "C:/Users/RUNNER~1/AppData/Local/Temp/wachiman-snapshot-x/src/b.ts", "src\\c.ts"]), head, "win32");
     expect(out.files_reviewed).toEqual(["src/a.ts", "src/b.ts", "src/c.ts"]);
     expect(out.findings.map((f) => f.path)).toEqual(["src/a.ts", "src/b.ts", "src/c.ts"]);
   });
