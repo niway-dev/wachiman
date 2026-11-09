@@ -80,12 +80,47 @@ describe("readAsset", () => {
     expect(JSON.parse(readAsset(install, "src/providers/claude-code.settings.json") as string)).toBeObject();
   });
 
-  test("the executable layout is not served by this slice, and says so", () => {
-    expect(() => readAsset({ kind: "exe", version: "1.0.0" }, "templates/wachiman-review-caller.yml")).toThrow(/executable.*not implemented/i);
+  describe("the executable layout", () => {
+    const exe = { kind: "exe", version: "1.0.0" } as const;
+    /** Illustrative embedded files, keyed by the repository-relative name `--asset-naming` gives them. */
+    const files: Record<string, string> = {
+      "src/providers/claude-code.settings.json": '{"permissions":{"deny":["Bash"]}}',
+      "templates/wachiman-review-caller.yml": "name: caller\n",
+      "skills/wachiman-review/SKILL.md": "# skill\n",
+    };
+    const embedded = { has: (name: string) => name in files, read: (name: string) => new TextEncoder().encode(files[name]) };
+
+    test("serves the settings and the template as text and a skill file as the bytes that were embedded", () => {
+      expect(readAsset(exe, "src/providers/claude-code.settings.json", embedded)).toBe(files["src/providers/claude-code.settings.json"]);
+      expect(readAsset(exe, "templates/wachiman-review-caller.yml", embedded)).toBe("name: caller\n");
+      const skill = readAsset(exe, "skills/wachiman-review/SKILL.md", embedded);
+      expect(skill).toBeInstanceOf(Uint8Array);
+      expect(new TextDecoder().decode(skill as Uint8Array)).toBe("# skill\n");
+    });
+
+    test("a name that was not embedded is an error that names it, never an empty read", () => {
+      expect(() => readAsset(exe, "skills/missing/SKILL.md", embedded)).toThrow(/skills\/missing\/SKILL\.md.*not embedded/);
+    });
+
+    test("refuses the same names as the other layouts", () => {
+      expect(() => readAsset(exe, "skills/../x" as never, embedded)).toThrow(/outside|not an asset/);
+      expect(() => readAsset(exe, "skills/..\\x" as never, embedded)).toThrow(/outside|not an asset/);
+      expect(() => readAsset(exe, "/etc/passwd" as never, embedded)).toThrow(/not an asset/);
+    });
   });
 });
 
 describe("readVersion", () => {
+  test("the version baked in at build time wins, and needs no package.json beside the executable", () => {
+    expect(readVersion("/$bunfs/root", "3.4.5")).toBe("3.4.5");
+    expect(readVersion(join(layout("d", "wachiman", "2.3.4"), "src"), "3.4.5")).toBe("3.4.5");
+  });
+
+  test("an empty or absent build define falls back to the package.json beside the source", () => {
+    expect(readVersion(join(layout("e", "wachiman", "2.3.4"), "src"), undefined)).toBe("2.3.4");
+    expect(readVersion(join(layout("f", "wachiman", "2.3.4"), "src"), "")).toBe("2.3.4");
+  });
+
   test("accepts a package named wachiman", () => {
     expect(readVersion(join(layout("a", "wachiman", "2.3.4"), "src"))).toBe("2.3.4");
   });

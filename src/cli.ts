@@ -82,8 +82,20 @@ Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
 Guide: docs/local-review.md`;
 
-/** package.json sits one level above src/; in a copied layout it may belong to someone else. */
-export function readVersion(dir = import.meta.dir) {
+declare const WACHIMAN_VERSION: string | undefined;
+
+/**
+ * The release version the executable was built with (`--define WACHIMAN_VERSION=...`), if any.
+ * `typeof` keeps the reference safe when nothing defines the name, as under `bun src/cli.ts`.
+ */
+const builtVersion = () => (typeof WACHIMAN_VERSION === "string" ? WACHIMAN_VERSION : undefined);
+
+/**
+ * The build-time version when there is one (a compiled executable has no package.json beside it);
+ * otherwise the package.json one level above src/, which in a copied layout may belong to someone else.
+ */
+export function readVersion(dir = import.meta.dir, built: string | undefined = builtVersion()) {
+  if (built) return built;
   try {
     const path = join(dir, "..", "package.json");
     if (!existsSync(path)) return "unknown";
