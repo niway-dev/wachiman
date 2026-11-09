@@ -418,6 +418,10 @@ export const CHECKS: DoctorCheck[] = [
           evidence: "external profile: plugins untested, your customisations may apply to a review",
         });
       }
+      // A missing directory is the `profile` row's failure; inspecting it would report an empty list as "clean".
+      if (!target.confirmation.ok && target.confirmation.stage === "directory") {
+        return withProfile(target, { id: "isolation", level: "required", status: "skip", evidence: "skipped: the profile check failed" });
+      }
       const found = inspectIsolatedProfile(profile.configDir, ctx.fs.read);
       if (found.length > 0) {
         return withProfile(target, {

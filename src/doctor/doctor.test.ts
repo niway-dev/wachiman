@@ -246,6 +246,17 @@ describe("configuration, profile and project rows", () => {
     expect(populated.exitCode).toBe(1);
   });
 
+  test("a managed profile whose directory is missing skips the isolation row instead of claiming it holds only a sign-in", () => {
+    const m = machine();
+    const dir = join(m.home, "claude-gone");
+    seed(m, { profiles: { gone: { kind: "managed", configDir: dir, createdAt: "t" } } });
+    const report = m.report({ profile: "isolated:gone" });
+    expect(row(report, "profile").status).toBe("fail");
+    expect(row(report, "isolation").status).toBe("skip");
+    expect(row(report, "isolation").evidence).not.toContain("holds only a sign-in");
+    expect(report.exitCode).toBe(1);
+  });
+
   test("the history row counts repositories and warns about a directory open to other users", () => {
     const m = machine();
     expect(row(m.report(), "history").status).toBe("skip");
