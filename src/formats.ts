@@ -154,6 +154,8 @@ export interface FindingVerification {
   disproof?: Citation;
   /** What the verifier said when the engine acted on something else (invalid evidence, a duplicate id). */
   claimed?: Claimed;
+  /** Set only by code, when the verifier never reached this candidate; the reason is then `not verified: ...`. */
+  unreached?: true;
 }
 
 /** The fields verification adds to a finding. */
@@ -187,6 +189,8 @@ export interface VerificationEntryV2 {
   reason: string;
   checked: Citation[];
   disproof?: Citation;
+  /** Set only by code, when the verifier never reached this candidate. */
+  unreached?: true;
   outcome: "dropped" | "kept" | "degraded" | "moved";
   /** For `moved`: the severity the finding is posted at. */
   severityAfter?: Severity;

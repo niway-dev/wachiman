@@ -88,6 +88,9 @@ describe("review result /2", () => {
     const noSnapshot = clone();
     (noSnapshot.findings[0].verification.checked[0] as { snapshot: string }).snapshot = "tree";
     expect(validate(resultSchemaV2, noSnapshot)).toEqual(['$.findings[0].verification.checked[0].snapshot: "tree" is not one of ["base","head"]']);
+    const unreached = clone();
+    (unreached.findings[0].verification as { unreached: unknown }).unreached = "yes";
+    expect(validate(resultSchemaV2, unreached)).toHaveLength(1);
     const badStatus = clone();
     (badStatus.findings[0].verification as { status: string }).status = "confirmed";
     expect(validate(resultSchemaV2, badStatus)).toHaveLength(1);

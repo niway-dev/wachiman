@@ -682,6 +682,10 @@
             "inconclusive",
             "none"
           ]
+        },
+        "unreached": {
+          "description": "True when the verifier never reached this candidate (set by the engine, never by a model).",
+          "const": true
         }
       }
     },
@@ -826,6 +830,10 @@
             "inconclusive",
             "none"
           ]
+        },
+        "unreached": {
+          "description": "True when the verifier never reached this candidate (set by the engine, never by a model).",
+          "const": true
         },
         "origin": {
           "enum": [

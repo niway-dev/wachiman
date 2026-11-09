@@ -30,7 +30,9 @@ describe("sectionOf", () => {
     expect(sectionOf(f({ verification: { status: "inconclusive", reason: "the guard may hold", checked: [] } }))).toBe("inconclusive");
   });
   test("a finding the verifier never reached, a nit and an info notice stay in the main list", () => {
-    expect(sectionOf(f({ verification: { status: "inconclusive", reason: "not verified: budget", checked: [] } }))).toBe("main");
+    expect(sectionOf(f({ verification: { status: "inconclusive", reason: "not verified: budget", checked: [], unreached: true } }))).toBe("main");
+    // A model-written reason that starts like the code's does not make the finding unreached.
+    expect(sectionOf(f({ verification: { status: "inconclusive", reason: "not verified: looks fine", checked: [] } }))).toBe("inconclusive");
     expect(sectionOf(f({ severity: "consider", verification: { status: "inconclusive", reason: "unclear", checked: [] } }))).toBe("main");
     expect(sectionOf(f({ severity: "info", origin: "pre-existing" }))).toBe("main");
   });
@@ -68,7 +70,7 @@ describe("githubReview with verified findings", () => {
       title: "The flush may race",
       verification: { status: "inconclusive", reason: "The lock on line 9 may serialise it.", checked: [], claimed: "inconclusive" },
     });
-    result.findings.push({ ...first, line: 3, title: "Never reached", verification: { status: "inconclusive", reason: "not verified: budget", checked: [] } });
+    result.findings.push({ ...first, line: 3, title: "Never reached", verification: { status: "inconclusive", reason: "not verified: budget", checked: [], unreached: true } });
     const review = githubReview(result, github);
     expect(review.body).toMatch(/### Inconclusive\n\n- Important · .*The flush may race/);
     expect(review.body).not.toMatch(/### Inconclusive\n\n[^#]*Never reached/);

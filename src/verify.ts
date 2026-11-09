@@ -118,11 +118,11 @@ export type Section = "main" | "inconclusive" | "pre-existing";
  * not settle is a question for the author, not a thread. A finding the verifier never reached
  * (`not verified: ...`) is not doubt about it, so it stays in the main list, and so do nits and info.
  */
-export function sectionOf(f: { severity: Severity; origin?: Origin; verification?: Pick<FindingVerification, "status" | "reason"> }): Section {
+export function sectionOf(f: { severity: Severity; origin?: Origin; verification?: Pick<FindingVerification, "status" | "unreached"> }): Section {
   if (f.severity === "info") return "main";
   if (f.origin === "pre-existing") return "pre-existing";
   const demanding = f.severity === "blocker" || f.severity === "fix";
-  if (demanding && f.verification?.status === "inconclusive" && !f.verification.reason.startsWith("not verified:")) return "inconclusive";
+  if (demanding && f.verification?.status === "inconclusive" && !f.verification.unreached) return "inconclusive";
   return "main";
 }
 
@@ -276,7 +276,7 @@ const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
  * - anything else, `inconclusive` and an evidence the engine cannot check included: kept as
  *   `inconclusive` at `low` confidence, with what the verifier claimed;
  * - no verdict, an unknown verdict word or an id answered twice: `inconclusive` with a reason that
- *   starts `not verified:`. Confidence drops, unless the call `stop`ped (a budget or a quota is
+ *   starts `not verified:` and `unreached: true`. Confidence drops, unless the call `stop`ped (a budget or a quota is
  *   not doubt about the finding), in which case the reason is `not verified: <stop kind>`.
  * A verdict for an id that was not sent is ignored. `answered` counts the candidates that got one
  * well-formed verdict, whether or not its evidence was accepted.
@@ -302,7 +302,7 @@ export function applyVerdicts(
       status: VerificationEntryV2["status"],
       reason: string,
       outcome: VerificationEntryV2["outcome"],
-      extra: { checked?: Citation[]; claimed?: Claimed; origin?: Pick<VerifiedFields, "origin" | "originReason" | "originEvidence">; severityAfter?: Severity } = {},
+      extra: { checked?: Citation[]; claimed?: Claimed; unreached?: true; origin?: Pick<VerifiedFields, "origin" | "originReason" | "originEvidence">; severityAfter?: Severity } = {},
     ) => {
       const origin = extra.origin ?? { origin: "unknown" as const };
       const severity = extra.severityAfter ?? f.severity;
@@ -311,24 +311,25 @@ export function applyVerdicts(
         ...base,
         status,
         ...(extra.claimed ? { claimed: extra.claimed } : {}),
+        ...(extra.unreached ? { unreached: true as const } : {}),
         ...origin,
         reason,
         checked,
         outcome,
         ...(extra.severityAfter ? { severityAfter: extra.severityAfter } : {}),
       });
-      const verification: FindingVerification = { candidateId: id, status, reason, checked, ...(extra.claimed ? { claimed: extra.claimed } : {}) };
+      const verification: FindingVerification = { candidateId: id, status, reason, checked, ...(extra.claimed ? { claimed: extra.claimed } : {}), ...(extra.unreached ? { unreached: true as const } : {}) };
       const confidence: Confidence | undefined = outcome === "degraded" ? "low" : f.confidence;
       changed.set(f, { ...f, severity, ...(confidence ? { confidence } : {}), ...origin, verification, tier: tierWord({ severity, origin: origin.origin }) });
     };
-    const unanswered = (why: string) => settle("inconclusive", `not verified: ${why}`, stop ? "kept" : "degraded", { claimed: "none" });
+    const unanswered = (why: string) => settle("inconclusive", `not verified: ${why}`, stop ? "kept" : "degraded", { claimed: "none", unreached: true });
 
     if (given.length > 1) {
       unanswered("the verifier gave this finding two verdicts, so neither counts");
       continue;
     }
     if (!v) {
-      if (stop) settle("inconclusive", `not verified: ${stop.kind}`, "kept");
+      if (stop) settle("inconclusive", `not verified: ${stop.kind}`, "kept", { unreached: true });
       else unanswered("the verifier gave no verdict for this finding");
       continue;
     }

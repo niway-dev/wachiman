@@ -40,7 +40,7 @@ export function verificationNotes(f: Reported): Note[] {
   const citations = [...v.checked, ...(f.originEvidence ?? [])].map(cite);
   const cites = [...new Set(citations)];
   if (v.status === "supported") notes.push({ name: "Verified", text: neutralise(v.reason), ...(cites.length > 0 ? { cites } : {}) });
-  else if (v.reason.startsWith("not verified:")) notes.push({ name: "Not verified", text: neutralise(v.reason.slice("not verified:".length).trim()) });
+  else if (v.unreached) notes.push({ name: "Not verified", text: neutralise(v.reason.replace(/^not verified:\s*/, "")) });
   else notes.push({ name: "Inconclusive", text: neutralise(v.reason), ...(cites.length > 0 ? { cites } : {}) });
   if (f.origin === "pre-existing" && f.originReason) notes.push({ name: "Pre-existing", text: neutralise(f.originReason) });
   return notes;
