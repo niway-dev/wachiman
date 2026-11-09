@@ -269,6 +269,15 @@ describe("snapshotHead", () => {
 });
 
 describe("buildLocalInput", () => {
+  test("on Windows a scope typed with backslashes names the same repository path", () => {
+    const r = branchRepo();
+    const logs: string[] = [];
+    const { input, snapshotDir } = buildLocalInput({ repoDir: r.dir, paths: ["src\\a.ts", ".\\src", "nope\\x"], platform: "win32", log: (l) => logs.push(l), warn: () => {} });
+    snapshots.push(snapshotDir);
+    expect(input.scope).toEqual(["src/a.ts", "src"]);
+    expect(logs).toContain("Not paths in this change, ignored: nope/x");
+  });
+
   test("the change, the scope and the cleanup", () => {
     const r = branchRepo();
     const logs: string[] = [];

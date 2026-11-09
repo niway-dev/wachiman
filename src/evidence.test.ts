@@ -11,6 +11,7 @@ import {
   extractCalledSymbols,
   fitEvidence,
   planEvidence,
+  readHeadLines,
   renderEvidenceSlice,
   type EvidenceDoc,
   type EvidenceIo,
@@ -406,5 +407,24 @@ describe("collectEvidence against a real repository", () => {
     expect(warnings).toHaveLength(1);
     expect(doc.symbols).toEqual([]);
     expect(doc.status).toBe("truncated");
+  });
+});
+
+describe("readHeadLines", () => {
+  const dir = mkdtempSync(join(tmpdir(), "evidence-head-"));
+  mkdirSync(join(dir, "src"), { recursive: true });
+  writeFileSync(join(dir, "src", "a.ts"), "one\ntwo\n");
+
+  test("reads a repository-relative path, with either slash when the OS is Windows", () => {
+    expect(readHeadLines(dir, "src/a.ts")).toEqual(["one", "two", ""]);
+    expect(readHeadLines(dir, "src\\a.ts", "win32")).toEqual(["one", "two", ""]);
+    expect(readHeadLines(dir, "src\\a.ts", "linux")).toBeNull();
+  });
+
+  test("refuses a path that leaves the head, with either slash and any drive form", () => {
+    expect(readHeadLines(dir, "../x", "linux")).toBeNull();
+    expect(readHeadLines(dir, "..\\x", "win32")).toBeNull();
+    expect(readHeadLines(dir, join(dir, "src", "a.ts"), "linux")).toBeNull();
+    expect(readHeadLines(dir, "C:\\Windows\\win.ini", "win32")).toBeNull();
   });
 });

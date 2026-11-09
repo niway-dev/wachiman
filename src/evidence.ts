@@ -18,7 +18,8 @@
  */
 import { spawnSync } from "node:child_process";
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
+import { sep } from "node:path";
+import { repoRelative, toOsPath } from "./repo-path";
 
 /** Caps, in one place so docs and tests can name them. */
 export const EVIDENCE_CAPS = {
@@ -419,9 +420,11 @@ export interface EvidenceIo {
 }
 
 /** Reads a regular file inside `repoDir`; refuses symlinks that leave it and files over 1 MB. */
-export function readHeadLines(repoDir: string, path: string): string[] | null {
+export function readHeadLines(repoDir: string, path: string, platform: string = process.platform): string[] | null {
   try {
-    const full = join(repoDir, path);
+    const repoPath = repoRelative(path, platform);
+    if (repoPath === null) return null;
+    const full = toOsPath(repoDir, repoPath);
     const info = lstatSync(full);
     if (!info.isFile() || info.size > 1024 * 1024) return null;
     const root = realpathSync(repoDir);

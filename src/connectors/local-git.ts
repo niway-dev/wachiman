@@ -11,7 +11,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, posix } from "node:path";
 import { UsageError } from "../config";
 import {
   instructionFileOf,
@@ -23,6 +23,7 @@ import {
   type ReviewInput,
 } from "../engine";
 import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
+import { toRepoSlashes } from "../repo-path";
 
 const TIMEOUT_MS = 60_000;
 /** The whole branch diff is one output; a large branch can be far over the evidence step's 8 MB. */
@@ -435,12 +436,17 @@ export function buildLocalInput(p: {
   log: (line: string) => void;
   warn: (line: string) => void;
   git?: GitRunner;
+  /** For tests: the OS whose path spelling the scope words use. Default: this process's. */
+  platform?: string;
 }): { input: ReviewInput; snapshotDir: string; refs: LocalRefs } {
   const git = p.git ?? spawnGit;
   const refs = resolveRefs(p.repoDir, p.base, git, p.maxDepth, { commit: p.commit, from: p.from });
   const files = localFiles(p.repoDir, refs.mergeBase, refs.headSha, git);
+  // git names files with forward slashes on every OS; a scope typed on Windows may use backslashes.
+  const platform = p.platform ?? process.platform;
+  const words = p.paths.map((w) => (platform === "win32" ? posix.normalize(toRepoSlashes(w, platform)) : w));
   const { paths, ignored } = resolveScope(
-    p.paths,
+    words,
     files.map((f) => f.filename),
   );
   if (ignored.length > 0) p.log(`Not paths in this change, ignored: ${ignored.join(" ")}`);

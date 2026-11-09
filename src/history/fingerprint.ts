@@ -4,7 +4,8 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { resolve } from "node:path";
+import { repoRelative, toOsPath } from "../repo-path";
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
@@ -26,9 +27,9 @@ export function titleKey(title: string): string {
 
 /** The lines of a file in the snapshot, or undefined when it is missing, unreadable or outside `headDir`. */
 export function readHeadFileLines(headDir: string, path: string): string[] | undefined {
-  const full = resolve(headDir, path);
-  const rel = relative(resolve(headDir), full);
-  if (rel === "" || rel.startsWith("..")) return undefined;
+  const repoPath = repoRelative(path);
+  if (repoPath === null) return undefined;
+  const full = toOsPath(resolve(headDir), repoPath);
   try {
     if (!existsSync(full) || !statSync(full).isFile()) return undefined;
     return readFileSync(full, "utf8").split("\n");

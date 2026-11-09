@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,6 +9,7 @@ import {
   countLines,
   mergeContracts,
   parseContracts,
+  repoFileResolver,
   repoLineCounter,
   type Contract,
   type LineCounter,
@@ -215,5 +216,18 @@ describe("repoLineCounter", () => {
 
   test("a head that does not exist has no files", () => {
     expect(repoLineCounter(join(dir, "missing"))("src/a.ts")).toBeNull();
+  });
+
+  test("on Windows a model that writes src\\a.ts means the same file, and a drive or UNC path is still refused", () => {
+    const win = repoLineCounter(dir, "win32");
+    expect(win("src\\a.ts")).toBe(3);
+    expect(win(".\\src\\a.ts")).toBe(3);
+    expect(win(`C:\\Windows\\win.ini`)).toBeNull();
+    expect(win("\\\\server\\share\\a.ts")).toBeNull();
+    expect(win("..\\x")).toBeNull();
+  });
+
+  test("returns the OS path of a repository-relative one, under the real root", () => {
+    expect(repoFileResolver(dir)("src/a.ts")).toBe(join(realpathSync(dir), "src", "a.ts"));
   });
 });

@@ -12,7 +12,8 @@
  * next to `neutralise`.
  */
 import { readFileSync, realpathSync, statSync } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, sep } from "node:path";
+import { repoRelative, toOsPath } from "./repo-path";
 
 export const CONTRACT_STATUSES = ["closed", "open"] as const;
 export type ContractStatus = (typeof CONTRACT_STATUSES)[number];
@@ -148,8 +149,8 @@ const MAX_CITED_BYTES = 8 * 1024 * 1024;
  * (`..`, an absolute path elsewhere, a symlink pointing out) does not exist for it: the model
  * chooses these paths, and the engine must not read outside the head on its behalf.
  */
-export function repoLineCounter(repoDir: string): LineCounter {
-  const resolveFile = repoFileResolver(repoDir);
+export function repoLineCounter(repoDir: string, platform: string = process.platform): LineCounter {
+  const resolveFile = repoFileResolver(repoDir, platform);
   return (path) => {
     const real = resolveFile(path);
     if (real === null) return null;
@@ -167,7 +168,7 @@ export function repoLineCounter(repoDir: string): LineCounter {
  * missing, not a file, or leaves the directory (`..`, a symlink pointing out). The model and
  * GitHub choose these paths; the engine must not read outside the head on their behalf.
  */
-export function repoFileResolver(repoDir: string): (path: string) => string | null {
+export function repoFileResolver(repoDir: string, platform: string = process.platform): (path: string) => string | null {
   let root: string;
   try {
     root = realpathSync(repoDir);
@@ -175,9 +176,12 @@ export function repoFileResolver(repoDir: string): (path: string) => string | nu
     return () => null;
   }
   return (path) => {
-    if (path === "" || isAbsolute(path)) return null;
+    // The path is repository-relative (forward slashes, no `..`); only the file system call below
+    // is an OS path. A symlink can still point out, which only the real path shows.
+    const repoPath = repoRelative(path, platform);
+    if (repoPath === null) return null;
     try {
-      const real = realpathSync(resolve(root, path));
+      const real = realpathSync(toOsPath(root, repoPath));
       const rel = relative(root, real);
       if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null;
       return statSync(real).isFile() ? real : null;
