@@ -85,12 +85,13 @@ One-time setup by the owner, not done by any code in this repository:
 
 1. Create the GitHub environment `npm`. Do not add required reviewers: the job runs on every
    release and would wait for an approval.
-2. On npmjs.com, in the package's settings, add a trusted publisher: GitHub Actions, repository
-   `niway-dev/wachiman`, workflow file `release-please.yml`, environment `npm`. **Unverified:**
-   npm's trusted-publisher setting lives on a package page, so a name that has never been
-   published may need a first publish by hand before the setting exists. Check npm's current
-   documentation before the first release; the name `wachiman` was unclaimed on 2026-11-09 (the
-   registry answered 404).
+2. Publish the unclaimed name `wachiman` once by hand: this is a manual step the owner runs once
+   (`npm login`, then `npm publish` of the verified tarball from the release, or whatever npm
+   currently requires). The name was unclaimed on 2026-11-09 (the registry answered 404), and
+   npm's trusted-publisher setting lives on a package page, so it cannot be configured before the
+   package exists. Until this is done, the `publish` job is expected to fail.
+3. On npmjs.com, in the package's settings, add a trusted publisher: GitHub Actions, repository
+   `niway-dev/wachiman`, workflow file `release-please.yml`, environment `npm`.
 
 If `publish` fails after the tag exists (the registry was down, the trusted publisher was not set
 yet), use "Re-run failed jobs" on that run: it publishes the same tarball from the same artifact

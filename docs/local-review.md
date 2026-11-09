@@ -63,6 +63,9 @@ local mode refuses to start: with a key present `claude -p` would bill the key.
 
 ### From npm
 
+The npm package is published from the first release that includes this change; until the first
+publish succeeds, install from source (next section).
+
 ```sh
 npm i -g wachiman          # or, without installing: npx wachiman doctor
 wachiman --version
@@ -73,8 +76,7 @@ The package contains the TypeScript source, the skills and the templates, and no
 with the two isolation flags described below. Without Bun it prints
 `wachiman needs Bun 1.3 or later: https://bun.sh` and exits 2. The launcher changes no
 environment variable and downloads nothing. The package is published by the release workflow
-(see [releasing](releasing.md#publishing-to-npm)): `npm i -g wachiman` works from the first
-release that contains it, not before. `agent-review` is installed as a second name for the same
+(see [releasing](releasing.md#publishing-to-npm)). `agent-review` is installed as a second name for the same
 command. Copying the agent skills out of the package is a separate step that this version does
 not do; use the clone path below for the skills until it does.
 

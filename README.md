@@ -74,8 +74,8 @@ with a notice; see [docs/upgrading.md](docs/upgrading.md).
   ([docs/providers/codex.md](docs/providers/codex.md)).
 - **npm:** the package `wachiman` is built and tested for npm (Node launcher, Bun required;
   [docs/local-review.md](docs/local-review.md#3-install)) and is published by the release workflow
-  from the first release that contains it. Until that release exists, `npm i -g wachiman` finds
-  nothing: run from a clone. macOS and Linux are covered by CI; **Windows: pending CI**.
+  from the first release that includes this change. Until the first publish succeeds, install from
+  source (`scripts/install-local.sh`). macOS and Linux are covered by CI; **Windows: pending CI**.
 
 ## Install
 
@@ -97,9 +97,10 @@ nothing posted: Wachiman sends no telemetry and makes no GitHub requests in loca
 is sent to your configured Claude account for the review. Read
 [docs/local-review.md](docs/local-review.md) before running it on an employer's code.
 
-Install it with `npm i -g wachiman` (Bun 1.3 or later must be installed too: the package ships
-the TypeScript source and a small Node launcher that runs it with Bun), or, to run unreleased
-source, run `scripts/install-local.sh` once from your clone. Both give a global `wachiman local …`
+Install it from source: run `scripts/install-local.sh` once from your clone. The npm package
+(`npm i -g wachiman`, with Bun 1.3 or later installed too: it ships the TypeScript source and a
+small Node launcher that runs it with Bun) is published from the first release that includes this
+change; until the first publish succeeds, use the script. Both give a global `wachiman local …`
 command; the script also links the `wachiman-review` agent skill, usable from any project, and the
 `wachiman-audit` skill, which compares Wachiman's findings with another reviewer's on the same
 commits (data and procedure in
