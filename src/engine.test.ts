@@ -1497,6 +1497,17 @@ describe("contracts in the review body", () => {
     expect(few).toContain("Old 2");
   });
 
+  test("a long list of unreviewed files gives way before pre-existing findings that fit", () => {
+    const old = Array.from({ length: 40 }, (_, i) => ({ ...fix, line: 100 + i, title: `Old ${i}`, body: "z".repeat(200), origin: "pre-existing" as const }));
+    const many = Array.from({ length: 3000 }, (_, i) => file(`packages/some/deeply/nested/module/file-${i}.ts`, 1, 0, "@@ -0,0 +1 @@\n+x"));
+    const input = { ...base, files: [...base.files, ...many], output: output({ files_reviewed: ["src/a.ts"], findings: old }) };
+    const { body } = buildReview(input);
+    expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+    expect(body).toContain("Old 39");
+    expect(body).not.toContain("see the JSON result");
+    expect(body).toContain("(see the Coverage by batch table)");
+  });
+
   describe("when GitHub refuses the inline comments", () => {
     const comments = [{ path: "src/a.ts", line: 2, side: "RIGHT" as const, body: `Title\n\n${"x".repeat(400)}\n\n${SIGNATURE.finding}` }];
     const block = renderContracts([contract()]) ?? "";

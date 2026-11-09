@@ -1097,9 +1097,11 @@ export function buildReview(input: {
   }
   if (body.length > MAX_BODY_CHARS && cuttable.length > 0) {
     // Then the Pre-existing and Inconclusive lists: each keeps the entries that fit in its share of
-    // what the rest of the body leaves, then says how many it left out.
+    // what the rest of the body leaves, then says how many it left out. The list of unreviewed
+    // files is counted at its shortest form here: it is cut below, before any finding is.
     const full = (c: (typeof cuttable)[number]) => parts[c.at].length + 2;
-    let remaining = MAX_BODY_CHARS - (body.length - cuttable.reduce((sum, c) => sum + full(c), 0));
+    const listSlack = notReviewed.length > 0 ? fullList.length - fitList(list, 0).length : 0;
+    let remaining = MAX_BODY_CHARS - (body.length - listSlack - cuttable.reduce((sum, c) => sum + full(c), 0));
     const bySize = [...cuttable].sort((a, b) => full(a) - full(b));
     for (const [i, c] of bySize.entries()) {
       const share = Math.floor(remaining / (bySize.length - i));
@@ -1110,7 +1112,7 @@ export function buildReview(input: {
     body = render();
   }
   if (body.length <= MAX_BODY_CHARS || notReviewed.length === 0) return { body, comments };
-  // Past the contracts, only the list of unreviewed files can be long enough to matter: cut it to what fits.
+  // Last, the list of unreviewed files is cut to whatever room the rest of the body left.
   const room = MAX_BODY_CHARS - (body.length - fullList.length);
   return { body: body.replace(fullList, () => fitList(list, Math.max(room, 0))), comments };
 }
