@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
 import { readConfig, updateConfig } from "./accounts/config";
-import { inspectIsolatedProfile, parseProfile, profileDir, setupProfile } from "./profiles";
+import { claimManagedProfile, inspectIsolatedProfile, parseProfile, profileDir, setupProfile } from "./profiles";
 import { SUBSCRIPTION_ENV } from "./providers/claude-code";
 
 const temps: string[] = [];
@@ -205,5 +205,23 @@ describe("setupProfile", () => {
     ).toThrow(UsageError);
     expect(launched).toBe(false);
     expect(existsSync(join(home, "claude-work"))).toBe(false);
+  });
+});
+
+describe("claimManagedProfile", () => {
+  const config = (profiles: Record<string, any>): any => ({ version: 1, profiles, projects: {} });
+
+  test("refuses when an external entry appeared under the name after the pre-check, and changes nothing", () => {
+    const external = { kind: "external", configDir: "/Users/me/.claude-work", binary: "/opt/claude/claude", createdAt: "2026-11-09T10:00:00Z" };
+    const current = config({ work: external });
+    expect(() => claimManagedProfile(current, "work", "/wh/claude-work")).toThrow('"work" is already registered as an external profile');
+    expect(current.profiles.work).toBe(external);
+  });
+
+  test("adds a managed entry when the name is free and keeps an existing managed one", () => {
+    const added = claimManagedProfile(config({}), "work", "/wh/claude-work");
+    expect(added.profiles.work).toMatchObject({ kind: "managed", configDir: "/wh/claude-work" });
+    const managed = config({ work: { kind: "managed", configDir: "/wh/claude-work", createdAt: "x" } });
+    expect(claimManagedProfile(managed, "work", "/wh/claude-work")).toBe(managed);
   });
 });

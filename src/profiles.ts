@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readConfig, updateConfig } from "./accounts/config";
+import { readConfig, updateConfig, type WachimanConfigV1 } from "./accounts/config";
 import { checkProfileName, ISOLATED_NAME, parseProfileRef } from "./accounts/resolve";
 import { UsageError } from "./config";
 import { buildChildEnv } from "./providers/claude-code";
@@ -88,6 +88,14 @@ const defaultSpawn: SpawnFn = (command, args, opts) => spawnSync(command, args, 
  * subscription environment: a `claude` shell function or alias cannot change its
  * `CLAUDE_CONFIG_DIR`. Wachiman never sees the sign-in and does not check that it worked.
  */
+/** The config mutation of `profile create`, re-checked under the config lock: an external entry that appeared since the pre-check is never replaced. */
+export function claimManagedProfile(c: WachimanConfigV1, name: string, dir: string): WachimanConfigV1 {
+  const current = c.profiles[name];
+  if (current?.kind === "external") throw new UsageError(`"${name}" is already registered as an external profile; choose another name.`);
+  if (current?.kind === "managed") return c;
+  return { ...c, profiles: { ...c.profiles, [name]: { kind: "managed", configDir: dir, createdAt: new Date().toISOString() } } };
+}
+
 export function setupProfile(p: {
   name?: string;
   /** The Wachiman home itself (`wachimanHome(env)`), not the user's home directory. */
@@ -117,11 +125,7 @@ export function setupProfile(p: {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   chmodSync(p.home, 0o700);
   chmodSync(dir, 0o700);
-  updateConfig({ home: p.home }, (c) =>
-    c.profiles[name]?.kind === "managed"
-      ? c
-      : { ...c, profiles: { ...c.profiles, [name]: { kind: "managed", configDir: dir, createdAt: new Date().toISOString() } } },
-  );
+  updateConfig({ home: p.home }, (c) => claimManagedProfile(c, name, dir));
   const flag = name === DEFAULT_ISOLATED_NAME ? "isolated" : `isolated:${name}`;
   say(`Setting up the isolated profile ${dir}.`);
   say("Claude Code starts next: run /login and sign in with the account the review should use, then /exit.");
