@@ -161,6 +161,9 @@ export function snippet(headDir: string, f: Pick<Finding, "path" | "line">): str
   return out.join("\n");
 }
 
+/** Model-written text goes inside XML-like tags: `<` and `>` become entities so it cannot close one or open another. */
+const esc = (t: string) => t.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
 /** The prompt of the verifier call: the candidates with their code, then the hunks of the files they cite. */
 export function buildVerifyPrompt(p: { describe: string; headSha: string; headDir: string; baseDir?: string; candidates: Candidate[]; files: ReviewFile[] }): string {
   const cited = [...new Set(p.candidates.map((c) => c.finding.path))];
@@ -170,7 +173,7 @@ export function buildVerifyPrompt(p: { describe: string; headSha: string; headDi
   for (const path of cited) {
     const patch = p.files.find((f) => f.filename === path)?.patch;
     if (!patch) continue;
-    const block = `<file-diff path="${path}">\n${patch}\n</file-diff>`;
+    const block = `<file-diff path="${esc(path)}">\n${esc(patch)}\n</file-diff>`;
     if (block.length > budget) {
       cut = true;
       continue;
@@ -181,10 +184,10 @@ export function buildVerifyPrompt(p: { describe: string; headSha: string; headDi
   const candidates = p.candidates
     .map(({ id, finding: f }) =>
       [
-        `<candidate id="${id}" severity="${f.severity}" topic="${f.topic}"${f.confidence ? ` confidence="${f.confidence}"` : ""} at="${f.path}:${f.line}">`,
-        `<title>${f.title}</title>`,
-        `<body>\n${f.body}\n</body>`,
-        `<code path="${f.path}">\n${snippet(p.headDir, f)}\n</code>`,
+        `<candidate id="${id}" severity="${f.severity}" topic="${f.topic}"${f.confidence ? ` confidence="${f.confidence}"` : ""} at="${esc(f.path)}:${f.line}">`,
+        `<title>${esc(f.title)}</title>`,
+        `<body>\n${esc(f.body)}\n</body>`,
+        `<code path="${esc(f.path)}">\n${snippet(p.headDir, f)}\n</code>`,
         "</candidate>",
       ].join("\n"),
     )
