@@ -2444,11 +2444,12 @@ function verifyFindings(
     if (!answer || !Array.isArray(answer.verdicts)) return failed(result.terminalReason || "no answer", result.costUsd, usage);
     const applied = applyVerdicts(findings, candidates, answer.verdicts, deps.lineCounter ?? repoLineCounter(ctx.headDir), ctx.headDir);
     const ruled = enforceConfidenceRule(applied.findings);
+    // A finding the rule just turned into a question can share its line with another question.
     const dropped = applied.entries.filter((e) => e.outcome === "dropped").length;
     deps.log(
       `Verifier: ${candidates.length} finding(s) checked, ${dropped} dropped, ${applied.entries.filter((e) => e.outcome === "degraded").length} unconfirmed, ${applied.entries.filter((e) => e.outcome === "moved").length} moved one severity.`,
     );
-    return { findings: ruled.findings, usage, record: { ...base, status: "verified", costUsd: result.costUsd, entries: applied.entries, dropped } };
+    return { findings: dedupeFindings(ruled.findings), usage, record: { ...base, status: "verified", costUsd: result.costUsd, entries: applied.entries, dropped } };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

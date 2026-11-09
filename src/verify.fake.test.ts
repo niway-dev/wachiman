@@ -202,6 +202,18 @@ describe("the verifier through the review core", () => {
     expect(review.body).not.toContain("verif");
   });
 
+  test("a finding the verifier left unconfirmed collapses with a question already on its line", () => {
+    const provider = new FakeProvider([
+      batch([finding({ line: 2, title: "b is wrong" }), finding({ line: 2, title: "is b meant?", topic: "question", severity: "consider" })]),
+    ]);
+    const verifier = new FakeProvider([
+      () => ({ structuredOutput: { verdicts: [{ id: "c1", verdict: "unconfirmed", reason: "cannot tell", checked: [] }, { id: "c2", verdict: "confirmed", reason: "yes", checked: [] }] } }),
+    ]);
+    const { deps: d } = deps(provider, verifier);
+    const result = reviewChange(branchInput(), options(), d);
+    expect(result.findings.map((f) => [f.line, f.topic, f.severity, f.title])).toEqual([[2, "question", "fix", "b is wrong"]]);
+  });
+
   test("off by default: no reserve, no call, no verification block", () => {
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
