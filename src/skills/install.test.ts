@@ -8,7 +8,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { UsageError } from "../config";
-import { MARKER_FILE, SKILL_NAMES, installSkills, type SkillsDeps } from "./install";
+import { MARKER_FILE, SKILL_NAMES, installSkills, parseSkillsArgs, runSkills, type SkillsDeps } from "./install";
 
 const scratch: string[] = [];
 const temp = (prefix: string) => {
@@ -383,5 +383,37 @@ describe("skills uninstall: only what it installed", () => {
     expect(report.entries).toEqual([]);
     expect(existsSync(join(f.userHome, ".claude", "skills", "someone-elses-skill"))).toBe(true);
     expect(existsSync(join(f.userHome, ".agents"))).toBe(false);
+  });
+});
+
+describe("skills command line", () => {
+  test("--dir repeats, --json belongs to install, and every other shape is a usage error", () => {
+    expect(parseSkillsArgs(["install", "--dir", "/a", "--dir=/b", "--json"])).toEqual({ action: "install", dirs: ["/a", "/b"], json: true });
+    expect(parseSkillsArgs(["uninstall", "--dir", "/a"])).toEqual({ action: "uninstall", dirs: ["/a"], json: false });
+    expect(parseSkillsArgs(["install"])).toEqual({ action: "install", dirs: [], json: false });
+    expect(parseSkillsArgs(["install", "--help"])).toEqual({ help: true });
+    expect(parseSkillsArgs(["--help"])).toEqual({ help: true });
+    for (const bad of [[], ["frob"], ["install", "extra"], ["install", "--dir"], ["install", "--dir="], ["install", "--dir", "--json"], ["uninstall", "--json"], ["install", "--json=1"], ["install", "--force"]]) {
+      expect(() => parseSkillsArgs(bad)).toThrow(UsageError);
+    }
+  });
+
+  test("runSkills prints one line per installed copy on stdout and warnings on stderr; --json prints exactly one document", () => {
+    const f = fixture();
+    const own = join(f.userHome, ".claude", "skills", "wachiman-review");
+    mkdirSync(own, { recursive: true });
+    const out: string[] = [];
+    const err: string[] = [];
+    const io = { stdout: (t: string) => out.push(t), stderr: (l: string) => err.push(l) };
+    expect(runSkills({ action: "install", dirs: [], json: false }, f.env, io, f.deps)).toBe(0);
+    expect(out.join("")).toContain(`installed ${join(f.userHome, ".agents", "skills", "wachiman-review")}\n`);
+    expect(out.join("")).not.toContain(own);
+    expect(err.some((l) => l.includes(own))).toBe(true);
+
+    out.length = 0;
+    expect(runSkills({ action: "install", dirs: [], json: true }, f.env, io, f.deps)).toBe(0);
+    const doc = JSON.parse(out.join(""));
+    expect(doc.format).toBe("wachiman.skills/1");
+    expect(doc.entries.find((e: { target: string }) => e.target === own)).toMatchObject({ action: "preserved" });
   });
 });

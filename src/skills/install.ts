@@ -275,3 +275,42 @@ export function installSkills(opts: SkillsOptions, env: Record<string, string | 
   }
   return { format: "wachiman.skills/1", entries, exitCode: entries.some((e) => e.action === "failed") ? 1 : 0 };
 }
+
+export const skillsUsage = `wachiman skills install [--dir <path>]… [--json]
+wachiman skills uninstall [--dir <path>]…`;
+
+/** `--dir` may repeat; `--json` belongs to `install`; `--help` is `{ help: true }` before anything else is checked. */
+export function parseSkillsArgs(argv: string[]): SkillsOptions | { help: true } {
+  if (argv.includes("--help") || argv.includes("-h")) return { help: true };
+  const [action, ...rest] = argv;
+  if (action !== "install" && action !== "uninstall") {
+    throw new UsageError(action === undefined ? "skills needs install or uninstall." : `skills: unknown subcommand "${action}"; use install or uninstall.`);
+  }
+  const dirs: string[] = [];
+  let json = false;
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg === "--dir" || arg.startsWith("--dir=")) {
+      const value = arg === "--dir" ? rest[++i] : arg.slice("--dir=".length);
+      if (value === undefined || value === "" || (arg === "--dir" && value.startsWith("--"))) throw new UsageError("--dir needs a directory.");
+      dirs.push(value);
+    } else if (arg === "--json" && action === "install") {
+      json = true;
+    } else if (arg.startsWith("--")) {
+      throw new UsageError(`skills ${action} does not take ${arg.split("=")[0]}.`);
+    } else {
+      throw new UsageError(`skills ${action} takes no argument "${arg}".`);
+    }
+  }
+  return { action, dirs, json };
+}
+
+export interface SkillsIo { stdout: (text: string) => void; stderr: (line: string) => void }
+
+/** Runs the command: the result on stdout (one document with `--json`), warnings on stderr; the exit code. */
+export function runSkills(opts: SkillsOptions, env: Record<string, string | undefined>, io: SkillsIo, deps: SkillsDeps = {}): number {
+  const report = installSkills(opts, env, { ...deps, warn: (line) => io.stderr(`wachiman: ${line}`) });
+  if (opts.json) io.stdout(`${JSON.stringify(report, null, 2)}\n`);
+  else for (const entry of report.entries) if (entry.action === "installed" || entry.action === "removed") io.stdout(`${entry.action} ${entry.target}\n`);
+  return report.exitCode;
+}
