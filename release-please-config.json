@@ -21,7 +21,8 @@
   "packages": {
     ".": {
       "package-name": "agent-review",
-      "changelog-path": "CHANGELOG.md"
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [{ "type": "generic", "path": "src/init/options.ts" }]
     }
   }
 }

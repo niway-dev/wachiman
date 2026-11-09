@@ -37,6 +37,13 @@ function machine() {
 const target = (repo: string) => join(repo, ".github", "workflows", "wachiman-review.yml");
 
 describe("init through the CLI, without a terminal", () => {
+  test("--mode github --operator me --dry-run without --version pins the bundled release", () => {
+    const m = machine();
+    const out = m.run(["init", "--mode", "github", "--operator", "me", "--dry-run"]);
+    expect(out.code).toBe(0);
+    expect(out.stdout).toContain("review.yml@v1.9.0\n");
+  });
+
   test("--mode github --operator me --version v1.5.0 --dry-run prints the rendered file and writes nothing", () => {
     const m = machine();
     const before = snapshotTree(m.repo);
@@ -46,14 +53,6 @@ describe("init through the CLI, without a terminal", () => {
     expect(out.stdout).toContain("      operator: me\n");
     expect(out.stdout).toContain("review.yml@v1.5.0\n");
     expect(snapshotTree(m.repo)).toEqual(before);
-  });
-
-  test("this build bundles no workflow ref, so --version is mandatory (exit 2)", () => {
-    const m = machine();
-    const out = m.run(["init", "--mode", "github", "--operator", "me"]);
-    expect(out.code).toBe(2);
-    expect(out.stderr).toContain("--version");
-    expect(existsSync(join(m.repo, ".github"))).toBe(false);
   });
 
   test("write, refuse a second run, then --force keeps a .bak copy", () => {

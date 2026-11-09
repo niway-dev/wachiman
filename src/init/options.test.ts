@@ -91,8 +91,8 @@ describe("resolveInitOptions: the pinned tag", () => {
     expect(ok({ mode: "github", operator: "me", version: "v1.5.0" }, { defaultWorkflowRef: undefined }).github?.tag).toBe("v1.5.0");
   });
 
-  test("this build bundles no ref, so the default is absent", () => {
-    expect(DEFAULT_WORKFLOW_REF).toBeUndefined();
+  test("the bundled default has the vX.Y.Z shape", () => {
+    expect(DEFAULT_WORKFLOW_REF).toMatch(/^v\d+\.\d+\.\d+$/);
   });
 
   test.each(["1.5.0", "v1.5", "v1.5.0-rc.1", "v1", "main", "latest", "v1.5.0 ", "unknown", "0123456789abcdef", "0123456789ABCDEF0123456789abcdef01234567", "v1.5.0\nuses: x"])(

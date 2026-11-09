@@ -30,11 +30,11 @@ export type ResolveResult<T> = { ok: true; options: T } | { ok: false; error: st
 
 /**
  * The release tag of the reusable workflow that `init` pins when `--version` is absent: a ref that
- * is known to be published and immutable. This build bundles none, so `--version` is mandatory.
- * A release that has published its tag sets it here; the CLI's own version is never a substitute,
+ * is known to be published and immutable. release-please bumps it at the release commit (see
+ * docs/releasing.md); the CLI's own version is never a substitute,
  * because an unreleased or unrelated version would pin a workflow that does not exist.
  */
-export const DEFAULT_WORKFLOW_REF: string | undefined = undefined;
+export const DEFAULT_WORKFLOW_REF: string | undefined = "v1.9.0"; // x-release-please-version
 
 export const DEFAULT_WORKFLOW_PATH = ".github/workflows/wachiman-review.yml";
 const WORKFLOWS_DIR = ".github/workflows/";

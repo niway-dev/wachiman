@@ -55,9 +55,12 @@ Tracking issue for the floating tag: [#8](https://github.com/niway-dev/wachiman/
 5. The last workflow step moves the floating major tag (`v1`) to the release commit, for callers
    that still use it. Recommended installs pin the exact tag and are not affected.
 
-Configuration: `release-please-config.json` and `.release-please-manifest.json`. The config has
-no `extra-files`, so release-please edits only `package.json`, the manifest and `CHANGELOG.md`:
-every other place that names a version is updated by hand (see the checklist below).
+Configuration: `release-please-config.json` and `.release-please-manifest.json`. Besides
+`package.json`, the manifest and `CHANGELOG.md`, release-please edits `DEFAULT_WORKFLOW_REF` in
+`src/init/options.ts` (an `extra-files` generic entry, marked `// x-release-please-version`) at the
+release commit. That never makes an unreleased version a tag: the tag `vX.Y.Z` is created by the
+same merge that lands the bump. Every other place that names a version is updated by hand (see
+the checklist below).
 
 ## What release notes show
 
@@ -171,7 +174,8 @@ no maintenance branch: if one is ever needed, add a second release-please config
    (`claude_code_sha256`), re-run the opt-in isolation harness against that binary
    (`test/provider-isolation.test.ts`, described in
    [the Claude Code provider](providers/claude-code.md)) and keep the version and hash together.
-7. Check that CI is green on the release pull request.
+7. Check that CI is green on the release pull request, and that its diff moves `DEFAULT_WORKFLOW_REF`
+   in `src/init/options.ts` to the version being released.
 
 ## Consumer upgrades
 
