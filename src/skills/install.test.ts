@@ -253,6 +253,20 @@ describe("skills install: copies it does not own", () => {
     expect(f.warnings).toEqual([]);
   });
 
+  test("a symlink left at the temporary file's name is replaced, never written through", () => {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    const outside = join(temp("wachiman-skills-outside-"), "victim.txt");
+    writeFileSync(outside, "keep me\n");
+    symlinkSync(outside, join(copy, `SKILL.md.wachiman-${process.pid}.tmp`));
+    writeFileSync(join(f.source, "wachiman-review", "SKILL.md"), "# wachiman-review v2\n");
+    installSkills({ action: "install", dirs: [] }, f.env, { ...f.deps, version: "10.0.0" });
+
+    expect(readFileSync(outside, "utf8")).toBe("keep me\n");
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# wachiman-review v2\n");
+  });
+
   test("a locally modified marked copy is left in place with a warning", () => {
     const f = fixture();
     only(f);

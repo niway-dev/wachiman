@@ -176,7 +176,9 @@ function writeInside(dest: string, rel: string, bytes: Uint8Array) {
   ensureRealDirs(dest, rel);
   const path = join(dest, ...rel.split("/"));
   const temp = `${path}.wachiman-${process.pid}.tmp`;
-  writeFileSync(temp, bytes);
+  // A leftover at the temporary name (even a symlink) is removed, never written through.
+  if (lstatOrUndefined(temp) !== undefined) unlinkSync(temp);
+  writeFileSync(temp, bytes, { flag: "wx" });
   renameSync(temp, path);
 }
 
