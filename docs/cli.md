@@ -224,7 +224,7 @@ and confirmations to stderr; `--json` prints the document named below.
 | `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `history`, `skills`, `isolation`. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
 
 `remove` and `unbind` ask before writing. Without a terminal (or with `CI` set) they need `--yes`;
-without it they exit 2. `setup` needs `--profile <name>` when it cannot ask (no terminal, `CI=true`
+without it they exit 2. `setup` needs `--profile <name>` when it cannot ask (no terminal, `CI` is `true` or `1`
 or `--yes`) and exits 2 without it; then it skips the question and writes the binding, the name
 must already resolve, and `setup` never registers or creates a profile. In `doctor`, the `auth` row reports
 `networkObserved: "unknown"` always: Wachiman does not know what `claude auth status` contacts.
@@ -234,7 +234,7 @@ Exit codes: `doctor` 0 when every required check passed and 1 when one failed; `
 closing `doctor` summary failed (the binding is already written); `profile` and `project` 0 done
 (including a "no" answer), 2 usage error, 130 cancelled.
 
-**The `setup` wizard** (a terminal, no `--yes`, `CI` not `true`) asks one question at a time, each
+**The `setup` wizard** (a terminal, no `--yes`, `CI` neither `true` nor `1`) asks one question at a time, each
 showing its default (numbered lists mark `(default)`, text shows `[value]`, Enter takes it):
 
 1. `Set up this repository?` after printing the repository and its current binding.
