@@ -39,14 +39,17 @@ describe("the compiled executable, smoke-tested with a fake claude", () => {
     expect(result).toEqual({ row, ok: true, detail: expect.any(String) });
   }, 180_000);
 
-  test("the sentinels bite: an executable built without the two autoload flags runs the working directory's preload", async () => {
-    // The same entry, built as `bun build --compile` does by default. If this ever passes, W1 proves nothing.
-    const unsafe = compile(
-      join(out, `unsafe-${exeName}`),
-      buildArgs({ outfile: join(out, `unsafe-${exeName}`), version, skillFiles: skillFilesOf(root) }).filter((a) => !a.startsWith("--no-compile-autoload")),
-    );
+  // The same entry, built with one autoload flag dropped. If either of these passes, W1 proves nothing
+  // about that flag. The message is matched whole: a W1 failure for any other reason names the same
+  // directories, so a loose pattern would pass without the preload or the dotenv file ever taking effect.
+  test.each([
+    { flag: "--no-compile-autoload-bunfig", failure: "the bunfig.toml preload of the working directory ran" },
+    { flag: "--no-compile-autoload-dotenv", failure: "(the dotenv file of the working directory reached the environment)" },
+  ])("the sentinels bite: an executable built without $flag fails W1", async ({ flag, failure }) => {
+    const outfile = join(out, `unsafe${flag}-${exeName}`);
+    const unsafe = compile(outfile, buildArgs({ outfile, version, skillFiles: skillFilesOf(root) }).filter((a) => a !== flag));
     const [result] = await runSmoke({ exe: unsafe, version, rows: ["W1"] });
     expect(result.ok).toBe(false);
-    expect(result.detail).toMatch(/preload|dotenv/);
+    expect(result.detail).toContain(failure);
   }, 180_000);
 });
