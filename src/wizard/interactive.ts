@@ -8,7 +8,7 @@ export interface TerminalStreams {
 
 /**
  * Whether a wizard may ask questions: `--yes` is absent, stdin and stdout are terminals, and `CI`
- * is not `true`. Computed once per command (types spec section 8, invariant 14).
+ * is neither `true` nor `1`. Computed once per command (types spec section 8, invariant 14).
  */
 export function isInteractive(flags: { yes?: boolean }, env: Record<string, string | undefined>, streams: TerminalStreams) {
   if (flags.yes) return false;
