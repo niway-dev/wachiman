@@ -280,7 +280,18 @@ export function runLocal(
   provider.preflight();
   // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
   const verifier = config.verify
-    ? interruptible(getProvider("claude-code", { ...config, model: config.verifierModel, effort: "high", dryRun: false, auth: "subscription", configDir }), state)
+    ? interruptible(
+        (deps.getProvider ?? defaultGetProvider)("claude-code", {
+          ...config,
+          model: config.verifierModel,
+          effort: "high",
+          dryRun: false,
+          auth: "subscription",
+          configDir,
+          binary: profile.kind === "external" ? profile.binary : undefined,
+        }),
+        state,
+      )
     : undefined;
   verifier?.preflight();
 
