@@ -17,6 +17,7 @@
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
+ *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error;
@@ -32,6 +33,7 @@ import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
+import { parseSkillsArgs, runSkills, skillsUsage } from "./skills/install";
 import { doctorUsage, parseDoctorArgs, runDoctor } from "./doctor/run";
 import { initUsage, parseInitFlags } from "./init/args";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
@@ -73,6 +75,11 @@ export const USAGE = `Usage:
                                                      ~/.wachiman/claude-<name>, an external one is your own
                                                      Claude configuration directory, used in place
   ${projectUsage.split("\n").join("\n  ")}
+  ${skillsUsage.split("\n").join("\n  ")}
+                                                     Copy the wachiman-review and wachiman-audit agent
+                                                     skills into ~/.agents/skills and each Claude Code
+                                                     config directory; uninstall removes only the copies
+                                                     it marked. Never touches ~/.wachiman
   wachiman --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
                                                      (an alias of \`wachiman profile create\`)
   wachiman --help | --version
@@ -95,6 +102,7 @@ Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 \`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
 \`setup\`, \`init\`: 130 cancelled (Escape, Ctrl-C, Ctrl-D); nothing pending is saved.
+\`skills\`: 0 done (copies left in place are warned about), 1 a copy could not be written, 2 usage error or a refused target.
 Guide: docs/local-review.md`;
 
 /** package.json sits one level above src/; in a copied layout it may belong to someone else. */
@@ -208,6 +216,12 @@ export async function main(argv: string[], env: Record<string, string | undefine
       setupProfile({ name: argv[1], home: wachimanHome(env), env });
       return 0;
     }
+    if (mode === "skills") {
+      // Before extractRepoDir: no repository is read, so `--repo-dir` is a usage error here.
+      const parsed = parseSkillsArgs(argv.slice(1));
+      if ("help" in parsed) return (writeAll(1, `${skillsUsage}\n`), 0);
+      return runSkills(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
+    }
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {
       // No GitHub: no token, no repository, no `gh` function anywhere on this path.
@@ -238,6 +252,8 @@ export async function main(argv: string[], env: Record<string, string | undefine
     const loaded = loadConfig(env);
     const config = mode === "comment" ? { ...loaded, trigger: "comment" } : mode === "threads" ? { ...loaded, trigger: "thread" } : loaded;
     const provider = getProvider(config.provider, config);
+    // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
+    const verifier = config.verify && mode !== "threads" ? getProvider(config.provider, { ...config, model: config.verifierModel, effort: "high" }) : undefined;
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
     const request = mode === "comment" ? required(env, "REQUEST") : "";
@@ -246,6 +262,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
       costs,
       gh: defaultGh,
       provider,
+      ...(verifier ? { verifier } : {}),
       config,
       repoDir,
       engineVersion: readVersion(),
@@ -255,6 +272,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // Before any call is paid for: a missing binary or settings file would fail every batch.
     try {
       provider.preflight();
+      verifier?.preflight();
     } catch (error) {
       console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
       return 1;

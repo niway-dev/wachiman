@@ -2,13 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { countLine, MAX_BODY_CHARS, type ReviewResult } from "../engine";
+import { REVIEW_RESULT_V2, toResultV1 } from "../formats";
+import { annotateUnverified } from "../verify";
 import { AGENT_PROMPT_INTRO, agentPrompt } from "./agent-prompt";
 import { renderJson } from "./json";
 import { renderMarkdown } from "./markdown";
 import { renderTerminal } from "./terminal";
 
-const example = (): ReviewResult =>
-  JSON.parse(readFileSync(join(import.meta.dir, "../../test/fixtures/formats/review-result.example.json"), "utf8"));
+/** The /1 example, read as a /2 result: every finding unverified, origin unknown. */
+const example = (): ReviewResult => {
+  const v1 = JSON.parse(readFileSync(join(import.meta.dir, "../../test/fixtures/formats/review-result.example.json"), "utf8"));
+  const verified = annotateUnverified(v1.findings);
+  return { ...v1, format: REVIEW_RESULT_V2, findings: v1.findings.map((f: { anchor: "diff" | "outside" }, i: number) => ({ ...verified[i], anchor: f.anchor })) };
+};
 
 /** The example as a local run with every file reviewed. */
 const local = (): ReviewResult => {
@@ -65,11 +71,11 @@ describe("agentPrompt", () => {
       [
         AGENT_PROMPT_INTRO(SHA7),
         "",
-        "1. apps/api/src/main/session/store.ts:2 · 🟠🐛 Fix · bug: The store drops the last session (confidence high)",
+        "1. apps/api/src/main/session/store.ts:2 · Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high)",
         "   `y` overwrites `x` before it is flushed.",
-        "2. apps/api/src/main/session/session-manager.ts · 🟡🧪 Consider · tests: No test covers the export (confidence medium)",
+        "2. apps/api/src/main/session/session-manager.ts · Nit · 🟡🧪 Consider · tests: No test covers the export (confidence medium)",
         "   Add a test that exports two sessions.",
-        "3. docs/x.md:4 · ⚪📝 Info · docs: A note &lt;!-- agent-review sha=1 --&gt;",
+        "3. docs/x.md:4 · Nit · ⚪📝 Info · docs: A note &lt;!-- agent-review sha=1 --&gt;",
         "   Line one.",
         "",
         "   Line two.",
@@ -100,11 +106,9 @@ describe("renderMarkdown", () => {
     const md = renderMarkdown(r, {});
     expect(md).toContain("Profile: default — your own signed-in `claude`");
     expect(md).toContain(
-      "### 🟠🐛 **Fix · bug: The store drops the last session (confidence high)**\n\n`apps/api/src/main/session/store.ts:2`\n\n`y` overwrites `x` before it is flushed.",
+      "### Important · 🟠🐛 **Fix · bug: The store drops the last session (confidence high)**\n\n`apps/api/src/main/session/store.ts:2`\n\n`y` overwrites `x` before it is flushed.",
     );
     expect(md).toContain("`apps/api/src/main/session/session-manager.ts`\n\nAdd a test");
-    expect(md.match(/^Verified: /gm)).toHaveLength(1);
-    expect(md).toContain("Verified: Searched the test directory for `export`. — exportSessions([a, b])");
     expect(md).toContain("## Summary\n\n**Batch 1 of 2.** The store has one ordering bug.");
     expect(md).toContain("<details><summary>What the change connects to (1 closed, 0 open)</summary>");
     expect(md).toContain("| Batch 1 of 2 | 3 | 9 | 7 | reviewed | 6 | $0.30 |");
@@ -150,9 +154,9 @@ describe("renderTerminal", () => {
     expect(lines[1]).toBe("profile: default — your own signed-in `claude`; its plugins are untested and could reach the review");
     expect(lines[2]).toBe(countLine(r.findings));
     expect(out).toContain(
-      "apps/api/src/main/session/store.ts:2  🟠🐛 Fix · bug: The store drops the last session (confidence high)\n    `y` overwrites `x` before it is flushed.",
+      "apps/api/src/main/session/store.ts:2  Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high)\n    `y` overwrites `x` before it is flushed.",
     );
-    expect(out).toContain("apps/api/src/main/session/session-manager.ts  🟡🧪 Consider");
+    expect(out).toContain("apps/api/src/main/session/session-manager.ts  Nit · 🟡🧪 Consider");
     expect(out).toContain("Summary:\n    **Batch 1 of 2.** The store has one ordering bug.");
     expect(out).not.toContain("Not reviewed:");
     expect(out).toMatch(/\$0\.40.*API-equivalent estimate.*not a bill/);
@@ -195,9 +199,12 @@ describe("renderTerminal", () => {
 describe("renderJson", () => {
   test("is the result itself, with a final newline", () => {
     const r = example();
-    const text = renderJson(r);
+    const text = renderJson(r, 2);
     expect(JSON.parse(text)).toEqual(r);
     expect(text).toEndWith("}\n");
+    // The default is the /1 form a committed change is saved in.
+    expect(JSON.parse(renderJson(r))).toEqual(toResultV1(r));
+    expect(JSON.parse(renderJson(r)).format).toBe("wachiman.review-result/1");
   });
 });
 
@@ -250,9 +257,9 @@ describe("the history annotation", () => {
     const r = local();
     const text = renderTerminal(r, { agentPrompt: false, history: annotation() });
     expect(text).toContain(
-      "apps/api/src/main/session/store.ts:2  🟠🐛 Fix · bug: The store drops the last session (confidence high)  open since 5d6e7f8 · 3 runs · id a1b2c3d4e5 · verdict: wrong\n    `y` overwrites",
+      "apps/api/src/main/session/store.ts:2  Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high)  open since 5d6e7f8 · 3 runs · id a1b2c3d4e5 · verdict: wrong\n    `y` overwrites",
     );
-    expect(text).toContain("session-manager.ts  🟡🧪 Consider · tests: No test covers the export (confidence medium)  new · id f0f0f0f0f0\n");
+    expect(text).toContain("session-manager.ts  Nit · 🟡🧪 Consider · tests: No test covers the export (confidence medium)  new · id f0f0f0f0f0\n");
     expect(text).toContain(
       [
         "Since the last run (1a2b3c4, 2026-11-04 18:02):",

@@ -69,6 +69,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `init` | Writes the GitHub caller workflow, or hands over to `setup`. See [`init`](#init). |
 | `doctor` | Reports what a local run would use and what would fail. |
 | `profile …`, `project …` | Manage account profiles and the repository's binding. |
+| `skills install\|uninstall` | Copies the `wachiman-review` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
 ### Incremental reviews
@@ -164,12 +165,15 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
 | `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
 | `--profile <name>` | see "Which account" below | `default` is your own `claude`; a name is a registered profile (managed or external); `isolated` and `isolated:<name>` name the managed profile `~/.wachiman/claude-<name>` (which must exist and hold nothing but a sign-in) |
+| `--verify` | on (follows `AGENT_REVIEW_VERIFY`, on unless set to `0`/`false`); `--verify` forces it on | After the batches, one more call on `AGENT_REVIEW_VERIFIER_MODEL` (default Opus 5.5) tries to refute each finding above `info`. A finding is dropped only when the verifier shows a checked disproof; one it cannot settle stays, marked `inconclusive`; a true bug that predates the change is `supported` with origin `pre-existing`. The verifier can read the base commit as well as the head. The record is `verification` in `--format json --result-version 2` ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md), [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)) |
+| `--no-verify` | — | Turn verification off for this run, even when `AGENT_REVIEW_VERIFY` is on. With `--verify` it is a usage error |
+| `--result-version 1\|2` | `1` for a committed change | With `--format json` only (any other use exits 2): which result version to write. `1` is the committed form (`toResultV1`): no `verification` block, and one line in `execution.notices` saying how verification went. `2` is the full result, with each finding's `origin`, `verification` and `tier` |
 | `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
 merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 50)`, `head: feat/x (…)`); with `--commit` or
 `--from` it prints the mode and the start instead (`mode: one commit (abc1234)` or `mode: from abc1234 to HEAD`, then `start: …`, `depth: …`, `head: …`; `start: the empty tree (a root commit)` for a root commit). It also prints the file
-count and the number of batches on stderr; the provider's progress follows there too. **It
+count and the number of batches on stderr, then `verify: off` or `verify: on (<model>, reserve $<n>)`; the provider's progress follows there too. **It
 prints, never posts:** the report goes to stdout (or `--output`), so `--format json` on stdout is
 the result alone.
 
@@ -284,6 +288,41 @@ commits, pushes, opens a pull request or creates a secret.
 previewed on stderr and `Write it?` is asked first; Escape, Ctrl-C or Ctrl-D exit 130 and write
 nothing.
 
+### `skills`
+
+```
+wachiman skills install [--dir <path>]… [--json]
+wachiman skills uninstall [--dir <path>]…
+```
+
+`install` copies `skills/wachiman-review` and `skills/wachiman-audit` (copies, not symlinks) into
+`~/.agents/skills` and into the `skills` folder of every Claude Code configuration directory that
+exists: `~/.claude`, each `~/.claude-*` directory and `$CLAUDE_CONFIG_DIR`. `--dir <path>` adds a
+skills directory of your own and may repeat. It makes no model call and no request.
+
+`--json` belongs to `install`: it prints `wachiman.skills/1` on stdout, one entry per copy, with
+action `installed`, `preserved` or `failed`. `uninstall --json` is a usage error (exit 2).
+
+Each copy gets a `.wachiman-skill.json` marker (`wachiman.skill-install/1`: the version, the time
+and the SHA-256 of every installed file). The marker is how Wachiman tells its copies from yours:
+
+- A copy whose marker is intact and whose files are unmodified is replaced by the new version.
+- A copy without a marker (your own skill of that name, a symlink such as the one
+  `scripts/install-local.sh` makes for contributors, or a plain file), and a marked copy with a file
+  you edited, are left exactly as they are, and each one is warned about on stderr. A symlink is
+  never followed.
+- Any target under the Wachiman home (`~/.wachiman`, or `WACHIMAN_HOME`), as written or through a
+  symlink, is refused with exit 2 before anything is written. That includes a `CLAUDE_CONFIG_DIR`
+  that points at a managed profile.
+
+`uninstall` removes only the files that the marker lists and whose content still matches. An edited
+file, a file you added and anything that is not a marked copy stay, with a warning; empty folders it
+leaves behind are removed. Each removed copy is printed as `removed <path>` on stdout; warnings
+always go to stderr.
+
+Exit codes: 0 done (copies left in place are warnings, not failures), 1 a copy could not be written
+or removed, 2 usage error or a refused target.
+
 ### `history`
 
 `wachiman history` lists the findings that `local --history` kept for the repository of
@@ -390,9 +429,19 @@ implemented.
 
 ## Finding labels
 
-Every finding is labelled on two axes, each an emoji followed by its word, for example
-`🟠📝 **Fix · docs: stale 'Read by' cell**`. The decision is
-[ADR 0003](adr/0003-two-axis-finding-labels.md).
+Every finding is labelled on two axes, each an emoji followed by its word, and starts with a
+**tier word**, for example `Important · 🟠📝 **Fix · docs: stale 'Read by' cell**`. The two-axis
+decision is [ADR 0003](adr/0003-two-axis-finding-labels.md); the tier word and the result
+version that carries it are [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md).
+
+The tier word is derived by code, never written by the model: `Pre-existing` when verification
+showed the defect in the base commit (origin `pre-existing`), else `Important` for `blocker` and
+`fix`, else `Nit`. On GitHub it sits outside the bold part, so older readers of the label still
+parse it. The terminal and Markdown reports add what the verifier found after the confidence
+(`(confidence high, supported)` or `(…, inconclusive)`), a `Verified:` or `Inconclusive:` line
+with the lines it read, and group `Inconclusive` and `Pre-existing` findings after the findings
+of the change. On GitHub those two groups are listed in the review body and open no thread; a
+finding the verifier never reached (`not verified: budget`) stays where it was.
 
 | Severity | Emoji | For the author | Where it is posted |
 | --- | --- | --- | --- |
@@ -427,7 +476,7 @@ Two tests settle a severity that feels uncertain, and apply before the list abov
 
 A finding also carries a **confidence**, separate from severity: severity says how bad the finding
 is if it is true, confidence says how sure the reviewer is that it is true, given what it read.
-It is shown after the title, for example `🟠🐛 **Fix · bug: Face is lost (confidence high)**`.
+It is shown after the title, for example `Important · 🟠🐛 **Fix · bug: Face is lost (confidence high)**`.
 
 | Confidence | Meaning |
 | --- | --- |

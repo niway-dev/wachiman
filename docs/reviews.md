@@ -76,10 +76,20 @@ Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · 2 batches · $0.42
 An inline finding, on its line in the diff, looks like this:
 
 ```text
-👮 **Wachiman** · 🟠🐛 **Fix · bug: Zero limit breaks the page count (confidence high)**
+👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Zero limit breaks the page count (confidence high)**
 
 …the reasoning, citing the lines it rests on…
 ```
+
+### The tier word
+
+A label starts with a tier word the engine derives: **Important** for Blocker and Fix, **Nit** for
+Consider and Info, and **Pre-existing** for a true bug that verification found in the base commit
+as well, which this change neither caused nor made worse. Pre-existing findings and fixes the
+verifier could not settle are listed in the review body, under "Pre-existing" and
+"Inconclusive", and open no thread. With verification off, every finding keeps its
+severity-derived tier and nothing is moved. GitHub mode has no base snapshot yet, so the origin
+of a finding there is always `unknown` and nothing is marked Pre-existing.
 
 ### The two labels on a finding
 

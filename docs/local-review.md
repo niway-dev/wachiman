@@ -72,6 +72,13 @@ It links `bin/wachiman` into `~/.local/bin` (put that on your `PATH`) and the sk
 `$CLAUDE_CONFIG_DIR`). It never touches `~/.wachiman`, replaces only its own symlinks, and moves
 any other file it finds to `~/.local/state/wachiman-install/backup/<timestamp>/`.
 
+That script is for contributors: the links point into your clone. Whoever runs Wachiman from a
+package runs `wachiman skills install` instead. From a clone, run `bun src/cli.ts skills install`,
+which is the same command. It copies the two skills into the same directories (it does not install
+the command), refuses anything under `~/.wachiman`, marks every copy it makes, leaves any copy
+without that marker (or with edits) in place with a warning, and `wachiman skills uninstall` removes
+only the marked copies. See [`skills`](cli.md#skills).
+
 `wachiman` runs the engine from its clone (or `$WACHIMAN_DIR`) and passes `--no-env-file` and
 `--config=` so a `.env` or `bunfig.toml` of the reviewed repository stays out of the engine process
 (Bun reads both from its working directory, and `bunfig.toml` can run code; see
@@ -268,8 +275,9 @@ ask ("my branch", "only commit X", "from X on"), finds your profile with `projec
 uses the GitHub modes and never reviews the code itself. Its sibling
 [`skills/wachiman-audit`](../skills/wachiman-audit/SKILL.md) compares Wachiman's posted findings with
 CodeRabbit's or Pullfrog's on the same commits, through `scripts/pair.ts` in
-[wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks). To install them by hand, link
-each folder into your agent's skills directory and set `WACHIMAN_DIR` to this clone:
+[wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks). `wachiman skills install`
+copies both (see section 3). To link them by hand from a clone instead, link each folder into your
+agent's skills directory and set `WACHIMAN_DIR` to this clone:
 
 ```sh
 ln -s "$PWD/skills/wachiman-review" ~/.claude/skills/wachiman-review
