@@ -127,7 +127,11 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
       name = chosen;
     } else if (picked === CREATE) {
       const chosen = await prompter.text("Profile name", ISOLATED_NAME, (v) =>
-        registered(v) ? `"${v}" is already registered; pick it from the list instead.` : problemOf(() => checkProfileName(v)),
+        registered(v)
+          ? `"${v}" is already registered; pick it from the list instead.`
+          : v === "default"
+            ? `"default" is reserved (the built-in profile); choose another name.`
+            : problemOf(() => checkProfileName(v)),
       );
       if (chosen === null) return { kind: "cancelled" };
       const dir = managedDir(home, chosen);

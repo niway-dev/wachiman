@@ -414,6 +414,14 @@ describe("setup: creating a managed profile", () => {
     expect(w.config()!.profiles.scratch).toBeUndefined();
   });
 
+  test("the reserved name default cannot be created: refused at the question, before any directory or sign-in", async () => {
+    const w = world();
+    const { io, run } = setup(w, [], ["", "4", "default", ESC]);
+    expect(await run).toBe(130);
+    expect(io.printed()).toContain('"default" is reserved');
+    expect(w.interactiveCalls).toEqual([]);
+  });
+
   test("a name that is already registered cannot be created again", async () => {
     const w = world();
     const { io, run } = setup(w, [], ["", "4", "work-a", ESC]);
