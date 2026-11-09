@@ -454,6 +454,20 @@ describe("setup: the account check after the save", () => {
     expect(errText(w)).toContain("account: signed in");
   });
 
+  test("the terminal is handed back before the blocking account probe, so typed-ahead input is not read live", async () => {
+    const w = world();
+    const toolchain = signedOutUntilLogin(w);
+    const log: string[] = [];
+    const io = scripted(["", "", "n"]);
+    const real = createPrompter(io);
+    const prompter = { ...real, suspend: () => (log.push("suspend"), real.suspend()) };
+    const spawn: SetupDeps["spawn"] = (b, a, o) => (a[0] === "auth" && a[1] === "status" && log.push("probe"), toolchain.spawn(b, a, o));
+    await runSetupCommand(parseSetupFlags(["--profile", "work-a"], w.repo), w.env, w.io, w.deps({ prompter, spawn }));
+    expect(log.indexOf("suspend")).toBeGreaterThanOrEqual(0);
+    expect(log.indexOf("suspend")).toBeLessThan(log.indexOf("probe"));
+    real.close();
+  });
+
   test("signed out: no keeps going with the warning", async () => {
     const w = world();
     const toolchain = signedOutUntilLogin(w);

@@ -138,6 +138,8 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     const resolvedProfile = { profile: found.profile, rung: "binding" as const, overridden: [] };
     io.stderr(profileLine(resolvedProfile));
     const probe = () => confirmProfile(resolvedProfile, env, deps.spawn, deps.doctor?.confirmIo);
+    // The probes block while claude runs; an Enter typed meanwhile must not reach "Sign in now?" through a live readline.
+    prompter.suspend();
     let status = probe();
     const signedOut = !status.ok && status.stage === "auth" && status.auth !== undefined && status.auth.exitCode !== 0;
     if (!status.ok && signedOut && found.profile.kind !== "default") {
