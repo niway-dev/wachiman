@@ -33,11 +33,13 @@ jobs:
       # for readers). Dependabot does not update images named inside a `run:` line: bump both by hand.
       - name: Lint workflows
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color
-  # The packed tarball, installed the way a user installs it, in a clean Node container: first with
-  # no Bun on PATH (the launcher must exit 2 with the install line), then with Bun. The image is
-  # pinned by digest (the tag is for readers); Dependabot does not bump a `container:` image, so
-  # bump both by hand. Bun comes from npm at an exact version, a registry read only: the checks
-  # themselves install the tarball from a file with an empty cache and a closed registry port.
+  # The packed tarball, installed the way a user installs it, in a clean Node container: first
+  # without its `bun` dependency (what `--ignore-scripts` leaves is a stub) and with no Bun on
+  # PATH (the launcher must exit 2 with the install line), then the real dependency from the
+  # registry with only node on PATH (the launcher must run the Bun npm installed), then a Bun on
+  # PATH. The image is pinned by digest (the tag is for readers); Dependabot does not bump a
+  # `container:` image, so bump both by hand. The offline checks use an empty cache and a closed
+  # registry port; only `--bundled-bun` and the Bun install read the registry.
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -48,6 +50,8 @@ jobs:
           persist-credentials: false
       - name: Without Bun
         run: scripts/verify-package.sh --without-bun
+      - name: The bundled Bun, from the registry, with only node on PATH
+        run: scripts/verify-package.sh --bundled-bun
       - name: Install Bun
         run: npm install --global bun@1.3.4
       - name: With Bun
@@ -73,16 +77,21 @@ jobs:
         run: |
           bun test ./test/launcher.test.ts ./src/install-kind.test.ts ./test/package.test.ts ./test/local-fake-provider.test.ts ./src/connectors/local-git.test.ts
           bun test ./src/providers/claude-code.test.ts -t "child environment"
-      - name: Install the packed tarball with npm and run it
+      - name: Install the packed tarball with npm, with its bundled Bun, and run it with no Bun on PATH
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP "wachiman-pack"
           New-Item -ItemType Directory -Path $dir | Out-Null
           npm pack --pack-destination $dir --ignore-scripts
           $tgz = (Get-ChildItem $dir -Filter "wachiman-*.tgz").FullName
-          $env:npm_config_cache = Join-Path $env:RUNNER_TEMP "wachiman-npm-cache"
-          npm install --global --prefix (Join-Path $env:RUNNER_TEMP "wachiman-prefix") --offline --registry http://127.0.0.1:9 --ignore-scripts --no-audit --no-fund $tgz
+          $prefix = Join-Path $env:RUNNER_TEMP "wachiman-prefix"
+          npm install --global --prefix $prefix --no-audit --no-fund $tgz
+          if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
           $expected = node -p "require('./package.json').version"
-          $got = & (Join-Path $env:RUNNER_TEMP "wachiman-prefix\wachiman.cmd") --version
+          # Only node and System32 on PATH: the Bun that setup-bun put there is not found.
+          $env:PATH = "$(Split-Path (Get-Command node).Source);$env:SystemRoot\System32"
+          if (Get-Command bun -ErrorAction SilentlyContinue) { throw "bun is still on PATH" }
+          $got = & (Join-Path $prefix "wachiman.cmd") --version
+          if ($LASTEXITCODE -ne 0) { throw "wachiman exited $LASTEXITCODE with only node on PATH" }
           if ($got -ne $expected) { throw "wachiman --version printed '$got', expected '$expected'" }
-          "wachiman --version -> $got"
+          "wachiman --version -> $got, through the bundled Bun"

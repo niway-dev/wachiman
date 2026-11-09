@@ -1,8 +1,11 @@
 /**
  * The packed tarball, installed the way a user installs it (`npm i -g <file>`), with no registry
  * for the package: `scripts/verify-package.sh` does the work and CI runs the same script in a
- * clean Node container. Here it runs on POSIX machines that have bash, node, npm and bun; on
- * Windows the dedicated CI job runs the launcher tests and an install of the tarball instead.
+ * clean Node container. The tarball is installed without its `bun` dependency (an install with
+ * `--ignore-scripts` leaves a stub there), so these checks need no network. The real dependency is
+ * checked by `--bundled-bun`, which needs the registry and runs in CI only. Here it runs on POSIX
+ * machines that have bash, node, npm, tar and bun; on Windows the dedicated CI job runs the
+ * launcher tests and an install of the tarball instead.
  */
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -10,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const script = join(import.meta.dir, "..", "scripts", "verify-package.sh");
-const tools = ["bash", "node", "npm", "bun"].every((tool) => Bun.which(tool));
+const tools = ["bash", "node", "npm", "tar", "bun"].every((tool) => Bun.which(tool));
 
 function run(args: string[], cwd?: string) {
   const out = Bun.spawnSync(["bash", script, ...args], { cwd, env: { ...process.env, npm_config_offline: "" } });
@@ -22,15 +25,16 @@ describe.skipIf(!tools || process.platform === "win32")("scripts/verify-package.
     const r = run([]);
     expect(r.stderr).not.toContain("FAIL");
     expect(r.code).toBe(0);
-    for (const line of ["wachiman --version ->", "agent-review --version ->", "npm exec -- wachiman --version from the installed copy", "wachiman doctor --json against fixture dependencies", "did not reach the engine"]) {
+    for (const line of ["wachiman --version ->", "agent-review --version -> ", "bundled Bun is a stub, so the Bun on PATH ran", "npm exec -- wachiman --version from the installed copy", "wachiman doctor --json against fixture dependencies", "did not reach the engine"]) {
       expect(r.stdout).toContain(line);
     }
   }, 180_000);
 
-  test("without Bun: exit 2 and the install line", () => {
+  test("without Bun, bundled missing or a stub: exit 2 and the install line", () => {
     const r = run(["--without-bun"]);
     expect(r.code).toBe(0);
-    expect(r.stdout).toContain("without Bun: exit 2 and the line: wachiman needs Bun 1.3 or later: https://bun.sh");
+    expect(r.stdout).toContain("without Bun (no bundled Bun): exit 2 and the line: wachiman needs Bun 1.3 or later: https://bun.sh");
+    expect(r.stdout).toContain("without Bun (a stub bundled Bun): exit 2 and the line: wachiman needs Bun 1.3 or later: https://bun.sh");
   }, 120_000);
 
   test("a relative --tarball, as the release workflow passes it, is found after the script changes directory", () => {

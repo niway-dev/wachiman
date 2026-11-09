@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
-# Install the packed tarball the way a user would and check that it runs. No model call, no
-# registry write, and no registry read for the package: the tarball is installed from a file, the
-# npm cache is empty, and the registry is pointed at a closed port, so anything that needed the
-# network would fail loudly.
+# Install the packed tarball the way a user would and check that it runs. No model call and no
+# registry write. The package depends on the npm package `bun`, so the default and `--without-bun`
+# checks install a copy of the tarball with that one `dependencies` entry removed (npm cannot omit a
+# regular dependency), offline, from an empty cache, with the registry on a closed port and with
+# --ignore-scripts: that is what an `--ignore-scripts` install leaves, a stub where Bun should be,
+# and the stub is created here. Only `--bundled-bun` reads the registry, for the real dependency.
 #
-#   scripts/verify-package.sh [--tarball FILE]   with Bun on PATH: version, npm exec, doctor, isolation
-#   scripts/verify-package.sh --without-bun      Bun hidden from PATH: the launcher exits 2 with the install line
+#   scripts/verify-package.sh [--tarball FILE]   with Bun on PATH: stub bundled Bun falls back to it; version, npm exec, doctor, isolation
+#   scripts/verify-package.sh --without-bun      no Bun on PATH, bundled Bun missing or a stub: the launcher exits 2 with the Bun message
+#   scripts/verify-package.sh --bundled-bun      needs network: `npm install -g <tarball>` with its real dependencies, only node on PATH:
+#                                                the launcher runs the Bun that npm installed
 #
-# Needs bash, node and npm. Run it from a checkout (it packs the checkout unless --tarball is given).
+# Needs bash, node, npm and tar. Run it from a checkout (it packs the checkout unless --tarball is given).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 tarball=""
 without_bun=0
+bundled_bun=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tarball) tarball="${2:?--tarball needs a file}"; shift 2 ;;
     --without-bun) without_bun=1; shift ;;
-    *) echo "usage: verify-package.sh [--tarball FILE] [--without-bun]" >&2; exit 2 ;;
+    --bundled-bun) bundled_bun=1; shift ;;
+    *) echo "usage: verify-package.sh [--tarball FILE] [--without-bun | --bundled-bun]" >&2; exit 2 ;;
   esac
 done
 
@@ -40,40 +46,84 @@ fi
 tarball="$(cd "$(dirname "$tarball")" && pwd -P)/$(basename "$tarball")"
 ok "tarball $(basename "$tarball") sha256 $(node -e 'const c=require("crypto"),f=require("fs");console.log(c.createHash("sha256").update(f.readFileSync(process.argv[1])).digest("hex"))' "$tarball")"
 
+# PATH holds node and nothing else, so no `bun` (and nothing that could shim one) is found.
+nobun="$work/node-only"
+mkdir "$nobun"
+ln -s "$(command -v node)" "$nobun/node"
+BUN_LINE="wachiman needs Bun 1.3 or later: https://bun.sh"
+
 prefix="$work/prefix"
-npm install --global --prefix "$prefix" --offline --registry "$dead_registry" --ignore-scripts --no-audit --no-fund "$tarball" >/dev/null
+if [[ "$bundled_bun" == 1 ]]; then
+  # The real thing: the dependency and its postinstall come from the registry (network needed).
+  npm install --global --prefix "$prefix" --no-audit --no-fund "$tarball" >/dev/null
+else
+  # The tarball without its one dependency: unpack, drop `dependencies`, repack.
+  mkdir "$work/unpacked"
+  tar -xzf "$tarball" -C "$work/unpacked"
+  node -e 'const fs=require("fs"),f=process.argv[1]+"/package/package.json",p=JSON.parse(fs.readFileSync(f,"utf8"));if(!p.dependencies||Object.keys(p.dependencies).join()!=="bun")throw new Error("expected exactly the bun dependency, found "+JSON.stringify(p.dependencies));delete p.dependencies;fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n")' "$work/unpacked"
+  tar -czf "$work/wachiman-nodeps.tgz" -C "$work/unpacked" package
+  npm install --global --prefix "$prefix" --offline --registry "$dead_registry" --ignore-scripts --no-audit --no-fund "$work/wachiman-nodeps.tgz" >/dev/null
+fi
 installed="$prefix/lib/node_modules/wachiman"
 [[ -f "$installed/package.json" ]] || installed="$prefix/node_modules/wachiman" # Windows layout
 version="$(node -p 'require(process.argv[1]).version' "$installed/package.json")"
-ok "npm i -g of the tarball installed wachiman $version without a registry"
+if [[ "$bundled_bun" == 1 ]]; then
+  ok "npm i -g of the tarball installed wachiman $version and its dependencies"
+else
+  ok "npm i -g of the tarball (without its bun dependency) installed wachiman $version without a registry"
+fi
 
 bin="$prefix/bin"
 [[ -e "$bin/wachiman" ]] || bin="$prefix"
 
+if [[ "$bundled_bun" == 1 ]]; then
+  bundled="$(find "$prefix" -path '*/node_modules/bun/bin/bun.exe' | head -n 1)"
+  [[ -n "$bundled" ]] || fail "the bun dependency was not installed under $prefix"
+  bundled_version="$("$bundled" --version)" || fail "the bundled bun.exe did not run: its postinstall may not have run"
+  ok "the bundled Bun runs: $bundled_version"
+  got="$(PATH="$nobun" "$bin/wachiman" --version)" || fail "wachiman did not run with only node on PATH"
+  [[ "$got" == "$version" ]] || fail "wachiman --version printed '$got', expected '$version'"
+  ok "only node on PATH: wachiman --version -> $got, through the bundled Bun"
+  echo "verified wachiman $version"
+  exit 0
+fi
+
+# What `npm i -g wachiman --ignore-scripts` leaves: the bun package with a stub bin/bun.exe.
+stub_bun() {
+  mkdir -p "$installed/node_modules/bun/bin"
+  echo '{"name":"bun","version":"1.3.4"}' >"$installed/node_modules/bun/package.json"
+  printf '#!/bin/sh\necho "stub: bun postinstall did not run" >&2\nexit 1\n' >"$installed/node_modules/bun/bin/bun.exe"
+  chmod +x "$installed/node_modules/bun/bin/bun.exe"
+}
+
 if [[ "$without_bun" == 1 ]]; then
-  # PATH holds node and nothing else, so no `bun` (and nothing that could shim one) is found.
-  nobun="$work/node-only"
-  mkdir "$nobun"
-  ln -s "$(command -v node)" "$nobun/node"
-  set +e
-  out="$(PATH="$nobun" "$bin/wachiman" --version 2>"$work/stderr")"
-  code=$?
-  set -e
-  [[ "$code" == 2 ]] || fail "without Bun the launcher exited $code, expected 2"
-  [[ -z "$out" ]] || fail "without Bun the launcher wrote to stdout: $out"
-  grep -qx "wachiman needs Bun 1.3 or later: https://bun.sh" "$work/stderr" || fail "without Bun the install line is missing: $(cat "$work/stderr")"
-  ok "without Bun: exit 2 and the line: $(cat "$work/stderr")"
+  # Case 1: no bundled Bun at all. Case 2: the stub. PATH holds node and nothing else in both.
+  for scenario in "no bundled Bun" "a stub bundled Bun"; do
+    [[ "$scenario" == "a stub bundled Bun" ]] && stub_bun
+    set +e
+    out="$(PATH="$nobun" "$bin/wachiman" --version 2>"$work/stderr")"
+    code=$?
+    set -e
+    [[ "$code" == 2 ]] || fail "$scenario and no Bun on PATH: the launcher exited $code, expected 2"
+    [[ -z "$out" ]] || fail "$scenario and no Bun on PATH: the launcher wrote to stdout: $out"
+    grep -qxF "$BUN_LINE" "$work/stderr" || fail "$scenario: the Bun line is missing: $(cat "$work/stderr")"
+    grep -qF "npm install -g bun" "$work/stderr" || fail "$scenario: the install command is missing: $(cat "$work/stderr")"
+    ok "without Bun ($scenario): exit 2 and the line: $(head -n 1 "$work/stderr")"
+  done
   exit 0
 fi
 
 command -v bun >/dev/null || fail "bun is not on PATH (use --without-bun to check that case)"
+
+# The bundled Bun is a stub here (--ignore-scripts), so every run below also proves the fallback to PATH.
+stub_bun
 
 got="$("$bin/wachiman" --version)"
 [[ "$got" == "$version" ]] || fail "wachiman --version printed '$got', expected '$version'"
 ok "wachiman --version -> $got"
 got="$("$bin/agent-review" --version)"
 [[ "$got" == "$version" ]] || fail "agent-review --version printed '$got', expected '$version'"
-ok "agent-review --version -> $got"
+ok "agent-review --version -> $got (bundled Bun is a stub, so the Bun on PATH ran)"
 
 # An npm exec run that can only succeed from an installed copy: the tarball goes into a project's
 # node_modules, the registry is a closed port and the cache is empty, so a registry download
@@ -83,7 +133,7 @@ mkdir "$project"
 (
   cd "$project"
   npm init -y >/dev/null
-  npm install --offline --registry "$dead_registry" --ignore-scripts --no-audit --no-fund "$tarball" >/dev/null
+  npm install --offline --registry "$dead_registry" --ignore-scripts --no-audit --no-fund "$work/wachiman-nodeps.tgz" >/dev/null
   got="$(npm exec --offline --registry "$dead_registry" -- wachiman --version)"
   [[ "$got" == "$version" ]] || { echo "FAIL  npm exec wachiman --version printed '$got'" >&2; exit 1; }
 )
