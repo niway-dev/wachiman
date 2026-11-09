@@ -360,6 +360,13 @@ describe("the child environment", () => {
     expect(buildChildEnv(windows, { platform: "win32" })).toEqual(kept);
   });
 
+  test("on Windows a parent claude_config_dir does not survive next to the profile's CLAUDE_CONFIG_DIR", () => {
+    const child = buildChildEnv({ Path: "C:\\Windows", claude_config_dir: "C:\\evil" }, { platform: "win32", auth: "subscription", configDir: "C:\\profile" });
+    const keys = Object.keys(child).filter((k) => /^claude_config_dir$/i.test(k));
+    expect(keys).toHaveLength(1);
+    expect(child[keys[0]]).toBe("C:\\profile");
+  });
+
   test("on other systems the match stays exact, so a mixed-case name is dropped", () => {
     expect(buildChildEnv({ Path: "/bin", PATH: "/usr/bin" }, { platform: "linux" })).toEqual({ PATH: "/usr/bin" });
     expect(buildChildEnv({ Path: "/bin" }, { platform: "darwin" })).toEqual({});

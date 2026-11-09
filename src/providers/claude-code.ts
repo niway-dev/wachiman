@@ -120,9 +120,19 @@ export function buildChildEnv(
     }
   }
   if (!subscription) return child;
-  if (env.USER !== undefined) child.USER = env.USER;
+  // On Windows a parent `claude_config_dir` or `user` would survive next to the names set below.
+  const drop = (name: string) => {
+    if (windows) for (const key of Object.keys(child)) if (key.toUpperCase() === name) delete child[key];
+  };
+  if (env.USER !== undefined) {
+    drop("USER");
+    child.USER = env.USER;
+  }
   Object.assign(child, SUBSCRIPTION_ENV);
-  if (opts.configDir) child.CLAUDE_CONFIG_DIR = opts.configDir;
+  if (opts.configDir) {
+    drop("CLAUDE_CONFIG_DIR");
+    child.CLAUDE_CONFIG_DIR = opts.configDir;
+  }
   return child;
 }
 
