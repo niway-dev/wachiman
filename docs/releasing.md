@@ -63,6 +63,8 @@ Configuration: `release-please-config.json` and `.release-please-manifest.json`.
 no `extra-files`, so release-please edits only `package.json`, the manifest and `CHANGELOG.md`:
 every other place that names a version is updated by hand (see the checklist below).
 
+Renaming `package-name` to `wachiman` changes release-please's branch component (`release-please--branches--main--components--agent-review` becomes `...--wachiman`): merge or close any open release PR before merging this change.
+
 ## Publishing to npm
 
 The package is `wachiman` (`agent-review` is a second command name, not a second package). The
