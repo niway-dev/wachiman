@@ -46,18 +46,18 @@ export interface LocalArgs {
   profile: ProfileChoice;
   agentPrompt: boolean;
   history: boolean;
-  /** `--verify`: the verifier call after the batches (ADR 0027); `AGENT_REVIEW_VERIFY=1` does the same. */
-  verify: boolean;
+  /** `--verify` forces the verifier on, `--no-verify` off; unset follows `AGENT_REVIEW_VERIFY` (on by default, ADR 0027). */
+  verify: boolean | undefined;
   input?: string;
 }
 
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
-               [--profile default|isolated[:<name>]] [--agent-prompt] [--history] [--verify]`;
+               [--profile default|isolated[:<name>]] [--agent-prompt] [--history] [--verify | --no-verify]`;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLocalArgs(argv: string[]): LocalArgs {
-  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: false, input: undefined };
+  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: undefined, input: undefined };
   let base: string | undefined;
   const picked: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -76,6 +76,7 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
     else if (name === "--history" && eq === -1) args.history = true;
     else if (name === "--verify" && eq === -1) args.verify = true;
+    else if (name === "--no-verify" && eq === -1) args.verify = false;
     else if (name === "--base") {
       base = value();
       picked.push(name);
@@ -195,7 +196,7 @@ export function runLocal(
     );
   }
   // A person ran it: no automatic ceiling (decision 14).
-  const config = { ...loaded, trigger: undefined, verify: loaded.verify || args.verify };
+  const config = { ...loaded, trigger: undefined, verify: args.verify ?? loaded.verify };
   // Before the provider exists; the adapter's own check in preflight() is the second line.
   if (env.ANTHROPIC_API_KEY) throw new UsageError(SUBSCRIPTION_KEY_REFUSAL);
   // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.

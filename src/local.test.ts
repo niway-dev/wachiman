@@ -128,6 +128,7 @@ function local(variant: Variant, args: string[] = [], extraEnv: Record<string, s
     PATH: `${s.bin}:${process.env.PATH ?? ""}`,
     HOME: home,
     USER: "dev",
+    AGENT_REVIEW_VERIFY: "0",
     ...extraEnv,
   });
   return { ...out, ...s, repo, home };
@@ -145,11 +146,12 @@ describe("parseLocalArgs", () => {
       profile: { kind: "isolated", name: "work" },
       agentPrompt: true,
       history: false,
-      verify: false,
+      verify: undefined,
       input: undefined,
     });
-    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: false, input: undefined });
+    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: undefined, input: undefined });
     expect(parseLocalArgs(["--verify"]).verify).toBe(true);
+    expect(parseLocalArgs(["--no-verify"]).verify).toBe(false);
     expect(parseLocalArgs(["--format=json", "--base=origin/main"])).toMatchObject({ format: "json", base: "origin/main" });
   });
 
