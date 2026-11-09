@@ -90,6 +90,12 @@ Only three parts of that are held by code:
   a rewritten finding may still read as a statement, because the model wrote it for another
   topic. The rewrite runs before findings on one line and topic are deduplicated, so it can merge
   with a question already on that line (the higher severity is kept).
+- **Held by the engine, for verification:** the tier word and the origin. A finding is
+  `Pre-existing` only when the verifier gave a reason and at least one citation of the base
+  commit that exists; otherwise the origin stays `unknown`. A verdict that cites nothing that
+  exists, or names a line outside its snapshot, does not drop or confirm anything: the finding
+  is posted as `inconclusive`. Repository instructions cannot change any of this, and the tier
+  word is never taken from the model ([ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)).
 - **Held by the engine, for contracts:** each answer to a flow question has the right shape, and
   every `file:line` it cites exists in the checked-out head. That checks existence, not truth: an
   answer can cite real lines and still be wrong, and the engine does not judge it.

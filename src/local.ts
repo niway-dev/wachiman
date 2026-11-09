@@ -46,17 +46,24 @@ export interface LocalArgs {
   profile: ProfileChoice;
   agentPrompt: boolean;
   history: boolean;
+  /** `--verify` forces the verifier on, `--no-verify` off; unset follows `AGENT_REVIEW_VERIFY` (on by default, ADR 0027). */
+  verify: boolean | undefined;
+  /** `--result-version`: with `--format json`, which result version to write (default 1 for a committed change). */
+  resultVersion?: 1 | 2;
   input?: string;
 }
 
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
-               [--profile default|isolated[:<name>]] [--agent-prompt] [--history]`;
+               [--profile default|isolated[:<name>]] [--agent-prompt] [--history] [--verify | --no-verify]
+               [--result-version 1|2]`;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLocalArgs(argv: string[]): LocalArgs {
-  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined };
+  const args: LocalArgs = { paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: undefined, input: undefined };
   let base: string | undefined;
+  let sawVerify = false;
+  let sawNoVerify = false;
   const picked: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -73,6 +80,18 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
     };
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
     else if (name === "--history" && eq === -1) args.history = true;
+    else if (name === "--verify" && eq === -1) {
+      args.verify = true;
+      sawVerify = true;
+    } else if (name === "--no-verify" && eq === -1) {
+      args.verify = false;
+      sawNoVerify = true;
+    }
+    else if (name === "--result-version") {
+      const v = value();
+      if (v !== "1" && v !== "2") throw new UsageError(`--result-version must be 1 or 2, got "${v}".`);
+      args.resultVersion = v === "1" ? 1 : 2;
+    }
     else if (name === "--base") {
       base = value();
       picked.push(name);
@@ -96,6 +115,8 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
       args.input = v;
     } else throw new UsageError(`Unknown option ${name} for local.`);
   }
+  if (sawVerify && sawNoVerify) throw new UsageError("--verify and --no-verify cannot be used together.");
+  if (args.resultVersion !== undefined && args.format !== "json") throw new UsageError("--result-version applies only with --format json.");
   if (new Set(picked).size < picked.length) throw new UsageError(`${picked.find((n, i) => picked.indexOf(n) !== i)} was given twice.`);
   if (picked.length > 1) throw new UsageError(`${picked[0]} and ${picked[1]} cannot be used together.`);
   if (base !== undefined) args.base = base;
@@ -192,7 +213,7 @@ export function runLocal(
     );
   }
   // A person ran it: no automatic ceiling (decision 14).
-  const config = { ...loaded, trigger: undefined };
+  const config = { ...loaded, trigger: undefined, verify: args.verify ?? loaded.verify };
   // Before the provider exists; the adapter's own check in preflight() is the second line.
   if (env.ANTHROPIC_API_KEY) throw new UsageError(SUBSCRIPTION_KEY_REFUSAL);
   // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.
@@ -221,6 +242,11 @@ export function runLocal(
     state,
   );
   provider.preflight();
+  // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
+  const verifier = config.verify
+    ? interruptible(getProvider("claude-code", { ...config, model: config.verifierModel, effort: "high", dryRun: false, auth: "subscription", configDir }), state)
+    : undefined;
+  verifier?.preflight();
 
   let snapshotDir: string | undefined;
   const onSigint = () => {
@@ -268,9 +294,20 @@ export function runLocal(
     const batches = planBatches(kept, { maxLines: config.batchLines, maxChars: config.batchChars });
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
     io.stderr(`batches: ${batches.length}`);
+    io.stderr(config.verify ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})` : "verify: off");
 
     const result = reviewChange(input, reviewOptionsOf(config, config.budgetUsd, args.profile.kind), {
       provider,
+      ...(verifier ? { verifier } : {}),
+      // The verifier reads the code before the change too; made once, only when there is something to check.
+      ...(verifier
+        ? {
+            baseSnapshot: () => {
+              const base = snapshotHead(repoDir, input.change.base.sha);
+              return { dir: base.dir, release: () => removeSnapshot(base.dir) };
+            },
+          }
+        : {}),
       log: io.stderr,
       warn: io.stderr,
       engineVersion: io.engineVersion,
@@ -302,7 +339,7 @@ export function runLocal(
     }
     const text =
       args.format === "json"
-        ? renderJson(result)
+        ? renderJson(result, args.resultVersion ?? 1)
         : args.format === "markdown"
           ? renderMarkdown(result, { profileNote, history: annotation })
           : renderTerminal(result, { profileNote, agentPrompt: args.agentPrompt, history: annotation });

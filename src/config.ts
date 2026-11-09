@@ -71,7 +71,20 @@ export interface EngineConfig {
   operator: string;
   /** Extra exclude globs on top of the built-in ones. */
   exclude: string[];
+  /**
+   * `AGENT_REVIEW_VERIFY`: after the batches, one more call tries to refute every finding above
+   * `info` before it is posted (ADR 0027). On unless it is `0` or `false`, or the provider is
+   * codex with no `AGENT_REVIEW_VERIFIER_MODEL`.
+   */
+  verify: boolean;
+  /** `AGENT_REVIEW_VERIFY_BUDGET_USD`: the verifier's reserve, taken out of `budgetUsd` (at most half of it). */
+  verifyBudgetUsd: number;
+  /** `AGENT_REVIEW_VERIFIER_MODEL`: the verifier's model; it always runs at effort `high`. */
+  verifierModel: string;
 }
+
+/** The verifier's model when `AGENT_REVIEW_VERIFIER_MODEL` is unset (Claude Code only). */
+export const DEFAULT_VERIFIER_MODEL = "claude-opus-5-5";
 
 type Env = Record<string, string | undefined>;
 
@@ -138,6 +151,16 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
       "AGENT_REVIEW_FULL_REVIEW=1 works only with AGENT_REVIEW_DRY_RUN=1: a full review ignores the previous-review marker, so it is printed, never posted.",
     );
   }
+  const verifyRaw = get("VERIFY");
+  if (verifyRaw !== undefined && verifyRaw !== "0" && verifyRaw !== "1" && verifyRaw !== "true" && verifyRaw !== "false") {
+    throw new UsageError(`AGENT_REVIEW_VERIFY must be 1, true, 0 or false (unset means on), got "${verifyRaw}".`);
+  }
+  const verifierModel = get("VERIFIER_MODEL") ?? (provider === "claude-code" ? DEFAULT_VERIFIER_MODEL : undefined);
+  // On by default, except where the default verifier (a Claude model) cannot run: codex without a verifier model.
+  const verify = verifyRaw === undefined ? verifierModel !== undefined : verifyRaw === "1" || verifyRaw === "true";
+  if (verify && verifierModel === undefined) {
+    throw new UsageError(`AGENT_REVIEW_VERIFY needs AGENT_REVIEW_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`);
+  }
   const trigger = get("TRIGGER")?.trim();
   if (trigger !== undefined && !/^[a-z_]+$/.test(trigger)) {
     throw new UsageError(`AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "${trigger}".`);
@@ -163,6 +186,9 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     mention: get("MENTION") ?? "/wachiman",
     operator: get("OPERATOR") ?? "",
     exclude: (get("EXCLUDE") ?? "").split(",").filter(Boolean),
+    verify,
+    verifyBudgetUsd: number("VERIFY_BUDGET_USD", 1),
+    verifierModel: verifierModel ?? DEFAULT_VERIFIER_MODEL,
   };
 }
 

@@ -48,7 +48,7 @@ const out = (over: Partial<ReviewOutput>): ReviewOutput => ({
 });
 
 const ROOT = join(import.meta.dir, "..");
-const resultSchema = JSON.parse(readFileSync(join(ROOT, "docs/formats/review-result.v1.schema.json"), "utf8"));
+const resultSchema = JSON.parse(readFileSync(join(ROOT, "docs/formats/review-result.v2.schema.json"), "utf8"));
 const branchFixture = JSON.parse(readFileSync(join(ROOT, "test/fixtures/formats/review-input.branch.json"), "utf8"));
 
 /** The branch fixture, with a head directory holding the files its patches describe. */
@@ -88,7 +88,7 @@ function coreDeps(provider: FakeProvider) {
   return { deps, warnings };
 }
 
-const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({ ...reviewOptionsOf(loadConfig({}), 5), ...over });
+const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({ ...reviewOptionsOf(loadConfig({ AGENT_REVIEW_VERIFY: "0" }), 5), ...over });
 
 /** The files a part's prompt lists, so a fake answer accounts for exactly them. */
 const partFiles = (prompt: string) =>
@@ -116,7 +116,7 @@ describe("reviewChange from a ReviewInput", () => {
     const input = branchInput();
     const result = reviewChange(input, options(), deps);
 
-    expect(result.format).toBe("wachiman.review-result/1");
+    expect(result.format).toBe("wachiman.review-result/2");
     expect(result.coverage).toEqual({
       // The engine, not the model, sets the binary icon aside: it is not expected, so the review is complete.
       expected: ["src/a.ts"],

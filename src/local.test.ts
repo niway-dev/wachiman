@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "./config";
+import { toResultV1 } from "./formats";
 import { localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile } from "./local";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
@@ -124,12 +125,16 @@ function runCli(args: string[], env: Record<string, string>) {
 function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: BranchRepo = branchRepo()) {
   const s = stubs(variant, repo.dir);
   const home = extraEnv.HOME ?? temp("wachiman-home-");
-  const out = runCli(["local", "--repo-dir", repo.dir, ...args], {
+  // `"<unset>"` removes a variable the helper sets, to test the real default.
+  const env: Record<string, string> = {
     PATH: `${s.bin}:${process.env.PATH ?? ""}`,
     HOME: home,
     USER: "dev",
+    AGENT_REVIEW_VERIFY: "0",
     ...extraEnv,
-  });
+  };
+  for (const [k, v] of Object.entries(env)) if (v === "<unset>") delete env[k];
+  const out = runCli(["local", "--repo-dir", repo.dir, ...args], env);
   return { ...out, ...s, repo, home };
 }
 
@@ -145,9 +150,12 @@ describe("parseLocalArgs", () => {
       profile: { kind: "isolated", name: "work" },
       agentPrompt: true,
       history: false,
+      verify: undefined,
       input: undefined,
     });
-    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, input: undefined });
+    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: { kind: "default" }, agentPrompt: false, history: false, verify: undefined, input: undefined });
+    expect(parseLocalArgs(["--verify"]).verify).toBe(true);
+    expect(parseLocalArgs(["--no-verify"]).verify).toBe(false);
     expect(parseLocalArgs(["--format=json", "--base=origin/main"])).toMatchObject({ format: "json", base: "origin/main" });
   });
 
@@ -221,7 +229,7 @@ describe("wachiman local", () => {
     expect(firstCall).toBeGreaterThan(-1);
     for (const line of progress) expect(r.stderr.indexOf(line)).toBeLessThan(firstCall);
     expect(r.stdout).toStartWith("Wachiman · review of branch `feat/x`");
-    expect(r.stdout).toContain("src/a.ts:2  🟠🐛 Fix · bug: T (confidence high)");
+    expect(r.stdout).toContain("src/a.ts:2  Important · 🟠🐛 Fix · bug: T (confidence high)");
     expect(r.stdout).toContain("API-equivalent estimate");
     expect(existsSync(r.canary)).toBe(false);
     const env = r.env();
@@ -578,7 +586,9 @@ describe("--history", () => {
     expect(mode(join(r.home, ".wachiman", "history"))).toBe(0o700);
     const saved = JSON.parse(readFileSync(files[0], "utf8"));
     expect(saved.format).toBe("wachiman.history-run/1");
-    expect(saved.result).toEqual(JSON.parse(r.stdout));
+    // The history keeps the full /2 result; the JSON sink writes its /1 form for a committed change.
+    expect(saved.result.format).toBe("wachiman.review-result/2");
+    expect(toResultV1(saved.result)).toEqual(JSON.parse(r.stdout));
     expect(saved.tracking).toHaveLength(1);
     expect(saved.tracking[0].status).toBe("new");
   });
@@ -638,7 +648,7 @@ describe("--history", () => {
     const home = temp("wachiman-home-");
     const repo = branchRepo();
     const first = local("ok", ["--history"], { HOME: home }, repo);
-    expect(first.stdout).toMatch(/src\/a\.ts:2  🟠🐛 Fix · bug: T \(confidence high\)  new · id [0-9a-f]{10}\n/);
+    expect(first.stdout).toMatch(/src\/a\.ts:2  Important · 🟠🐛 Fix · bug: T \(confidence high\)  new · id [0-9a-f]{10}\n/);
     const second = local("ok", ["--history"], { HOME: home }, repo);
     expect(second.code).toBe(0);
     expect(second.stdout).toMatch(new RegExp(`open since ${sha7(repo.head)} · 2 runs · id [0-9a-f]{10}\\n`));
@@ -889,5 +899,82 @@ describe("--commit and --from", () => {
     expect(old.stdout).toMatch(/unknown +1 finding\(s\)/);
     expect(old.stdout).not.toContain("probably fixed");
     expect(old.stdout).not.toContain("not repeated");
+  });
+});
+
+describe("verification flags", () => {
+  const schema = (name: string) => JSON.parse(readFileSync(join(import.meta.dir, `../docs/formats/${name}`), "utf8"));
+  const loadedValidate = async () => (await import("../test/support/json-schema")).validate;
+
+  test("--no-verify is parsed; with --verify it is a usage error", () => {
+    expect(parseLocalArgs(["--no-verify"])).toMatchObject({ verify: false });
+    expect(() => parseLocalArgs(["--verify", "--no-verify"])).toThrow(new UsageError("--verify and --no-verify cannot be used together."));
+  });
+
+  test("--result-version takes 1 or 2 and only with --format json", () => {
+    expect(parseLocalArgs(["--format", "json", "--result-version", "2"]).resultVersion).toBe(2);
+    expect(parseLocalArgs(["--result-version=1", "--format=json"]).resultVersion).toBe(1);
+    expect(parseLocalArgs([]).resultVersion).toBeUndefined();
+    expect(() => parseLocalArgs(["--format", "json", "--result-version", "3"])).toThrow("--result-version must be 1 or 2");
+    expect(() => parseLocalArgs(["--result-version", "1"])).toThrow(new UsageError("--result-version applies only with --format json."));
+    expect(() => parseLocalArgs(["--format", "markdown", "--result-version", "2"])).toThrow("--result-version applies only with --format json.");
+  });
+
+  test("--result-version 1 without --format json exits 2 before any call", () => {
+    const r = local("ok", ["--result-version", "1"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("--result-version applies only with --format json.");
+    expect(r.calls()).toEqual([]);
+  });
+
+  test("a committed change writes result /1 by default, and /2 on request, each valid against its schema", async () => {
+    const validate = await loadedValidate();
+    const one = local("ok", ["--format", "json"]);
+    expect(one.code).toBe(0);
+    expect(JSON.parse(one.stdout).format).toBe("wachiman.review-result/1");
+    expect(validate(schema("review-result.v1.schema.json"), JSON.parse(one.stdout))).toEqual([]);
+    const two = local("ok", ["--format", "json", "--result-version", "2"]);
+    expect(JSON.parse(two.stdout).format).toBe("wachiman.review-result/2");
+    expect(validate(schema("review-result.v2.schema.json"), JSON.parse(two.stdout))).toEqual([]);
+  });
+
+  test("the verify line follows batches: off with AGENT_REVIEW_VERIFY=0 (the helper sets it), on with --verify, the model and the reserve", () => {
+    const off = local("ok");
+    const lines = off.stderr.split("\n");
+    expect(lines[lines.indexOf("batches: 1") + 1]).toBe("verify: off");
+    expect(off.calls()).toHaveLength(1);
+
+    const on = local("ok", ["--verify"]);
+    const onLines = on.stderr.split("\n");
+    expect(onLines[onLines.indexOf("batches: 1") + 1]).toBe("verify: on (claude-opus-5-5, reserve $1.00)");
+    // The verifier is a second call, from its own adapter on the same profile.
+    expect(on.calls()).toHaveLength(2);
+  });
+
+  test("with AGENT_REVIEW_VERIFY unset the verifier is on, and --no-verify turns it off", () => {
+    const on = local("ok", [], { AGENT_REVIEW_VERIFY: "<unset>" });
+    expect(on.stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
+    expect(on.calls()).toHaveLength(2);
+    const off = local("ok", ["--no-verify"], { AGENT_REVIEW_VERIFY: "<unset>" });
+    expect(off.stderr.split("\n")).toContain("verify: off");
+    expect(off.calls()).toHaveLength(1);
+  });
+
+  test("--no-verify wins over AGENT_REVIEW_VERIFY=1", () => {
+    const r = local("ok", ["--no-verify"], { AGENT_REVIEW_VERIFY: "1" });
+    expect(r.stderr.split("\n")).toContain("verify: off");
+    expect(r.calls()).toHaveLength(1);
+    expect(local("ok", [], { AGENT_REVIEW_VERIFY: "1" }).stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
+  });
+
+  test("the verifier can read the base commit, and the base snapshot is gone afterwards", () => {
+    const r = local("ok", ["--verify"]);
+    const dirs = (r.read("dirs") ?? "").split("\n").filter(Boolean);
+    const snapshots = dirs.filter((d) => d.includes("wachiman-snapshot-"));
+    // Head for the review call; head and the base for the verifier call.
+    expect(snapshots).toHaveLength(3);
+    expect(new Set(snapshots).size).toBe(2);
+    for (const dir of snapshots) expect(existsSync(dir)).toBe(false);
+    expect(r.read("prompt")).toContain("read-only copy of the base commit");
   });
 });
