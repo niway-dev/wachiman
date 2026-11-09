@@ -1,6 +1,11 @@
 # ADR 0028: The npm package `wachiman` requires Bun and ships the source behind a Node launcher; a Windows executable is a second artifact
 
-- **Status:** proposed 2026-11-09. Not implemented. **Amends** draft
+- **Status:** accepted 2026-11-09; decisions 1, 2 and 4 (the npm package, the Node launcher, the
+  source path) are implemented by the npm packaging slice (branch `feat/npm-package`); decision 3
+  (the Windows executable) is proposed and **not implemented**, it belongs to slice 5. Not yet
+  published to npm: the first publish happens when the release workflow runs on a release that
+  contains this slice. **Windows with Node and Bun is pending the `windows-latest` CI job.**
+  **Amends** draft
   [ADR 0026 in PR #135](https://github.com/niway-dev/wachiman/pull/135) (PR #135, unmerged): keeps its
   decisions 1 (package `wachiman`, trusted publishing), 3 (`skills install`) and 5 (zero
   dependencies); **replaces** its decision 2 (`npx` unsupported) and decision 4 (the source

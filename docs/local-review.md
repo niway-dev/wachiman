@@ -55,10 +55,30 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 - [Bun](https://bun.sh) 1.3 or later.
 - Claude Code (`claude` on your `PATH`), signed in. The local mode was exercised with Claude Code
   2.1.311 (see section 7).
-- A clone of this repository: the engine. It needs no `bun install` (no dependencies).
+- The engine: the npm package `wachiman` (Node 18 or later runs its launcher) or a clone of this
+  repository. Neither needs a `bun install`: there are no dependencies.
 
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
 local mode refuses to start: with a key present `claude -p` would bill the key.
+
+### From npm
+
+```sh
+npm i -g wachiman          # or, without installing: npx wachiman doctor
+wachiman --version
+```
+
+The package contains the TypeScript source, the skills and the templates, and no dependency. Its
+`bin` is a Node script that finds `bun` on your `PATH` and runs the package's own `src/cli.ts`
+with the two isolation flags described below. Without Bun it prints
+`wachiman needs Bun 1.3 or later: https://bun.sh` and exits 2. The launcher changes no
+environment variable and downloads nothing. The package is published by the release workflow
+(see [releasing](releasing.md#publishing-to-npm)): `npm i -g wachiman` works from the first
+release that contains it, not before. `agent-review` is installed as a second name for the same
+command. Copying the agent skills out of the package is a separate step that this version does
+not do; use the clone path below for the skills until it does.
+
+### From a clone (unreleased source, and the agent skills)
 
 Install the global `wachiman` command, and the `wachiman-review` and `wachiman-audit` agent
 skills, once from your clone (not from a temporary worktree):
@@ -72,9 +92,9 @@ It links `bin/wachiman` into `~/.local/bin` (put that on your `PATH`) and the sk
 `$CLAUDE_CONFIG_DIR`). It never touches `~/.wachiman`, replaces only its own symlinks, and moves
 any other file it finds to `~/.local/state/wachiman-install/backup/<timestamp>/`.
 
-`wachiman` runs the engine from its clone (or `$WACHIMAN_DIR`) and passes `--no-env-file` and
-`--config=` so a `.env` or `bunfig.toml` of the reviewed repository stays out of the engine process
-(Bun reads both from its working directory, and `bunfig.toml` can run code; see
+From either install, `wachiman` runs the engine of its own package, or of its clone (or
+`$WACHIMAN_DIR`), and passes `--no-env-file` and `--config=` so a `.env` or `bunfig.toml` of the
+reviewed repository stays out of the engine process (Bun reads both from its working directory, and `bunfig.toml` can run code; see
 [the command-line contract](cli.md#options)). It changes no environment variable and adds no flag:
 the account is chosen inside the command (see "Profiles" below), and `ANTHROPIC_API_KEY` is refused
 there, so `bun src/cli.ts local` and `wachiman local` behave the same. If your shell exports a key,
@@ -85,7 +105,11 @@ one rung of the precedence below.
 Check the setup any time with `wachiman doctor`: it lists what a local run would use and what would
 fail, makes no model call and no request of its own, and exits 1 when a required check fails.
 
-Windows: not yet.
+**Windows: pending CI.** The npm package is written to work on Windows with Node and Bun (the
+launcher looks for `bun.exe`), and CI has a `windows-latest` job for it, but that job has not yet
+passed on a published commit, so Windows is not a supported platform yet. The bash wrapper
+(`bin/wachiman`) and `scripts/install-local.sh` are POSIX only. This paragraph changes when the
+job is green.
 
 Prefer no install? The raw command is
 `bun --no-env-file --config=<engine>/bunfig.toml <engine>/src/cli.ts local --repo-dir <clone>`.

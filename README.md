@@ -72,8 +72,10 @@ with a notice; see [docs/upgrading.md](docs/upgrading.md).
 - **Codex CLI** (`codex exec`, for OpenAI models) is a second adapter, available only from the
   command line. The reusable workflow does not install it or pass an OpenAI key
   ([docs/providers/codex.md](docs/providers/codex.md)).
-- **npm:** nothing is published. `package.json` has a `bin` entry, but the supported ways to run
-  Wachiman are the reusable workflow and, for existing users, a copy of the files.
+- **npm:** the package `wachiman` is built and tested for npm (Node launcher, Bun required;
+  [docs/local-review.md](docs/local-review.md#3-install)) and is published by the release workflow
+  from the first release that contains it. Until that release exists, `npm i -g wachiman` finds
+  nothing: run from a clone. macOS and Linux are covered by CI; **Windows: pending CI**.
 
 ## Install
 
@@ -95,10 +97,14 @@ nothing posted: Wachiman sends no telemetry and makes no GitHub requests in loca
 is sent to your configured Claude account for the review. Read
 [docs/local-review.md](docs/local-review.md) before running it on an employer's code.
 
-Run `scripts/install-local.sh` once from your clone to get a global `wachiman local …` command and
-the `wachiman-review` agent skill, usable from any project, and the `wachiman-audit` skill,
-which compares Wachiman's findings with another reviewer's on the same commits (data and
-procedure in [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks)).
+Install it with `npm i -g wachiman` (Bun 1.3 or later must be installed too: the package ships
+the TypeScript source and a small Node launcher that runs it with Bun), or, to run unreleased
+source, run `scripts/install-local.sh` once from your clone. Both give a global `wachiman local …`
+command; the script also links the `wachiman-review` agent skill, usable from any project, and the
+`wachiman-audit` skill, which compares Wachiman's findings with another reviewer's on the same
+commits (data and procedure in
+[wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks)). Details and the Windows
+status are in [docs/local-review.md](docs/local-review.md#3-install).
 
 ## Documentation map
 

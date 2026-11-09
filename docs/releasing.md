@@ -7,8 +7,8 @@ move, and a repository ruleset enforces that for everyone except repository admi
 [Tag protection](#tag-protection-and-its-limits)).
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please). Your
-job is to read and merge the release pull request. Nothing is published to npm; that stays
-deferred.
+job is to read and merge the release pull request. Merging it also publishes the npm package
+`wachiman` (see [Publishing to npm](#publishing-to-npm)).
 
 The latest release is the version in `.release-please-manifest.json` and the newest entry of
 [CHANGELOG.md](../CHANGELOG.md); this page does not repeat it so that it cannot go stale. The
@@ -55,9 +55,55 @@ Tracking issue for the floating tag: [#8](https://github.com/niway-dev/wachiman/
 5. The last workflow step moves the floating major tag (`v1`) to the release commit, for callers
    that still use it. Recommended installs pin the exact tag and are not affected.
 
+6. In the same workflow run, the `verify` job checks out the tagged commit, runs `bun test`, packs
+   the tarball and installs it with and without Bun; then the `publish` job uploads that same
+   tarball to npm (next section).
+
 Configuration: `release-please-config.json` and `.release-please-manifest.json`. The config has
 no `extra-files`, so release-please edits only `package.json`, the manifest and `CHANGELOG.md`:
 every other place that names a version is updated by hand (see the checklist below).
+
+## Publishing to npm
+
+The package is `wachiman` (`agent-review` is a second command name, not a second package). The
+`verify` and `publish` jobs live in `release-please.yml` itself and run only when that run created
+a release (`release_created`). They are in the same file because a workflow cannot `needs:` a job
+of another file, and because a tag created with `GITHUB_TOKEN` does not start a workflow on
+`push: tags`, so a separate release workflow would silently not run whenever the PAT is missing.
+Nothing waits for a tag event.
+
+| Job | What it does | Authority |
+| --- | --- | --- |
+| `verify` | Checks out the tagged SHA, checks `package.json` name and version, runs `bun test`, runs `npm pack`, runs `scripts/verify-package.sh` on that tarball with and without Bun, uploads the tarball | `contents: read` |
+| `publish` | `needs: [release-please, verify]`; downloads that tarball, checks its version, requires npm 11.5.1 or later, runs `npm publish <tarball> --provenance --access public` (`--tag next` for a pre-release version) | `id-token: write`, environment `npm` |
+
+There is no `NPM_TOKEN` secret. npm accepts the workflow's OpenID Connect identity
+(trusted publishing), and the provenance statement names the workflow run and the tagged commit.
+The artifact the tests ran is the artifact that is published.
+
+One-time setup by the owner, not done by any code in this repository:
+
+1. Create the GitHub environment `npm`. Do not add required reviewers: the job runs on every
+   release and would wait for an approval.
+2. On npmjs.com, in the package's settings, add a trusted publisher: GitHub Actions, repository
+   `niway-dev/wachiman`, workflow file `release-please.yml`, environment `npm`. **Unverified:**
+   npm's trusted-publisher setting lives on a package page, so a name that has never been
+   published may need a first publish by hand before the setting exists. Check npm's current
+   documentation before the first release; the name `wachiman` was unclaimed on 2026-11-09 (the
+   registry answered 404).
+
+If `publish` fails after the tag exists (the registry was down, the trusted publisher was not set
+yet), use "Re-run failed jobs" on that run: it publishes the same tarball from the same artifact
+(kept 30 days). Do not move the tag. If the artifact has expired, ship a fix as a new release.
+
+Windows: the CI job `windows` (Node and Bun on `windows-latest`) must be green before the README
+and `docs/local-review.md` stop saying "Windows: pending CI". It is not part of the release gate,
+so a red Windows job does not block a release; it keeps the docs honest.
+
+Contributors can check the package without publishing: `scripts/verify-package.sh` packs the
+checkout, installs it into a temporary prefix with a closed registry and runs it
+(`--without-bun` checks the missing-Bun message). No command in this repository writes to a
+registry except the `publish` job.
 
 ## What release notes show
 

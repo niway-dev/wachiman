@@ -61,6 +61,21 @@ Pick the least disruptive of these.
    pull requests and comments start no run of it. A `gh workflow list -R <owner>/<repo>` that does
    not show it is enough.
 
+## Remove the local command
+
+`wachiman local` and the other local commands are separate from the workflow above.
+
+- **Installed from npm:** `npm uninstall -g wachiman`. `npx wachiman` leaves a copy in npm's
+  cache; `npm cache ls wachiman` lists it and `npm cache clean --force` clears the whole cache.
+- **Installed from a clone:** `scripts/install-local.sh --uninstall` from the clone removes the
+  symlinks that script made (the command and the skills) and nothing else.
+- **Wachiman's own data** is in `~/.wachiman` (or `$WACHIMAN_HOME`): `config.json` (profiles and
+  project bindings), the review history if you turned it on, and one `claude-<name>` directory per
+  account profile Wachiman created. A profile directory holds that account's `claude` sign-in, so
+  deleting it signs that account out on this machine; a profile that points at your own
+  `CLAUDE_CONFIG_DIR` is never touched, and neither is a directory you registered. Delete
+  `~/.wachiman` only when you want all of this gone.
+
 ## What stays behind
 
 - **Comments on past pull requests.** Reviews, inline comments, thread replies and answers stay
