@@ -52,11 +52,12 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 
 ## 3. Install
 
-- [Bun](https://bun.sh) 1.3 or later.
+- [Bun](https://bun.sh) 1.3 or later. The npm package installs it for you (next section); a clone
+  runs with a Bun you installed yourself.
 - Claude Code (`claude` on your `PATH`), signed in. The local mode was exercised with Claude Code
   2.1.311 (see section 7).
 - The engine: the npm package `wachiman` (Node 20 or later runs its launcher) or a clone of this
-  repository. Neither needs a `bun install`: there are no dependencies.
+  repository. A clone needs no `bun install`: the engine has no dependencies.
 
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
 local mode refuses to start: with a key present `claude -p` would bill the key.
@@ -67,18 +68,48 @@ The npm package is published from the first release that includes this change; u
 publish succeeds, install from source (next section).
 
 ```sh
-npm i -g wachiman          # or, without installing: npx wachiman doctor
+npm i -g wachiman          # or: bun add -g wachiman; or, without installing: npx wachiman doctor
 wachiman --version
 ```
 
-The package contains the TypeScript source, the skills and the templates, and no dependency. Its
-`bin` is a Node script that finds `bun` on your `PATH` and runs the package's own `src/cli.ts`
-with the two isolation flags described below. Without Bun it prints
-`wachiman needs Bun 1.3 or later: https://bun.sh` and exits 2. The launcher changes no
-environment variable and downloads nothing. The package is published by the release workflow
-(see [releasing](releasing.md#publishing-to-npm)). `agent-review` is installed as a second name for the same
-command. Copying the agent skills out of the package is a separate step that this version does
-not do; use the clone path below for the skills until it does.
+The package contains the TypeScript source, the skills and the templates, and one dependency: the
+official npm package [`bun`](https://www.npmjs.com/package/bun) (published by oven-sh, maintainers
+jarred and robobun, source [oven-sh/bun](https://github.com/oven-sh/bun)), pinned to an exact
+version. Installing `wachiman` therefore downloads Bun: measured for Bun 1.3.4, 23 MB (macOS arm64)
+to 42 MB (Windows x64) compressed and 60 to 115 MB unpacked (Windows 115 MB). Its `bin` is a Node
+script that runs the package's own `src/cli.ts` with the two isolation flags described below, using
+that Bun first and a Bun on your `PATH` second.
+
+How the launcher picks a Bun:
+
+1. The Bun that npm installed next to `wachiman`, found from the package's own location (never
+   from the directory you run it in). It is used only if `bun --version` answers with 1.3 or later.
+2. Otherwise a Bun on your `PATH`, judged the same way. Only absolute `PATH` entries count, so a
+   `bun` inside the repository you are reviewing never runs.
+3. Otherwise it prints one of two messages and exits 2: `wachiman needs Bun 1.3 or later:
+   https://bun.sh` when none works, or a line naming the version when one runs but is older than
+   1.3. Both list `npm install -g bun`, https://bun.sh and, on Windows,
+   `powershell -c "irm bun.sh/install.ps1|iex"` (open a new terminal afterwards).
+
+The launcher changes no environment variable and downloads and installs nothing itself.
+
+`npm i -g wachiman --ignore-scripts` (and any setup that skips dependency install scripts, which
+newer npm versions can warn about) installs the `bun` package without its binary: it leaves a small
+stub that exits 1. The launcher detects the stub and uses the Bun on your `PATH` instead; with
+neither, it exits 2 with the message above. `bun add -g wachiman` was tried on macOS with Bun 1.4.2
+and a packed tarball: Bun installed the dependency with a working binary, and `wachiman --version`
+ran with only Node on `PATH`.
+
+Windows works in Git Bash and in PowerShell: the launcher is a Node script and npm creates the
+`wachiman.cmd` and `wachiman.ps1` shims. See the Windows note below for what CI proves.
+
+Supply chain: Bun's own `postinstall` runs when `bun` is installed and copies the platform binary
+from `@oven/bun-<platform>` into place. Wachiman's provenance statement covers Wachiman's files,
+not that binary download. If your policy does not allow it, install with `--ignore-scripts` and use
+a Bun you installed from a source you trust. The package is published by the release workflow
+(see [releasing](releasing.md#publishing-to-npm)). `agent-review` is installed as a second name for
+the same command. Copying the agent skills out of the package is a separate step that this version
+does not do; use the clone path below for the skills until it does.
 
 ### From a clone (unreleased source, and the agent skills)
 
@@ -114,13 +145,17 @@ one rung of the precedence below.
 Check the setup any time with `wachiman doctor`: it lists what a local run would use and what would
 fail, makes no model call and no request of its own, and exits 1 when a required check fails.
 
-**Windows: pending CI.** The npm package is written to work on Windows with Node and Bun (the
-launcher looks for `bun.exe`), and CI has a `windows-latest` job for it, but that job has not yet
-passed on a published commit, so Windows is not a supported platform yet. The bash wrapper
+**Windows: pending CI.** The npm package is written to work on Windows with Node (Bun comes with
+the package), and CI has a `windows-latest` job for it that installs the packed tarball with its
+real `bun` dependency and runs it with only Node on `PATH`, but that job has not yet passed on a
+published commit, so Windows is not a supported platform yet. The bash wrapper
 (`bin/wachiman`) and `scripts/install-local.sh` are POSIX only. This paragraph changes when the
 job is green.
 
-On Windows the launcher looks for `bun.exe` on `PATH` (the official installer); a Bun installed only through `npm i -g bun` (a `bun.cmd` shim) is not found.
+On Windows, the fallback Bun is a `bun.exe` on `PATH` (the official installer puts it in
+`%USERPROFILE%\.bun\bin`) or the npm-global `node_modules\bun\bin\bun.exe` next to the `bun.cmd`
+shim that `npm i -g bun` creates. The Windows install line is
+`powershell -c "irm bun.sh/install.ps1|iex"`; open a new terminal afterwards so `PATH` is reloaded.
 
 Prefer no install? The raw command is
 `bun --no-env-file --config=<engine>/bunfig.toml <engine>/src/cli.ts local --repo-dir <clone>`.

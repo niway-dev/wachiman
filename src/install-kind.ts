@@ -4,11 +4,10 @@
  * - `source`: `bun src/cli.ts` from a clone (`bin/wachiman`, `scripts/install-local.sh`);
  * - `npm`: the package directory under `node_modules`, started by the Node launcher; it has the
  *   same layout as the clone, so assets are plain files in both;
- * - `exe`: a Bun-compiled executable (the Windows `wachiman.exe`, planned: ADR 0028, slice 5),
- *   whose assets are embedded and read through `Bun.embeddedFiles`.
+ * - `exe`: a Bun-compiled executable, whose assets are embedded and read through
+ *   `Bun.embeddedFiles`. Nothing builds one: the Windows executable was tried and abandoned (ADR 0028).
  *
- * Nothing calls `readAsset` yet. It is the tested seam for slice 5 (the Windows executable), where
- * commands start reading assets through it; its `exe` branch throws until then.
+ * Nothing calls `readAsset` yet; its `exe` branch throws.
  */
 import { readFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
@@ -42,7 +41,7 @@ export function detectInstall(version: string, dir = import.meta.dir): InstallKi
 export function readAsset(install: InstallKind, name: AssetName): string | Uint8Array {
   if (isAbsolute(name) || /^[a-zA-Z]:/.test(name) || name.startsWith("/")) throw new Error(`readAsset: ${name} is not an asset name`);
   if (install.kind === "exe") {
-    // Extension point for slice 5: read `name` from `Bun.embeddedFiles` here.
+    // Extension point, unused (no executable is built; ADR 0028): read `name` from `Bun.embeddedFiles` here.
     throw new Error("readAsset: the executable layout is not implemented yet");
   }
   const path = resolve(install.root, name);
