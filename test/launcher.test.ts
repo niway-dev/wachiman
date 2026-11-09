@@ -281,7 +281,7 @@ describe("missingBunLines", () => {
   });
 
   test("not found keeps its original text; a candidate that did not run gets a neutral line with its path", () => {
-    expect(missingBunLines({ old: null }, "linux")[1]).toContain("and no Bun is on PATH. Install one:");
+    expect(missingBunLines({ old: null }, "linux")[1]).toContain("package that npm installs with wachiman is missing and no Bun is on PATH. Install one:");
     const failed = missingBunLines({ old: null, failed: "/m/bun/bin/bun.exe" }, "linux");
     expect(failed[0]).toBe(BUN_INSTALL_LINE);
     expect(failed[1]).toContain("A Bun was found (/m/bun/bin/bun.exe) but did not run");

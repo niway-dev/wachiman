@@ -86,9 +86,10 @@ How the launcher picks a Bun:
    from the directory you run it in). It is used only if `bun --version` answers with 1.3 or later.
 2. Otherwise a Bun on your `PATH`, judged the same way. Only absolute `PATH` entries count, so a
    `bun` inside the repository you are reviewing never runs.
-3. Otherwise it prints one of two messages and exits 2: `wachiman needs Bun 1.3 or later:
-   https://bun.sh` when none works, or a line naming the version when one runs but is older than
-   1.3. Both list `npm install -g bun`, https://bun.sh and, on Windows,
+3. Otherwise it prints one of three messages and exits 2: `wachiman needs Bun 1.3 or later:
+   https://bun.sh` followed by a line saying the `bun` package is missing and no Bun is on `PATH`;
+   a line naming the Bun it found (with its path) that did not run; or a line naming the version
+   when one runs but is older than 1.3. All list `npm install -g bun`, https://bun.sh and, on Windows,
    `powershell -c "irm bun.sh/install.ps1|iex"` (open a new terminal afterwards).
 
 The launcher changes no environment variable and downloads and installs nothing itself.

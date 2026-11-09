@@ -67,10 +67,10 @@ download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 
       location (never from the working directory);
    2. otherwise a Bun on `PATH`, scanning absolute entries only on every OS, so a `bun` in the
       reviewed repository is never run.
-   A candidate is accepted only if `<candidate> --version` exits 0 within a few seconds and
+   A candidate is accepted only if `<candidate> --version` exits 0 within 15 seconds and
    reports 1.3 or later, because the placeholder left by `--ignore-scripts` exists but cannot run. If
-   neither works, the launcher prints one message for "not found" and another for "found, but
-   version X is too old", each with the install commands, and exits 2. It sets and unsets no
+   neither works, the launcher prints one of three messages (no Bun found, a Bun found that did not run, or a
+   Bun found but older than 1.3, naming its version), each with the install commands, and exits 2. It sets and unsets no
    environment variable, translates none into a flag, and never downloads or installs anything.
    `npm i -g wachiman`, `bun add -g wachiman` and `npx wachiman` are the install paths, written
    to work in Git Bash and in PowerShell; Windows support is declared only once the tier below

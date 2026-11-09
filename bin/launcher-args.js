@@ -62,7 +62,7 @@ export function probeBun(binary, { env, cwd, spawnSync = nodeSpawnSync, timeout 
   } catch {
     return { ok: false, reason: "unusable" };
   }
-  if (result?.error?.code === "ETIMEDOUT" || (result?.signal && !result.error?.code)) return { ok: false, reason: "timeout" };
+  if (result?.error?.code === "ETIMEDOUT" || result?.signal === "SIGTERM") return { ok: false, reason: "timeout" };
   if (!result || result.error || result.status !== 0) return { ok: false, reason: "unusable" };
   const version = parseBunVersion(String(result.stdout ?? "").split("\n")[0]);
   if (version === null) return { ok: false, reason: "unusable" };
