@@ -72,6 +72,8 @@ of another file, and because a tag created with `GITHUB_TOKEN` does not start a 
 `push: tags`, so a separate release workflow would silently not run whenever the PAT is missing.
 Nothing waits for a tag event.
 
+The `verify` job re-runs `bun test` and `scripts/verify-package.sh` on the tagged SHA; it replaces a cross-workflow `needs:` on `ci.yml`, which a workflow cannot do.
+
 | Job | What it does | Authority |
 | --- | --- | --- |
 | `verify` | Checks out the tagged SHA, checks `package.json` name and version, runs `bun test`, runs `npm pack`, runs `scripts/verify-package.sh` on that tarball with and without Bun, uploads the tarball | `contents: read` |
