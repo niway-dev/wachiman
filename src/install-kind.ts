@@ -4,7 +4,7 @@
  * - `source`: `bun src/cli.ts` from a clone (`bin/wachiman`, `scripts/install-local.sh`);
  * - `npm`: the package directory under `node_modules`, started by the Node launcher; it has the
  *   same layout as the clone, so assets are plain files in both;
- * - `exe`: a Bun-compiled executable (the Windows `wachiman.exe`, planned: ADR 0028, slice 5),
+ * - `exe`: a Bun-compiled executable (the Windows `wachiman.exe`, ADR 0028, slice 5),
  *   whose assets are embedded and read through `Bun.embeddedFiles`.
  *
  * In the `exe` layout nothing exists next to the executable. `bun build --compile` embeds the
