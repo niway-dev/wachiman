@@ -52,7 +52,7 @@ describe("wachimanHome", () => {
     expect(wachimanHome({ HOME: "/somewhere/else" })).toBe(join(require("node:os").homedir(), ".wachiman"));
   });
 
-  test("a relative or empty WACHIMAN_HOME is a usage error, not a silent fallback", () => {
+  test("a relative WACHIMAN_HOME is a usage error; an empty one means unset and falls back to ~/.wachiman", () => {
     expect(() => wachimanHome({ WACHIMAN_HOME: "relative/dir" })).toThrow(UsageError);
     expect(wachimanHome({ WACHIMAN_HOME: "" })).toBe(join(require("node:os").homedir(), ".wachiman"));
   });
