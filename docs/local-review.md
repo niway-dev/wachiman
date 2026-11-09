@@ -73,11 +73,11 @@ It links `bin/wachiman` into `~/.local/bin` (put that on your `PATH`) and the sk
 any other file it finds to `~/.local/state/wachiman-install/backup/<timestamp>/`.
 
 That script is for contributors: the links point into your clone. Whoever runs Wachiman from a
-package (the npm package is a later change; until it ships, this applies to `bun src/cli.ts skills
-install` from a clone) runs `wachiman skills install` instead: it copies the two skills into the same directories (it does
-not install the command), refuses anything under `~/.wachiman`, marks every copy it makes, leaves
-any copy without that marker (or with edits) in place with a warning, and `wachiman skills
-uninstall` removes only the marked copies. See [`skills`](cli.md#skills).
+package runs `wachiman skills install` instead. From a clone, run `bun src/cli.ts skills install`,
+which is the same command. It copies the two skills into the same directories (it does not install
+the command), refuses anything under `~/.wachiman`, marks every copy it makes, leaves any copy
+without that marker (or with edits) in place with a warning, and `wachiman skills uninstall` removes
+only the marked copies. See [`skills`](cli.md#skills).
 
 `wachiman` runs the engine from its clone (or `$WACHIMAN_DIR`) and passes `--no-env-file` and
 `--config=` so a `.env` or `bunfig.toml` of the reviewed repository stays out of the engine process
