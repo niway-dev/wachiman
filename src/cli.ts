@@ -11,13 +11,16 @@
  *   wachiman local [paths…]         review the committed branch of a clone on the signed-in
  *                                       `claude`, and print it; no GitHub call (src/local.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
- *   wachiman setup --profile <name> bind this repository to an account profile (home config only)
+ *   wachiman setup [--profile <name>] bind this repository to an account profile (home config only);
+ *                                       on a terminal without --profile it asks
+ *   wachiman init                   write the GitHub caller workflow, or hand over to `setup`
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
- * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error.
+ * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error;
+ * 130 cancelled (`local`, `setup`, `init`).
  * The settings are documented in docs/cli.md.
  */
 import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
@@ -27,11 +30,16 @@ import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
-import { parseProfileArgs, parseProjectArgs, parseSetupArgs, profileUsage, projectUsage, runProfile, runProject, runSetup, setupUsage } from "./accounts/commands";
+import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
 import { doctorUsage, parseDoctorArgs, runDoctor } from "./doctor/run";
+import { initUsage, parseInitFlags } from "./init/args";
+import { DEFAULT_WORKFLOW_REF } from "./init/options";
+import { runInitCommand } from "./init/run";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
+import { parseSetupFlags } from "./setup/args";
+import { runSetupCommand } from "./setup/run";
 
 export const USAGE = `Usage:
   wachiman review <pr> [paths…] [--repo-dir <dir>]   Review a pull request (or only the given paths)
@@ -47,10 +55,16 @@ export const USAGE = `Usage:
                                                      \`local --history\`; reads files and local git
                                                      metadata only: no claude, no GitHub
   ${setupUsage}
-                                                     Bind this repository to an account profile that
-                                                     already exists; written in the Wachiman home, never
-                                                     in the repository. --profile is required for now
-                                                     (the guided wizard comes later)
+                                                     Bind this repository to an account profile; written
+                                                     in the Wachiman home, never in the repository. On a
+                                                     terminal without --profile it asks, and can register
+                                                     or create a profile; without a terminal --profile
+                                                     must name a profile that already exists
+  ${initUsage}
+                                                     Write the GitHub Actions caller workflow
+                                                     (.github/workflows/wachiman-review.yml), or, with
+                                                     --mode local, write nothing and hand over to setup.
+                                                     --dry-run prints the file; --force keeps a .bak copy
   ${doctorUsage}
                                                      Explain what a local run would use and what would
                                                      fail; exit 1 when a required check fails
@@ -80,6 +94,7 @@ Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 \`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
+\`setup\`, \`init\`: 130 cancelled (Escape, Ctrl-C, Ctrl-D); nothing pending is saved.
 Guide: docs/local-review.md`;
 
 /** package.json sits one level above src/; in a copied layout it may belong to someone else. */
@@ -144,23 +159,37 @@ function required(env: Record<string, string | undefined>, name: string) {
   return value;
 }
 
-/** `setup`, `doctor`, `profile` and `project`: no GitHub, no model call; the account store and the machine only. */
-function runAccountCommand(mode: "setup" | "doctor" | "profile" | "project", args: string[], repoDir: string, env: Record<string, string | undefined>) {
+/** `doctor`, `profile` and `project`: no GitHub, no model call; the account store and the machine only. */
+function runAccountCommand(mode: "doctor" | "profile" | "project", args: string[], repoDir: string, env: Record<string, string | undefined>) {
   const io = { stdout: (text: string) => writeAll(1, text), stderr: (line: string) => console.error(line) };
   const deps = { doctor: { version: readVersion() } };
   if (mode === "profile") return runProfile(parseProfileArgs(args), env, io, deps);
   if (mode === "project") return runProject(parseProjectArgs(args, repoDir), env, io, deps);
-  if (mode === "setup") {
-    const parsed = parseSetupArgs(args, repoDir);
-    if ("help" in parsed) return (io.stdout(`${setupUsage}\n`), 0);
-    return runSetup(parsed, env, io, deps);
-  }
   const parsed = parseDoctorArgs(args, repoDir);
   if ("help" in parsed) return (io.stdout(`${doctorUsage}\n`), 0);
   return runDoctor(parsed, env, io, deps.doctor);
 }
 
-export function main(argv: string[], env: Record<string, string | undefined>): number {
+/** `setup` and `init`: asked on a terminal, flags and exit code 2 otherwise. A cancellation is exit 130. */
+async function runWizard(mode: "setup" | "init", args: string[], repoDir: string, env: Record<string, string | undefined>): Promise<number> {
+  const io = { stdout: (text: string) => writeAll(1, text), stderr: (line: string) => console.error(line) };
+  const version = readVersion();
+  if (mode === "setup") {
+    const flags = parseSetupFlags(args, repoDir);
+    if (flags.help) return (io.stdout(`${setupUsage}\n`), 0);
+    return runSetupCommand(flags, env, io, { doctor: { version } });
+  }
+  const flags = parseInitFlags(args, repoDir);
+  if (flags.help) return (io.stdout(`${initUsage}\n`), 0);
+  return runInitCommand(flags, env, io, {
+    version,
+    defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
+    // `init --mode local|both` offers to run setup in the same process, over the same prompts.
+    bindNow: (prompter) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter }),
+  });
+}
+
+export async function main(argv: string[], env: Record<string, string | undefined>): Promise<number> {
   const mode = argv[0];
   if (mode === "--help" || mode === "-h") {
     console.log(USAGE);
@@ -188,9 +217,10 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
         engineVersion: readVersion(),
       });
     }
-    if (mode === "setup" || mode === "doctor" || mode === "profile" || mode === "project") {
+    if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);
     }
+    if (mode === "setup" || mode === "init") return await runWizard(mode, args.slice(1), repoDir, env);
     if (mode === "history") {
       return runHistory(parseHistoryArgs(args.slice(1)), repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
@@ -248,4 +278,4 @@ export function main(argv: string[], env: Record<string, string | undefined>): n
   }
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2), process.env));
+if (import.meta.main) process.exit(await main(process.argv.slice(2), process.env));
