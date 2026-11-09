@@ -792,6 +792,28 @@ export function fitList(items: string[], room: number): string {
   return kept.length > 0 ? `${kept.join(", ")}, ${more}` : more;
 }
 
+/** The note that ends a finding section cut to fit the body. */
+const sectionNote = (left: number) => `… and ${left} more (see the JSON result / logs)`;
+
+/**
+ * A body section (`heading`, then one paragraph per item) that costs at most `room` characters,
+ * each paragraph counting the "\n\n" before it. When the items do not all fit, as many as fit
+ * are kept, then one `sectionNote`; the heading and the note stay even when no item fits.
+ */
+function boundSection(heading: string, items: string[], room: number): string {
+  const cost = (part: string) => part.length + 2;
+  const kept: string[] = [];
+  let used = cost(heading);
+  for (const [i, item] of items.entries()) {
+    const left = items.length - (i + 1);
+    if (used + cost(item) + (left > 0 ? cost(`- ${sectionNote(left)}`) : 0) > room) break;
+    kept.push(item);
+    used += cost(item);
+  }
+  const left = items.length - kept.length;
+  return [heading, ...kept, ...(left > 0 ? [`- ${sectionNote(left)}`] : [])].join("\n\n");
+}
+
 /**
  * "3 finding(s): 1 blocker(s), 2 to fix", with only the groups that have findings: a reader
  * scanning the body sees at once whether anything blocks. "info" is in the total, not a group.
@@ -1016,8 +1038,16 @@ export function buildReview(input: {
   }
   const listed = (f: Finding & { origin?: Origin }) => `- ${label(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
   if (outsideDiff.length > 0) parts.push("### Outside the diff", ...outsideDiff.map(listed));
-  if (inconclusive.length > 0) parts.push("### Inconclusive", ...inconclusive.map(listed));
-  if (preExisting.length > 0) parts.push("### Pre-existing", ...preExisting.map(listed));
+  // Each of these two is one part, so a long body can cut it by its index.
+  const cuttable: { at: number; heading: string; items: string[] }[] = [];
+  const addCuttable = (heading: string, found: Finding[]) => {
+    if (found.length === 0) return;
+    const items = found.map(listed);
+    cuttable.push({ at: parts.length, heading, items });
+    parts.push([heading, ...items].join("\n\n"));
+  };
+  addCuttable("### Inconclusive", inconclusive);
+  addCuttable("### Pre-existing", preExisting);
   if (forInfo.length > 0) parts.push("### For your information", ...forInfo.map(listed));
   parts.push("### Summary", neutralise(output.summary));
   // After the findings and the summary, before the coverage table: it is cut first when the body is long.
@@ -1053,12 +1083,31 @@ export function buildReview(input: {
   // The next `review` request starts from this commit, so only a review that covered everything
   // may move it; a scoped or partial one would leave the rest never reviewed.
   if (!scoped && notReviewed.length === 0) parts.push(marker(headSha));
-  let body = parts.join("\n\n");
+  // A part another text replaces (or `null`, none) while the body is being fitted.
+  const replaced = new Map<number, string | null>();
+  const render = () =>
+    parts.flatMap((part, i) => (replaced.has(i) ? (replaced.get(i) === null ? [] : [replaced.get(i) as string]) : [part])).join("\n\n");
+  let body = render();
   if (body.length > MAX_BODY_CHARS && contractsBlock) {
     // The contracts go before anything else is cut: shrink them to what fits, or drop them.
-    const without = [...parts.slice(0, contractsAt), ...parts.slice(contractsAt + 1)].join("\n\n");
-    const shrunk = renderContracts(output.contracts ?? [], MAX_BODY_CHARS - without.length - 2);
-    body = shrunk ? [...parts.slice(0, contractsAt), shrunk, ...parts.slice(contractsAt + 1)].join("\n\n") : without;
+    replaced.set(contractsAt, null);
+    const without = render();
+    replaced.set(contractsAt, renderContracts(output.contracts ?? [], MAX_BODY_CHARS - without.length - 2) || null);
+    body = render();
+  }
+  if (body.length > MAX_BODY_CHARS && cuttable.length > 0) {
+    // Then the Pre-existing and Inconclusive lists: each keeps the entries that fit in its share of
+    // what the rest of the body leaves, then says how many it left out.
+    const full = (c: (typeof cuttable)[number]) => parts[c.at].length + 2;
+    let remaining = MAX_BODY_CHARS - (body.length - cuttable.reduce((sum, c) => sum + full(c), 0));
+    const bySize = [...cuttable].sort((a, b) => full(a) - full(b));
+    for (const [i, c] of bySize.entries()) {
+      const share = Math.floor(remaining / (bySize.length - i));
+      const text = full(c) <= share ? parts[c.at] : boundSection(c.heading, c.items, share);
+      replaced.set(c.at, text);
+      remaining -= text.length + 2;
+    }
+    body = render();
   }
   if (body.length <= MAX_BODY_CHARS || notReviewed.length === 0) return { body, comments };
   // Past the contracts, only the list of unreviewed files can be long enough to matter: cut it to what fits.

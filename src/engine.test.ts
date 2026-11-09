@@ -1469,6 +1469,34 @@ describe("contracts in the review body", () => {
     expect(body).toContain("Outside 399");
   });
 
+  test("pre-existing and inconclusive sections are cut to what fits, with the footer and the marker kept", () => {
+    const old = Array.from({ length: 500 }, (_, i) => ({ ...fix, line: 100 + i, title: `Old ${i}`, body: "z".repeat(200), origin: "pre-existing" as const }));
+    const unsettled = Array.from({ length: 500 }, (_, i) => ({
+      ...fix,
+      line: 700 + i,
+      title: `Open ${i}`,
+      body: "q".repeat(200),
+      verification: { status: "inconclusive" as const, reason: "no verdict", checked: [] },
+    }));
+    const input = { ...base, output: output({ files_reviewed: ["src/a.ts"], findings: [...old, ...unsettled] }) };
+    const { body } = buildReview(input);
+    expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+    expect(body).toMatch(/- … and \d+ more \(see the JSON result \/ logs\)/);
+    expect(body.match(/… and \d+ more \(see the JSON result \/ logs\)/g)).toHaveLength(2);
+    expect(body).toContain("### Pre-existing");
+    expect(body).toContain("### Inconclusive");
+    expect(body).toContain("Old 0");
+    expect(body).toContain("Open 0");
+    expect(body).toContain("<summary>Coverage by batch");
+    expect(body).toContain("### Summary");
+    expect(body).toContain(SIGNATURE.review);
+    expect(body.endsWith(marker("head1234567"))).toBe(true);
+    // Under the limit nothing is cut and no note appears.
+    const few = buildReview({ ...input, output: output({ files_reviewed: ["src/a.ts"], findings: [...old.slice(0, 3), ...unsettled.slice(0, 3)] }) }).body;
+    expect(few).not.toContain("see the JSON result");
+    expect(few).toContain("Old 2");
+  });
+
   describe("when GitHub refuses the inline comments", () => {
     const comments = [{ path: "src/a.ts", line: 2, side: "RIGHT" as const, body: `Title\n\n${"x".repeat(400)}\n\n${SIGNATURE.finding}` }];
     const block = renderContracts([contract()]) ?? "";
