@@ -88,7 +88,8 @@ Consider and Info, and **Pre-existing** for a true bug that verification found i
 as well, which this change neither caused nor made worse. Pre-existing findings and fixes the
 verifier could not settle are listed in the review body, under "Pre-existing" and
 "Inconclusive", and open no thread. With verification off, every finding keeps its
-severity-derived tier and nothing is moved.
+severity-derived tier and nothing is moved. GitHub mode has no base snapshot yet, so the origin
+of a finding there is always `unknown` and nothing is marked Pre-existing.
 
 ### The two labels on a finding
 

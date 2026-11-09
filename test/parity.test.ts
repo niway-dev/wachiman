@@ -79,10 +79,10 @@ class AllReviewed implements ProviderAdapter {
 }
 
 /** The prompts of one core run, with the per-batch run directory as a placeholder. */
-function prompts(input: ReviewInput, verify = false) {
+function prompts(input: ReviewInput, verify = false, baseSnapshot?: () => { dir: string; release(): void }) {
   const provider = new AllReviewed(input.files.map((f) => f.filename), verify);
   const options = reviewOptionsOf(loadConfig(verify ? { AGENT_REVIEW_VERIFY: "1" } : {}, () => {}), 3);
-  reviewChange(input, options, { provider, log: () => {}, warn: () => {}, sleep: () => {}, rateLimitBackoffMs: 0 });
+  reviewChange(input, options, { provider, ...(baseSnapshot ? { baseSnapshot } : {}), log: () => {}, warn: () => {}, sleep: () => {}, rateLimitBackoffMs: 0 });
   return provider.requests.map((r) => r.prompt.replaceAll(r.addDirs[0], "<RUN_DIR>"));
 }
 
@@ -155,6 +155,41 @@ describe("prompt parity between the github and local-git connectors", () => {
       verifiedLocal.forEach((prompt, i) => expect(prompt, `#${fx.pr} verified call ${i + 1}`).toBe(verifiedGithub[i]));
     });
   }
+});
+
+describe("the verifier prompt when only the local connector has a base snapshot", () => {
+  const fx = fixtures.find((x) => hasCommit(x.headSha) && hasCommit(x.mergeBase));
+  test.skipIf(!fx)("differs from the GitHub one only in the base-availability text", () => {
+    const f = fx as PrFixture;
+    const snapshot = snapshotHead(ROOT, f.headSha);
+    snapshots.push(snapshot.dir);
+    const input = githubReviewInput({
+      repo: f.repo,
+      pr: f.pr,
+      headSha: f.headSha,
+      baseSha: f.baseSha,
+      meta: f.meta,
+      files: f.files,
+      instructions: f.instructions,
+      headDir: snapshot.dir,
+      scope: [],
+      since: null,
+      rebased: false,
+      threads: [],
+    });
+    const github = prompts(input, true).at(-1) as string;
+    const local = prompts(input, true, () => ({ dir: "/fake/base", release() {} })).at(-1) as string;
+    const a = github.split("\n");
+    const b = local.split("\n");
+    expect(b.length).toBe(a.length);
+    const differing = a.flatMap((line, i) => (line === b[i] ? [] : [[line, b[i]]]));
+    expect(differing).toEqual([
+      [
+        "The working directory is a snapshot of that commit (the `head` snapshot). The base snapshot is not available in this review: you cannot cite it, so an origin you cannot show stays unknown.",
+        "The working directory is a snapshot of that commit (the `head` snapshot). A read-only copy of the base commit (the code before this change) is at /fake/base; Read, Glob and Grep may use it.",
+      ],
+    ]);
+  });
 });
 
 /** The first `lines` lines of a unified diff of two patches. */
