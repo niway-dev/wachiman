@@ -6,7 +6,7 @@
  * describe is `corrupt`, which every caller turns into a usage error: it is never read as
  * "absent", because a silent fallback is how a review would reach the wrong account.
  */
-import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, chmodSync, constants, unlinkSync, writeSync } from "node:fs";
+import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, chmodSync, constants, statSync, unlinkSync, writeSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
@@ -86,6 +86,21 @@ const realIo: ConfigIo = { read: (p) => readFileSync(p, "utf8"), exists: (p) => 
     }
   },
 };
+
+/** A symbolic link whose target is gone (an unmounted volume, a moved dotfiles checkout). */
+function danglingLink(path: string): boolean {
+  try {
+    if (!lstatSync(path).isSymbolicLink()) return false;
+  } catch {
+    return false;
+  }
+  try {
+    statSync(path);
+    return false;
+  } catch {
+    return true;
+  }
+}
 
 /**
  * The directory that holds the config, the managed profiles and the history: `WACHIMAN_HOME` when
@@ -168,6 +183,8 @@ function danglingOf(home: string, config: WachimanConfigV1, exists: (path: strin
  */
 export function readConfig(home: string, io: ConfigIo = realIo, opts: { structural?: boolean } = {}): ConfigRead {
   const path = configPath(home);
+  // A home whose link target is gone would otherwise read as "no config" and drop every binding.
+  if (danglingLink(home)) return { kind: "corrupt", path: home, problem: "is a symbolic link whose target does not exist" };
   if (io.isAbsent ? io.isAbsent(path) : !io.exists(path)) return { kind: "absent" };
   let text: string;
   try {

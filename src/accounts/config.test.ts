@@ -77,6 +77,15 @@ describe("readConfig", () => {
     if (read.kind === "corrupt") expect(read.path).toBe(join(real, "config.json"));
   });
 
+  test("a Wachiman home that is a dangling symlink is corrupt, naming the home, never absent", () => {
+    const parent = temp("wh-dangling-home-");
+    const home = join(parent, "home");
+    symlinkSync(join(parent, "unmounted-volume"), home);
+    const read = readConfig(home);
+    expect(read.kind).toBe("corrupt");
+    if (read.kind === "corrupt") expect(read.path).toBe(home);
+  });
+
   test("a valid file is returned as it is, with its path", () => {
     const config = valid(home);
     const read = readOf(home, config);
