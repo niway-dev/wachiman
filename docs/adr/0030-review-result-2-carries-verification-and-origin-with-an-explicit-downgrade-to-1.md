@@ -34,7 +34,10 @@ hidden as a refutation; unknown causal origin must not be invented.
 3. A single bounded verifier call follows coverage merge/dedupe in the shared review core.
    Reuse the existing reserve min(verifyBudgetUsd,totalBudgetUsd/2), default configured reserve
    $1, existing DEFAULT_VERIFIER_MODEL and effort high. No retry/fan-out/recursive investigation;
-   verification remains opt-in pending the existing benchmark gate. All cost/usage/calls/turns
+   verification is on by default, as the owner decided on 2026-11-09 (the amendment to
+   [ADR 0027](0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md));
+   the benchmark gate checks that default, it no longer conditions it. Off with `verify: false`,
+   `AGENT_REVIEW_VERIFY=0` or `local --no-verify`. All cost/usage/calls/turns
    count in execution totals on the same account as coverage.
 4. The falsifier investigates original code, not a reviewer summary. Provide immutable head and
    a lazily materialised base snapshot once per review when candidates exist. Validate citation

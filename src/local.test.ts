@@ -935,7 +935,7 @@ describe("verification flags", () => {
     expect(validate(schema("review-result.v2.schema.json"), JSON.parse(two.stdout))).toEqual([]);
   });
 
-  test("the verify line follows batches: off by default, on with the model and the reserve", () => {
+  test("the verify line follows batches: off with AGENT_REVIEW_VERIFY=0 (the helper sets it), on with --verify, the model and the reserve", () => {
     const off = local("ok");
     const lines = off.stderr.split("\n");
     expect(lines[lines.indexOf("batches: 1") + 1]).toBe("verify: off");
