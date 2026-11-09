@@ -31,11 +31,18 @@ const ROOT = join(import.meta.dir, "..");
 const FIXTURES = join(import.meta.dir, "fixtures", "parity");
 const hasCommit = (sha: string) => spawnSync("git", ["cat-file", "-e", `${sha}^{commit}`], { cwd: ROOT }).status === 0;
 
-/** Answers every call with every file reviewed, so no batch retries and the prompts alone differ. */
+/**
+ * Answers every call with every file reviewed, so no batch retries and the prompts alone differ.
+ * With `findOne`, each review call reports one finding on the first file and the verifier call
+ * answers it, so the verify prompt is compared too.
+ */
 class AllReviewed implements ProviderAdapter {
   readonly name = "fake";
   readonly requests: ProviderRequest[] = [];
-  constructor(private readonly filenames: string[]) {}
+  constructor(
+    private readonly filenames: string[],
+    private readonly findOne = false,
+  ) {}
   preflight() {}
   modelLabel() {
     return "Fake Model 1 via Fake CLI 0.1";
@@ -45,6 +52,20 @@ class AllReviewed implements ProviderAdapter {
   }
   run(request: ProviderRequest): ProviderResult {
     this.requests.push(request);
+    if (this.findOne && JSON.stringify(request.outputSchema).includes('"verdicts"')) {
+      return {
+        costUsd: 0.01,
+        turns: 1,
+        durationMs: 1,
+        terminalReason: "success",
+        isError: false,
+        raw: {},
+        structuredOutput: { verdicts: [{ id: "c1", verdict: "supported", reason: "the code shows it", checked: [{ snapshot: "head", path: this.filenames[0], line: 1 }] }] },
+      };
+    }
+    const findings = this.findOne
+      ? [{ path: this.filenames[0], line: 1, severity: "fix", topic: "bug", confidence: "high", title: "A finding to verify", body: "Because." }]
+      : [];
     return {
       costUsd: 0.01,
       turns: 1,
@@ -52,16 +73,16 @@ class AllReviewed implements ProviderAdapter {
       terminalReason: "success",
       isError: false,
       raw: {},
-      structuredOutput: { files_reviewed: this.filenames, files_skipped: [], findings: [], contracts: [], thread_replies: [], summary: "ok" },
+      structuredOutput: { files_reviewed: this.filenames, files_skipped: [], findings, contracts: [], thread_replies: [], summary: "ok" },
     };
   }
 }
 
 /** The prompts of one core run, with the per-batch run directory as a placeholder. */
-function prompts(input: ReviewInput) {
-  const provider = new AllReviewed(input.files.map((f) => f.filename));
-  const options = reviewOptionsOf(loadConfig({}, () => {}), 3);
-  reviewChange(input, options, { provider, log: () => {}, warn: () => {}, sleep: () => {}, rateLimitBackoffMs: 0 });
+function prompts(input: ReviewInput, verify = false, baseSnapshot?: () => { dir: string; release(): void }) {
+  const provider = new AllReviewed(input.files.map((f) => f.filename), verify);
+  const options = reviewOptionsOf(loadConfig(verify ? { AGENT_REVIEW_VERIFY: "1" } : {}, () => {}), 3);
+  reviewChange(input, options, { provider, ...(baseSnapshot ? { baseSnapshot } : {}), log: () => {}, warn: () => {}, sleep: () => {}, rateLimitBackoffMs: 0 });
   return provider.requests.map((r) => r.prompt.replaceAll(r.addDirs[0], "<RUN_DIR>"));
 }
 
@@ -124,8 +145,51 @@ describe("prompt parity between the github and local-git connectors", () => {
       expect(fromLocal.length).toBe(fromGithub.length);
       expect(fromLocal.length).toBeGreaterThan(0);
       fromLocal.forEach((prompt, i) => expect(prompt, `#${fx.pr} batch ${i + 1}`).toBe(fromGithub[i]));
+      // The same with verification on: the verifier's prompt is part of the contract too. Neither
+      // connector provides a base snapshot here, so both prompts say the base is not available.
+      const verifiedGithub = prompts(github, true);
+      const verifiedLocal = prompts(local, true);
+      expect(verifiedLocal.length).toBe(fromLocal.length + 1);
+      expect(verifiedLocal.at(-1)).toContain("<candidate id=\"c1\"");
+      expect(verifiedLocal.length).toBe(verifiedGithub.length);
+      verifiedLocal.forEach((prompt, i) => expect(prompt, `#${fx.pr} verified call ${i + 1}`).toBe(verifiedGithub[i]));
     });
   }
+});
+
+describe("the verifier prompt when only the local connector has a base snapshot", () => {
+  const fx = fixtures.find((x) => hasCommit(x.headSha) && hasCommit(x.mergeBase));
+  test.skipIf(!fx)("differs from the GitHub one only in the base-availability text", () => {
+    const f = fx as PrFixture;
+    const snapshot = snapshotHead(ROOT, f.headSha);
+    snapshots.push(snapshot.dir);
+    const input = githubReviewInput({
+      repo: f.repo,
+      pr: f.pr,
+      headSha: f.headSha,
+      baseSha: f.baseSha,
+      meta: f.meta,
+      files: f.files,
+      instructions: f.instructions,
+      headDir: snapshot.dir,
+      scope: [],
+      since: null,
+      rebased: false,
+      threads: [],
+    });
+    const github = prompts(input, true).at(-1) as string;
+    const local = prompts(input, true, () => ({ dir: "/fake/base", release() {} })).at(-1) as string;
+    const a = github.split("\n");
+    const b = local.split("\n");
+    expect(b.length).toBe(a.length);
+    const differing = a.flatMap((line, i) => (line === b[i] ? [] : [[line, b[i]]]));
+    expect(differing).toEqual([
+      [
+        "The working directory is a snapshot of that commit (the `head` snapshot). The base snapshot is not available in this review: you cannot cite it, so an origin you cannot show stays unknown.",
+        "The working directory is a snapshot of that commit (the `head` snapshot). A read-only copy of the base commit (the code before this change) is at /fake/base; Read, Glob and Grep may use it.",
+      ],
+    ]);
+  });
 });
 
 /** The first `lines` lines of a unified diff of two patches. */

@@ -14,6 +14,8 @@ import {
   notReviewed,
   plainLabel,
   profileText,
+  sections,
+  verificationNotes,
   providerLine,
   sha7,
   sinceLastRunText,
@@ -32,10 +34,15 @@ export function renderTerminal(result: ReviewResult, opts: { profileNote?: strin
   );
   const note = instructionNote(result);
   if (note) blocks.push(note);
-  result.findings.forEach((f, i) => {
-    const entry = opts.history?.byIndex.get(i);
-    blocks.push(`${location(f)}  ${plainLabel(f)}${entry ? `  ${historyLabel(entry)}` : ""}\n${indent(neutralise(f.body), "    ")}`);
-  });
+  const grouped = sections(result);
+  const finding = ({ f, index }: (typeof grouped.main)[number]) => {
+    const entry = opts.history?.byIndex.get(index);
+    const notes = verificationNotes(f).flatMap((n) => [`${n.name}: ${n.text}`, ...(n.cites ? [`Checked: ${n.cites.join(", ")}`] : [])]);
+    return `${location(f)}  ${plainLabel(f)}${entry ? `  ${historyLabel(entry)}` : ""}\n${indent([neutralise(f.body), ...notes].join("\n"), "    ")}`;
+  };
+  blocks.push(...grouped.main.map(finding));
+  if (grouped.inconclusive.length > 0) blocks.push("Inconclusive (the verifier could not settle these):", ...grouped.inconclusive.map(finding));
+  if (grouped["pre-existing"].length > 0) blocks.push("Pre-existing (true, but not introduced by this change):", ...grouped["pre-existing"].map(finding));
   if (opts.history) blocks.push(sinceLastRunText(opts.history));
   const missing = notReviewed(result);
   if (missing.length > 0) {

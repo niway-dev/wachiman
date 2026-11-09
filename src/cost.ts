@@ -20,7 +20,7 @@ import { appendFileSync } from "node:fs";
  * There is no `description` kind: the engine never asks a model to write a pull request
  * description. The summary in a review is part of the review's own structured output.
  */
-export type Operation = "review" | "re-review" | "reply" | "on-demand";
+export type Operation = "review" | "re-review" | "reply" | "on-demand" | "verify";
 
 /**
  * Tokens a call used. `input` excludes cached tokens, so the four fields never overlap.

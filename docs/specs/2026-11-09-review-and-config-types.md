@@ -464,8 +464,8 @@ Reserve `min(AGENT_REVIEW_VERIFY_BUDGET_USD, totalBudgetUsd / 2)` before coverag
 $1, verifier model uses existing DEFAULT_VERIFIER_MODEL, effort high. Coverage cannot spend the
 reserve. At most one verifier call; no verifier retry/fan-out/recursive investigation. All work
 counts in execution totals, on the same account and hardening as coverage. The USD guard is
-API-equivalent on a subscription. Explicit --verify/env enables it; default stays off until the
-existing benchmark gate is satisfied. Never silently switch a model/profile if the account
+API-equivalent on a subscription. The verifier is on by default (ADR 0027 amendment, 2026-11-09);
+--no-verify or AGENT_REVIEW_VERIFY=0 turns it off, and the benchmark gate checks the default. Never silently switch a model/profile if the account
 cannot use it.
 
 ### 5.3 Downgrade `toResultV1(r: ReviewResultV2): ReviewResultV1`

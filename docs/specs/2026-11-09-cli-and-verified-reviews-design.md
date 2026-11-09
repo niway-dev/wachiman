@@ -488,7 +488,7 @@ Read,Glob,Grep` restrictions as a batch, so it cannot spawn agents or run code.
 | `status: "verified" \| "failed" \| "nothing"` with `entries: []` on `failed` | `status: "verified" \| "partial" \| "failed" \| "nothing" \| "skipped"`; usable verdicts survive, and only unanswered candidates get an `inconclusive` entry with `reason: "not verified: <stop>"` | A stop must not erase the statuses; the owner asked for preserved unverified statuses |
 | `ResultVerification` added at the root of a `/1` result | the same block at the root of a `/2` result; `toResultV1()` removes it | The `/1` root is closed (`additionalProperties: false`) |
 | Per-finding outcome only in `entries` | also on the finding: `verification: { status, reason, checked, disproof? }` and `origin` | The sinks render per finding without joining on ids |
-| `--verify` / `AGENT_REVIEW_VERIFY` off by default | unchanged | Arm 2 decides the default |
+| `--verify` / `AGENT_REVIEW_VERIFY` off by default | on by default, `--no-verify` and `AGENT_REVIEW_VERIFY=0` turn it off | The owner turned it on before the arm 2 gate (ADR 0027 amendment, 2026-11-09) |
 
 Reuse the candidate selection, budget reserve, fail-open policy and reporting structure from
 the existing branch. Extend its evidence validation to snapshot-qualified citations and causal
