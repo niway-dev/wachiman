@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Install the global `wachiman` command and the wachiman-review and wachiman-audit skills from this clone.
+# For contributors: it links the clone's files. Package users run `wachiman skills install`, which copies.
 #   scripts/install-local.sh              link everything (idempotent)
 #   scripts/install-local.sh --uninstall  remove the links this script made
 # Never touches anything under ~/.wachiman (isolated review profiles must stay empty).
@@ -90,6 +91,7 @@ apply() { # apply <function>
 
 if [[ "$mode" == install ]]; then
   apply link
+  echo "note    this links the skills from your clone, for contributors; if you installed the npm package, run \`wachiman skills install\` instead (it copies them)"
   case ":$PATH:" in
     *":$home/.local/bin:"*) ;;
     *) echo "warn    $home/.local/bin is not on your PATH; add it in your shell profile" >&2 ;;
