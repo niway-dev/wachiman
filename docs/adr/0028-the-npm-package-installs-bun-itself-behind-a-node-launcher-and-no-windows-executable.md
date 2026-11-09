@@ -47,9 +47,9 @@ not an executable but a package that does not ask them to install Bun first.
 
 Facts read or measured: `npm install -g bun` and the official `bun` npm package install a
 working `bun.exe` through a `postinstall` script from per-platform packages
-(`@oven/bun-<platform>`); the package's `bin/bun.exe` is a stub until that script runs, so an
-install with `--ignore-scripts` leaves a file that exists and does not work; npm installs a Node
-shim for every `bin` on every OS and runs it with Node. Measured for Bun 1.3.4: the platform
+(`@oven/bun-<platform>`); the package's `bin/bun.exe` is a placeholder that cannot run until that script runs, so an
+install with `--ignore-scripts` leaves a file that exists and does not work (in bun@1.3.4 an empty file that cannot be run, `ENOEXEC`); npm links every `bin` on POSIX and creates
+`.cmd` and `.ps1` shims on Windows, and either way the launcher runs with Node. Measured for Bun 1.3.4: the platform
 download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 MB unpacked.
 
 ## Decision
@@ -68,7 +68,7 @@ download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 
    2. otherwise a Bun on `PATH`, scanning absolute entries only on every OS, so a `bun` in the
       reviewed repository is never run.
    A candidate is accepted only if `<candidate> --version` exits 0 within a few seconds and
-   reports 1.3 or later, because the stub left by `--ignore-scripts` exists but exits 1. If
+   reports 1.3 or later, because the placeholder left by `--ignore-scripts` exists but cannot run. If
    neither works, the launcher prints one message for "not found" and another for "found, but
    version X is too old", each with the install commands, and exits 2. It sets and unsets no
    environment variable, translates none into a flag, and never downloads or installs anything.
@@ -109,7 +109,7 @@ download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 
 - **Retiring the source installer after one release** (draft 0026 decision 4). Running
   unreleased source is how the owner develops; a public package does not replace it.
 - **Accepting a bundled file because it exists.** With `--ignore-scripts` the file exists and
-  exits 1; only a successful `--version` proves it runs.
+  cannot run; only a successful `--version` proves it runs.
 
 ## Consequences
 
@@ -120,7 +120,9 @@ download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 
   binary in place. Wachiman's provenance covers Wachiman's files, not that binary download.
   Users who do not accept that install with `--ignore-scripts` and bring their own Bun; the
   launcher then falls back to it. Newer npm versions warn when a dependency has install scripts;
-  if a future npm blocks them by default, the stub and the fallback apply.
+  if a future npm blocks them by default, the placeholder and the fallback apply. pnpm 10 already
+  blocks dependency build scripts by default (documented pnpm behavior, not tested here), which is why
+  the PATH fallback matters.
 - The exact `bun` pin moves with CI's `bun-version` (a test checks they match); a Bun upgrade is a
   deliberate commit, and a package release is needed to ship it.
 - The release workflow gains a publish job; the owner must configure the npm trusted publisher

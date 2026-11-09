@@ -94,11 +94,11 @@ How the launcher picks a Bun:
 The launcher changes no environment variable and downloads and installs nothing itself.
 
 `npm i -g wachiman --ignore-scripts` (and any setup that skips dependency install scripts, which
-newer npm versions can warn about) installs the `bun` package without its binary: it leaves a small
-stub that exits 1. The launcher detects the stub and uses the Bun on your `PATH` instead; with
+newer npm versions can warn about, and pnpm 10 already blocks by default, which is documented pnpm behavior that was not tested here) installs the `bun` package without its binary: it leaves a small
+placeholder that cannot run (in bun@1.3.4 an empty file, `ENOEXEC`). The launcher detects it and uses the Bun on your `PATH` instead; with
 neither, it exits 2 with the message above. `bun add -g wachiman` was tried on macOS with Bun 1.4.2
 and a packed tarball: Bun installed the dependency with a working binary, and `wachiman --version`
-ran with only Node on `PATH`.
+ran with only Node on `PATH`. The launcher itself runs on Node, so Node 20 or later must be on `PATH` even when you install with Bun.
 
 On Windows the package is written to work, in Git Bash and in PowerShell, and is tested on
 `windows-latest` in CI: the launcher is a Node script and npm creates the `wachiman.cmd` and
