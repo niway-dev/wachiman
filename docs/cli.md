@@ -1,7 +1,8 @@
 # Command-line contract
 
-`wachiman` is one command with four subcommands: three for GitHub and `local`, which reviews a
-branch on your own machine and posts nothing. The reusable workflow and the copied caller
+`wachiman` is one command. Three subcommands are for GitHub; `local` reviews a branch on your own
+machine and posts nothing; `setup`, `doctor`, `profile` and `project` manage and explain which
+Claude account `local` uses. The reusable workflow and the copied caller
 workflow both run exactly this; anything else that wants to drive a review can too. Every setting
 it reads is listed in [configuration.md](configuration.md); this page covers the commands, what
 they post and how they exit.
@@ -12,7 +13,11 @@ bun src/cli.ts comment <pr> [--repo-dir <dir>]   # the comment text comes from $
 bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman threads, no review
 bun src/cli.ts local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
   [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
-bun src/cli.ts --setup-profile [<name>]          # sign in an isolated profile for `local`
+bun src/cli.ts setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]
+bun src/cli.ts doctor [--json] [--profile <name> | --all-profiles] [--repo-dir <dir>] [--redact-paths]
+bun src/cli.ts profile list|create|add|login|remove|default ...
+bun src/cli.ts project show|unbind ...
+bun src/cli.ts --setup-profile [<name>]          # alias of `profile create`
 bun src/cli.ts --help
 bun src/cli.ts --version
 ```
@@ -24,7 +29,7 @@ engine uses `Bun.Glob`), and so are the `gh` CLI and the provider's binary on th
 
 Argument rules, as implemented:
 
-- The command (`review`, `comment`, `threads` or `local`) must be the first argument. `--help`/`-h`,
+- The command (`review`, `comment`, `threads`, `local`, `history`, `setup`, `doctor`, `profile` or `project`) must be the first argument. `--help`/`-h`,
   `--version`/`-v` and `--setup-profile` are recognised only as the first argument too.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
@@ -58,7 +63,10 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `comment <pr>` | Routes the operator's comment (from `REQUEST`) to a review, an answer or nothing. See "What `comment` does" below. |
 | `threads <pr>` | Answers the Wachiman threads that wait for an answer, with no review, and only when the pull request's head was already reviewed. See "What `threads` does" below. |
 | `local [paths…]` | Reviews the committed branch of a clone on your own signed-in `claude` and prints the review; no GitHub call, nothing posted. See [`local`](#local) below and [the guide](local-review.md). |
-| `--setup-profile [<name>]` | Creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in, for `local --profile isolated[:<name>]`. |
+| `setup [--profile <name>]` | Binds this repository to an existing profile. See [`setup`](#setup-doctor-profile-and-project). |
+| `doctor` | Reports what a local run would use and what would fail. |
+| `profile …`, `project …` | Manage account profiles and the repository's binding. |
+| `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
 ### Incremental reviews
 
@@ -152,7 +160,7 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--format terminal\|markdown\|json` | `terminal` | Plain text; a Markdown report with every finding and the prompt for your agent; or the `ReviewResult` JSON |
 | `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
 | `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
-| `--profile default\|isolated[:<name>]` | `default` | `default` is your own `claude`; `isolated` (the name `isolated`) or `isolated:<name>` uses `~/.wachiman/claude-<name>`, which must exist and hold nothing but a sign-in |
+| `--profile <name>` | see "Which account" below | `default` is your own `claude`; a name is a registered profile (managed or external); `isolated` and `isolated:<name>` name the managed profile `~/.wachiman/claude-<name>` (which must exist and hold nothing but a sign-in) |
 | `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
@@ -168,6 +176,59 @@ isolated profile, or an `--input` whose format is not `/1` or whose head is not 
 Each `claude` call runs in subscription mode: no key, `USER` and the no-telemetry switches in its
 environment, `--no-session-persistence` (see
 [providers/claude-code.md](providers/claude-code.md#in-local-mode-auth-subscription)).
+
+### Which account `local` uses
+
+`local` picks the account by the first rule that applies. A rule that applies and then fails (a
+missing profile, a refused directory) stops the run with exit 2; it never falls through to the next:
+
+1. `--profile <name>`.
+2. The project binding written by `wachiman setup`: stored under the Wachiman home, keyed by the
+   repository's origin URL (credentials removed), or by its git directory when there is no origin. Every clone and
+   worktree of one origin shares it.
+3. `WACHIMAN_PROFILE`.
+4. The default set with `wachiman profile default <name>`.
+5. The built-in `default`: your own `claude` and configuration directory.
+
+Before any call, stderr says which account runs and what it overrode (for example `profile: work
+(managed; chosen by project binding; WACHIMAN_PROFILE=other ignored)`), and `claude --version` and
+`claude auth status` are run in that account's environment. `bin/wachiman` changes nothing: it no
+longer turns `WACHIMAN_PROFILE` into `--profile` and no longer removes `ANTHROPIC_API_KEY`, so the
+wrapper and `bun src/cli.ts` behave the same. `local` still refuses to start when
+`ANTHROPIC_API_KEY` is set; run it with `env -u ANTHROPIC_API_KEY` when your shell exports one.
+
+The Wachiman home is `~/.wachiman`, or the absolute directory in `WACHIMAN_HOME`. The account
+configuration is `<home>/config.json` (written with a lock and an atomic rename; a corrupt file is
+a usage error, never treated as empty). No credential file is read, and nothing is written under the
+repository or under an external profile's directory.
+
+### `setup`, `doctor`, `profile` and `project`
+
+None of these starts a review, calls a model or makes a request of its own. Results go to stdout
+and confirmations to stderr; `--json` prints the document named below.
+
+| Command | What it does |
+| --- | --- |
+| `profile list [--json]` | Registered profiles and the unregistered `claude-*` directories under the home, with the projects bound to each and the default. `--json` prints `wachiman.profiles/1` |
+| `profile create [<name>]` | Creates the managed profile `<home>/claude-<name>` (default `isolated`), registers it and starts `claude` there so you can sign in (`/login`, then `/exit`) |
+| `profile add <name> --config-dir <abs> [--binary <abs>] [--note <text>]` | Registers a configuration directory you already use, in place: an external profile. Refused when the directory is relative, missing, not a directory or inside the Wachiman home (also through a symlink), when `--binary` is not an absolute, executable regular file (an npm shim is refused), and for a reserved or already used name. Wachiman never writes into the directory |
+| `profile login <name>` | Starts `claude` for that profile (with `auth login` when this `claude` has it) so you can sign in again. It never reads the outcome |
+| `profile remove <name> [--delete-dir] [--yes]` | Removes the registration and every binding and default that named it. The directory stays unless you pass `--delete-dir`, which is a usage error for an external profile and asks twice for a managed one |
+| `profile default <name> \| --none` | Sets or clears the configured default |
+| `project show [--json] [--repo-dir <dir>]` | The repository's key, its binding, and what `local` would use here now, with the rule and any ignored values. `--json` prints `wachiman.project/1` |
+| `project unbind [--repo-dir <dir>] [--yes]` | Removes this repository's binding |
+| `setup --profile <name> [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to an existing profile, prints exactly what it will write, asks `Bind <name> to <repo>?`, then runs the `doctor` summary |
+| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `history`, `skills`, `isolation`. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
+
+`remove`, `unbind` and `setup` ask before writing. Without a terminal (or with `CI` set) they need
+`--yes`; without it they exit 2. `setup` without `--profile` needs a terminal and a wizard that is
+not built yet, so for now it exits 2 and writes nothing. In `doctor`, the `auth` row reports
+`networkObserved: "unknown"` always: Wachiman does not know what `claude auth status` contacts.
+With `ANTHROPIC_API_KEY` set, the `environment` row fails, because `local` would refuse to start.
+
+Exit codes: `doctor` 0 when every required check passed and 1 when one failed; `setup` 1 when the
+closing `doctor` summary failed (the binding is already written); `profile` and `project` 0 done
+(including a "no" answer), 2 usage error, 130 cancelled.
 
 ### `history`
 
@@ -237,14 +298,21 @@ Required for `review`, `comment` and `threads`:
 
 | Variable | Meaning |
 | --- | --- |
-| `GH_TOKEN` | Token for `gh`. It is never given to the agent. Not read by `local` or `--setup-profile`. |
-| `GITHUB_REPOSITORY` | `owner/name` of the repository. Not read by `local` or `--setup-profile`. |
+| `GH_TOKEN` | Token for `gh`. It is never given to the agent. Not read by `local`, `setup`, `doctor`, `profile` or `project`. |
+| `GITHUB_REPOSITORY` | `owner/name` of the repository. Not read by `local`, `setup`, `doctor`, `profile` or `project`. |
 | `REQUEST` | `comment` only: the comment text. Pass it through the environment, never interpolated into a shell command. |
 | `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs. |
 | Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`. For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
 
 The `gh` CLI and the provider's binary (`claude` for `claude-code`, `codex` for `codex`) must be on
 the `PATH`.
+
+Read by the account commands and `local`:
+
+| Variable | Meaning |
+| --- | --- |
+| `WACHIMAN_HOME` | The Wachiman home, an absolute path. Default `~/.wachiman` |
+| `WACHIMAN_PROFILE` | The profile `local` uses when there is no `--profile` and no project binding |
 
 All optional settings (`AGENT_REVIEW_BUDGET_USD`, `AGENT_REVIEW_MODEL`, `AGENT_REVIEW_PROVIDER`,
 `AGENT_REVIEW_DRY_RUN`, `AGENT_REVIEW_EXCLUDE`, `AGENT_REVIEW_COMMENT_AUTHOR` and the rest) are in
@@ -382,7 +450,7 @@ rest are listed as not reviewed.
 | --- | --- |
 | `0` | A report was printed: complete, partial, or ended by the account's usage limit (`stop: quota`) |
 | `1` | No call returned a review (a refused sign-in, an unclassified error, every batch failed), after printing the report that says why; or the `claude` binary did not run |
-| `2` | Usage error: an unknown option or format, `ANTHROPIC_API_KEY` set, a provider other than `claude-code`, a refused or missing isolated profile, no merge-base, a detached or unborn `HEAD`, a `HEAD` on the base branch, a range deeper than the maximum depth, an `--input` of another format or whose head is not in the clone |
+| `2` | Usage error: an unknown option or format, `ANTHROPIC_API_KEY` set, a profile that cannot be resolved or is refused, a corrupt `config.json`, a provider other than `claude-code`, a refused or missing isolated profile, no merge-base, a detached or unborn `HEAD`, a `HEAD` on the base branch, a range deeper than the maximum depth, an `--input` of another format or whose head is not in the clone |
 | `130` | Interrupted with `Ctrl-C`; the snapshot was removed |
 
 Which exit code you get follows the order of the checks in `main`:
