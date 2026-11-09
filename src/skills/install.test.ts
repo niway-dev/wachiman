@@ -285,6 +285,39 @@ describe("skills install: copies it does not own", () => {
     expect(readFileSync(outside, "utf8")).toBe("outside\n");
     expect(report.entries.find((e) => e.target === copy)!.action).toBe("preserved");
   });
+
+  test("a user file the old marker does not list is never overwritten by a version that ships that path", () => {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    writeFileSync(join(copy, "notes.md"), "my notes\n");
+    writeFileSync(join(f.source, "wachiman-review", "notes.md"), "shipped notes\n");
+    writeFileSync(join(f.source, "wachiman-review", "SKILL.md"), "# v2\n");
+    const report = only(f);
+
+    expect(readFileSync(join(copy, "notes.md"), "utf8")).toBe("my notes\n");
+    expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("# wachiman-review\n");
+    const entry = report.entries.find((e) => e.target === copy)!;
+    expect(entry.action).toBe("preserved");
+    expect(entry.reason).toContain("notes.md");
+  });
+
+  test("a user symlink where the new version ships a file is not replaced", () => {
+    const f = fixture();
+    only(f);
+    const copy = join(f.userHome, ".claude", "skills", "wachiman-review");
+    const outside = join(temp("outside-"), "victim.md");
+    writeFileSync(outside, "outside\n");
+    symlinkSync(outside, join(copy, "notes.md"));
+    writeFileSync(join(f.source, "wachiman-review", "notes.md"), "shipped notes\n");
+    const report = only(f);
+
+    expect(lstatSync(join(copy, "notes.md")).isSymbolicLink()).toBe(true);
+    expect(readFileSync(outside, "utf8")).toBe("outside\n");
+    const entry = report.entries.find((e) => e.target === copy)!;
+    expect(entry.action).toBe("preserved");
+    expect(entry.reason).toContain("notes.md");
+  });
 });
 
 describe("skills uninstall: only what it installed", () => {

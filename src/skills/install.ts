@@ -203,6 +203,11 @@ function installOne(dest: string, source: string, deps: SkillsDeps): Entry {
     replaced = owned.marker;
   }
   const files = listFiles(source);
+  if (replaced) {
+    const known = replaced.files;
+    const collisions = files.filter((rel) => !(rel in known) && lstatOrUndefined(join(dest, ...rel.split("/"))) !== undefined);
+    if (collisions.length > 0) return { target: dest, action: "preserved", reason: `the new version would overwrite files wachiman did not install (${collisions.join(", ")})` };
+  }
   const hashes: Record<string, string> = {};
   mkdirSync(dest, { recursive: true });
   for (const rel of files) {
