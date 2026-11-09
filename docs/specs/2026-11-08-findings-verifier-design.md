@@ -55,7 +55,7 @@ says it pays, and never blocks a review: if it fails, the unverified review is p
 | 6 | **Budget:** a reserve `verify_budget_usd` (default $1.00, at most half of `budget_usd`) is taken from `budget_usd` before the batches start, so the verifier always has money when the batches end. The reserve is a floor, not the call's cap: the call may spend everything the batches left, which is the reserve plus what they did not use. No findings to verify, no call, no cost. It counts against `auto_budget_usd` like every automatic call (ADR 0012) | The field prototype's cap was $1.50 and no call reached it (max $0.80). Taking it up front avoids the case where the batches spend everything and the verifier, the part the owner asked for, never runs | reuses 0001, 0012 |
 | 7 | **Model and effort:** `verifier_model`, default Opus 5.5; effort always `high`. Independent of the reviewer's model so arm 3 (Haiku proposer) can run | The role that decides is never cheapened (#90, A3). Cross-model research found a lightweight reviewer of another model scores no higher than the same model reviewing itself; the field run shows Sonnet keeping half of what Opus keeps, and nobody has judged which is right. Opus is the safe default; Sonnet is measured, not assumed | 0027 |
 | 8 | **Fail open.** A failed, timed-out or budget-stopped verifier call posts the unverified review with a footer line saying so. It never blocks or delays the review beyond its own cap | The review is advisory; a verifier that can fail closed would turn a cost cap into a missing review | 0027 |
-| 9 | **Off by default** behind `verify` (Action input) / `--verify` / `AGENT_REVIEW_VERIFY=1` until arm 2 passes the gate in [Measurement](#measurement) | The measurement must run the product, not a script (the owner rejected a benchmark-only prototype). A flag lets the bench run arms 2 and 3 on the real code path before any consumer pays for it | — |
+| 9 | **Off by default** behind `verify` (Action input) / `--verify` / `AGENT_REVIEW_VERIFY=1` until arm 2 passes the gate in [Measurement](#measurement). *Superseded 2026-11-09 by the amendment in the status: on by default, off with `verify: false` / `--no-verify` / `AGENT_REVIEW_VERIFY=0`* | The measurement must run the product, not a script (the owner rejected a benchmark-only prototype). A flag lets the bench run arms 2 and 3 on the real code path before any consumer pays for it | — |
 | 10 | **Runs on every review that produced candidates:** first reviews, push re-reviews, `/wachiman review`, `local`. Not on thread-reply runs | Re-reviews are half the live bill and post findings too. Thread replies post no findings | — |
 
 ## Open questions
@@ -233,10 +233,10 @@ as the plan fixes.
 
 | Where | Name | Default |
 | --- | --- | --- |
-| Action input / env | `verify` / `AGENT_REVIEW_VERIFY` | `false` until the gate |
+| Action input / env | `verify` / `AGENT_REVIEW_VERIFY` | `true` (`0` or `false` turns it off; off for codex without a verifier model) |
 | Action input / env | `verify_budget_usd` / `AGENT_REVIEW_VERIFY_BUDGET_USD` | `1.00` |
 | Action input / env | `verifier_model` / `AGENT_REVIEW_VERIFIER_MODEL` | `claude-opus-5-5` |
-| CLI | `--verify` | off |
+| CLI | `--verify` / `--no-verify` | on |
 
 The footer names the verifier's model (its label) with its counts and cost next to the reviewer's;
 the effort is in the result's `verification` block, not in the footer.

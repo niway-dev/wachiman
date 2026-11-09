@@ -72,8 +72,9 @@ export interface EngineConfig {
   /** Extra exclude globs on top of the built-in ones. */
   exclude: string[];
   /**
-   * `AGENT_REVIEW_VERIFY=1`: after the batches, one more call tries to refute every finding above
-   * `info` before it is posted (ADR 0027). Off by default until the benchmark gate is met.
+   * `AGENT_REVIEW_VERIFY`: after the batches, one more call tries to refute every finding above
+   * `info` before it is posted (ADR 0027). On unless it is `0` or `false`, or the provider is
+   * codex with no `AGENT_REVIEW_VERIFIER_MODEL`.
    */
   verify: boolean;
   /** `AGENT_REVIEW_VERIFY_BUDGET_USD`: the verifier's reserve, taken out of `budgetUsd` (at most half of it). */
