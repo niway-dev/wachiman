@@ -5,6 +5,46 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.10.0](https://github.com/niway-dev/wachiman/compare/v1.9.0...v1.10.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **review:** Haiku 5.5 high is the default reviewer and the verifier is on by default
+
+### Features
+
+* **formats:** result /2 types and schema, a pure downgrade to /1 and a reader for both ([b2033d5](https://github.com/niway-dev/wachiman/commit/b2033d55817a3333787be97a464aad24ad489d23))
+* **local:** --no-verify, --result-version, the verify stderr line and a base snapshot for the verifier ([9e12a03](https://github.com/niway-dev/wachiman/commit/9e12a03a004efe68a5d142b7e8f18f467100180a))
+* **review:** an opt-in verifier call that refutes findings before they are posted ([386e790](https://github.com/niway-dev/wachiman/commit/386e790cb4b315a288f1b0339132a441b85c9113)), closes [#137](https://github.com/niway-dev/wachiman/issues/137)
+* **review:** Haiku 5.5 high is the default reviewer and the verifier is on by default ([42e3e3f](https://github.com/niway-dev/wachiman/commit/42e3e3f1ca18482b2f24d96368128433ff3d4fad))
+* **review:** show whether each finding was verified and whether the PR introduced it ([4700db7](https://github.com/niway-dev/wachiman/commit/4700db7f69b6d6f517b4110cfa3b4259ca92a9ca))
+* **sinks:** tier words, verification lines and Pre-existing and Inconclusive sections ([f008217](https://github.com/niway-dev/wachiman/commit/f008217ad689f5154da6068e4c8da22a5038e032))
+* **verify:** verdicts supported/refuted/inconclusive with origin, snapshot evidence and partial/failed status ([702e05d](https://github.com/niway-dev/wachiman/commit/702e05d5a8b4875b8f9330c47601f8fc582915ff))
+
+
+### Bug Fixes
+
+* **engine:** a refused account still ends as a failed verification, and a test covers the default ([99d91e6](https://github.com/niway-dev/wachiman/commit/99d91e6b7d62edc2b967036528141b9919350680))
+* **engine:** cut the unreviewed-files list before pre-existing findings that fit ([c34b22f](https://github.com/niway-dev/wachiman/commit/c34b22f7bc4c21182b8d26fae2501b2265f75699))
+* **engine:** dedupeFindings keeps the type of the findings it is given ([c4453d5](https://github.com/niway-dev/wachiman/commit/c4453d5a16da0c07eb671ba80bc02f41dc2fb577))
+* **engine:** keep the Pre-existing and Inconclusive lists within the review body limit ([c56e044](https://github.com/niway-dev/wachiman/commit/c56e044d5577d63b2f3062812fa76c00e04771b5))
+* **engine:** release the base snapshot when the prompt or run directory fails ([27b9481](https://github.com/niway-dev/wachiman/commit/27b9481780c6837444820643e61ff5d110041014))
+* **verify:** a refutation's disproof must be a head line ([600a748](https://github.com/niway-dev/wachiman/commit/600a7480c322392bd594e393c56b3910b63b73f7))
+* **verify:** escape model-written text in the verifier prompt ([35cc42e](https://github.com/niway-dev/wachiman/commit/35cc42e68547c5095178f0ed0e05258a5872e3e4))
+* **verify:** escape the head snippet and attribute quotes in the verifier prompt ([31083bb](https://github.com/niway-dev/wachiman/commit/31083bbf178337b7ca6a45710e6013602e99f162))
+* **verify:** findings the verifier turned into questions are deduplicated again ([821d6a9](https://github.com/niway-dev/wachiman/commit/821d6a91a427afe744acb8ac6cc5ddec07e3d185))
+* **verify:** mark an unreached candidate with a boolean, not a reason prefix ([023e688](https://github.com/niway-dev/wachiman/commit/023e688f22c976d301c7c4a8df3073570517aca2))
+* **verify:** the snippet reads only files inside the head and shows no line past the end of the file ([5d0925d](https://github.com/niway-dev/wachiman/commit/5d0925d047974e8fdeb096a79a00c488c0add1a6))
+* **verify:** the verifier is not called after the provider refused a batch ([0f64120](https://github.com/niway-dev/wachiman/commit/0f6412016a00ef718f357656b24ac15bce792d7d))
+* **verify:** use a verifier answer only when the whole envelope matches the schema ([9cf221d](https://github.com/niway-dev/wachiman/commit/9cf221d51f82617c506064f0a4158a9cabcdc0f4))
+* **verify:** without its own adapter the record names the model and effort that ran ([1668ab4](https://github.com/niway-dev/wachiman/commit/1668ab4e294c13ea6d5cf09c6743d5c7dd0997b3))
+
+
+### Miscellaneous Chores
+
+* release as 1.10.0 ([901e182](https://github.com/niway-dev/wachiman/commit/901e1821c8c35f0bf1bbeb1a5fb9b47e715d414d))
+
 ## [1.9.0](https://github.com/niway-dev/wachiman/compare/v1.8.0...v1.9.0) (2026-11-07)
 
 
