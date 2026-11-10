@@ -12,8 +12,9 @@ import { spawnGit, type GitRunner } from "../evidence";
 import { repositoryKey } from "../history/store";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
+import { wizardIo } from "../wizard/style";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
-import { promptForInit } from "./prompt";
+import { checkSupplied, promptForInit } from "./prompt";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, writeWorkflow, type WriteHooks } from "./write";
 
@@ -33,7 +34,7 @@ export interface InitDeps {
   /** An open prompt session; the caller closes it. Otherwise one is opened over `promptIO` or the terminal. */
   prompter?: Prompter;
   /** What `wachiman setup` means from here: runs the setup wizard in the same process, sharing `prompter`. */
-  bindNow?: (prompter: Prompter) => Promise<number>;
+  bindNow?: (prompter: Prompter, mode: "local" | "both") => Promise<number>;
   /** The directory a relative `--repo-dir` was resolved against, for the `setup` line. Default: `process.cwd()`. */
   cwd?: string;
   hooks?: WriteHooks;
@@ -47,22 +48,26 @@ export function setupLine(repoDir: string, cwd: string) {
   return repoDir === cwd ? "wachiman setup" : `wachiman setup --repo-dir ${repoDir}`;
 }
 
-const openSession = (deps: InitDeps) => {
+const openSession = (deps: InitDeps, env: Record<string, string | undefined>) => {
   if (deps.prompter) return { prompter: deps.prompter, close: () => {} };
-  const prompter = createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr });
+  const prompter = createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env);
   return { prompter, close: () => prompter.close() };
 };
 
 /** From the parsed flags: asks what is missing when a person can be asked, resolves, and runs. */
 export async function runInitCommand(flags: RawInitFlags, env: Record<string, string | undefined>, io: CommandIo, deps: InitDeps = {}): Promise<number> {
   // Fail before asking for an operator or account in an unusable target.
-  worktreeRoot(flags.repoDir ?? ".", deps.git);
+  const root = worktreeRoot(flags.repoDir ?? ".", deps.git);
   const interactive = deps.interactive ?? isInteractive(flags, env, deps.streams ?? { stdin: process.stdin, stdout: process.stdout });
+  if (interactive) io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env);
   const defaultWorkflowRef = "defaultWorkflowRef" in deps ? deps.defaultWorkflowRef : DEFAULT_WORKFLOW_REF;
-  const session = interactive ? openSession(deps) : undefined;
+  const session = interactive ? openSession(deps, env) : undefined;
   try {
     let answered = flags;
     if (session) {
+      checkSupplied(flags);
+      session.prompter.step("Project", 1);
+      session.prompter.say(root, "muted");
       const asked = await promptForInit(flags, { defaultWorkflowRef }, session.prompter);
       if (asked === null) {
         io.stderr("cancelled: nothing was written.");
@@ -123,16 +128,19 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
     written = shown;
     io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
+    if (options.mode === "github") prompter?.step("Checks and next actions", 4, 4);
     io.stderr("Two things are left to do in GitHub:");
     io.stderr("  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.");
     io.stderr(`  2. Open a pull request that adds ${shown}. init does not commit, push or open one.`);
     io.stderr("Local runs use your signed-in claude, never this key.");
   }
 
-  if (options.mode === "github") return 0;
+  if (options.mode === "github") {
+    return 0;
+  }
   if (prompter && deps.bindNow) {
     try {
-      const code = await deps.bindNow(prompter);
+      const code = await deps.bindNow(prompter, options.mode);
       if (code === 130 && written) io.stderr(`${written} was written before setup was cancelled and stays in place.`);
       return code;
     } catch (error) {

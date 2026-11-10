@@ -114,7 +114,8 @@ describe("setup on a terminal", () => {
     const { io, run } = setup(w, [], ["", "2", ""]); // set up? / pick work-a / bind?
     expect(await run).toBe(0);
     const printed = io.printed();
-    expect(printed).toMatch(/2\. work-a {2}external {2}.*claude from PATH/);
+    expect(printed).toMatch(/2\. work-a {2}external/);
+    expect(printed).toContain(`${w.workA}, claude from PATH`);
     expect(printed).toMatch(/3\. work-b {2}external {2}.*\(global default\) \(default\)/);
     expect(printed).toContain("5. Register an existing Claude configuration directory (external)");
     expect(printed).toContain("4. Create a new isolated profile (managed)");

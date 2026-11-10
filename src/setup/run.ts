@@ -30,12 +30,15 @@ import { repositoryKey } from "../history/store";
 import { claimManagedProfile, setupProfile } from "../profiles";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
+import { wizardIo } from "../wizard/style";
 import { resolveSetupOptions, type RawSetupFlags } from "./options";
 import { promptForSetup, type PendingProfile } from "./prompt";
 
 export interface SetupDeps extends AccountDeps {
   /** The person already chose local setup in init. */
   fromInit?: boolean;
+  /** Both mode has one extra workflow stage before account setup. */
+  initMode?: "local" | "both";
   streams?: TerminalStreams;
   promptIO?: PromptIO;
   /** An open prompt session (shared with `init`); the caller closes it. */
@@ -54,6 +57,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   }
 
   const repoDir = flags.repoDir ?? ".";
+  io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env);
   const home = wachimanHome(env);
   const userHome = deps.userHome ?? homedir();
   const now = deps.now ?? (() => new Date().toISOString());
@@ -67,7 +71,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (!found.ok) throw new UsageError(found.problem);
   }
 
-  const prompter = deps.prompter ?? createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr });
+  const prompter = deps.prompter ?? createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env);
   const ownsPrompter = deps.prompter === undefined;
   /** What already happened on disk or in Claude and cannot be rolled back; reported whenever the run ends early. */
   const effects: string[] = [];
@@ -105,7 +109,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   try {
     let answers;
     try {
-      answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged, fromInit: deps.fromInit }, prompter);
+      answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged, fromInit: deps.fromInit, initMode: deps.initMode }, prompter);
     } catch (error) {
       // A failed sign-in step still leaves the managed directory behind; say so before the error surfaces.
       reportEffects();
@@ -169,6 +173,8 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (status.ok) io.stderr(`account: signed in (${status.auth.authMethod}; claude ${status.binary.version})`);
     else if (!explained) io.stderr(`warning: ${status.problem} Fix: ${status.fix}`);
 
+    const total = deps.fromInit ? (deps.initMode === "both" ? 6 : 5) : 4;
+    prompter.step("Checks and next actions", total, total);
     const code = closeSetup(repoDir, env, io, deps);
     if (flags.json) io.stdout(`${JSON.stringify(projectShow(repoDir, env, deps), null, 2)}\n`);
     return code;

@@ -9,6 +9,7 @@
  * script says it.
  */
 import { createInterface, emitKeypressEvents, type Interface } from "node:readline";
+import { terminalStyle, type Tone } from "./style";
 
 export interface PromptIO {
   input: NodeJS.ReadableStream;
@@ -19,6 +20,7 @@ export interface PromptIO {
 export interface Choice<T> {
   label: string;
   value: T;
+  description?: string;
 }
 
 export interface Prompter {
@@ -28,7 +30,9 @@ export interface Prompter {
   text(label: string, defaultValue: string | undefined, validate?: (value: string) => string | undefined): Promise<string | null>;
   confirm(label: string, defaultYes: boolean): Promise<boolean | null>;
   /** Prints a line to the prompt output (a preview, a summary, an error). */
-  say(line: string): void;
+  say(line: string, tone?: Tone): void;
+  /** A stage can start before the route (and therefore the total) is known. */
+  step(label: string, index: number, total?: number): void;
   /** Gives the terminal back (raw mode off, input paused) so a child process can use it; the next question takes it again. Typed-ahead answers are kept. */
   suspend(): void;
   close(): void;
@@ -36,7 +40,8 @@ export interface Prompter {
 
 const CANCEL_LINES = new Set(["\u001b", "\u0003", "\u0004"]);
 
-export function createPrompter(io: PromptIO): Prompter {
+export function createPrompter(io: PromptIO, env: Record<string, string | undefined> = process.env): Prompter {
+  const paint = terminalStyle(io.output as { isTTY?: boolean }, env);
   const terminal = (io.input as { isTTY?: boolean }).isTTY === true;
   const queue: string[] = [];
   let rl: Interface | undefined;
@@ -123,7 +128,7 @@ export function createPrompter(io: PromptIO): Prompter {
       };
     });
   };
-  const say = (line: string) => void io.output.write(`${line}\n`);
+  const say = (line: string, tone?: Tone) => void io.output.write(`${tone ? paint(line, tone) : line}\n`);
   const ask = (question: string) => {
     open();
     // On a terminal readline owns the prompt, so its line refresh (Backspace, cursor keys) redraws the question too.
@@ -136,11 +141,17 @@ export function createPrompter(io: PromptIO): Prompter {
 
   return {
     say,
+    step(label, index, total) {
+      say(`\nStep ${index}${total === undefined ? "" : `/${total}`}  ${label}`, "accent");
+    },
     suspend,
     close: suspend,
     async select(label, choices, defaultIndex) {
-      say(label);
-      choices.forEach((c, i) => say(`  ${i + 1}. ${c.label}${i === defaultIndex ? " (default)" : ""}`));
+      say(label, "accent");
+      choices.forEach((c, i) => {
+        say(`  ${i + 1}. ${c.label}${i === defaultIndex ? " (default)" : ""}`, i === defaultIndex ? "accent" : undefined);
+        if (c.description) say(`     ${c.description}`, "muted");
+      });
       for (;;) {
         const line = await ask(`Choice [${defaultIndex + 1}]: `);
         if (line === null) return null;
@@ -148,7 +159,7 @@ export function createPrompter(io: PromptIO): Prompter {
         if (answer === "") return choices[defaultIndex].value;
         const n = Number(answer);
         if (/^\d+$/.test(answer) && n >= 1 && n <= choices.length) return choices[n - 1].value;
-        say(`Enter a number from 1 to ${choices.length}, or press Enter for ${defaultIndex + 1}.`);
+        say(`Enter a number from 1 to ${choices.length}, or press Enter for ${defaultIndex + 1}.`, "error");
       }
     },
     async text(label, defaultValue, validate) {
@@ -158,7 +169,7 @@ export function createPrompter(io: PromptIO): Prompter {
         const answer = line.trim() === "" && defaultValue !== undefined ? defaultValue : line.trim();
         const problem = validate?.(answer);
         if (problem === undefined) return answer;
-        say(problem);
+        say(problem, "error");
       }
     },
     async confirm(label, defaultYes) {
@@ -169,7 +180,7 @@ export function createPrompter(io: PromptIO): Prompter {
         if (answer === "") return defaultYes;
         if (answer === "y" || answer === "yes") return true;
         if (answer === "n" || answer === "no") return false;
-        say("Answer y or n.");
+        say("Answer y or n.", "error");
       }
     },
   };

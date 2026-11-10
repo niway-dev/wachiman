@@ -200,7 +200,7 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
     // Choosing local/both already requests setup; keep its final write confirmation.
-    bindNow: (prompter) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true }),
+    bindNow: (prompter, mode) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, initMode: mode }),
   });
 }
 

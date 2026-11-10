@@ -287,8 +287,8 @@ describe("init with scripted prompts", () => {
     const code = await runInitCommand({ repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) }, env, w.io, w.deps({
       interactive: true,
       promptIO,
-      bindNow: (prompter) => runSetupCommand({ repoDir: w.repo }, env, w.io, {
-        interactive: true, fromInit: true, prompter, spawn: tools.spawn,
+      bindNow: (prompter, initMode) => runSetupCommand({ repoDir: w.repo }, env, w.io, {
+        interactive: true, fromInit: true, initMode, prompter, spawn: tools.spawn,
         doctor: { platform: "darwin", arch: "arm64", version: "1.9.0", install: { kind: "source", root: "/fixture" } },
       }),
     }));
@@ -300,6 +300,8 @@ describe("init with scripted prompts", () => {
     expect(promptIO.printed()).not.toContain("Run wachiman setup now");
     expect(promptIO.printed().match(/Bind .* to default\?/g)).toHaveLength(1);
     expect(existsSync(w.target)).toBe(mode === "both");
+    expect(promptIO.printed()).toContain(mode === "both" ? "Step 4/6  Claude account" : "Step 3/5  Claude account");
+    expect(promptIO.printed()).toContain(mode === "both" ? "Step 6/6  Checks and next actions" : "Step 5/5  Checks and next actions");
   });
 
   test("an invalid Git worktree fails before asking any questions", async () => {
