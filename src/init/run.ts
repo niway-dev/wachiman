@@ -13,7 +13,7 @@ import { repositoryKey } from "../history/store";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
 import { wizardIo } from "../wizard/style";
-import { projectCommand, projectCommands } from "../wizard/command";
+import { projectCommands } from "../wizard/command";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
 import { callerHeader, renderCallerWorkflow } from "./render";
@@ -43,11 +43,6 @@ export interface InitDeps {
 
 const TEMPLATE = join(import.meta.dir, "..", "..", "templates", "wachiman-review-caller.yml");
 const readDefaultTemplate = () => readFileSync(TEMPLATE, "utf8");
-
-/** The line that hands over to `setup`. */
-export function setupLine(repoDir: string, cwd: string) {
-  return projectCommand("setup", repoDir, cwd);
-}
 
 const openSession = (deps: InitDeps, env: Record<string, string | undefined>) => {
   if (deps.prompter) return { prompter: deps.prompter, close: () => {} };
@@ -134,10 +129,10 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     io.stderr("  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.");
     io.stderr(`  2. Open a pull request that adds ${shown}. init does not commit, push or open one.`);
     io.stderr("Local runs use your signed-in claude, never this key.");
-    io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");
   }
 
   if (options.mode === "github") {
+    io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");
     return 0;
   }
   if (prompter && deps.bindNow) {
@@ -152,6 +147,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     }
   }
 
+  if (written) io.stderr(`github: pending; ${written} is written. Secret and workflow submission still require action in GitHub.`);
   for (const command of projectCommands("setup", options.repoDir, cwd)) io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
   return 0;
 }

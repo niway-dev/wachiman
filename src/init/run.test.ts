@@ -303,7 +303,7 @@ describe("init with scripted prompts", () => {
     expect(promptIO.printed()).toContain(mode === "both" ? "Step 4/6  Claude account" : "Step 3/5  Claude account");
     expect(promptIO.printed()).toContain(mode === "both" ? "Step 6/6  Checks and next actions" : "Step 5/5  Checks and next actions");
     expect(w.err.join("\n")).toContain("local: ready");
-    if (mode === "both") expect(w.err.join("\n")).toContain("github: pending");
+    if (mode === "both") expect(w.err.join("\n").match(/github: pending/g)).toHaveLength(1);
   });
 
   test("an invalid Git worktree fails before asking any questions", async () => {
