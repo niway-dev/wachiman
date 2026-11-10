@@ -5,6 +5,120 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.10.0](https://github.com/niway-dev/wachiman/compare/v1.9.0...v1.10.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **review:** Haiku 5.5 high is the default reviewer and the verifier is on by default
+
+### Features
+
+* **accounts:** confirm a profile before the first model call ([c5466dc](https://github.com/niway-dev/wachiman/commit/c5466dc6639b2a6b64c05eec612e1ac12ed140b4))
+* **accounts:** profile list, create, add, login, remove and default ([22ef9a6](https://github.com/niway-dev/wachiman/commit/22ef9a66a436a6a952ccc6d5b7dee1a51f660664))
+* **accounts:** project show and unbind, and setup --profile ([d427a22](https://github.com/niway-dev/wachiman/commit/d427a2296c7838bfad9fa5816687795c7d8b36e2))
+* **accounts:** resolve the account by flag, binding, environment and default ([5c3fec9](https://github.com/niway-dev/wachiman/commit/5c3fec99784eae527a613a216c60da389c5794b5))
+* **accounts:** strict account config store with a locked atomic writer ([c064f83](https://github.com/niway-dev/wachiman/commit/c064f8360830c90f117fa42a8f40bfff7c0a518c))
+* **cli:** a shared flag parser for the account and doctor commands ([1716292](https://github.com/niway-dev/wachiman/commit/17162927fafca3ebb76f66ace0b35667e2403d37))
+* **cli:** dispatch init and the interactive setup, and exit 130 on cancellation ([b98dfa8](https://github.com/niway-dev/wachiman/commit/b98dfa8f3f8737c9f1a46b2577acdd8ba77b0537))
+* **cli:** dispatch setup, doctor, profile and project ([7659a8e](https://github.com/niway-dev/wachiman/commit/7659a8e3b341562c85abba5ef4e673fa9f91eba3))
+* **cli:** set up a repository in two guided commands, init for the workflow and a setup wizard ([9071f75](https://github.com/niway-dev/wachiman/commit/9071f758154ee232f4486aa1a9ab532dadd9d107))
+* **doctor:** declared checks, text and JSON reports and path redaction ([fb6b22b](https://github.com/niway-dev/wachiman/commit/fb6b22b009abd084fb63dd2e3e44228d1e3f9a96))
+* **formats:** result /2 types and schema, a pure downgrade to /1 and a reader for both ([b2033d5](https://github.com/niway-dev/wachiman/commit/b2033d55817a3333787be97a464aad24ad489d23))
+* **init:** parse and resolve the init flags ([971bf90](https://github.com/niway-dev/wachiman/commit/971bf9098a1194fd334e8598634608c05bbe2b16))
+* **init:** render the caller workflow from the template anchors ([4234ab1](https://github.com/niway-dev/wachiman/commit/4234ab13144e34fb9921917f8b5cd6325baf1500))
+* **init:** write the caller workflow under confirm, with backups and link refusal ([ba05ea7](https://github.com/niway-dev/wachiman/commit/ba05ea7df4495fd1924c92ce64b1ccee9cc228d7))
+* **launcher:** run the Bun that npm installs with the package, fall back to a validated Bun on PATH ([c283a3e](https://github.com/niway-dev/wachiman/commit/c283a3e336fc646e3e95bd6854a7d2888f6253c3))
+* **local:** --no-verify, --result-version, the verify stderr line and a base snapshot for the verifier ([9e12a03](https://github.com/niway-dev/wachiman/commit/9e12a03a004efe68a5d142b7e8f18f467100180a))
+* **local:** resolve and confirm the account before any model call ([e38abfc](https://github.com/niway-dev/wachiman/commit/e38abfc23e93836080bdd6620fe929981b74f62a))
+* **package:** add the dependency-free Node launcher and its argv builder ([1148847](https://github.com/niway-dev/wachiman/commit/11488479220aabfd583bc6749db8ea89589f2996))
+* **package:** detect the install layout and read assets from source or npm ([0dd49bf](https://github.com/niway-dev/wachiman/commit/0dd49bf87f9bf3b33135ec9a07aa81b47fd54511))
+* **package:** install Wachiman with npm i -g wachiman, proven on the exact tarball users get ([d96a10d](https://github.com/niway-dev/wachiman/commit/d96a10d5271d290ede25b9baf4f62f7f7a132444))
+* **package:** npm installs Bun with wachiman; drop the Windows executable ([cb38225](https://github.com/niway-dev/wachiman/commit/cb382254038af8609e7de1e75f1bd1a18a856870))
+* **package:** publish as wachiman with the launcher as bin and test files left out ([0852087](https://github.com/niway-dev/wachiman/commit/0852087b26e22d8045f48d671ceb42d567bdb99a))
+* **providers:** run an external profile's stored binary in the local mode ([6674454](https://github.com/niway-dev/wachiman/commit/6674454d85094b2132ff3176e9bcf73c4d7cace7))
+* **review:** an opt-in verifier call that refutes findings before they are posted ([386e790](https://github.com/niway-dev/wachiman/commit/386e790cb4b315a288f1b0339132a441b85c9113)), closes [#137](https://github.com/niway-dev/wachiman/issues/137)
+* **review:** Haiku 5.5 high is the default reviewer and the verifier is on by default ([42e3e3f](https://github.com/niway-dev/wachiman/commit/42e3e3f1ca18482b2f24d96368128433ff3d4fad))
+* **review:** show whether each finding was verified and whether the PR introduced it ([4700db7](https://github.com/niway-dev/wachiman/commit/4700db7f69b6d6f517b4110cfa3b4259ca92a9ca))
+* **setup:** the interactive wizard registers and binds in one confirmed save ([6dcdfe7](https://github.com/niway-dev/wachiman/commit/6dcdfe7b4f5cf44b9c87ff307f3e55e564b3d8ef))
+* **sinks:** tier words, verification lines and Pre-existing and Inconclusive sections ([f008217](https://github.com/niway-dev/wachiman/commit/f008217ad689f5154da6068e4c8da22a5038e032))
+* **skills:** choose the profile from project show and profile list ([e07acb3](https://github.com/niway-dev/wachiman/commit/e07acb3bfcc1d08060e7cb3a563cc24d25be269c))
+* **skills:** command-line parser and runner for skills install|uninstall ([bbdc0b8](https://github.com/niway-dev/wachiman/commit/bbdc0b88c37a7d9bd6af18b8b5e78bf385f11279))
+* **skills:** copy both skills into every skills directory with an ownership marker ([7f434bc](https://github.com/niway-dev/wachiman/commit/7f434bcf9c7a54f89ff4dbac38791e9cb1e8adf2))
+* **skills:** install the agent skills from the package without touching a user's own copies ([807d368](https://github.com/niway-dev/wachiman/commit/807d368531163e9fce94d8b254bc98e12892ca10))
+* **skills:** leave and warn about copies without a marker, replace only unmodified marked copies ([4efbffc](https://github.com/niway-dev/wachiman/commit/4efbffcbc298681bc4a7963ba6a6a49b78369de2))
+* **skills:** refuse any target under the Wachiman home before writing anything ([16a4253](https://github.com/niway-dev/wachiman/commit/16a4253176e18369c44c616ca9390d30b92925f4))
+* **skills:** wire skills install|uninstall into the CLI ([5bb6ee5](https://github.com/niway-dev/wachiman/commit/5bb6ee55fde14faa16b26a2db2670620a34a137e))
+* **verify:** verdicts supported/refuted/inconclusive with origin, snapshot evidence and partial/failed status ([702e05d](https://github.com/niway-dev/wachiman/commit/702e05d5a8b4875b8f9330c47601f8fc582915ff))
+* **wizard:** a prompt session can give the terminal to a child and take it back ([de40880](https://github.com/niway-dev/wachiman/commit/de4088015c41c1b1b9548797fddfc56a96b333bf))
+* **wizard:** plain readline prompts with cancellation and the interactive check ([bb0c1a7](https://github.com/niway-dev/wachiman/commit/bb0c1a7632e1161c0d2e98433543665cbc7ecf7c))
+
+
+### Bug Fixes
+
+* **accounts:** a Wachiman home that is a dangling symlink is corrupt, not absent ([69d6629](https://github.com/niway-dev/wachiman/commit/69d66294b4381aa26b738f5dd2f8879c0c44762c))
+* **accounts:** refuse only the dangling references a mutation introduces ([e86b07d](https://github.com/niway-dev/wachiman/commit/e86b07d5646aa6a81dea1721756aae6714a802df))
+* **accounts:** refuse profile login when there is no terminal ([e801f44](https://github.com/niway-dev/wachiman/commit/e801f444e05672cecc9bd07c58c995728b25514b))
+* **accounts:** treat a file in place of the home directory as an absent config ([3676ee6](https://github.com/niway-dev/wachiman/commit/3676ee65db5f8808dec064d879b8f93e3a2e797a))
+* **accounts:** treat only a missing config.json as absent, not a broken link or unreadable file ([468f71c](https://github.com/niway-dev/wachiman/commit/468f71c371e816c3868d04fd32d3f68fa10ad9ff))
+* **doctor:** redact known roots as literal prefixes so a space in the home does not leak ([8b05bc4](https://github.com/niway-dev/wachiman/commit/8b05bc47fb63d7e98af4334953257f20d7060a4b))
+* **doctor:** skip the isolation row when the managed profile directory is missing ([d22c76c](https://github.com/niway-dev/wachiman/commit/d22c76c2d1566c7ad132fc10235a12ed4ad33f6c))
+* **doctor:** state the isolation remediation once ([6485562](https://github.com/niway-dev/wachiman/commit/6485562333a8a94d2aff215f6f922edf773061b7))
+* **engine:** a refused account still ends as a failed verification, and a test covers the default ([99d91e6](https://github.com/niway-dev/wachiman/commit/99d91e6b7d62edc2b967036528141b9919350680))
+* **engine:** cut the unreviewed-files list before pre-existing findings that fit ([c34b22f](https://github.com/niway-dev/wachiman/commit/c34b22f7bc4c21182b8d26fae2501b2265f75699))
+* **engine:** dedupeFindings keeps the type of the findings it is given ([c4453d5](https://github.com/niway-dev/wachiman/commit/c4453d5a16da0c07eb671ba80bc02f41dc2fb577))
+* **engine:** keep the Pre-existing and Inconclusive lists within the review body limit ([c56e044](https://github.com/niway-dev/wachiman/commit/c56e044d5577d63b2f3062812fa76c00e04771b5))
+* **engine:** release the base snapshot when the prompt or run directory fails ([27b9481](https://github.com/niway-dev/wachiman/commit/27b9481780c6837444820643e61ff5d110041014))
+* **init:** bundle the published workflow ref so init works without --version ([d04acd2](https://github.com/niway-dev/wachiman/commit/d04acd2f1c475c4c4fa17ef39bf03741a8fbcaeb))
+* **init:** refuse a --repo-dir with no work tree instead of writing inside .git ([4025f67](https://github.com/niway-dev/wachiman/commit/4025f67daab10441b90c11a8a60e496f726278ce))
+* **init:** write the operator as a quoted YAML string ([cda7322](https://github.com/niway-dev/wachiman/commit/cda7322bacefd26ef810c9a768e49352d7ab0a45))
+* **init:** write the workflow under the repository top level when run from a subdirectory ([742d71f](https://github.com/niway-dev/wachiman/commit/742d71ff8375ecfaf4dad36411f6241851db961e))
+* **launcher:** a slow or failed Bun probe no longer reads as 'no Bun on PATH' ([959f797](https://github.com/niway-dev/wachiman/commit/959f79739e601261c9a4a7113cff6a0e55e8d776))
+* **launcher:** never run a bun.exe from the reviewed repository, and keep LF in the snapshot ([189b330](https://github.com/niway-dev/wachiman/commit/189b330a7901a90d9b49b1a6572c53629f80dfff))
+* **launcher:** resolve bun.exe from absolute PATH entries on Windows ([6e457c5](https://github.com/niway-dev/wachiman/commit/6e457c56ad0d5f35480fbbdb47a00dbce861d04b))
+* **launcher:** say plainly when the bun package is missing, and do not call Windows supported before CI says so ([c8e212d](https://github.com/niway-dev/wachiman/commit/c8e212d810a202fad5d65d10c84be10b753789cb))
+* **local:** the snapshot also keeps LF when text=auto meets core.eol=crlf ([62cf9fc](https://github.com/niway-dev/wachiman/commit/62cf9fceced08e6c065e208ba19905c4bccffdeb))
+* **local:** the verifier uses the injected provider factory and the profile's binary ([69452e7](https://github.com/niway-dev/wachiman/commit/69452e78dc16c0627a1c4a128e7eded3755c3271))
+* **package:** accept a relative --tarball in verify-package.sh, as the release workflow passes it ([8581dae](https://github.com/niway-dev/wachiman/commit/8581dae1969df0f599a54b4faae3571709d660f3))
+* **package:** wait for the Bun child on Ctrl-C and forward SIGTERM and SIGHUP ([e79fc20](https://github.com/niway-dev/wachiman/commit/e79fc20e605c178c7b4be81b7a95d4275d2cc95b))
+* **profiles:** leave the mode of an existing Wachiman home alone ([d78ab54](https://github.com/niway-dev/wachiman/commit/d78ab5420bdfc48e53a7d0230ba1cb705d255dfd))
+* **profiles:** put each doc comment on its own function ([31b4821](https://github.com/niway-dev/wachiman/commit/31b4821aef1353f9993345108dad3b58e5ec48fc))
+* **profiles:** re-check the name collision inside the config lock ([3b77a97](https://github.com/niway-dev/wachiman/commit/3b77a972e53751bf89ea165da376e333f0830fd3))
+* **provider:** drop the no-op USER removal and correct its comment ([9d00e44](https://github.com/niway-dev/wachiman/commit/9d00e44318de8e1e0cb064cfd79e83e9a7e7f8fc))
+* **setup:** hand the terminal back before the account probe so typed-ahead Enter is not read live ([bc00fee](https://github.com/niway-dev/wachiman/commit/bc00fee83573bde10ce9875e210f3234cb0451a7))
+* **setup:** refuse the reserved name default before creating a managed profile ([45d06ec](https://github.com/niway-dev/wachiman/commit/45d06ec69bb8d179d117cede0b09b5aaa2703fb2))
+* **setup:** report the created managed directory when the sign-in step throws ([4127484](https://github.com/niway-dev/wachiman/commit/412748433f9cabc9e49493609559aa28429c2a7f))
+* **setup:** warn when the sign-in did not take after Sign in now ([c4dedcc](https://github.com/niway-dev/wachiman/commit/c4dedccad141e60eecd7a47294c67eaf2af987a8))
+* **skill:** do not assume a lone registered profile is used by local ([0568eb0](https://github.com/niway-dev/wachiman/commit/0568eb051dddfaa5998a6c56fb05faa511fdf594))
+* **skills:** an install that fails midway no longer leaves the copy unrecoverable ([e52f762](https://github.com/niway-dev/wachiman/commit/e52f76249558c6590079c63e1723cbe19d8f4ec2))
+* **skills:** keep a replace install from overwriting a user file the old marker does not list ([36b256f](https://github.com/niway-dev/wachiman/commit/36b256fe975dc6090e807bd5cca1b79a64e4259a))
+* **skills:** never write through a leftover symlink at the temporary file's name ([e675a7a](https://github.com/niway-dev/wachiman/commit/e675a7a9991d2f782ac62f08519a24bac8c391c3))
+* **skills:** protect the default ~/.wachiman too, and ignore a malformed WACHIMAN_HOME ([507258b](https://github.com/niway-dev/wachiman/commit/507258b1572b3824d8cf1090a069bcc02f6a275c))
+* **skills:** run every collision check for a copy before its first write ([4ac9bfa](https://github.com/niway-dev/wachiman/commit/4ac9bfab3c5c4fed947d2a619d87a6860c74932a))
+* **verify:** a refutation's disproof must be a head line ([600a748](https://github.com/niway-dev/wachiman/commit/600a7480c322392bd594e393c56b3910b63b73f7))
+* **verify:** escape model-written text in the verifier prompt ([35cc42e](https://github.com/niway-dev/wachiman/commit/35cc42e68547c5095178f0ed0e05258a5872e3e4))
+* **verify:** escape the head snippet and attribute quotes in the verifier prompt ([31083bb](https://github.com/niway-dev/wachiman/commit/31083bbf178337b7ca6a45710e6013602e99f162))
+* **verify:** findings the verifier turned into questions are deduplicated again ([821d6a9](https://github.com/niway-dev/wachiman/commit/821d6a91a427afe744acb8ac6cc5ddec07e3d185))
+* **verify:** mark an unreached candidate with a boolean, not a reason prefix ([023e688](https://github.com/niway-dev/wachiman/commit/023e688f22c976d301c7c4a8df3073570517aca2))
+* **verify:** the snippet reads only files inside the head and shows no line past the end of the file ([5d0925d](https://github.com/niway-dev/wachiman/commit/5d0925d047974e8fdeb096a79a00c488c0add1a6))
+* **verify:** the verifier is not called after the provider refused a batch ([0f64120](https://github.com/niway-dev/wachiman/commit/0f6412016a00ef718f357656b24ac15bce792d7d))
+* **verify:** use a verifier answer only when the whole envelope matches the schema ([9cf221d](https://github.com/niway-dev/wachiman/commit/9cf221d51f82617c506064f0a4158a9cabcdc0f4))
+* **verify:** without its own adapter the record names the model and effort that ran ([1668ab4](https://github.com/niway-dev/wachiman/commit/1668ab4e294c13ea6d5cf09c6743d5c7dd0997b3))
+* **windows:** drop case variants of CLAUDE_CONFIG_DIR and USER before setting them ([3c58872](https://github.com/niway-dev/wachiman/commit/3c58872a27d9204728da851b9414fdf57824fd06))
+* **windows:** keep LF in the snapshot and in the shipped bin scripts ([b733a2b](https://github.com/niway-dev/wachiman/commit/b733a2b232c43b06bc7b004eb4a45b46715b70ec))
+* **windows:** keep Path and the user-profile variables in the child environment, extract with the system tar ([a64217f](https://github.com/niway-dev/wachiman/commit/a64217f253c5d50a58c78881e7840bb68aabf035))
+* **wizard:** let readline own the prompt on a terminal so Backspace keeps the question ([886262a](https://github.com/niway-dev/wachiman/commit/886262a25ed9ef95dac54a85ca7f84f5da0f8471))
+
+
+### Code Refactoring
+
+* **accounts:** share the profile name and directory checks and the setup summary with the wizard ([a9bddcb](https://github.com/niway-dev/wachiman/commit/a9bddcbcf5e29fe02634e0f066c203461be49c00))
+
+
+### Miscellaneous Chores
+
+* release as 1.10.0 ([901e182](https://github.com/niway-dev/wachiman/commit/901e1821c8c35f0bf1bbeb1a5fb9b47e715d414d))
+
 ## [1.9.0](https://github.com/niway-dev/wachiman/compare/v1.8.0...v1.9.0) (2026-11-07)
 
 
