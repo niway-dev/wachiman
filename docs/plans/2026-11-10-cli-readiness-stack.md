@@ -1,7 +1,7 @@
 # Draft: CLI readiness and project onboarding stack
 
-Status: implementation stack opened, 2026-11-10; final independent review and CI
-are pending. The original inspection baseline was `1a820af`. Planning PR:
+Status: implementation stack delivered, 2026-11-10; local full-suite and package checks pass.
+The requested Sonnet review was unavailable; native Windows remains unverified. The original inspection baseline was `1a820af`. Planning PR:
 [#162](https://github.com/niway-dev/wachiman/pull/162).
 
 ## Outcome
@@ -42,7 +42,8 @@ it does not promise support for non-Git directories or every operating system.
   points at `bin/wachiman.js`. The older implementation plan found during the original inspection is no longer
   present in the implementation base; the retained design is now explicitly historical.
 
-No live login, paid model call or native Windows run was performed. A real PTY
+No live login, model-backed review test or native Windows run was performed locally.
+GitHub automatic PR reviews are separate from local verification. A real PTY
 editing probe returned `ab` after typing `abc`, Backspace and Enter. The checklist
 below remains the review contract; the execution record distinguishes verified
 behavior from remaining gaps.
@@ -235,12 +236,11 @@ final Proof evidence from this draft and mark each layer's actual PR/state.
 | All six readiness points have an owning PR | Six layer sections above | Drafted |
 | Each layer has acceptance criteria and boundaries | Checklists and scope above | Drafted |
 | Existing failure is distinguished from a confirmed terminal defect | Ground truth and PR 1 investigation | Recorded; root cause unverified |
-| Runtime implementation and release readiness | Per-layer checks above | Not implemented or verified by this draft |
+| Runtime implementation and readiness | Execution record and final checks below | Implemented; local checks pass; review/platform gaps stated below |
 
 Review the current-session default and transaction boundaries first. The branch
-names and PR titles are safe to adjust when opening the actual stack. This draft
-does not need a runtime test run: it changes documentation only and records the
-previous test result without claiming a new passing run.
+names and PR titles are safe to adjust when opening the actual stack. The initial draft was documentation-only; the implementation now has the runtime
+evidence recorded below.
 
 ## Execution record — 2026-11-10
 
@@ -276,3 +276,29 @@ The requested Sonnet 5.5 high review could not run because its provider returned
 `Claude API rate limit reached`. This is not an approval; no substitute reviewer
 was silently selected. Wachiman's automatic PR findings were independently
 checked against the source and addressed where in scope.
+
+## Final local verification
+
+Runtime head: `8a38051cd607bc5d7bdcaaba1d8e35903a621cc2`. The subsequent documentation-only
+commit records these results without changing runtime source or tests.
+
+- Pinned Bun 1.3.4, complete suite on a stable source tree: **exit 0, 1502 pass,
+  8 skip, 0 fail**, 1510 tests across 70 files, 236.21 seconds. Skips include
+  opt-in live-provider/harness and GitHub parity checks; they are not claimed verified.
+- The pinned binary was run as `bun` from an isolated runtime directory with that
+  directory prepended to `PATH`. Running directly through npm's `bun.exe` path
+  caused three fixture checks to miss the expected `bun` command. Those nine
+  affected tests passed after correcting the invocation, then the full suite passed.
+- Final package: 77 files, launcher/new wizard helpers included, tests excluded.
+  SHA-256: `e8e27bd9df960d0cdb0ce84a4521f86dc8b756805ca7df5bbbbca3aedda326d2`.
+  `scripts/verify-package.sh --tarball <file>` and the `--without-bun` and
+  `--bundled-bun` variants all exited 0. The bundled check used Bun 1.3.4 with
+  only Node on PATH. No registry publish occurred.
+- Eight changed Markdown files checked: zero missing local file targets;
+  code examples were excluded from link parsing. `git diff --check` passed.
+- Final local/both and validation transcripts were captured using scripted input,
+  isolated fixture homes and fake account probes. The closing local command
+  preserves a path with spaces, and both mode prints one GitHub pending status.
+
+CI state is attached to each PR rather than frozen in this document. The stack
+is delivered for review; no merge or automatic merge was performed.
