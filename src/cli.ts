@@ -199,8 +199,8 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
   return runInitCommand(flags, env, io, {
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
-    // `init --mode local|both` offers to run setup in the same process, over the same prompts.
-    bindNow: (prompter) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter }),
+    // Choosing local/both already requests setup; keep its final write confirmation.
+    bindNow: (prompter) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true }),
   });
 }
 

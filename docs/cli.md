@@ -271,7 +271,7 @@ First-time setup of a repository. `--mode github` writes the maintained caller w
 `operator:` and the release tag you pin, and a one-line header that says Actions is billed through
 the repository secret `ANTHROPIC_API_KEY` while local runs use your signed-in `claude`. `--mode
 local` writes nothing and prints the `wachiman setup` line; `--mode both` writes the workflow, then
-prints that line, or on a terminal offers to run the setup wizard in the same process. It never
+prints that line, or on a terminal continues directly into the setup wizard in the same process. Choosing local or both already requests account setup; the final binding still needs confirmation. It never
 commits, pushes, opens a pull request or creates a secret.
 
 | Flag | Rule |

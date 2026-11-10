@@ -30,6 +30,8 @@ export interface SetupPromptContext {
   userHome: string;
   /** Creates the managed directory and runs the sign-in; called only after the person confirmed that side effect. */
   createManaged: (name: string) => void;
+  /** init already collected the local-mode choice; still confirm the final write. */
+  fromInit?: boolean;
 }
 
 export type SetupAnswers =
@@ -80,9 +82,11 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
 
   say(`repository: ${repo.name} (${repo.keyedBy === "remote" ? `origin ${repo.remote ?? "(unparsed)"}` : `path ${repo.path}`})`);
   if (ctx.current) say(`currently bound to ${ctx.current.profile}`);
-  const go = await prompter.confirm("Set up this repository?", true);
-  if (go === null) return { kind: "cancelled" };
-  if (!go) return { kind: "declined" };
+  if (!ctx.fromInit) {
+    const go = await prompter.confirm("Set up this repository?", true);
+    if (go === null) return { kind: "cancelled" };
+    if (!go) return { kind: "declined" };
+  }
 
   let name = flags.profile;
   let pending: PendingProfile | undefined;

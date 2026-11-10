@@ -3,12 +3,15 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CTRL_C, ESC, scripted } from "../../test/support/scripted-prompt";
-import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
+import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { snapshotTree } from "../../test/support/tree-snapshot";
 import { UsageError } from "../config";
 import { parseInitFlags } from "./args";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { runInitCommand, type InitDeps } from "./run";
+import { runSetupCommand } from "../setup/run";
+import { readConfig } from "../accounts/config";
+import { fakeToolchain } from "../../test/support/fake-toolchain";
 
 const scratch: string[] = [];
 afterAll(() => {
@@ -274,6 +277,40 @@ describe("init without a terminal", () => {
 });
 
 describe("init with scripted prompts", () => {
+  test.each(["local", "both"])("%s runs the real setup flow with one account choice and one binding confirmation", async (mode) => {
+    const w = world();
+    const home = mkdtempSync(join(tmpdir(), "wachiman-init-home-"));
+    scratch.push(home);
+    const env = { WACHIMAN_HOME: home, PATH: "/usr/bin", USER: "fixture" };
+    const tools = fakeToolchain();
+    const promptIO = scripted(mode === "both" ? ["", "", ""] : ["", ""]);
+    const code = await runInitCommand({ repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) }, env, w.io, w.deps({
+      interactive: true,
+      promptIO,
+      bindNow: (prompter) => runSetupCommand({ repoDir: w.repo }, env, w.io, {
+        interactive: true, fromInit: true, prompter, spawn: tools.spawn,
+        doctor: { platform: "darwin", arch: "arm64", version: "1.9.0", install: { kind: "source", root: "/fixture" } },
+      }),
+    }));
+    expect(code).toBe(0);
+    const config = readConfig(home);
+    expect(config.kind).toBe("ok");
+    if (config.kind === "ok") expect(Object.values(config.config.projects)[0].profile).toBe("default");
+    expect(promptIO.printed()).not.toContain("Set up this repository?");
+    expect(promptIO.printed()).not.toContain("Run wachiman setup now");
+    expect(promptIO.printed().match(/Bind .* to default\?/g)).toHaveLength(1);
+    expect(existsSync(w.target)).toBe(mode === "both");
+  });
+
+  test("an invalid Git worktree fails before asking any questions", async () => {
+    const w = world();
+    const plain = mkdtempSync(join(tmpdir(), "wachiman-not-git-"));
+    scratch.push(plain);
+    const io = scripted(["1"]);
+    await expect(runInitCommand({ repoDir: plain }, {}, w.io, w.deps({ interactive: true, promptIO: io }))).rejects.toBeInstanceOf(UsageError);
+    expect(io.printed()).toBe("");
+  });
+
   test("defaults taken by Enter equal the printed defaults", async () => {
     const w = world();
     const io = scripted(["", "octocat", "", "", ""]); // mode, operator, tag, file, Write it?
@@ -348,19 +385,23 @@ describe("init with scripted prompts", () => {
     expect(io.printed()).not.toContain("Write it?");
   });
 
-  test("local in a terminal writes nothing under .github and offers setup; declining prints the setup line", async () => {
+  test("local mode enters setup directly without another invitation", async () => {
     const w = world();
-    const io = scripted(["2", "n"]);
-    const code = await init(w, [], { interactive: true, promptIO: io, bindNow: () => Promise.reject(new Error("declined")) });
+    const io = scripted(["2", "from-setup"]);
+    let got: string | null | undefined;
+    const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async (p) => {
+      got = await p.text("Setup asks", undefined);
+      return 0;
+    } });
     expect(code).toBe(0);
+    expect(got).toBe("from-setup");
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
-    expect(io.printed()).toContain("Run wachiman setup now to bind this repository to a Claude account? [Y/n]");
-    expect(w.err.join("\n")).toContain("wachiman setup");
+    expect(io.printed()).not.toContain("Run wachiman setup now");
   });
 
   test("both: yes runs setup in the same process, sharing the prompt session", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", "", "y", "from-setup"]);
+    const io = scripted(["3", "me", "", "", "", "from-setup"]);
     let got: string | null | undefined;
     const code = await init(w, [], {
       interactive: true,
@@ -377,25 +418,35 @@ describe("init with scripted prompts", () => {
 
   test("both: cancelling during setup leaves the confirmed workflow in place and says so", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", "", "y"]);
+    const io = scripted(["3", "me", "", "", ""]);
     const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async () => 130 });
     expect(code).toBe(130);
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
     expect(w.err.join("\n")).toContain(".github/workflows/wachiman-review.yml was written before setup was cancelled and stays in place");
   });
 
-  test("both: cancelling at the setup question reports the completed workflow write", async () => {
+  test("both: a setup failure reports the completed workflow write", async () => {
     const w = world();
     const io = scripted(["3", "me", "", "", "", ESC]);
-    const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async () => 0 });
-    expect(code).toBe(130);
+    const code = await exit2(init(w, [], { interactive: true, promptIO: io, bindNow: async () => { throw new UsageError("setup failed"); } }));
+    expect(code).toContain("setup failed");
     expect(existsSync(w.target)).toBe(true);
-    expect(w.err.join("\n")).toContain("cancelled: .github/workflows/wachiman-review.yml was written and stays");
+    expect(w.err.join("\n")).toContain(".github/workflows/wachiman-review.yml was written before setup failed and stays");
     expect(w.err.join("\n")).not.toMatch(/rolled back|removed/);
   });
 });
 
 describe("init from a subdirectory of the repository", () => {
+  test("a linked worktree gets its own workflow, leaving the original worktree untouched", async () => {
+    const w = world();
+    const linked = mkdtempSync(join(tmpdir(), "wachiman-linked-"));
+    scratch.push(linked);
+    git(w.repo, "worktree", "add", "--detach", linked, "HEAD");
+    expect(await runInitCommand({ repoDir: linked, mode: "github", operator: "me" }, {}, w.io, w.deps())).toBe(0);
+    expect(existsSync(join(linked, ".github/workflows/wachiman-review.yml"))).toBe(true);
+    expect(existsSync(w.target)).toBe(false);
+  });
+
   test("the workflow lands under the repository top level, never under the subdirectory", async () => {
     const w = world();
     const sub = join(w.repo, "sub");

@@ -55,6 +55,8 @@ const openSession = (deps: InitDeps) => {
 
 /** From the parsed flags: asks what is missing when a person can be asked, resolves, and runs. */
 export async function runInitCommand(flags: RawInitFlags, env: Record<string, string | undefined>, io: CommandIo, deps: InitDeps = {}): Promise<number> {
+  // Fail before asking for an operator or account in an unusable target.
+  worktreeRoot(flags.repoDir ?? ".", deps.git);
   const interactive = deps.interactive ?? isInteractive(flags, env, deps.streams ?? { stdin: process.stdin, stdout: process.stdout });
   const defaultWorkflowRef = "defaultWorkflowRef" in deps ? deps.defaultWorkflowRef : DEFAULT_WORKFLOW_REF;
   const session = interactive ? openSession(deps) : undefined;
@@ -80,14 +82,7 @@ export async function runInitCommand(flags: RawInitFlags, env: Record<string, st
 export async function runInit(options: InitOptions, io: CommandIo, deps: InitDeps = {}): Promise<number> {
   const cwd = deps.cwd ?? process.cwd();
   // Before anything is rendered or written: this must be a git repository.
-  repositoryKey(options.repoDir, deps.git);
-  // `--path` is relative to the repository top level: GitHub only runs workflows under <top level>/.github/workflows.
-  const top = (deps.git ?? spawnGit)(["rev-parse", "--show-toplevel"], { cwd: options.repoDir, timeoutMs: 10_000 });
-  if (top.status !== 0 || top.stdout.trim() === "") {
-    // A bare repository or a directory inside .git: there is no work tree for GitHub to run a workflow from.
-    throw new UsageError(`${options.repoDir} is not inside a git work tree; run init from the repository or pass --repo-dir <its top level>.`);
-  }
-  const root = top.stdout.trim();
+  const root = worktreeRoot(options.repoDir, deps.git);
   const { github } = options;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
@@ -136,17 +131,26 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
 
   if (options.mode === "github") return 0;
   if (prompter && deps.bindNow) {
-    const answer = await prompter.confirm("Run wachiman setup now to bind this repository to a Claude account?", true);
-    if (answer === null) {
-      io.stderr(written ? `cancelled: ${written} was written and stays; nothing else was changed.` : "cancelled: nothing was written.");
-      return 130;
-    }
-    if (answer) {
+    try {
       const code = await deps.bindNow(prompter);
       if (code === 130 && written) io.stderr(`${written} was written before setup was cancelled and stays in place.`);
       return code;
+    } catch (error) {
+      if (written) io.stderr(`${written} was written before setup failed and stays in place.`);
+      throw error;
     }
   }
+
   io.stderr(`Next, on this machine: ${setupLine(options.repoDir, cwd)}   (binds this repository to a Claude account)`);
   return 0;
+}
+
+/** Workflows belong at the Git top level, including when init starts below it. */
+function worktreeRoot(repoDir: string, git: GitRunner = spawnGit): string {
+  repositoryKey(repoDir, git);
+  const top = git(["rev-parse", "--show-toplevel"], { cwd: repoDir, timeoutMs: 10_000 });
+  if (top.status !== 0 || top.stdout.trim() === "") {
+    throw new UsageError(`${repoDir} is not inside a git work tree; run init from the repository or pass --repo-dir <its top level>.`);
+  }
+  return top.stdout.trim();
 }

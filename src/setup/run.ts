@@ -34,6 +34,8 @@ import { resolveSetupOptions, type RawSetupFlags } from "./options";
 import { promptForSetup, type PendingProfile } from "./prompt";
 
 export interface SetupDeps extends AccountDeps {
+  /** The person already chose local setup in init. */
+  fromInit?: boolean;
   streams?: TerminalStreams;
   promptIO?: PromptIO;
   /** An open prompt session (shared with `init`); the caller closes it. */
@@ -103,7 +105,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   try {
     let answers;
     try {
-      answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged }, prompter);
+      answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged, fromInit: deps.fromInit }, prompter);
     } catch (error) {
       // A failed sign-in step still leaves the managed directory behind; say so before the error surfaces.
       reportEffects();
