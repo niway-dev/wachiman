@@ -73,8 +73,7 @@ export interface EngineConfig {
   exclude: string[];
   /**
    * `AGENT_REVIEW_VERIFY`: after the batches, one more call tries to refute every finding above
-   * `info` before it is posted (ADR 0027). On unless it is `0` or `false`, or the provider is
-   * codex with no `AGENT_REVIEW_VERIFIER_MODEL`.
+   * `info` before it is posted (ADR 0027). Off by default; enabled only by `1` or `true`.
    */
   verify: boolean;
   /** `AGENT_REVIEW_VERIFY_BUDGET_USD`: the verifier's reserve, taken out of `budgetUsd` (at most half of it). */
@@ -153,11 +152,11 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   }
   const verifyRaw = get("VERIFY");
   if (verifyRaw !== undefined && verifyRaw !== "0" && verifyRaw !== "1" && verifyRaw !== "true" && verifyRaw !== "false") {
-    throw new UsageError(`AGENT_REVIEW_VERIFY must be 1, true, 0 or false (unset means on), got "${verifyRaw}".`);
+    throw new UsageError(`AGENT_REVIEW_VERIFY must be 1, true, 0 or false (unset means off), got "${verifyRaw}".`);
   }
   const verifierModel = get("VERIFIER_MODEL") ?? (provider === "claude-code" ? DEFAULT_VERIFIER_MODEL : undefined);
-  // On by default, except where the default verifier (a Claude model) cannot run: codex without a verifier model.
-  const verify = verifyRaw === undefined ? verifierModel !== undefined : verifyRaw === "1" || verifyRaw === "true";
+  // Verification is opt-in, including when a verifier model is configured.
+  const verify = verifyRaw === "1" || verifyRaw === "true";
   if (verify && verifierModel === undefined) {
     throw new UsageError(`AGENT_REVIEW_VERIFY needs AGENT_REVIEW_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`);
   }

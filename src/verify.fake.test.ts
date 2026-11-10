@@ -415,19 +415,19 @@ describe("the verifier through the review core", () => {
     expect(result.verification).toMatchObject({ status: "verified", model: opts.model, effort: opts.effort });
   });
 
-  test("on by default: the reserve is taken out of the batches' budget", () => {
+  test("when opted in: the reserve is taken out of the batches' budget", () => {
     // $1 in total: the reserve is half, so the batch gets $0.50 instead of its usual $0.75.
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
-    const result = reviewChange(branchInput(), reviewOptionsOf(loadConfig({}), 1), d);
+    const result = reviewChange(branchInput(), reviewOptionsOf(loadConfig({ AGENT_REVIEW_VERIFY: "1" }), 1), d);
     expect(provider.requests[0].maxBudgetUsd).toBeCloseTo(0.5);
     expect(result.verification).toBeDefined();
   });
 
-  test("off with AGENT_REVIEW_VERIFY=0: no reserve, no call, no verification block", () => {
+  test("off by default: no reserve, no call, no verification block", () => {
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
-    const result = reviewChange(branchInput(), reviewOptionsOf(loadConfig({ AGENT_REVIEW_VERIFY: "0" }), 5), d);
+    const result = reviewChange(branchInput(), reviewOptionsOf(loadConfig({}), 5), d);
     expect(provider.requests).toHaveLength(1);
     expect(provider.requests[0].maxBudgetUsd).toBeCloseTo(0.75);
     expect(result.verification).toBeUndefined();

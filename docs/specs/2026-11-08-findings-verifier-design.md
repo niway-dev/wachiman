@@ -1,5 +1,7 @@
 # A verifier call that refutes findings before they are posted
 
+> **Default configuration update 2026-11-10:** Opus 5.5 at effort `high` is the default reviewer again. Verification is opt-in (`verify: true`, `AGENT_REVIEW_VERIFY=1`, or `local --verify`). This supersedes the default changes of 2026-11-09; the experiment and its evidence are preserved. On the 50-PR Martian run, Haiku plus the Opus verifier cost $28.62 versus $25.01 for Opus alone, with 302 versus 174 false positives. The experiment did not justify its default configuration.
+
 - **Status:** accepted 2026-11-09 by the owner ("ya leí el plan y me gusta"); open questions
   answered with their defaults. **Implemented, opt-in,** by the pull request that adds this line
   (`feat/findings-verifier`): `src/verify.ts` and `verifyFindings` in `src/engine.ts`, the `verify`,

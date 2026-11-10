@@ -1,5 +1,7 @@
 # ADR 0027: One verifier call per pull request, and a finding is dropped only with a disproof the engine can check
 
+> **Default configuration update 2026-11-10:** Opus 5.5 at effort `high` is the default reviewer again. Verification is opt-in (`verify: true`, `AGENT_REVIEW_VERIFY=1`, or `local --verify`). This supersedes the default changes of 2026-11-09; the experiment and its evidence are preserved. On the 50-PR Martian run, Haiku plus the Opus verifier cost $28.62 versus $25.01 for Opus alone, with 302 versus 174 false positives. The experiment did not justify its default configuration.
+
 - **Status:** accepted 2026-11-09. **Implemented, opt-in,** by the pull request that adds this
   line (`feat/findings-verifier`); off by default until the gate in the spec is met (arm 2 on the
   Martian bench, not run yet). Takes decision B3 out of the draft ADR 0018 (#90, "degrade, never delete") and changes its

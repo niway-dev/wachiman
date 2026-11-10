@@ -1148,11 +1148,11 @@ describe("verification flags", () => {
     expect(on.calls()).toHaveLength(2);
   });
 
-  test("with AGENT_REVIEW_VERIFY unset the verifier is on, and --no-verify turns it off", () => {
-    const on = local("ok", [], { AGENT_REVIEW_VERIFY: "<unset>" });
+  test("with AGENT_REVIEW_VERIFY unset verification is off, and --verify turns it on", () => {
+    const on = local("ok", ["--verify"], { AGENT_REVIEW_VERIFY: "<unset>" });
     expect(on.stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
     expect(on.calls()).toHaveLength(2);
-    const off = local("ok", ["--no-verify"], { AGENT_REVIEW_VERIFY: "<unset>" });
+    const off = local("ok", [], { AGENT_REVIEW_VERIFY: "<unset>" });
     expect(off.stderr.split("\n")).toContain("verify: off");
     expect(off.calls()).toHaveLength(1);
   });
