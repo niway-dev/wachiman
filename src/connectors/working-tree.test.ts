@@ -1,11 +1,11 @@
 import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, readdirSync, symlinkSync, mkdirSync, statSync, chmodSync, copyFileSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, symlinkSync, mkdirSync, statSync, chmodSync, copyFileSync, unlinkSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { emptyRepo, commit, git, removeTempRepos } from "../../test/support/temp-repo";
 import { commentableLines, annotateDiff } from "../engine";
 import { addedLinesOf } from "../evidence";
-import { workingTreeInput } from "./working-tree";
+import { snapshotWorkingTree, workingTreeInput } from "./working-tree";
 afterAll(removeTempRepos);
 function fixture() {
   const dir = emptyRepo();
@@ -406,3 +406,37 @@ for (const mode of ["staged", "all"] as const) {
     });
   }
 }
+
+test("encoded working files preserve raw staged, all and portable/base evidence bytes", () => {
+  const dir = emptyRepo();
+  writeFileSync(join(dir, ".gitattributes"), "*.ts working-tree-encoding=UTF-16 ident\n");
+  const encoded = (s: string) => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(s, "utf16le")]);
+  const base = "baseEvidence\n$Id$\n";
+  writeFileSync(join(dir, "a.ts"), encoded(base));
+  commit(dir, {}, "encoded base");
+  const head = "headEvidence\n$Id$\n";
+  writeFileSync(join(dir, "a.ts"), encoded(head));
+  git(dir, "add", "a.ts");
+  expect(git(dir, "show", ":a.ts")).toBe(head);
+  for (const mode of ["staged", "all"] as const) {
+    const b = capture(dir, mode);
+    try {
+      const expected = mode === "staged" ? Buffer.from(head) : encoded(head);
+      expect(readFileSync(join(b.input.headDir, "a.ts"))).toEqual(expected);
+      expect(spawnSync("git", ["show", ":a.ts"], { cwd: b.input.headDir }).stdout).toEqual(expected);
+      if (mode === "staged") expect(git(b.input.headDir, "grep", "-n", "-F", "headEvidence")).toBe("a.ts:1:headEvidence\n");
+    } finally {
+      b.release();
+    }
+  }
+  for (const [tree, expected] of [["HEAD^{tree}", base], [git(dir, "write-tree").trim(), head]]) {
+    const b = snapshotWorkingTree(dir, tree);
+    try {
+      expect(readFileSync(join(b.dir, "a.ts"), "utf8")).toBe(expected);
+      expect(git(b.dir, "show", ":a.ts")).toBe(expected);
+      expect(git(b.dir, "grep", "-n", "-F", expected.split("\n")[0])).toBe(`a.ts:1:${expected.split("\n")[0]}\n`);
+    } finally {
+      rmSync(b.dir, { recursive: true, force: true });
+    }
+  }
+});

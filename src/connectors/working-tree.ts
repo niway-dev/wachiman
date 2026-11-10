@@ -27,6 +27,19 @@ type Spawn = typeof spawnSync;
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const identity = (s: ReturnType<typeof lstatSync>) => [s.dev, s.ino, s.mode, s.size, s.mtimeMs, s.ctimeMs].join(":");
 const failure = () => new UsageError("The index, HEAD or tracked files changed during capture; retry --working-tree.");
+/** Index the materialized bytes directly; git add would apply repository attributes. */
+function indexRawSnapshot(dir: string, entries: string[], exec: (args: string[], input?: Buffer) => Buffer) {
+  exec(["init", "-q", "--template="]);
+  for (const entry of entries) {
+    const tab = entry.indexOf("\t");
+    const mode = entry.slice(0, tab).split(" ")[0];
+    const path = entry.slice(tab + 1);
+    const sha = exec(["hash-object", "-w", "--stdin", "--no-filters"], readFileSync(join(dir, path))).toString().trim();
+    // Links are materialized as regular text for evidence, never as live links.
+    exec(["update-index", "--add", "--cacheinfo", mode === "100755" ? mode : "100644", sha, path]);
+  }
+}
+
 export function workingTreeInput(p: {
   repoDir: string;
   mode: "staged" | "all";
@@ -70,6 +83,7 @@ export function workingTreeInput(p: {
     const exec = (args: string[], input?: Buffer, cwd = top) => {
       const out = spawn("git", [...GIT_BASE_ARGS, "-c", "core.hooksPath=/dev/null", "-c", "core.attributesFile=/dev/null", ...args], {
         cwd,
+        input,
         env: {
           ...gitEnv(),
           GIT_CONFIG_NOSYSTEM: "1",
@@ -77,7 +91,6 @@ export function workingTreeInput(p: {
           GIT_NO_REPLACE_OBJECTS: "1",
           GIT_NO_LAZY_FETCH: "1",
         },
-        input,
         timeout: 60000,
         maxBuffer: 512 * 1024 * 1024,
       });
@@ -246,10 +259,7 @@ export function workingTreeInput(p: {
       });
     }
     // Evidence uses git grep in its own index; symlink entries remain textual blobs there too.
-    exec(["init", "-q", "--template=", snapshot]);
-    mkdirSync(join(snapshot, ".git/info"), { recursive: true });
-    writeFileSync(join(snapshot, ".git/info/attributes"), "* -filter -text\n");
-    exec(["-C", snapshot, "add", "-f", "-A"]);
+    indexRawSnapshot(snapshot, treeEntries, (a, input) => exec(["-C", snapshot, ...a], input));
     const name = basename(top);
     const input: ReviewInput = {
       format: REVIEW_INPUT_V2,
@@ -277,9 +287,10 @@ export function workingTreeInput(p: {
 export function snapshotWorkingTree(repoDir: string, tree: string, spawn: Spawn = spawnSync) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-tree-input-")));
   try {
-    const exec = (args: string[], cwd = repoDir) => {
+    const exec = (args: string[], cwd = repoDir, input?: Buffer) => {
       const r = spawn("git", [...GIT_BASE_ARGS, ...args], {
         cwd,
+        input,
         env: {
           ...gitEnv(),
           GIT_CONFIG_NOSYSTEM: "1",
@@ -295,7 +306,8 @@ export function snapshotWorkingTree(repoDir: string, tree: string, spawn: Spawn 
     };
     if (exec(["cat-file", "-t", tree]).toString().trim() !== "tree")
       throw new UsageError("Working-tree input head must be an existing tree object.");
-    for (const entry of exec(["ls-tree", "-r", "-z", tree]).toString().split("\0").filter(Boolean)) {
+    const entries = exec(["ls-tree", "-r", "-z", tree]).toString().split("\0").filter(Boolean);
+    for (const entry of entries) {
       const tab = entry.indexOf("\t");
       const [mode, type, sha] = entry.slice(0, tab).split(" ");
       const path = entry.slice(tab + 1);
@@ -309,10 +321,7 @@ export function snapshotWorkingTree(repoDir: string, tree: string, spawn: Spawn 
         mode: mode === "100755" ? 0o755 : 0o644,
       });
     }
-    exec(["init", "-q", "--template="], dir);
-    mkdirSync(join(dir, ".git/info"), { recursive: true });
-    writeFileSync(join(dir, ".git/info/attributes"), "* -filter -text\n");
-    exec(["-c", "core.hooksPath=/dev/null", "add", "-f", "-A"], dir);
+    indexRawSnapshot(dir, entries, (a, input) => exec(["-c", "core.hooksPath=/dev/null", ...a], dir, input));
     return { dir };
   } catch (e) {
     rmSync(dir, { recursive: true, force: true });
