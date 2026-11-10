@@ -251,7 +251,7 @@ previous test result without claiming a new passing run.
 | 3 | [#166](https://github.com/niway-dev/wachiman/pull/166) | Actual local/both init-to-setup integration, early non-Git rejection, subdirectories, linked worktree, completed-workflow cancellation/failure reporting |
 | 4 | [#167](https://github.com/niway-dev/wachiman/pull/167) | 195 targeted tests pass; scripted before/after local/both output and validation captured; NO_COLOR/TERM=dumb/pipe fallback tested |
 | 5 | [#168](https://github.com/niway-dev/wachiman/pull/168) | 360 targeted tests pass; real POSIX shell parses special-character paths; local-ready/GitHub-pending and failed-check recovery tested |
-| 6 | `docs/cli-readiness` (this layer) | Documentation, verification recipe and final check results in this layer's PR |
+| 6 | [#169](https://github.com/niway-dev/wachiman/pull/169) | Documentation, verification recipe and final check results in this layer's PR |
 
 All counts above are observed targeted runs with exit 0. Captures use isolated
 fixture homes and fake account probes; they establish output behavior rather than
@@ -263,3 +263,16 @@ used as final evidence; the final run must use a stable tree.
 Remaining platform gap: native PowerShell/Windows has not been exercised. Windows
 strings are generated, not advertised as validated. No Windows executable or new
 runtime dependency was added. The stack leaves PRs open for a person to merge.
+
+Review follow-ups: the PowerShell quoter now escapes ASCII and all four typographic
+single-quote delimiters identified by PowerShell's tokenizer. This is covered by
+literal-contract tests and checked against Microsoft's quoting documentation; a
+native interpreter run is still unverified. Both mode emits one final GitHub
+status, account context stays under its own stage, and redirected stderr receives
+no readline cursor escapes. GitHub and standalone setup stage totals now have
+explicit assertions alongside local/both.
+
+The requested Sonnet 5.5 high review could not run because its provider returned
+`Claude API rate limit reached`. This is not an approval; no substitute reviewer
+was silently selected. Wachiman's automatic PR findings were independently
+checked against the source and addressed where in scope.
