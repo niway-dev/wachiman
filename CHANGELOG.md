@@ -5,6 +5,14 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.10.1](https://github.com/niway-dev/wachiman/compare/v1.10.0...v1.10.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **review:** use Opus by default and make verification opt-in ([bc967db](https://github.com/niway-dev/wachiman/commit/bc967db0eac919b69d86475630189884dded5cf3))
+* **review:** use Opus by default and make verification opt-in ([cef3442](https://github.com/niway-dev/wachiman/commit/cef34426db96db3ee0b91d7f9c2eb0ac9ad33e73))
+
 ## [1.10.0](https://github.com/niway-dev/wachiman/compare/v1.9.0...v1.10.0) (2026-11-09)
 
 
