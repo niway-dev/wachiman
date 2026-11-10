@@ -3,6 +3,8 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync, symlinkSync, mkdirSync, statSync, chmodSync, copyFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { emptyRepo, commit, git, removeTempRepos } from "../../test/support/temp-repo";
+import { commentableLines, annotateDiff } from "../engine";
+import { addedLinesOf } from "../evidence";
 import { workingTreeInput } from "./working-tree";
 afterAll(removeTempRepos);
 function fixture() {
@@ -293,22 +295,13 @@ function gitWorkingTree(dir: string) {
   return run("write-tree");
 }
 
-// Stop after write-tree: localFiles currently rejects Git's two-patch type changes.
-// Keep these capture regressions independent of that separate diff-parser limitation.
 function capturedTree(dir: string) {
-  let tree = "";
-  const done = new Error("tree captured");
-  expect(() =>
-    capture(dir, "all", {
-      spawn: ((...args: Parameters<typeof spawnSync>) => {
-        const r = spawnSync(...args);
-        if ((args[1] as string[]).includes("write-tree")) tree = r.stdout!.toString().trim();
-        return r;
-      }) as typeof spawnSync,
-      afterCapture: () => { throw done; },
-    }),
-  ).toThrow(done);
-  return tree;
+  const b = capture(dir, "all");
+  try {
+    return b.input.change.head.sha;
+  } finally {
+    b.release();
+  }
 }
 
 for (const fileMode of [false, true]) {
@@ -379,3 +372,37 @@ test("all uses the owner executable bit, like Git, when file modes are trusted",
     b.release();
   }
 });
+
+for (const mode of ["staged", "all"] as const) {
+  for (const toLink of [true, false]) {
+    test(`${mode} captures complete ${toLink ? "file-to-link" : "link-to-file"} evidence`, () => {
+      const dir = emptyRepo();
+      const path = join(dir, "a.ts");
+      const regular = "first\nsecond\n";
+      const link = "missing-target";
+      if (toLink) writeFileSync(path, regular);
+      else symlinkSync(link, path);
+      commit(dir, {}, "base type");
+      unlinkSync(path);
+      if (toLink) symlinkSync(link, path);
+      else writeFileSync(path, regular);
+      if (mode === "staged") git(dir, "add", "a.ts");
+      const b = capture(dir, mode);
+      try {
+        expect(b.input.files).toHaveLength(1);
+        const file = b.input.files[0];
+        expect(file.filename).toBe("a.ts");
+        expect(file.additions).toBe(toLink ? 1 : 2);
+        expect(file.deletions).toBe(toLink ? 2 : 1);
+        expect(addedLinesOf(file.patch)).toEqual(toLink ? [link] : ["first", "second"]);
+        expect(file.patch).toContain(toLink ? "-first\n-second" : "-missing-target");
+        expect([...commentableLines(file.patch!)]).toEqual(toLink ? [1] : [1, 2]);
+        expect(annotateDiff([file])).toContain(toLink ? "    1 +missing-target" : "    2 +second");
+        expect(readFileSync(join(b.input.headDir, "a.ts"), "utf8")).toBe(toLink ? link : regular);
+        expect(git(b.input.headDir, "grep", "-n", "--", toLink ? link : "second")).toBe(`a.ts:${toLink ? 1 : 2}:${toLink ? link : "second"}\n`);
+      } finally {
+        b.release();
+      }
+    });
+  }
+}

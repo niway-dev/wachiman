@@ -259,7 +259,7 @@ export function localFiles(repoDir: string, mergeBase: string, head: string, git
   const range = [mergeBase, head];
   const raw = run(git, repoDir, [...DIFF, "--raw", "-z", "--no-abbrev", ...range], DIFF_MAX_BYTES).split("\0");
   const numstat = run(git, repoDir, [...DIFF, "--numstat", "-z", ...range], DIFF_MAX_BYTES).split("\0");
-  const sections = splitPatches(run(git, repoDir, [...DIFF, ...PATCH, ...range], DIFF_MAX_BYTES));
+  const rawSections = splitPatches(run(git, repoDir, [...DIFF, ...PATCH, ...range], DIFF_MAX_BYTES));
 
   const entries: { status: string; dstSha: string; from?: string; to: string }[] = [];
   for (let i = 0; i < raw.length; ) {
@@ -270,6 +270,21 @@ export function localFiles(repoDir: string, mergeBase: string, head: string, git
     const from = raw[i++];
     entries.push(two ? { status, dstSha, from, to: raw[i++] } : { status, dstSha, to: from });
   }
+  // Git emits a deletion and an addition patch for one raw T (type-change) entry.
+  // Keep both hunks: each carries its own old/new line origin, including +0,0
+  // for the deleted side. Evidence and head-line annotations can then use them unchanged.
+  let sectionIndex = 0;
+  const sections = entries.map((e) => {
+    const parts = rawSections.slice(sectionIndex, sectionIndex + (e.status === "T" ? 2 : 1));
+    sectionIndex += e.status === "T" ? 2 : 1;
+    for (const part of parts) {
+      if (!part.header.includes('"') && !part.header.endsWith(` b/${e.to}`)) {
+        throw new Error(`git diff sections are out of order: expected ${e.to}, got "${part.header}".`);
+      }
+    }
+    const patches = parts.flatMap((p) => p.patch === undefined ? [] : [p.patch]);
+    return { header: parts[0]?.header ?? "", patch: patches.length ? patches.join("\n") : undefined };
+  });
   const counts: { additions: number; deletions: number }[] = [];
   for (let i = 0; i < numstat.length; ) {
     const meta = numstat[i++];
@@ -280,17 +295,12 @@ export function localFiles(repoDir: string, mergeBase: string, head: string, git
     const n = (v: string) => (v === "-" ? 0 : Number(v));
     counts.push({ additions: n(added), deletions: n(deleted) });
   }
-  if (counts.length !== entries.length || sections.length !== entries.length) {
+  if (counts.length !== entries.length || sectionIndex !== rawSections.length || sections.some((s) => !s.header)) {
     throw new Error(
-      `git diff disagreed with itself on ${mergeBase.slice(0, 7)}..${head.slice(0, 7)}: ${entries.length} raw entries, ${counts.length} counts, ${sections.length} patches.`,
+      `git diff disagreed with itself on ${mergeBase.slice(0, 7)}..${head.slice(0, 7)}: ${entries.length} raw entries, ${counts.length} counts, ${rawSections.length} patches.`,
     );
   }
   const files = entries.map((e, i): ReviewFile => {
-    const header = sections[i].header;
-    // A quoted header (a name with a tab, a newline or a quote) cannot be checked this simply.
-    if (!header.includes('"') && !header.endsWith(` b/${e.to}`)) {
-      throw new Error(`git diff sections are out of order: expected ${e.to}, got "${header}".`);
-    }
     const patch = sections[i].patch;
     return {
       filename: e.to,
