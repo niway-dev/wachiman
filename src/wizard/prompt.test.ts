@@ -131,6 +131,22 @@ describe("suspend", () => {
 });
 
 describe("a terminal", () => {
+  test("redirected prompt output stays plain even when stdin is a terminal", async () => {
+    const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: () => input });
+    const output = new PassThrough();
+    let written = "";
+    output.on("data", (d) => (written += d.toString()));
+    const p = createPrompter({ input, output }, { TERM: "xterm-256color" });
+    try {
+      const answer = p.confirm("Continue?", true);
+      input.end("y\n");
+      expect(await answer).toBe(true);
+      expect(written).toBe("Continue? [Y/n] ");
+    } finally {
+      p.close();
+    }
+  });
+
   test("Backspace redraws the line with the question still in front of it", async () => {
     // readline intentionally disables ANSI editing under TERM=dumb. This fixture
     // models a capable terminal, independently of the shell running the suite.
