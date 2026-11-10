@@ -250,6 +250,9 @@ describe("setup on a terminal", () => {
     const { run } = setup(w, ["--profile", "work-a"], ["", ""]);
     expect(await run).toBe(1);
     expect(errText(w)).toContain("the binding was written");
+    expect(errText(w)).toContain("local: not ready");
+    expect(errText(w)).toContain(`next: wachiman doctor --repo-dir ${w.repo}`);
+    expect(errText(w)).not.toContain("next: wachiman local");
     expect(w.config()!.projects[w.key].profile).toBe("work-a");
   });
 });

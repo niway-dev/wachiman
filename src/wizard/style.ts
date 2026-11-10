@@ -12,8 +12,8 @@ export function terminalStyle(output: { isTTY?: boolean }, env: Record<string, s
 export function wizardIo<T extends { stderr: (line: string) => void }>(io: T, output: { isTTY?: boolean }, env: Record<string, string | undefined>): T {
   const paint = terminalStyle(output, env);
   return { ...io, stderr: (line: string) => {
-    const tone = /^(bound:|wrote |account: signed in|All required checks passed)/.test(line) ? "success"
-      : /^(warning:|cancelled:|not written|nothing saved|These already happened)/.test(line) ? "warning" : undefined;
+    const tone = /^(bound:|wrote |account: signed in|All required checks passed|local: ready)/.test(line) ? "success"
+      : /^(warning:|cancelled:|not written|nothing saved|These already happened|local: not ready|github: pending)/.test(line) ? "warning" : undefined;
     io.stderr(tone ? paint(line, tone) : line);
   } };
 }

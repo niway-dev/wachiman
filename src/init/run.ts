@@ -13,6 +13,7 @@ import { repositoryKey } from "../history/store";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
 import { wizardIo } from "../wizard/style";
+import { projectCommand, projectCommands } from "../wizard/command";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
 import { callerHeader, renderCallerWorkflow } from "./render";
@@ -45,7 +46,7 @@ const readDefaultTemplate = () => readFileSync(TEMPLATE, "utf8");
 
 /** The line that hands over to `setup`. */
 export function setupLine(repoDir: string, cwd: string) {
-  return repoDir === cwd ? "wachiman setup" : `wachiman setup --repo-dir ${repoDir}`;
+  return projectCommand("setup", repoDir, cwd);
 }
 
 const openSession = (deps: InitDeps, env: Record<string, string | undefined>) => {
@@ -133,6 +134,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     io.stderr("  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.");
     io.stderr(`  2. Open a pull request that adds ${shown}. init does not commit, push or open one.`);
     io.stderr("Local runs use your signed-in claude, never this key.");
+    io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");
   }
 
   if (options.mode === "github") {
@@ -142,6 +144,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     try {
       const code = await deps.bindNow(prompter, options.mode);
       if (code === 130 && written) io.stderr(`${written} was written before setup was cancelled and stays in place.`);
+      if (code !== 130 && written) io.stderr(`github: pending; ${written} is written. Secret and workflow submission still require action in GitHub.`);
       return code;
     } catch (error) {
       if (written) io.stderr(`${written} was written before setup failed and stays in place.`);
@@ -149,7 +152,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     }
   }
 
-  io.stderr(`Next, on this machine: ${setupLine(options.repoDir, cwd)}   (binds this repository to a Claude account)`);
+  for (const command of projectCommands("setup", options.repoDir, cwd)) io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
   return 0;
 }
 
