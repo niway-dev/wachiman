@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import {
   constants,
   closeSync,
-  copyFileSync,
   fstatSync,
   lstatSync,
   mkdirSync,
@@ -59,8 +58,8 @@ export function workingTreeInput(p: {
   // Read only these semantic settings; never import source hooks, filters or other config.
   const fileMode = p.mode !== "all" || runSource(["config", "--type=bool", "--default=true", "--get", "core.fileMode"]) === "true";
   const symlinks = p.mode !== "all" || runSource(["config", "--type=bool", "--default=true", "--get", "core.symlinks"]) === "true";
-  const before = readFileSync(index);
   const beforeIdentity = identity(lstatSync(index));
+  const before = readFileSync(index);
   const root = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-working-tree-")));
   const release = () => rmSync(root, { recursive: true, force: true });
   const spawn = p.spawn ?? spawnSync;
@@ -90,7 +89,8 @@ export function workingTreeInput(p: {
     const objects = resolve(p.repoDir, runSource(["rev-parse", "--git-path", "objects"]));
     // Alternates are read-only: no command runs with the source repository as its git-dir.
     writeFileSync(join(gitDir, "objects/info/alternates"), JSON.stringify(objects) + "\n");
-    copyFileSync(index, join(gitDir, "index"));
+    // Git must consume the same bytes checked below, never a later live index.
+    writeFileSync(join(gitDir, "index"), before);
     const args = (a: string[]) => ["--git-dir=" + gitDir, ...a];
     const raw = (a: string[], input?: Buffer) => exec(args(a), input);
     const text = (a: string[]) => {

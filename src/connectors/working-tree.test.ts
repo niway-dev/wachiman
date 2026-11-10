@@ -64,6 +64,46 @@ test("rejects an index or tracked-content race and cleans up", () => {
   ).toThrow(/changed.*retry/i);
   expect(() => capture(dir, "staged", { afterCapture: () => git(dir, "add", "a.ts") })).toThrow(/changed.*retry/i);
 });
+for (const mode of ["staged", "all"] as const) {
+  test(`${mode} builds its temporary tree from captured index bytes during a replace-and-restore race`, () => {
+    const dir = fixture();
+    const index = join(dir, ".git/index");
+    const before = readFileSync(index);
+    // Prepare a valid replacement that adds a path outside the original tracked set.
+    git(dir, "add", "a.ts", "untracked.ts");
+    const replacement = readFileSync(index);
+    writeFileSync(index, before);
+    const expectedTree = mode === "staged" ? git(dir, "write-tree").trim() : gitWorkingTree(dir);
+    let replaced = false;
+    let restored = false;
+    let tree = "";
+    try {
+      // The final identity check must still reject the source mutation. Independently,
+      // the temporary Git commands must never consume the replacement index bytes.
+      expect(() => capture(dir, mode, {
+        spawn: ((...args: Parameters<typeof spawnSync>) => {
+          const command = args[1] as string[];
+          if (replaced && !restored && command.includes("ls-files")) {
+            writeFileSync(index, before);
+            restored = true;
+          }
+          const result = spawnSync(...args);
+          if (!replaced && command.includes("init")) {
+            writeFileSync(index, replacement);
+            replaced = true;
+          }
+          if (command.includes("write-tree")) tree = result.stdout!.toString().trim();
+          return result;
+        }) as typeof spawnSync,
+      })).toThrow(/changed.*retry/i);
+      expect(replaced && restored).toBe(true);
+      expect(tree).toBe(expectedTree);
+      expect(readFileSync(index)).toEqual(before);
+    } finally {
+      writeFileSync(index, before);
+    }
+  });
+}
 test("rejects unborn and split indexes explicitly", () => {
   expect(() => capture(emptyRepo(), "all")).toThrow(/HEAD/);
   const dir = fixture();
