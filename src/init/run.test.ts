@@ -325,6 +325,8 @@ describe("init with scripted prompts", () => {
     expect(printed).toContain("Release tag to pin [v1.5.0]");
     expect(printed).toContain("Workflow file [.github/workflows/wachiman-review.yml]");
     expect(printed).toContain("Write it? [Y/n]");
+    expect(printed).toContain("Step 3/4  GitHub workflow");
+    expect(printed).toContain("Step 4/4  Checks and next actions");
     // What the printed defaults mean is what was written.
     expect(readFileSync(w.target, "utf8")).toBe(expected("octocat", "v1.5.0"));
   });
