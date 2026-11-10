@@ -119,6 +119,10 @@ describe("setup on a terminal", () => {
     expect(printed).toMatch(/3\. work-b {2}external {2}.*\(global default\) \(default\)/);
     expect(printed).toContain("5. Register an existing Claude configuration directory (external)");
     expect(printed).toContain("4. Create a new isolated profile (managed)");
+    expect(printed).toContain("Step 1/4  Project");
+    expect(printed).toContain("Step 2/4  Claude account");
+    expect(printed).toContain("Step 3/4  Confirm binding");
+    expect(printed).toContain("Step 4/4  Checks and next actions");
     // The final summary shows name, kind, directory, binary and the scope, before the question.
     const summary = printed.slice(printed.indexOf("Bind this repository:"));
     expect(summary).toContain("profile:    work-a");
