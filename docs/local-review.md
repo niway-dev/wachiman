@@ -64,8 +64,8 @@ local mode refuses to start: with a key present `claude -p` would bill the key.
 
 ### From npm
 
-The npm package is published from the first release that includes this change; until the first
-publish succeeds, install from source (next section).
+The npm package is published (version 1.10.0 was published by hand, without a provenance statement;
+later versions are published by the release workflow). You can also install from source (next section).
 
 ```sh
 npm i -g wachiman          # or: bun add -g wachiman; or, without installing: npx wachiman doctor

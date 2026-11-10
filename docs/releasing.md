@@ -97,6 +97,12 @@ One-time setup by the owner, not done by any code in this repository:
    currently requires). The name was unclaimed on 2026-11-09 (the registry answered 404), and
    npm's trusted-publisher setting lives on a package page, so it cannot be configured before the
    package exists. Until this is done, the `publish` job is expected to fail.
+
+Status: step 2 was done for 1.10.0, by hand and with `--provenance=false` (a laptop cannot make a
+provenance statement), and the trusted publisher of step 3 is configured but unvalidated until a
+`publish` run succeeds. npm asks for that first run within a few days of creating the setting, so
+the next release is also the check that the workflow publishes. After it, the 1.10.0 re-run is not
+possible (the version exists): that run's `publish` job stays failed.
 3. On npmjs.com, in the package's settings, add a trusted publisher: GitHub Actions, repository
    `niway-dev/wachiman`, workflow file `release-please.yml`, environment `npm`.
 
