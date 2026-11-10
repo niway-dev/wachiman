@@ -5,7 +5,8 @@ export type CommandShell = "posix" | "powershell";
 /** Shell text is a suggestion only. Never pass this string to a subprocess. */
 export function quoteArgument(value: string, shell: CommandShell): string {
   if (/^[a-zA-Z0-9_./:-]+$/.test(value)) return value;
-  return shell === "powershell" ? `'${value.replaceAll("'", "''")}'` : `'${value.replaceAll("'", "'\\''")}'`;
+  // PowerShell treats these typographic apostrophes as single-quote delimiters too.
+  return shell === "powershell" ? `'${value.replace(/['\u2018\u2019\u201a\u201b]/g, "$&$&")}'` : `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 export function projectCommand(command: "setup" | "local" | "doctor", repoDir: string, cwd = process.cwd(), shell: CommandShell = "posix"): string {

@@ -82,10 +82,10 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
   const say = (line: string) => prompter.say(line);
 
   const total = ctx.fromInit ? (ctx.initMode === "both" ? 6 : 5) : 4;
-  if (!ctx.fromInit) prompter.step("Project", 1, total);
-  say(`repository: ${repo.name} (${repo.keyedBy === "remote" ? `origin ${repo.remote ?? "(unparsed)"}` : `path ${repo.path}`})`);
-  if (ctx.current) say(`currently bound to ${ctx.current.profile}`);
   if (!ctx.fromInit) {
+    prompter.step("Project", 1, total);
+    say(`repository: ${repo.name} (${repo.keyedBy === "remote" ? `origin ${repo.remote ?? "(unparsed)"}` : `path ${repo.path}`})`);
+    if (ctx.current) say(`currently bound to ${ctx.current.profile}`);
     const go = await prompter.confirm("Set up this repository?", true);
     if (go === null) return { kind: "cancelled" };
     if (!go) return { kind: "declined" };
@@ -93,6 +93,7 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
 
   let name = flags.profile;
   prompter.step("Claude account", total - 2, total);
+  if (ctx.fromInit && ctx.current) say(`currently bound to ${ctx.current.profile}`);
   let pending: PendingProfile | undefined;
   while (name === undefined) {
     const list = buildProfileList(home, config);
