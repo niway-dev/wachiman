@@ -7,7 +7,7 @@
 import { basename, join } from "node:path";
 import { binaryProblem, checkExternalConfigDir, checkNewProfileName } from "../accounts/commands";
 import type { ProjectBinding, WachimanConfigV1 } from "../accounts/config";
-import { buildProfileList, managedDir, refersTo } from "../accounts/profile-list";
+import { buildProfileList, managedDir, refersTo, type ProfileListEntry } from "../accounts/profile-list";
 import { checkProfileName, ISOLATED_NAME, parseProfileRef } from "../accounts/resolve";
 import { UsageError } from "../config";
 import type { HistoryRepository } from "../history/types";
@@ -88,21 +88,24 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
   let pending: PendingProfile | undefined;
   while (name === undefined) {
     const list = buildProfileList(home, config);
-    const rows: { label: string; value: string | typeof REGISTER | typeof CREATE }[] = list.profiles.map((p) => {
+    const profiles: ProfileListEntry[] = [{ name: "default", kind: "default", registered: true, usedBy: [] }, ...list.profiles];
+    const rows: { label: string; value: string | typeof REGISTER | typeof CREATE }[] = profiles.map((p) => {
       const marks = [
-        ctx.current && refersTo(ctx.current.profile, p.name) ? "(current)" : "",
-        list.defaultProfile !== undefined && refersTo(list.defaultProfile, p.name) ? "(global default)" : "",
+        ctx.current && (ctx.current.profile === p.name || refersTo(ctx.current.profile, p.name)) ? "(current)" : "",
+        list.defaultProfile !== undefined && (list.defaultProfile === p.name || refersTo(list.defaultProfile, p.name)) ? "(global default)" : "",
         p.registered ? "" : "(unregistered)",
       ].filter(Boolean);
       const where = p.kind === "external" ? `${p.configDir}, ${p.binary ? `binary ${p.binary}` : "claude from PATH"}` : p.configDir;
-      return { label: `${p.name}  ${p.kind}  ${where}${marks.length ? `  ${marks.join(" ")}` : ""}`, value: p.name };
+      const label = p.kind === "default" ? "Use my current Claude session (default; shares my normal Claude settings)" : `${p.name}  ${p.kind}  ${where}`;
+      return { label: `${label}${marks.length ? `  ${marks.join(" ")}` : ""}`, value: p.name };
     });
-    rows.push({ label: "Register an existing Claude configuration directory (external)", value: REGISTER });
     rows.push({ label: "Create a new isolated profile (managed)", value: CREATE });
-    const currentIndex = ctx.current ? list.profiles.findIndex((p) => refersTo(ctx.current!.profile, p.name)) : -1;
-    const globalIndex = list.defaultProfile !== undefined ? list.profiles.findIndex((p) => refersTo(list.defaultProfile!, p.name)) : -1;
-    const defaultIndex = currentIndex >= 0 ? currentIndex : globalIndex >= 0 ? globalIndex : list.profiles.length;
-    const label = list.profiles.length > 0 ? "Which account profile should this repository use?" : "No profile is registered yet. What do you want to do?";
+    rows.push({ label: "Register an existing Claude configuration directory (external)", value: REGISTER });
+    const indexOf = (ref: string) => profiles.findIndex((p) => ref === p.name || refersTo(ref, p.name));
+    const currentIndex = ctx.current ? indexOf(ctx.current.profile) : -1;
+    const globalIndex = list.defaultProfile !== undefined ? indexOf(list.defaultProfile) : -1;
+    const defaultIndex = currentIndex >= 0 ? currentIndex : globalIndex >= 0 ? globalIndex : 0;
+    const label = "Which account profile should this repository use?";
     const picked = await prompter.select(label, rows, defaultIndex);
     if (picked === null) return { kind: "cancelled" };
 
