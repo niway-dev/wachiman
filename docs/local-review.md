@@ -101,10 +101,9 @@ neither, it exits 2 with the message above. `bun add -g wachiman` was tried on m
 and a packed tarball: Bun installed the dependency with a working binary, and `wachiman --version`
 ran with only Node on `PATH`. The launcher itself runs on Node, so Node 20 or later must be on `PATH` even when you install with Bun.
 
-On Windows the package is written to work, in Git Bash and in PowerShell, and is tested on
-`windows-latest` in CI: the launcher is a Node script and npm creates the `wachiman.cmd` and
-`wachiman.ps1` shims. The Windows tier stays pending until that job has passed on a published
-commit (see the Windows note below).
+On Windows the package is written to work, in Git Bash and in PowerShell: the launcher is a Node
+script and npm creates the `wachiman.cmd` and `wachiman.ps1` shims. It is untested on Windows and
+unsupported (see the Windows note below).
 
 Supply chain: Bun's own `postinstall` runs when `bun` is installed and copies the platform binary
 from `@oven/bun-<platform>` into place. Wachiman's provenance statement covers Wachiman's files,
@@ -148,12 +147,11 @@ one rung of the precedence below.
 Check the setup any time with `wachiman doctor`: it lists what a local run would use and what would
 fail, makes no model call and no request of its own, and exits 1 when a required check fails.
 
-**Windows: pending CI.** The npm package is written to work on Windows with Node (Bun comes with
-the package), and CI has a `windows-latest` job for it that installs the packed tarball with its
-real `bun` dependency and runs it with only Node on `PATH`, but that job has not yet passed on a
-published commit, so Windows is not a supported platform yet. The bash wrapper
-(`bin/wachiman`) and `scripts/install-local.sh` are POSIX only. This paragraph changes when the
-job is green.
+**Windows: not tested in CI, unsupported.** The npm package is written to work on Windows with
+Node (Bun comes with the package), but it is untested on Windows and Windows is not a supported
+platform. CI had a `windows-latest` job; it was removed because it produced failures unrelated to
+the product, mostly runner-speed timeouts. If the package does not work, the launcher prints the
+install commands. The bash wrapper (`bin/wachiman`) and `scripts/install-local.sh` are POSIX only.
 
 On Windows, the fallback Bun is a `bun.exe` on `PATH` (the official installer puts it in
 `%USERPROFILE%\.bun\bin`) or the npm-global `node_modules\bun\bin\bun.exe` next to the `bun.cmd`
