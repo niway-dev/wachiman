@@ -139,7 +139,7 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
   if (picked.length > 1) throw new UsageError(`${picked[0]} and ${picked[1]} cannot be used together.`);
   if (base !== undefined) args.base = base;
   if (args.input !== undefined && (picked.length > 0 || args.paths.length > 0)) {
-    throw new UsageError("--input reviews the file's change as it is: it takes no --base, --from, --commit or --working-tree, and no paths.");
+    throw new UsageError("--input reviews the file's change as it is: it takes no --base, --from or --commit, and no paths.");
   }
   if (args.workingTree && args.resultVersion === 1) throw new UsageError("Working-tree reviews require --result-version 2.");
   return args;
