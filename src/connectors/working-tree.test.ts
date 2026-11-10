@@ -1,5 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
-import { readFileSync, writeFileSync, existsSync, readdirSync, symlinkSync, mkdirSync, statSync, chmodSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { readFileSync, writeFileSync, existsSync, readdirSync, symlinkSync, mkdirSync, statSync, chmodSync, copyFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { emptyRepo, commit, git, removeTempRepos } from "../../test/support/temp-repo";
 import { workingTreeInput } from "./working-tree";
@@ -227,4 +228,114 @@ test("all freezes every tracked identity before reading content, so a later file
   expect(() => capture(dir, "all", { afterManifest: () => writeFileSync(join(dir, "z.ts"), "changed before content read\n") })).toThrow(
     /changed.*retry/i,
   );
+});
+
+// Compare against Git's own add semantics, with all oracle writes isolated too.
+function gitWorkingTree(dir: string) {
+  const scratch = emptyRepo();
+  const index = join(scratch, ".git/index");
+  copyFileSync(join(dir, ".git/index"), index);
+  const run = (...args: string[]) => {
+    const r = spawnSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", ...args], {
+      cwd: dir,
+      env: {
+        ...process.env,
+        GIT_INDEX_FILE: index,
+        GIT_OBJECT_DIRECTORY: join(scratch, ".git/objects"),
+        GIT_ALTERNATE_OBJECT_DIRECTORIES: join(dir, ".git/objects"),
+      },
+      encoding: "utf8",
+    });
+    expect(r.status).toBe(0);
+    return r.stdout.trim();
+  };
+  run("add", "-u");
+  return run("write-tree");
+}
+
+// Stop after write-tree: localFiles currently rejects Git's two-patch type changes.
+// Keep these capture regressions independent of that separate diff-parser limitation.
+function capturedTree(dir: string) {
+  let tree = "";
+  const done = new Error("tree captured");
+  expect(() =>
+    capture(dir, "all", {
+      spawn: ((...args: Parameters<typeof spawnSync>) => {
+        const r = spawnSync(...args);
+        if ((args[1] as string[]).includes("write-tree")) tree = r.stdout!.toString().trim();
+        return r;
+      }) as typeof spawnSync,
+      afterCapture: () => { throw done; },
+    }),
+  ).toThrow(done);
+  return tree;
+}
+
+for (const fileMode of [false, true]) {
+  for (const symlinks of [false, true]) {
+    test(`all matches Git with core.fileMode=${fileMode}, core.symlinks=${symlinks}`, () => {
+      const dir = emptyRepo();
+      git(dir, "config", "core.fileMode", "true");
+      git(dir, "config", "core.symlinks", "true");
+      writeFileSync(join(dir, "executable"), "base\n", { mode: 0o755 });
+      writeFileSync(join(dir, "regular"), "base\n");
+      symlinkSync("old-target", join(dir, "link"));
+      commit(dir, {}, "base modes");
+      git(dir, "config", "core.fileMode", String(fileMode));
+      git(dir, "config", "core.symlinks", String(symlinks));
+      chmodSync(join(dir, "executable"), 0o644);
+      chmodSync(join(dir, "regular"), 0o755);
+      unlinkSync(join(dir, "link"));
+      writeFileSync(join(dir, "link"), "old-target");
+      const objects = () => readdirSync(join(dir, ".git/objects"), { recursive: true }).sort();
+      const beforeObjects = objects();
+      const beforeIndex = readFileSync(join(dir, ".git/index"));
+      const check = () => {
+        const expected = gitWorkingTree(dir);
+        expect(capturedTree(dir)).toBe(expected);
+        if (!symlinks) {
+          const b = capture(dir, "all");
+          try {
+            expect(b.input.change.head.sha).toBe(expected);
+            expect(readFileSync(join(b.input.headDir, "link"), "utf8")).toBe(readFileSync(join(dir, "link"), "utf8"));
+          } finally {
+            b.release();
+          }
+        }
+        expect(readFileSync(join(dir, ".git/index"))).toEqual(beforeIndex);
+        expect(objects()).toEqual(beforeObjects);
+        expect(statSync(join(dir, "executable")).mode & 0o777).toBe(0o644);
+        expect(statSync(join(dir, "regular")).mode & 0o777).toBe(0o755);
+      };
+      check(); // Mode/type-only differences, including an unchanged emulated link.
+      writeFileSync(join(dir, "executable"), "edited\n");
+      writeFileSync(join(dir, "regular"), "edited\n");
+      writeFileSync(join(dir, "link"), "new-target");
+      check(); // Ignored metadata must not hide content edits.
+    });
+    test(`all keeps real symlink replacements with core.fileMode=${fileMode}, core.symlinks=${symlinks}`, () => {
+      const dir = emptyRepo();
+      commit(dir, { regular: "base\n" }, "regular file");
+      git(dir, "config", "core.fileMode", String(fileMode));
+      git(dir, "config", "core.symlinks", String(symlinks));
+      unlinkSync(join(dir, "regular"));
+      symlinkSync("missing-target", join(dir, "regular"));
+      const expected = gitWorkingTree(dir);
+      expect(capturedTree(dir)).toBe(expected);
+    });
+  }
+}
+
+test("all uses the owner executable bit, like Git, when file modes are trusted", () => {
+  const dir = emptyRepo();
+  git(dir, "config", "core.fileMode", "true");
+  commit(dir, { regular: "base\n" }, "regular file");
+  chmodSync(join(dir, "regular"), 0o655); // Group/other execute bits alone do not make a Git executable.
+  const b = capture(dir, "all");
+  try {
+    expect(b.input.change.head.sha).toBe(gitWorkingTree(dir));
+    expect(b.input.files).toEqual([]);
+  } finally {
+    b.release();
+  }
 });

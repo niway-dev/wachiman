@@ -56,6 +56,9 @@ export function workingTreeInput(p: {
   const index = resolve(p.repoDir, runSource(["rev-parse", "--git-path", "index"]));
   if (runSource(["rev-parse", "--shared-index-path"]))
     throw new UsageError("Working-tree review does not support a split index; disable split-index first.");
+  // Read only these semantic settings; never import source hooks, filters or other config.
+  const fileMode = p.mode !== "all" || runSource(["config", "--type=bool", "--default=true", "--get", "core.fileMode"]) === "true";
+  const symlinks = p.mode !== "all" || runSource(["config", "--type=bool", "--default=true", "--get", "core.symlinks"]) === "true";
   const before = readFileSync(index);
   const beforeIdentity = identity(lstatSync(index));
   const root = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-working-tree-")));
@@ -129,7 +132,8 @@ export function workingTreeInput(p: {
       if (!["100644", "100755", "120000"].includes(e.mode)) throw new UsageError("Unsupported index mode " + e.mode);
     }
     // Read every parent with lstat; never follow a tracked path through a symlink.
-    const read = (path: string, metadataOnly = false) => {
+    const read = (entry: (typeof entries)[number], metadataOnly = false) => {
+      const path = entry.path;
       const parts = path.split("/");
       if (parts.some((s) => !s || s === "." || s === ".." || s.toLowerCase() === ".git"))
         throw new UsageError("Unsafe tracked path " + path);
@@ -172,7 +176,11 @@ export function workingTreeInput(p: {
             closeSync(fd);
           }
         }
-        mode = stat.mode & 0o111 ? "100755" : "100644";
+        // Match Git: an emulated link keeps its index type; untrusted exec bits
+        // preserve regular index modes, but a real type change still takes effect.
+        if (!symlinks && entry.mode === "120000") mode = "120000";
+        else if (!fileMode) mode = entry.mode === "100755" ? "100755" : "100644";
+        else mode = stat.mode & 0o100 ? "100755" : "100644";
       } else throw new UsageError("Unsupported tracked file type: " + path);
       return {
         bytes,
@@ -182,12 +190,12 @@ export function workingTreeInput(p: {
       };
     };
     // Freeze identities for the complete path set before reading any file contents.
-    const manifest = p.mode === "all" ? entries.map((e) => read(e.path, true)?.identity) : [];
+    const manifest = p.mode === "all" ? entries.map((e) => read(e, true)?.identity) : [];
     p.afterManifest?.();
     const captured =
       p.mode === "all"
         ? entries.map((e, i) => {
-            const content = read(e.path);
+            const content = read(e);
             if (content?.identity !== manifest[i]) throw failure();
             return { ...e, content };
           })
@@ -211,7 +219,7 @@ export function workingTreeInput(p: {
       )
         throw failure();
       for (const e of captured) {
-        if (read(e.path)?.manifest !== e.content?.manifest) throw failure();
+        if (read(e)?.manifest !== e.content?.manifest) throw failure();
       }
     } catch {
       throw failure();
