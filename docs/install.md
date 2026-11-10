@@ -44,9 +44,9 @@ The GitHub tutorial below requires an API key; local reviews use your Claude sig
 
 ## Three steps
 
-`wachiman init` prepares step 1: it writes the caller file with your operator and the
-release tag you pin. Adding the secret (step 2) and opening the pull request (step 3)
-remain manual actions in GitHub:
+`wachiman init` prepares steps 1 and 3: it writes the caller file with your operator and the
+release tag you pin. Adding the secret (step 2) and opening the pull request remain manual
+actions in GitHub:
 
 ```sh
 wachiman init --mode github --operator <your-github-login> --version v1.5.0
