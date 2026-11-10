@@ -2,8 +2,10 @@
 
 <img src="docs/assets/wachi.png" alt="Wachiman, a cartoon watchman with a cap and a whistle" width="96" align="right">
 
-Advisory pull request reviews by an agent CLI, run inside your own GitHub Actions with your own
-API key. Wachiman (pronounced *watchman*) is named after the Peruvian *wachimán*, the street
+Advisory code reviews by an agent CLI: a pull request review that runs inside your own GitHub
+Actions with your own API key, or a review of a branch on your laptop with your own Claude
+subscription. One engine, two ways to start it today ([below](#ways-to-run-it)). Wachiman
+(pronounced *watchman*) is named after the Peruvian *wachimán*, the street
 watchman who warns you and lets you decide; the Spanish word comes from the English one.
 
 ## What it is
@@ -72,11 +74,26 @@ with a notice; see [docs/upgrading.md](docs/upgrading.md).
 - **Codex CLI** (`codex exec`, for OpenAI models) is a second adapter, available only from the
   command line. The reusable workflow does not install it or pass an OpenAI key
   ([docs/providers/codex.md](docs/providers/codex.md)).
-- **npm:** the package `wachiman` is built and tested for npm (a Node launcher; the package installs
+- **npm:** the package `wachiman` is on npm (`npm i -g wachiman`; a Node launcher that installs
   Bun through its `bun` dependency;
-  [docs/local-review.md](docs/local-review.md#3-install)) and is published by the release workflow
-  from the first release that includes this change. Until the first publish succeeds, install from
-  source (`scripts/install-local.sh`). macOS and Linux are covered by CI; Windows is not tested in CI, and is expected to work wherever Node and Bun run.
+  [docs/local-review.md](docs/local-review.md#3-install)). Version 1.10.0 was published by hand,
+  without a provenance statement; the release workflow publishes the following versions with one.
+  Installing from source (`scripts/install-local.sh`) still works. macOS and Linux are covered by CI;
+  Windows is not tested in CI, and is expected to work wherever Node and Bun run.
+
+## Ways to run it
+
+One review engine, started from different places. Same findings, same labels, your own account each
+time.
+
+| Way | Where it runs | What you need | Status |
+| --- | --- | --- | --- |
+| Reusable GitHub Actions workflow | Your repository's runners, on each pull request | A provider API key as a secret | Shipped; [docs/install.md](docs/install.md) |
+| `wachiman local` | Your laptop, on a branch or commit; nothing is posted | Claude Code signed in; no API key | Shipped; [docs/local-review.md](docs/local-review.md) |
+| GitHub App | Not available | | A design only, not implemented |
+
+After a local run, `wachiman status` shows what the runs kept on this laptop cost
+([docs/cli.md](docs/cli.md#status)); runs by the workflow are not in it.
 
 ## Install
 
@@ -98,13 +115,12 @@ nothing posted: Wachiman sends no telemetry and makes no GitHub requests in loca
 is sent to your configured Claude account for the review. Read
 [docs/local-review.md](docs/local-review.md) before running it on an employer's code.
 
-Install it from source: run `scripts/install-local.sh` once from your clone. The npm package
+Install it from npm (below), or from source: run `scripts/install-local.sh` once from your clone. The npm package
 (`npm i -g wachiman` or `bun add -g wachiman`; it is written to work on Windows (Git Bash, PowerShell), and it is expected to work wherever Node and Bun run, but it is not tested in CI: it ships the
 TypeScript source and a small Node launcher, and it installs Bun for you by depending on the
 official npm package `bun`, which means installing it downloads Bun, 23 to 42 MB compressed; with
 `--ignore-scripts` it uses a Bun already on your `PATH`; details and the supply-chain note are in
-[docs/local-review.md](docs/local-review.md#from-npm)) is published from the first release that
-includes this change; until the first publish succeeds, use the script. Both give a global `wachiman local …`
+[docs/local-review.md](docs/local-review.md#from-npm)) is published. Both give a global `wachiman local …`
 command; the script also links the `wachiman-review` agent skill, usable from any project, and the
 `wachiman-audit` skill, which compares Wachiman's findings with another reviewer's on the same
 commits (data and procedure in

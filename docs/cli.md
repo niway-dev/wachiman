@@ -342,6 +342,38 @@ repository's key. It runs no `claude` and calls no GitHub. With no history, `--j
 Exit codes: 0 listed, recorded or forgotten (a missing history prints one line and exits 0); 2 usage
 error, including a `--verdict` id that matches no finding.
 
+### `status`
+
+`wachiman status` shows what this laptop kept of its local runs and what they cost, so you can see
+where the spend goes. It reads the history files under `~/.wachiman/history` and, without
+`--all-repos` or `--repo`, runs `git rev-parse` and `git remote get-url` in `--repo-dir` to find the
+repository's key. It runs no `claude`, calls no GitHub and sends nothing. Damaged history files
+are moved aside with an `.unreadable-<timestamp>` suffix and a warning on stderr.
+
+**What it covers.** Only runs saved by `wachiman local --history` (or `AGENT_REVIEW_HISTORY=1`).
+Runs made by the GitHub Actions workflow are not in those files and are not counted, so the total is
+the local spend, not Wachiman's whole spend. The cost is Claude Code's `total_cost_usd`: an
+API-equivalent estimate, not a bill. A new `--history` run deletes runs older than 30 days
+(`AGENT_REVIEW_HISTORY_DAYS`, `0` keeps them all), so the total reaches back at most that far.
+
+| Option | What it does |
+| --- | --- |
+| `--since <n>d` | Only runs from the last `n` days |
+| `--all-repos` | Every repository in the history, not just this clone's |
+| `--repo <name\|key>` | One repository by name or key, from any directory; ambiguous names require a key |
+| `--model <text>` | Only runs whose model id contains the text (`sonnet`, `claude-haiku-5-5`) |
+| `--profile <name>` | Only runs made with that named account; older records without an account use the execution profile (`default`, `isolated` or `ci`) |
+| `--by day\|repo\|model\|profile` | How the table groups runs (default `day`); repositories are grouped by their unique key |
+| `--json` | `wachiman.status/1`: the filters, totals, groups and every run with its attributes |
+
+Each run in the JSON carries `at`, `repositoryKey`, `repository`, `change`, `head`, `model`,
+`effort`, `profile`, `engineVersion`, `costUsdEstimate`, `tokens` and `findings`, so any other
+cut can be made with a JSON tool. A pull request number is not among them: a local run reviews a
+branch or a commit.
+
+Exit codes: 0 printed (with no run kept it prints one line saying how to start, and exits 0); 2
+usage error.
+
 ## What it posts
 
 - `review`: one GitHub review with the event `COMMENT`, never an approval or a change request. Its

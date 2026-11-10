@@ -11,6 +11,7 @@
  *   wachiman local [paths…]         review the committed branch of a clone on the signed-in
  *                                       `claude`, and print it; no GitHub call (src/local.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
+ *   wachiman status                 what the local history kept and its estimated cost; files only
  *   wachiman setup [--profile <name>] bind this repository to an account profile (home config only);
  *                                       on a terminal without --profile it asks
  *   wachiman init                   write the GitHub caller workflow, or hand over to `setup`
@@ -29,6 +30,7 @@ import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
+import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
 import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
@@ -56,6 +58,10 @@ export const USAGE = `Usage:
                                                      List, judge and forget the findings kept by
                                                      \`local --history\`; reads files and local git
                                                      metadata only: no claude, no GitHub
+  ${statusUsage}
+                                                     What this laptop kept of its local runs and their
+                                                     estimated cost, filterable; uses local history. GitHub
+                                                     Actions runs are not counted
   ${setupUsage}
                                                      Bind this repository to an account profile; written
                                                      in the Wachiman home, never in the repository. On a
@@ -100,6 +106,7 @@ Environment:
 Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
+\`status\`: 0 printed (also with no run kept), 2 usage error.
 \`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
 \`setup\`, \`init\`: 130 cancelled (Escape, Ctrl-C, Ctrl-D); nothing pending is saved.
 \`skills\`: 0 done (copies left in place are warned about), 1 a copy could not be written, 2 usage error or a refused target.
@@ -235,6 +242,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
       return runAccountCommand(mode, args.slice(1), repoDir, env);
     }
     if (mode === "setup" || mode === "init") return await runWizard(mode, args.slice(1), repoDir, env);
+    if (mode === "status") {
+      const parsed = parseStatusArgs(args.slice(1));
+      if ("help" in parsed) return (writeAll(1, `${statusUsage}\n`), 0);
+      return runStatus(parsed, repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line), version: readVersion() });
+    }
     if (mode === "history") {
       return runHistory(parseHistoryArgs(args.slice(1)), repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }

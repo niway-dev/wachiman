@@ -96,12 +96,17 @@ One-time setup by the owner, not done by any code in this repository:
    (`npm login`, then `npm publish` of the verified tarball from the release, or whatever npm
    currently requires). The name was unclaimed on 2026-11-09 (the registry answered 404), and
    npm's trusted-publisher setting lives on a package page, so it cannot be configured before the
-   package exists. Until this is done, the `publish` job is expected to fail.
+   package exists. The workflow cannot publish the first version before this setup is complete.
+
 3. On npmjs.com, in the package's settings, add a trusted publisher: GitHub Actions, repository
    `niway-dev/wachiman`, workflow file `release-please.yml`, environment `npm`.
 
+Status: 1.10.0 was published by hand with `--provenance=false`. Its `publish` run will stay
+failed because npm cannot publish an existing version again. The trusted publisher is configured;
+a successful workflow publish of a later version validates it.
+
 If `publish` fails after the tag exists (the registry was down, the trusted publisher was not set
-yet), use "Re-run failed jobs" on that run: it publishes the same tarball from the same artifact
+yet), and that version is not already on npm, use "Re-run failed jobs" on that run: it publishes the same tarball from the same artifact
 (kept 30 days). Do not move the tag. If the artifact has expired, ship a fix as a new release.
 
 Windows: CI has no Windows job (it was removed), so Windows is not tested; it is expected to work wherever Node and Bun run,
