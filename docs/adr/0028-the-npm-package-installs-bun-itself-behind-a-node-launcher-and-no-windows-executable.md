@@ -5,7 +5,7 @@
   launcher with its bundled Bun, the source path, gated publishing) are implemented by the npm
   packaging slice (branches `feat/npm-package` and `feat/npm-bundled-bun`). Not yet published to
   npm: the first publish happens when the release workflow runs on a release that contains this
-  slice. **Windows is not tested in CI and is unsupported:** the `windows-latest` job was removed
+  slice. **Windows is not tested in CI, and is expected to work wherever Node and Bun run:** the `windows-latest` job was removed
   (see Decision 3).
   **Amends** draft
   [ADR 0026 in PR #135](https://github.com/niway-dev/wachiman/pull/135) (PR #135, unmerged): keeps its
@@ -74,10 +74,10 @@ download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 
    Bun found but older than 1.3, naming its version), each with the install commands, and exits 2. It sets and unsets no
    environment variable, translates none into a flag, and never downloads or installs anything.
    `npm i -g wachiman`, `bun add -g wachiman` and `npx wachiman` are the install paths, written
-   to work in Git Bash and in PowerShell; Windows is untested and unsupported (Decision 3).
+   to work in Git Bash and in PowerShell; Windows is not tested in CI (Decision 3).
 3. **There is no Windows executable.** It was tried and abandoned (Context). Windows is served by
    the same Node launcher and bundled Bun as every other OS. It is not tested
-   in CI and is unsupported: a `windows-latest` job was tried and removed by the owner's decision
+   in CI and is expected to work wherever Node and Bun run: a `windows-latest` job was tried and removed by the owner's decision
    because it produced failures unrelated to the product, mostly runner-speed timeouts. If the
    package does not work there, the launcher prints the install commands.
 4. **The source path stays supported for contributors:** `bin/wachiman` (bash) and

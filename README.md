@@ -76,7 +76,7 @@ with a notice; see [docs/upgrading.md](docs/upgrading.md).
   Bun through its `bun` dependency;
   [docs/local-review.md](docs/local-review.md#3-install)) and is published by the release workflow
   from the first release that includes this change. Until the first publish succeeds, install from
-  source (`scripts/install-local.sh`). macOS and Linux are covered by CI; Windows is not tested in CI and is unsupported.
+  source (`scripts/install-local.sh`). macOS and Linux are covered by CI; Windows is not tested in CI, and is expected to work wherever Node and Bun run.
 
 ## Install
 
@@ -99,7 +99,7 @@ is sent to your configured Claude account for the review. Read
 [docs/local-review.md](docs/local-review.md) before running it on an employer's code.
 
 Install it from source: run `scripts/install-local.sh` once from your clone. The npm package
-(`npm i -g wachiman` or `bun add -g wachiman`; it is written to work on Windows (Git Bash, PowerShell), but Windows is not tested in CI and is unsupported: it ships the
+(`npm i -g wachiman` or `bun add -g wachiman`; it is written to work on Windows (Git Bash, PowerShell), and it is expected to work wherever Node and Bun run, but it is not tested in CI: it ships the
 TypeScript source and a small Node launcher, and it installs Bun for you by depending on the
 official npm package `bun`, which means installing it downloads Bun, 23 to 42 MB compressed; with
 `--ignore-scripts` it uses a Bun already on your `PATH`; details and the supply-chain note are in
