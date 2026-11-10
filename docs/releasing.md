@@ -104,9 +104,8 @@ If `publish` fails after the tag exists (the registry was down, the trusted publ
 yet), use "Re-run failed jobs" on that run: it publishes the same tarball from the same artifact
 (kept 30 days). Do not move the tag. If the artifact has expired, ship a fix as a new release.
 
-Windows: the CI job `windows` (Node and Bun on `windows-latest`) must be green before the README
-and `docs/local-review.md` stop saying "Windows: pending CI". It is not part of the release gate,
-so a red Windows job does not block a release; it keeps the docs honest.
+Windows: CI has no Windows job (it was removed), so Windows is untested and unsupported, and the
+README and `docs/local-review.md` say so. Nothing about Windows is part of the release gate.
 
 Contributors can check the package without publishing: `scripts/verify-package.sh` packs the
 checkout, installs it into a temporary prefix with a closed registry and runs it

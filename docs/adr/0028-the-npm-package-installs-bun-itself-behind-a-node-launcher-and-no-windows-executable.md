@@ -5,7 +5,8 @@
   launcher with its bundled Bun, the source path, gated publishing) are implemented by the npm
   packaging slice (branches `feat/npm-package` and `feat/npm-bundled-bun`). Not yet published to
   npm: the first publish happens when the release workflow runs on a release that contains this
-  slice. **Windows with Node is pending the `windows-latest` CI job.**
+  slice. **Windows is not tested in CI and is unsupported:** the `windows-latest` job was removed
+  (see Decision 3).
   **Amends** draft
   [ADR 0026 in PR #135](https://github.com/niway-dev/wachiman/pull/135) (PR #135, unmerged): keeps its
   decisions 1 (package `wachiman`, trusted publishing) and 3 (`skills install`); **replaces** its
@@ -73,12 +74,12 @@ download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 
    Bun found but older than 1.3, naming its version), each with the install commands, and exits 2. It sets and unsets no
    environment variable, translates none into a flag, and never downloads or installs anything.
    `npm i -g wachiman`, `bun add -g wachiman` and `npx wachiman` are the install paths, written
-   to work in Git Bash and in PowerShell; Windows support is declared only once the tier below
-   is no longer pending.
+   to work in Git Bash and in PowerShell; Windows is untested and unsupported (Decision 3).
 3. **There is no Windows executable.** It was tried and abandoned (Context). Windows is served by
-   the same Node launcher and bundled Bun as every other OS. Its tier stays pending until the
-   `windows-latest` job, which installs the packed tarball with its real dependency and runs it
-   with only Node on `PATH`, is green on a published commit.
+   the same Node launcher and bundled Bun as every other OS. It is not tested
+   in CI and is unsupported: a `windows-latest` job was tried and removed by the owner's decision
+   because it produced failures unrelated to the product, mostly runner-speed timeouts. If the
+   package does not work there, the launcher prints the install commands.
 4. **The source path stays supported for contributors:** `bin/wachiman` (bash) and
    `scripts/install-local.sh`, with `WACHIMAN_DIR`. The wrapper removes env-to-flag translation and API-key stripping so all entry points
    apply the same explicit in-process local-auth refusal (ADR 0029). Announce both changes.
@@ -147,7 +148,7 @@ download is 23 MB (macOS arm64) to 42 MB (Windows x64) compressed and 60 to 115 
 - Users without a working bundled Bun are the main support cost (for example npm blocks
   dependency install scripts by default): reconsider a launcher-side download with a checksum,
   or per-platform optional packages.
-- The Windows CI job cannot be made green: report the precise blocker and keep native Windows
-  support pending an owner decision; WSL is an interim option, not a silent replacement of scope.
+- Windows support is wanted again: adding a Windows CI job back is allowed only with an owner
+  decision. WSL is an interim option, not a silent replacement of scope.
 - npm trusted publishing cannot be made to work from this repository: publish with a token
   under a protected environment and say so in the README.
