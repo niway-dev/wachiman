@@ -110,8 +110,7 @@ from `@oven/bun-<platform>` into place. Wachiman's provenance statement covers W
 not that binary download. If your policy does not allow it, install with `--ignore-scripts` and use
 a Bun you installed from a source you trust. The package is published by the release workflow
 (see [releasing](releasing.md#publishing-to-npm)). `agent-review` is installed as a second name for
-the same command. Copying the agent skills out of the package is a separate step that this version
-does not do; use the clone path below for the skills until it does.
+the same command. Install the optional agent skills separately with `wachiman skills install`; it preserves unmarked or edited copies. See [`skills`](cli.md#skills).
 
 ### From a clone (unreleased source, and the agent skills)
 
@@ -160,6 +159,35 @@ shim that `npm i -g bun` creates. The Windows install line is
 
 Prefer no install? The raw command is
 `bun --no-env-file --config=<engine>/bunfig.toml <engine>/src/cli.ts local --repo-dir <clone>`.
+
+### Configure this project
+
+From an existing Git worktree, run:
+
+```sh
+wachiman init --mode local
+```
+
+Choose **Use my current Claude session** to use your normal sign-in and settings, or
+select an existing profile, create an isolated one, or register a directory you already
+use. Enter prefers the project's binding, then your configured default, then your current
+session. Review the binding and confirm it. Wachiman saves references under its own home;
+it does not copy credentials or write configuration into your repository.
+
+The final checks make no model call. `local: ready` means the required machine/account
+checks passed; the review range still needs to be valid. If a check fails, the binding
+stays saved, the command exits 1 and shows a doctor command for this repository. Fix the
+reported issue before running the review. A signed-out current session needs your normal
+`claude` sign-in; an isolated/external account has its own login command.
+
+`wachiman setup` can change the binding later. `wachiman init` without `--mode` also offers
+GitHub or both. GitHub setup leaves secret creation and workflow submission as manual steps.
+
+Escape, Ctrl-C or EOF cancels with exit 130. A confirmed directory creation, login, workflow
+write or binding is reported accurately if a later stage is cancelled. Re-running keeps the
+existing binding selected. Use `NO_COLOR=1` for plain output; Windows suggestions name their
+shell. In scripts use `wachiman setup --profile default --yes` (or a registered profile): no
+prompt is shown, and `--profile` is required.
 
 ## 4. Run
 

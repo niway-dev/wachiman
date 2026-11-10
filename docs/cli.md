@@ -24,10 +24,11 @@ bun src/cli.ts --help
 bun src/cli.ts --version
 ```
 
-`package.json` declares `"bin": {"wachiman": "src/cli.ts", "agent-review": "src/cli.ts"}` and the file
-starts with `#!/usr/bin/env bun`, so an installed copy can be run as `wachiman …`; `agent-review …` is
-the name before the naming release and still works. Bun is required (the
-engine uses `Bun.Glob`), and so are the `gh` CLI and the provider's binary on the `PATH`.
+`package.json` installs both `wachiman` and `agent-review` through the Node launcher
+`bin/wachiman.js`. Node 20 or later must be on `PATH`. The package installs Bun as
+its dependency; the launcher uses that binary when usable, otherwise a compatible
+Bun on `PATH`. Source contributors can still run `bun src/cli.ts`. Git and the
+provider binary are needed for local reviews; GitHub commands also need `gh`.
 
 Argument rules, as implemented:
 
@@ -243,9 +244,10 @@ closing `doctor` summary failed (the binding is already written); `profile` and 
 showing its default (numbered lists mark `(default)`, text shows `[value]`, Enter takes it):
 
 1. `Set up this repository?` after printing the repository and its current binding.
-2. Which profile: the registered profiles (name, kind, directory, binary or `PATH`; `(current)`
-   and `(global default)` marked), then `Register an existing Claude configuration directory
-   (external)` and `Create a new isolated profile (managed)`. Registering asks for the directory,
+2. Which profile: your current Claude session, the registered/discovered profiles (name, kind,
+   directory, binary or `PATH`; `(current)` and `(global default)` marked), then
+   `Create a new isolated profile (managed)` and `Register an existing Claude configuration
+   directory (external)`. Registering asks for the directory,
    the `claude` binary (empty for `PATH`) and a name; the entry stays pending. Creating asks for a
    name and then, naming the side effect, whether to create `~/.wachiman/claude-<name>` and open
    Claude there so you can sign in; that directory and sign-in happen at once, and nothing is
@@ -254,8 +256,16 @@ showing its default (numbered lists mark `(default)`, text shows `[value]`, Ente
    scope, then `Bind <repo> to <profile>?`. Only a yes saves anything, and it saves the pending
    profile (if any) and the binding in one locked write.
 
-Then it checks the account (offering `Sign in now?` when signed out) and prints the `doctor`
-summary and the `wachiman local` line. Escape, Ctrl-C or Ctrl-D exits 130; before the final yes no
+The selector offers your current Claude session (`default`), registered/discovered profiles,
+creation of an isolated profile, and registration of an existing directory. Enter prefers the
+current binding, then the configured global default, then your current session. The current
+session shares your normal Claude settings; it does not register or copy a profile directory.
+
+Then it checks the account (offering `Sign in now?` for a signed-out managed/external profile)
+and prints the `doctor` summary. Required checks passing produces `local: ready` and a review
+command; this does not validate the review range. A required failure produces `local: not ready`,
+exit 1, and a doctor command for this repository. The saved binding remains. Suggested paths are
+shell-quoted; Windows output names PowerShell and Git Bash alternatives. Escape, Ctrl-C or Ctrl-D exits 130; before the final yes no
 configuration is saved, and a managed directory or a Claude sign-in that already happened is
 listed, never described as undone.
 
@@ -270,9 +280,23 @@ First-time setup of a repository. `--mode github` writes the maintained caller w
 (`templates/wachiman-review-caller.yml`) to `.github/workflows/wachiman-review.yml` with your
 `operator:` and the release tag you pin, and a one-line header that says Actions is billed through
 the repository secret `ANTHROPIC_API_KEY` while local runs use your signed-in `claude`. `--mode
-local` writes nothing and prints the `wachiman setup` line; `--mode both` writes the workflow, then
-prints that line, or on a terminal continues directly into the setup wizard in the same process. Choosing local or both already requests account setup; the final binding still needs confirmation. It never
-commits, pushes, opens a pull request or creates a secret.
+local` writes no workflow; on a terminal it continues directly into account selection and the
+final binding confirmation. `--mode both` writes the workflow and then continues into the same
+account setup. Without prompts, local/both prints the command to run `setup` separately; it does
+not log in or bind an account. Choosing local/both already requests setup, so no second general
+invitation is shown. Standalone `setup` keeps its opening invitation. Init never commits, pushes,
+opens a PR or creates a secret.
+
+The Git worktree is validated before questions. Interactive stages identify the project, review
+mode, configuration, binding confirmation when relevant, and checks/next actions. The route total
+appears once the mode is known. `NO_COLOR` (including an empty value), `TERM=dumb` and non-terminal
+output disable styling; prompts and status stay on stderr. JSON results and dry-run workflow
+bytes on stdout are unchanged. Existing workflow replacement still requires `--force`.
+
+A written workflow is reported as `github: pending`: add `ANTHROPIC_API_KEY` and submit the workflow
+in GitHub. Init does not check those remote actions. Both mode reports this separately from local
+readiness. If later account setup is cancelled or fails, the confirmed workflow stays and the
+message says so.
 
 | Flag | Rule |
 | --- | --- |

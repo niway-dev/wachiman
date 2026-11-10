@@ -1,7 +1,8 @@
 # Draft: CLI readiness and project onboarding stack
 
-Status: draft for implementation, 2026-11-10. No implementation PRs have been opened
-by this plan. Baseline inspected: `1a820af`.
+Status: implementation stack opened, 2026-11-10; final independent review and CI
+are pending. The original inspection baseline was `1a820af`. Planning PR:
+[#162](https://github.com/niway-dev/wachiman/pull/162).
 
 ## Outcome
 
@@ -38,17 +39,19 @@ it does not promise support for non-Git directories or every operating system.
 - ADR 0028 explicitly records the abandoned Windows executable and missing Windows
   CI coverage. A standalone executable is not a pending deliverable of this stack.
 - `docs/cli.md` still describes `src/cli.ts` as the npm bin, although `package.json`
-  points at `bin/wachiman.js`. The older CLI implementation plan is historical and
-  contains an obsolete “nothing built” statement.
+  points at `bin/wachiman.js`. The older implementation plan found during the original inspection is no longer
+  present in the implementation base; the retained design is now explicitly historical.
 
-No live login, paid model call, real-terminal walkthrough or native Windows run has
-been performed for this draft. Acceptance criteria below remain unchecked.
+No live login, paid model call or native Windows run was performed. A real PTY
+editing probe returned `ab` after typing `abc`, Backspace and Enter. The checklist
+below remains the review contract; the execution record distinguishes verified
+behavior from remaining gaps.
 
 ## Stack and delivery rules
 
 Open the layers in this order. Each branch starts from the preceding layer and each
 PR targets that layer until it merges; retarget and update the remaining layers
-after each merge. The branch names and titles below are proposed, not created.
+after each merge. The branches below now exist; their PRs are listed in the execution record.
 
 | Layer | Proposed branch | Proposed PR title | Purpose |
 | --- | --- | --- | --- |
@@ -238,3 +241,25 @@ Review the current-session default and transaction boundaries first. The branch
 names and PR titles are safe to adjust when opening the actual stack. This draft
 does not need a runtime test run: it changes documentation only and records the
 previous test result without claiming a new passing run.
+
+## Execution record — 2026-11-10
+
+| Layer | Pull request | Local evidence |
+| --- | --- | --- |
+| 1 | [#163](https://github.com/niway-dev/wachiman/pull/163) | TERM=dumb reproduced on Bun 1.3.4 and 1.4.2; corrected fixture: 24 wizard tests pass on both; real PTY returns ab |
+| 2 | [#164](https://github.com/niway-dev/wachiman/pull/164) | 48 setup tests pass, including current-session defaults and signed-out repair |
+| 3 | [#166](https://github.com/niway-dev/wachiman/pull/166) | Actual local/both init-to-setup integration, early non-Git rejection, subdirectories, linked worktree, completed-workflow cancellation/failure reporting |
+| 4 | [#167](https://github.com/niway-dev/wachiman/pull/167) | 195 targeted tests pass; scripted before/after local/both output and validation captured; NO_COLOR/TERM=dumb/pipe fallback tested |
+| 5 | [#168](https://github.com/niway-dev/wachiman/pull/168) | 360 targeted tests pass; real POSIX shell parses special-character paths; local-ready/GitHub-pending and failed-check recovery tested |
+| 6 | `docs/cli-readiness` (this layer) | Documentation, verification recipe and final check results in this layer's PR |
+
+All counts above are observed targeted runs with exit 0. Captures use isolated
+fixture homes and fake account probes; they establish output behavior rather than
+real sign-in or remote GitHub readiness. The full suite, exact-package checks and
+independent review are recorded in the final PR so their result is attached to an
+identified head. A preliminary full-suite run overlapped source edits and is not
+used as final evidence; the final run must use a stable tree.
+
+Remaining platform gap: native PowerShell/Windows has not been exercised. Windows
+strings are generated, not advertised as validated. No Windows executable or new
+runtime dependency was added. The stack leaves PRs open for a person to merge.

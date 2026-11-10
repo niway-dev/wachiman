@@ -31,10 +31,22 @@ You need:
 - **Pull requests from branches in the same repository.** Fork pull requests are skipped on
   purpose.
 
+## Choose where reviews run
+
+After installing the [npm CLI](local-review.md#from-npm), run `wachiman init` inside your
+Git repository. Choose local, GitHub Actions, or both. Local setup offers your current
+Claude session, so you do not need to find its configuration directory. Both mode prepares
+the workflow and then continues into account setup. Existing project bindings are proposed
+on subsequent runs; existing workflows need `--force` before replacement.
+
+For local reviews only, follow [local setup](local-review.md#configure-this-project).
+The GitHub tutorial below requires an API key; local reviews use your Claude sign-in.
+
 ## Three steps
 
-Steps 1 and 3 can be done by `wachiman init`, which writes the caller file with your operator and
-the release tag you pin; step 2 stays yours, because the key is only ever saved in GitHub:
+`wachiman init` prepares step 1: it writes the caller file with your operator and the
+release tag you pin. Adding the secret (step 2) and opening the pull request (step 3)
+remain manual actions in GitHub:
 
 ```sh
 wachiman init --mode github --operator <your-github-login> --version v1.5.0

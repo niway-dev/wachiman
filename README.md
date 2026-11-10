@@ -127,6 +127,11 @@ commits (data and procedure in
 [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks)). Details and the Windows
 note are in [docs/local-review.md](docs/local-review.md#3-install).
 
+Configure an existing project with `wachiman init`: choose local reviews, GitHub Actions, or
+both. Local setup offers your current Claude session and checks the machine/account before
+suggesting the first review command. GitHub setup writes the workflow; adding the secret and
+submitting the workflow remain manual. See [project setup](docs/local-review.md#configure-this-project).
+
 ## Documentation map
 
 | I want to… | Read |
