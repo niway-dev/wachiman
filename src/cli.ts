@@ -60,7 +60,7 @@ export const USAGE = `Usage:
                                                      metadata only: no claude, no GitHub
   ${statusUsage}
                                                      What this laptop kept of its local runs and their
-                                                     estimated cost, filterable; reads files only. GitHub
+                                                     estimated cost, filterable; uses local history. GitHub
                                                      Actions runs are not counted
   ${setupUsage}
                                                      Bind this repository to an account profile; written
