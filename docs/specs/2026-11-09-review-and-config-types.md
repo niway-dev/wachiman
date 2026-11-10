@@ -6,7 +6,7 @@
   [canonical design](2026-11-09-cli-and-verified-reviews-design.md) and the
   [command contract](2026-11-09-cli-command-contract.md). Types are TypeScript-like; the JSON
   Schemas named here are the contract for the external formats and are written in slice 2 of
-  the [plan](../plans/2026-11-09-cli-and-verified-reviews.md). Each section says which types
+  the implementation plan (retained in git history). Each section says which types
   exist today (`src/…` at `b3f60be` or in the `findings-verifier-impl` worktree) and which are
   planned. Nothing planned exists.
 - **Conventions:** `type X = A | B` with a `kind` or `status` discriminant; every optional field
@@ -285,7 +285,7 @@ interface ProfileList {
 }
 ```
 
-## 4. Review input — `wachiman.review-input/1` today, `/2` with the working tree (planned, slice 6)
+## 4. Review input — `wachiman.review-input/1` today, `/2` with the working tree (implemented, slice 6)
 
 `/1` is implemented (`src/formats.ts`, `docs/formats/review-input.v1.schema.json`) and unchanged
 by slices 0–5. `/2` adds exactly one enum value:

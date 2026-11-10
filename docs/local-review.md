@@ -397,3 +397,23 @@ of those rows is unconfirmed.
 
 Exit codes: 0 a report was printed (complete, partial, or ended by a usage limit), 1 no call
 returned a review, 2 usage error, 130 interrupted. See [cli.md](cli.md#local).
+
+## Review uncommitted tracked changes
+
+```sh
+wachiman local --working-tree staged
+wachiman local src --working-tree all --format json --history
+```
+
+`staged` reviews the current index against `HEAD`. `all` includes unstaged edits and deletions
+of the index's tracked paths. Stage a new file to include it: untracked and ignored files are
+excluded. A temporary index and object database keep the real checkout unchanged; a change
+during capture aborts with a retry message. After capture, later edits cannot affect the review.
+Symlinks are read as link text. Conflicts, unborn HEAD, split indexes, sparse/skip-worktree
+entries and gitlinks are explicitly refused. No configured filters, hooks, fsmonitor, external
+diff or submodule commands run during capture.
+
+JSON uses result `/2` automatically for working-tree reviews; `/1` is refused before model calls.
+Committed reviews keep their existing `/1` default. With `--history`, finding fingerprints can
+match earlier runs; a missing finding involving a temporary tree stays unknown rather than being
+called fixed. See [the CLI contract](cli.md#working-tree-snapshots) for capture and cleanup rules.

@@ -11,18 +11,19 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadConfig, UsageError } from "./config";
-import { buildLocalInput, DEFAULT_MAX_DEPTH, EMPTY_TREE_LABEL, type LocalRefs, removeSnapshot, snapshotHead, warnSnapshotDifferences } from "./connectors/local-git";
 import {
-  DEFAULT_EXCLUDE,
-  filterFiles,
-  planBatches,
-  reviewChange,
-  reviewOptionsOf,
-  type ReviewInput,
-  type ReviewResult,
-} from "./engine";
+  buildLocalInput,
+  DEFAULT_MAX_DEPTH,
+  EMPTY_TREE_LABEL,
+  type LocalRefs,
+  removeSnapshot,
+  snapshotHead,
+  warnSnapshotDifferences,
+} from "./connectors/local-git";
+import { DEFAULT_EXCLUDE, filterFiles, planBatches, reviewChange, reviewOptionsOf, type ReviewInput, type ReviewResult } from "./engine";
 import { spawnGit } from "./evidence";
-import { assertReviewInputFormat } from "./formats";
+import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
+import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
 import { historyRoot, historySettings, saveRun } from "./history";
 import { readConfig, wachimanHome } from "./accounts/config";
 import { confirmProfile, type SpawnFn } from "./accounts/confirm";
@@ -40,6 +41,7 @@ export const FORMATS = ["terminal", "markdown", "json"] as const;
 export type LocalFormat = (typeof FORMATS)[number];
 
 export interface LocalArgs {
+  workingTree?: "staged" | "all";
   base?: string;
   commit?: string;
   from?: string;
@@ -61,11 +63,19 @@ export interface LocalArgs {
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
                [--profile <name>] [--agent-prompt] [--history] [--verify | --no-verify]
-               [--result-version 1|2]`;
+               [--result-version 1|2] [--working-tree staged|all]`;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLocalArgs(argv: string[]): LocalArgs {
-  const args: LocalArgs = { paths: [], format: "terminal", profile: undefined, agentPrompt: false, history: false, verify: undefined, input: undefined };
+  const args: LocalArgs = {
+    paths: [],
+    format: "terminal",
+    profile: undefined,
+    agentPrompt: false,
+    history: false,
+    verify: undefined,
+    input: undefined,
+  };
   let base: string | undefined;
   let sawVerify = false;
   let sawNoVerify = false;
@@ -91,22 +101,25 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
     } else if (name === "--no-verify" && eq === -1) {
       args.verify = false;
       sawNoVerify = true;
-    }
-    else if (name === "--result-version") {
+    } else if (name === "--result-version") {
       const v = value();
       if (v !== "1" && v !== "2") throw new UsageError(`--result-version must be 1 or 2, got "${v}".`);
       args.resultVersion = v === "1" ? 1 : 2;
-    }
-    else if (name === "--base") {
+    } else if (name === "--working-tree") {
+      const v = value();
+      if (v !== "staged" && v !== "all") throw new UsageError("--working-tree must be staged or all.");
+      args.workingTree = v;
+      picked.push(name);
+    } else if (name === "--base") {
       base = value();
       picked.push(name);
     } else if (name === "--commit" || name === "--from") {
       args[name === "--commit" ? "commit" : "from"] = value();
       picked.push(name);
-    }
-    else if (name === "--max-depth") {
+    } else if (name === "--max-depth") {
       const v = value();
-      if (!/^[1-9]\d*$/.test(v) || !Number.isSafeInteger(Number(v))) throw new UsageError(`--max-depth must be a positive integer, got "${v}".`);
+      if (!/^[1-9]\d*$/.test(v) || !Number.isSafeInteger(Number(v)))
+        throw new UsageError(`--max-depth must be a positive integer, got "${v}".`);
       args.maxDepth = Number(v);
     } else if (name === "--output") args.output = value();
     else if (name === "--profile") args.profile = parseProfile(value());
@@ -126,8 +139,9 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
   if (picked.length > 1) throw new UsageError(`${picked[0]} and ${picked[1]} cannot be used together.`);
   if (base !== undefined) args.base = base;
   if (args.input !== undefined && (picked.length > 0 || args.paths.length > 0)) {
-    throw new UsageError("--input reviews the file's change as it is: it takes no --base, --from or --commit, and no paths.");
+    throw new UsageError("--input reviews the file's change as it is: it takes no --base, --from, --commit or --working-tree, and no paths.");
   }
+  if (args.workingTree && args.resultVersion === 1) throw new UsageError("Working-tree reviews require --result-version 2.");
   return args;
 }
 
@@ -153,6 +167,18 @@ export function readInputFile(path: string): Omit<ReviewInput, "headDir"> {
   const change = input.change;
   if (!change || typeof change !== "object") problems.push("change");
   else {
+    if (!["pull-request", "branch", "working-tree"].includes(change.kind)) problems.push("change.kind");
+    if (change.kind === "working-tree") {
+      const w = change.workingTree;
+      if (
+        input.format !== REVIEW_INPUT_V2 ||
+        !w ||
+        !["staged", "all"].includes(w.mode) ||
+        w.tree !== change.head?.sha ||
+        w.baseCommit !== change.base?.sha
+      )
+        problems.push("change.workingTree");
+    } else if (change.workingTree !== undefined) problems.push("change.workingTree");
     if (!isString(change.describe)) problems.push("change.describe");
     if (!isString(change.repository?.name)) problems.push("change.repository.name");
     if (!isString(change.head?.sha) || !HEX_SHA.test(change.head.sha)) problems.push("change.head.sha");
@@ -215,17 +241,27 @@ export function runLocal(
   args: LocalArgs,
   repoDir: string,
   env: Record<string, string | undefined>,
-  io: { stdout: (text: string) => void; stderr: (line: string) => void; engineVersion: string },
+  io: {
+    stdout: (text: string) => void;
+    stderr: (line: string) => void;
+    engineVersion: string;
+  },
   deps: LocalDeps = {},
 ): number {
+  const fileInput = args.input === undefined ? undefined : readInputFile(args.input);
+  if ((args.workingTree || fileInput?.change.kind === "working-tree") && args.resultVersion === 1) {
+    throw new UsageError("Working-tree reviews require --result-version 2; a tree is not a commit.");
+  }
   const loaded = loadConfig(env, io.stderr);
   if (loaded.provider !== "claude-code") {
-    throw new UsageError(
-      `AGENT_REVIEW_PROVIDER=${loaded.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`,
-    );
+    throw new UsageError(`AGENT_REVIEW_PROVIDER=${loaded.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`);
   }
   // A person ran it: no automatic ceiling (decision 14).
-  const config = { ...loaded, trigger: undefined, verify: args.verify ?? loaded.verify };
+  const config = {
+    ...loaded,
+    trigger: undefined,
+    verify: args.verify ?? loaded.verify,
+  };
   // Before the provider exists; the adapter's own check in preflight() is the second line.
   if (env.ANTHROPIC_API_KEY) throw new UsageError(SUBSCRIPTION_KEY_REFUSAL);
   // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.
@@ -296,14 +332,37 @@ export function runLocal(
   verifier?.preflight();
 
   let snapshotDir: string | undefined;
+  let releaseWorkingTree: (() => void) | undefined;
   const onSigint = () => {
     state.interrupted = true;
   };
   process.on("SIGINT", onSigint);
   try {
     let input: ReviewInput;
-    if (args.input === undefined) {
-      const built = buildLocalInput({ repoDir, base: args.base, commit: args.commit, from: args.from, maxDepth: args.maxDepth ?? DEFAULT_MAX_DEPTH, paths: args.paths, log: io.stderr, warn: io.stderr });
+    if (args.workingTree) {
+      const built = workingTreeInput({
+        repoDir,
+        mode: args.workingTree,
+        paths: args.paths,
+        log: io.stderr,
+        warn: io.stderr,
+      });
+      releaseWorkingTree = built.release;
+      input = built.input;
+      io.stderr(`mode: working tree (${args.workingTree})`);
+      io.stderr(`base: HEAD (${short(input.change.base.sha)})`);
+      io.stderr(`tree: ${short(input.change.head.sha)}`);
+    } else if (args.input === undefined) {
+      const built = buildLocalInput({
+        repoDir,
+        base: args.base,
+        commit: args.commit,
+        from: args.from,
+        maxDepth: args.maxDepth ?? DEFAULT_MAX_DEPTH,
+        paths: args.paths,
+        log: io.stderr,
+        warn: io.stderr,
+      });
       snapshotDir = built.snapshotDir;
       input = built.input;
       const { refs } = built;
@@ -326,22 +385,38 @@ export function runLocal(
         io.stderr(`head: ${refs.headRef} (${short(refs.headSha)})`);
       }
     } else {
-      const fromFile = readInputFile(args.input);
+      const fromFile = fileInput!;
       const head = fromFile.change.head.sha;
-      if (spawnGit(["cat-file", "-e", `${head}^{commit}`], { cwd: repoDir, timeoutMs: 60_000 }).status !== 0) {
+      if (
+        fromFile.change.kind !== "working-tree" &&
+        spawnGit(["cat-file", "-e", `${head}^{commit}`], {
+          cwd: repoDir,
+          timeoutMs: 60_000,
+        }).status !== 0
+      ) {
         throw new UsageError(`The input's head ${short(head)} is not a commit in ${repoDir}; pass the clone that has it with --repo-dir.`);
       }
-      const snapshot = snapshotHead(repoDir, head);
+      const snapshot =
+        fromFile.change.kind === "working-tree"
+          ? { ...snapshotWorkingTree(repoDir, head), missing: [], extra: [] }
+          : snapshotHead(repoDir, head);
       snapshotDir = snapshot.dir;
       warnSnapshotDifferences(snapshot, io.stderr);
       input = { ...fromFile, headDir: snapshot.dir };
       io.stderr(`head: ${short(head)}`);
     }
     const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
-    const batches = planBatches(kept, { maxLines: config.batchLines, maxChars: config.batchChars });
+    const batches = planBatches(kept, {
+      maxLines: config.batchLines,
+      maxChars: config.batchChars,
+    });
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
     io.stderr(`batches: ${batches.length}`);
-    io.stderr(config.verify ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})` : "verify: off");
+    io.stderr(
+      config.verify
+        ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})`
+        : "verify: off",
+    );
 
     const result = reviewChange(input, reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), {
       provider,
@@ -350,8 +425,13 @@ export function runLocal(
       ...(verifier
         ? {
             baseSnapshot: () => {
-              const base = snapshotHead(repoDir, input.change.base.sha);
-              return { dir: base.dir, release: () => removeSnapshot(base.dir) };
+              const base = input.change.kind === "working-tree"
+                ? snapshotWorkingTree(repoDir, `${input.change.base.sha}^{tree}`)
+                : snapshotHead(repoDir, input.change.base.sha);
+              return {
+                dir: base.dir,
+                release: () => removeSnapshot(base.dir),
+              };
             },
           }
         : {}),
@@ -386,10 +466,14 @@ export function runLocal(
     }
     const text =
       args.format === "json"
-        ? renderJson(result, args.resultVersion ?? 1)
+        ? renderJson(result, args.resultVersion ?? (input.change.kind === "working-tree" ? 2 : 1))
         : args.format === "markdown"
           ? renderMarkdown(result, { profileNote, history: annotation })
-          : renderTerminal(result, { profileNote, agentPrompt: args.agentPrompt, history: annotation });
+          : renderTerminal(result, {
+              profileNote,
+              agentPrompt: args.agentPrompt,
+              history: annotation,
+            });
     if (args.output !== undefined) {
       const path = resolve(args.output);
       writeFileSync(path, text);
@@ -399,5 +483,6 @@ export function runLocal(
   } finally {
     process.off("SIGINT", onSigint);
     if (snapshotDir) removeSnapshot(snapshotDir);
+    releaseWorkingTree?.();
   }
 }

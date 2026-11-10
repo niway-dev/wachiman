@@ -11,7 +11,7 @@ they post and how they exit.
 bun src/cli.ts review <pr> [paths…] [--repo-dir <dir>]
 bun src/cli.ts comment <pr> [--repo-dir <dir>]   # the comment text comes from $REQUEST
 bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman threads, no review
-bun src/cli.ts local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
+bun src/cli.ts local [paths…] [--base <ref> | --from <commit> | --commit <commit> | --working-tree staged|all] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
   [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
 bun src/cli.ts setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]
 bun src/cli.ts init [--mode github|local|both] [--operator <login>] [--version <tag>] [--path <file>] \
@@ -158,16 +158,17 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--base <ref>` | `origin/HEAD` when it resolves, else `main` | The branch the change is compared with. No fetch is made |
 | `--from <commit>` | none | Review from that commit forward, inclusive: `<commit>^ → HEAD`. The commit must be an ancestor of `HEAD`, and `HEAD` a branch. A root commit starts from the empty tree. The depth limit applies to `<commit>^..HEAD`. Excludes `--base`, `--commit` and `--input` |
 | `--commit <commit>` | none | Review exactly that commit: `<commit>^ → <commit>` (the first parent for a merge commit; the empty tree for a root commit). Any commit of the clone, whatever `HEAD` is, even detached; nothing in the working tree is touched. Depth is 1. Excludes `--base`, `--from` and `--input` |
+| `--working-tree staged\|all` | none | Explicitly review tracked local changes against `HEAD`: the index (`staged`) or index plus unstaged tracked edits/deletions (`all`). Excludes all untracked and ignored files. Cannot combine with `--base`, `--from`, `--commit` or `--input`. Paths are allowed. |
 | `--max-depth <n>` | `50` | The most commits from the start commit (the merge-base, or `--from`'s parent) to `HEAD`. A deeper range exits 2 before any call; a positive integer, for this run only. Size (files, lines, batches) never blocks a run. With no `--base`, a `HEAD` on the base branch itself is refused; `--base <commit>` names the start instead. Not checked for `--input` |
 | `[paths…]` | the whole change | Only the changed files under these paths; a word that names no changed file is ignored with a line on stderr |
-| `--input <file>` | none | A `wachiman.review-input/1` file ([formats](formats/README.md)) instead of the local diff; its `change.head.sha` is snapshotted from `--repo-dir`. Takes no `--base`, `--from`, `--commit` or paths |
+| `--input <file>` | none | A `wachiman.review-input/1` or `/2` file ([formats](formats/README.md)) instead of the local diff; its `change.head.sha` is snapshotted from `--repo-dir`. Takes no `--base`, `--from`, `--commit` or paths |
 | `--format terminal\|markdown\|json` | `terminal` | Plain text; a Markdown report with every finding and the prompt for your agent; or the `ReviewResult` JSON |
 | `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
 | `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
 | `--profile <name>` | see "Which account" below | `default` is your own `claude`; a name is a registered profile (managed or external); `isolated` and `isolated:<name>` name the managed profile `~/.wachiman/claude-<name>` (which must exist and hold nothing but a sign-in) |
-| `--verify` | on (follows `AGENT_REVIEW_VERIFY`, on unless set to `0`/`false`); `--verify` forces it on | After the batches, one more call on `AGENT_REVIEW_VERIFIER_MODEL` (default Opus 5.5) tries to refute each finding above `info`. A finding is dropped only when the verifier shows a checked disproof; one it cannot settle stays, marked `inconclusive`; a true bug that predates the change is `supported` with origin `pre-existing`. The verifier can read the base commit as well as the head. The record is `verification` in `--format json --result-version 2` ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md), [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)) |
+| `--verify` | off (follows `AGENT_REVIEW_VERIFY`); `--verify` forces it on | After the batches, one more call on `AGENT_REVIEW_VERIFIER_MODEL` (default Opus 5.5) tries to refute each finding above `info`. A finding is dropped only when the verifier shows a checked disproof; one it cannot settle stays, marked `inconclusive`; a true bug that predates the change is `supported` with origin `pre-existing`. The verifier can read the base commit as well as the head. The record is `verification` in `--format json --result-version 2` ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md), [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)) |
 | `--no-verify` | — | Turn verification off for this run, even when `AGENT_REVIEW_VERIFY` is on. With `--verify` it is a usage error |
-| `--result-version 1\|2` | `1` for a committed change | With `--format json` only (any other use exits 2): which result version to write. `1` is the committed form (`toResultV1`): no `verification` block, and one line in `execution.notices` saying how verification went. `2` is the full result, with each finding's `origin`, `verification` and `tier` |
+| `--result-version 1\|2` | `1` for committed; `2` for working-tree | With `--format json` only (any other use exits 2): which result version to write. `1` is the committed form (`toResultV1`): no `verification` block, and one line in `execution.notices` saying how verification went. `2` is the full result, with each finding's `origin`, `verification` and `tier` |
 | `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
@@ -616,3 +617,25 @@ structured-output path and its own cost accounting; the differences that affect 
 Between the GitHub side and the provider, the review core reads a `wachiman.review-input/1` and
 returns a `wachiman.review-result/1`, both public JSON formats described in
 [formats/README.md](formats/README.md); no command reads or writes them as files yet.
+
+### Working-tree snapshots
+
+`wachiman local --working-tree staged` reviews the index; `--working-tree all` reviews the
+tracked path set in that index with its current file contents and deletions. New files must
+first be staged; ignored and untracked files are excluded. Neither mode changes the real
+index, worktree or object database. Committed review remains the default without this flag.
+
+Capture uses a temporary index and object database with read-only access to existing objects.
+It runs no configured filters, hooks, fsmonitor, external diff or submodule commands. Raw blobs
+are copied into the review snapshot; symlinks become link text, and symlink parents are refused.
+Archive attributes do not hide files or rewrite bytes. Capture aborts with exit 2 and a retry
+message when the index, HEAD or captured tracked files change. Subsequent edits do not affect it.
+Unborn HEAD, conflicts, split indexes, sparse/skip-worktree entries, gitlinks and non-UTF-8
+tracked paths are refused.
+
+Working-tree input and JSON results use `/2`, with `workingTree.mode`, `baseCommit` and `tree`.
+`--result-version 1` fails before provider calls. `--input` working-tree reports require an
+existing tree in the selected clone; temporary capture objects are removed after history annotation.
+History matches fingerprints but leaves missing findings involving ephemeral trees unknown,
+without querying commit ancestry on tree ids. This slice was exercised on macOS; native Windows
+and Linux execution of these new paths remain unverified locally.

@@ -325,63 +325,147 @@
   },
   "$defs": {
     "ResultChange": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kind",
-        "describe",
-        "repository",
-        "base",
-        "head"
-      ],
-      "properties": {
-        "kind": {
-          "enum": [
-            "pull-request",
-            "branch"
-          ]
-        },
-        "describe": {
-          "type": "string"
-        },
-        "repository": {
+      "oneOf": [
+        {
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "name"
+            "kind",
+            "describe",
+            "repository",
+            "base",
+            "head"
           ],
           "properties": {
-            "name": {
+            "kind": {
+              "enum": [
+                "pull-request",
+                "branch"
+              ]
+            },
+            "describe": {
               "type": "string"
             },
-            "url": {
+            "repository": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              }
+            },
+            "base": {
+              "$ref": "#/$defs/Commit"
+            },
+            "head": {
+              "$ref": "#/$defs/Commit"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "author": {
+              "type": "string"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "snapshot": {
+              "description": "The snapshot the review read, when the connector made one.",
               "type": "string"
             }
           }
         },
-        "base": {
-          "$ref": "#/$defs/Commit"
-        },
-        "head": {
-          "$ref": "#/$defs/Commit"
-        },
-        "title": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "author": {
-          "type": "string"
-        },
-        "identifier": {
-          "type": "string"
-        },
-        "snapshot": {
-          "description": "The snapshot the review read, when the connector made one.",
-          "type": "string"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "describe",
+            "repository",
+            "base",
+            "head",
+            "workingTree"
+          ],
+          "properties": {
+            "kind": {
+              "const": "working-tree"
+            },
+            "describe": {
+              "type": "string"
+            },
+            "repository": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              }
+            },
+            "base": {
+              "$ref": "#/$defs/Commit"
+            },
+            "head": {
+              "$ref": "#/$defs/Commit"
+            },
+            "title": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "author": {
+              "type": "string"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "snapshot": {
+              "description": "The snapshot the review read, when the connector made one.",
+              "type": "string"
+            },
+            "workingTree": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "mode",
+                "baseCommit",
+                "tree"
+              ],
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "staged",
+                    "all"
+                  ]
+                },
+                "baseCommit": {
+                  "type": "string"
+                },
+                "tree": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         }
-      }
+      ]
     },
     "Commit": {
       "type": "object",

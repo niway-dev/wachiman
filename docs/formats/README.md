@@ -7,6 +7,7 @@ change to review or read a review's result.
 | Format | Schema | What it is |
 | --- | --- | --- |
 | `wachiman.review-input/1` | [review-input.v1.schema.json](review-input.v1.schema.json) | A change to review: what changed (`change`), the per-file diffs (`files`), the instructions read from the base commit (`instructions`), the scope, and optionally the incremental context (`since`) and the open threads (`conversation`) |
+| `wachiman.review-input/2` | [review-input.v2.schema.json](review-input.v2.schema.json) | Adds explicit `working-tree` changes: the head is a tree id, with `workingTree.mode`, `baseCommit` and `tree`; committed `/2` inputs are also accepted |
 | `wachiman.review-result/1` | [review-result.v1.schema.json](review-result.v1.schema.json) | What the core found: coverage, findings (each with its `anchor`), contracts, the summary, per-batch reports, thread replies, and how the run went (`execution`: cost estimate, calls, turns, why it stopped) |
 | `wachiman.review-result/2` | [review-result.v2.schema.json](review-result.v2.schema.json) | The same result with the verifier's answer: each finding's `origin` (`introduced`, `pre-existing`, `unknown`), its `verification` (`supported`, `refuted`, `inconclusive`, `unverified`, with the reason and the lines checked in the `base` or `head` snapshot) and its display `tier`; a root `verification` record; and `provider.account` (a label, a kind and a rung, never a path) |
 
@@ -30,7 +31,7 @@ before it); the wrapper around it (`wachiman.history-run/1`) is internal and has
   writes `/1` for a committed change, by `toResultV1` (src/formats.ts): the same findings, no
   `/2`-only field, and one line in `execution.notices` saying what the verifier did.
   `--result-version 2` writes `/2`. Changing the default is a separately announced major release.
-  A working-tree review has no `/1` form.
+  A working-tree review defaults to `/2` and has no `/1` form.
 
 ## What is never in a file
 
