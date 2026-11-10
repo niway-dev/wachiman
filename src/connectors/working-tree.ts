@@ -171,6 +171,9 @@ export function workingTreeInput(p: {
         if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
         throw e;
       }
+      // Like git add -u, a directory replacing a tracked leaf deletes that file.
+      // Its children are untracked and must never be traversed. Parent checks above remain strict.
+      if (stat.isDirectory()) return null;
       let bytes: Buffer;
       let mode: string;
       if (stat.isSymbolicLink()) {

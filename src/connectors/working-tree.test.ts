@@ -440,3 +440,26 @@ test("encoded working files preserve raw staged, all and portable/base evidence 
     }
   }
 });
+
+test("all captures a tracked file replaced by a directory as deletion without descending", () => {
+  const dir = emptyRepo();
+  commit(dir, { "a.ts": "base\n" }, "tracked file");
+  unlinkSync(join(dir, "a.ts"));
+  mkdirSync(join(dir, "a.ts"));
+  writeFileSync(join(dir, "a.ts/untracked.ts"), "private child\n");
+  symlinkSync("/etc/passwd", join(dir, "a.ts/outside"));
+  const index = readFileSync(join(dir, ".git/index"));
+  const expected = gitWorkingTree(dir);
+  const b = capture(dir, "all");
+  try {
+    expect(b.input.change.head.sha).toBe(expected);
+    expect(b.input.files).toHaveLength(1);
+    expect(b.input.files[0]).toMatchObject({ filename: "a.ts", additions: 0, deletions: 1 });
+    expect(b.input.files[0].patch).toContain("-base");
+    expect(existsSync(join(b.input.headDir, "a.ts"))).toBe(false);
+    expect(readFileSync(join(dir, ".git/index"))).toEqual(index);
+    expect(readFileSync(join(dir, "a.ts/untracked.ts"), "utf8")).toBe("private child\n");
+  } finally {
+    b.release();
+  }
+});
