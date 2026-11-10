@@ -347,7 +347,8 @@ error, including a `--verdict` id that matches no finding.
 `wachiman status` shows what this laptop kept of its local runs and what they cost, so you can see
 where the spend goes. It reads the history files under `~/.wachiman/history` and, without
 `--all-repos` or `--repo`, runs `git rev-parse` and `git remote get-url` in `--repo-dir` to find the
-repository's key. It runs no `claude`, calls no GitHub and sends nothing.
+repository's key. It runs no `claude`, calls no GitHub and sends nothing. Damaged history files
+are moved aside with an `.unreadable-<timestamp>` suffix and a warning on stderr.
 
 **What it covers.** Only runs saved by `wachiman local --history` (or `AGENT_REVIEW_HISTORY=1`).
 Runs made by the GitHub Actions workflow are not in those files and are not counted, so the total is
@@ -359,10 +360,10 @@ API-equivalent estimate, not a bill. A new `--history` run deletes runs older th
 | --- | --- |
 | `--since <n>d` | Only runs from the last `n` days |
 | `--all-repos` | Every repository in the history, not just this clone's |
-| `--repo <name\|key>` | One repository by name or key, from any directory |
+| `--repo <name\|key>` | One repository by name or key, from any directory; ambiguous names require a key |
 | `--model <text>` | Only runs whose model id contains the text (`sonnet`, `claude-haiku-5-5`) |
-| `--profile <name>` | Only runs made with that account profile |
-| `--by day\|repo\|model\|profile` | How the table groups runs (default `day`) |
+| `--profile <name>` | Only runs made with that named account; older records without an account use the execution profile (`default`, `isolated` or `ci`) |
+| `--by day\|repo\|model\|profile` | How the table groups runs (default `day`); repositories are grouped by their unique key |
 | `--json` | `wachiman.status/1`: the filters, totals, groups and every run with its attributes |
 
 Each run in the JSON carries `at`, `repositoryKey`, `repository`, `change`, `head`, `model`,

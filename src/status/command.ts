@@ -1,11 +1,11 @@
 /**
  * `wachiman status`: what this laptop knows about its own local runs, and what they cost. It reads
  * the history files (`local --history`) and local git metadata only: no `claude`, no GitHub, no
- * network. Runs made by the GitHub Actions workflow are not in these files and are not counted.
+ * network. Damaged history files are moved aside with a warning. Runs made by the GitHub Actions workflow are not in these files and are not counted.
  */
 import { UsageError } from "../config";
 import { wachimanHome } from "../accounts/config";
-import { DEFAULT_HISTORY_DAYS, historyRoot, listKeys, readRuns, repositoryKey } from "../history/store";
+import { historySettings, historyRoot, listKeys, readRuns, repositoryKey } from "../history/store";
 import type { HistoryRun } from "../history/types";
 
 export const STATUS_FORMAT = "wachiman.status/1";
@@ -89,7 +89,7 @@ export function flatten(run: HistoryRun): StatusRun {
     head: result.change?.head?.sha ?? "",
     model: result.provider?.model ?? "",
     effort: result.provider?.effort ?? "",
-    profile: result.provider?.profile ?? "",
+    profile: (result.format === "wachiman.review-result/2" ? result.provider.account?.name : undefined) ?? result.provider?.profile ?? "",
     engineVersion: run.engine.version,
     costUsdEstimate: result.execution?.costUsdEstimate ?? 0,
     tokens: { input: usage?.input ?? 0, output: usage?.output ?? 0, cacheRead: usage?.cacheRead ?? 0, cacheWrite: usage?.cacheWrite ?? 0 },
@@ -99,7 +99,7 @@ export function flatten(run: HistoryRun): StatusRun {
 
 const keyOf: Record<Group, (r: StatusRun) => string> = {
   day: (r) => r.at.slice(0, 10),
-  repo: (r) => r.repository,
+  repo: (r) => r.repositoryKey,
   model: (r) => (r.effort ? `${r.model} (${r.effort})` : r.model),
   profile: (r) => r.profile || "(none)",
 };
@@ -151,7 +151,14 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
   const now = io.now?.() ?? new Date();
   const keys = args.allRepos || args.repo !== undefined ? listKeys(root) : [repositoryKey(repoDir).key];
   const all = keys.flatMap((key) => readRuns(root, key, io.stderr)).map(flatten);
-  const runs = filterRuns(all, args, now).sort((a, b) => a.at.localeCompare(b.at));
+  const retentionDays = historySettings(env, true).days;
+  if (args.repo !== undefined && !all.some(r => r.repositoryKey === args.repo)) {
+    const matches = [...new Set(all.filter(r => r.repository === args.repo).map(r => r.repositoryKey))];
+    if (matches.length > 1) throw new UsageError(`Repository name "${args.repo}" is ambiguous; use a key: ${matches.join(", ")}.`);
+  }
+  const effectiveArgs = args.repo !== undefined && all.some(r => r.repositoryKey === args.repo) ? { ...args, repo: undefined } : args;
+  const scoped = effectiveArgs !== args ? all.filter(r => r.repositoryKey === args.repo) : all;
+  const runs = filterRuns(scoped, effectiveArgs, now).sort((a, b) => a.at.localeCompare(b.at));
   const groups = group(runs, args.by);
   const total = runs.reduce((sum, r) => sum + r.costUsdEstimate, 0);
   const filters = {
@@ -168,7 +175,7 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
       version: io.version,
       home,
       scope: LOCAL_ONLY,
-      retentionDays: DEFAULT_HISTORY_DAYS,
+      retentionDays,
       filters,
       by: args.by,
       totals: { runs: runs.length, costUsdEstimate: total },
@@ -189,7 +196,7 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
   lines.push(`${runs.length} run${runs.length === 1 ? "" : "s"}, ${usd(total)} estimated (API-equivalent, not a bill), ${runs[0].at.slice(0, 10)} → ${runs.at(-1)!.at.slice(0, 10)}`, "");
   lines.push(`  ${pad(args.by, w)}  runs  cost`);
   for (const g of groups) lines.push(`  ${pad(g.key, w)}  ${pad(String(g.runs), 4)}  ${usd(g.costUsdEstimate)}`);
-  lines.push("", `A new \`--history\` run deletes runs older than ${DEFAULT_HISTORY_DAYS} days (AGENT_REVIEW_HISTORY_DAYS changes that). \`--json\` lists every run with its attributes.`);
+  lines.push("", retentionDays === 0 ? "New `--history` runs keep all runs (AGENT_REVIEW_HISTORY_DAYS=0). `--json` lists every run with its attributes." : `A new \`--history\` run deletes runs older than ${retentionDays} days (AGENT_REVIEW_HISTORY_DAYS changes that). \`--json\` lists every run with its attributes.`);
   io.stdout(`${lines.join("\n")}\n`);
   return 0;
 }

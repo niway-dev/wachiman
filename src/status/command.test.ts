@@ -25,9 +25,9 @@ function run(repository: ReturnType<typeof repositoryKey>, savedAt: string, cost
     engine: { version: "1.10.0" },
     repository,
     result: {
-      format: "wachiman.review-result/1",
+      format: profile === "work" ? "wachiman.review-result/2" : "wachiman.review-result/1",
       change: { head: { sha: "a".repeat(40), ref: "feat/x" }, title: "feat/x" },
-      provider: { label: "L", model, effort: "high", profile },
+      provider: { label: "L", model, effort: "high", profile: profile === "work" ? "default" : profile, ...(profile === "work" ? { account: { name: "work", kind: "managed", rung: "flag" } } : {}) },
       execution: { costUsdEstimate: cost, usage: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4 } },
       coverage: { expected: [], reviewed: [], skipped: [] },
       findings: [],
@@ -122,5 +122,43 @@ describe("runStatus", () => {
     const second = capture();
     runStatus(args({ model: "opus" }), seed.repo, seed.env, second.io);
     expect(second.out.join("")).toContain("No run matches the filters (3 kept before filtering)");
+  });
+});
+
+
+describe("status review regressions", () => {
+  test("named account wins over execution profile; old results retain their mode", () => {
+    const repository = { key: "alpha-123", name: "alpha", keyedBy: "remote", path: "/p" } as const;
+    const named = flatten(run(repository, NOW.toISOString(), 1, "sonnet", "work"));
+    const old = flatten(run(repository, NOW.toISOString(), 2, "sonnet", "isolated"));
+    expect(named.profile).toBe("work");
+    expect(group([named, old], "profile").map(g => g.key)).toEqual(["isolated", "work"]);
+  });
+  test.each([0, 7, 30])("retention follows the configured %s days", days => {
+    const seed = seeded();
+    const {out, io} = capture();
+    runStatus(args({json: true}), seed.repo, {...seed.env, AGENT_REVIEW_HISTORY_DAYS: String(days)}, io);
+    expect(JSON.parse(out.join("")).retentionDays).toBe(days);
+  });
+  test("repository scopes keep identical names separate and reject ambiguous names", () => {
+    const seed = seeded();
+    const other = emptyRepo();
+    git(other, "remote", "add", "origin", "https://github.com/another/alpha.git");
+    const key = repositoryKey(other);
+    writeRun(join(seed.home, "history"), run(key, "2026-11-10T10:00:00.000Z", 2, "sonnet", "isolated"));
+    const all = capture();
+    runStatus(args({json: true, allRepos: true, by: "repo"}), seed.repo, seed.env, all.io);
+    const doc = JSON.parse(all.out.join(""));
+    expect(doc.filters.scope).toBe("all-repos");
+    expect(doc.totals.runs).toBe(4);
+    expect(doc.groups).toHaveLength(2);
+    expect(doc.groups.map(g => g.key)).toContain(key.key);
+    const selected = capture();
+    runStatus(args({json: true, repo: key.key}), other, seed.env, selected.io);
+    expect(JSON.parse(selected.out.join(""))).toMatchObject({filters: {scope: "repo", repo: key.key}, totals: {runs: 1, costUsdEstimate: 2}});
+    expect(() => runStatus(args({repo: "alpha"}), seed.repo, seed.env, capture().io)).toThrow("ambiguous");
+    const local = capture();
+    runStatus(args({json: true}), seed.repo, seed.env, local.io);
+    expect(JSON.parse(local.out.join(""))).toMatchObject({filters: {scope: "this-repo"}, totals: {runs: 3}});
   });
 });
