@@ -42,7 +42,9 @@ const CANCEL_LINES = new Set(["\u001b", "\u0003", "\u0004"]);
 
 export function createPrompter(io: PromptIO, env: Record<string, string | undefined> = process.env): Prompter {
   const paint = terminalStyle(io.output as { isTTY?: boolean }, env);
-  const terminal = (io.input as { isTTY?: boolean }).isTTY === true;
+  // readline's cursor editing also emits ANSI; a redirected prompt output must
+  // stay plain even when stdin itself is still a terminal.
+  const terminal = (io.input as { isTTY?: boolean }).isTTY === true && (io.output as { isTTY?: boolean }).isTTY === true;
   const queue: string[] = [];
   let rl: Interface | undefined;
   let onKey: ((text: string, key?: { name?: string }) => void) | undefined;
