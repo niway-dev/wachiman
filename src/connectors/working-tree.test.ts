@@ -55,7 +55,7 @@ test("staged and all freeze tracked bytes without changing the real index or obj
   expect(readFileSync(join(dir, ".git/index")).equals(index)).toBe(true);
   expect(objectBytes()).toBe(objects);
 });
-test("rejects an index or tracked-content race and cleans up", () => {
+test("rejects an index or tracked-content race", () => {
   const dir = fixture();
   expect(() =>
     capture(dir, "all", {

@@ -21,7 +21,7 @@
     migration and the security invariants.
   - Plan: completed slices are retained in git history; the Windows executable slice was canceled.
 - **Creates:** ADR 0028 (the npm package requires Bun and ships the source behind a Node
-  launcher; a Windows executable is a second artifact), ADR 0029 (named account profiles,
+  launcher; no Windows executable), ADR 0029 (named account profiles,
   external configuration directories, project bindings in the home directory), ADR 0030
   (`wachiman.review-result/2` with verification and origin, and an explicit downgrade to `/1`).
   **Numbering:** `main` holds up to 0023; open branches hold 0014–0015 (#80), 0017–0018 (#90),
@@ -551,7 +551,7 @@ packaging last). The completed implementation plan is retained in git history.
    (depends on #138's implementation merging or being folded in).
 3. Skills as a subcommand and skill text updates.
 4. npm packaging: launcher, `package.json`, release publish job, docs.
-5. Windows executable: source changes, build job, smoke rows, tier.
+5. Windows executable: canceled; Windows uses npm/Bun (ADR 0028).
 6. Working-tree review (`--working-tree`), after 0–2.
 
 ## 8. Probes to run before or during slice 0 (facts nobody has checked)

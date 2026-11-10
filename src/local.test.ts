@@ -1208,19 +1208,51 @@ describe("working-tree local CLI", () => {
   });
 });
 
-test('a working-tree /2 input file needs a tree, rejects /1 before probes, and round-trips metadata',()=>{
- const repo=branchRepo(); writeFileSync(join(repo.dir,'src/a.ts'),'export const change = 42;\n'); git(repo.dir,'add','src/a.ts');
- const tree=git(repo.dir,'write-tree').trim();
- const fixture=JSON.parse(readFileSync(join(import.meta.dir,'../test/fixtures/formats/review-input.branch.json'),'utf8'));
- fixture.format='wachiman.review-input/2'; fixture.change={...fixture.change,kind:'working-tree',base:{sha:repo.head},head:{sha:tree},workingTree:{mode:'staged',baseCommit:repo.head,tree}}; fixture.instructions.baseSha=repo.head; fixture.files=localFiles(repo.dir,repo.head,tree);
- const file=join(temp('wachiman-tree-input-'),'input.json'); writeFileSync(file,JSON.stringify(fixture));
- const refused=local('ok',['--input',file,'--format','json','--result-version','1'],{},repo); expect(refused.code).toBe(2); expect(refused.read('calls')).toBeUndefined(); expect(refused.probes()).toEqual([]);
- const result=local('ok',['--input',file,'--format','json'],{},repo); expect(result.code).toBe(0); expect(JSON.parse(result.stdout).change.workingTree.tree).toBe(tree);
- writeFileSync(file,JSON.stringify({...fixture,format:'wachiman.review-input/1'})); expect(()=>readInputFile(file)).toThrow(/workingTree/);
+test("a working-tree /2 input file needs a tree, rejects /1 before probes, and round-trips metadata", () => {
+  const repo = branchRepo();
+  writeFileSync(join(repo.dir, "src/a.ts"), "export const change = 42;\n");
+  git(repo.dir, "add", "src/a.ts");
+  const tree = git(repo.dir, "write-tree").trim();
+  const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+  fixture.format = "wachiman.review-input/2";
+  fixture.change = {
+    ...fixture.change,
+    kind: "working-tree",
+    base: { sha: repo.head },
+    head: { sha: tree },
+    workingTree: { mode: "staged", baseCommit: repo.head, tree },
+  };
+  fixture.instructions.baseSha = repo.head;
+  fixture.files = localFiles(repo.dir, repo.head, tree);
+  const file = join(temp("wachiman-tree-input-"), "input.json");
+  writeFileSync(file, JSON.stringify(fixture));
+  const refused = local("ok", ["--input", file, "--format", "json", "--result-version", "1"], {}, repo);
+  expect(refused.code).toBe(2);
+  expect(refused.read("calls")).toBeUndefined();
+  expect(refused.probes()).toEqual([]);
+  const result = local("ok", ["--input", file, "--format", "json"], {}, repo);
+  expect(result.code).toBe(0);
+  expect(JSON.parse(result.stdout).change.workingTree.tree).toBe(tree);
+  writeFileSync(file, JSON.stringify({ ...fixture, format: "wachiman.review-input/1" }));
+  expect(() => readInputFile(file)).toThrow(/workingTree/);
 });
-test('working-tree snapshots are removed on provider failure and interrupt',()=>{
- for(const variant of ['garbage','interrupt'] as const) { const repo=branchRepo(); writeFileSync(join(repo.dir,'src/a.ts'),'export const bad = 1;\n'); const r=local(variant,['--working-tree','all'],{},repo); expect(r.code).toBe(variant==='interrupt'?130:1); const dirs=(r.read('dirs')??'').trim().split('\n').filter(Boolean); expect(dirs.length).toBeGreaterThan(0); for(const dir of dirs) expect(existsSync(dir)).toBe(false); }
+test("working-tree snapshots are removed on provider failure and interrupt", () => {
+  for (const variant of ["garbage", "interrupt"] as const) {
+    const repo = branchRepo();
+    writeFileSync(join(repo.dir, "src/a.ts"), "export const bad = 1;\n");
+    const r = local(variant, ["--working-tree", "all"], {}, repo);
+    expect(r.code).toBe(variant === "interrupt" ? 130 : 1);
+    const dirs = (r.read("dirs") ?? "").trim().split("\n").filter(Boolean);
+    expect(dirs.length).toBeGreaterThan(0);
+    for (const dir of dirs) expect(existsSync(dir)).toBe(false);
+  }
 });
-test('working-tree verification reads a raw base tree and removes both snapshots',()=>{
- const repo=branchRepo(); writeFileSync(join(repo.dir,'src/a.ts'),'export const local = 1;\n'); const r=local('ok',['--working-tree','all','--verify'],{},repo); expect(r.code).toBe(0); const dirs=(r.read('dirs')??'').trim().split('\n').filter(Boolean); expect(new Set(dirs).size).toBeGreaterThan(1); for(const dir of dirs) expect(existsSync(dir)).toBe(false);
+test("working-tree verification reads a raw base tree and removes both snapshots", () => {
+  const repo = branchRepo();
+  writeFileSync(join(repo.dir, "src/a.ts"), "export const local = 1;\n");
+  const r = local("ok", ["--working-tree", "all", "--verify"], {}, repo);
+  expect(r.code).toBe(0);
+  const dirs = (r.read("dirs") ?? "").trim().split("\n").filter(Boolean);
+  expect(new Set(dirs).size).toBeGreaterThan(1);
+  for (const dir of dirs) expect(existsSync(dir)).toBe(false);
 });

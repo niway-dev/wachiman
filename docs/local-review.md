@@ -410,7 +410,7 @@ of the index's tracked paths. Stage a new file to include it: untracked and igno
 excluded. A temporary index and object database keep the real checkout unchanged; a change
 during capture aborts with a retry message. After capture, later edits cannot affect the review.
 Symlinks are read as link text. Conflicts, unborn HEAD, split indexes, sparse/skip-worktree
-entries and gitlinks are explicitly refused. No configured filters, hooks, fsmonitor, external
+entries, gitlinks and non-UTF-8 paths are explicitly refused. No configured filters, hooks, fsmonitor, external
 diff or submodule commands run during capture.
 
 JSON uses result `/2` automatically for working-tree reviews; `/1` is refused before model calls.

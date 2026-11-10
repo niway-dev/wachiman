@@ -288,14 +288,19 @@ interface ProfileList {
 ## 4. Review input — `wachiman.review-input/1` today, `/2` with the working tree (implemented, slice 6)
 
 `/1` is implemented (`src/formats.ts`, `docs/formats/review-input.v1.schema.json`) and unchanged
-by slices 0–5. `/2` adds exactly one enum value:
+by slices 0–5. `/2` adds a working-tree variant with explicit snapshot metadata:
 
 ```ts
 interface ReviewChangeV2 /* extends ReviewChange */ {
   kind: "pull-request" | "branch" | "working-tree";   // /1 has the first two
-  // for "working-tree": base.sha = HEAD, head.sha = the tree id, head.ref = "working tree (staged|all)"
+  // Required only for kind "working-tree":
+  workingTree: { mode: "staged" | "all"; baseCommit: string; tree: string };
+  // base.sha = baseCommit = HEAD; head.sha = tree; head.ref = "working tree (staged|all)"
 }
 ```
+
+Working-tree input is rejected if `workingTree.baseCommit` differs from `base.sha` or
+`workingTree.tree` differs from `head.sha`.
 
 The core accepts `/1` and `/2`; a `/2` file with `kind !== "working-tree"` is equivalent to `/1`.
 
