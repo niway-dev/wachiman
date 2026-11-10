@@ -218,7 +218,7 @@ describe("readInputFile", () => {
   test("reads a valid file, and refuses one that is not JSON, of another format, mistyped, or with headDir", () => {
     expect(readInputFile(file(fixture())).change.kind).toBe("branch");
     expect(() => readInputFile(file("{"))).toThrow("is not JSON");
-    expect(() => readInputFile(file({ ...fixture(), format: "wachiman.review-input/2" }))).toThrow(UsageError);
+    expect(() => readInputFile(file({ ...fixture(), format: "wachiman.review-input/3" }))).toThrow(UsageError);
     expect(() => readInputFile(file({ ...fixture(), files: [{ filename: "a" }] }))).toThrow("files");
     expect(() => readInputFile(file({ ...fixture(), change: { ...fixture().change, head: { sha: "nope" } } }))).toThrow("change.head.sha");
     expect(() => readInputFile(file({ ...fixture(), scope: [1] }))).toThrow("scope");
@@ -362,7 +362,7 @@ describe("wachiman local", () => {
     expect(r.stderr).not.toContain("merge-base:");
     expect(r.stdout).toContain(fixture.change.describe);
 
-    writeFileSync(file, JSON.stringify({ ...fixture, format: "wachiman.review-input/2" }));
+    writeFileSync(file, JSON.stringify({ ...fixture, format: "wachiman.review-input/3" }));
     const wrong = local("ok", ["--input", file], {}, repo);
     expect(wrong.code).toBe(2);
     expect(wrong.stderr).toContain("Unknown review input format");
@@ -1174,4 +1174,85 @@ describe("verification flags", () => {
     for (const dir of snapshots) expect(existsSync(dir)).toBe(false);
     expect(r.read("prompt")).toContain("read-only copy of the base commit");
   });
+});
+
+describe("working-tree local CLI", () => {
+  test("selectors and /1 are refused before provider calls", () => {
+    for (const flags of [
+      ["--working-tree", "bad"],
+      ["--working-tree", "all", "--commit", "HEAD"],
+      ["--working-tree", "all", "--base", "main"],
+      ["--working-tree", "all", "--format", "json", "--result-version", "1"],
+    ])
+      expect(() => parseLocalArgs(flags)).toThrow(UsageError);
+    const repo = branchRepo();
+    const r = local("ok", ["--working-tree", "all", "--format", "json", "--result-version", "1"], {}, repo);
+    expect(r.code).toBe(2);
+    expect(r.read("calls")).toBeUndefined();
+  });
+  test("working-tree JSON defaults to /2, keeps metadata in history and cleans its snapshot", () => {
+    const repo = branchRepo();
+    writeFileSync(join(repo.dir, "src/a.ts"), "export const local = 123;\n");
+    const r = local("edit", ["--working-tree", "all", "--format", "json", "--history"], {}, repo);
+    expect(r.code).toBe(0);
+    const result = JSON.parse(r.stdout);
+    expect(result.format).toBe("wachiman.review-result/2");
+    expect(result.change.kind).toBe("working-tree");
+    expect(result.change.workingTree).toEqual({
+      mode: "all",
+      baseCommit: repo.head,
+      tree: result.change.head.sha,
+    });
+    expect(r.read("head-a")).toBe("export const local = 123;\n");
+    for (const dir of (r.read("dirs") ?? "").trim().split("\n").filter(Boolean)) expect(existsSync(dir)).toBe(false);
+  });
+});
+
+test("a working-tree /2 input file needs a tree, rejects /1 before probes, and round-trips metadata", () => {
+  const repo = branchRepo();
+  writeFileSync(join(repo.dir, "src/a.ts"), "export const change = 42;\n");
+  git(repo.dir, "add", "src/a.ts");
+  const tree = git(repo.dir, "write-tree").trim();
+  const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+  fixture.format = "wachiman.review-input/2";
+  fixture.change = {
+    ...fixture.change,
+    kind: "working-tree",
+    base: { sha: repo.head },
+    head: { sha: tree },
+    workingTree: { mode: "staged", baseCommit: repo.head, tree },
+  };
+  fixture.instructions.baseSha = repo.head;
+  fixture.files = localFiles(repo.dir, repo.head, tree);
+  const file = join(temp("wachiman-tree-input-"), "input.json");
+  writeFileSync(file, JSON.stringify(fixture));
+  const refused = local("ok", ["--input", file, "--format", "json", "--result-version", "1"], {}, repo);
+  expect(refused.code).toBe(2);
+  expect(refused.read("calls")).toBeUndefined();
+  expect(refused.probes()).toEqual([]);
+  const result = local("ok", ["--input", file, "--format", "json"], {}, repo);
+  expect(result.code).toBe(0);
+  expect(JSON.parse(result.stdout).change.workingTree.tree).toBe(tree);
+  writeFileSync(file, JSON.stringify({ ...fixture, format: "wachiman.review-input/1" }));
+  expect(() => readInputFile(file)).toThrow(/workingTree/);
+});
+test("working-tree snapshots are removed on provider failure and interrupt", () => {
+  for (const variant of ["garbage", "interrupt"] as const) {
+    const repo = branchRepo();
+    writeFileSync(join(repo.dir, "src/a.ts"), "export const bad = 1;\n");
+    const r = local(variant, ["--working-tree", "all"], {}, repo);
+    expect(r.code).toBe(variant === "interrupt" ? 130 : 1);
+    const dirs = (r.read("dirs") ?? "").trim().split("\n").filter(Boolean);
+    expect(dirs.length).toBeGreaterThan(0);
+    for (const dir of dirs) expect(existsSync(dir)).toBe(false);
+  }
+});
+test("working-tree verification reads a raw base tree and removes both snapshots", () => {
+  const repo = branchRepo();
+  writeFileSync(join(repo.dir, "src/a.ts"), "export const local = 1;\n");
+  const r = local("ok", ["--working-tree", "all", "--verify"], {}, repo);
+  expect(r.code).toBe(0);
+  const dirs = (r.read("dirs") ?? "").trim().split("\n").filter(Boolean);
+  expect(new Set(dirs).size).toBeGreaterThan(1);
+  for (const dir of dirs) expect(existsSync(dir)).toBe(false);
 });

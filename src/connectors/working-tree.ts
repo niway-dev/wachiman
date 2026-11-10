@@ -1,0 +1,333 @@
+/** Tracked-only working-tree capture. All Git writes live in a disposable repository. */
+import { spawnSync } from "node:child_process";
+import {
+  constants,
+  closeSync,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { UsageError } from "../config";
+import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
+import { REVIEW_INPUT_V2, type ReviewInput } from "../formats";
+import { resolveScope } from "../engine";
+import { localFiles, localInstructions } from "./local-git";
+
+type Spawn = typeof spawnSync;
+const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+const identity = (s: ReturnType<typeof lstatSync>) => [s.dev, s.ino, s.mode, s.size, s.mtimeMs, s.ctimeMs].join(":");
+const failure = () => new UsageError("The index, HEAD or tracked files changed during capture; retry --working-tree.");
+/** Index the materialized bytes directly; git add would apply repository attributes. */
+function indexRawSnapshot(dir: string, entries: string[], exec: (args: string[], input?: Buffer) => Buffer) {
+  exec(["init", "-q", "--template="]);
+  for (const entry of entries) {
+    const tab = entry.indexOf("\t");
+    const mode = entry.slice(0, tab).split(" ")[0];
+    const path = entry.slice(tab + 1);
+    const sha = exec(["hash-object", "-w", "--stdin", "--no-filters"], readFileSync(join(dir, path))).toString().trim();
+    // Links are materialized as regular text for evidence, never as live links.
+    exec(["update-index", "--add", "--cacheinfo", mode === "100755" ? mode : "100644", sha, path]);
+  }
+}
+
+export function workingTreeInput(p: {
+  repoDir: string;
+  mode: "staged" | "all";
+  paths: string[];
+  log: (s: string) => void;
+  warn: (s: string) => void;
+  git?: GitRunner;
+  spawn?: Spawn;
+  afterCapture?: () => void;
+  afterManifest?: () => void;
+}): { input: ReviewInput; release: () => void } {
+  const source = p.git ?? spawnGit;
+  const runSource = (args: string[]) => {
+    const r = source(args, { cwd: p.repoDir, timeoutMs: 60000 });
+    if (r.status !== 0 || r.error || r.outputCut)
+      throw new UsageError(`Cannot capture working tree: git ${args[0]} failed: ${r.stderr ?? r.error}`);
+    return r.stdout.replace(/\r?\n$/, "");
+  };
+  let base: string;
+  try {
+    base = runSource(["rev-parse", "--verify", "HEAD^{commit}"]);
+  } catch {
+    throw new UsageError("Working-tree review requires an existing HEAD commit.");
+  }
+  const top = realpathSync(runSource(["rev-parse", "--show-toplevel"]));
+  const index = resolve(p.repoDir, runSource(["rev-parse", "--git-path", "index"]));
+  if (runSource(["rev-parse", "--shared-index-path"]))
+    throw new UsageError("Working-tree review does not support a split index; disable split-index first.");
+  // Read only these semantic settings; never import source hooks, filters or other config.
+  const fileMode = p.mode !== "all" || runSource(["config", "--type=bool", "--default=true", "--get", "core.fileMode"]) === "true";
+  const symlinks = p.mode !== "all" || runSource(["config", "--type=bool", "--default=true", "--get", "core.symlinks"]) === "true";
+  const beforeIdentity = identity(lstatSync(index));
+  const before = readFileSync(index);
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-working-tree-")));
+  const release = () => rmSync(root, { recursive: true, force: true });
+  const spawn = p.spawn ?? spawnSync;
+  try {
+    const gitDir = join(root, "repository");
+    const snapshot = join(root, "snapshot");
+    mkdirSync(snapshot);
+    const exec = (args: string[], input?: Buffer, cwd = top) => {
+      const out = spawn("git", [...GIT_BASE_ARGS, "-c", "core.hooksPath=/dev/null", "-c", "core.attributesFile=/dev/null", ...args], {
+        cwd,
+        input,
+        env: {
+          ...gitEnv(),
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_NO_REPLACE_OBJECTS: "1",
+          GIT_NO_LAZY_FETCH: "1",
+        },
+        timeout: 60000,
+        maxBuffer: 512 * 1024 * 1024,
+      });
+      if (out.status !== 0 || out.error) throw new UsageError(`Working-tree git ${args[0]} failed: ${out.stderr?.toString() ?? out.error}`);
+      return Buffer.from(out.stdout ?? "");
+    };
+    const format = runSource(["rev-parse", "--show-object-format"]);
+    exec(["init", "--bare", "--template=", "--object-format=" + format, gitDir]);
+    const objects = resolve(p.repoDir, runSource(["rev-parse", "--git-path", "objects"]));
+    // Alternates are read-only: no command runs with the source repository as its git-dir.
+    writeFileSync(join(gitDir, "objects/info/alternates"), JSON.stringify(objects) + "\n");
+    // Git must consume the same bytes checked below, never a later live index.
+    writeFileSync(join(gitDir, "index"), before);
+    const args = (a: string[]) => ["--git-dir=" + gitDir, ...a];
+    const raw = (a: string[], input?: Buffer) => exec(args(a), input);
+    const text = (a: string[]) => {
+      const bytes = raw(a);
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      } catch {
+        throw new UsageError("Working-tree review requires UTF-8 Git paths.");
+      }
+    };
+    const git: GitRunner = (a, o) => {
+      try {
+        return {
+          status: 0,
+          stdout: exec(args(a), undefined, o.cwd).toString("utf8"),
+        };
+      } catch (e) {
+        return { status: 1, stdout: "", stderr: String(e) };
+      }
+    };
+    if (text(["ls-files", "--unmerged", "-z"]))
+      throw new UsageError("Working-tree review refuses an unmerged index. Resolve conflicts first.");
+    if (
+      text(["ls-files", "-v", "-z"])
+        .split("\0")
+        .some((s) => s.slice(0, 2).toUpperCase() === "S ")
+    )
+      throw new UsageError("Working-tree review does not support sparse checkout/skip-worktree entries.");
+    const entries = text(["ls-files", "--stage", "-z"])
+      .split("\0")
+      .filter(Boolean)
+      .map((s) => {
+        const tab = s.indexOf("\t");
+        const [mode, sha, stage] = s.slice(0, tab).split(" ");
+        return { mode, sha, stage, path: s.slice(tab + 1) };
+      });
+    for (const e of entries) {
+      if (e.mode === "160000") throw new UsageError("Working-tree review does not support submodule/gitlink snapshot content.");
+      if (!["100644", "100755", "120000"].includes(e.mode)) throw new UsageError("Unsupported index mode " + e.mode);
+    }
+    // Read every parent with lstat; never follow a tracked path through a symlink.
+    const read = (entry: (typeof entries)[number], metadataOnly = false) => {
+      const path = entry.path;
+      const parts = path.split("/");
+      if (parts.some((s) => !s || s === "." || s === ".." || s.toLowerCase() === ".git"))
+        throw new UsageError("Unsafe tracked path " + path);
+      let parent = top;
+      const parents: string[] = [];
+      for (const part of parts.slice(0, -1)) {
+        parent = join(parent, part);
+        try {
+          const s = lstatSync(parent);
+          if (!s.isDirectory() || s.isSymbolicLink()) throw new UsageError("Tracked path has a non-directory or symlink parent: " + path);
+          parents.push(identity(s));
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+          throw e;
+        }
+      }
+      const file = join(top, path);
+      let stat;
+      try {
+        stat = lstatSync(file);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw e;
+      }
+      // Like git add -u, a directory replacing a tracked leaf deletes that file.
+      // Its children are untracked and must never be traversed. Parent checks above remain strict.
+      if (stat.isDirectory()) return null;
+      let bytes: Buffer;
+      let mode: string;
+      if (stat.isSymbolicLink()) {
+        bytes = metadataOnly ? Buffer.alloc(0) : Buffer.from(readlinkSync(file));
+        mode = "120000";
+      } else if (stat.isFile()) {
+        if (metadataOnly) {
+          bytes = Buffer.alloc(0);
+        } else {
+          const fd = openSync(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+          try {
+            if (identity(fstatSync(fd)) !== identity(stat)) throw failure();
+            bytes = readFileSync(fd);
+            if (identity(fstatSync(fd)) !== identity(stat)) throw failure();
+          } finally {
+            closeSync(fd);
+          }
+        }
+        // Match Git: an emulated link keeps its index type; untrusted exec bits
+        // preserve regular index modes, but a real type change still takes effect.
+        if (!symlinks && entry.mode === "120000") mode = "120000";
+        else if (!fileMode) mode = entry.mode === "100755" ? "100755" : "100644";
+        else mode = stat.mode & 0o100 ? "100755" : "100644";
+      } else throw new UsageError("Unsupported tracked file type: " + path);
+      return {
+        bytes,
+        mode,
+        identity: parents.join("|") + "|" + identity(stat),
+        manifest: parents.join("|") + "|" + identity(stat) + "|" + hash(bytes),
+      };
+    };
+    // Freeze identities for the complete path set before reading any file contents.
+    const manifest = p.mode === "all" ? entries.map((e) => read(e, true)?.identity) : [];
+    p.afterManifest?.();
+    const captured =
+      p.mode === "all"
+        ? entries.map((e, i) => {
+            const content = read(e);
+            if (content?.identity !== manifest[i]) throw failure();
+            return { ...e, content };
+          })
+        : [];
+    if (p.mode === "all") {
+      // Rebuild from the index's tracked path set. update-index --cacheinfo never invokes filters.
+      raw(["read-tree", "--empty"]);
+      for (const e of captured) {
+        if (!e.content) continue;
+        const sha = raw(["hash-object", "-w", "--stdin", "--no-filters"], e.content.bytes).toString().trim();
+        raw(["update-index", "--add", "--cacheinfo", e.content.mode, sha, e.path]);
+      }
+    }
+    const tree = text(["write-tree"]).trim();
+    p.afterCapture?.();
+    try {
+      if (
+        identity(lstatSync(index)) !== beforeIdentity ||
+        !readFileSync(index).equals(before) ||
+        runSource(["rev-parse", "--verify", "HEAD^{commit}"]) !== base
+      )
+        throw failure();
+      for (const e of captured) {
+        if (read(e)?.manifest !== e.content?.manifest) throw failure();
+      }
+    } catch {
+      throw failure();
+    }
+    const files = localFiles(top, base, tree, git);
+    const { paths, ignored } = resolveScope(
+      p.paths,
+      files.map((f) => f.filename),
+    );
+    if (ignored.length) p.log("Not paths in this change, ignored: " + ignored.join(" "));
+    // Materialize raw blobs directly: no archive attributes, filters, tar traversal or live symlinks.
+    const treeEntries = text(["ls-tree", "-r", "-z", tree]).split("\0").filter(Boolean);
+    for (const entry of treeEntries) {
+      const tab = entry.indexOf("\t");
+      const [mode, type, sha] = entry.slice(0, tab).split(" ");
+      const path = entry.slice(tab + 1);
+      if (type !== "blob") throw new UsageError("Unsupported snapshot entry " + path);
+      if (path.split("/").some((s) => !s || s === ".." || s === "." || s.toLowerCase() === ".git"))
+        throw new UsageError("Unsafe snapshot path " + path);
+      const dest = join(snapshot, path);
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest, raw(["cat-file", "blob", sha]), {
+        mode: mode === "100755" ? 0o755 : 0o644,
+      });
+    }
+    // Evidence uses git grep in its own index; symlink entries remain textual blobs there too.
+    indexRawSnapshot(snapshot, treeEntries, (a, input) => exec(["-C", snapshot, ...a], input));
+    const name = basename(top);
+    const input: ReviewInput = {
+      format: REVIEW_INPUT_V2,
+      change: {
+        kind: "working-tree",
+        describe: p.mode === "staged" ? `the staged changes of ${name}` : `the working tree of ${name}`,
+        repository: { name },
+        base: { sha: base, ref: "HEAD" },
+        head: { sha: tree, ref: `working tree (${p.mode})` },
+        workingTree: { mode: p.mode, baseCommit: base, tree },
+      },
+      files,
+      instructions: localInstructions(top, base, p.warn, git),
+      headDir: snapshot,
+      scope: paths,
+    };
+    return { input, release };
+  } catch (e) {
+    release();
+    throw e;
+  }
+}
+
+/** A portable /2 input refers to a tree already present in this clone. Copy only raw blobs. */
+export function snapshotWorkingTree(repoDir: string, tree: string, spawn: Spawn = spawnSync) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-tree-input-")));
+  try {
+    const exec = (args: string[], cwd = repoDir, input?: Buffer) => {
+      const r = spawn("git", [...GIT_BASE_ARGS, ...args], {
+        cwd,
+        input,
+        env: {
+          ...gitEnv(),
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_CONFIG_GLOBAL: "/dev/null",
+          GIT_NO_LAZY_FETCH: "1",
+          GIT_NO_REPLACE_OBJECTS: "1",
+        },
+        timeout: 60000,
+        maxBuffer: 512 * 1024 * 1024,
+      });
+      if (r.status !== 0 || r.error) throw new UsageError("Cannot read working-tree input: " + (r.stderr?.toString() ?? r.error));
+      return Buffer.from(r.stdout ?? "");
+    };
+    if (exec(["cat-file", "-t", tree]).toString().trim() !== "tree")
+      throw new UsageError("Working-tree input head must be an existing tree object.");
+    const entries = exec(["ls-tree", "-r", "-z", tree]).toString().split("\0").filter(Boolean);
+    for (const entry of entries) {
+      const tab = entry.indexOf("\t");
+      const [mode, type, sha] = entry.slice(0, tab).split(" ");
+      const path = entry.slice(tab + 1);
+      if (type !== "blob" || !["100644", "100755", "120000"].includes(mode))
+        throw new UsageError("Unsupported working-tree snapshot entry " + path);
+      if (path.split("/").some((s) => !s || s === "." || s === ".." || s.toLowerCase() === ".git"))
+        throw new UsageError("Unsafe snapshot path " + path);
+      const dest = join(dir, path);
+      mkdirSync(dirname(dest), { recursive: true });
+      writeFileSync(dest, exec(["cat-file", "blob", sha]), {
+        mode: mode === "100755" ? 0o755 : 0o644,
+      });
+    }
+    indexRawSnapshot(dir, entries, (a, input) => exec(["-c", "core.hooksPath=/dev/null", ...a], dir, input));
+    return { dir };
+  } catch (e) {
+    rmSync(dir, { recursive: true, force: true });
+    throw e;
+  }
+}

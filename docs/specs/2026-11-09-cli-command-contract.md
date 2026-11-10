@@ -149,10 +149,10 @@ wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit> | 
 | `--from <commit>` | none | implemented | `<commit>^ → HEAD`, inclusive; ancestor of HEAD; HEAD a branch |
 | `--commit <commit>` | none | implemented | `<commit>^ → <commit>`; first parent of a merge; empty tree for a root |
 | `--input <file>` | none | implemented | a `wachiman.review-input/1` or `/2` file; no range flags or paths; `/2` working-tree input requires an existing tree object in the selected clone |
-| `--working-tree staged\|all` | none | planned (slice 6) | see 5.2.1; excludes every other range flag and paths are allowed |
+| `--working-tree staged\|all` | none | implemented (slice 6) | see 5.2.1; excludes every other range flag and paths are allowed |
 | `--max-depth <n>` | 50 | implemented | positive integer; range deeper than it is exit 2 before any call |
 | `--format` | `terminal` | implemented | `terminal`, `markdown`, `json` |
-| `--result-version 1\|2` | `1` for committed changes; `2` for working-tree review | planned | only with `--format json`; `1` runs `toResultV1()`; with another format it is a usage error |
+| `--result-version 1\|2` | `1` for committed changes; `2` for working-tree review | implemented | only with `--format json`; `1` runs `toResultV1()`; with another format it is a usage error |
 | `--output <file>` | stdout | implemented | path printed on stderr |
 | `--profile <name>` | rung 2–5 | changed | any name of section 4; `default`, `isolated`, `isolated:<name>` keep working |
 | `--verify` / `--no-verify` | `AGENT_REVIEW_VERIFY`, else on (ADR 0027 amendment) | planned | the verifier call; `--no-verify` wins over the variable; both flags is a usage error |
@@ -170,32 +170,31 @@ with `--no-verify`.
 Exit: 0 when a report was produced (complete, partial, quota-stopped), 1 when no call returned a
 review, 2 usage, 130 interrupted (implemented `exitCodeOf`, unchanged).
 
-#### 5.2.1 `--working-tree` semantics (planned, slice 6)
+#### 5.2.1 `--working-tree` semantics (implemented, slice 6)
 
 Reviews a **stable snapshot** of uncommitted work against `HEAD`. The connector:
 
 1. Requires an existing `HEAD` commit; an unborn repository or an unmerged index is exit 2.
-2. Uses a temporary index and a temporary object database (`GIT_OBJECT_DIRECTORY`, with the real
-   object database read-only as an alternate). Resolve the index with `git rev-parse --git-path
-   index`; handle split-index references, or refuse them explicitly before any call. The real
-   index, worktree and object database are never written.
+2. Uses an isolated temporary Git directory containing its own index and object database, with
+   the real object database read-only as an alternate. Resolve the index with `git rev-parse --git-path
+   index`; split-index, sparse/skip-worktree entries and gitlinks are explicitly refused. The
+   real index, worktree and object database are never written.
 3. For `staged`, capture the index tree. For `all`, build it from current tracked files,
-   deletions and non-ignored untracked regular files. Do not run clean/smudge filters, hooks,
+   deletions, excluding all untracked files (including ignored ones). Do not run clean/smudge filters, hooks,
    fsmonitor, external diff drivers or submodule commands from repository configuration.
-   Symlinks are captured as link text and never followed outside the repository; gitlinks are
-   reported as unsupported snapshot content, just as submodules are today.
+   Symlinks are captured as link text and never followed outside the repository; gitlinks cause
+   an explicit usage error. Source `core.fileMode` and `core.symlinks` semantics are preserved.
 4. Freeze the file/index manifest before reading; compare index/file identity and content after
    capture. If files change during capture, abort with a retry message (exit 2), not a mixed
    snapshot. Subsequent edits after capture cannot affect the run.
-5. Archive the synthetic tree to the snapshot and compare it with `HEAD`; existing archive
-   exclusions remain explicit coverage warnings. Keep temporary objects until review and history
-   annotation finish, then remove them on success/error/interrupt. History stores snapshot kind
+5. Materialize raw tree blobs into the snapshot and compare the tree with `HEAD`. Archive
+   attributes do not exclude or rewrite content. Symlinks become regular files containing link text.
+   Keep temporary objects until review and history annotation finish, then remove them on success/error/interrupt. History stores snapshot kind
    and original base commit; future annotation never calls commit-ancestry operations on tree ids.
 
 The `ReviewInput.change` has `kind: "working-tree"`, `base.sha` = `HEAD`, `head.sha` = the tree
 id (40 or 64 hex), `head.ref` = `working tree (staged)` or `working tree (all)`, and
-`describe` = `the staged changes of <repo>` or `the working tree of <repo>`. Binary and
-ignored files follow today's rules. `--history` is allowed: the history key is the repository's;
+`describe` = `the staged changes of <repo>` or `the working tree of <repo>`. Binary files retain existing review coverage rules; all untracked paths are excluded. `--history` is allowed: the history key is the repository's;
 the run's head is the tree id, so finding tracking across runs works by fingerprint as it does
 across commits. The input is `wachiman.review-input/2`; `/1` is unchanged. A reader accepts both.
 Working-tree results require `/2`; `--result-version 1` with `--working-tree` (or a working-tree

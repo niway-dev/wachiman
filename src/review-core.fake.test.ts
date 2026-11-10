@@ -209,7 +209,7 @@ describe("reviewChange from a ReviewInput", () => {
 
   test("an unknown format is a usage error before any call", () => {
     const provider = new FakeProvider([]);
-    const input = { ...branchInput(), format: "wachiman.review-input/2" } as unknown as ReviewInput;
+    const input = { ...branchInput(), format: "wachiman.review-input/3" } as unknown as ReviewInput;
     expect(() => reviewChange(input, options(), coreDeps(provider).deps)).toThrow(UsageError);
     expect(provider.requests).toEqual([]);
   });

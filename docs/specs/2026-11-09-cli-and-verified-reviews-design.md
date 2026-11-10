@@ -19,9 +19,9 @@
   - [Review and configuration types](2026-11-09-review-and-config-types.md): every external and
     internal contract as TypeScript-like discriminated types, JSON examples, the `/1` to `/2`
     migration and the security invariants.
-  - [Plan](../plans/2026-11-09-cli-and-verified-reviews.md): ordered, code-ready slices.
+  - Plan: completed slices are retained in git history; the Windows executable slice was canceled.
 - **Creates:** ADR 0028 (the npm package requires Bun and ships the source behind a Node
-  launcher; a Windows executable is a second artifact), ADR 0029 (named account profiles,
+  launcher; no Windows executable), ADR 0029 (named account profiles,
   external configuration directories, project bindings in the home directory), ADR 0030
   (`wachiman.review-result/2` with verification and origin, and an explicit downgrade to `/1`).
   **Numbering:** `main` holds up to 0023; open branches hold 0014–0015 (#80), 0017–0018 (#90),
@@ -94,7 +94,7 @@ with an explicit downgrade to `/1`; committed JSON output keeps `/1` as its defa
 | 18 | **Report labels:** the sinks print the familiar words **Important** (severity `blocker` or `fix`), **Nit** (`consider` or `info`) and **Pre-existing** (origin `pre-existing`) in front of today's severity and topic label; the data keeps `severity`, `topic`, `confidence`, `origin` and `verification` as separate fields; a verified finding shows its reason and the lines checked | The owner asked for the familiar labels; ADR 0003's two axes stay the data model, the words are presentation | reuses 0003 |
 | 19 | **`wachiman.review-result/2`:** adds the top-level `verification` block and the per-finding `origin` and `verification` fields, retypes the reserved `/1` `verification` stub, and ships with committed JSON output defaulting to `/1`, a pure `toResultV1()` downgrade (`--result-version 1`) that drops those fields and maps `provider.profile`. **No key is added to `/1`**: its root and `provider` object are `additionalProperties: false`, so an "additive" top-level key would fail every existing `/1` validator | The verifier implementation adds `verification` at the root; `docs/formats/README.md` says a new required-shape change is `/2`; pretending it is additive would break the one external consumer (`wachiman-benchmarks`) silently | 0030 (new) |
 | 20 | **Named profiles do not change the result's `provider.profile` enum** in `/1` (`ci | default | isolated`): managed maps to `isolated`, external and built-in default to `default`; `/2` adds `provider.account` with the profile name, kind and rung | Keeps `/1` stable; `/2` carries the detail the preamble already prints | 0030 |
-| 21 | **Working-tree review is defined, not built:** `local --working-tree staged|all` reviews a stable snapshot (a temporary index/object database, filter-free content capture, `git write-tree` and `git archive <tree>`) against `HEAD`; `staged` is the current index, `all` adds unstaged edits and untracked files that `.gitignore` does not exclude; the synthetic head is the tree id and the result says `kind: "working-tree"` | The owner asked for explicit semantics now so the connector can grow without a second snapshot mechanism; ADR 0019 listed uncommitted changes as a non-goal and this reopens it deliberately, in a later slice | reuses 0019 (reopens its non-goal in slice 6) |
+| 21 | **Working-tree review (slice 6):** `local --working-tree staged|all` reviews a stable snapshot (a temporary index/object database, filter-free content capture, `git write-tree` and raw blob materialization) against `HEAD`; `staged` is the current index, `all` adds unstaged tracked edits and deletions, excluding all untracked files; the synthetic head is the tree id and the result says `kind: "working-tree"` | The owner asked for explicit semantics now so the connector can grow without a second snapshot mechanism; ADR 0019 listed uncommitted changes as a non-goal and this reopens it deliberately, in a later slice | reuses 0019 (reopens its non-goal in slice 6) |
 | 22 | **No automatic issue publication, no telemetry, no update check, no uninstall command** in this design: removal is `npm uninstall -g wachiman`, `wachiman skills uninstall` and a documented `rm` of `~/.wachiman` | The owner wants the minimal coherent set, not every conceivable command; an update check is a network call the local promise forbids unless asked, and none was asked | — |
 
 ## Open questions
@@ -542,8 +542,7 @@ flag it maps to, and the non-TTY rule. `doctor`'s checks are declared as data in
 ## 7. Staged delivery
 
 Slices, each one pull request with its own proof table, ordered by risk (account selection first,
-packaging last). The [plan](../plans/2026-11-09-cli-and-verified-reviews.md) lists files and
-checks per slice.
+packaging last). The completed implementation plan is retained in git history.
 
 0. Account model: config store, resolver, wrapper fix, `profile`, `project show|unbind`,
    `setup --profile`, `doctor` core. Runs through `bin/wachiman` as today.
@@ -552,7 +551,7 @@ checks per slice.
    (depends on #138's implementation merging or being folded in).
 3. Skills as a subcommand and skill text updates.
 4. npm packaging: launcher, `package.json`, release publish job, docs.
-5. Windows executable: source changes, build job, smoke rows, tier.
+5. Windows executable: canceled; Windows uses npm/Bun (ADR 0028).
 6. Working-tree review (`--working-tree`), after 0–2.
 
 ## 8. Probes to run before or during slice 0 (facts nobody has checked)

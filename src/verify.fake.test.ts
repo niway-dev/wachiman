@@ -18,7 +18,7 @@ import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./provide
 import { validate } from "../test/support/json-schema";
 
 // ADR 0027 and ADR 0030: the verifier through the review core, with a fake provider. One test per
-// check of slice 2 of docs/plans/2026-11-09-cli-and-verified-reviews.md.
+// verifier acceptance check in docs/specs/2026-11-09-review-and-config-types.md.
 
 class FakeProvider implements ProviderAdapter {
   readonly name = "fake";

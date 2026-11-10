@@ -56,8 +56,8 @@ describe("review formats", () => {
   });
 
   test("the core refuses an unknown format with a usage error", () => {
-    expect(() => assertReviewInputFormat({ format: "wachiman.review-input/2" })).toThrow(UsageError);
-    expect(() => assertReviewInputFormat({ format: "wachiman.review-input/2" })).toThrow(REVIEW_INPUT_FORMAT);
+    expect(() => assertReviewInputFormat({ format: "wachiman.review-input/3" })).toThrow(UsageError);
+    expect(() => assertReviewInputFormat({ format: "wachiman.review-input/3" })).toThrow(REVIEW_INPUT_FORMAT);
     expect(() => assertReviewInputFormat({})).toThrow(UsageError);
     expect(() => assertReviewInputFormat(inMemory(fixtures.branch))).not.toThrow();
   });
@@ -139,4 +139,34 @@ describe("review result /2", () => {
     expect(() => readReviewResultFormat({ ...fixtures.result, format: "wachiman.review-result/3" })).toThrow(UsageError);
     expect(() => readReviewResultFormat({})).toThrow(REVIEW_RESULT_V2);
   });
+});
+
+test("working-tree /2 schemas require explicit metadata and /1 stays committed-only", () => {
+  const schema = json("docs/formats/review-input.v2.schema.json");
+  checkKeywords(schema);
+  const change = {
+    ...fixtures.branch.change,
+    kind: "working-tree",
+    workingTree: {
+      mode: "all",
+      baseCommit: "a".repeat(40),
+      tree: "b".repeat(40),
+    },
+  };
+  const input = {
+    ...fixtures.branch,
+    format: "wachiman.review-input/2",
+    change,
+  };
+  expect(() => assertReviewInputFormat(input)).not.toThrow();
+  expect(validate(schema, input)).toEqual([]);
+  expect(validate(inputSchema, input).length).toBeGreaterThan(0);
+  expect(
+    validate(schema, {
+      ...input,
+      change: { ...change, workingTree: undefined },
+    }).length,
+  ).toBeGreaterThan(0);
+  expect(validate(resultSchemaV2, { ...fixtures.resultV2, change })).toEqual([]);
+  expect(validate(resultSchema, { ...fixtures.result, change }).length).toBeGreaterThan(0);
 });

@@ -22,6 +22,7 @@ import type {
 import type { ProviderErrorClass } from "./providers/errors";
 
 export const REVIEW_INPUT_FORMAT = "wachiman.review-input/1";
+export const REVIEW_INPUT_V2 = "wachiman.review-input/2";
 /** The result as committed-change JSON consumers know it: closed root, no verification block. */
 export const REVIEW_RESULT_V1 = "wachiman.review-result/1";
 /** The result the core produces: `/1` plus origin, per-finding verification and the verification record. */
@@ -29,7 +30,7 @@ export const REVIEW_RESULT_V2 = "wachiman.review-result/2";
 
 export type { ReviewFile };
 
-export interface ReviewChange {
+export interface CommittedReviewChange {
   kind: "pull-request" | "branch";
   /** One sentence for the prompt's first line and every report's headline. */
   describe: string;
@@ -44,8 +45,15 @@ export interface ReviewChange {
   identifier?: string;
 }
 
+export type ReviewChange =
+  | CommittedReviewChange
+  | (Omit<CommittedReviewChange, "kind"> & {
+      kind: "working-tree";
+      workingTree: { mode: "staged" | "all"; baseCommit: string; tree: string };
+    });
+
 export interface ReviewInput {
-  format: typeof REVIEW_INPUT_FORMAT;
+  format: typeof REVIEW_INPUT_FORMAT | typeof REVIEW_INPUT_V2;
   change: ReviewChange;
   files: ReviewFile[];
   /** Read from `change.base.sha` by the connector (ADR 0006). */
@@ -111,7 +119,7 @@ type Execution = {
 /** `wachiman.review-result/1`: the closed shape committed-change JSON keeps by default. */
 export interface ReviewResultV1 {
   format: typeof REVIEW_RESULT_V1;
-  change: ReviewChange & { snapshot?: string };
+  change: CommittedReviewChange & { snapshot?: string };
   engine: { version: string };
   provider: { label: string; model: string; effort: string; profile: Profile };
   coverage: Coverage;
@@ -250,10 +258,12 @@ export type ReviewResult = ReviewResultV2;
 export type ResultFinding = ResultFindingV2;
 
 /** The core refuses a version it does not know (D15). A usage error, not an engine error. */
-export function assertReviewInputFormat(input: { format?: unknown }): asserts input is { format: typeof REVIEW_INPUT_FORMAT } {
-  if (input.format !== REVIEW_INPUT_FORMAT) {
+export function assertReviewInputFormat(input: { format?: unknown }): asserts input is {
+  format: typeof REVIEW_INPUT_FORMAT | typeof REVIEW_INPUT_V2;
+} {
+  if (input.format !== REVIEW_INPUT_FORMAT && input.format !== REVIEW_INPUT_V2) {
     throw new UsageError(
-      `Unknown review input format ${JSON.stringify(input.format)}; this engine reads ${REVIEW_INPUT_FORMAT}.`,
+      `Unknown review input format ${JSON.stringify(input.format)}; this engine reads ${REVIEW_INPUT_FORMAT} and ${REVIEW_INPUT_V2}.`,
     );
   }
 }
@@ -300,6 +310,7 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
   return {
     ...rest,
     format: REVIEW_RESULT_V1,
+    change: result.change as CommittedReviewChange & { snapshot?: string },
     provider,
     findings: result.findings.map((f) => ({
       path: f.path,
