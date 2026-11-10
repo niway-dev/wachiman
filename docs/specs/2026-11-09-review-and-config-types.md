@@ -1,5 +1,7 @@
 # Review and configuration types: every external and internal contract
 
+> **Default configuration update 2026-11-10:** The default is now Opus 5.5 at effort `high`, with verification off. Enable verification explicitly with `verify: true`, `AGENT_REVIEW_VERIFY=1`, or `local --verify`. This supersedes statements below about the 2026-11-09 defaults; historical decisions remain for context.
+
 - **Status:** proposed 2026-11-09; detail of the
   [canonical design](2026-11-09-cli-and-verified-reviews-design.md) and the
   [command contract](2026-11-09-cli-command-contract.md). Types are TypeScript-like; the JSON

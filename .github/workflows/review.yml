@@ -78,15 +78,15 @@ on:
       model:
         description: Model the agent uses
         type: string
-        default: claude-haiku-5-5
+        default: claude-opus-5-5
       effort:
         description: Reasoning effort the model runs at (low, medium, high, xhigh or max); printed in every review footer
         type: string
         default: high
       verify:
-        description: After the batches, one more call tries to refute every finding above info before it is posted; a finding is dropped only with a disproof whose line exists at head (ADR 0027). On by default; set false to post the batches' findings unverified
+        description: After the batches, one more call tries to refute every finding above info before it is posted; a finding is dropped only with a disproof whose line exists at head (ADR 0027). Off by default; set true to enable verification
         type: boolean
-        default: true
+        default: false
       verify_budget_usd:
         description: The verifier's reserve, taken out of budget_usd before the batches run (at most half of it)
         type: number

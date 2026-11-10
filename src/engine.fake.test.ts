@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig as loadConfigWithDefaults } from "./config";
 
-/** These tests script the batches only; the verifier (on by default) has its own tests. */
+/** These tests script the batches only; the opt-in verifier has its own tests. */
 const loadConfig = (env: Record<string, string | undefined>) => loadConfigWithDefaults({ AGENT_REVIEW_VERIFY: "0", ...env });
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

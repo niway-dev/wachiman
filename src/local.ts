@@ -51,7 +51,7 @@ export interface LocalArgs {
   profile?: string;
   agentPrompt: boolean;
   history: boolean;
-  /** `--verify` forces the verifier on, `--no-verify` off; unset follows `AGENT_REVIEW_VERIFY` (on by default, ADR 0027). */
+  /** `--verify` forces the verifier on, `--no-verify` off; unset follows `AGENT_REVIEW_VERIFY` (off by default, ADR 0027). */
   verify: boolean | undefined;
   /** `--result-version`: with `--format json`, which result version to write (default 1 for a committed change). */
   resultVersion?: 1 | 2;
