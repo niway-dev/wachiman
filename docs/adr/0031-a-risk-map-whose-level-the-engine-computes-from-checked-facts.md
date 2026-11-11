@@ -39,7 +39,9 @@ classifier and ties it to approvals
    drops a fact whose path or line does not exist, as it does for findings.
 4. Findings do not change the level. Files not reviewed turn it into a floor ("at least").
 5. The map is not a verdict: it approves nothing, blocks nothing and sets no check status.
-6. A change with no facts and no rule match gets one line.
+6. "Read first" is rendered in every review (owner, 2026-11-11: telling the person where to look
+   is the fixed part). A change with no facts and no rule match gets two lines: the level and
+   "Read first".
 7. The map is an optional `riskMap` field of result `/2` and is absent from `/1`.
 
 ## Alternatives rejected
@@ -60,7 +62,7 @@ classifier and ties it to approvals
 - Thresholds and the kind-to-level table become constants that need calibration on real merged
   pull requests before release.
 - `RISK_RULES` becomes visible to users, so its consumer-specific defaults need review.
-- Reviews of trivial changes grow by one line.
+- Reviews of trivial changes grow by two lines.
 
 ## Non-goals
 

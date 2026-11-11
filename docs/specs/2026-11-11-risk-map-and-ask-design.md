@@ -30,7 +30,7 @@ agent reading the same diff does not give.
 | 1 | The risk level is computed by the engine from path rules and model-reported **risk facts**; the model never picks the level | Model-picked scores were close to random in Greptile's published attempt; a rule can be read, tested and corrected | 0031 (new) |
 | 2 | Risk facts come from a closed list of kinds, each with a `path:line` the engine checks, reported by the batch calls the review already makes | No extra call; same check as a finding's line; reuses `RISK_RULES` | 0031 (new) |
 | 3 | Three named levels with their reasons shown; no number, no gate, no approval | A bare score cannot be argued with; README already refuses approval and merge gating | 0031 (new) |
-| 4 | The map is one section at the top of the review and an optional `riskMap` field in result `/2`; a change with no facts gets one line | Same result on both surfaces; small changes must stay quiet | reuses 0030, 0019 |
+| 4 | The map is one section at the top of the review and an optional `riskMap` field in result `/2`. "Read first" is in every review, also when there are no facts; then the map is two lines | Same result on both surfaces. Telling the person where to look is the fixed part (owner, 2026-11-11); small changes must still stay quiet | reuses 0030, 0019 |
 | 5 | One `ask` core serves the pull request comment, the line comment and `wachiman ask` | One prompt, one format, one set of tests | 0032 (new) |
 | 6 | The ask prompt carries the latest review result; with none, the answer says so | This is the difference from a chat agent | 0032 (new) |
 | 7 | An answer's references are structured fields; the engine removes any that do not exist at the head commit and says how many | A wrong reference costs the reader more than a missing one | 0032 (new) |
@@ -87,7 +87,9 @@ All of these are risks, not observed events.
 - [ ] A review of a change that touches a `RISK_RULES` path posts `### Risk map` with the level,
       at least one reason, and every reason's `path:line` exists at the head commit.
 - [ ] A fact whose path or line does not exist is dropped and counted in the run log (unit test).
-- [ ] A change with no facts and no rule match renders the map as exactly one line.
+- [ ] A change with no facts and no rule match renders the map as exactly two lines: the level
+      line and "Read first".
+- [ ] Every review with at least one reviewed file renders "Read first" (test over the fixtures).
 - [ ] A partial review renders the level as "at least <level>" and names the unread files count.
 - [ ] `wachiman local --format json` with result `/2` includes `riskMap`; `/1` omits it and the
       `/1` schema test still passes.
@@ -163,7 +165,8 @@ fourth charge attempt is acceptable is a product call.
 ```
 
 (Illustrative; invented paths.) "Read first" is the engine's order: files with facts, then by
-`riskScore`. With no facts and no rule match: `**Risk map:** low — no risk facts in this change.`
+`riskScore`. "Read first" is never omitted. With no facts and no rule match the map is two lines:
+`**Risk map:** low — no risk facts in this change.` and `**Read first:** …` (largest change first).
 
 The map survives trimming longer than the contracts block and the coverage table
 (`trimMiddle`, `src/engine.ts:1182`).
