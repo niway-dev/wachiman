@@ -412,6 +412,12 @@ usage error.
   review is `<sub>{model label} · {n} batches · ${cost}</sub>` and has no effort field. A finding on a line of the diff is an
   inline comment on that line; one on a line outside the diff goes in the body under "Outside the
   diff". Coverage is reported by the agent per file, not measured line by line.
+  Right after the count line, a review carries a risk map (ADR 0031): a level (low, medium or high)
+  computed by the engine from the path of each changed file and from the risk facts the batches
+  report, each with a `path:line` the engine checks against the head; then the judgement items
+  (at most three places a person must decide) and the files to read first. On a review of one
+  push, the level line starts with "This push only."; a change with no facts gets the two-line
+  form without a heading.
 - A complete, unscoped review also ends with `<!-- agent-review sha=<head> -->`; the next
   unscoped review starts from that commit. The older `<!-- claude-review sha=… -->` marker is still
   read, never written (see "Incremental reviews" for the cutoff).

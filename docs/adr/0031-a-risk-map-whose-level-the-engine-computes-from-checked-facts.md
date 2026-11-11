@@ -1,6 +1,8 @@
 # ADR 0031: Every review carries a risk map whose level the engine computes from checked facts
 
-- **Status:** proposed 2026-11-11. **Not implemented.** Reuses
+- **Status:** proposed 2026-11-11. **Implemented** by the stack starting at branch
+  `feat/risk-map-core`; the thresholds are uncalibrated, and the Martian run of spec open question 6
+  has not been done. Reuses
   [ADR 0009](0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md) and
   [ADR 0016](0016-data-path-questions-chosen-by-the-engine.md) (the model proposes, the engine
   decides) and [ADR 0030](0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)

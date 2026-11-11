@@ -3,6 +3,7 @@
  * no size limit, so it holds every finding, and it ends with the prompt for the developer's agent.
  */
 import { countLine, neutralise, renderContracts, type ReviewResult } from "../engine";
+import { renderRiskMap } from "../risk";
 import { agentPrompt } from "./agent-prompt";
 import {
   coverageText,
@@ -38,6 +39,7 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
   parts.push(`${sentenceCase(coverageText(result))}.`, `Profile: ${profileText(result, opts.profileNote)}`, countLine(result.findings));
   const note = instructionNote(result);
   if (note) parts.push(note);
+  if (result.riskMap) parts.push(renderRiskMap(result.riskMap, "## Risk map"));
   const grouped = sections(result);
   const finding = ({ f, index }: (typeof grouped.main)[number]) => {
     parts.push(`### ${markdownLabel(f)}`, `\`${location(f)}\``);

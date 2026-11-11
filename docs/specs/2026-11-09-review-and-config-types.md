@@ -402,6 +402,7 @@ interface ReviewResultV2 {
   findings: ResultFindingV2[];
   contracts: Contract[];
   summary: string;
+  riskMap?: RiskMap; // ADR 0031; absent under /1, which has no such field
   batches: BatchReport[];
   threadReplies: ThreadReply[];
   instructionChanges: { files: string[]; baseSha: string };

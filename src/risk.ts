@@ -4,23 +4,10 @@
  * a person must decide, and they never change the level. Pure: no I/O, so every rule is tested
  * directly.
  */
-import { fileKind, neutralise, riskScore, RISK_RULES } from "./engine";
+import { fileKind, JUDGEMENT_KINDS, neutralise, RISK_KINDS, riskScore, RISK_RULES } from "./engine";
 
-/** The closed list of risk facts a batch call may report. */
-export const RISK_KINDS = [
-  "data-migration",
-  "irreversible",
-  "auth",
-  "money",
-  "concurrency",
-  "public-contract",
-  "config-or-ci",
-  "dependency",
-] as const;
+export { JUDGEMENT_KINDS, RISK_KINDS };
 export type RiskKind = (typeof RISK_KINDS)[number];
-
-/** Places where the code cannot settle the question and a person must. */
-export const JUDGEMENT_KINDS = ["direction", "pattern-others-will-copy", "tradeoff"] as const;
 export type JudgementKind = (typeof JUDGEMENT_KINDS)[number];
 
 export type RiskLevel = "low" | "medium" | "high";
@@ -72,7 +59,11 @@ export function pathLevel(weight: number): RiskLevel {
   return "low";
 }
 
-const riskGlobs = RISK_RULES.map((r) => ({ ...r, matcher: new Bun.Glob(r.glob) }));
+/*
+ * Built on first use, not at load: `RISK_RULES` lives in `engine.ts`, which imports this module,
+ * so reading it while this module loads could find it not yet initialised.
+ */
+let riskGlobs: { weight: number; why: string; matcher: Bun.Glob }[] | undefined;
 
 /**
  * The RISK_RULES entry that sets a file's `riskScore`: the highest-weight match, the first one on
@@ -80,6 +71,7 @@ const riskGlobs = RISK_RULES.map((r) => ({ ...r, matcher: new Bun.Glob(r.glob) }
  */
 export function matchingRule(path: string): { weight: number; why: string } | undefined {
   if (fileKind(path) !== "code") return undefined;
+  riskGlobs ??= RISK_RULES.map((r) => ({ weight: r.weight, why: r.why, matcher: new Bun.Glob(r.glob) }));
   let best: { weight: number; why: string } | undefined;
   for (const r of riskGlobs) {
     if (r.matcher.match(path) && (!best || r.weight > best.weight)) {
@@ -186,35 +178,78 @@ export function buildRiskMap(input: {
   };
 }
 
-const code = (text: string) => `\`${neutralise(text)}\``;
-const notReviewed = (n: number) =>
-  n === 1 ? "1 file was not reviewed." : `${n} files were not reviewed.`;
+/**
+ * Keeps the well-formed items of a batch's `risk_facts` or `judgement` array. The schema makes the
+ * arrays optional, so a missing one is empty; a malformed item is ignored, never guessed at.
+ */
+export function wellFormed<T extends { kind: string; path: string; line: number; why: string }>(
+  items: unknown,
+  kinds: readonly string[],
+): T[] {
+  if (!Array.isArray(items)) return [];
+  return items.filter(
+    (item): item is T =>
+      item !== null &&
+      typeof item === "object" &&
+      kinds.includes((item as T).kind) &&
+      typeof (item as T).path === "string" &&
+      Number.isInteger((item as T).line) &&
+      (item as T).line >= 1 &&
+      typeof (item as T).why === "string",
+  );
+}
 
-/** The map as Markdown: `heading` is the title line, e.g. `### Risk map` for local output. */
-export function renderRiskMap(map: RiskMap, heading: string): string {
+/** How the map's words are marked up: Markdown for GitHub and the Markdown file, plain for the terminal. */
+export interface RiskMapStyle {
+  strong(text: string): string;
+  code(text: string): string;
+}
+
+export const MARKDOWN_STYLE: RiskMapStyle = {
+  strong: (text) => `**${text}**`,
+  code: (text) => `\`${neutralise(text)}\``,
+};
+
+export const PLAIN_STYLE: RiskMapStyle = { strong: (text) => text, code: (text) => neutralise(text) };
+
+const notReviewed = (n: number) => (n === 1 ? "1 file was not reviewed." : `${n} files were not reviewed.`);
+
+/**
+ * The map as text: `heading` is the title line when the map has content (`### Risk map` on GitHub,
+ * `## Risk map` in Markdown, `Risk map:` in the terminal); the two-line form for a change with no
+ * facts has none. `pushOnly` puts "This push only." in front of the level line, for a review that
+ * covers one push of a pull request (ADR 0011).
+ */
+export function renderRiskMap(
+  map: RiskMap,
+  heading: string,
+  opts: { pushOnly?: boolean; style?: RiskMapStyle } = {},
+): string {
+  const { strong, code } = opts.style ?? MARKDOWN_STYLE;
+  const lead = opts.pushOnly ? "This push only. " : "";
   const readFirst =
-    map.readFirst.length > 0 ? `**Read first:** ${map.readFirst.map(code).join(", ")}.` : undefined;
+    map.readFirst.length > 0
+      ? `${strong("Read first:")} ${map.readFirst.map(code).join(", ")}.`
+      : undefined;
 
   if (map.facts.length === 0 && map.judgement.length === 0 && map.pathReasons.length === 0) {
     const summary = map.floor
-      ? `**Risk map:** at least ${map.level} — no risk facts in the files read; ${notReviewed(map.unreadFiles)}`
-      : `**Risk map:** ${map.level} — no risk facts in this change.`;
+      ? `${lead}${strong("Risk map:")} at least ${map.level} — no risk facts in the files read; ${notReviewed(map.unreadFiles)}`
+      : `${lead}${strong("Risk map:")} ${map.level} — no risk facts in this change.`;
     return [summary, readFirst].filter((line) => line !== undefined).join("\n");
   }
 
   const covered = new Set(map.facts.map((f) => f.path));
   const bullets = [
-    ...map.facts.map(
-      (f) => `- ${code(f.kind)} · ${code(`${f.path}:${f.line}`)} — ${neutralise(f.why)}`,
-    ),
+    ...map.facts.map((f) => `- ${code(f.kind)} · ${code(`${f.path}:${f.line}`)} — ${neutralise(f.why)}`),
     ...map.pathReasons
       .filter((r) => !covered.has(r.path))
       .map((r) => `- ${code(r.path)} — ${neutralise(r.why)}`),
   ];
 
   const level = map.floor
-    ? `**At least ${map.level}.** ${notReviewed(map.unreadFiles)}`
-    : `**${LEVEL_WORD[map.level]}.**`;
+    ? `${lead}${strong(`At least ${map.level}.`)} ${notReviewed(map.unreadFiles)}`
+    : `${lead}${strong(`${LEVEL_WORD[map.level]}.`)}`;
 
   const blocks = [heading, level];
   if (bullets.length > 0) blocks.push(bullets.join("\n"));
@@ -222,7 +257,7 @@ export function renderRiskMap(map: RiskMap, heading: string): string {
     const items = map.judgement.map(
       (j) => `- ${code(`${j.path}:${j.line}`)} (${code(j.kind)}) — ${neutralise(j.why)}`,
     );
-    blocks.push(`**Needs a person:**\n\n${items.join("\n")}`);
+    blocks.push(`${strong("Needs a person:")}\n\n${items.join("\n")}`);
   }
   if (readFirst !== undefined) blocks.push(readFirst);
   return blocks.join("\n\n");

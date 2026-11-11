@@ -10,6 +10,7 @@ import {
   costOf,
   DISABLED_FEATURES,
   leaksKey,
+  strictSchema,
   locatePrompt,
   parsePrice,
   PRICES,
@@ -311,5 +312,17 @@ describe("selection", () => {
     expect(loadConfig({ AGENT_REVIEW_PROVIDER: "codex" }).model).toBe(DEFAULT_MODELS.codex);
     expect(loadConfig({}).model).toBe("claude-opus-5-5");
     expect(loadConfig({ AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_MODEL: "gpt-6-sol" }).model).toBe("gpt-6-sol");
+  });
+});
+
+describe("the schema Codex receives", () => {
+  test("the batch's optional risk arrays are required, and nothing else changes", () => {
+    const schema = { type: "object", properties: { a: { type: "string" }, risk_facts: { type: "array" }, judgement: { type: "array" } }, required: ["a"] };
+    expect(strictSchema(schema)).toEqual({ ...schema, required: ["a", "risk_facts", "judgement"] });
+  });
+
+  test("a schema without the risk arrays comes back as the same object", () => {
+    const schema = { type: "object", properties: { a: { type: "string" } }, required: ["a"] };
+    expect(strictSchema(schema)).toBe(schema);
   });
 });

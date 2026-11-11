@@ -3,6 +3,7 @@
  * the same in a pipe, a log or a screen reader. Progress goes to stderr, never here.
  */
 import { countLine, neutralise, type ReviewResult } from "../engine";
+import { PLAIN_STYLE, renderRiskMap } from "../risk";
 import { agentPrompt } from "./agent-prompt";
 import {
   coverageText,
@@ -34,6 +35,7 @@ export function renderTerminal(result: ReviewResult, opts: { profileNote?: strin
   );
   const note = instructionNote(result);
   if (note) blocks.push(note);
+  if (result.riskMap) blocks.push(renderRiskMap(result.riskMap, "Risk map:", { style: PLAIN_STYLE }));
   const grouped = sections(result);
   const finding = ({ f, index }: (typeof grouped.main)[number]) => {
     const entry = opts.history?.byIndex.get(index);
