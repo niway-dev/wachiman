@@ -12,8 +12,10 @@ import { spawnGit, type GitRunner } from "../evidence";
 import { repositoryKey } from "../history/store";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
+import { wizardIo } from "../wizard/style";
+import { projectCommands } from "../wizard/command";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
-import { promptForInit } from "./prompt";
+import { checkSupplied, promptForInit } from "./prompt";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, writeWorkflow, type WriteHooks } from "./write";
 
@@ -33,7 +35,7 @@ export interface InitDeps {
   /** An open prompt session; the caller closes it. Otherwise one is opened over `promptIO` or the terminal. */
   prompter?: Prompter;
   /** What `wachiman setup` means from here: runs the setup wizard in the same process, sharing `prompter`. */
-  bindNow?: (prompter: Prompter) => Promise<number>;
+  bindNow?: (prompter: Prompter, mode: "local" | "both") => Promise<number>;
   /** The directory a relative `--repo-dir` was resolved against, for the `setup` line. Default: `process.cwd()`. */
   cwd?: string;
   hooks?: WriteHooks;
@@ -42,25 +44,26 @@ export interface InitDeps {
 const TEMPLATE = join(import.meta.dir, "..", "..", "templates", "wachiman-review-caller.yml");
 const readDefaultTemplate = () => readFileSync(TEMPLATE, "utf8");
 
-/** The line that hands over to `setup`. */
-export function setupLine(repoDir: string, cwd: string) {
-  return repoDir === cwd ? "wachiman setup" : `wachiman setup --repo-dir ${repoDir}`;
-}
-
-const openSession = (deps: InitDeps) => {
+const openSession = (deps: InitDeps, env: Record<string, string | undefined>) => {
   if (deps.prompter) return { prompter: deps.prompter, close: () => {} };
-  const prompter = createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr });
+  const prompter = createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env);
   return { prompter, close: () => prompter.close() };
 };
 
 /** From the parsed flags: asks what is missing when a person can be asked, resolves, and runs. */
 export async function runInitCommand(flags: RawInitFlags, env: Record<string, string | undefined>, io: CommandIo, deps: InitDeps = {}): Promise<number> {
+  // Fail before asking for an operator or account in an unusable target.
+  const root = worktreeRoot(flags.repoDir ?? ".", deps.git);
   const interactive = deps.interactive ?? isInteractive(flags, env, deps.streams ?? { stdin: process.stdin, stdout: process.stdout });
+  if (interactive) io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env);
   const defaultWorkflowRef = "defaultWorkflowRef" in deps ? deps.defaultWorkflowRef : DEFAULT_WORKFLOW_REF;
-  const session = interactive ? openSession(deps) : undefined;
+  const session = interactive ? openSession(deps, env) : undefined;
   try {
     let answered = flags;
     if (session) {
+      checkSupplied(flags);
+      session.prompter.step("Project", 1);
+      session.prompter.say(root, "muted");
       const asked = await promptForInit(flags, { defaultWorkflowRef }, session.prompter);
       if (asked === null) {
         io.stderr("cancelled: nothing was written.");
@@ -80,14 +83,7 @@ export async function runInitCommand(flags: RawInitFlags, env: Record<string, st
 export async function runInit(options: InitOptions, io: CommandIo, deps: InitDeps = {}): Promise<number> {
   const cwd = deps.cwd ?? process.cwd();
   // Before anything is rendered or written: this must be a git repository.
-  repositoryKey(options.repoDir, deps.git);
-  // `--path` is relative to the repository top level: GitHub only runs workflows under <top level>/.github/workflows.
-  const top = (deps.git ?? spawnGit)(["rev-parse", "--show-toplevel"], { cwd: options.repoDir, timeoutMs: 10_000 });
-  if (top.status !== 0 || top.stdout.trim() === "") {
-    // A bare repository or a directory inside .git: there is no work tree for GitHub to run a workflow from.
-    throw new UsageError(`${options.repoDir} is not inside a git work tree; run init from the repository or pass --repo-dir <its top level>.`);
-  }
-  const root = top.stdout.trim();
+  const root = worktreeRoot(options.repoDir, deps.git);
   const { github } = options;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
@@ -128,25 +124,40 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
     written = shown;
     io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
+    if (options.mode === "github") prompter?.step("Checks and next actions", 4, 4);
     io.stderr("Two things are left to do in GitHub:");
     io.stderr("  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.");
     io.stderr(`  2. Open a pull request that adds ${shown}. init does not commit, push or open one.`);
     io.stderr("Local runs use your signed-in claude, never this key.");
   }
 
-  if (options.mode === "github") return 0;
+  if (options.mode === "github") {
+    io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");
+    return 0;
+  }
   if (prompter && deps.bindNow) {
-    const answer = await prompter.confirm("Run wachiman setup now to bind this repository to a Claude account?", true);
-    if (answer === null) {
-      io.stderr(written ? `cancelled: ${written} was written and stays; nothing else was changed.` : "cancelled: nothing was written.");
-      return 130;
-    }
-    if (answer) {
-      const code = await deps.bindNow(prompter);
+    try {
+      const code = await deps.bindNow(prompter, options.mode);
       if (code === 130 && written) io.stderr(`${written} was written before setup was cancelled and stays in place.`);
+      if (code !== 130 && written) io.stderr(`github: pending; ${written} is written. Secret and workflow submission still require action in GitHub.`);
       return code;
+    } catch (error) {
+      if (written) io.stderr(`${written} was written before setup failed and stays in place.`);
+      throw error;
     }
   }
-  io.stderr(`Next, on this machine: ${setupLine(options.repoDir, cwd)}   (binds this repository to a Claude account)`);
+
+  if (written) io.stderr(`github: pending; ${written} is written. Secret and workflow submission still require action in GitHub.`);
+  for (const command of projectCommands("setup", options.repoDir, cwd)) io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
   return 0;
+}
+
+/** Workflows belong at the Git top level, including when init starts below it. */
+function worktreeRoot(repoDir: string, git: GitRunner = spawnGit): string {
+  repositoryKey(repoDir, git);
+  const top = git(["rev-parse", "--show-toplevel"], { cwd: repoDir, timeoutMs: 10_000 });
+  if (top.status !== 0 || top.stdout.trim() === "") {
+    throw new UsageError(`${repoDir} is not inside a git work tree; run init from the repository or pass --repo-dir <its top level>.`);
+  }
+  return top.stdout.trim();
 }

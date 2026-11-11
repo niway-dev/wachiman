@@ -7,7 +7,7 @@
 import { basename, join } from "node:path";
 import { binaryProblem, checkExternalConfigDir, checkNewProfileName } from "../accounts/commands";
 import type { ProjectBinding, WachimanConfigV1 } from "../accounts/config";
-import { buildProfileList, managedDir, refersTo } from "../accounts/profile-list";
+import { buildProfileList, managedDir, refersTo, type ProfileListEntry } from "../accounts/profile-list";
 import { checkProfileName, ISOLATED_NAME, parseProfileRef } from "../accounts/resolve";
 import { UsageError } from "../config";
 import type { HistoryRepository } from "../history/types";
@@ -30,6 +30,9 @@ export interface SetupPromptContext {
   userHome: string;
   /** Creates the managed directory and runs the sign-in; called only after the person confirmed that side effect. */
   createManaged: (name: string) => void;
+  /** init already collected the local-mode choice; still confirm the final write. */
+  fromInit?: boolean;
+  initMode?: "local" | "both";
 }
 
 export type SetupAnswers =
@@ -78,31 +81,40 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
   const registered = (name: string) => Object.hasOwn(config?.profiles ?? {}, name);
   const say = (line: string) => prompter.say(line);
 
-  say(`repository: ${repo.name} (${repo.keyedBy === "remote" ? `origin ${repo.remote ?? "(unparsed)"}` : `path ${repo.path}`})`);
-  if (ctx.current) say(`currently bound to ${ctx.current.profile}`);
-  const go = await prompter.confirm("Set up this repository?", true);
-  if (go === null) return { kind: "cancelled" };
-  if (!go) return { kind: "declined" };
+  const total = ctx.fromInit ? (ctx.initMode === "both" ? 6 : 5) : 4;
+  if (!ctx.fromInit) {
+    prompter.step("Project", 1, total);
+    say(`repository: ${repo.name} (${repo.keyedBy === "remote" ? `origin ${repo.remote ?? "(unparsed)"}` : `path ${repo.path}`})`);
+    if (ctx.current) say(`currently bound to ${ctx.current.profile}`);
+    const go = await prompter.confirm("Set up this repository?", true);
+    if (go === null) return { kind: "cancelled" };
+    if (!go) return { kind: "declined" };
+  }
 
   let name = flags.profile;
+  prompter.step("Claude account", total - 2, total);
+  if (ctx.fromInit && ctx.current) say(`currently bound to ${ctx.current.profile}`);
   let pending: PendingProfile | undefined;
   while (name === undefined) {
     const list = buildProfileList(home, config);
-    const rows: { label: string; value: string | typeof REGISTER | typeof CREATE }[] = list.profiles.map((p) => {
+    const profiles: ProfileListEntry[] = [{ name: "default", kind: "default", registered: true, usedBy: [] }, ...list.profiles];
+    const rows: { label: string; description?: string; value: string | typeof REGISTER | typeof CREATE }[] = profiles.map((p) => {
       const marks = [
-        ctx.current && refersTo(ctx.current.profile, p.name) ? "(current)" : "",
-        list.defaultProfile !== undefined && refersTo(list.defaultProfile, p.name) ? "(global default)" : "",
+        ctx.current && (ctx.current.profile === p.name || refersTo(ctx.current.profile, p.name)) ? "(current)" : "",
+        list.defaultProfile !== undefined && (list.defaultProfile === p.name || refersTo(list.defaultProfile, p.name)) ? "(global default)" : "",
         p.registered ? "" : "(unregistered)",
       ].filter(Boolean);
       const where = p.kind === "external" ? `${p.configDir}, ${p.binary ? `binary ${p.binary}` : "claude from PATH"}` : p.configDir;
-      return { label: `${p.name}  ${p.kind}  ${where}${marks.length ? `  ${marks.join(" ")}` : ""}`, value: p.name };
+      const label = p.kind === "default" ? "Use my current Claude session" : `${p.name}  ${p.kind}`;
+      return { label: `${label}${marks.length ? `  ${marks.join(" ")}` : ""}`, description: p.kind === "default" ? "Shares your normal Claude settings." : where, value: p.name };
     });
-    rows.push({ label: "Register an existing Claude configuration directory (external)", value: REGISTER });
     rows.push({ label: "Create a new isolated profile (managed)", value: CREATE });
-    const currentIndex = ctx.current ? list.profiles.findIndex((p) => refersTo(ctx.current!.profile, p.name)) : -1;
-    const globalIndex = list.defaultProfile !== undefined ? list.profiles.findIndex((p) => refersTo(list.defaultProfile!, p.name)) : -1;
-    const defaultIndex = currentIndex >= 0 ? currentIndex : globalIndex >= 0 ? globalIndex : list.profiles.length;
-    const label = list.profiles.length > 0 ? "Which account profile should this repository use?" : "No profile is registered yet. What do you want to do?";
+    rows.push({ label: "Register an existing Claude configuration directory (external)", value: REGISTER });
+    const indexOf = (ref: string) => profiles.findIndex((p) => ref === p.name || refersTo(ref, p.name));
+    const currentIndex = ctx.current ? indexOf(ctx.current.profile) : -1;
+    const globalIndex = list.defaultProfile !== undefined ? indexOf(list.defaultProfile) : -1;
+    const defaultIndex = currentIndex >= 0 ? currentIndex : globalIndex >= 0 ? globalIndex : 0;
+    const label = "Which account profile should this repository use?";
     const picked = await prompter.select(label, rows, defaultIndex);
     if (picked === null) return { kind: "cancelled" };
 
@@ -155,6 +167,7 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
   const kind = p?.kind ?? known?.kind ?? (name === "default" ? "default" : "managed");
   const directory = p?.configDir ?? known?.configDir ?? (name === "default" ? undefined : join(home, `claude-${name.replace(/^isolated:/, "")}`));
   const binary = p?.kind === "external" ? p.binary : known?.kind === "external" ? known.binary : undefined;
+  prompter.step("Confirm binding", total - 1, total);
   say("Bind this repository:");
   say(`  profile:    ${name}`);
   say(`  kind:       ${kind}`);

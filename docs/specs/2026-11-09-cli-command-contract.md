@@ -240,10 +240,11 @@ the config unchanged; directory creation or a completed Claude login is reported
 1. **Repository.** Prints `repository: <name> (<origin url without credentials> | path <dir>)`
    and the existing binding if any (`currently bound to work-a`). Question: `Set up this
    repository? [Y/n]`. No → exit 0, nothing written.
-2. **Profile.** Numbered list: registered profiles (name, kind, directory, binary or `PATH`), the
-   current binding marked `(current)`, the global default marked `(default)`; then two more
-   rows: `Register an existing Claude configuration directory (external)` and `Create a new
-   isolated profile (managed)`. Without any registered profile the default is "Register".
+2. **Profile.** Numbered list: `Use my current Claude session` (`default`, sharing normal
+   Claude settings), then registered/discovered profiles (name, kind, directory, binary or `PATH`),
+   then `Create a new isolated profile (managed)` and `Register an existing Claude configuration
+   directory (external)`. Mark the binding `(current)` and the global default `(global default)`.
+   Enter prefers the binding, then the global default, then the built-in current session.
    - Register: text `Configuration directory` (absolute; `~` expanded; must exist; must be a
      directory; must not be under `~/.wachiman`); text `claude binary (leave empty for PATH)`
      (absolute existing executable, no `.cmd`/`.bat`/`.ps1`); text `Profile name` (section 4's
@@ -260,10 +261,14 @@ the config unchanged; directory creation or a completed Claude login is reported
 4. **Write** the pending profile (if any) and binding together in one locked atomic config
    transaction, revalidating concurrent changes under the lock. Print `bound: <repo> → <profile> (home config,
    nothing written in the repository)`.
-5. **Confirm the account.** Runs `confirmProfile`. Signed out → `Sign in now? [Y/n]`; yes runs
+5. **Confirm the account.** Runs `confirmProfile`. Signed-out managed/external profile → `Sign in now? [Y/n]`; yes runs
    `profile login <name>` (section 5.7) and re-checks; no → continue with the warning.
-6. **Doctor summary** (section 5.6, compact) and the suggested line:
-   `wachiman local --repo-dir <dir>` (no `--profile`, because the binding carries it).
+6. **Doctor summary** (section 5.6, compact). Required checks passing prints `local: ready`
+   (machine/account checks only, not the review range) and a `wachiman local` suggestion.
+   Failure prints `local: not ready`, keeps the binding and exits 1, suggesting `wachiman doctor`
+   for the repository. Suggested path arguments are shell-quoted; the current directory needs no
+   path. Windows output identifies PowerShell and Git Bash alternatives. No `--profile` is needed
+   because the binding carries it.
 
 Non-interactive (`--yes`, `CI=true`, or no TTY): `--profile <name>` is mandatory (exit 2 without
 it: `setup needs --profile <name> when it cannot ask; run wachiman profile list`); the name must
@@ -292,13 +297,13 @@ and that local runs use the signed-in `claude` and never that key.
 | `--mode github\|local\|both` | prompt | mandatory without a TTY |
 | `--operator <login>` | prompt (default: `git config user.name` is **not** used; no default) | mandatory for `github` and `both` without a TTY; written as `operator:`; must match `^[A-Za-z0-9](?:[A-Za-z0-9]\|-(?=[A-Za-z0-9])){0,38}$` |
 | `--version <tag>` | bundled `DEFAULT_WORKFLOW_REF` (a known published immutable ref) | written in `uses: …@<tag>`; must look like `vX.Y.Z` or a 40-hex SHA; must not infer an Actions tag from the CLI version; missing bundled ref makes this flag mandatory |
-| `--path <file>` | `.github/workflows/wachiman-review.yml` | relative to `--repo-dir`; must end in `.yml` or `.yaml` and stay under `.github/workflows/` |
+| `--path <file>` | `.github/workflows/wachiman-review.yml` | relative to the repository top level, even from a subdirectory; must end in `.yml` or `.yaml` and stay under `.github/workflows/` |
 | `--force` | off | overwrite an existing target after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` |
 | `--dry-run` | off | print the rendered file to stdout; write nothing; exit 0 |
 | `--yes` | off | accept defaults; no prompts |
 | `--repo-dir <dir>` | `.` | must be a git repository |
 
-Interactive flow:
+Interactive flow (validate the Git worktree before asking; paths are rooted at its top level):
 
 1. `How will Wachiman review this repository?` numbered: `1. In GitHub Actions on pull requests
    (default)`, `2. Only on this machine, with my Claude subscription`, `3. Both`.
@@ -312,8 +317,12 @@ Interactive flow:
 4. **Write.** Then print, on stderr, the two things the person must do in GitHub: add the
    repository secret `ANTHROPIC_API_KEY` (Console key, API-billed), and open the pull request
    that adds the file. Then: `Local runs use your signed-in claude, never this key.`
-5. For 2 or 3: `Run wachiman setup now to bind this repository to a Claude account? [Y/n]`; yes
-   runs section 5.4 in the same process; no prints the `wachiman setup` line.
+5. For 2 or 3: continue directly into section 5.4 in the same process, skipping its general
+   `Set up this repository?` invitation. Keep the final binding confirmation. A workflow already
+   written remains in place if later setup is cancelled or fails, and the message reports it.
+   When that setup ends without saving a binding (a "no" or a cancellation), print the
+   `wachiman setup` command that binds later.
+   Standalone `setup` still asks its general invitation.
 
 Rendering (pure, `renderCallerWorkflow(template, { operator, tag })`): replaces
 `operator: EDIT-THIS-github-login` with the login and `review.yml@v1.5.0` (whatever tag the
@@ -334,7 +343,14 @@ and lstat: no symlinked `.github`/`workflows`/target may escape the repository, 
 not overwrite an existing backup. Write via an exclusive temporary file plus rename; recheck
 target identity before replacement.
 
-`init` writes nothing outside the chosen workflow path and its `.bak` copy. It never commits,
+The workflow-writing portion of `init` writes only the chosen workflow and its `.bak` copy.
+Interactive local setup separately saves its confirmed account binding in the Wachiman home.
+Stages show project, mode, configuration, binding confirmation where applicable and next actions;
+route totals appear once the mode is known. Styling is disabled for non-terminal output,
+`TERM=dumb` and a non-empty `NO_COLOR` (per no-color.org); stdout data is unchanged. A written workflow is still
+`github: pending` until the person adds the secret and submits it; no remote readiness is checked.
+
+`init` never commits,
 never pushes, never opens a pull request, never creates a secret.
 
 ### 5.6 `doctor` (planned)

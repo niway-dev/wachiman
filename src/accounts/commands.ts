@@ -15,6 +15,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { UsageError } from "../config";
 import { buildDoctorReport, type DoctorDeps } from "../doctor/run";
 import { renderRow } from "../doctor/render";
+import { projectCommands } from "../wizard/command";
 import type { GitRunner } from "../evidence";
 import { parseFlags } from "../flags";
 import { repositoryKey } from "../history/store";
@@ -617,8 +618,11 @@ export function closeSetup(repoDir: string, env: Record<string, string | undefin
   const width = Math.max(...report.checks.map((r) => r.id.length));
   io.stderr(`doctor: ${report.checks.length} checks, ${report.failedRequired} required failed`);
   for (const row of report.checks) if (row.status === "fail" || row.status === "warn") for (const line of renderRow(row, width)) io.stderr(line);
-  io.stderr(report.failedRequired > 0 ? `${report.failedRequired} required check(s) failed; the binding was written. Fix them, then run \`wachiman doctor\`.` : "All required checks passed.");
-  io.stderr(`next: wachiman local --repo-dir ${repoDir}`);
+  io.stderr(report.failedRequired > 0 ? `${report.failedRequired} required check(s) failed; the binding was written. Fix them, then run the doctor command below.` : "All required checks passed.");
+  io.stderr(report.failedRequired > 0
+    ? "local: not ready; configuration saved, required checks need attention."
+    : "local: ready; required machine and account checks passed (review range not checked).");
+  for (const command of projectCommands(report.failedRequired > 0 ? "doctor" : "local", repoDir)) io.stderr(`next: ${command}`);
   return report.exitCode;
 }
 

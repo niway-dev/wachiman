@@ -111,13 +111,18 @@ const errText = (w: World) => w.err.join("\n");
 describe("setup on a terminal", () => {
   test("lists the registered profiles with the default marked, offers register and create, and shows the binding before saving", async () => {
     const w = world({ defaultProfile: "work-b" });
-    const { io, run } = setup(w, [], ["", "1", ""]); // set up? / pick work-a / bind?
+    const { io, run } = setup(w, [], ["", "2", ""]); // set up? / pick work-a / bind?
     expect(await run).toBe(0);
     const printed = io.printed();
-    expect(printed).toMatch(/1\. work-a {2}external {2}.*claude from PATH/);
-    expect(printed).toMatch(/2\. work-b {2}external {2}.*\(global default\) \(default\)/);
-    expect(printed).toContain("3. Register an existing Claude configuration directory (external)");
+    expect(printed).toMatch(/2\. work-a {2}external/);
+    expect(printed).toContain(`${w.workA}, claude from PATH`);
+    expect(printed).toMatch(/3\. work-b {2}external {2}.*\(global default\) \(default\)/);
+    expect(printed).toContain("5. Register an existing Claude configuration directory (external)");
     expect(printed).toContain("4. Create a new isolated profile (managed)");
+    expect(printed).toContain("Step 1/4  Project");
+    expect(printed).toContain("Step 2/4  Claude account");
+    expect(printed).toContain("Step 3/4  Confirm binding");
+    expect(printed).toContain("Step 4/4  Checks and next actions");
     // The final summary shows name, kind, directory, binary and the scope, before the question.
     const summary = printed.slice(printed.indexOf("Bind this repository:"));
     expect(summary).toContain("profile:    work-a");
@@ -132,7 +137,7 @@ describe("setup on a terminal", () => {
   test("it saves only the binding, then ends with the doctor summary and the local line, and calls no model", async () => {
     const w = world();
     const before = w.config()!;
-    const { run } = setup(w, [], ["", "1", ""]);
+    const { run } = setup(w, [], ["", "2", ""]);
     expect(await run).toBe(0);
     const after = w.config()!;
     expect(after.profiles).toEqual(before.profiles);
@@ -152,7 +157,7 @@ describe("setup on a terminal", () => {
   test("nothing is written in the repository", async () => {
     const w = world();
     const before = snapshotTree(w.repo);
-    const { run } = setup(w, [], ["", "1", ""]);
+    const { run } = setup(w, [], ["", "2", ""]);
     await run;
     expect(snapshotTree(w.repo)).toEqual(before);
   });
@@ -162,8 +167,8 @@ describe("setup on a terminal", () => {
     const { io, run } = setup(w, [], ["", "", ""]); // every question: Enter
     await run;
     expect(io.printed()).toContain("Set up this repository? [Y/n]");
-    expect(io.printed()).toMatch(/2\. work-b.*\(default\)/);
-    expect(io.printed()).toContain("Choice [2]:");
+    expect(io.printed()).toMatch(/3\. work-b.*\(default\)/);
+    expect(io.printed()).toContain("Choice [3]:");
     expect(w.config()!.projects[w.key].profile).toBe("work-b");
   });
 
@@ -175,17 +180,45 @@ describe("setup on a terminal", () => {
     const again = setup(w, [], ["", "", ""]);
     await again.run;
     expect(again.io.printed()).toContain("currently bound to work-a");
-    expect(again.io.printed()).toMatch(/1\. work-a.*\(current\).*\(default\)/);
+    expect(again.io.printed()).toMatch(/2\. work-a.*\(current\).*\(default\)/);
     expect(w.config()!.projects[w.key].profile).toBe("work-a");
   });
 
-  test("without any registered profile the default is Register, and Enter at every question does not invent a profile", async () => {
+  test("a fresh home uses the current Claude session without registering a profile", async () => {
     const w = world({ profiles: {} });
-    const { io, run } = setup(w, [], ["", "", ""]); // set up? / Register (Enter) / directory: Enter is not a value
-    expect(await run).toBe(130);
-    expect(io.printed()).toMatch(/1\. Register an existing Claude configuration directory \(external\) \(default\)/);
-    expect(io.printed()).toContain("A directory is required.");
-    expect(w.configText()).toContain('"profiles":{}');
+    const { io, run } = setup(w, [], ["", "", ""]);
+    expect(await run).toBe(0);
+    expect(io.printed()).toMatch(/1\. Use my current Claude session.*\(default\)/);
+    expect(io.printed()).not.toContain("Configuration directory (absolute");
+    expect(w.config()!.profiles).toEqual({});
+    expect(w.config()!.projects[w.key].profile).toBe("default");
+  });
+
+  test("a binding to default wins over a registered global default", async () => {
+    const w = world({ defaultProfile: "work-b" });
+    await setup(w, ["--profile", "default"], ["", ""]).run;
+    const again = setup(w, [], ["", "", ""]);
+    expect(await again.run).toBe(0);
+    expect(again.io.printed()).toMatch(/1\. Use my current Claude session.*\(current\).*\(default\)/);
+    expect(w.config()!.projects[w.key].profile).toBe("default");
+  });
+
+  test("a global default session is the printed selection", async () => {
+    const w = world({ defaultProfile: "default" });
+    const { io, run } = setup(w, [], ["", "", ""]);
+    expect(await run).toBe(0);
+    expect(io.printed()).toMatch(/1\. Use my current Claude session.*\(global default\).*\(default\)/);
+    expect(w.config()!.projects[w.key].profile).toBe("default");
+  });
+
+  test("a signed-out current session keeps its binding and reports repair without choosing another account", async () => {
+    const w = world({ profiles: {}, tools: { auth: () => ({ status: 1, stdout: JSON.stringify({ loggedIn: false }) }) } });
+    const { run } = setup(w, [], ["", "", ""]);
+    expect(await run).toBe(1);
+    expect(w.config()!.projects[w.key].profile).toBe("default");
+    expect(w.config()!.profiles).toEqual({});
+    expect(errText(w)).toContain("sign in with your own `claude` (run it and use /login)");
+    expect(w.interactiveCalls).toEqual([]);
   });
 
   test("answering no to Set up this repository? exits 0 and writes nothing", async () => {
@@ -195,6 +228,19 @@ describe("setup on a terminal", () => {
     expect(await run).toBe(0);
     expect(w.configText()).toBe(before);
     expect(errText(w)).toContain("nothing saved");
+  });
+
+  test.each([
+    ["declining the binding", "n", 0, "nothing saved: the configuration is unchanged."],
+    ["Escape at the binding", ESC, 130, "cancelled: no configuration changes saved."],
+  ])("started from init, %s still shows how to bind later", async (_n, key, code, said) => {
+    const w = world();
+    const before = w.configText();
+    const { run } = setup(w, [], ["2", key], { fromInit: true, unboundHints: ["wachiman setup"] });
+    expect(await run).toBe(code);
+    expect(w.configText()).toBe(before);
+    expect(errText(w)).toContain(said);
+    expect(errText(w)).toContain("Next, on this machine: wachiman setup");
   });
 
   test("--profile on a terminal skips the profile question, and an unknown name is exit 2 before any prompt", async () => {
@@ -210,7 +256,7 @@ describe("setup on a terminal", () => {
 
   test("--json prints the project document on stdout alone", async () => {
     const w = world();
-    const { run } = setup(w, ["--json"], ["", "1", ""]);
+    const { run } = setup(w, ["--json"], ["", "2", ""]);
     await run;
     expect(w.out).toHaveLength(1);
     expect(JSON.parse(w.out[0])).toMatchObject({ format: "wachiman.project/1", binding: { profile: "work-a" } });
@@ -221,6 +267,9 @@ describe("setup on a terminal", () => {
     const { run } = setup(w, ["--profile", "work-a"], ["", ""]);
     expect(await run).toBe(1);
     expect(errText(w)).toContain("the binding was written");
+    expect(errText(w)).toContain("local: not ready");
+    expect(errText(w)).toContain(`next: wachiman doctor --repo-dir ${w.repo}`);
+    expect(errText(w)).not.toContain("next: wachiman local");
     expect(w.config()!.projects[w.key].profile).toBe("work-a");
   });
 });
@@ -235,7 +284,7 @@ describe("setup: registering an external directory", () => {
   test("registration and binding are saved together, only after the final confirmation; the proposed name is the printed default", async () => {
     const w = world();
     const dir = external(w);
-    const { io, run } = setup(w, [], ["", "3", "~/.claude-client", "", "", ""]); // set up? / register / dir / binary / name / bind?
+    const { io, run } = setup(w, [], ["", "5", "~/.claude-client", "", "", ""]); // set up? / register / dir / binary / name / bind?
     expect(await run).toBe(0);
     expect(io.printed()).toContain("claude binary (leave empty for PATH)");
     expect(io.printed()).toContain("Profile name [claude-client]");
@@ -254,7 +303,7 @@ describe("setup: registering an external directory", () => {
     const bin = join(temp("fake-bin-"), "claude");
     writeFileSync(bin, "#!/bin/sh\n");
     chmodSync(bin, 0o755);
-    const { io, run } = setup(w, [], ["", "3", "~/.claude-client", "claude", bin, "", ""]);
+    const { io, run } = setup(w, [], ["", "5", "~/.claude-client", "claude", bin, "", ""]);
     expect(await run).toBe(0);
     expect(io.printed()).toContain("claude is not an absolute path");
     expect(w.config()!.profiles["claude-client"]).toMatchObject({ binary: bin });
@@ -267,7 +316,7 @@ describe("setup: registering an external directory", () => {
     mkdirSync(join(w.home, "inside"), { recursive: true });
     const file = join(w.userHome, "afile");
     writeFileSync(file, "x");
-    const { io, run } = setup(w, [], ["", "3", "relative/dir", join(w.userHome, "missing"), file, join(w.home, "inside"), "~/.claude-client", "", "", ""]);
+    const { io, run } = setup(w, [], ["", "5", "relative/dir", join(w.userHome, "missing"), file, join(w.home, "inside"), "~/.claude-client", "", "", ""]);
     expect(await run).toBe(0);
     const printed = io.printed();
     expect(printed).toContain("must be an absolute path");
@@ -279,7 +328,7 @@ describe("setup: registering an external directory", () => {
   test("a name that is taken, reserved or malformed is refused and asked again", async () => {
     const w = world();
     external(w);
-    const { io, run } = setup(w, [], ["", "3", "~/.claude-client", "", "work-a", "default", "isolated", "Bad Name", "client", ""]);
+    const { io, run } = setup(w, [], ["", "5", "~/.claude-client", "", "work-a", "default", "isolated", "Bad Name", "client", ""]);
     expect(await run).toBe(0);
     const printed = io.printed();
     expect(printed).toContain('"work-a" is already registered');
@@ -297,7 +346,7 @@ describe("setup: registering an external directory", () => {
     const w = world();
     external(w);
     const before = w.configText();
-    const lines = ["", "3", "~/.claude-client", "", "", ...(key ? [key] : [])];
+    const lines = ["", "5", "~/.claude-client", "", "", ...(key ? [key] : [])];
     const { run } = setup(w, [], lines);
     expect(await run).toBe(130);
     expect(w.configText()).toBe(before);
@@ -309,7 +358,7 @@ describe("setup: registering an external directory", () => {
     const w = world();
     external(w);
     const before = w.configText();
-    const { run } = setup(w, [], ["", "3", "~/.claude-client", ESC]);
+    const { run } = setup(w, [], ["", "5", "~/.claude-client", ESC]);
     expect(await run).toBe(130);
     expect(w.configText()).toBe(before);
   });
@@ -318,7 +367,7 @@ describe("setup: registering an external directory", () => {
     const w = world();
     external(w);
     const before = w.configText();
-    const { run } = setup(w, [], ["", "3", "~/.claude-client", "", "", "n"]);
+    const { run } = setup(w, [], ["", "5", "~/.claude-client", "", "", "n"]);
     expect(await run).toBe(0);
     expect(w.configText()).toBe(before);
   });
@@ -327,7 +376,7 @@ describe("setup: registering an external directory", () => {
     const w = world();
     const dir = external(w);
     let tampered = false;
-    const { run } = setup(w, [], ["", "3", "~/.claude-client", "", "", ""], {
+    const { run } = setup(w, [], ["", "5", "~/.claude-client", "", "", ""], {
       now: () => {
         if (!tampered) {
           tampered = true;
@@ -345,7 +394,7 @@ describe("setup: registering an external directory", () => {
     const w = world();
     const dir = external(w);
     const before = snapshotTree(dir);
-    const { run } = setup(w, [], ["", "3", "~/.claude-client", "", "", ""]);
+    const { run } = setup(w, [], ["", "5", "~/.claude-client", "", "", ""]);
     await run;
     expect(snapshotTree(dir)).toEqual(before);
   });
@@ -406,9 +455,9 @@ describe("setup: creating a managed profile", () => {
   test("an existing managed directory that is not registered is listed as unregistered and can be bound without creating anything", async () => {
     const w = world();
     mkdirSync(join(w.home, "claude-scratch"));
-    const { io, run } = setup(w, [], ["", "3", ""]);
+    const { io, run } = setup(w, [], ["", "4", ""]);
     expect(await run).toBe(0);
-    expect(io.printed()).toMatch(/3\. scratch {2}managed .*\(unregistered\)/);
+    expect(io.printed()).toMatch(/4\. scratch {2}managed .*\(unregistered\)/);
     expect(w.interactiveCalls).toEqual([]);
     expect(w.config()!.projects[w.key].profile).toBe("scratch");
     expect(w.config()!.profiles.scratch).toBeUndefined();
