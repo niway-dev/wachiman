@@ -76,6 +76,7 @@ import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 import { buildRiskMap, renderRiskMap, wellFormed, type JudgementItem, type RiskFact, type RiskMap } from "./risk";
+import { ASK_SCHEMA, buildAskPrompt, checkRefs, isAskAnswer, renderAnswer } from "./ask";
 
 export type { Profile, ResultFinding, ReviewChange, ReviewInput, ReviewResult, Stop } from "./formats";
 export { REVIEW_INPUT_FORMAT, REVIEW_RESULT_V1, REVIEW_RESULT_V2 } from "./formats";
@@ -267,15 +268,26 @@ export const DEFAULT_MENTION = "/wachiman";
 export const MENTION_ALIASES = ["/wachiman", "/wachi", "@agent-review", "@claude"];
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** The keyword or an alias, as a word of its own: "docs/wachi" or "me@claude" is not a mention. */
+const mentionSource = (keyword: string) =>
+  `(?<![\\w./@-])(?:${[keyword, ...MENTION_ALIASES].map(escapeRegExp).join("|")})(?![\\w-])`;
+
 export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command | null {
   // Only the rest of the first line: "/wachiman review\n\nthanks" asks for a review, not a path.
-  // The keyword must start a word, so "docs/wachi" or "me@claude" is not a command.
-  const names = [keyword, ...MENTION_ALIASES].map(escapeRegExp).join("|");
-  const match = body.match(new RegExp(`(?<![\\w./@-])(?:${names})(?![\\w-])(.*)`));
+  const match = body.match(new RegExp(`${mentionSource(keyword)}(.*)`));
   if (!match) return null;
   const words = match[1].trim().split(/\s+/).filter(Boolean);
   if (words[0]?.toLowerCase() === "review") return { kind: "review", paths: words.slice(1) };
   return { kind: "answer" };
+}
+
+/**
+ * Whether an answer request is the walkthrough (ADR 0032): nothing is left once the mention is
+ * removed, or the only word left is `explain`. Any other text is a question, the whole comment.
+ */
+export function asksForWalkthrough(request: string, keyword = DEFAULT_MENTION) {
+  const rest = request.replace(new RegExp(mentionSource(keyword)), "").trim();
+  return rest === "" || rest.toLowerCase() === "explain";
 }
 
 const underPath = (name: string, path: string) =>
@@ -1673,14 +1685,19 @@ export function listFiles(gh: GhFn, repo: string, pr: number): ReviewFile[] {
  * ones are another workflow's and are ignored. Drop the unsigned branch once the cutoff has passed.
  */
 export function lastReviewedSha(gh: GhFn, repo: string, pr: number) {
+  return lastEngineMarker(
+    botReviews(gh, repo, pr).map((r) => ({ body: r.body, created_at: r.submitted_at })),
+  );
+}
+
+/** The reviews `github-actions[bot]` wrote on the pull request, oldest first. */
+function botReviews(gh: GhFn, repo: string, pr: number) {
   // A review object has no `created_at`: its time is `submitted_at`.
   const jq = '.[] | select(.user.login == "github-actions[bot]") | {body, submitted_at} | @json';
   const reviews = jsonLines<{ body: string | null; submitted_at?: string | null }>(
     gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/reviews`, "--jq", jq]),
   );
-  return lastEngineMarker(
-    reviews.map((r) => ({ body: r.body ?? "", created_at: r.submitted_at ?? undefined })),
-  );
+  return reviews.map((r) => ({ body: r.body ?? "", submitted_at: r.submitted_at ?? undefined }));
 }
 
 /** The marker of the last review the engine wrote, among `github-actions[bot]` reviews in order. */
@@ -1970,6 +1987,11 @@ export interface RawThread {
 
 const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
+/** A thread that opens with one of the engine's findings (open or resolved). */
+const isBotFinding = (t: RawThread) =>
+  t.comments.nodes[0]?.author?.login === "github-actions" &&
+  isWachiFinding(t.comments.nodes[0].body, t.comments.nodes[0].createdAt);
+
 /**
  * The tool's own unresolved threads, with the replies the agent may read. On a public repository
  * anyone can reply in a thread, so only replies by people with access reach the model: anything
@@ -1977,12 +1999,7 @@ const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
  */
 export function openBotThreads(threads: RawThread[]) {
   return threads
-    .filter(
-      (t) =>
-        !t.isResolved &&
-        t.comments.nodes[0]?.author?.login === "github-actions" &&
-        isWachiFinding(t.comments.nodes[0].body, t.comments.nodes[0].createdAt),
-    )
+    .filter((t) => !t.isResolved && isBotFinding(t))
     .map((t) => ({
       comment_id: t.comments.nodes[0].databaseId,
       path: t.path,
@@ -2025,6 +2042,61 @@ export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
 
 export function openThreads(gh: GhFn, repo: string, pr: number) {
   return openBotThreads(fetchThreads(gh, repo, pr));
+}
+
+/** The body of the latest review the engine wrote on the pull request, or null when there is none. */
+export function latestEngineReview(gh: GhFn, repo: string, pr: number): string | null {
+  // The same test as `lastEngineMarker`: a signed review, or an unsigned one from before the cutoff.
+  const own = botReviews(gh, repo, pr).filter(
+    (r) =>
+      r.body.includes(SIGNATURE.review) ||
+      (beforeLegacyCutoff(r.submitted_at) && readLegacyMarker(r.body) !== null),
+  );
+  return own.at(-1)?.body ?? null;
+}
+
+/** One finding thread the engine opened, as the ask prompt reads it. */
+export interface FindingThread {
+  path: string;
+  line: number | null;
+  resolved: boolean;
+  finding: string;
+}
+
+/**
+ * The review material an answer reads (ADR 0032): the latest review's body and the engine's finding
+ * threads, open or resolved. Null when the pull request has no review by the engine. Two GitHub
+ * calls: the reviews, and the review threads only when a review exists.
+ */
+export function reviewMaterial(
+  gh: GhFn,
+  repo: string,
+  pr: number,
+): { review: string; threads: FindingThread[] } | null {
+  const review = latestEngineReview(gh, repo, pr);
+  if (review === null) return null;
+  const threads = fetchThreads(gh, repo, pr)
+    .filter(isBotFinding)
+    .map((t) => ({
+      path: t.path,
+      line: t.line,
+      resolved: t.isResolved,
+      finding: t.comments.nodes[0].body,
+    }));
+  return { review, threads };
+}
+
+/** The file the ask prompt reads for the review: the body, then the threads as JSON. */
+export function renderReviewMaterial(material: { review: string; threads: FindingThread[] }) {
+  return [
+    "The latest review Wachiman posted on this pull request, as its body reads:",
+    "",
+    material.review,
+    "",
+    "Wachiman's inline finding threads on this pull request, as JSON. `resolved` is true when a person resolved the thread:",
+    JSON.stringify(material.threads, null, 2),
+    "",
+  ].join("\n");
 }
 
 /** The most replies Wachiman writes in one thread over its lifetime (ADR 0008). */
@@ -3695,41 +3767,63 @@ function runProvider(
   return result;
 }
 
+/** The link to a line of a file at the head commit, with the path's segments escaped. */
+const blobLink = (repo: string, sha: string, path: string, line: number) =>
+  `https://github.com/${repo}/blob/${sha}/${path.split("/").map(encodeURIComponent).join("/")}#L${line}`;
+
+/**
+ * The on-demand answer on a pull request (ADR 0032): one call over the pull request, the latest
+ * review and the repository's instructions, with `ASK_SCHEMA`. The references the answer makes are
+ * checked against the head checkout and linked at the head commit. `question` is the whole comment;
+ * a comment with nothing after the mention, or only `explain`, asks for the walkthrough.
+ */
 export function answer(deps: Deps, repo: string, pr: number, question: string) {
   const dir = mkdtempSync(join(tmpdir(), "agent-answer-"));
-  writeFileSync(
-    join(dir, "pr.json"),
-    deps.gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,files"]),
-  );
+  const meta = deps.gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,files,headRefOid"]);
+  writeFileSync(join(dir, "pr.json"), meta);
+  const headSha: string = JSON.parse(meta).headRefOid;
   const instructions = renderInstructions(
     readBaseInstructions(deps.gh, repo, baseSha(deps.gh, repo, pr), deps.warn),
   );
   writeFileSync(join(dir, "pr.diff"), deps.gh(["pr", "diff", String(pr), "-R", repo]));
-  const prompt = `This is pull request #${pr} in ${repo}, checked out at its head. Its title, body and file
-list are in ${dir}/pr.json and its diff in ${dir}/pr.diff.
-${instructions}
-
-The repository operator asked on the pull request:
-
-<request>
-${question}
-</request>
-
-Answer it. Your final message is posted verbatim as the comment, so it holds the answer and
-nothing else. Write in English.`;
+  const material = reviewMaterial(deps.gh, repo, pr);
+  if (material) writeFileSync(join(dir, "review.md"), renderReviewMaterial(material));
+  const cwd = deps.repoDir ?? process.cwd();
+  const prompt = buildAskPrompt({
+    changeDescription: `pull request #${pr} in ${repo}, checked out at its head`,
+    materialPaths: {
+      meta: join(dir, "pr.json"),
+      diff: join(dir, "pr.diff"),
+      review: material ? join(dir, "review.md") : undefined,
+    },
+    instructions,
+    question: asksForWalkthrough(question, deps.config.mention) ? "" : question,
+    hasReview: material !== null,
+  });
   // One question is one call, with the budget a whole review had before batches: $1.
   const result = runProvider(
     deps,
     deps.config,
-    deps.repoDir ?? process.cwd(),
+    cwd,
     { operation: "on-demand", label: "question", repo, pr },
     prompt,
     dir,
     deps.config.answerBudgetUsd,
+    ASK_SCHEMA,
   );
-  if (result.isError || !result.text)
-    throw new Error(`The agent did not answer (${result.terminalReason}).`);
-  const body = `${BRAND}\n\n${neutralise(result.text)}\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: deps.config.effort, operation: "on-demand", usage: result.usage, costUsd: result.costUsd })}`;
+  const parsed = result.isError ? undefined : result.structuredOutput;
+  if (!isAskAnswer(parsed)) throw new Error(`The agent did not answer (${result.terminalReason}).`);
+  const lineCount = repoLineCounter(cwd);
+  const checked = checkRefs(parsed, (path, line) => {
+    const count = lineCount(path);
+    return count !== null && line <= count;
+  });
+  const text = renderAnswer(checked.answer, {
+    link: (path, line) => blobLink(repo, headSha, path, line),
+    removed: checked.removed,
+    style: "markdown",
+  });
+  const body = `${BRAND}\n\n${text}\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: deps.config.effort, operation: "on-demand", usage: result.usage, costUsd: result.costUsd })}`;
   refuseLeak(deps, [body]);
   if (deps.config.dryRun) {
     deps.log(body);

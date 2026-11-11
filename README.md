@@ -24,8 +24,10 @@ record, goes in the review body. Every comment opens with "👮 **Wachiman**".
 - **It starts on a pull request and on request.** It reviews when a pull request opens or leaves
   draft, and, if your caller lists `synchronize`, on each push (only the new commits). The operator
   you name can comment `/wachiman review` to ask for another review of what changed, or any other
-  `/wachiman …` text to ask a question, and a reply the operator writes in a review thread gets an
-  answer without a push. All automatic runs on one pull request together stop at $6 by default
+  `/wachiman …` text to ask a question. An answer reads the latest review and checks its file and
+  line references against the pull request's head. `/wachiman` alone, or `/wachiman explain`, gets
+  a walkthrough of the change. A reply the operator writes in a review thread gets an answer
+  without a push. All automatic runs on one pull request together stop at $6 by default
   (`auto_budget_usd`); `/wachiman review` is not limited. Details: [docs/reviews.md](docs/reviews.md).
 - **Large pull requests are reviewed in batches**, riskiest files first (the risk is a score
   computed from file paths, not a reading of the code). Each batch is one agent call with a

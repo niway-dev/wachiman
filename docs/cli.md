@@ -113,7 +113,8 @@ The checks run in this order:
 4. If the first word after the command word is `review`, it runs `review` with the remaining words
    as paths.
 5. Otherwise the whole comment is a question, and one agent call answers it as a pull request
-   comment.
+   comment. With nothing after the command word, or only the word `explain`, the request is a
+   walkthrough of the change instead, in five fixed sections.
 
 The workflow's own filter for which comments start a job is looser than the parser used in step 3,
 and for custom mentions the two accept different words. That is documented, with examples, under
@@ -437,10 +438,15 @@ usage error.
   reply on an unchanged head is answered by `threads`, which the workflow starts when the operator
   replies (see "What `threads` does").
 - `comment` with a question: one pull request comment (not a review) holding the answer, written in
-  English, and a footer `<sub>{model label} · effort {effort} · ${cost}</sub>` (no batch count,
+  the language of the question (English for a walkthrough), and a footer `<sub>{model label} · effort {effort} · ${cost}</sub>` (no batch count,
   since an answer is one call). As with a review, the `· effort {effort}` part is new in
-  v1.4.0; v1.3.0 prints `<sub>{model label} · ${cost}</sub>`. The answer is one call over the whole diff, with no batching, no coverage check and no
-  thread context, capped by `answer_budget_usd`.
+  v1.4.0; v1.3.0 prints `<sub>{model label} · ${cost}</sub>`. The answer is one call over the whole
+  diff and the latest review the engine wrote on the pull request (its body and its finding threads,
+  open or resolved), with no batching and no coverage check, capped by `answer_budget_usd`. Each file
+  and line reference the answer makes is checked against the head commit: a reference to a file that
+  is not there, or to a line past its end, is removed, and the comment says how many. The others link
+  to that line at the head commit. Without an earlier review the answer says so in its first
+  section.
 - With `AGENT_REVIEW_DRY_RUN=1` it reads GitHub but prints instead of posting. It still calls the
   agent, so it still costs money.
 

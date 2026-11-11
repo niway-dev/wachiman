@@ -143,7 +143,8 @@ Only the operator's comments count. Comment on the pull request:
 | --- | --- |
 | `/wachiman review` | Reviews what changed since the last complete, unscoped review. With no such review yet, it reviews the whole pull request. |
 | `/wachiman review src/auth docs/notes.md` | Reviews only those changed files or directories (an exact path or a directory prefix, not a glob). |
-| `/wachiman` followed by anything else | Answers it as a pull request comment. One model call over the whole diff. |
+| `/wachiman` followed by a question | Answers it as one pull request comment. One model call over the diff and the latest review, capped by `answer_budget_usd`. Each file and line reference it makes is checked against the head and linked there. |
+| `/wachiman` alone, or `/wachiman explain` | Explains the change in five fixed sections (what it does, how it is built, what it connects to, open findings, what was not covered). One model call, same cap. |
 
 The command word is the workflow's `mention` input, `/wachiman` by default. The older `/wachi`,
 `@agent-review` and `@claude` still work, so a caller or a habit from before the naming release
