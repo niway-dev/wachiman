@@ -289,14 +289,15 @@ opens a PR or creates a secret.
 
 The Git worktree is validated before questions. Interactive stages identify the project, review
 mode, configuration, binding confirmation when relevant, and checks/next actions. The route total
-appears once the mode is known. `NO_COLOR` (including an empty value), `TERM=dumb` and non-terminal
+appears once the mode is known. A non-empty `NO_COLOR`, `TERM=dumb` and non-terminal
 output disable styling; prompts and status stay on stderr. JSON results and dry-run workflow
 bytes on stdout are unchanged. Existing workflow replacement still requires `--force`.
 
 A written workflow is reported as `github: pending`: add `ANTHROPIC_API_KEY` and submit the workflow
 in GitHub. Init does not check those remote actions. Both mode reports this separately from local
 readiness. If later account setup is cancelled or fails, the confirmed workflow stays and the
-message says so.
+message says so. If that setup ends without saving a binding, init prints the `wachiman setup`
+command that binds the repository later.
 
 | Flag | Rule |
 | --- | --- |

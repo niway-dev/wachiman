@@ -320,6 +320,8 @@ Interactive flow (validate the Git worktree before asking; paths are rooted at i
 5. For 2 or 3: continue directly into section 5.4 in the same process, skipping its general
    `Set up this repository?` invitation. Keep the final binding confirmation. A workflow already
    written remains in place if later setup is cancelled or fails, and the message reports it.
+   When that setup ends without saving a binding (a "no" or a cancellation), print the
+   `wachiman setup` command that binds later.
    Standalone `setup` still asks its general invitation.
 
 Rendering (pure, `renderCallerWorkflow(template, { operator, tag })`): replaces
@@ -345,7 +347,7 @@ The workflow-writing portion of `init` writes only the chosen workflow and its `
 Interactive local setup separately saves its confirmed account binding in the Wachiman home.
 Stages show project, mode, configuration, binding confirmation where applicable and next actions;
 route totals appear once the mode is known. Styling is disabled for non-terminal output,
-`TERM=dumb` and any present `NO_COLOR`; stdout data is unchanged. A written workflow is still
+`TERM=dumb` and a non-empty `NO_COLOR` (per no-color.org); stdout data is unchanged. A written workflow is still
 `github: pending` until the person adds the secret and submits it; no remote readiness is checked.
 
 `init` never commits,
