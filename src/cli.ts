@@ -10,6 +10,8 @@
  *                                       when the head was already reviewed
  *   wachiman local [paths…]         review the committed branch of a clone on the signed-in
  *                                       `claude`, and print it; no GitHub call (src/local.ts)
+ *   wachiman ask [question…]        answer a question about the local change, or explain it; one
+ *                                       call, no GitHub request, grounded in the stored review (src/local-ask.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
  *   wachiman status                 what the local history kept and its estimated cost; files only
  *   wachiman setup [--profile <name>] bind this repository to an account profile (home config only);
@@ -33,6 +35,7 @@ import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
 import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type ReviewLineComment } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
+import { askUsage, parseAskArgs, runAsk } from "./local-ask";
 import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
 import { parseSkillsArgs, runSkills, skillsUsage } from "./skills/install";
@@ -55,6 +58,12 @@ export const USAGE = `Usage:
                                                      signed-in claude, and print it; nothing is posted.
                                                      --commit: that one commit (<commit>^ → <commit>);
                                                      --from: that commit forward (<commit>^ → HEAD)
+  ${askUsage}
+                                                     Answer a question about the change the scope flags
+                                                     select, or explain it when no question is given. One
+                                                     call on your signed-in claude; no GitHub request.
+                                                     Grounded in the stored review of this change when
+                                                     \`local --history\` kept one; never runs a review
   ${historyUsage}
                                                      List, judge and forget the findings kept by
                                                      \`local --history\`; reads files and local git
@@ -97,15 +106,16 @@ Options:
                                      For \`local\`: the clone whose branch is reviewed.
 
 Environment:
-  GH_TOKEN, GITHUB_REPOSITORY        required (not read by \`local\` or \`--setup-profile\`)
+  GH_TOKEN, GITHUB_REPOSITORY        required (not read by \`local\`, \`ask\` or \`--setup-profile\`)
   ANTHROPIC_API_KEY                  required by the claude-code provider (not in a dry run);
-                                     \`local\` refuses to start when it is set
+                                     \`local\` and \`ask\` refuse to start when it is set
   REQUEST                            the comment text, for \`comment\`
   AGENT_REVIEW_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
   AGENT_REVIEW_*                     optional settings; see docs/cli.md
 
 Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
+\`ask\`: 0 an answer was printed (it may say what it could not answer), 1 no answer (the call failed or returned nothing usable), 2 usage error, 130 interrupted.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 \`status\`: 0 printed (also with no run kept), 2 usage error.
 \`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
@@ -266,6 +276,14 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "local") {
       // No GitHub: no token, no repository, no `gh` function anywhere on this path.
       return runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
+        stdout: (text) => writeAll(1, text),
+        stderr: (line) => console.error(line),
+        engineVersion: readVersion(),
+      });
+    }
+    if (mode === "ask") {
+      // Like `local`: no GitHub token, no `gh` function anywhere on this path.
+      return runAsk(parseAskArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),

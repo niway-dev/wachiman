@@ -1,6 +1,9 @@
 # A risk map on every review, and questions about the change
 
-- **Status:** proposed 2026-11-11. **Not implemented:** no code on this branch. Written on Claude
+- **Status:** proposed 2026-11-11. **Partly implemented:** the risk map (ADR 0031) on branch
+  `feat/risk-map-core` and the stack after it; the ask core, its pull request path and
+  `wachiman ask` (ADR 0032) on `feat/ask-core`, `feat/ask-line-comments-and-askers` and
+  `feat/local-ask`. Not yet run in a real workflow or against a real provider. Written on Claude
   Fable 5.2.
 - **Date:** 2026-11-11
 - **Issue:** [#170](https://github.com/niway-dev/wachiman/issues/170)
@@ -118,8 +121,10 @@ little: a saved prompt gives the same sections. Three things a chat agent does n
 
 1. **The review that already ran.** Findings with their verification, the contracts block ("what
    the change connects to"), coverage by batch and, locally, the history (ADR 0020).
-2. **Checked references.** The engine knows which paths and lines exist (`annotateDiff`,
-   `commentableLines`, `src/engine.ts:587-605`) and already drops findings on lines that do not.
+2. **Checked references.** A finding is dropped when its line is not in the diff
+   (`commentableLines`, `src/engine.ts:621`). An answer's reference can point at any line of the
+   head, so `checkRefs` (`src/ask.ts`) checks it against the head snapshot's line count instead
+   (`src/local-ask.ts`, `src/ask.ts`).
 3. **One result on two surfaces**, with a deterministic scope (`--base`, `--from`, `--commit`) and
    a capped cost.
 

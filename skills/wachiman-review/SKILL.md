@@ -1,6 +1,6 @@
 ---
 name: wachiman-review
-description: Use when the developer asks to review, audit or "analyse" their own code with Wachiman (or agent-review) on their laptop — a branch, one commit, or a range from a commit — including on employer code that must not reach GitHub, and when they judge a finding from such a review as right or wrong.
+description: Use when the developer asks to review, audit or "analyse" their own code with Wachiman (or agent-review) on their laptop — a branch, one commit, or a range from a commit — including on employer code that must not reach GitHub, when they ask Wachiman to explain or answer a question about such a change ("explain this change", "ask about this branch"), and when they judge a finding from such a review as right or wrong.
 ---
 
 # Review local code with Wachiman
@@ -82,6 +82,28 @@ From the JSON, with the labels from `run.log`: the coverage line first (and what
 with `path:line`, title, one sentence of why, the history label (`new` / `open since <sha7>`) and
 its id. Then the estimated cost (an API-price estimate, not a bill) and the report path. Findings
 are the reviewer's claims, not verified bugs: say so, and offer to check one against the code.
+
+## Questions about a change
+
+When the developer asks what a change does, or asks a question about it ("how does the retry
+work?", "explain this branch"), run `wachiman ask` with the same range and profile rules as above.
+Use the same scope flags as `local` (`--commit`, `--from`, `--base`, `--working-tree staged|all`);
+with no question, `ask` gives a five-section walkthrough.
+
+```sh
+env -u ANTHROPIC_API_KEY wachiman ask "<question>" --repo-dir <clone> <range> [--profile <name>] \
+  --format json 2> <tmp>/ask.log
+```
+
+The JSON has `sections[]` (each with `title`, `body` and `refs[]` of `path` and `line`) and
+`notAnswered`. Present the answer section by section. Cite each claim as `path:line` from its
+`refs`, and never add a path or line that is not in the JSON. `removedRefs` says how many
+references did not check out against the code: say so when it is above zero.
+
+When `hasReview` is `false`, the answer comes from the diff alone and the log carries the notice to
+run a review first. Say that, and offer to run `wachiman local --history` on the same range so the
+answer can use its findings. `ask` never runs a review itself. It reads the stored history without
+`--history`, and writes nothing to the repository or the history (only the `--output` file, if given).
 
 ## Record a verdict
 

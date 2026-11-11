@@ -66,6 +66,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `comment <pr>` | Routes the operator's comment (from `REQUEST`) to a review, an answer or nothing. See "What `comment` does" below. |
 | `threads <pr>` | Answers the Wachiman threads that wait for an answer, with no review, and only when the pull request's head was already reviewed. See "What `threads` does" below. |
 | `local [paths…]` | Reviews the committed branch of a clone on your own signed-in `claude` and prints the review; no GitHub call, nothing posted. See [`local`](#local) below and [the guide](local-review.md). |
+| `ask [question…]` | Answers one question about the local change (or walks through it when there is no question), on your own signed-in `claude`; no GitHub call, nothing posted. See [`ask`](#ask) below. |
 | `setup [--profile <name>]` | Binds this repository to an account profile; on a terminal without `--profile` it asks. See [`setup`](#setup-doctor-profile-and-project). |
 | `init` | Writes the GitHub caller workflow, or hands over to `setup`. See [`init`](#init). |
 | `doctor` | Reports what a local run would use and what would fail. |
@@ -237,6 +238,56 @@ The Wachiman home is `~/.wachiman`, or the absolute directory in `WACHIMAN_HOME`
 configuration is `<home>/config.json` (written with a lock and an atomic rename; a corrupt file is
 a usage error, never treated as empty). No credential file is read, and nothing is written under the
 repository or under an external profile's directory.
+
+### `ask`
+
+`ask` answers one question about the change that `local` would review, with the same scope flags
+and the same account rules ([which account](#which-account-local-uses)). It makes one call on your
+signed-in `claude`, reads the material from a temporary directory it removes, and prints the answer.
+It never runs a review and makes no GitHub call.
+
+```sh
+wachiman ask "how does the retry budget work?" --repo-dir ~/src/app --commit 1a2b3c4
+wachiman ask --working-tree all          # no question: a five-section walkthrough
+```
+
+The material is the scope's diff and file list. When a stored review of this exact change exists
+(the same repository, the same base and head commits, or the same tree for `--working-tree`, and the
+same kept files), the answer is grounded in it and the material includes that review. Otherwise the
+notice `No stored review of this change: answering from the diff alone.` goes to stderr and the
+JSON has `hasReview: false`. Run `wachiman local --history` on the same range first to store one.
+
+Every reference (`path:line`) in the answer is checked against the head snapshot: a path that is
+not in it, or a line past its end, is removed and counted in `removedRefs`. For `--working-tree`
+the snapshot holds the working-tree content as captured for the run, so a reference is checked
+against what was reviewed, not against a file edited during the run.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `[question…]` | none | The words are the question. No words: a walkthrough with five sections, in this order: What the change does, How it is built, What it connects to, Open findings, What was not covered |
+| `--base`, `--from`, `--commit`, `--working-tree staged\|all`, `--max-depth` | as `local` | The same scope as [`local`](#local); the same exclusions |
+| `--profile <name>` | see "Which account" | As `local` |
+| `--format terminal\|markdown\|json` | `terminal` | Plain text with the cost line; Markdown; or the JSON below |
+| `--output <file>` | stdout | Write the answer to a file; its path is printed on stderr |
+
+`--format json` prints exactly these keys: `format` (`wachiman.ask-result/1`), `question`,
+`walkthrough`, `hasReview`, `sections` (each `title`, `body` and `refs` of `path` and `line`),
+`notAnswered` (why a part could not be answered, or `""`), `removedRefs` (how many references were
+removed) and `provider` (`label`, `model`, `costUsd`, an API-price estimate).
+
+Two differences from `local` that matter:
+
+- **It reads the history store without `--history`.** It needs the stored review to ground the
+  answer. This is a deliberate exception to the `--history` row of the `local` table, which says
+  the store is written only when that flag is given. `ask` writes nothing to the store; the only
+  file it writes is `--output`, if you pass one. The local promise in
+  [ADR 0019](adr/0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
+  (no telemetry, no GitHub request) is unchanged.
+- **It refuses `ANTHROPIC_API_KEY`, as `local` does**, so the call goes to your subscription.
+
+Exit codes: 0 an answer was printed (an answer that says what it could not answer is still an
+answer); 1 no answer (the call failed, or its output was not an answer); 2 a usage error, such as an
+unknown flag or a scope that has no kept file; 130 after Ctrl-C.
 
 ### `setup`, `doctor`, `profile` and `project`
 
