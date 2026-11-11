@@ -7,6 +7,9 @@
  * Exit codes (plan decision 8): 0 when a report was produced (complete, partial, or stopped by a
  * usage limit); 1 when no call produced a review (sign-in refused, an unclassified error, every
  * batch failed); 2 for a usage error; 130 after Ctrl-C.
+ *
+ * The parts `wachiman ask` shares (`parseFlags`, `openLocalSession`, `localScopeInput`) live here, so
+ * both commands read the same flags, pick the same account and provider, and read the same change.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -27,7 +30,7 @@ import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree
 import { historyRoot, historySettings, saveRun } from "./history";
 import { readConfig, wachimanHome } from "./accounts/config";
 import { confirmProfile, type SpawnFn } from "./accounts/confirm";
-import { failureText, profileLine, resolveProfile } from "./accounts/resolve";
+import { failureText, profileLine, resolveProfile, type ResolvedProfile } from "./accounts/resolve";
 import { repositoryKey } from "./history/store";
 import { inspectIsolatedProfile, parseProfile, populatedProfileError, profileDir } from "./profiles";
 import { getProvider as defaultGetProvider, type ProviderAdapter } from "./providers";
@@ -65,8 +68,35 @@ export const localUsage = `wachiman local [paths…] [--base <ref> | --from <com
                [--profile <name>] [--agent-prompt] [--history] [--verify | --no-verify]
                [--result-version 1|2] [--working-tree staged|all]`;
 
+/** Every flag `local` takes. `ask` takes the subset it names in `ask-command`. */
+export const LOCAL_FLAGS = [
+  "--agent-prompt",
+  "--history",
+  "--verify",
+  "--no-verify",
+  "--result-version",
+  "--working-tree",
+  "--base",
+  "--commit",
+  "--from",
+  "--max-depth",
+  "--output",
+  "--profile",
+  "--format",
+  "--input",
+] as const;
+
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLocalArgs(argv: string[]): LocalArgs {
+  return parseFlags(argv, "local", LOCAL_FLAGS);
+}
+
+/**
+ * The flags `local` and `ask` share, read by this one parser so both mean the same by each. A flag
+ * not in `accepted` is a usage error for `command`. Every argument that is not a flag goes to
+ * `paths`: the paths of `local`, the words of an `ask` question.
+ */
+export function parseFlags(argv: string[], command: string, accepted: readonly string[]): LocalArgs {
   const args: LocalArgs = {
     paths: [],
     format: "terminal",
@@ -88,6 +118,7 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
     }
     const eq = arg.indexOf("=");
     const name = eq === -1 ? arg : arg.slice(0, eq);
+    if (!accepted.includes(name)) throw new UsageError(`Unknown option ${name} for ${command}.`);
     const value = () => {
       const v = eq === -1 ? argv[++i] : arg.slice(eq + 1);
       if (v === undefined || v === "" || (eq === -1 && v.startsWith("--"))) throw new UsageError(`${name} needs a value.`);
@@ -131,7 +162,7 @@ export function parseLocalArgs(argv: string[]): LocalArgs {
       const v = value();
       if (!existsSync(v)) throw new UsageError(`--input ${v} does not exist.`);
       args.input = v;
-    } else throw new UsageError(`Unknown option ${name} for local.`);
+    } else throw new UsageError(`Unknown option ${name} for ${command}.`);
   }
   if (sawVerify && sawNoVerify) throw new UsageError("--verify and --no-verify cannot be used together.");
   if (args.resultVersion !== undefined && args.format !== "json") throw new UsageError("--result-version applies only with --format json.");
@@ -209,7 +240,7 @@ export function exitCodeOf(result: ReviewResult) {
  * The provider, with Ctrl-C turned into "stop the review": after an interrupted call every later
  * call fails at once, without starting `claude`, so the core winds down in milliseconds.
  */
-function interruptible(provider: ProviderAdapter, state: { interrupted: boolean }): ProviderAdapter {
+export function interruptible(provider: ProviderAdapter, state: { interrupted: boolean }): ProviderAdapter {
   return {
     name: provider.name,
     preflight: () => provider.preflight(),
@@ -237,22 +268,32 @@ export interface LocalDeps {
   getProvider?: typeof defaultGetProvider;
 }
 
-export function runLocal(
-  args: LocalArgs,
-  repoDir: string,
-  env: Record<string, string | undefined>,
-  io: {
-    stdout: (text: string) => void;
-    stderr: (line: string) => void;
-    engineVersion: string;
-  },
-  deps: LocalDeps = {},
-): number {
-  const fileInput = args.input === undefined ? undefined : readInputFile(args.input);
-  if ((args.workingTree || fileInput?.change.kind === "working-tree") && args.resultVersion === 1) {
-    throw new UsageError("Working-tree reviews require --result-version 2; a tree is not a commit.");
-  }
-  const loaded = loadConfig(env, io.stderr);
+/** What a local command settles before any call: the settings, the account and the providers. */
+export interface LocalSession {
+  config: ReturnType<typeof loadConfig>;
+  profile: ResolvedProfile["profile"];
+  profileNote?: string;
+  provider: ProviderAdapter;
+  verifier?: ProviderAdapter;
+  /** Set by Ctrl-C: every later call then fails at once. */
+  state: { interrupted: boolean };
+}
+
+/**
+ * The settings, the account (ADR 0029), the subscription-mode provider and, with `--verify`, the
+ * verifier, all checked before any call. Nothing in the reviewed repository takes part: a corrupt
+ * store, a value that resolves to nothing, or a profile that does not confirm is a usage error.
+ */
+export function openLocalSession(p: {
+  profile?: string;
+  verify: boolean | undefined;
+  repoDir: string;
+  env: Record<string, string | undefined>;
+  stderr: (line: string) => void;
+  deps: LocalDeps;
+}): LocalSession {
+  const { env, repoDir, deps } = p;
+  const loaded = loadConfig(env, p.stderr);
   if (loaded.provider !== "claude-code") {
     throw new UsageError(`AGENT_REVIEW_PROVIDER=${loaded.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`);
   }
@@ -260,13 +301,10 @@ export function runLocal(
   const config = {
     ...loaded,
     trigger: undefined,
-    verify: args.verify ?? loaded.verify,
+    verify: p.verify ?? loaded.verify,
   };
   // Before the provider exists; the adapter's own check in preflight() is the second line.
   if (env.ANTHROPIC_API_KEY) throw new UsageError(SUBSCRIPTION_KEY_REFUSAL);
-  // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.
-  // A bad AGENT_REVIEW_HISTORY_DAYS stops here, before any call is paid for.
-  const history = historySettings(env, args.history);
 
   // Which account (ADR 0029): nothing in the reviewed repository takes part. A corrupt store, a
   // value that resolves to nothing, or a profile that does not confirm is exit 2 before any call.
@@ -276,7 +314,7 @@ export function runLocal(
   const accounts = stored.kind === "ok" ? stored.config : undefined;
   const bindingKey = accounts && Object.keys(accounts.projects).length > 0 ? repositoryKey(repoDir).key : undefined;
   const resolution = resolveProfile({
-    flag: args.profile,
+    flag: p.profile,
     binding: bindingKey !== undefined && Object.hasOwn(accounts!.projects, bindingKey) ? accounts!.projects[bindingKey] : undefined,
     env: { WACHIMAN_PROFILE: env.WACHIMAN_PROFILE },
     config: accounts,
@@ -285,7 +323,7 @@ export function runLocal(
   });
   if (!resolution.ok) throw new UsageError(failureText(resolution.failure));
   const { resolved } = resolution;
-  io.stderr(profileLine(resolved));
+  p.stderr(profileLine(resolved));
   const { profile } = resolved;
 
   let configDir: string | undefined;
@@ -330,60 +368,120 @@ export function runLocal(
       )
     : undefined;
   verifier?.preflight();
+  return { config, profile, profileNote, provider, verifier, state };
+}
 
-  let snapshotDir: string | undefined;
-  let releaseWorkingTree: (() => void) | undefined;
+/**
+ * The change the scope flags select (ADR 0019 decision 2): the tracked working tree with
+ * `--working-tree`, else the committed range. The input reads from a snapshot of the head; `release`
+ * removes it, and the caller runs it once the change is no longer read.
+ */
+export function localScopeInput(p: {
+  repoDir: string;
+  workingTree?: "staged" | "all";
+  base?: string;
+  commit?: string;
+  from?: string;
+  maxDepth?: number;
+  paths: string[];
+  log: (line: string) => void;
+  warn: (line: string) => void;
+}): { input: ReviewInput; release: () => void } {
+  if (p.workingTree) {
+    const built = workingTreeInput({
+      repoDir: p.repoDir,
+      mode: p.workingTree,
+      paths: p.paths,
+      log: p.log,
+      warn: p.warn,
+    });
+    p.log(`mode: working tree (${p.workingTree})`);
+    p.log(`base: HEAD (${short(built.input.change.base.sha)})`);
+    p.log(`tree: ${short(built.input.change.head.sha)}`);
+    return { input: built.input, release: built.release };
+  }
+  const maxDepth = p.maxDepth ?? DEFAULT_MAX_DEPTH;
+  const built = buildLocalInput({
+    repoDir: p.repoDir,
+    base: p.base,
+    commit: p.commit,
+    from: p.from,
+    maxDepth,
+    paths: p.paths,
+    log: p.log,
+    warn: p.warn,
+  });
+  const { refs } = built;
+  const commits = `${refs.depth} commit${refs.depth === 1 ? "" : "s"}`;
+  const max = `(max ${maxDepth})`;
+  if (refs.mode?.kind === "commit") {
+    p.log(`mode: one commit (${short(refs.mode.rev)})${refs.mode.merge ? ", a merge commit: first parent" : ""}`);
+    p.log(`start: ${startText(refs)}`);
+    p.log(`depth: ${commits}`);
+    p.log(`head: ${short(refs.headSha)}`);
+  } else if (refs.mode?.kind === "from") {
+    p.log(`mode: from ${short(refs.mode.rev)} to HEAD`);
+    p.log(`start: ${startText(refs)}`);
+    p.log(`depth: ${commits} ${max}`);
+    p.log(`head: ${refs.headRef} (${short(refs.headSha)})`);
+  } else {
+    p.log(`base: ${refs.baseRef} (${short(refs.baseSha)})`);
+    p.log(`merge-base: ${short(refs.mergeBase)}`);
+    p.log(`depth: ${commits} ${max}`);
+    p.log(`head: ${refs.headRef} (${short(refs.headSha)})`);
+  }
+  return { input: built.input, release: () => removeSnapshot(built.snapshotDir) };
+}
+
+export function runLocal(
+  args: LocalArgs,
+  repoDir: string,
+  env: Record<string, string | undefined>,
+  io: {
+    stdout: (text: string) => void;
+    stderr: (line: string) => void;
+    engineVersion: string;
+  },
+  deps: LocalDeps = {},
+): number {
+  const fileInput = args.input === undefined ? undefined : readInputFile(args.input);
+  if ((args.workingTree || fileInput?.change.kind === "working-tree") && args.resultVersion === 1) {
+    throw new UsageError("Working-tree reviews require --result-version 2; a tree is not a commit.");
+  }
+  // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.
+  // A bad AGENT_REVIEW_HISTORY_DAYS stops here, before any call is paid for.
+  const history = historySettings(env, args.history);
+  const home = wachimanHome(env);
+  const { config, profile, profileNote, provider, verifier, state } = openLocalSession({
+    profile: args.profile,
+    verify: args.verify,
+    repoDir,
+    env,
+    stderr: io.stderr,
+    deps,
+  });
+
+  let release: (() => void) | undefined;
   const onSigint = () => {
     state.interrupted = true;
   };
   process.on("SIGINT", onSigint);
   try {
     let input: ReviewInput;
-    if (args.workingTree) {
-      const built = workingTreeInput({
+    if (args.input === undefined) {
+      const scope = localScopeInput({
         repoDir,
-        mode: args.workingTree,
-        paths: args.paths,
-        log: io.stderr,
-        warn: io.stderr,
-      });
-      releaseWorkingTree = built.release;
-      input = built.input;
-      io.stderr(`mode: working tree (${args.workingTree})`);
-      io.stderr(`base: HEAD (${short(input.change.base.sha)})`);
-      io.stderr(`tree: ${short(input.change.head.sha)}`);
-    } else if (args.input === undefined) {
-      const built = buildLocalInput({
-        repoDir,
+        workingTree: args.workingTree,
         base: args.base,
         commit: args.commit,
         from: args.from,
-        maxDepth: args.maxDepth ?? DEFAULT_MAX_DEPTH,
+        maxDepth: args.maxDepth,
         paths: args.paths,
         log: io.stderr,
         warn: io.stderr,
       });
-      snapshotDir = built.snapshotDir;
-      input = built.input;
-      const { refs } = built;
-      const commits = `${refs.depth} commit${refs.depth === 1 ? "" : "s"}`;
-      const max = `(max ${args.maxDepth ?? DEFAULT_MAX_DEPTH})`;
-      if (refs.mode?.kind === "commit") {
-        io.stderr(`mode: one commit (${short(refs.mode.rev)})${refs.mode.merge ? ", a merge commit: first parent" : ""}`);
-        io.stderr(`start: ${startText(refs)}`);
-        io.stderr(`depth: ${commits}`);
-        io.stderr(`head: ${short(refs.headSha)}`);
-      } else if (refs.mode?.kind === "from") {
-        io.stderr(`mode: from ${short(refs.mode.rev)} to HEAD`);
-        io.stderr(`start: ${startText(refs)}`);
-        io.stderr(`depth: ${commits} ${max}`);
-        io.stderr(`head: ${refs.headRef} (${short(refs.headSha)})`);
-      } else {
-        io.stderr(`base: ${refs.baseRef} (${short(refs.baseSha)})`);
-        io.stderr(`merge-base: ${short(refs.mergeBase)}`);
-        io.stderr(`depth: ${commits} ${max}`);
-        io.stderr(`head: ${refs.headRef} (${short(refs.headSha)})`);
-      }
+      input = scope.input;
+      release = scope.release;
     } else {
       const fromFile = fileInput!;
       const head = fromFile.change.head.sha;
@@ -400,7 +498,7 @@ export function runLocal(
         fromFile.change.kind === "working-tree"
           ? { ...snapshotWorkingTree(repoDir, head), missing: [], extra: [] }
           : snapshotHead(repoDir, head);
-      snapshotDir = snapshot.dir;
+      release = () => removeSnapshot(snapshot.dir);
       warnSnapshotDifferences(snapshot, io.stderr);
       input = { ...fromFile, headDir: snapshot.dir };
       io.stderr(`head: ${short(head)}`);
@@ -482,7 +580,6 @@ export function runLocal(
     return exitCodeOf(result);
   } finally {
     process.off("SIGINT", onSigint);
-    if (snapshotDir) removeSnapshot(snapshotDir);
-    releaseWorkingTree?.();
+    release?.();
   }
 }

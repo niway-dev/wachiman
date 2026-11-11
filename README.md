@@ -136,6 +136,10 @@ both. Local setup offers your current Claude session and checks the machine/acco
 suggesting the first review command. GitHub setup writes the workflow; adding the secret and
 submitting the workflow remain manual. See [project setup](docs/local-review.md#configure-this-project).
 
+`wachiman ask "<question>"` answers one question about the same local change (or walks through it
+with no question), grounded in the stored review of that change when there is one. It is in
+[docs/cli.md](docs/cli.md#ask).
+
 ## Documentation map
 
 | I want to… | Read |

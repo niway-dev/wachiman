@@ -3710,7 +3710,7 @@ function reviewBatchBackingOff(...args: Parameters<typeof reviewBatch>): BatchRe
 }
 
 /** The prompt goes through stdin: a batch's diff in an argument would hit Linux's 128 KB limit. */
-function runProvider(
+export function runProvider(
   deps: CoreDeps,
   limits: CallLimits,
   cwd: string,

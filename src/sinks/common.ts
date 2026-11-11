@@ -118,7 +118,11 @@ export const dollars = (usd: number) => `$${usd > 0 && usd < 0.01 ? usd.toFixed(
 
 /** The cost, said for what it is (spec D12): the same sentence in every local rendering. */
 export function estimateLine(result: ReviewResult) {
-  const e = result.execution;
+  return costSentence(result.execution);
+}
+
+/** The cost sentence for any run of calls; `wachiman ask` uses it for one answer. */
+export function costSentence(e: { costUsdEstimate: number; calls: number; turns: number; durationMs: number }) {
   return `Cost: ${dollars(e.costUsdEstimate)}, an API-equivalent estimate (what these calls would cost at API prices), not a bill. ${e.calls} call(s), ${e.turns} turn(s), ${seconds(e.durationMs)}.`;
 }
 

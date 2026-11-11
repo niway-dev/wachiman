@@ -38,7 +38,9 @@ classifier and ties it to approvals
    and risk facts. The model never states a level.
 3. **Risk facts** are reported by the batch calls the review already makes, as an optional array
    in the batch schema: a kind from a closed list, a path, a line and one sentence. The engine
-   drops a fact whose path or line does not exist, as it does for findings.
+   drops a fact whose path is not in the review or whose line is past the end of the file at the
+   head: the check `contracts` lines get. It is not the diff-line check findings get, so a fact may
+   point at a line outside the diff.
 4. Findings do not change the level. Files not reviewed turn it into a floor ("at least").
 5. The map is not a verdict: it approves nothing, blocks nothing and sets no check status.
 6. "Read first" is rendered in every review (owner, 2026-11-11: telling the person where to look
