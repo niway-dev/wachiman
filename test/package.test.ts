@@ -69,6 +69,7 @@ describe.skipIf(!npm)("npm pack --json", () => {
       expect(files).toContain(path);
     }
     expect(files.some((f) => f.startsWith("skills/wachiman-review/"))).toBe(true);
+    expect(files.some((f) => f.startsWith("skills/wachiman-loop/"))).toBe(true);
     expect(files.some((f) => f.startsWith("skills/wachiman-audit/"))).toBe(true);
     expect(files).toContain("templates/wachiman-review-caller.yml");
   });

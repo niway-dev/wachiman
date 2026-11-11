@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the global `wachiman` command and the wachiman-review and wachiman-audit skills from this clone.
+# Install the global `wachiman` command and the wachiman-review, wachiman-loop and wachiman-audit skills from this clone.
 # For contributors: it links the clone's files. Package users run `wachiman skills install`, which copies.
 #   scripts/install-local.sh              link everything (idempotent)
 #   scripts/install-local.sh --uninstall  remove the links this script made
@@ -76,7 +76,7 @@ if [[ -n "${CLAUDE_CONFIG_DIR:-}" && -d "$CLAUDE_CONFIG_DIR" ]]; then
 fi
 
 # Refuse before changing anything if a target is under ~/.wachiman.
-for s in "${skill_dirs[@]}"; do guard "$s/wachiman-review"; guard "$s/wachiman-audit"; done
+for s in "${skill_dirs[@]}"; do guard "$s/wachiman-review"; guard "$s/wachiman-loop"; guard "$s/wachiman-audit"; done
 
 apply() { # apply <function>
   "$1" "$root/bin/wachiman" "$home/.local/bin/wachiman"
@@ -85,6 +85,7 @@ apply() { # apply <function>
     if [[ "$seen" == *" $s "* ]]; then continue; fi
     seen+="$s "
     "$1" "$root/skills/wachiman-review" "$s/wachiman-review"
+    "$1" "$root/skills/wachiman-loop" "$s/wachiman-loop"
     "$1" "$root/skills/wachiman-audit" "$s/wachiman-audit"
   done
 }

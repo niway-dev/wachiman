@@ -273,12 +273,12 @@ describe("configuration, profile and project rows", () => {
     expect(row(m.report(), "history").status).toBe("warn");
   });
 
-  test("the skills row reports where the two skills are installed", () => {
+  test("the skills row reports where the skills are installed", () => {
     const m = machine();
     expect(row(m.report(), "skills").status).toBe("skip");
     mkdirSync(join(m.userHome, ".claude", "skills", "wachiman-review"), { recursive: true });
     const report = m.report();
-    expect(row(report, "skills")).toMatchObject({ status: "ok", detail: { "wachiman-review": true, "wachiman-audit": false } });
+    expect(row(report, "skills")).toMatchObject({ status: "ok", detail: { "wachiman-review": true, "wachiman-loop": false, "wachiman-audit": false } });
   });
 });
 

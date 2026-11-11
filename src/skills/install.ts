@@ -1,5 +1,5 @@
 /**
- * `wachiman skills install|uninstall`: copies the two agent skills into the directories where
+ * `wachiman skills install|uninstall`: copies the agent skills into the directories where
  * coding agents look for them, marks each copy so it can be told from anyone else's, and removes
  * only what it installed (command contract section 5.9).
  */
@@ -10,7 +10,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { wachimanHome } from "../accounts/config";
 import { UsageError } from "../config";
 
-export const SKILL_NAMES = ["wachiman-review", "wachiman-audit"] as const;
+export const SKILL_NAMES = ["wachiman-review", "wachiman-loop", "wachiman-audit"] as const;
 export const MARKER_FILE = ".wachiman-skill.json";
 
 export interface SkillsOptions { action: "install" | "uninstall"; dirs: string[]; json: boolean }
@@ -28,7 +28,7 @@ interface SkillInstallMarker {
 
 export interface SkillsDeps {
   userHome?: string;
-  /** The directory that holds `wachiman-review/` and `wachiman-audit/`. */
+  /** The directory that holds `wachiman-review/`, `wachiman-loop/` and `wachiman-audit/`. */
   sourceDir?: string;
   version?: string;
   now?: () => Date;
@@ -309,7 +309,7 @@ function uninstallOne(dest: string): Entry | undefined {
 }
 
 /**
- * Installs or removes both skills in every target directory. A target under the Wachiman home
+ * Installs or removes every skill in every target directory. A target under the Wachiman home
  * throws a UsageError before anything is written. A copy that is not ours (no marker, a symlink, a
  * file, a modified file) is reported `preserved` and warned about, never overwritten or followed.
  */

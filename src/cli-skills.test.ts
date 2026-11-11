@@ -30,7 +30,7 @@ describe("skills through the CLI", () => {
     const out = m.run(["skills", "install"]);
     expect(out.code).toBe(0);
     for (const dir of [".agents", ".claude"]) {
-      for (const name of ["wachiman-review", "wachiman-audit"]) {
+      for (const name of ["wachiman-review", "wachiman-loop", "wachiman-audit"]) {
         const copy = join(m.userHome, dir, "skills", name);
         expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe(readFileSync(join(repoSkills, name, "SKILL.md"), "utf8"));
         expect(lstatSync(copy).isSymbolicLink()).toBe(false);

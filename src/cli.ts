@@ -102,7 +102,7 @@ export const USAGE = `Usage:
                                                      Claude configuration directory, used in place
   ${projectUsage.split("\n").join("\n  ")}
   ${skillsUsage.split("\n").join("\n  ")}
-                                                     Copy the wachiman-review and wachiman-audit agent
+                                                     Copy the wachiman-review, wachiman-loop and wachiman-audit agent
                                                      skills into ~/.agents/skills and each Claude Code
                                                      config directory; uninstall removes only the copies
                                                      it marked. Never touches ~/.wachiman
