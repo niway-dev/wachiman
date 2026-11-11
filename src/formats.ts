@@ -181,6 +181,11 @@ export interface VerifiedFields {
 export interface ResultFindingV2 extends Finding, VerifiedFields {
   /** Whether the line is one a diff-anchored comment can target (`commentableLines`). */
   anchor: "diff" | "outside";
+  /**
+   * The finding's history id, the one `wachiman history --verdict` takes (ADR 0034). Only a
+   * `local` JSON `/2` written with history on carries it; the core never sets it.
+   */
+  id?: string;
 }
 
 export interface VerificationEntryV2 {

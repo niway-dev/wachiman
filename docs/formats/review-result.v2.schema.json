@@ -706,6 +706,10 @@
             "Nit",
             "Pre-existing"
           ]
+        },
+        "id": {
+          "description": "The finding's history id, the one `wachiman history --verdict` accepts. Present only in the JSON `wachiman local --history` writes.",
+          "type": "string"
         }
       }
     },

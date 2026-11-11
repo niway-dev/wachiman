@@ -564,7 +564,12 @@ export function runLocal(
     }
     const text =
       args.format === "json"
-        ? renderJson(result, args.resultVersion ?? (input.change.kind === "working-tree" ? 2 : 1))
+        ? renderJson(
+            result,
+            args.resultVersion ?? (input.change.kind === "working-tree" ? 2 : 1),
+            // ADR 0034: with history on, a `/2` finding names itself by the id `history --verdict` takes.
+            annotation ? result.findings.map((_, i) => annotation!.byIndex.get(i)?.id) : undefined,
+          )
         : args.format === "markdown"
           ? renderMarkdown(result, { profileNote, history: annotation })
           : renderTerminal(result, {

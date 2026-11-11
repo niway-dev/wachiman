@@ -30,7 +30,9 @@ before it); the wrapper around it (`wachiman.history-run/1`) is internal and has
 - **Which version a command writes.** The core produces `/2`. `wachiman local --format json`
   writes `/1` for a committed change, by `toResultV1` (src/formats.ts): the same findings, no
   `/2`-only field, and one line in `execution.notices` saying what the verifier did.
-  `--result-version 2` writes `/2`. Changing the default is a separately announced major release.
+  `--result-version 2` writes `/2`; with `--history` each finding also carries an optional `id`, the
+  one `wachiman history --verdict` accepts ([ADR 0034](../adr/0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md)).
+  Changing the default is a separately announced major release.
   A working-tree review defaults to `/2` and has no `/1` form.
 
 ## What is never in a file
