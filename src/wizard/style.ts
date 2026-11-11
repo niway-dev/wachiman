@@ -4,7 +4,7 @@ export type Tone = "accent" | "muted" | "success" | "warning" | "error";
 const CODES: Record<Tone, number> = { accent: 36, muted: 2, success: 32, warning: 33, error: 31 };
 
 export function terminalStyle(output: { isTTY?: boolean }, env: Record<string, string | undefined>) {
-  const color = output.isTTY === true && env.NO_COLOR === undefined && env.TERM !== "dumb";
+  const color = output.isTTY === true && !env.NO_COLOR && env.TERM !== "dumb";
   return (text: string, tone: Tone) => color ? `\x1b[${CODES[tone]}m${text}\x1b[0m` : text;
 }
 

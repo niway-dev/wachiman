@@ -3,12 +3,13 @@ import { terminalStyle, wizardIo } from "./style";
 import { createPrompter } from "./prompt";
 import { scripted } from "../../test/support/scripted-prompt";
 
-test("color requires a capable output terminal and honors NO_COLOR, including an empty value", () => {
+test("color requires a capable output terminal and honors a non-empty NO_COLOR and ignores an empty one", () => {
   expect(terminalStyle({ isTTY: true }, { TERM: "xterm" })("Pick", "accent")).toContain("\x1b[36m");
+  expect(terminalStyle({ isTTY: true }, { TERM: "xterm", NO_COLOR: "" })("Pick", "accent")).toContain("\x1b[36m");
   for (const [output, env] of [
     [{ isTTY: false }, { TERM: "xterm" }],
     [{ isTTY: true }, { TERM: "dumb" }],
-    [{ isTTY: true }, { TERM: "xterm", NO_COLOR: "" }],
+    [{ isTTY: true }, { TERM: "xterm", NO_COLOR: "1" }],
   ] as const) expect(terminalStyle(output, env)("Pick", "accent")).toBe("Pick");
 });
 
