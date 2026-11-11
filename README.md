@@ -2,13 +2,119 @@
 
 <img src="docs/assets/wachi.png" alt="Wachiman, a cartoon watchman with a cap and a whistle" width="96" align="right">
 
-Advisory code reviews by an agent CLI: a pull request review that runs inside your own GitHub
-Actions with your own API key, or a review of a branch on your laptop with your own Claude
-subscription. One engine, two ways to start it today ([below](#ways-to-run-it)). Wachiman
-(pronounced *watchman*) is named after the Peruvian *wachimán*, the street
-watchman who warns you and lets you decide; the Spanish word comes from the English one.
+Advisory code reviews by an agent CLI. Review a branch on your laptop with your own Claude
+subscription, or review every pull request inside your own GitHub Actions with your own API key.
+One engine, same findings either way. Wachiman never approves or blocks a merge: it warns, you
+decide.
 
-## What it is
+**Documentation: [wachiman.dev/docs](https://wachiman.dev/docs/what-it-is/)** ·
+[npm](https://www.npmjs.com/package/wachiman) · [Changelog](CHANGELOG.md)
+
+Wachiman (pronounced *watchman*) is named after the Peruvian *wachimán*, the street watchman who
+warns you and lets you decide; the Spanish word comes from the English one.
+
+## Contents
+
+- [Install](#install)
+- [What you can do with it](#what-you-can-do-with-it)
+- [Documentation](#documentation)
+- [What a pull request review looks like](#what-a-pull-request-review-looks-like)
+- [What it will not do](#what-it-will-not-do)
+- [The trust decision, in brief](#the-trust-decision-in-brief)
+- [Providers and platforms](#providers-and-platforms)
+- [License](#license)
+- [Commit messages](#commit-messages)
+
+## Install
+
+```sh
+npm i -g wachiman      # or: bun add -g wachiman
+wachiman --version
+wachiman init          # set up this project: local reviews, GitHub Actions, or both
+```
+
+You need Node 20 or later and, for local reviews, Claude Code (`claude`) signed in. The package
+installs [Bun](https://bun.sh) for you through its `bun` dependency (a 23 to 42 MB download); with
+`--ignore-scripts` it uses a Bun already on your `PATH`. No API key is needed for local reviews.
+Details, the supply-chain note and installing from a clone: [docs/local-review.md](docs/local-review.md#3-install).
+
+`wachiman init` asks which mode you want. Local setup uses your current Claude session (or a
+separate profile), checks the machine and account, and prints the first review command. GitHub
+setup writes the workflow file; adding the secret and pushing the workflow stay manual steps.
+See [project setup](docs/local-review.md#configure-this-project).
+
+## What you can do with it
+
+| Way | Where it runs | What you need | Guide |
+| --- | --- | --- | --- |
+| `wachiman local` | Your laptop, on a branch or commit; nothing is posted | Claude Code signed in; no API key | [docs/local-review.md](docs/local-review.md) |
+| Reusable GitHub Actions workflow | Your repository's runners, on each pull request | A provider API key as a secret | [docs/install.md](docs/install.md) |
+
+A GitHub App is a design only; it is not implemented.
+
+**Review your branch before you push.** `wachiman local` reviews the committed change on your
+branch with your own signed-in `claude` and prints the findings in the terminal, or writes them as
+Markdown or JSON. Nothing is posted, no GitHub requests are made and no telemetry is sent; your
+code goes to your configured Claude account. Read [docs/local-review.md](docs/local-review.md)
+before running it on an employer's code.
+
+```sh
+wachiman local                                # current branch against origin's default branch
+wachiman local --commit abc1234               # exactly one commit
+wachiman local --from abc1234                 # that commit and everything after it
+wachiman local --format markdown --output review.md
+```
+
+**Ask about a change.** `wachiman ask "<question>"` answers one question about the same local
+change, grounded in its stored review when there is one; with no question it walks you through the
+change ([docs/cli.md](docs/cli.md#ask)).
+
+**See what local runs cost.** `wachiman status` shows the cost of the runs kept on this laptop
+([docs/cli.md](docs/cli.md#status)); workflow runs are not in it.
+
+**Let your coding agent run it.** `wachiman skills install` copies the `wachiman-review` agent
+skill, which teaches Claude Code or Codex to pick the range from what you ask, run a local review
+and present the findings ([docs/local-review.md](docs/local-review.md#let-your-coding-agent-run-it)).
+
+**Review every pull request in GitHub Actions.** A short caller file in your repository pins a
+release, passes your key and names the operator. Start with [docs/install.md](docs/install.md),
+from an empty repository to a posted review; the caller file is
+[`templates/wachiman-review-caller.yml`](templates/wachiman-review-caller.yml). Already copied the
+engine into a repository? [docs/setup-copy.md](docs/setup-copy.md) explains how to move to the
+maintained workflow.
+
+## Documentation
+
+The guides are published at **[wachiman.dev/docs](https://wachiman.dev/docs/what-it-is/)**. The
+same material, in this repository:
+
+| I want to… | Read |
+| --- | --- |
+| Get a first review on a repository | [docs/install.md](docs/install.md) |
+| Know what I am trusting, and what is unverified | [SECURITY.md](SECURITY.md) |
+| Look up an input, a default or an environment setting | [docs/configuration.md](docs/configuration.md) |
+| Find out why there was no review, or an error | [docs/troubleshooting.md](docs/troubleshooting.md) |
+| Ask for reviews, scope them, read the results | [docs/reviews.md](docs/reviews.md) |
+| Understand what a run can cost and what coverage means | [docs/costs.md](docs/costs.md) |
+| Tell the reviewer what matters in my repository | [docs/review-policy.md](docs/review-policy.md) |
+| Adopt a new release, or roll one back | [docs/upgrading.md](docs/upgrading.md) |
+| Turn it off and remove it | [docs/uninstall.md](docs/uninstall.md) |
+| Quick answers and limitations | [docs/faq.md](docs/faq.md) |
+| Run the engine from the command line | [docs/cli.md](docs/cli.md) |
+| Review a branch on my laptop, on my own Claude subscription | [docs/local-review.md](docs/local-review.md) |
+| See what a provider adapter runs and inherits | [docs/providers/claude-code.md](docs/providers/claude-code.md), [docs/providers/codex.md](docs/providers/codex.md) |
+| Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
+| Understand how a review is built | [docs/architecture.md](docs/architecture.md) |
+| Measure false positives | [docs/precision.md](docs/precision.md) |
+| See how it compares with Pullfrog and CodeRabbit | [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks) |
+| See what changed in a release | [CHANGELOG.md](CHANGELOG.md) |
+| Cut a release (maintainers) | [docs/releasing.md](docs/releasing.md) |
+
+Design decisions are recorded as ADRs in [docs/adr/](docs/adr/), starting with
+[ADR 0001: distribution and trust](docs/adr/0001-distribution-and-trust.md) and
+[ADR 0002: TypeScript on Bun, no runtime dependencies besides Bun itself](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
+
+## What a pull request review looks like
 
 A GitHub Actions workflow that reads a pull request and posts one GitHub review on it. Each
 finding is an inline comment on its line, labelled with a severity (when to act: Blocker, Fix,
@@ -66,107 +172,23 @@ you do:
 This is not a sandbox. What is enforced, what the tests show and what is still unverified:
 [SECURITY.md](SECURITY.md).
 
-## Status and providers
+## Providers and platforms
 
-The current release is **v1.5.0** ([CHANGELOG.md](CHANGELOG.md)). The command-line contract
-([docs/cli.md](docs/cli.md)) and the provider adapter boundary are in place. The older
-`CLAUDE_REVIEW_*` variables, `.github/agent-review.md`, `.github/claude-review.md`, `/wachi` and the `@claude` mention are still read
-with a notice; see [docs/upgrading.md](docs/upgrading.md).
+The current release is on [npm](https://www.npmjs.com/package/wachiman) and in
+[CHANGELOG.md](CHANGELOG.md). The command-line contract ([docs/cli.md](docs/cli.md)) and the
+provider adapter boundary are in place. The older `CLAUDE_REVIEW_*` variables,
+`.github/agent-review.md`, `.github/claude-review.md`, `/wachi` and the `@claude` mention are still
+read with a notice; see [docs/upgrading.md](docs/upgrading.md).
 
 - **Claude Code** (`claude -p`) is the provider the reusable workflow installs and runs, with
   `ANTHROPIC_API_KEY` ([docs/providers/claude-code.md](docs/providers/claude-code.md)).
 - **Codex CLI** (`codex exec`, for OpenAI models) is a second adapter, available only from the
   command line. The reusable workflow does not install it or pass an OpenAI key
   ([docs/providers/codex.md](docs/providers/codex.md)).
-- **npm:** the package `wachiman` is on npm (`npm i -g wachiman`; a Node launcher that installs
-  Bun through its `bun` dependency;
-  [docs/local-review.md](docs/local-review.md#3-install)). Version 1.10.0 was published by hand,
-  without a provenance statement; the release workflow publishes the following versions with one.
-  Installing from source (`scripts/install-local.sh`) still works. macOS and Linux are covered by CI;
-  Windows is not tested in CI, and is expected to work wherever Node and Bun run.
-
-## Ways to run it
-
-One review engine, started from different places. Same findings, same labels, your own account each
-time.
-
-| Way | Where it runs | What you need | Status |
-| --- | --- | --- | --- |
-| Reusable GitHub Actions workflow | Your repository's runners, on each pull request | A provider API key as a secret | Shipped; [docs/install.md](docs/install.md) |
-| `wachiman local` | Your laptop, on a branch or commit; nothing is posted | Claude Code signed in; no API key | Shipped; [docs/local-review.md](docs/local-review.md) |
-| GitHub App | Not available | | A design only, not implemented |
-
-After a local run, `wachiman status` shows what the runs kept on this laptop cost
-([docs/cli.md](docs/cli.md#status)); runs by the workflow are not in it.
-
-## Install
-
-The recommended way is the reusable workflow: a short caller file in your repository pins a
-release, passes your key and names the operator.
-
-**Start here: [docs/install.md](docs/install.md)**, the first advisory review from an empty
-repository to a posted review. The caller file itself is
-[`templates/wachiman-review-caller.yml`](templates/wachiman-review-caller.yml).
-
-Already copied the engine into a repository? That setup still runs, and
-[docs/setup-copy.md](docs/setup-copy.md) explains how to move to the maintained workflow.
-
-### Review locally on your own subscription
-
-`wachiman local` reviews the branch you have checked out, on your own signed-in `claude`, and
-prints the review in the terminal or writes it as Markdown or JSON. No API key, no GitHub token,
-nothing posted: Wachiman sends no telemetry and makes no GitHub requests in local mode; your code
-is sent to your configured Claude account for the review. Read
-[docs/local-review.md](docs/local-review.md) before running it on an employer's code.
-
-Install it from npm (below), or from source: run `scripts/install-local.sh` once from your clone. The npm package
-(`npm i -g wachiman` or `bun add -g wachiman`; it is written to work on Windows (Git Bash, PowerShell), and it is expected to work wherever Node and Bun run, but it is not tested in CI: it ships the
-TypeScript source and a small Node launcher, and it installs Bun for you by depending on the
-official npm package `bun`, which means installing it downloads Bun, 23 to 42 MB compressed; with
-`--ignore-scripts` it uses a Bun already on your `PATH`; details and the supply-chain note are in
-[docs/local-review.md](docs/local-review.md#from-npm)) is published. Both give a global `wachiman local …`
-command; the script also links the `wachiman-review` agent skill, usable from any project, and the
-`wachiman-audit` skill, which compares Wachiman's findings with another reviewer's on the same
-commits (data and procedure in
-[wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks)). Details and the Windows
-note are in [docs/local-review.md](docs/local-review.md#3-install).
-
-Configure an existing project with `wachiman init`: choose local reviews, GitHub Actions, or
-both. Local setup offers your current Claude session and checks the machine/account before
-suggesting the first review command. GitHub setup writes the workflow; adding the secret and
-submitting the workflow remain manual. See [project setup](docs/local-review.md#configure-this-project).
-
-`wachiman ask "<question>"` answers one question about the same local change (or walks through it
-with no question), grounded in the stored review of that change when there is one. It is in
-[docs/cli.md](docs/cli.md#ask).
-
-## Documentation map
-
-| I want to… | Read |
-| --- | --- |
-| Get a first review on a repository | [docs/install.md](docs/install.md) |
-| Know what I am trusting, and what is unverified | [SECURITY.md](SECURITY.md) |
-| Look up an input, a default or an environment setting | [docs/configuration.md](docs/configuration.md) |
-| Find out why there was no review, or an error | [docs/troubleshooting.md](docs/troubleshooting.md) |
-| Ask for reviews, scope them, read the results | [docs/reviews.md](docs/reviews.md) |
-| Understand what a run can cost and what coverage means | [docs/costs.md](docs/costs.md) |
-| Tell the reviewer what matters in my repository | [docs/review-policy.md](docs/review-policy.md) |
-| Adopt a new release, or roll one back | [docs/upgrading.md](docs/upgrading.md) |
-| Turn it off and remove it | [docs/uninstall.md](docs/uninstall.md) |
-| Quick answers and limitations | [docs/faq.md](docs/faq.md) |
-| Run the engine from the command line | [docs/cli.md](docs/cli.md) |
-| Review a branch on my laptop, on my own Claude subscription | [docs/local-review.md](docs/local-review.md) |
-| See what a provider adapter runs and inherits | [docs/providers/claude-code.md](docs/providers/claude-code.md), [docs/providers/codex.md](docs/providers/codex.md) |
-| Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
-| Understand how a review is built | [docs/architecture.md](docs/architecture.md) |
-| Measure false positives | [docs/precision.md](docs/precision.md) |
-| See how it compares with Pullfrog and CodeRabbit | [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks) |
-| See what changed in a release | [CHANGELOG.md](CHANGELOG.md) |
-| Cut a release (maintainers) | [docs/releasing.md](docs/releasing.md) |
-
-Design decisions are recorded as ADRs in [docs/adr/](docs/adr/), starting with
-[ADR 0001: distribution and trust](docs/adr/0001-distribution-and-trust.md) and
-[ADR 0002: TypeScript on Bun, no runtime dependencies besides Bun itself](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
+- **npm releases:** version 1.10.0 was published by hand, without a provenance statement; the
+  release workflow publishes later versions with one.
+- **Platforms:** macOS and Linux are covered by CI. Windows (Git Bash, PowerShell) is not tested
+  in CI and is expected to work wherever Node and Bun run.
 
 ## License
 
