@@ -5,6 +5,36 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.11.0](https://github.com/niway-dev/wachiman/compare/v1.10.1...v1.11.0) (2026-11-11)
+
+
+### Features
+
+* add wizard stages and restrained terminal styles ([3e828eb](https://github.com/niway-dev/wachiman/commit/3e828ebed1a1232c349501df05ebb8f8b5559476))
+* **cli:** review staged and unstaged tracked changes ([0d14d73](https://github.com/niway-dev/wachiman/commit/0d14d7348d1f6c3b3072a9a2182a70cd8f06b702))
+* **cli:** review tracked working-tree changes in isolated snapshots ([63caad4](https://github.com/niway-dev/wachiman/commit/63caad4ec05b80dce7054cc6a711024ffdc3bef6))
+* continue init directly into account setup ([344d8da](https://github.com/niway-dev/wachiman/commit/344d8da338344bff6ca042a6ba3bc7d474b8d8b2))
+* offer the current Claude session during setup ([60a4ed5](https://github.com/niway-dev/wachiman/commit/60a4ed5b48bffa4ec3633c1c5489726ce3f0cec5))
+* wachiman status shows what local runs kept and cost, and the README presents the ways to run it ([ebcb9cf](https://github.com/niway-dev/wachiman/commit/ebcb9cf0868525f02fd6f9fe5b534f667c1e2b69))
+* wachiman status shows what local runs kept and cost; README presents the ways to run it ([38c393f](https://github.com/niway-dev/wachiman/commit/38c393f12aa91a079c8e854bb07bf862099f2536))
+
+
+### Bug Fixes
+
+* **cli:** retain the existing input-selector diagnostic ([443a7ad](https://github.com/niway-dev/wachiman/commit/443a7ad55e6f0af7501d42bb2b7855baf6f545c7))
+* escape PowerShell smart quotes in suggested commands ([f3e12eb](https://github.com/niway-dev/wachiman/commit/f3e12eb379fdb8968a1bdb57df9e90bb105e67f5))
+* honor source Git mode settings in working-tree capture ([05b6148](https://github.com/niway-dev/wachiman/commit/05b61480550ce7590db7ba1da30627d062c9e0d6))
+* ignore an empty NO_COLOR value ([ac87c2f](https://github.com/niway-dev/wachiman/commit/ac87c2f3a97eb6326e4982e33e5ab118be44e757))
+* keep account context under its wizard stage ([848adba](https://github.com/niway-dev/wachiman/commit/848adba8a192d3766e6a4b4865ee9c0fe11c3fe2))
+* keep redirected wizard prompts free of cursor escapes ([32030ee](https://github.com/niway-dev/wachiman/commit/32030ee89099b44c2cc4c15336c26948df4850dd))
+* **local:** capture tracked leaf directories as deletions ([b1bef0c](https://github.com/niway-dev/wachiman/commit/b1bef0cee2ed959d96360c7e1449222296498528))
+* **local:** index snapshot evidence without attribute conversions ([105e862](https://github.com/niway-dev/wachiman/commit/105e86202889f5de7e43a5b075521e7c4708b92b))
+* **local:** preserve both patches for file type changes ([4a81e17](https://github.com/niway-dev/wachiman/commit/4a81e17ba6de9320499f9d9ed0220180b4828119))
+* report account profiles, configured retention and distinct repositories in status ([87a5e67](https://github.com/niway-dev/wachiman/commit/87a5e676362dd31fb1f4faf580a7cde666e6a665))
+* report setup readiness and quote suggested project commands ([6df12d4](https://github.com/niway-dev/wachiman/commit/6df12d4ed0611903e1e3c3a0511b51d1204c9396))
+* seed temporary index from captured bytes ([47b0d91](https://github.com/niway-dev/wachiman/commit/47b0d911b8e89fbd56633a99c181e657a4be4d87))
+* **setup:** show how to bind later when setup started from init ends unbound ([5a8a573](https://github.com/niway-dev/wachiman/commit/5a8a5737cb6302cbaa99a5207e23d5d9d3276c80))
+
 ## [1.10.1](https://github.com/niway-dev/wachiman/compare/v1.10.0...v1.10.1) (2026-11-10)
 
 
