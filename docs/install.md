@@ -137,7 +137,8 @@ provider's console ([costs.md](costs.md)).
 
 ## Ask for a review
 
-Only the operator's comments count. Comment on the pull request:
+Only the operator's comments count, unless `askers` allows collaborators to ask (see
+[Ask a question](reviews.md#ask-a-question)). Comment on the pull request:
 
 | You write | What happens |
 | --- | --- |
@@ -167,10 +168,11 @@ pull request from then on, including ones opened earlier.
   unchanged-head case either (next point).
 - **Your reply in a finding's thread gets an answer, with conditions.** The template lists
   `pull_request_review_comment`, so your reply (only yours, as `operator`) starts a short job that
-  answers the threads waiting for an answer, once the head has been reviewed. Anyone else's reply
-  starts nothing. Only replies from people with `OWNER`, `MEMBER` or `COLLABORATOR` access reach the
-  agent. A caller without that trigger gets no such answer
-  ([upgrading.md](upgrading.md#answering-thread-replies-without-a-push)).
+  answers the threads waiting for an answer, once the head has been reviewed. A reply that asks a
+  question (it starts with the command word and is not `review`) is answered in that thread. Anyone
+  else's reply starts nothing, unless it starts with the command word; then the job runs, but posts
+  nothing unless `askers` allows collaborators, which is off by default. A caller without that
+  trigger gets no such answer ([upgrading.md](upgrading.md#answering-thread-replies-without-a-push)).
 - **Automatic runs share a ceiling.** The first review, push reviews and thread replies on one pull
   request together spend at most `auto_budget_usd` (default $6); then one notice is posted and
   `/wachiman review` still works ([costs.md](costs.md#the-ceiling-per-pull-request)).

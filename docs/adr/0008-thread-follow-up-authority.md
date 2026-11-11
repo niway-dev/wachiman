@@ -7,7 +7,7 @@
   answered last is neither read nor answered again. The decision to report and never resolve is
   unchanged.
 - **Proposed amendment 2026-11-11:** [ADR 0032](0032-one-ask-core-for-pull-request-and-laptop-grounded-in-the-review.md)
-  (proposed, not implemented) narrows the non-goal "Resolving or replying to human threads": a
+  (implemented on branch `feat/ask-line-comments-and-askers`, not yet run in a real workflow) narrows the non-goal "Resolving or replying to human threads": a
   human thread whose comment invokes the mention is answered in that thread. Resolving stays a
   non-goal.
 - **Date:** 2026-10-30

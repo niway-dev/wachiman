@@ -180,14 +180,20 @@ jobs:
   threads:
     name: Wachiman thread replies
     # EDIT THIS: replace 'your-github-login' below with the operator's login, and keep it equal to
-    # AGENT_REVIEW_OPERATOR above. Only a reply by the operator (not a bot), on a head in this
-    # repository, starts the job; the engine checks the login again and acts only when the head
-    # was already reviewed.
+    # AGENT_REVIEW_OPERATOR above. A reply by the operator (not a bot), or by an OWNER, MEMBER or
+    # COLLABORATOR that starts with the mention, on a head in this repository, starts the job. That
+    # second case is a cheap pre-filter: the engine checks the login again, answers a collaborator
+    # only under `askers: write` and GitHub's write permission, and acts only when the head was
+    # already reviewed.
     if: |
       github.event_name == 'pull_request_review_comment' &&
       github.event.comment.in_reply_to_id &&
-      github.event.comment.user.login == 'your-github-login' &&
       github.event.comment.user.type != 'Bot' &&
+      (github.event.comment.user.login == 'your-github-login' ||
+       (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        (startsWith(github.event.comment.body, '/wachi') ||
+         startsWith(github.event.comment.body, '@agent-review') ||
+         startsWith(github.event.comment.body, '@claude')))) &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -227,6 +233,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          # The reply's text and place, for a question in a thread (environment only, never interpolated).
+          REQUEST: ${{ github.event.comment.body }}
+          AGENT_REVIEW_COMMENT_ID: ${{ github.event.comment.id }}
+          AGENT_REVIEW_COMMENT_IN_REPLY_TO: ${{ github.event.comment.in_reply_to_id }}
+          AGENT_REVIEW_COMMENT_PATH: ${{ github.event.comment.path }}
+          AGENT_REVIEW_COMMENT_LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
         run: bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts threads "$PR" --repo-dir .
 
   on-demand:
@@ -235,11 +247,18 @@ jobs:
     # to AGENT_REVIEW_OPERATOR above (a job `if:` cannot read `env`). Matching by login works
     # for user-owned and organisation-owned repositories alike (`author_association` is `OWNER`
     # in the first and `MEMBER` in the second). `@agent-review` and `@claude` are accepted as aliases
-    # while installed copies migrate.
+    # while installed copies migrate. A comment that starts with the mention from an OWNER, MEMBER
+    # or COLLABORATOR also starts the job, as a pre-filter only: the engine refuses it unless
+    # `askers: write` is set and GitHub confirms write access.
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      github.event.comment.user.login == 'your-github-login' &&
+      (github.event.comment.user.login == 'your-github-login' ||
+       (github.event.comment.user.type != 'Bot' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        (startsWith(github.event.comment.body, '/wachi') ||
+         startsWith(github.event.comment.body, '@agent-review') ||
+         startsWith(github.event.comment.body, '@claude')))) &&
       (contains(github.event.comment.body, '/wachi') ||
        contains(github.event.comment.body, '@agent-review') ||
        contains(github.event.comment.body, '@claude'))

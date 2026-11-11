@@ -106,8 +106,11 @@ The checks run in this order:
    `comment` fails with exit 1. This is checked before anything else, including before it looks at
    the comment.
 2. If `AGENT_REVIEW_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
-   notice and exits 0 without doing anything. If it is unset, the engine does no author check: a
-   caller that runs `comment` directly decides who may reach it.
+   notice and exits 0 without doing anything, unless `AGENT_REVIEW_ASKERS=write`; then see
+   [Questions from collaborators](#questions-from-collaborators). If it is unset, the engine does no
+   author check under `askers: operator`: a caller that runs `comment` directly decides who may reach
+   it. Under `askers: write` an unset author is an error (exit 1), because nobody can then be trusted
+   without a login.
 3. If the comment contains no command word (`AGENT_REVIEW_MENTION`, default `/wachiman`, or the
    aliases `/wachi`, `@agent-review`, `@claude`), nothing happens and it exits 0.
 4. If the first word after the command word is `review`, it runs `review` with the remaining words
@@ -122,6 +125,27 @@ and for custom mentions the two accept different words. That is documented, with
 
 Because the provider check runs before `comment` reads the request (see [Exit codes](#exit-codes)),
 even a comment that would do nothing needs a working provider binary and credential.
+
+### Questions from collaborators
+
+Only the operator's comments run a review. With `AGENT_REVIEW_ASKERS=write`, a collaborator's
+comment that asks a question is answered too. After step 1 above, such a comment must pass these
+checks, in this order:
+
+1. It must have an author (`AGENT_REVIEW_COMMENT_AUTHOR`), or the run exits 1.
+2. It must be a question or a walkthrough request. Anything else, including `review`, prints a
+   notice and exits 0.
+3. GitHub must report the author's permission on the repository as `admin`, `maintain` or `write`
+   (or a role named `maintain`), from `repos/{repo}/collaborators/{login}/permission`. Bots, a failed
+   lookup and any other permission are refused. A refusal posts nothing; it is a line in the job log.
+4. The question ceiling must have room. Each answer to a collaborator ends with a footer that records
+   its cost. The sum of those footers on the pull request, plus `AGENT_REVIEW_ANSWER_BUDGET_USD`, must
+   not exceed `AGENT_REVIEW_ASK_CEILING_USD` (default `3`). When it would, the engine posts one notice
+   and answers nothing. It does not post the notice again while it is still the latest Wachiman
+   comment on the pull request.
+
+The operator's questions are not limited by the ceiling, and their answers do not count toward it.
+A call that fails still posts a note with its cost, so the ceiling counts what was spent.
 
 ### What `threads` does
 
@@ -464,7 +488,10 @@ Required for `review`, `comment` and `threads`:
 | `GH_TOKEN` | Token for `gh`. It is never given to the agent. Not read by `local`, `setup`, `doctor`, `profile` or `project`. |
 | `GITHUB_REPOSITORY` | `owner/name` of the repository. Not read by `local`, `setup`, `doctor`, `profile` or `project`. |
 | `REQUEST` | `comment` only: the comment text. Pass it through the environment, never interpolated into a shell command. |
-| `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs. |
+| `AGENT_REVIEW_COMMENT_ID` | Optional, for `comment` and `threads` on a review comment: that comment's id. With it, a question is answered in the comment's thread. |
+| `AGENT_REVIEW_COMMENT_IN_REPLY_TO` | Optional: the id of the comment this one replies to. The answer is posted as a reply under the thread's first comment. |
+| `AGENT_REVIEW_COMMENT_PATH`, `AGENT_REVIEW_COMMENT_LINE` | Optional: the file and the line the review comment is on (`line`, or `original_line` when the line moved). The question is about that line first. |
+| `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs unless `AGENT_REVIEW_ASKERS=write` (see [Questions from collaborators](#questions-from-collaborators)). |
 | Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`. For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
 
 The `gh` CLI and the provider's binary (`claude` for `claude-code`, `codex` for `codex`) must be on

@@ -69,6 +69,17 @@ export interface EngineConfig {
   mention: string;
   /** Login allowed to command the tool. `comment` refuses to run when it is empty or a placeholder. */
   operator: string;
+  /**
+   * `AGENT_REVIEW_ASKERS`: who may ask a question (ADR 0032 decision 5). `operator` (default): only
+   * the operator. `write`: also a collaborator whose permission on the repository is admin,
+   * maintain or write, checked by the engine on each question. Reviews stay operator-only.
+   */
+  askers: "operator" | "write";
+  /**
+   * `AGENT_REVIEW_ASK_CEILING_USD`: the most the questions of everyone but the operator may spend
+   * on one pull request, summed from the engine's own footers. The operator's questions are not limited.
+   */
+  askCeilingUsd: number;
   /** Extra exclude globs on top of the built-in ones. */
   exclude: string[];
   /**
@@ -160,6 +171,10 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   if (verify && verifierModel === undefined) {
     throw new UsageError(`AGENT_REVIEW_VERIFY needs AGENT_REVIEW_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`);
   }
+  const askers = get("ASKERS") ?? "operator";
+  if (askers !== "operator" && askers !== "write") {
+    throw new UsageError(`AGENT_REVIEW_ASKERS must be operator or write, got "${askers}".`);
+  }
   const trigger = get("TRIGGER")?.trim();
   if (trigger !== undefined && !/^[a-z_]+$/.test(trigger)) {
     throw new UsageError(`AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "${trigger}".`);
@@ -184,6 +199,8 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     onProviderUnavailable,
     mention: get("MENTION") ?? "/wachiman",
     operator: get("OPERATOR") ?? "",
+    askers,
+    askCeilingUsd: number("ASK_CEILING_USD", 3),
     exclude: (get("EXCLUDE") ?? "").split(",").filter(Boolean),
     verify,
     verifyBudgetUsd: number("VERIFY_BUDGET_USD", 1),

@@ -28,12 +28,26 @@ describe("loadConfig", () => {
       onProviderUnavailable: "warn",
       mention: "/wachiman",
       operator: "",
+      askers: "operator",
+      askCeilingUsd: 3,
       exclude: [],
       verify: false,
       verifyBudgetUsd: 1,
       verifierModel: "claude-opus-5-5",
     });
     expect(warnings).toEqual([]);
+  });
+
+  test("askers is operator or write, and anything else is a configuration error", () => {
+    expect(load({ AGENT_REVIEW_ASKERS: "write" }).config.askers).toBe("write");
+    expect(load({ AGENT_REVIEW_ASKERS: "operator" }).config.askers).toBe("operator");
+    expect(() => load({ AGENT_REVIEW_ASKERS: "everyone" })).toThrow('AGENT_REVIEW_ASKERS must be operator or write, got "everyone".');
+    expect(() => load({ AGENT_REVIEW_ASKERS: "Write" })).toThrow(/AGENT_REVIEW_ASKERS must be/);
+  });
+
+  test("the question ceiling is a positive number, $3 by default", () => {
+    expect(load({ AGENT_REVIEW_ASK_CEILING_USD: "5" }).config.askCeilingUsd).toBe(5);
+    expect(() => load({ AGENT_REVIEW_ASK_CEILING_USD: "0" })).toThrow("AGENT_REVIEW_ASK_CEILING_USD must be a positive number");
   });
 
   test("the verifier is opt-in and needs a model outside Claude Code", () => {

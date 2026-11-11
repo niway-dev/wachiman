@@ -424,6 +424,18 @@ answered as a question:
   sections (what it does, how it is built, what it connects to, open findings, what was not
   covered).
 
+- **Only the operator asks by default.** With `AGENT_REVIEW_ASKERS=write` a collaborator may ask
+  too, but only a question, never `review`. GitHub must report that person as `admin`, `maintain` or
+  `write` on the repository; the engine checks this on each question and does not trust the
+  comment's `author_association`. A refused collaborator gets no comment, only a line in the job log.
+- **Collaborators' questions share a ceiling.** Each answer to a collaborator records its cost in
+  its footer. When the next one would take their total on the pull request past
+  `AGENT_REVIEW_ASK_CEILING_USD` (default `$3`), the engine posts one notice and answers nothing more
+  until the ceiling is raised. The operator's questions are neither limited nor counted.
+- **A question in a finding's thread is answered in that thread**, with the thread's earlier comments
+  as context. A new comment on a diff line that is not a reply is not routed by the shipped
+  workflows, so it is not answered.
+
 ## What a review will not tell you
 
 - It is not a substitute for CI or for a human. Findings can be wrong. How to measure how often

@@ -311,16 +311,23 @@ jobs:
 
   threads:
     name: Wachiman thread replies
-    # A reply in a review thread (`pull_request_review_comment`), written by the operator, on a
-    # head in this repository, never by a bot. The gate runs before any paid step: a stranger's
-    # reply on a public repository starts a skipped job and nothing else. The engine adds two
-    # more: it acts only when the head was already reviewed (otherwise the push's review reads
-    # the same replies), and it answers only threads Wachiman opened.
+    # A reply in a review thread (`pull_request_review_comment`), written by the operator, or by a
+    # collaborator (OWNER, MEMBER or COLLABORATOR) when it starts with the mention, on a head in this
+    # repository, never by a bot. The gate runs before any paid step: a stranger's reply on a public
+    # repository starts a skipped job and nothing else. The engine decides the rest: a collaborator's
+    # question is answered only under `askers: write`, after GitHub confirms write access; a reply
+    # without a question is the operator's alone, and the thread-only run acts only when the head was
+    # already reviewed and only on threads Wachiman opened.
     if: |
       github.event_name == 'pull_request_review_comment' &&
       github.event.comment.in_reply_to_id &&
-      github.event.comment.user.login == inputs.operator &&
       github.event.comment.user.type != 'Bot' &&
+      (github.event.comment.user.login == inputs.operator ||
+       (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        (startsWith(github.event.comment.body, inputs.mention) ||
+         startsWith(github.event.comment.body, '/wachi') ||
+         startsWith(github.event.comment.body, '@agent-review') ||
+         startsWith(github.event.comment.body, '@claude')))) &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -393,6 +400,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          # The reply's text and place: a question in a thread is answered in it (ADR 0032 decision 4).
+          # Environment only, never interpolated into the script.
+          REQUEST: ${{ github.event.comment.body }}
+          AGENT_REVIEW_COMMENT_ID: ${{ github.event.comment.id }}
+          AGENT_REVIEW_COMMENT_IN_REPLY_TO: ${{ github.event.comment.in_reply_to_id }}
+          AGENT_REVIEW_COMMENT_PATH: ${{ github.event.comment.path }}
+          AGENT_REVIEW_COMMENT_LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
           AGENT_REVIEW_TRIGGER: thread
           AGENT_REVIEW_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
           AGENT_REVIEW_THREADS_BUDGET_USD: ${{ inputs.threads_budget_usd }}
@@ -410,12 +424,20 @@ jobs:
 
   on-demand:
     name: Wachiman on demand
-    # Only the operator's login starts a run: `author_association` is `OWNER` for a
-    # user-owned repository but `MEMBER` in an organisation, so the login is compared.
+    # The operator's login starts a run. So does a comment that starts with the mention from an OWNER,
+    # MEMBER or COLLABORATOR (`author_association` is `OWNER` for a user-owned repository but `MEMBER`
+    # in an organisation): a cheap pre-filter only. The engine refuses every such comment unless the
+    # repository set `askers: write` and GitHub confirms the author's write access (ADR 0032 decision 9).
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
-      github.event.comment.user.login == inputs.operator &&
+      (github.event.comment.user.login == inputs.operator ||
+       (github.event.comment.user.type != 'Bot' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        (startsWith(github.event.comment.body, inputs.mention) ||
+         startsWith(github.event.comment.body, '/wachi') ||
+         startsWith(github.event.comment.body, '@agent-review') ||
+         startsWith(github.event.comment.body, '@claude')))) &&
       (contains(github.event.comment.body, inputs.mention) ||
        contains(github.event.comment.body, '/wachi') ||
        contains(github.event.comment.body, '@agent-review') ||

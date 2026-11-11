@@ -1,6 +1,6 @@
 # ADR 0032: One ask core for the pull request and the laptop, grounded in the review, with checked references
 
-- **Status:** proposed 2026-11-11. Partly implemented: the ask core and the pull request comment path, by branch `feat/ask-core`; line comments, askers and the local command are later slices of the same stack. Amends one non-goal of
+- **Status:** proposed 2026-11-11. Partly implemented: the ask core, the pull request comment path, line comments, askers and the ask ceiling (branches `feat/ask-core`, `feat/ask-line-comments-and-askers`); the local command is the last slice of the stack. Not yet run in a real workflow. Amends one non-goal of
   [ADR 0008](0008-thread-follow-up-authority.md) ("Resolving or replying to human threads"): a
   human thread is answered when, and only when, its comment invokes the mention; resolving stays
   a non-goal. ADR 0008's reopen conditions (false-resolution rate, the two-reply cap) are not

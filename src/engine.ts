@@ -671,6 +671,9 @@ const SIGNATURE_REVIEW_SOURCE = "<!-- wachi:review -->";
 const ATTEMPT_SOURCE = "<!-- wachi:attempt id=[0-9a-f-]{36} -->";
 const SIGNATURE_REPLY_SOURCE = "<!-- wachi:reply -->";
 const AUTO_SOURCE = "<!-- wachi:auto -->";
+const ANSWER_SOURCE = "<!-- wachi:answer -->";
+const ASK_SOURCE = "<!-- wachi:ask -->";
+const ASK_LIMIT_SOURCE = "<!-- wachi:ask-limit -->";
 export const SIGNATURE = {
   review: SIGNATURE_REVIEW_SOURCE,
   finding: "<!-- wachi:finding -->",
@@ -680,8 +683,14 @@ export const SIGNATURE = {
    * automatic run that spent money. The ceiling reads only footers that carry it (ADR 0012).
    */
   auto: AUTO_SOURCE,
+  /** Written on every answer the engine posts (ADR 0032). */
+  answer: ANSWER_SOURCE,
+  /** Written before `answer` on an answer to someone but the operator, after its cost line: the question ceiling sums those. */
+  ask: ASK_SOURCE,
+  /** Written on the notice that the question ceiling is used up. */
+  askLimit: ASK_LIMIT_SOURCE,
 } as const;
-const ANY_SIGNATURE = /<!-- wachi:(?:review|finding|reply|auto) -->/;
+const ANY_SIGNATURE = /<!-- wachi:(?:review|finding|reply|auto|answer|ask|ask-limit) -->/;
 
 /**
  * Defuses HTML comments in text a model wrote, so it cannot forge the incremental marker or a
@@ -736,6 +745,25 @@ const ceilingFooter = (usd: number) => `<!-- wachi:ceiling usd=${usd.toFixed(2)}
 const CEILING_NOTICE = new RegExp(
   `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${CEILING_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`,
 );
+
+/**
+ * The footer of an answer to someone but the operator: its cost line, the ask signature, then the
+ * answer signature, at the end of the body. Anchored, so text a model wrote earlier is never read.
+ */
+const ASK_FOOTER = new RegExp(
+  `\\n\\n<sub>[^\\n]*\\$(\\d+(?:\\.\\d+)?)</sub>\\n\\n${ASK_SOURCE}\\n\\n${ANSWER_SOURCE}$`,
+);
+
+/** The dollars an answer to someone but the operator cost, or null when the body records none. */
+export function readAskCost(body: string) {
+  const cost = body.trimEnd().match(ASK_FOOTER)?.[1];
+  return cost === undefined ? null : Number(cost);
+}
+
+/** Whether a body is the notice that the question ceiling is used up (see `postAskLimit`). */
+export function isAskLimitNotice(body: string) {
+  return body.trimEnd().endsWith(`\n\n${ANSWER_SOURCE}\n\n${ASK_LIMIT_SOURCE}`);
+}
 
 /** The ceiling (formatted `1.50`) a signed notice was posted for, or null when the body is not one. */
 export function readCeilingNotice(body: string) {
@@ -3771,13 +3799,108 @@ function runProvider(
 const blobLink = (repo: string, sha: string, path: string, line: number) =>
   `https://github.com/${repo}/blob/${sha}/${path.split("/").map(encodeURIComponent).join("/")}#L${line}`;
 
+/** A review comment a question was written on (ADR 0032 decision 4): the answer goes in its thread. */
+export interface ReviewLineComment {
+  /** The comment's id. */
+  id: number;
+  /** The thread's first comment when this comment is a reply, else null. GitHub does not allow a reply to a reply. */
+  replyTo: number | null;
+  path: string | null;
+  /** `line`, else `original_line`, when GitHub still knows one. */
+  line: number | null;
+}
+
+/** The comment a thread answer is posted under: the thread's first comment. */
+const threadRoot = (line: ReviewLineComment) => line.replyTo ?? line.id;
+
+/** Whether a request asks something: a mention with a question after it, not the review command or a bare walkthrough. */
+export function isThreadQuestion(request: string, keyword = DEFAULT_MENTION) {
+  const command = parseCommand(request, keyword);
+  return command?.kind === "answer" && !asksForWalkthrough(request, keyword);
+}
+
+const WRITE_PERMISSIONS = new Set(["admin", "maintain", "write"]);
+
+/**
+ * Whether a collaborator may ask under `askers: write` (ADR 0032 decision 5). GitHub's permission on
+ * the repository decides: `admin`, `maintain` or `write`, or a role named `maintain`. The event's
+ * `author_association` is not read. Bots are never allowed. Any error or any other value is a no.
+ */
+export function askerAllowed(gh: GhFn, repo: string, login: string): boolean {
+  if (login.endsWith("[bot]")) return false;
+  try {
+    const found = JSON.parse(gh(["api", `repos/${repo}/collaborators/${encodeURIComponent(login)}/permission`])) as {
+      permission?: unknown;
+      role_name?: unknown;
+      user?: { type?: unknown };
+    };
+    if (found.user?.type === "Bot") return false;
+    return WRITE_PERMISSIONS.has(found.permission as string) || found.role_name === "maintain";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What answers to everyone but the operator have cost on the pull request, and whether the latest
+ * Wachiman comment there is the ceiling notice (`askers: write`). Only `github-actions[bot]`
+ * comments count, and only their engine footers: model text is neutralised, so no model can write
+ * a footer that `readAskCost` accepts.
+ */
+export function askLedger(gh: GhFn, repo: string, pr: number) {
+  const jq = '.[] | select(.user.login == "github-actions[bot]") | {body, created_at} | @json';
+  const read = (path: string) =>
+    jsonLines<{ body: string | null; created_at: string }>(gh(["api", "--paginate", `repos/${repo}/${path}`, "--jq", jq]));
+  const comments = [...read(`issues/${pr}/comments`), ...read(`pulls/${pr}/comments`)]
+    .map((c) => ({ body: c.body ?? "", createdAt: c.created_at }))
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+  let spent = 0;
+  for (const c of comments) spent += readAskCost(c.body) ?? 0;
+  const latest = comments.filter((c) => ANY_SIGNATURE.test(c.body)).at(-1);
+  return { spent, latestIsLimit: latest !== undefined && isAskLimitNotice(latest.body) };
+}
+
+/**
+ * The earlier comments of a line comment's thread, as the ask prompt reads them: the last ten, each
+ * neutralised, at most 4,000 characters. Empty when the thread is not among the first 100 threads
+ * or has no earlier comment.
+ */
+function threadBefore(gh: GhFn, repo: string, pr: number, line: ReviewLineComment): string | undefined {
+  const root = threadRoot(line);
+  const thread = fetchThreads(gh, repo, pr).find((t) => t.comments.nodes[0]?.databaseId === root);
+  const earlier = (thread?.comments.nodes ?? []).filter((n) => n.databaseId < line.id).slice(-10);
+  const text = earlier.map((n) => `@${n.author?.login ?? "ghost"}: ${neutralise(n.body)}`).join("\n\n");
+  if (text === "") return undefined;
+  return text.length > 4000 ? `…${text.slice(-4000)}` : text;
+}
+
+export interface AnswerOptions {
+  /** The login of a collaborator with write access who asked; unset when the operator asked. */
+  asker?: string;
+  /** The review comment the question was written on: the answer is posted in its thread. */
+  line?: ReviewLineComment;
+}
+
+/** Posts an answer: a reply in the thread of a line comment, else a pull request comment. */
+function postAnswer(deps: Deps, repo: string, pr: number, body: string, line?: ReviewLineComment) {
+  if (line) {
+    deps.gh(["api", "-X", "POST", `repos/${repo}/pulls/${pr}/comments/${threadRoot(line)}/replies`, "-f", `body=${body}`]);
+    return;
+  }
+  deps.gh(["pr", "comment", String(pr), "-R", repo, "--body-file", "-"], body);
+}
+
 /**
  * The on-demand answer on a pull request (ADR 0032): one call over the pull request, the latest
  * review and the repository's instructions, with `ASK_SCHEMA`. The references the answer makes are
  * checked against the head checkout and linked at the head commit. `question` is the whole comment;
  * a comment with nothing after the mention, or only `explain`, asks for the walkthrough.
+ *
+ * For someone but the operator, the answer is marked with its cost (`readAskCost`), and a call that
+ * fails still posts a note with its cost, so the question ceiling counts what was spent.
  */
-export function answer(deps: Deps, repo: string, pr: number, question: string) {
+export function answer(deps: Deps, repo: string, pr: number, question: string, options: AnswerOptions = {}) {
+  const { asker, line } = options;
   const dir = mkdtempSync(join(tmpdir(), "agent-answer-"));
   const meta = deps.gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,files,headRefOid"]);
   writeFileSync(join(dir, "pr.json"), meta);
@@ -3789,6 +3912,7 @@ export function answer(deps: Deps, repo: string, pr: number, question: string) {
   const material = reviewMaterial(deps.gh, repo, pr);
   if (material) writeFileSync(join(dir, "review.md"), renderReviewMaterial(material));
   const cwd = deps.repoDir ?? process.cwd();
+  const walkthrough = asksForWalkthrough(question, deps.config.mention);
   const prompt = buildAskPrompt({
     changeDescription: `pull request #${pr} in ${repo}, checked out at its head`,
     materialPaths: {
@@ -3797,33 +3921,85 @@ export function answer(deps: Deps, repo: string, pr: number, question: string) {
       review: material ? join(dir, "review.md") : undefined,
     },
     instructions,
-    question: asksForWalkthrough(question, deps.config.mention) ? "" : question,
+    question: walkthrough ? "" : question,
     hasReview: material !== null,
+    asker,
+    focus: line?.path && line.line !== null ? { path: line.path, line: line.line } : undefined,
+    thread: line && !walkthrough ? threadBefore(deps.gh, repo, pr, line) : undefined,
   });
   // One question is one call, with the budget a whole review had before batches: $1.
-  const result = runProvider(
-    deps,
-    deps.config,
-    cwd,
-    { operation: "on-demand", label: "question", repo, pr },
-    prompt,
-    dir,
-    deps.config.answerBudgetUsd,
-    ASK_SCHEMA,
-  );
-  const parsed = result.isError ? undefined : result.structuredOutput;
-  if (!isAskAnswer(parsed)) throw new Error(`The agent did not answer (${result.terminalReason}).`);
-  const lineCount = repoLineCounter(cwd);
-  const checked = checkRefs(parsed, (path, line) => {
-    const count = lineCount(path);
-    return count !== null && line <= count;
-  });
-  const text = renderAnswer(checked.answer, {
-    link: (path, line) => blobLink(repo, headSha, path, line),
-    removed: checked.removed,
-    style: "markdown",
-  });
-  const body = `${BRAND}\n\n${text}\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: deps.config.effort, operation: "on-demand", usage: result.usage, costUsd: result.costUsd })}`;
+  let result: ReturnType<typeof runProvider> | undefined;
+  let failure = "";
+  try {
+    result = runProvider(
+      deps,
+      deps.config,
+      cwd,
+      { operation: "on-demand", label: "question", repo, pr },
+      prompt,
+      dir,
+      deps.config.answerBudgetUsd,
+      ASK_SCHEMA,
+    );
+  } catch (error) {
+    // The call died without a result: for someone but the operator it is counted at its cap below.
+    if (asker === undefined) throw error;
+    failure = String(error).slice(0, 200);
+  }
+  const parsed = result && !result.isError ? result.structuredOutput : undefined;
+  const costUsd = result?.costUsd ?? deps.config.answerBudgetUsd;
+  const build = (text: string) => {
+    const cost = costLine({
+      modelLabel: deps.provider.modelLabel(),
+      effort: deps.config.effort,
+      operation: "on-demand",
+      usage: result?.usage,
+      costUsd,
+    });
+    const signed = asker === undefined ? SIGNATURE.answer : `${SIGNATURE.ask}\n\n${SIGNATURE.answer}`;
+    return `${BRAND}\n\n${text}\n\n${cost}\n\n${signed}`;
+  };
+  let text: string;
+  if (isAskAnswer(parsed)) {
+    const lineCount = repoLineCounter(cwd);
+    const checked = checkRefs(parsed, (path, line) => {
+      const count = lineCount(path);
+      return count !== null && line <= count;
+    });
+    text = renderAnswer(checked.answer, {
+      link: (path, linked) => blobLink(repo, headSha, path, linked),
+      removed: checked.removed,
+      style: "markdown",
+    });
+  } else {
+    if (asker === undefined) throw new Error(`The agent did not answer (${result?.terminalReason ?? failure}).`);
+    text = `Wachiman could not answer this question (${neutralise(result?.terminalReason ?? failure)}). It still counts toward the question budget.`;
+  }
+  let body = build(text);
+  // An answer to someone but the operator that leaks is replaced by a note: its cost is still recorded.
+  if (asker !== undefined && deps.provider.leaksSecret([body])) {
+    body = build("Wachiman withheld this answer: it contained something shaped like a provider credential.");
+  }
+  refuseLeak(deps, [body]);
+  if (deps.config.dryRun) {
+    deps.log(body);
+    return;
+  }
+  postAnswer(deps, repo, pr, body, line);
+}
+
+/**
+ * The notice that the questions of everyone but the operator have used the pull request's ceiling.
+ * It is posted once: `comment` does not post it again while it is the latest Wachiman comment.
+ */
+function postAskLimit(deps: Deps, repo: string, pr: number, spent: number) {
+  const body = [
+    branded(
+      `The question budget for this pull request is used up: questions from collaborators have spent $${spent.toFixed(2)} of the $${deps.config.askCeilingUsd.toFixed(2)} ceiling, so this question is not answered. The repository operator can still ask.`,
+    ),
+    SIGNATURE.answer,
+    SIGNATURE.askLimit,
+  ].join("\n\n");
   refuseLeak(deps, [body]);
   if (deps.config.dryRun) {
     deps.log(body);
@@ -3833,21 +4009,52 @@ export function answer(deps: Deps, repo: string, pr: number, question: string) {
 }
 
 /**
- * The `comment` command: routes the operator's comment to a review, an answer or nothing.
- * `author` is the comment's author when the caller knows it; anyone else is ignored (the workflow
- * checks this too). An empty or placeholder operator is an error.
+ * The `comment` command: routes a comment to a review, an answer or nothing. `author` is the
+ * comment's author, as the caller knows it; `line` is the review comment it was written on, if any.
+ *
+ * The operator may review and ask (`askers` does not matter). With `askers: operator` anyone else is
+ * ignored. With `askers: write` a collaborator may ask, and only a question: after GitHub confirms
+ * write access, and while the pull request's question ceiling has room (ADR 0032 decision 9).
+ * An empty or placeholder operator is an error.
  */
-export function comment(deps: Deps, repo: string, pr: number, request: string, author?: string) {
-  const { operator } = deps.config;
+export function comment(deps: Deps, repo: string, pr: number, request: string, author?: string, line?: ReviewLineComment) {
+  const { operator, askers } = deps.config;
   // Before anything else: an unset or placeholder operator would let a stranger who registered
   // that login command the tool.
   const problem = operatorProblem(operator);
   if (problem) throw new Error(problem);
-  if (author && author.toLowerCase() !== operator.toLowerCase()) {
+  const command = parseCommand(request, deps.config.mention);
+  // Without an author, the caller is the operator (manual CLI use, as before), unless collaborators
+  // may ask: then nobody is trusted without a login. A dry run posts nothing, so it keeps the manual path.
+  const operatorAsked =
+    author === undefined ? askers === "operator" || deps.config.dryRun : author.toLowerCase() === operator.toLowerCase();
+  if (operatorAsked) {
+    if (command?.kind === "review") review(deps, repo, pr, command.paths);
+    else if (command) answer(deps, repo, pr, request, { line });
+    return;
+  }
+  if (askers !== "write") {
     deps.warn(`Comment by ${author}, not the operator ${operator}; nothing to do.`);
     return;
   }
-  const command = parseCommand(request, deps.config.mention);
-  if (command?.kind === "review") review(deps, repo, pr, command.paths);
-  else if (command) answer(deps, repo, pr, request);
+  if (author === undefined) {
+    throw new Error("askers is write, but the caller did not say who wrote the comment (AGENT_REVIEW_COMMENT_AUTHOR); not answering.");
+  }
+  if (command?.kind !== "answer") {
+    deps.warn(`Comment by ${author} is not a question; only the operator starts a review. Nothing to do.`);
+    return;
+  }
+  if (!askerAllowed(deps.gh, repo, author)) {
+    deps.warn(`Comment by ${author}: no admin, maintain or write permission on ${repo}; not answering.`);
+    return;
+  }
+  const ledger = askLedger(deps.gh, repo, pr);
+  if (ledger.spent + deps.config.answerBudgetUsd > deps.config.askCeilingUsd) {
+    deps.log(
+      `Questions from collaborators have spent $${ledger.spent.toFixed(2)} of the $${deps.config.askCeilingUsd.toFixed(2)} ceiling on this pull request; not answering.`,
+    );
+    if (!ledger.latestIsLimit) postAskLimit(deps, repo, pr, ledger.spent);
+    return;
+  }
+  answer(deps, repo, pr, request, { asker: author, line });
 }
