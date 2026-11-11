@@ -66,12 +66,13 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `comment <pr>` | Routes the operator's comment (from `REQUEST`) to a review, an answer or nothing. See "What `comment` does" below. |
 | `threads <pr>` | Answers the Wachiman threads that wait for an answer, with no review, and only when the pull request's head was already reviewed. See "What `threads` does" below. |
 | `local [paths…]` | Reviews the committed branch of a clone on your own signed-in `claude` and prints the review; no GitHub call, nothing posted. See [`local`](#local) below and [the guide](local-review.md). |
+| `loop [--base <ref>]` | One round of a review loop on your own signed-in `claude`: a review with history on, a comparison with the rounds before it, and an exit code to branch on (`0` converged, `10` findings open, `11` stopped). A coding agent fixes between calls; the CLI never edits code. See [`loop`](#loop) below. |
 | `ask [question…]` | Answers one question about the local change (or walks through it when there is no question), on your own signed-in `claude`; no GitHub call, nothing posted. See [`ask`](#ask) below. |
 | `setup [--profile <name>]` | Binds this repository to an account profile; on a terminal without `--profile` it asks. See [`setup`](#setup-doctor-profile-and-project). |
 | `init` | Writes the GitHub caller workflow, or hands over to `setup`. See [`init`](#init). |
 | `doctor` | Reports what a local run would use and what would fail. |
 | `profile …`, `project …` | Manage account profiles and the repository's binding. |
-| `skills install\|uninstall` | Copies the `wachiman-review` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
+| `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
 ### Incremental reviews
@@ -239,6 +240,39 @@ configuration is `<home>/config.json` (written with a lock and an atomic rename;
 a usage error, never treated as empty). No credential file is read, and nothing is written under the
 repository or under an external profile's directory.
 
+### `loop`
+
+`loop` runs **one review round per call** and says whether to stop
+([ADR 0034](adr/0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md)). It is `local` with
+history turned on, result `/2` and a stop rule. The CLI never edits code: an agent (see
+`skills/wachiman-loop`) fixes between calls.
+
+```sh
+wachiman loop --base main --repo-dir ~/src/app   # starts a loop; round 1 reviews the whole range
+wachiman loop --repo-dir ~/src/app               # continues it: reviews only the commits since the last round
+wachiman loop --max-rounds 5 --format json
+```
+
+- **State** is kept per branch beside the history (`~/.wachiman/history/<repo>/loops/`): the base,
+  the head of each round and the findings seen. `--base` always starts a new loop; `--history
+  --forget` removes the state with the history.
+- **Flags:** `--base`, `--max-rounds <n>` (default 3), `--max-depth`, `--format terminal|json`,
+  `--profile`, `--verify|--no-verify`, `--repo-dir`. It takes no paths, `--commit` or `--from`.
+- **The loop stays open** while a 🔴 Blocker or 🟠 Fix is new, open or not-repeated, not refuted by
+  the verifier and not judged `wrong` with a reason (`wachiman history --verdict <id> wrong
+  --reason "<why>"`). A finding the history settled as `not-repeated` is released only when a later
+  round's commits changed its lines and that round did not report it. 🟡 and ⚪ are listed and never
+  count. A call with no new commit makes no review call and still counts as a round.
+- **Output:** the round, what keeps the loop open (with ids), what no longer does and why
+  (`probably-fixed`, `refuted`, `judged wrong`), the notes, and the outcome. `--format json` prints
+  `wachiman.loop-round/1`.
+- A converged loop has read the whole range once and the fix commits after it; the outcome says so.
+  A stop is never an approval.
+
+Exit codes: 0 converged; 10 findings still open; 11 stopped without converging (`round cap`, or
+`review failed` after the review call failed twice); 2 a usage error (no loop open, detached HEAD, an
+unknown flag); 130 after Ctrl-C.
+
 ### `ask`
 
 `ask` answers one question about the change that `local` would review, with the same scope flags
@@ -399,7 +433,7 @@ wachiman skills install [--dir <path>]… [--json]
 wachiman skills uninstall [--dir <path>]…
 ```
 
-`install` copies `skills/wachiman-review` and `skills/wachiman-audit` (copies, not symlinks) into
+`install` copies `skills/wachiman-review`, `skills/wachiman-loop` and `skills/wachiman-audit` (copies, not symlinks) into
 `~/.agents/skills` and into the `skills` folder of every Claude Code configuration directory that
 exists: `~/.claude`, each `~/.claude-*` directory and `$CLAUDE_CONFIG_DIR`. `--dir <path>` adds a
 skills directory of your own and may repeat. It makes no model call and no request.
@@ -705,6 +739,8 @@ rest are listed as not reviewed.
 | `1` | No call returned a review (a refused sign-in, an unclassified error, every batch failed), after printing the report that says why; or the `claude` binary did not run |
 | `2` | Usage error: an unknown option or format, `ANTHROPIC_API_KEY` set, a profile that cannot be resolved or is refused, a corrupt `config.json`, a provider other than `claude-code`, a refused or missing isolated profile, no merge-base, a detached or unborn `HEAD`, a `HEAD` on the base branch, a range deeper than the maximum depth, an `--input` of another format or whose head is not in the clone |
 | `130` | Interrupted with `Ctrl-C`; the snapshot was removed |
+
+`loop` has its own codes: 0 converged, 10 findings still open, 11 stopped without converging, 2 usage error, 130 interrupted.
 
 `setup` and `init` use 0 done (including a "no" answer), 1 for an engine error (also a `setup` whose closing `doctor` summary failed), 2 usage error and 130 cancelled with Escape, Ctrl-C or Ctrl-D.
 
