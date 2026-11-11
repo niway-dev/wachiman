@@ -5,6 +5,26 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.12.0](https://github.com/niway-dev/wachiman/compare/v1.11.0...v1.12.0) (2026-11-11)
+
+
+### Features
+
+* **ask:** answer line comments in their thread and let write collaborators ask, under a per-PR ceiling ([70e8d26](https://github.com/niway-dev/wachiman/commit/70e8d2686819fd83e3ebd97b3e440b080bf12eaa))
+* **ask:** answer line comments in their thread and let write collaborators ask, under a per-PR ceiling ([8dfa09a](https://github.com/niway-dev/wachiman/commit/8dfa09ac5b4e74a4c475a4dfb2c967f291666eea)), closes [#170](https://github.com/niway-dev/wachiman/issues/170)
+* **ask:** answer questions from the review that already ran, with checked references ([1e34ddb](https://github.com/niway-dev/wachiman/commit/1e34ddb3e979d4347d5d1dc2a9858cf5ac8cc677)), closes [#170](https://github.com/niway-dev/wachiman/issues/170)
+* **cli:** wachiman ask answers questions about the local change ([2bf9332](https://github.com/niway-dev/wachiman/commit/2bf93327b93de7cabc53d2678641eaa0392ed871))
+* **cli:** wachiman ask answers questions about the local change ([43f8fbd](https://github.com/niway-dev/wachiman/commit/43f8fbd3f7eefc55fdf802a0c19f7018146e2639)), closes [#170](https://github.com/niway-dev/wachiman/issues/170)
+* **review:** carry a risk map in every review ([6d800ee](https://github.com/niway-dev/wachiman/commit/6d800ee044105cc0ded73c29527e4e58d62f36ca)), closes [#170](https://github.com/niway-dev/wachiman/issues/170)
+* **risk:** compute a risk map from checked facts and path rules ([0e46d9b](https://github.com/niway-dev/wachiman/commit/0e46d9b60cc9e29a9e679a06ad9ed3d5248c8f87)), closes [#170](https://github.com/niway-dev/wachiman/issues/170)
+
+
+### Bug Fixes
+
+* **ask:** route new line comments, expose askers as workflow inputs, keep operator runs uncancelled ([63726e4](https://github.com/niway-dev/wachiman/commit/63726e4a6af6d282db58a2b1ddf422b50507d580)), closes [#170](https://github.com/niway-dev/wachiman/issues/170)
+* **release:** pass the tarball to npm publish as a path ([622c502](https://github.com/niway-dev/wachiman/commit/622c50246aee8b15a6c1c16e0519c9cd835a357a))
+* **release:** pass the tarball to npm publish as a path ([34bfaeb](https://github.com/niway-dev/wachiman/commit/34bfaeb14045378195f6d614f8eba0cfa7465bd5))
+
 ## [1.11.0](https://github.com/niway-dev/wachiman/compare/v1.10.1...v1.11.0) (2026-11-11)
 
 
