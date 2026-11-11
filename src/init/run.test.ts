@@ -403,7 +403,7 @@ describe("init with scripted prompts", () => {
     expect(io.printed()).not.toContain("Run wachiman setup now");
   });
 
-  test("both: yes runs setup in the same process, sharing the prompt session", async () => {
+  test("both: setup runs in the same process, sharing the prompt session", async () => {
     const w = world();
     const io = scripted(["3", "me", "", "", "", "from-setup"]);
     let got: string | null | undefined;
@@ -431,7 +431,7 @@ describe("init with scripted prompts", () => {
 
   test("both: a setup failure reports the completed workflow write", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", "", ESC]);
+    const io = scripted(["3", "me", "", "", ""]);
     const code = await exit2(init(w, [], { interactive: true, promptIO: io, bindNow: async () => { throw new UsageError("setup failed"); } }));
     expect(code).toContain("setup failed");
     expect(existsSync(w.target)).toBe(true);
