@@ -66,6 +66,8 @@ engine through the environment variable in the third column; those variables are
 | `threads_budget_usd` | number | `AGENT_REVIEW_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in v1.5.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
 | `batch_budget_usd` | number | `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
 | `answer_budget_usd` | number | `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | The cap given to the one call that answers a question. Separate from `budget_usd`. |
+| `askers` | string | `AGENT_REVIEW_ASKERS` | `operator` | Who may ask a question by comment: `operator` (only the operator) or `write` (also a collaborator with admin, maintain or write permission, which GitHub checks on each question). With `write` the thread and on-demand jobs also start for a collaborator's comment that starts with the command word. A collaborator's `review` is refused. See [Questions from collaborators](cli.md#questions-from-collaborators). |
+| `ask_ceiling_usd` | number | `AGENT_REVIEW_ASK_CEILING_USD` | `3` | The most all questions from people other than the operator may spend on one pull request. The operator's questions are not limited. Used only with `askers: write`. |
 | `batch_lines` | number | `AGENT_REVIEW_BATCH_LINES` | `1000` | Changed lines (additions plus deletions) per batch. A whole number. |
 | `batch_chars` | number | `AGENT_REVIEW_BATCH_CHARS` | `140000` | Characters of diff per batch. A whole number. |
 | `model` | string | `AGENT_REVIEW_MODEL` | `claude-opus-5-5` | The model name passed to the provider. The workflow always sends a value, so the engine's per-provider default never applies here. |
@@ -152,6 +154,8 @@ applies.
 | `AGENT_REVIEW_TRIGGER` | string | unset | A lowercase event action: `opened`, `ready_for_review`, `synchronize`, `comment`, `thread`… | Why the run started. **New in v1.5.0.** `comment` is the operator's command and is never limited by the ceiling; any other value is an automatic run that is. Unset means a person ran the CLI by hand, which is not limited either. The workflow sets it (`github.event.action`, `comment`, `thread`); the `comment` and `threads` commands set it themselves, whatever the environment says. A value that is not a lowercase word is a usage error (exit 2). | both |
 | `AGENT_REVIEW_BATCH_BUDGET_USD` | number | `0.75` | Finite, greater than 0 | Cap passed with each provider call in a review, limited by what is left of the total. | Claude: sent as `--max-budget-usd`, a soft cap. Codex: used for accounting only, never enforced. |
 | `AGENT_REVIEW_ANSWER_BUDGET_USD` | number | `1` | Finite, greater than 0 | Cap for the one call that answers a `comment` question. | same as above |
+| `AGENT_REVIEW_ASKERS` | string | `operator` | `operator` or `write` | Who may ask a question. `operator`: only the operator. `write`: also a collaborator whose GitHub permission is admin, maintain or write, checked on each question. Reviews stay operator-only. The reusable workflow sets it from the `askers` input; the copy template sets it at the top of its file. | both |
+| `AGENT_REVIEW_ASK_CEILING_USD` | number | `3` | Finite, greater than 0 | The most the questions of everyone but the operator may spend on one pull request, summed from the answers' own cost footers. The operator's questions are not limited. Used only with `askers: write`. | both |
 | `AGENT_REVIEW_BATCH_LINES` | integer | `1000` | Whole number, greater than 0 | Changed lines per batch. | both |
 | `AGENT_REVIEW_BATCH_CHARS` | integer | `140000` | Whole number, greater than 0 | Diff characters per batch (the comment in the code equates this to about 40k tokens at 3.5 characters a token). It counts the diff only, not the whole prompt. | both |
 | `AGENT_REVIEW_MODEL` | string | `claude-opus-5-5` for `claude-code`, `gpt-6.1-sol` for `codex` | Any string the provider accepts | The model name passed to the provider. Not validated by the engine; Codex additionally needs a known price. | both |
@@ -389,6 +393,7 @@ of one pull request together.
 | `batch_budget_usd` / `AGENT_REVIEW_BATCH_BUDGET_USD` | The cap handed to each single provider call. |
 | `threads_budget_usd` / `AGENT_REVIEW_THREADS_BUDGET_USD` | The cap handed to the one call of a thread-reply run (default $0.25). |
 | `answer_budget_usd` / `AGENT_REVIEW_ANSWER_BUDGET_USD` | The cap handed to the one call that answers a question. An answer does not touch `budget_usd`, and a review does not touch this. |
+| `ask_ceiling_usd` / `AGENT_REVIEW_ASK_CEILING_USD` | The most all questions from people other than the operator may spend on one pull request (default $3), summed from the answers' cost footers. See [Questions from collaborators](cli.md#questions-from-collaborators). |
 
 ### The ceiling per pull request
 

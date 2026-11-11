@@ -30,6 +30,21 @@ goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
 
+## Risk facts and judgement
+
+Also report risk facts: things in this batch that make the change dangerous to ship, whatever its
+correctness. Use only these kinds: data-migration (changes stored data or its shape), irreversible
+(deletes data or sends something outside the system), auth (authentication, permissions, secrets),
+money (charges, balances, prices), concurrency (locks, queues, ordering, retries), public-contract
+(a shape or behaviour something outside this change consumes), config-or-ci (configuration,
+environment, CI), dependency (a dependency added, removed or upgraded). Each fact names one file and
+line of this batch and says in one sentence what happens there. Report a fact only when you read the
+line; an empty list is the normal answer for most changes.
+
+In `judgement`, report at most three places where the code cannot settle the question and a person
+must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
+empty list is normal. Do not state a risk level.
+
 ## What the change does to the running product
 
 The pull request's title and body are the author's claim about the change. Verify each statement
@@ -168,6 +183,21 @@ each thread listed, decide whether the current code addresses it and add a threa
 with a short reply to the owner. Answer no thread that is not in that file. Do not repeat a
 finding that already has an open thread.
 
+## Risk facts and judgement
+
+Also report risk facts: things in this batch that make the change dangerous to ship, whatever its
+correctness. Use only these kinds: data-migration (changes stored data or its shape), irreversible
+(deletes data or sends something outside the system), auth (authentication, permissions, secrets),
+money (charges, balances, prices), concurrency (locks, queues, ordering, retries), public-contract
+(a shape or behaviour something outside this change consumes), config-or-ci (configuration,
+environment, CI), dependency (a dependency added, removed or upgraded). Each fact names one file and
+line of this batch and says in one sentence what happens there. Report a fact only when you read the
+line; an empty list is the normal answer for most changes.
+
+In `judgement`, report at most three places where the code cannot settle the question and a person
+must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
+empty list is normal. Do not state a risk level.
+
 ## What the change does to the running product
 
 The pull request's title and body are the author's claim about the change. Verify each statement
@@ -297,6 +327,21 @@ never shorten your reading to save effort. A file you read and found nothing wor
 goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
+
+## Risk facts and judgement
+
+Also report risk facts: things in this batch that make the change dangerous to ship, whatever its
+correctness. Use only these kinds: data-migration (changes stored data or its shape), irreversible
+(deletes data or sends something outside the system), auth (authentication, permissions, secrets),
+money (charges, balances, prices), concurrency (locks, queues, ordering, retries), public-contract
+(a shape or behaviour something outside this change consumes), config-or-ci (configuration,
+environment, CI), dependency (a dependency added, removed or upgraded). Each fact names one file and
+line of this batch and says in one sentence what happens there. Report a fact only when you read the
+line; an empty list is the normal answer for most changes.
+
+In `judgement`, report at most three places where the code cannot settle the question and a person
+must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
+empty list is normal. Do not state a risk level.
 
 ## What the change does to the running product
 
@@ -430,6 +475,21 @@ each thread listed, decide whether the current code addresses it and add a threa
 with a short reply to the owner. Answer no thread that is not in that file. Do not repeat a
 finding that already has an open thread.
 
+## Risk facts and judgement
+
+Also report risk facts: things in this batch that make the change dangerous to ship, whatever its
+correctness. Use only these kinds: data-migration (changes stored data or its shape), irreversible
+(deletes data or sends something outside the system), auth (authentication, permissions, secrets),
+money (charges, balances, prices), concurrency (locks, queues, ordering, retries), public-contract
+(a shape or behaviour something outside this change consumes), config-or-ci (configuration,
+environment, CI), dependency (a dependency added, removed or upgraded). Each fact names one file and
+line of this batch and says in one sentence what happens there. Report a fact only when you read the
+line; an empty list is the normal answer for most changes.
+
+In `judgement`, report at most three places where the code cannot settle the question and a person
+must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
+empty list is normal. Do not state a risk level.
+
 ## What the change does to the running product
 
 The pull request's title and body are the author's claim about the change. Verify each statement
@@ -554,6 +614,21 @@ never shorten your reading to save effort. A file you read and found nothing wor
 goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
+
+## Risk facts and judgement
+
+Also report risk facts: things in this batch that make the change dangerous to ship, whatever its
+correctness. Use only these kinds: data-migration (changes stored data or its shape), irreversible
+(deletes data or sends something outside the system), auth (authentication, permissions, secrets),
+money (charges, balances, prices), concurrency (locks, queues, ordering, retries), public-contract
+(a shape or behaviour something outside this change consumes), config-or-ci (configuration,
+environment, CI), dependency (a dependency added, removed or upgraded). Each fact names one file and
+line of this batch and says in one sentence what happens there. Report a fact only when you read the
+line; an empty list is the normal answer for most changes.
+
+In `judgement`, report at most three places where the code cannot settle the question and a person
+must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
+empty list is normal. Do not state a risk level.
 
 ## What the change does to the running product
 
@@ -686,6 +761,21 @@ owner wrote last. wachi_replies is how many replies Wachiman already wrote in a 
 each thread listed, decide whether the current code addresses it and add a thread_replies entry
 with a short reply to the owner. Answer no thread that is not in that file. Do not repeat a
 finding that already has an open thread.
+
+## Risk facts and judgement
+
+Also report risk facts: things in this batch that make the change dangerous to ship, whatever its
+correctness. Use only these kinds: data-migration (changes stored data or its shape), irreversible
+(deletes data or sends something outside the system), auth (authentication, permissions, secrets),
+money (charges, balances, prices), concurrency (locks, queues, ordering, retries), public-contract
+(a shape or behaviour something outside this change consumes), config-or-ci (configuration,
+environment, CI), dependency (a dependency added, removed or upgraded). Each fact names one file and
+line of this batch and says in one sentence what happens there. Report a fact only when you read the
+line; an empty list is the normal answer for most changes.
+
+In `judgement`, report at most three places where the code cannot settle the question and a person
+must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
+empty list is normal. Do not state a risk level.
 
 ## What the change does to the running product
 

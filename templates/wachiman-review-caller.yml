@@ -9,7 +9,8 @@ name: Wachiman review
 # First install: the installing pull request can get the automatic review. `/wachiman review` works once
 # this file is on the default branch, because `issue_comment` runs from there. A reply you write in a
 # review thread (`pull_request_review_comment`) gets an answer without a push, once the head has been
-# reviewed; replies from anyone else start nothing.
+# reviewed; a new line comment that asks after the command word is answered under itself. Replies from
+# anyone else start nothing, unless `askers: write` is set below.
 # `synchronize` reviews every push to an open pull request, only the commits that are new since the
 # last review (a rebase with no change in content only moves the marker and costs no model call).
 # Each push can spend up to `budget_usd`, and all automatic runs on one pull request together up to
@@ -30,5 +31,7 @@ jobs:
       # review_on_push: false   # review only on open, ready for review and `/wachiman review`
       # push_debounce_seconds: 180   # a push waits this long first; a newer push cancels it unspent (0 = no wait)
       # auto_budget_usd: 2      # most all automatic runs on one pull request may spend together
+      # askers: write          # collaborators with admin, maintain or write permission may ask questions too (default: operator)
+      # ask_ceiling_usd: 3     # most all questions from people other than the operator may spend on one pull request
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

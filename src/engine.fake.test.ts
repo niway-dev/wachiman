@@ -76,6 +76,7 @@ const prFiles = [
 ];
 
 const BASE = "b".repeat(40);
+const HEAD = "head1234567";
 
 /**
  * A head checkout that holds the binary logo: a PNG header with NUL bytes, which is what makes the
@@ -970,7 +971,7 @@ describe("the answer path reads the instructions from the base commit", () => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     writeFileSync(join(headDir, "CLAUDE.md"), "RULES-FROM-HEAD");
     const posted: string[] = [];
-    const provider = new FakeProvider([() => ({ text: "the answer" })]);
+    const provider = new FakeProvider([() => ({ structuredOutput: { sections: [{ title: "Answer", body: "the answer", refs: [] }], not_answered: "" } })]);
     const base: BaseFiles = { "CLAUDE.md": "RULES-FROM-BASE" };
     const deps: Deps = {
       gh: (args, input) => {
@@ -978,8 +979,9 @@ describe("the answer path reads the instructions from the base commit", () => {
         const contents = contentsAnswer(base, line);
         if (contents !== undefined) return contents;
         if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
-        if (line.startsWith("pr view")) return JSON.stringify({ title: "t", body: "b", files: [] });
+        if (line.startsWith("pr view")) return JSON.stringify({ title: "t", body: "b", files: [], headRefOid: HEAD });
         if (line.startsWith("pr diff")) return "diff";
+        if (line.includes("/pulls/7/reviews")) return "";
         if (line.startsWith("pr comment")) {
           posted.push(input ?? "");
           return "";
@@ -1006,7 +1008,7 @@ describe("the on-demand answer reports its cost", () => {
   test("the footer names the operation and the tokens, and the call is recorded as on-demand", () => {
     const posted: string[] = [];
     const usage = { input: 50, output: 60, cacheRead: 7000, cacheWrite: 800 };
-    const provider = new FakeProvider([() => ({ text: "the answer", costUsd: 0.07, usage, model: "claude-sonnet-5-5" })]);
+    const provider = new FakeProvider([() => ({ structuredOutput: { sections: [{ title: "Answer", body: "the answer", refs: [] }], not_answered: "" }, costUsd: 0.07, usage, model: "claude-sonnet-5-5" })]);
     const costs: NonNullable<Deps["costs"]> = [];
     const deps: Deps = {
       gh: (args, input) => {
@@ -1014,8 +1016,9 @@ describe("the on-demand answer reports its cost", () => {
         const contents = contentsAnswer({}, line);
         if (contents !== undefined) return contents;
         if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
-        if (line.startsWith("pr view")) return JSON.stringify({ title: "t", body: "b", files: [] });
+        if (line.startsWith("pr view")) return JSON.stringify({ title: "t", body: "b", files: [], headRefOid: HEAD });
         if (line.startsWith("pr diff")) return "diff";
+        if (line.includes("/pulls/7/reviews")) return "";
         if (line.startsWith("pr comment")) {
           posted.push(input ?? "");
           return "";

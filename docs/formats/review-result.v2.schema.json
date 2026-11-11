@@ -188,6 +188,138 @@
     "summary": {
       "type": "string"
     },
+    "riskMap": {
+      "description": "The risk map (ADR 0031): the level, the checked facts and judgement items behind it, the files to read first. Only version 2 has it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "floor",
+        "facts",
+        "judgement",
+        "pathReasons",
+        "readFirst",
+        "unreadFiles",
+        "droppedFacts"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "floor": {
+          "type": "boolean",
+          "description": "True when some files were not reviewed: the level is then 'at least'."
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "path",
+              "line",
+              "why"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "data-migration",
+                  "irreversible",
+                  "auth",
+                  "money",
+                  "concurrency",
+                  "public-contract",
+                  "config-or-ci",
+                  "dependency"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "why": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "judgement": {
+          "type": "array",
+          "description": "At most three items.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "path",
+              "line",
+              "why"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "direction",
+                  "pattern-others-will-copy",
+                  "tradeoff"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "why": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "pathReasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "why"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "why": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "readFirst": {
+          "type": "array",
+          "description": "At most five paths.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unreadFiles": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "droppedFacts": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "batches": {
       "type": "array",
       "items": {

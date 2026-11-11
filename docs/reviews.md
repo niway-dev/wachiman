@@ -33,8 +33,8 @@ Rules that apply to all of them:
   ignored), and it can be on any line of the comment. Only the rest of that line is read for
   `review` and paths.
 - **A comment that contains the keyword is a command.** If the word after it is not `review`,
-  the comment becomes a question and spends a model call. A bare `/wachiman` is treated the same
-  way.
+  the comment becomes a question and spends a model call. A bare `/wachiman`, or `/wachiman explain`,
+  asks for a walkthrough of the change.
 - **A custom `mention` adds a word.** With `mention: /reviewbot`, both `/reviewbot review` and
   `/wachiman review` start a run: the workflow and the engine accept the same words.
 - **A new comment cancels an unfinished one.** Two on-demand runs on the same pull request do
@@ -407,14 +407,35 @@ answered as a question:
 /wachiman why does the retry loop ignore the budget?
 ```
 
-- It makes **one model call** over the whole diff, with the pull request's title and body and the
-  repository's instructions ([review-policy.md](review-policy.md)). Its budget is
-  `answer_budget_usd` (default `$1`).
-- The model's **whole message is posted** as one pull request comment, with a footer showing the
-  model and cost. The engine adds no batching and no coverage check, so a very large diff is not
-  guaranteed to be read in full.
+- It makes **one model call** over the whole diff, with the pull request's title and body, the
+  repository's instructions ([review-policy.md](review-policy.md)) and the **latest review** the
+  engine wrote on the pull request: its findings, risk map, contracts and coverage, and its inline
+  finding threads, open or resolved. Its budget is `answer_budget_usd` (default `$1`).
+- The answer has sections, and each file and line it cites is **checked**: a reference to a path
+  that is not in the head, or to a line past its end, is removed, and the comment says how many.
+  The references that remain link to that line at the head commit.
+- The model's answer is posted as one pull request comment, with a footer showing the model and
+  cost. The engine adds no batching and no coverage check, so a very large diff is not guaranteed
+  to be read in full.
 - The **entire comment text** is the question, not only the line with the keyword.
-- It does not read review threads, and answers in English.
+- If the pull request has no review by the engine, the answer says so in its first section.
+- It answers in the language of the question.
+- A bare `/wachiman` or `/wachiman explain` has no question: it explains the change in five fixed
+  sections (what it does, how it is built, what it connects to, open findings, what was not
+  covered).
+
+- **Only the operator asks by default.** With `AGENT_REVIEW_ASKERS=write` a collaborator may ask
+  too, but only a question, never `review`. GitHub must report that person as `admin`, `maintain` or
+  `write` on the repository; the engine checks this on each question and does not trust the
+  comment's `author_association`. A refused collaborator gets no comment, only a line in the job log.
+- **Collaborators' questions share a ceiling.** Each answer to a collaborator records its cost in
+  its footer. When the next one would take their total on the pull request past
+  `AGENT_REVIEW_ASK_CEILING_USD` (default `$3`), the engine posts one notice and answers nothing more
+  until the ceiling is raised. The operator's questions are neither limited nor counted.
+- **A question in a finding's thread is answered in that thread**, with the thread's earlier comments
+  as context. A new comment on a diff line (not a reply) is routed too when it starts with the
+  command word: the operator's is answered under itself, and a collaborator's only under
+  `askers: write`. The reply goes in that comment's thread, with the file and line as its focus.
 
 ## What a review will not tell you
 

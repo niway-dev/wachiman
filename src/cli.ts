@@ -31,7 +31,7 @@ import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
-import { comment, defaultGh, review, threadReplies, type Deps } from "./engine";
+import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type ReviewLineComment } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
@@ -169,6 +169,38 @@ export function writeAll(fd: number, text: string) {
   }
 }
 
+/**
+ * The command a run executes. A `threads` run whose trigger is a review comment and whose request asks
+ * a question is `comment`: it is answered in the thread (ADR 0032 decision 4). Everything else keeps
+ * its command.
+ */
+export function routeMode(mode: string, commentLine: ReviewLineComment | undefined, request: string, keyword: string) {
+  return mode === "threads" && commentLine !== undefined && isThreadQuestion(request, keyword) ? "comment" : mode;
+}
+
+/**
+ * The review comment a question was written on, from the workflow's environment (ADR 0032 decision 4).
+ * Unset when the run is not about a review comment. Only the numbers and the path are read; the
+ * comment's text is `REQUEST`.
+ */
+export function readCommentLine(env: Record<string, string | undefined>): ReviewLineComment | undefined {
+  const id = env.AGENT_REVIEW_COMMENT_ID ?? "";
+  if (id === "") return undefined;
+  const number = (name: string) => {
+    const raw = env[name] ?? "";
+    if (raw === "") return null;
+    if (!/^\d+$/.test(raw)) throw new UsageError(`${name} must be a comment id or a line number, got "${raw}".`);
+    return Number(raw);
+  };
+  if (!/^\d+$/.test(id)) throw new UsageError(`AGENT_REVIEW_COMMENT_ID must be a comment id, got "${id}".`);
+  return {
+    id: Number(id),
+    replyTo: number("AGENT_REVIEW_COMMENT_IN_REPLY_TO"),
+    path: env.AGENT_REVIEW_COMMENT_PATH || null,
+    line: number("AGENT_REVIEW_COMMENT_LINE"),
+  };
+}
+
 function required(env: Record<string, string | undefined>, name: string) {
   const value = env[name];
   if (value === undefined || value === "") throw new UsageError(`${name} is not set`);
@@ -263,13 +295,18 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // The mode decides who started the run, whatever the environment says: the operator's
     // command is never held to the automatic ceiling, and a thread run always is (ADR 0012).
     const loaded = loadConfig(env);
-    const config = mode === "comment" ? { ...loaded, trigger: "comment" } : mode === "threads" ? { ...loaded, trigger: "thread" } : loaded;
+    const commentLine = mode === "review" ? undefined : readCommentLine(env);
+    // A thread reply that asks a question is answered in its thread, as a line question (ADR 0032
+    // decision 4); the rest of the thread-only run is unchanged. Its trigger is the question's, not
+    // an automatic run's, so it does not spend from the automatic ceiling.
+    const effective = routeMode(mode, commentLine, env.REQUEST ?? "", loaded.mention);
+    const config = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
     const provider = getProvider(config.provider, config);
     // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
     const verifier = config.verify && mode !== "threads" ? getProvider(config.provider, { ...config, model: config.verifierModel, effort: "high" }) : undefined;
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
-    const request = mode === "comment" ? required(env, "REQUEST") : "";
+    const request = effective === "comment" ? required(env, "REQUEST") : "";
     const costs: CallCost[] = [];
     const deps: Deps = {
       costs,
@@ -291,9 +328,9 @@ export async function main(argv: string[], env: Record<string, string | undefine
       return 1;
     }
     try {
-      if (mode === "review") review(deps, repo, pr, rest);
-      else if (mode === "threads") threadReplies(deps, repo, pr, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
-      else comment(deps, repo, pr, request, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
+      if (effective === "review") review(deps, repo, pr, rest);
+      else if (effective === "threads") threadReplies(deps, repo, pr, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
+      else comment(deps, repo, pr, request, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined, commentLine);
     } finally {
       // Also after a failed run: the calls it made were paid for.
       writeStepSummary(costs, env);

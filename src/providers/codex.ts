@@ -170,6 +170,24 @@ export function buildChildEnv(
 }
 
 /** The `codex exec` arguments. The prompt always goes through stdin (`-`). */
+/**
+ * The top-level properties the engine leaves optional in a batch's schema (ADR 0031). Codex's
+ * structured output is strict: every property must be `required`, so these are required in the
+ * schema Codex receives. The model then answers an empty array when a batch has none, and a
+ * missing one parses as empty (`risk.ts`). Other properties of other schemas are not touched.
+ */
+const RISK_ARRAYS = ["risk_facts", "judgement"];
+
+export function strictSchema(schema: unknown): unknown {
+  if (schema === null || typeof schema !== "object") return schema;
+  const { properties, required } = schema as { properties?: object; required?: unknown };
+  if (properties === null || typeof properties !== "object") return schema;
+  const names = Array.isArray(required) ? required : [];
+  const missing = RISK_ARRAYS.filter((name) => name in properties && !names.includes(name));
+  if (missing.length === 0) return schema;
+  return { ...schema, required: [...names, ...missing] };
+}
+
 export function buildCodexArgs(opts: {
   model: string;
   workDir: string;
@@ -304,7 +322,7 @@ export class CodexProvider implements ProviderAdapter {
       let schemaFile: string | undefined;
       if (request.outputSchema) {
         schemaFile = join(scratch, "schema.json");
-        writeFileSync(schemaFile, JSON.stringify(request.outputSchema));
+        writeFileSync(schemaFile, JSON.stringify(strictSchema(request.outputSchema)));
       }
       const lastMessageFile = join(scratch, "last-message.txt");
       const started = Date.now();

@@ -137,13 +137,15 @@ provider's console ([costs.md](costs.md)).
 
 ## Ask for a review
 
-Only the operator's comments count. Comment on the pull request:
+Only the operator's comments count, unless `askers` allows collaborators to ask (see
+[Ask a question](reviews.md#ask-a-question)). Comment on the pull request:
 
 | You write | What happens |
 | --- | --- |
 | `/wachiman review` | Reviews what changed since the last complete, unscoped review. With no such review yet, it reviews the whole pull request. |
 | `/wachiman review src/auth docs/notes.md` | Reviews only those changed files or directories (an exact path or a directory prefix, not a glob). |
-| `/wachiman` followed by anything else | Answers it as a pull request comment. One model call over the whole diff. |
+| `/wachiman` followed by a question | Answers it as one pull request comment. One model call over the diff and the latest review, capped by `answer_budget_usd`. Each file and line reference it makes is checked against the head and linked there. |
+| `/wachiman` alone, or `/wachiman explain` | Explains the change in five fixed sections (what it does, how it is built, what it connects to, open findings, what was not covered). One model call, same cap. |
 
 The command word is the workflow's `mention` input, `/wachiman` by default. The older `/wachi`,
 `@agent-review` and `@claude` still work, so a caller or a habit from before the naming release
@@ -166,10 +168,13 @@ pull request from then on, including ones opened earlier.
   unchanged-head case either (next point).
 - **Your reply in a finding's thread gets an answer, with conditions.** The template lists
   `pull_request_review_comment`, so your reply (only yours, as `operator`) starts a short job that
-  answers the threads waiting for an answer, once the head has been reviewed. Anyone else's reply
-  starts nothing. Only replies from people with `OWNER`, `MEMBER` or `COLLABORATOR` access reach the
-  agent. A caller without that trigger gets no such answer
-  ([upgrading.md](upgrading.md#answering-thread-replies-without-a-push)).
+  answers the threads waiting for an answer, once the head has been reviewed. A reply that asks a
+  question (it starts with the command word and is not `review`) is answered in that thread. A new
+  comment in the review panel (not a reply) that asks a question after the command word is answered
+  under itself, with the file and line it was written on. Anyone else's comment starts nothing,
+  unless it starts with the command word and `askers` is `write`, which is off by default; then the
+  job starts, and the engine answers only a question from someone with write access. A caller
+  without that trigger gets no such answer ([upgrading.md](upgrading.md#answering-thread-replies-without-a-push)).
 - **Automatic runs share a ceiling.** The first review, push reviews and thread replies on one pull
   request together spend at most `auto_budget_usd` (default $6); then one notice is posted and
   `/wachiman review` still works ([costs.md](costs.md#the-ceiling-per-pull-request)).
@@ -244,7 +249,9 @@ Only `operator` is required. Every other input, with its default, type and the e
 setting it becomes, is in [configuration.md](configuration.md#inputs); that page is the only place
 the inputs are listed. The ones people change first are `mention` (the command word), the budgets
 (`budget_usd`, `auto_budget_usd`, `batch_budget_usd`, `answer_budget_usd`), `skip_branch_prefixes` and
-`review_on_push`. Budgets apply per run, not per month, and the Claude Code limit on a call is a
+`review_on_push`. `askers` (default `operator`) lets collaborators with write access ask questions,
+with `ask_ceiling_usd` (default `3`) as the most their questions may spend on one pull request. The
+collaborator setting is off by default. Budgets apply per run, not per month, and the Claude Code limit on a call is a
 soft client-side cap, so it can be exceeded ([costs.md](costs.md)).
 
 ## How updates arrive
