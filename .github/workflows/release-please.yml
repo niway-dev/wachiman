@@ -177,4 +177,6 @@ jobs:
           tag=latest
           case "$EXPECTED_VERSION" in *-*) tag=next ;; esac
           sha256sum "$tarball" | tee -a "$GITHUB_STEP_SUMMARY"
-          npm publish "$tarball" --provenance --access public --tag "$tag"
+          # The leading ./ is required: without it npm reads dist/x.tgz as a GitHub user/repo
+          # and tries to clone it over SSH (this failed the v1.11.0 publish).
+          npm publish "./$tarball" --provenance --access public --tag "$tag"
