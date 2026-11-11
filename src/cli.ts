@@ -39,7 +39,7 @@ import { parseSkillsArgs, runSkills, skillsUsage } from "./skills/install";
 import { doctorUsage, parseDoctorArgs, runDoctor } from "./doctor/run";
 import { initUsage, parseInitFlags } from "./init/args";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
-import { runInitCommand } from "./init/run";
+import { runInitCommand, setupLine } from "./init/run";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
@@ -200,7 +200,7 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
     // Choosing local/both already requests setup; keep its final write confirmation.
-    bindNow: (prompter) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true }),
+    bindNow: (prompter) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, unboundHints: [setupLine(repoDir, process.cwd())] }),
   });
 }
 
