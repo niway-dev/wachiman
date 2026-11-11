@@ -42,16 +42,17 @@ top grade; a grade reserved for documentation changes was rejected by the owner.
    claim and failing. Each proof stays a separate visible row, so a plus never hides which proof
    it stands for.
 4. The grade **fails closed**: an incomplete run, unread files, or a new commit whose review has
-   not finished give `cannot say`. A change to the author's text is caught by the next review,
-   which compares the digest; between reviews only the digest shows it.
+   not finished give `cannot say`. Each review reads the current text as the claim and records its
+   digest; if the text changes while the run is working, the run writes `cannot say`. Between
+   reviews only the digest shows an edit.
 5. A risk level of `high` caps the grade at B. Medium risk facts and dropped risk facts become
    listed questions, which give A- at most.
 6. A pull request with no checkable claim gets C.
 7. The review body is the record. The description holds a mirror between markers, rewritten by
    the reviewing run, stamped with the reviewed commit and a digest of the author's text. The
-   engine strips its own block before reading the body as the author's claim. On every push, a
-   step with no model call rewrites the block to `cannot say` for the new commit; in the shipped
-   caller workflow it runs before the push wait.
+   engine strips its own block before reading the body as the author's claim. On every run of the
+   review job, a step with no model call rewrites the block to `cannot say` for the commit under
+   review, before the push wait.
 8. The human check is a reply in a Wachiman thread at a place that needs attention, recorded
    against the commit. It never raises the grade; it is shown beside it.
 9. Every A is marked "trial" while the owner judges A-graded pull requests. The block shows what A
@@ -85,8 +86,9 @@ top grade; a grade reserved for documentation changes was rejected by the owner.
 - An edit to the author's text with no push starts no review, so the block keeps its letter
   until the next push. The digest makes the mismatch detectable; nothing corrects it (spec, open
   question 8).
-- The reset step lives in the caller workflow, so consumer repositories get it only when they
-  update that file. A push to a draft pull request starts no review job and resets nothing.
+- The reset step lives in the workflows, not in the review: the reusable workflow (consumers
+  get it by moving their pinned version) and the copy template (consumers update the file). A
+  push that starts no review job resets nothing: a draft pull request, or `review_on_push: false`.
 - When one agent writes both the code and the description, a claim can be written to fit the
   diff. Decision 1's `vague` status contains broad claims; it does not solve the problem.
 - A clear pull request description becomes part of what Wachiman rewards.

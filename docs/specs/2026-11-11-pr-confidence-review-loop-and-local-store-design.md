@@ -37,10 +37,10 @@ Three slices, built in this order.
 | 8 | Each pull request review lists the **claims** found in the title and body. Each is `confirmed`, `contradicted`, `unverified` or `vague`, with a path and line the engine checks | A grade built on "the reviewer found nothing" certifies whatever the reviewer missed. This asks for positive evidence | 0033 (new) |
 | 9 | Each changed file is assigned to a claim, or explained by a fixed engine rule (lockfiles, generated files, formatting-only changes, tests of a confirmed claim), or reported as **unexplained** | "And nothing else" is the half of fidelity no finding expresses | 0033 |
 | 10 | The grade is `cannot say`, C, B, A- or A, computed by a pure engine function. The model never states it. A plus is added per extra countable proof, from slice 2c on | Same rule as the risk map (ADR 0031): the model proposes facts, the engine decides | 0033 |
-| 11 | The grade fails closed. An incomplete run, unread files, or a new commit whose review has not finished give `cannot say`. A change to the author's text is caught by the next review, which compares the digest; between reviews only the digest shows it. Dropped risk facts lower A to A- | An unknown must not read as safe | 0033 |
+| 11 | The grade fails closed. An incomplete run, unread files, or a new commit whose review has not finished give `cannot say`. Each review reads the current text as the claim and records its digest; if the text changes while the run is working, the run writes `cannot say`. Between reviews only the digest shows an edit. Dropped risk facts lower A to A- | An unknown must not read as safe | 0033 |
 | 12 | A risk level of `high` caps the grade at B. Medium risk facts become listed questions | A faithful change to payments or auth still needs a person | 0033 |
 | 13 | A pull request with no checkable claim gets C with the reason "the pull request does not say what it changes". A claim that names nothing checkable is `vague` and counts as no claim | Owner's rule. It also stops a broad claim from covering every change | 0033 |
-| 14 | The review body is the record. The description holds a mirror between markers, rewritten on every review, stamped with the reviewed commit and a digest of the author's text. Wachiman strips its own block before reading the body as the author's claim. On every push, a step with no model call rewrites the block to `cannot say` for the new commit. In the shipped caller it runs before the push wait, so a run that is cancelled while waiting, fails or hits the ceiling leaves no old letter | Agents rewrite whole pull request bodies, so the description cannot be the record. The owner wants the grade at the top of the pull request | 0033 |
+| 14 | The review body is the record. The description holds a mirror between markers, rewritten on every review, stamped with the reviewed commit and a digest of the author's text. Wachiman strips its own block before reading the body as the author's claim. On every run of the review job, a step with no model call rewrites the block to `cannot say` for the commit under review. It runs before the push wait, so a run that is cancelled while waiting, fails or hits the ceiling leaves no old letter | Agents rewrite whole pull request bodies, so the description cannot be the record. The owner wants the grade at the top of the pull request | 0033 |
 | 15 | The human check is a reply in a Wachiman thread opened at each place that needs attention, recorded against the commit | GitHub does not let an author approve their own pull request. Reuses the thread follow-up of ADR 0008 and ADR 0012 | 0033 |
 | 16 | Every A is marked "trial" until the owner has judged A-graded pull requests. The count and the bound it supports are shown. After 30 judged with no serious miss the owner may move to sampled reading, never to none | 0 misses in 30 only bounds the miss rate below about 10% (section 6) | 0033 |
 | 17 | The feature is shown as "PR Confidence". The result field is `fidelity` | Findings already carry a `confidence` field (`src/engine.ts:153-166`) | 0033 |
@@ -99,7 +99,7 @@ These are risks, not past incidents. Sources: the two attacks in section 7.
   wrote the code and the description.
 - A claim marked confirmed with a line that exists but does not prove it.
 - A grade from commit H1 shown after a push to H2 whose review failed, was cancelled or hit the
-  spend ceiling.
+  spend ceiling (not covered when the push starts no review job: section 7).
 - A run that stopped at the ceiling or depth cap and still produced a grade above `cannot say`.
 - A sensitive change in an ordinary path whose risk fact was dropped, so the cap never applied.
 - The description block removed or reverted by an agent rewriting the whole body.
@@ -195,7 +195,7 @@ The first matching row wins.
 
 | Grade | When |
 | --- | --- |
-| `cannot say` | The run did not finish, files were left unread, the review of a new commit has not finished, or the author's text no longer matches the digest the last review recorded |
+| `cannot say` | The run did not finish, files were left unread, the review of a new commit has not finished, or the author's text changed between the moment this run read it and the moment it writes the block |
 | C | No checkable claim; or a claim is contradicted; or a 🔴 Blocker is open |
 | B | A claim is unverified; or a file is unexplained; or a 🟠 Fix is open; or the risk level is `high` |
 | A- | Questions remain: medium risk facts, dropped risk facts, "needs a person" places, or open 🟡 Consider findings |
@@ -288,7 +288,7 @@ Two attacks by GPT-6.1 Sol at high effort, kept unchanged and uncommitted in `.s
 | --- | --- |
 | A can certify a missed defect | Decisions 8 and 9 ask for positive evidence; decision 16 keeps a person reading |
 | Low risk from incomplete facts | Decisions 11 and 12; dropped facts lower the grade |
-| A stale grade after a push | Decision 14: a step with no model call resets the block before the push wait. The shipped caller waits 180 s before any model call and a newer push cancels the run while it waits (`templates/caller-workflow.yml:115-119,137`), so the reset cannot live inside the review itself. Consumer repositories get it when they update their caller workflow; until then the commit stamp is the only signal. A push to a draft pull request starts no review job (`templates/caller-workflow.yml:129`), so there the old letter stays with its stamp |
+| A stale grade after a push | Decision 14: a step with no model call resets the block before the push wait. The shipped caller waits 180 s before any model call and a newer push cancels the run while it waits (`templates/caller-workflow.yml:115-119,137`), so the reset cannot live inside the review itself. The step goes in both installs: the reusable workflow, before its push wait (`.github/workflows/review.yml:199-212`), where consumers get it by moving their pinned version; and the copy template, where they update the file. Until then the commit stamp is the only signal. Two cases start no review job and so reset nothing: a push to a draft pull request (`templates/caller-workflow.yml:129`) and a push with `review_on_push: false` (`.github/workflows/review.yml:184`). There the old letter stays, with the stamp of the commit it was computed on |
 | Incremental coverage | Decision 11; open question 4 for the loop |
 | The description is an unreliable channel | Decision 14: it mirrors the review |
 | Three places may not bound the work | No cap on the attention list; a human check never turns B into A |
