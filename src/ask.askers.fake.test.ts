@@ -412,6 +412,20 @@ describe("line questions (R5, R6)", () => {
     expect(() => readCommentLine({ AGENT_REVIEW_COMMENT_ID: "x" })).toThrow("AGENT_REVIEW_COMMENT_ID must be a comment id");
     expect(() => readCommentLine({ AGENT_REVIEW_COMMENT_ID: "5", AGENT_REVIEW_COMMENT_LINE: "3.5" })).toThrow("AGENT_REVIEW_COMMENT_LINE must be");
   });
+
+  test("a new line comment, with no reply target, is a question under itself, from the workflow's environment", () => {
+    // What the threads job exports for a top-level comment: the reply id is empty, path and line are set.
+    const top = readCommentLine({ AGENT_REVIEW_COMMENT_ID: "50", AGENT_REVIEW_COMMENT_IN_REPLY_TO: "", AGENT_REVIEW_COMMENT_PATH: "src/a.ts", AGENT_REVIEW_COMMENT_LINE: "3" });
+    expect(top).toEqual({ id: 50, replyTo: null, path: "src/a.ts", line: 3 });
+    expect(routeMode("threads", top, QUESTION, "/wachiman")).toBe("comment");
+    const s = site({ threads: [] });
+    const provider = new FakeProvider();
+    comment(depsFor(provider, s), "o/r", 7, QUESTION, "boss", top);
+    expect(s.posted).toHaveLength(0);
+    expect(s.replies.map((r) => r.id)).toEqual(["repos/o/r/pulls/7/comments/50/replies"]);
+    expect(provider.requests[0].prompt).toContain("The question is about src/a.ts at line 3.");
+    expect(provider.requests[0].prompt).not.toContain("<thread>");
+  });
 });
 
 describe("the prompt and the leak check (R7)", () => {

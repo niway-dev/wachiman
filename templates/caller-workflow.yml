@@ -20,7 +20,8 @@ name: Wachiman review
 #   - `threads`: when the repository owner replies in a review thread (a
 #     `pull_request_review_comment`), Wachiman answers every thread that waits for an answer,
 #     with no review and no resolve, but only once the pull request's head was already reviewed
-#     (otherwise the review of the push reads the replies). Remove the
+#     (otherwise the review of the push reads the replies). A new line comment in the review panel
+#     that asks a question after the command word is answered under itself. Remove the
 #     `pull_request_review_comment` trigger below to turn it off.
 #   - `on-demand`: when the repository owner comments on a pull request:
 #     `/wachiman review` re-reviews what changed since the last complete, unscoped review and,
@@ -101,6 +102,13 @@ env:
   AGENT_REVIEW_AUTO_BUDGET_USD: 2
   AGENT_REVIEW_THREADS_BUDGET_USD: 0.25
   AGENT_REVIEW_ANSWER_BUDGET_USD: 1
+  # Who may ask a question by comment: `operator` (only the operator) or `write` (also a collaborator
+  # with admin, maintain or write permission). Set it to `write` together with the literal
+  # `'operator' == 'write'` in the `threads` and `on-demand` `if:` below (EDIT THIS), since a job
+  # `if:` cannot read this variable.
+  AGENT_REVIEW_ASKERS: operator
+  # The most all questions from people other than the operator may spend on one pull request.
+  AGENT_REVIEW_ASK_CEILING_USD: 3
   # The login allowed to command the tool (EDIT THIS). The `on-demand` job `if:` checks the same
   # login, and the CLI checks it again against the comment's author.
   AGENT_REVIEW_OPERATOR: your-github-login
@@ -180,20 +188,22 @@ jobs:
   threads:
     name: Wachiman thread replies
     # EDIT THIS: replace 'your-github-login' below with the operator's login, and keep it equal to
-    # AGENT_REVIEW_OPERATOR above. A reply by the operator (not a bot), or by an OWNER, MEMBER or
-    # COLLABORATOR that starts with the mention, on a head in this repository, starts the job. That
-    # second case is a cheap pre-filter: the engine checks the login again, answers a collaborator
-    # only under `askers: write` and GitHub's write permission, and acts only when the head was
+    # AGENT_REVIEW_OPERATOR above. A comment in the review panel starts the job when the operator wrote
+    # it and it is a reply, or when it starts with the mention and the operator or (only when
+    # `askers` is `write`, see above) an OWNER, MEMBER or COLLABORATOR wrote it, on a head in this
+    # repository. The collaborator case is a cheap pre-filter: the engine checks the login again,
+    # answers a collaborator only under GitHub's write permission, and acts only when the head was
     # already reviewed.
     if: |
       github.event_name == 'pull_request_review_comment' &&
-      github.event.comment.in_reply_to_id &&
       github.event.comment.user.type != 'Bot' &&
-      (github.event.comment.user.login == 'your-github-login' ||
-       (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-        (startsWith(github.event.comment.body, '/wachi') ||
+      ((github.event.comment.user.login == 'your-github-login' && github.event.comment.in_reply_to_id) ||
+       ((startsWith(github.event.comment.body, '/wachi') ||
          startsWith(github.event.comment.body, '@agent-review') ||
-         startsWith(github.event.comment.body, '@claude')))) &&
+         startsWith(github.event.comment.body, '@claude')) &&
+        (github.event.comment.user.login == 'your-github-login' ||
+         ('operator' == 'write' &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))))) &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -248,13 +258,15 @@ jobs:
     # for user-owned and organisation-owned repositories alike (`author_association` is `OWNER`
     # in the first and `MEMBER` in the second). `@agent-review` and `@claude` are accepted as aliases
     # while installed copies migrate. A comment that starts with the mention from an OWNER, MEMBER
-    # or COLLABORATOR also starts the job, as a pre-filter only: the engine refuses it unless
-    # `askers: write` is set and GitHub confirms write access.
+    # or COLLABORATOR also starts the job, but only when `askers` is `write` (the `'operator' == 'write'`
+    # literal in the threads job, changed with AGENT_REVIEW_ASKERS at the top), as a pre-filter only:
+    # the engine refuses it unless GitHub confirms write access.
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       (github.event.comment.user.login == 'your-github-login' ||
        (github.event.comment.user.type != 'Bot' &&
+        'operator' == 'write' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         (startsWith(github.event.comment.body, '/wachi') ||
          startsWith(github.event.comment.body, '@agent-review') ||
@@ -264,9 +276,13 @@ jobs:
        contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
     timeout-minutes: 30 # batches run one after another
+    # The operator's runs keep their group and cancel one another. A collaborator's question has its
+    # own group that never cancels, so it cannot cancel the operator's review of the pull request.
+    # The login is a literal here because a concurrency block cannot read env: keep it equal to
+    # AGENT_REVIEW_OPERATOR.
     concurrency:
-      group: agent-on-demand-${{ github.event.issue.number }}
-      cancel-in-progress: true
+      group: agent-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != 'your-github-login' && '-ask' || '' }}
+      cancel-in-progress: ${{ github.event.comment.user.login == 'your-github-login' }}
     permissions:
       contents: read
       pull-requests: write

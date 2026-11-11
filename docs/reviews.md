@@ -433,8 +433,9 @@ answered as a question:
   `AGENT_REVIEW_ASK_CEILING_USD` (default `$3`), the engine posts one notice and answers nothing more
   until the ceiling is raised. The operator's questions are neither limited nor counted.
 - **A question in a finding's thread is answered in that thread**, with the thread's earlier comments
-  as context. A new comment on a diff line that is not a reply is not routed by the shipped
-  workflows, so it is not answered.
+  as context. A new comment on a diff line (not a reply) is routed too when it starts with the
+  command word: the operator's is answered under itself, and a collaborator's only under
+  `askers: write`. The reply goes in that comment's thread, with the file and line as its focus.
 
 ## What a review will not tell you
 

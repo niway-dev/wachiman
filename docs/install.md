@@ -169,10 +169,12 @@ pull request from then on, including ones opened earlier.
 - **Your reply in a finding's thread gets an answer, with conditions.** The template lists
   `pull_request_review_comment`, so your reply (only yours, as `operator`) starts a short job that
   answers the threads waiting for an answer, once the head has been reviewed. A reply that asks a
-  question (it starts with the command word and is not `review`) is answered in that thread. Anyone
-  else's reply starts nothing, unless it starts with the command word; then the job runs, but posts
-  nothing unless `askers` allows collaborators, which is off by default. A caller without that
-  trigger gets no such answer ([upgrading.md](upgrading.md#answering-thread-replies-without-a-push)).
+  question (it starts with the command word and is not `review`) is answered in that thread. A new
+  comment in the review panel (not a reply) that asks a question after the command word is answered
+  under itself, with the file and line it was written on. Anyone else's comment starts nothing,
+  unless it starts with the command word and `askers` is `write`, which is off by default; then the
+  job starts, and the engine answers only a question from someone with write access. A caller
+  without that trigger gets no such answer ([upgrading.md](upgrading.md#answering-thread-replies-without-a-push)).
 - **Automatic runs share a ceiling.** The first review, push reviews and thread replies on one pull
   request together spend at most `auto_budget_usd` (default $6); then one notice is posted and
   `/wachiman review` still works ([costs.md](costs.md#the-ceiling-per-pull-request)).
@@ -247,7 +249,9 @@ Only `operator` is required. Every other input, with its default, type and the e
 setting it becomes, is in [configuration.md](configuration.md#inputs); that page is the only place
 the inputs are listed. The ones people change first are `mention` (the command word), the budgets
 (`budget_usd`, `auto_budget_usd`, `batch_budget_usd`, `answer_budget_usd`), `skip_branch_prefixes` and
-`review_on_push`. Budgets apply per run, not per month, and the Claude Code limit on a call is a
+`review_on_push`. `askers` (default `operator`) lets collaborators with write access ask questions,
+with `ask_ceiling_usd` (default `3`) as the most their questions may spend on one pull request. The
+collaborator setting is off by default. Budgets apply per run, not per month, and the Claude Code limit on a call is a
 soft client-side cap, so it can be exceeded ([costs.md](costs.md)).
 
 ## How updates arrive

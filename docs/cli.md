@@ -129,7 +129,9 @@ even a comment that would do nothing needs a working provider binary and credent
 ### Questions from collaborators
 
 Only the operator's comments run a review. With `AGENT_REVIEW_ASKERS=write`, a collaborator's
-comment that asks a question is answered too. After step 1 above, such a comment must pass these
+comment that asks a question is answered too. In the reusable workflow that is the `askers` input
+(default `operator`), and the ceiling in step 4 is the `ask_ceiling_usd` input (default `3`); the
+copy template sets both at the top of its file. After step 1 above, such a comment must pass these
 checks, in this order:
 
 1. It must have an author (`AGENT_REVIEW_COMMENT_AUTHOR`), or the run exits 1.

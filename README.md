@@ -29,8 +29,8 @@ record, goes in the review body. Every comment opens with "👮 **Wachiman**".
   a walkthrough of the change. A reply the operator writes in a review thread gets an answer
   without a push. All automatic runs on one pull request together stop at $6 by default
   (`auto_budget_usd`); `/wachiman review` is not limited. Only the operator can ask by default. A
-  collaborator can be allowed to ask too (`AGENT_REVIEW_ASKERS=write`, which the caller template cannot
-  set yet); their questions then share a ceiling of $3 per pull request. Details: [docs/reviews.md](docs/reviews.md).
+  collaborator can be allowed to ask too (set the `askers` input to `write`; their questions then
+  share a ceiling of $3 per pull request, `ask_ceiling_usd`). Details: [docs/reviews.md](docs/reviews.md).
 - **Large pull requests are reviewed in batches**, riskiest files first (the risk is a score
   computed from file paths, not a reading of the code). Each batch is one agent call with a
   spend limit. What that limit does and does not guarantee, and what "all files reviewed"

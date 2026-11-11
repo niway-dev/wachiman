@@ -16,8 +16,10 @@ name: Wachiman review (reusable)
 #     re-checks that the head belongs to the calling repository before it runs anything.
 #   - `pull_request_target` is not used and must not be added to the caller.
 #   - Only the `operator` login can start an on-demand run or a thread-reply run (a reply in a
-#     review thread, `pull_request_review_comment`), and the jobs fail early when `operator` is
-#     empty or still a template placeholder.
+#     review thread, `pull_request_review_comment`). With `askers: write` a collaborator with write
+#     access can also start one by a question that starts with the command word; the engine checks
+#     that permission again. The jobs fail early when `operator` is empty or still a template
+#     placeholder.
 #   - The reviewed head is data: it is checked out without credentials into `head/`, and the
 #     engine that holds the key comes from this repository at the version of this workflow into
 #     `engine/`, never from the head. Bun runs inside `engine/` with `--no-env-file` and the
@@ -67,6 +69,21 @@ on:
         description: Most one on-demand question may spend, in USD
         type: number
         default: 1
+      askers:
+        description: >-
+          Who may ask a question by comment: `operator` (only the operator, the default) or `write`
+          (also a collaborator with admin, maintain or write permission, which GitHub confirms on
+          each question; a collaborator's `review` is refused). With `write`, the thread and
+          on-demand jobs also start for a collaborator's comment that starts with the command word;
+          with `operator` they start for nobody but the operator
+        type: string
+        default: operator
+      ask_ceiling_usd:
+        description: >-
+          Most all questions from people other than the operator may spend on one pull request, in
+          USD; used only with `askers: write`
+        type: number
+        default: 3
       batch_lines:
         description: Changed lines per batch
         type: number
@@ -311,23 +328,26 @@ jobs:
 
   threads:
     name: Wachiman thread replies
-    # A reply in a review thread (`pull_request_review_comment`), written by the operator, or by a
-    # collaborator (OWNER, MEMBER or COLLABORATOR) when it starts with the mention, on a head in this
-    # repository, never by a bot. The gate runs before any paid step: a stranger's reply on a public
-    # repository starts a skipped job and nothing else. The engine decides the rest: a collaborator's
-    # question is answered only under `askers: write`, after GitHub confirms write access; a reply
-    # without a question is the operator's alone, and the thread-only run acts only when the head was
-    # already reviewed and only on threads Wachiman opened.
+    # A comment in the review panel (`pull_request_review_comment`) starts the job when it is:
+    #   - a comment that starts with the mention, new or a reply, from the operator, or from a
+    #     collaborator (OWNER, MEMBER or COLLABORATOR) only when `askers` is `write`; or
+    #   - a reply written by the operator, whatever it says (the thread-only run, as before).
+    # The head must be in this repository, and nothing here is a bot. The gate runs before any paid
+    # step: a stranger's comment on a public repository starts a skipped job and nothing else. The
+    # engine decides the rest: a collaborator's question is answered only after GitHub confirms write
+    # access; a reply without a question is the operator's alone, and the thread-only run acts only
+    # when the head was already reviewed and only on threads Wachiman opened.
     if: |
       github.event_name == 'pull_request_review_comment' &&
-      github.event.comment.in_reply_to_id &&
       github.event.comment.user.type != 'Bot' &&
-      (github.event.comment.user.login == inputs.operator ||
-       (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-        (startsWith(github.event.comment.body, inputs.mention) ||
+      ((github.event.comment.user.login == inputs.operator && github.event.comment.in_reply_to_id) ||
+       ((startsWith(github.event.comment.body, inputs.mention) ||
          startsWith(github.event.comment.body, '/wachi') ||
          startsWith(github.event.comment.body, '@agent-review') ||
-         startsWith(github.event.comment.body, '@claude')))) &&
+         startsWith(github.event.comment.body, '@claude')) &&
+        (github.event.comment.user.login == inputs.operator ||
+         (inputs.askers == 'write' &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))))) &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -418,6 +438,10 @@ jobs:
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_ASKERS: ${{ inputs.askers }}
+          AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
+          # A question in the review panel is answered with this cap (routed to `comment`).
+          AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
         # Bun's working directory is `engine/`; see the `review` job.
         working-directory: engine
         run: bun --no-env-file --config=bunfig.toml src/cli.ts threads "$PR" --repo-dir "$GITHUB_WORKSPACE/head"
@@ -426,13 +450,14 @@ jobs:
     name: Wachiman on demand
     # The operator's login starts a run. So does a comment that starts with the mention from an OWNER,
     # MEMBER or COLLABORATOR (`author_association` is `OWNER` for a user-owned repository but `MEMBER`
-    # in an organisation): a cheap pre-filter only. The engine refuses every such comment unless the
-    # repository set `askers: write` and GitHub confirms the author's write access (ADR 0032 decision 9).
+    # in an organisation), and only when `askers` is `write`: a cheap pre-filter only. The engine
+    # refuses every such comment unless GitHub confirms the author's write access (ADR 0032 decision 9).
     if: |
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       (github.event.comment.user.login == inputs.operator ||
        (github.event.comment.user.type != 'Bot' &&
+        inputs.askers == 'write' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         (startsWith(github.event.comment.body, inputs.mention) ||
          startsWith(github.event.comment.body, '/wachi') ||
@@ -444,9 +469,12 @@ jobs:
        contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
     timeout-minutes: 30 # batches run one after another
+    # The operator's runs keep the group they always had and cancel one another. A collaborator's
+    # question gets its own group that never cancels, so it cannot cancel the operator's review of
+    # the same pull request.
     concurrency:
-      group: agent-review-on-demand-${{ github.event.issue.number }}
-      cancel-in-progress: true
+      group: agent-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != inputs.operator && '-ask' || '' }}
+      cancel-in-progress: ${{ github.event.comment.user.login == inputs.operator }}
     permissions:
       contents: read
       pull-requests: write
@@ -549,6 +577,8 @@ jobs:
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_ASKERS: ${{ inputs.askers }}
+          AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
         # Bun's working directory is `engine/`; see the `review` job.
         working-directory: engine
         run: bun --no-env-file --config=bunfig.toml src/cli.ts comment "$PR" --repo-dir "$GITHUB_WORKSPACE/head"
