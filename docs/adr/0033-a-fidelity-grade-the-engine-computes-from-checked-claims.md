@@ -37,7 +37,10 @@ top grade; a grade reserved for documentation changes was rejected by the owner.
    **unexplained**.
 3. The grade is `cannot say`, C, B, A- or A, computed by a pure engine function from the claims,
    the unexplained files, the open findings, the risk map and the run's completeness. The model
-   never states a grade. The rule table is in the spec, section 3.
+   never states a grade. The rule table is in the spec, section 3. A plus is added to A for
+   each extra proof the engine can count; the first one is the verifier trying to refute each
+   claim and failing. Each proof stays a separate visible row, so a plus never hides which proof
+   it stands for.
 4. The grade **fails closed**: an incomplete run, unread files, or a commit or author's text that
    changed since the review give `cannot say`.
 5. A risk level of `high` caps the grade at B. Medium risk facts and dropped risk facts become
@@ -45,7 +48,8 @@ top grade; a grade reserved for documentation changes was rejected by the owner.
 6. A pull request with no checkable claim gets C.
 7. The review body is the record. The description holds a mirror between markers, rewritten by
    the reviewing run, stamped with the reviewed commit and a digest of the author's text. The
-   engine strips its own block before reading the body as the author's claim.
+   engine strips its own block before reading the body as the author's claim. Before its first
+   model call, the reviewing run rewrites the block to `cannot say` for the new commit.
 8. The human check is a reply in a Wachiman thread at a place that needs attention, recorded
    against the commit. It never raises the grade; it is shown beside it.
 9. Every A is marked "trial" while the owner judges A-graded pull requests. The block shows what A
@@ -76,6 +80,9 @@ top grade; a grade reserved for documentation changes was rejected by the owner.
   criterion on the Martian run.
 - The grade is only as good as the model's reading: a cited line can exist and not prove the
   claim. The block says so, and the trial exists because of it.
+- An edit to the author's text with no push starts no review, so the block keeps its letter
+  until the next push. The digest makes the mismatch detectable; nothing corrects it (spec, open
+  question 8).
 - When one agent writes both the code and the description, a claim can be written to fit the
   diff. Decision 1's `vague` status contains broad claims; it does not solve the problem.
 - A clear pull request description becomes part of what Wachiman rewards.
@@ -97,3 +104,4 @@ top grade; a grade reserved for documentation changes was rejected by the owner.
 - The owner wants the linked issue's acceptance criteria to be the intent: that changes decision 1.
 - The grade is to be published as a check run or to gate a merge: that is a new decision.
 - The claims step breaks the cost ceiling on the Martian run.
+- Plus signs are read as more proof than the rows behind them: drop them and keep the rows.

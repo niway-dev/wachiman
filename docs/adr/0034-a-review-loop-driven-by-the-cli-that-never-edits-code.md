@@ -39,9 +39,11 @@ named the owner wanting it as a reopen condition. The owner now wants it for the
 4. Round 1 reviews the whole range. Later rounds review the commits since the previous round's
    head, **as an ordinary range review**. No file is skipped by reading the history; earlier
    findings are carried by their history status.
-5. The loop stays open while a 🔴 Blocker or 🟠 Fix is `new` or `open`, not refuted by the
-   verifier and not judged `wrong` with a reason. 🟡 Consider and ⚪ Info are listed and never
-   keep it open.
+5. The loop stays open while a 🔴 Blocker or 🟠 Fix is `new`, `open` or `not-repeated`, not
+   refuted by the verifier and not judged `wrong` with a reason. Only `probably-fixed` releases a
+   finding without a judgement: a later round reads only the fix commits, so a finding that was
+   not reported again at lines nobody changed is not evidence of a fix. 🟡 Consider and ⚪ Info
+   are listed and never keep it open.
 6. Three rounds by default, changed with `--max-rounds`. A review call that fails is retried once.
    Every stop prints its reason. A stop is never an approval.
 7. A `wachiman-loop` skill ships beside `skills/wachiman-review`.

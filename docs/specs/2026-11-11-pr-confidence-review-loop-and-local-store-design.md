@@ -31,16 +31,16 @@ Three slices, built in this order.
 | 2 | Result `/2` carries each finding's history id when history is on. The loop turns history on | The agent and the CLI need one name for a finding. Today the id is only printed in the stderr history block (`src/sinks/common.ts:215-229`) | 0034 |
 | 3 | `loop` has its own exit codes: `0` converged, `10` findings still open, `11` stopped without converging, `2` usage. `local` keeps its codes | `local` exits `0` whenever a review ran (`src/local.ts:234-237`), so a caller cannot branch on it | 0034 |
 | 4 | Round 1 reviews the whole range. Later rounds review the commits since the previous round's head, as an ordinary range. Earlier findings are carried by their history status | Meets ADR 0020's first reopen condition without skipping files by history, so the prompt stays the one GitHub mode uses | 0034, amends 0020 |
-| 5 | The loop stays open while a 🔴 Blocker or 🟠 Fix (ADR 0003) is `new` or `open`, not refuted by the verifier and not judged `wrong` with a reason. 🟡 Consider and ⚪ Info are listed and never keep it open | A loop that chases every note never ends; the two top levels are the ones the author is expected to act on in this pull request | 0034 |
+| 5 | The loop stays open while a 🔴 Blocker or 🟠 Fix (ADR 0003) is `new`, `open` or `not-repeated`, not refuted by the verifier and not judged `wrong` with a reason. Only `probably-fixed` (its lines changed and it was not reported again) releases a finding without a judgement. 🟡 Consider and ⚪ Info are listed and never keep it open | A loop that chases every note never ends; the two top levels are the ones the author is expected to act on in this pull request | 0034 |
 | 6 | Three rounds by default (`--max-rounds`). A review call that fails is retried once. Every stop prints its reason. A stop is never an approval | Other tools cap at 3 to 5 rounds and report that the first round carries most of the value (section 5) | 0034 |
 | 7 | A `wachiman-loop` skill ships beside `skills/wachiman-review` | The loop is useless without telling the agent what to do between rounds | 0034 |
 | 8 | Each pull request review lists the **claims** found in the title and body. Each is `confirmed`, `contradicted`, `unverified` or `vague`, with a path and line the engine checks | A grade built on "the reviewer found nothing" certifies whatever the reviewer missed. This asks for positive evidence | 0033 (new) |
 | 9 | Each changed file is assigned to a claim, or explained by a fixed engine rule (lockfiles, generated files, formatting-only changes, tests of a confirmed claim), or reported as **unexplained** | "And nothing else" is the half of fidelity no finding expresses | 0033 |
-| 10 | The grade is `cannot say`, C, B, A- or A, computed by a pure engine function. The model never states it. A plus is added per extra countable proof | Same rule as the risk map (ADR 0031): the model proposes facts, the engine decides | 0033 |
+| 10 | The grade is `cannot say`, C, B, A- or A, computed by a pure engine function. The model never states it. A plus is added per extra countable proof, from slice 2c on | Same rule as the risk map (ADR 0031): the model proposes facts, the engine decides | 0033 |
 | 11 | The grade fails closed. An incomplete run, unread files, or a description or commit that changed since the review give `cannot say`. Dropped risk facts lower A to A- | An unknown must not read as safe | 0033 |
 | 12 | A risk level of `high` caps the grade at B. Medium risk facts become listed questions | A faithful change to payments or auth still needs a person | 0033 |
 | 13 | A pull request with no checkable claim gets C with the reason "the pull request does not say what it changes". A claim that names nothing checkable is `vague` and counts as no claim | Owner's rule. It also stops a broad claim from covering every change | 0033 |
-| 14 | The review body is the record. The description holds a mirror between markers, rewritten on every review, stamped with the reviewed commit and a digest of the author's text. Wachiman strips its own block before reading the body as the author's claim | Agents rewrite whole pull request bodies, so the description cannot be the record. The owner wants the grade at the top of the pull request | 0033 |
+| 14 | The review body is the record. The description holds a mirror between markers, rewritten on every review, stamped with the reviewed commit and a digest of the author's text. Wachiman strips its own block before reading the body as the author's claim. Before its first model call, the reviewing run rewrites the block to `cannot say` for the new commit, so a run that is cancelled, fails or hits the ceiling leaves no old letter | Agents rewrite whole pull request bodies, so the description cannot be the record. The owner wants the grade at the top of the pull request | 0033 |
 | 15 | The human check is a reply in a Wachiman thread opened at each place that needs attention, recorded against the commit | GitHub does not let an author approve their own pull request. Reuses the thread follow-up of ADR 0008 and ADR 0012 | 0033 |
 | 16 | Every A is marked "trial" until the owner has judged A-graded pull requests. The count and the bound it supports are shown. After 30 judged with no serious miss the owner may move to sampled reading, never to none | 0 misses in 30 only bounds the miss rate below about 10% (section 6) | 0033 |
 | 17 | The feature is shown as "PR Confidence". The result field is `fidelity` | Findings already carry a `confidence` field (`src/engine.ts:153-166`) | 0033 |
@@ -69,6 +69,12 @@ Each has a default that applies if the owner does not answer.
 6. **Dashboard form.** **Default:** one HTML file plus `--json`.
 7. **Cost ceiling for claims.** **Default:** no more than 15% over the cost per pull request of
    the weekly Martian run before the change. The 15% is a proposal, not a measurement.
+8. **What happens when the author's text is edited and nothing is pushed?** The callers run on
+   `opened`, `ready_for_review` and `synchronize` only. (a) The digest in the block is the only
+   protection until the next push. (b) The caller also runs on `edited`, with a step that makes
+   no model call and sets the block to `cannot say`. Against (b): a workflow change in every
+   consumer repository, and a run on every title or body edit. **Default: (a)** for the first
+   version, stated in the block's footer.
 
 ## Out of scope
 
@@ -115,6 +121,8 @@ Loop (slice 1):
 - [ ] After a commit that fixes it, the next `wachiman loop` reviews only the new commits and exits `0`.
 - [ ] With the finding left unfixed, the fourth call exits `11` with the reason `round cap`.
 - [ ] A finding judged `wrong` with a reason no longer keeps the loop open and is listed in the outcome.
+- [ ] A 🔴 Blocker at a line the fix commit did not change, in a file it did change, still keeps
+      the loop open when the next round does not report it again (exit `10`, not `0`).
 - [ ] A round whose review call fails twice exits `11` with the reason `review failed`.
 - [ ] `bun test` covers the stop rule with no model call.
 
@@ -130,6 +138,8 @@ PR Confidence (slice 2):
 - [ ] The description block is written between markers, text outside them is byte-identical, and a
       second run replaces the block instead of adding one.
 - [ ] A body that already holds the block yields the same claims as the body without it.
+- [ ] A review run stopped after its first step leaves the block at `cannot say` for the new
+      commit, with no letter from the previous commit.
 - [ ] On the weekly Martian run, cost per pull request stays under the ceiling of open question 7
       and F1 stays inside the spread of earlier runs.
 
@@ -165,7 +175,11 @@ open with their ids, the findings that no longer do and why (`probably-fixed`, `
 Round 2 and later pass the previous round's head as the base, so the review is the same kind of
 range review a developer can already ask for with `--base`. A finding from an earlier round whose
 file the fix commits did not touch keeps its status: the agent did not change it, so it is still
-open. "Fixed" stays inferred, as ADR 0020 says.
+open. The history also settles a finding as `not-repeated` when its file was reviewed, its lines
+did not change and the run did not report it again (`src/history/match.ts:113-127`). A later
+round only reads the fix commits, so an unfixed finding at an unchanged line is often not
+reported again. The loop therefore counts `not-repeated` as still open: the agent either changes
+those lines or judges the finding. "Fixed" stays inferred, as ADR 0020 says.
 
 ## 3. PR Confidence
 
@@ -268,11 +282,11 @@ Two attacks by GPT-6.1 Sol at high effort, kept unchanged and uncommitted in `.s
 | --- | --- |
 | A can certify a missed defect | Decisions 8 and 9 ask for positive evidence; decision 16 keeps a person reading |
 | Low risk from incomplete facts | Decisions 11 and 12; dropped facts lower the grade |
-| A stale grade after a push | Decisions 11 and 14: commit stamp and `cannot say` |
+| A stale grade after a push | Decision 14: the run rewrites the block to `cannot say` before its first model call, so a cancelled or failed run leaves no old letter. The shipped callers cancel a running review on a new push (`templates/caller-workflow.yml:137`) |
 | Incremental coverage | Decision 11; open question 4 for the loop |
 | The description is an unreliable channel | Decision 14: it mirrors the review |
 | Three places may not bound the work | No cap on the attention list; a human check never turns B into A |
-| Description edits change the claim | Decision 14: digest of the author's text |
+| Description edits change the claim | Partly. The shipped callers start no run on a description edit (`templates/caller-workflow.yml:68`), so the old letter stays until the next push. The digest lets a reader or the next review detect it; nothing updates the block. Open question 8 |
 | Events from the Actions token start no run | The block is written inside the reviewing run |
 | "Skip reading" changes the product promise | Decision 16 and ADR 0033: the grade approves nothing |
 | The same agent writes code and claims | Decision 13; reading the issue's criteria is out of scope and reopens ADR 0033 |
