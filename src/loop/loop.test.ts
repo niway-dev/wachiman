@@ -225,6 +225,32 @@ describe("wachiman loop", () => {
     expect(doc.released).toEqual([expect.objectContaining({ id, why: "probably-fixed", status: "not-repeated" })]);
   }, 180_000);
 
+  test("a release because the lines changed is kept in later rounds that do not read the file; another open finding alone keeps the loop open", () => {
+    const s = scenario();
+    const Y = { path: "src/b.ts", line: 1, severity: "fix", topic: "bug", confidence: "high", title: "Wrong literal", body: "b is 'new'." };
+    s.script(1, BRANCH_FILES, [BLOCKER, Y]);
+    expect(s.loop("--base", "main", "--max-rounds", "5").code).toBe(10);
+    const ids = s.historyIds();
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE4 }, "touch line four");
+    s.script(2, ["src/a.ts"], []);
+    expect(s.loop("--max-rounds", "5").code).toBe(10);
+    // Round 3 changes the Blocker's line; the model reads src/a.ts and does not report it.
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE4.replace("export const b = 20;", "export const b = 21;") }, "fix line two");
+    s.script(3, ["src/a.ts"], []);
+    const third = JSON.parse(s.loop("--max-rounds", "5", "--format", "json").stdout);
+    expect(third.open.map((f: { path: string }) => f.path)).toEqual(["src/b.ts"]);
+    expect(third.released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "probably-fixed" })]);
+    // Round 4 touches an unrelated file: src/a.ts is not read again, and the release must stand.
+    commit(s.repo.dir, { "docs/note.md": "a note\n" }, "unrelated file");
+    s.script(4, ["docs/note.md"], []);
+    const fourth = s.loop("--max-rounds", "5", "--format", "json");
+    expect(fourth.code).toBe(10);
+    const doc = JSON.parse(fourth.stdout);
+    expect(doc.open.map((f: { path: string }) => f.path)).toEqual(["src/b.ts"]);
+    expect(doc.released.map((f: { path: string }) => f.path)).toEqual(["src/a.ts"]);
+    expect(ids).toHaveLength(2);
+  }, 240_000);
+
   test("a round that reports the finding again at changed lines keeps the loop open", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);

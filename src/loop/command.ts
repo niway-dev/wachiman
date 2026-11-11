@@ -325,7 +325,11 @@ function settle(
       entry.refuted =
         prior.refuted || dropped.some((d) => isRefutedBy({ path: d.path, line: d.line, topic: d.topic, titleKey: titleKey(d.title) }, { path, line: entry.line, topic: entry.topic, titleKey: titleOf }));
     }
-    if (t && !reported && status === "not-repeated" && readThisRound.has(path)) entry.linesChanged = regionChanged(repoDir, head, path, t);
+    // Sticky: a release because the lines changed stands in later rounds, even ones that do not read
+    // the file, until a round reports the finding again (`reported` then clears it).
+    if (!reported && status === "not-repeated") {
+      entry.linesChanged = prior.linesChanged || (t !== undefined && readThisRound.has(path) && regionChanged(repoDir, head, path, t));
+    }
     return entry;
   });
   // A finding reported in this round is new or open, never settled.
