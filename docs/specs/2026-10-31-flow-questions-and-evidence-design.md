@@ -41,7 +41,7 @@ needed, and paid for from a separate reserve.
 | 11 | No OpenCode adapter now. Subscription use is wired later through the unmodified Claude Code binary (`CLAUDE_CODE_OAUTH_TOKEN` in the allowlist, `preflight()` accepting either credential) as a workflow input | OpenCode has no structured output or dollar cap, forbids Claude subscription use, weighs 214 MB, and would lose `--restricted` and `--json-schema` | reuses 0001 |
 | 12 | No MCP, no new interactive tools. Engine-written context files are the channel | A review run in Pullfrog uses four MCP tools and the server is unauthenticated on loopback; 75–90 % of its cost is re-reading context over 25–45 turns, not MCP. Nothing to gain for an engine that posts the review itself | reuses 0001 |
 | 13 | Risk indicators from history (relative churn, change frequency and recency, co-change) are computed and shown, **not summed into a score** and **not used to gate** anything | Owner: each indicator weighs differently per codebase; calibrate after measuring. Co-change missed the real link on #465 (shared API use, not co-editing) | none |
-| 14 | Multi-language: `git grep -nw` with extension filters is the floor everywhere; **vendored tree-sitter WASM** (web-tree-sitter 0.25.10 plus grammar files, ~5 MB for TS/TSX/Go/Python/Java/Rust, 12.3 MB with Kotlin and Swift) is the AST layer, TS/TSX first. ast-grep only as a dev-time check | Pullfrog's own impact tool is regex + one `git grep` (parity for the floor). Measured: grep alone misses aliased consumers (`libraryChanged` → `onLibraryChanged`, 0 of 2) and property-named handlers; tree-sitter resolves them and returns member calls with positions. This adds vendored third-party code: ADR 0002 gets a new reopen condition, below | reopens 0002 |
+| 14 | Multi-language: `git grep -nw` with extension filters is the floor everywhere; **vendored tree-sitter WASM** (web-tree-sitter 0.25.10 plus grammar files, ~5 MB for TS/TSX/Go/Python/Java/Rust, 12.3 MB with Kotlin and Swift) is the AST layer, TS/TSX first. ast-grep only as a dev-time check | Pullfrog's own impact tool is regex + one `git grep` (parity for the floor). Measured: grep alone misses aliased consumers (`libraryChanged` → `onLibraryChanged`, 0 of 2) and property-named handlers; tree-sitter returns member calls with kind and position, but its by-name scan misses the aliases too: project-specific bridge logic recovered `onLibraryChanged` (corrected 2026-11-02 after GPT-6.1 Sol's review; see the [mapping note](../research/2026-10-31-multi-language-mapping-deep.md)). This adds vendored third-party code: ADR 0002 gets a new reopen condition, below | reopens 0002 |
 
 **Open questions.**
 
@@ -85,10 +85,12 @@ Illustrative wording, placed before `RULES`:
 }
 ```
 
-The engine: resolves every `evidence` path and line against the head (a missing line turns the
-entry `open` with reason `evidence_not_found`); links closed entries that produced a finding;
-lists open ones under a "Contracts the review could not close" section; counts
-`needs_investigation` requests in the footer.
+The engine: resolves every `evidence` path and line against the head. As built in v1.4.0
+(`src/contracts.ts`), a citation that does not resolve keeps the entry's status and sets
+`evidence_checked: false` with a logged warning; it does not turn the entry `open` as this draft
+first said. Closed and open entries are shown in the collapsed "What the change connects to"
+block, the open ones under "Open: the reviewer could not close these". `needs_investigation` is
+not built yet. (Corrected 2026-11-02 after GPT-6.1 Sol's review.)
 
 ### The risk map
 

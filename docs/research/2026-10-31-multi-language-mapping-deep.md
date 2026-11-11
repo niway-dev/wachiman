@@ -313,7 +313,7 @@ history, and gives the model definition files, reference files and related files
 languages (TS, TSX, JS, Go, Rust, Java, Kotlin, Swift, Python, Ruby, C, C++, C#, PHP, Scala,
 Elixir, Lua, Bash, CSS); Lite tier and above. That is the risk map of the flow-questions design,
 hosted. Wachi's version runs in the consumer's runner at review time; the model gets a similar
-slice, the code never leaves the consumer's infrastructure. Sources:
+slice without a hosted index. The selected code still goes to the model provider in the review's requests, as every review does; what stays on the runner is the index itself (corrected 2026-11-02 after GPT-6.1 Sol's review). Sources:
 [docs](https://docs.coderabbit.ai/integrations/code-graph-analysis),
 [changelog](https://docs.coderabbit.ai/changelog/code-graph-analysis); the per-review rebuild
 detail is from a [secondary source](https://theaiengineer.substack.com/p/how-coderabbit-actually-works).
