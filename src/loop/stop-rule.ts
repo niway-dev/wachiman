@@ -79,3 +79,17 @@ export function evaluate(findings: LoopFinding[]): Decision {
 
 /** A loop that already ran `max` rounds stops before another one: three by default. */
 export const roundCapReached = (roundsRun: number, max: number) => roundsRun >= max;
+
+/**
+ * Whether a candidate the verifier dropped with a checked disproof is a finding the loop already
+ * tracks. A dropped candidate has no history id (it was never reported), so it is matched the way
+ * the history matches a title: the same file and the same title key, or the same file, topic and
+ * line.
+ */
+export function isRefutedBy(
+  dropped: { path: string; line: number; topic: Topic; titleKey: string },
+  tracked: { path: string; line: number; topic: Topic; titleKey: string },
+): boolean {
+  if (dropped.path !== tracked.path) return false;
+  return dropped.titleKey === tracked.titleKey || (dropped.topic === tracked.topic && dropped.line === tracked.line);
+}

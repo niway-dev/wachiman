@@ -316,6 +316,34 @@ export function readVerdicts(root: string, key: string): Map<string, VerdictLine
   return out;
 }
 
+/**
+ * One file per branch under `<root>/<repo-key>/loops/` for `wachiman loop` (ADR 0034): the loop's
+ * state lives beside the runs it reads, so `history --forget` removes both. The branch name is only
+ * a label in the file name; the hash keeps two names that sanitise alike apart.
+ */
+const loopPath = (root: string, key: string, branch: string) =>
+  join(keyDir(root, key), "loops", `${safeName(branch)}-${sha256(branch).slice(0, 8)}.json`);
+
+/** The stored loop state of a branch as parsed JSON, or undefined when there is none. A file that is not JSON is an error naming it. */
+export function readLoopFile(root: string, key: string, branch: string): unknown | undefined {
+  const path = loopPath(root, key, branch);
+  if (!existsSync(path)) return undefined;
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new UsageError(`${path} is not a loop state file (${error instanceof Error ? error.message : error}); remove it to start the loop again.`);
+  }
+}
+
+export function writeLoopFile(root: string, key: string, branch: string, state: unknown): string {
+  ensureKeyDirs(root, key);
+  privateDirs(join(keyDir(root, key), "loops"));
+  chmodSync(join(keyDir(root, key), "loops"), 0o700);
+  const path = loopPath(root, key, branch);
+  writeAtomic(path, `${JSON.stringify(state, null, 2)}\n`);
+  return path;
+}
+
 /** Removes one repository's history, or all of it; returns what was removed. Never leaves `root`. */
 export function forget(root: string, key?: string): string[] {
   const target = key === undefined ? root : keyDir(root, key);

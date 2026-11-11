@@ -10,6 +10,8 @@
  *                                       when the head was already reviewed
  *   wachiman local [paths…]         review the committed branch of a clone on the signed-in
  *                                       `claude`, and print it; no GitHub call (src/local.ts)
+ *   wachiman loop [--base <ref>]   one review round of a fix loop on the signed-in `claude`; exit 0
+ *                                       converged, 10 findings open, 11 stopped (src/loop/command.ts)
  *   wachiman ask [question…]        answer a question about the local change, or explain it; one
  *                                       call, no GitHub request, grounded in the stored review (src/local-ask.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
@@ -24,7 +26,7 @@
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error;
- * 130 cancelled (`local`, `setup`, `init`).
+ * 130 cancelled (`local`, `loop`, `setup`, `init`); `loop` also exits 10 and 11 (see its help).
  * The settings are documented in docs/cli.md.
  */
 import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
@@ -35,6 +37,7 @@ import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
 import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type ReviewLineComment } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
+import { loopUsage, parseLoopArgs, runLoop } from "./loop/command";
 import { askUsage, parseAskArgs, runAsk } from "./local-ask";
 import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
@@ -58,6 +61,13 @@ export const USAGE = `Usage:
                                                      signed-in claude, and print it; nothing is posted.
                                                      --commit: that one commit (<commit>^ → <commit>);
                                                      --from: that commit forward (<commit>^ → HEAD)
+  ${loopUsage}
+                                                     One round of a review loop on your signed-in claude:
+                                                     --base starts it (round 1 reviews the whole range),
+                                                     a call with a loop open continues it and reviews only
+                                                     the commits since the last round. Fix, or judge a
+                                                     finding wrong with a reason, between calls; the CLI
+                                                     never edits code. Three rounds by default
   ${askUsage}
                                                      Answer a question about the change the scope flags
                                                      select, or explain it when no question is given. One
@@ -115,6 +125,7 @@ Environment:
 
 Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
+\`loop\`: 0 converged, 10 findings still open, 11 stopped without converging (round cap or review failed), 2 usage error, 130 interrupted. A stop is never an approval.
 \`ask\`: 0 an answer was printed (it may say what it could not answer), 1 no answer (the call failed or returned nothing usable), 2 usage error, 130 interrupted.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 \`status\`: 0 printed (also with no run kept), 2 usage error.
@@ -276,6 +287,14 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "local") {
       // No GitHub: no token, no repository, no `gh` function anywhere on this path.
       return runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
+        stdout: (text) => writeAll(1, text),
+        stderr: (line) => console.error(line),
+        engineVersion: readVersion(),
+      });
+    }
+    if (mode === "loop") {
+      // Like `local`: no GitHub token, no `gh` function anywhere on this path.
+      return runLoop(parseLoopArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),

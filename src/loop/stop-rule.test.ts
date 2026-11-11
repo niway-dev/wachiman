@@ -1,6 +1,6 @@
 /** The stop rule of `wachiman loop` (ADR 0034 decision 5): pure, so no model call and no repository. */
 import { describe, expect, test } from "bun:test";
-import { evaluate, roundCapReached, type LoopFinding } from "./stop-rule";
+import { evaluate, isRefutedBy, roundCapReached, type LoopFinding } from "./stop-rule";
 
 const finding = (over: Partial<LoopFinding> = {}): LoopFinding => ({
   id: "aaaaaaaaaa",
@@ -101,5 +101,16 @@ describe("roundCapReached", () => {
     expect(roundCapReached(2, 3)).toBe(false);
     expect(roundCapReached(3, 3)).toBe(true);
     expect(roundCapReached(4, 3)).toBe(true);
+  });
+});
+
+describe("isRefutedBy", () => {
+  const tracked = { path: "src/a.ts", line: 2, topic: "bug" as const, titleKey: "null deref" };
+  test("same file and title, or same file, topic and line; never another file", () => {
+    expect(isRefutedBy({ ...tracked, line: 40 }, tracked)).toBe(true);
+    expect(isRefutedBy({ ...tracked, titleKey: "other" }, tracked)).toBe(true);
+    expect(isRefutedBy({ ...tracked, titleKey: "other", topic: "perf", line: 2 }, tracked)).toBe(false);
+    expect(isRefutedBy({ ...tracked, titleKey: "other", line: 3 }, tracked)).toBe(false);
+    expect(isRefutedBy({ ...tracked, path: "src/b.ts" }, tracked)).toBe(false);
   });
 });
