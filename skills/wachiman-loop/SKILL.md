@@ -68,8 +68,10 @@ Then call `wachiman loop` again without `--base`. A call with no new commit make
 Tell the developer, in this order:
 
 1. The exit code and `outcome.message`, in your own words but with every caveat. A converged loop
-   says "converged on incremental rounds": round 1 read the whole range and later rounds only
-   your fix commits; interactions with code outside them were not re-read.
+   converged after round 1 says "Round 1 reviewed the whole range". A loop that converged
+   later says "converged on incremental rounds": round 1 read the whole range and later rounds only
+   your fix commits; interactions with code outside them were not re-read. Pass on whichever
+   caveat it printed.
 2. What you fixed, with the commit of each.
 3. Every finding in `released[]` with `why: "judged wrong"`, with its reason, so they can overrule
    you. Also name the findings released as `probably-fixed`: that is inferred from the code

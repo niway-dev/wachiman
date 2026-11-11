@@ -258,7 +258,8 @@ wachiman loop --max-rounds 5 --format json
   --forget` removes the state with the history.
 - **Flags:** `--base`, `--max-rounds <n>` (default 3), `--max-depth`, `--format terminal|json`,
   `--profile`, `--verify|--no-verify`, `--repo-dir`. It takes no paths, `--commit` or `--from`.
-- **The loop stays open** while a 🔴 Blocker or 🟠 Fix is new, open or not-repeated, not refuted by
+- **The loop stays open** while a 🔴 Blocker or 🟠 Fix is new, open, not-repeated or unknown (the round
+  did not read its file, so nobody has settled it), not refuted by
   the verifier and not judged `wrong` with a reason (`wachiman history --verdict <id> wrong
   --reason "<why>"`). A finding the history settled as `not-repeated` is released only when a later
   round's commits changed its lines and that round did not report it. 🟡 and ⚪ are listed and never

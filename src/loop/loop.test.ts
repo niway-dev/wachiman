@@ -286,6 +286,21 @@ describe("wachiman loop", () => {
     expect(s.calls()).toBe(0);
   }, 60_000);
 
+  test("a loop is kept per branch: another branch has none, and coming back finds the first one", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    expect(s.loop("--base", "main").code).toBe(10);
+    git(s.repo.dir, "switch", "-q", "-c", "feat/other");
+    const other = s.loop();
+    expect(other.code).toBe(2);
+    expect(other.stderr).toContain("No loop is open on feat/other");
+    git(s.repo.dir, "switch", "-q", "feat/x");
+    const back = s.loop();
+    expect(back.code).toBe(10);
+    expect(back.stdout).toContain("round 2 of 3");
+    expect(s.calls()).toBe(1);
+  }, 120_000);
+
   test("--base starts over, even with a loop open", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
