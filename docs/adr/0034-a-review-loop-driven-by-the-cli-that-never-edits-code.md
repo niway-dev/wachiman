@@ -40,10 +40,12 @@ named the owner wanting it as a reopen condition. The owner now wants it for the
    head, **as an ordinary range review**. No file is skipped by reading the history; earlier
    findings are carried by their history status.
 5. The loop stays open while a 🔴 Blocker or 🟠 Fix is `new`, `open` or `not-repeated`, not
-   refuted by the verifier and not judged `wrong` with a reason. Only `probably-fixed` releases a
-   finding without a judgement: a later round reads only the fix commits, so a finding that was
-   not reported again at lines nobody changed is not evidence of a fix. 🟡 Consider and ⚪ Info
-   are listed and never keep it open.
+   refuted by the verifier and not judged `wrong` with a reason. A finding is released without a
+   judgement only when its lines changed and the round that read that change did not report it
+   again. A later round reads only the fix commits, so a finding that was not reported again at
+   lines nobody changed is not evidence of a fix. The history never re-settles a settled finding,
+   so the loop makes this check itself and leaves the history statuses as they are. 🟡 Consider
+   and ⚪ Info are listed and never keep it open.
 6. Three rounds by default, changed with `--max-rounds`. A review call that fails is retried once.
    Every stop prints its reason. A stop is never an approval.
 7. A `wachiman-loop` skill ships beside `skills/wachiman-review`.
