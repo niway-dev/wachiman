@@ -230,6 +230,19 @@ describe("setup on a terminal", () => {
     expect(errText(w)).toContain("nothing saved");
   });
 
+  test.each([
+    ["declining the binding", "n", 0, "nothing saved: the configuration is unchanged."],
+    ["Escape at the binding", ESC, 130, "cancelled: no configuration changes saved."],
+  ])("started from init, %s still shows how to bind later", async (_n, key, code, said) => {
+    const w = world();
+    const before = w.configText();
+    const { run } = setup(w, [], ["2", key], { fromInit: true, unboundHints: ["wachiman setup"] });
+    expect(await run).toBe(code);
+    expect(w.configText()).toBe(before);
+    expect(errText(w)).toContain(said);
+    expect(errText(w)).toContain("Next, on this machine: wachiman setup");
+  });
+
   test("--profile on a terminal skips the profile question, and an unknown name is exit 2 before any prompt", async () => {
     const w = world();
     const ok = setup(w, ["--profile", "work-b"], ["", ""]);

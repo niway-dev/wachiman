@@ -39,6 +39,8 @@ export interface SetupDeps extends AccountDeps {
   fromInit?: boolean;
   /** Both mode has one extra workflow stage before account setup. */
   initMode?: "local" | "both";
+  /** The commands that bind later; printed when a run started from init ends without saving a binding. */
+  unboundHints?: readonly string[];
   streams?: TerminalStreams;
   promptIO?: PromptIO;
   /** An open prompt session (shared with `init`); the caller closes it. */
@@ -118,11 +120,13 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (answers.kind === "cancelled") {
       io.stderr("cancelled: no configuration changes saved.");
       reportEffects();
+      for (const hint of deps.unboundHints ?? []) io.stderr(`Next, on this machine: ${hint}   (binds this repository to a Claude account)`);
       return 130;
     }
     if (answers.kind === "declined") {
       io.stderr("nothing saved: the configuration is unchanged.");
       reportEffects();
+      for (const hint of deps.unboundHints ?? []) io.stderr(`Next, on this machine: ${hint}   (binds this repository to a Claude account)`);
       return 0;
     }
     const resolved = resolveSetupOptions(answers.flags, { interactive: true });
