@@ -136,14 +136,17 @@ describe("writing the description block", () => {
     expect(written).toContain("The pull request text changed while the review was running");
   });
 
-  test("a newer commit gets a cannot say block that names it, never the old letter", () => {
-    const github = fakeGithub({ headRefOid: NEWER, title: TITLE, body: BODY });
-    publishConfidence(sinkDeps(github.gh), "o/r", 7, { ...PUBLISH, fidelity: fidelity() });
-    const written = github.patches[0]!.body;
-    expect(written).toContain("IMPORTANT");
-    expect(written).toContain(NEWER.slice(0, 7));
-    expect(written).not.toContain("TIP");
-    expect(written).not.toContain("(trial)");
+  test("a newer head means a newer run owns the block: this run leaves it alone, even a finished grade", () => {
+    const finished = `${BLOCK_START}\n## PR Confidence\n> A (trial) for ${NEWER.slice(0, 7)}\n${BLOCK_END}\n\n${BODY}`;
+    const github = fakeGithub({ headRefOid: NEWER, title: TITLE, body: finished });
+    const deps = sinkDeps(github.gh);
+    publishConfidence(deps, "o/r", 7, { ...PUBLISH, fidelity: fidelity() });
+    expect(github.patches).toEqual([]);
+    expect(github.state.body).toBe(finished);
+    expect(deps.logs.join("\n")).toContain("newer commit");
+    // A partial review is stale in the same way.
+    publishConfidence(deps, "o/r", 7, { ...PUBLISH, partialReason: "Only part" });
+    expect(github.patches).toEqual([]);
   });
 
   test("a review with no grade (a partial review) writes cannot say with its reason", () => {
@@ -243,7 +246,9 @@ describe("the reset step", () => {
 
   test("a dry run prints and writes nothing", () => {
     const github = fakeGithub({ headRefOid: COMMIT, title: TITLE, body: BODY });
-    resetConfidence(sinkDeps(github.gh, { dryRun: true }), "o/r", 7, COMMIT);
+    const deps = sinkDeps(github.gh, { dryRun: true });
+    resetConfidence(deps, "o/r", 7, COMMIT);
     expect(github.patches).toEqual([]);
+    expect(deps.logs.join("\n")).toContain(BLOCK_START);
   });
 });

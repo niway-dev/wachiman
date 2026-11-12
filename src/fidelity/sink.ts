@@ -91,16 +91,19 @@ export interface Publish {
   permalinkBase: string;
 }
 
-/** The block after a review: the grade, or `cannot say` when the head or the text has moved on. */
+/** The block after a review: the grade, or `cannot say` when the text has moved on. A newer head writes nothing. */
 export function publishConfidence(deps: SinkDeps, repo: string, pr: number, p: Publish): void {
   try {
     const live = readLive(deps.gh, repo, pr);
     const date = dateOf(deps);
-    let block: string;
     if (live.headRefOid !== p.headSha) {
-      // The review read an older commit. Whatever it found, it says nothing about the new one.
-      block = cannotSayBlock(live.headRefOid, RESET_REASON, { date });
-    } else if (!p.fidelity) {
+      // The review read an older commit. The run for the newer commit owns the block (it reset it,
+      // and may have finished): writing here could wipe its grade.
+      deps.log(`PR Confidence not written: the pull request has a newer commit (${live.headRefOid.slice(0, 7)}) than this review's ${p.headSha.slice(0, 7)}.`);
+      return;
+    }
+    let block: string;
+    if (!p.fidelity) {
       block = cannotSayBlock(p.headSha, p.partialReason ?? RESET_REASON, { date, reviewUrl: p.reviewUrl });
     } else {
       const f = failClosed(p.fidelity, { headCommit: live.headRefOid, title: live.title, body: live.body });
