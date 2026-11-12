@@ -35,7 +35,7 @@ import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
-import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type ReviewLineComment } from "./engine";
+import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { loopUsage, parseLoopArgs, runLoop } from "./loop/command";
 import { askUsage, parseAskArgs, runAsk } from "./local-ask";
@@ -48,6 +48,7 @@ import { DEFAULT_WORKFLOW_REF } from "./init/options";
 import { runInitCommand } from "./init/run";
 import { projectCommands } from "./wizard/command";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
+import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
 import { runSetupCommand } from "./setup/run";
@@ -56,6 +57,8 @@ export const USAGE = `Usage:
   wachiman review <pr> [paths…] [--repo-dir <dir>]   Review a pull request (or only the given paths)
   wachiman comment <pr> [--repo-dir <dir>]           Handle the comment in $REQUEST (a review or an answer)
   wachiman threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
+  wachiman reset-confidence <pr> [--commit <sha>]    Write "cannot say" into the PR Confidence block (no model call;
+                                                     the first step of a review run, with AGENT_REVIEW_CONFIDENCE=1)
   ${localUsage}
                                                      Review the committed branch of a clone on your
                                                      signed-in claude, and print it; nothing is posted.
@@ -258,6 +261,34 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
   });
 }
 
+/**
+ * `wachiman reset-confidence <pr> [--commit <sha>]`: the first step of a review run (ADR 0033
+ * decision 14). It rewrites the PR Confidence block to `cannot say` for the commit under review
+ * before the push wait, so a run cancelled during it leaves no letter from an older commit. No
+ * model, no provider. Best-effort like the block write: it never fails the run.
+ */
+export function runResetConfidence(args: string[], env: Record<string, string | undefined>, gh: GhFn = defaultGh): number {
+  const [prArg, ...flags] = args;
+  const pr = Number(prArg);
+  if (!/^\d+$/.test(prArg ?? "") || pr <= 0) throw new UsageError("reset-confidence needs a pull request number.");
+  let commit: string | undefined;
+  for (let i = 0; i < flags.length; i++) {
+    if (flags[i] !== "--commit" || !flags[i + 1]) throw new UsageError(`reset-confidence: unexpected "${flags[i]}".`);
+    commit = flags[++i];
+  }
+  const config = loadConfig(env);
+  if (!config.confidence) return 0;
+  required(env, "GH_TOKEN");
+  const repo = required(env, "GITHUB_REPOSITORY");
+  resetConfidence(
+    { gh, dryRun: config.dryRun, log: (line) => console.log(line), warn: (line) => console.error(line) },
+    repo,
+    pr,
+    commit,
+  );
+  return 0;
+}
+
 export async function main(argv: string[], env: Record<string, string | undefined>): Promise<number> {
   const mode = argv[0];
   if (mode === "--help" || mode === "-h") {
@@ -320,6 +351,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "history") {
       return runHistory(parseHistoryArgs(args.slice(1)), repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
+    if (mode === "reset-confidence") return runResetConfidence(args.slice(1), env);
     const [, prArg, ...rest] = args;
     if (mode !== "review" && mode !== "comment" && mode !== "threads") {
       throw new UsageError(mode ? `Unknown command "${mode}".` : "No command given.");
