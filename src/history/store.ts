@@ -208,6 +208,9 @@ function parseRun(path: string): HistoryRun {
   return parsed as HistoryRun;
 }
 
+/** The file names (not paths) of a repository's run files, oldest first. */
+export const runFileNames = (root: string, key: string): string[] => runFiles(root, key).map((p) => basename(p));
+
 const runFiles = (root: string, key: string) => {
   const dir = runsDir(root, key);
   if (!existsSync(dir)) return [];
@@ -221,10 +224,12 @@ const runFiles = (root: string, key: string) => {
  * Every readable run of a repository in `savedAt` order. A file that is not JSON or is structurally invalid
  * is renamed `<name>.unreadable-<unix-seconds>`, with one warning, and skipped. A file of another
  * format version is skipped with a warning and left alone: a downgrade must not lose history.
+ * With `only`, just the run files with those names are read; the others are not even opened.
  */
-export function readRuns(root: string, key: string, warn: (line: string) => void): HistoryRun[] {
+export function readRuns(root: string, key: string, warn: (line: string) => void, only?: ReadonlySet<string>): HistoryRun[] {
   const runs: HistoryRun[] = [];
   for (const path of runFiles(root, key)) {
+    if (only && !only.has(basename(path))) continue;
     try {
       runs.push(parseRun(path));
     } catch (error) {

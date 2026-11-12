@@ -18,7 +18,7 @@ import { readReviewResultFormat } from "../formats";
 import { wachimanHome } from "../accounts/config";
 import { stripWhitespace, titleKey } from "../history/fingerprint";
 import { replay, type ReplayedFinding } from "../history/match";
-import { historyRoot, readRuns, readVerdicts, repositoryKey } from "../history/store";
+import { historyRoot, readRuns, readVerdicts, repositoryKey, runFileNames } from "../history/store";
 import { LOCAL_FLAGS, parseFlags, runLocal, type LocalArgs, type LocalDeps } from "../local";
 import { location, sha7 } from "../sinks/common";
 import { LOOP_STATE_FORMAT, readLoop, writeLoop, type LedgerEntry, type LoopState } from "./state";
@@ -178,7 +178,13 @@ export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, str
   const key = repositoryKey(repoDir).key;
   const branch = currentBranch(repoDir);
   const head = headOf(repoDir);
-  const existing = readLoop(root, key, branch);
+  // With --base the old state is about to be replaced, so one this version cannot read is no obstacle.
+  let existing: LoopState | undefined;
+  try {
+    existing = readLoop(root, key, branch);
+  } catch (error) {
+    if (args.base === undefined || !(error instanceof UsageError)) throw error;
+  }
 
   let state: LoopState;
   if (args.base !== undefined) {
@@ -237,6 +243,7 @@ export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, str
     ...(args.profile !== undefined ? { profile: args.profile } : {}),
     ...(args.maxDepth !== undefined ? { maxDepth: args.maxDepth } : {}),
   };
+  const runsBefore = new Set(runFileNames(root, key));
   let made = attempt(localArgs, repoDir, env, io, deps);
   if ("ok" in made && !made.ok) {
     io.stderr(`loop: the review failed (${made.why}); trying once more.`);
@@ -257,9 +264,11 @@ export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, str
   }
 
   const { result } = made;
-  const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts());
+  const ownRuns = [...(state.runs ?? []), ...thisRound(root, key, runsBefore, result)];
+  const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts(), new Set(ownRuns));
   state = {
     ...state,
+    runs: ownRuns,
     rounds: [...state.rounds, { round, head: result.change.head.sha, at: now() }],
     ledger: decision.ledger,
     status: decision.decision.converged ? "converged" : "open",
@@ -267,6 +276,20 @@ export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, str
   writeLoop(root, key, state);
   const range: RoundReport["range"] = previous ? { kind: "since-previous-round", from: previous.head } : { kind: "whole", base: from };
   return render(report(state, round, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, args)));
+}
+
+/**
+ * The history run file this round's review saved: among the files that appeared during the call, the
+ * newest one for this head whose findings are the result's (a failed first attempt may have saved one too).
+ */
+function thisRound(root: string, key: string, before: ReadonlySet<string>, result: IdentifiedResult): string[] {
+  const names = runFileNames(root, key).filter((n) => !before.has(n));
+  const head = result.change.head.sha;
+  const ids = result.findings.map((f) => f.id).sort().join(",");
+  const candidates = names.flatMap((name) => readRuns(root, key, () => {}, new Set([name])).map((run) => ({ name, run }))).filter((c) => c.run.result.change.head.sha === head);
+  const exact = candidates.filter((c) => c.run.tracking.map((t) => t.firstId).sort().join(",") === ids);
+  const pick = (exact.length > 0 ? exact : candidates).at(-1);
+  return pick ? [pick.name] : [];
 }
 
 /** The new ledger and the decision after a round whose result and history entry exist. */
@@ -278,8 +301,10 @@ function settle(
   root: string,
   rangeFrom: string,
   verdicts: ReturnType<typeof readVerdicts>,
+  ownRuns: ReadonlySet<string>,
 ): { ledger: LedgerEntry[]; decision: Decision } {
-  const tracked = new Map(replay(readRuns(root, key, () => {}), verdicts).findings.map((f) => [f.firstId, f]));
+  // Only the runs of this loop's own rounds: a finding another review settled says nothing about this branch.
+  const tracked = new Map(replay(readRuns(root, key, () => {}, ownRuns), verdicts).findings.map((f) => [f.firstId, f]));
   const head = result.change.head.sha;
   const reportedIds = new Set(result.findings.map((f) => f.id));
   const renames = renamesIn(repoDir, rangeFrom, head);
@@ -325,11 +350,20 @@ function settle(
       entry.refuted =
         prior.refuted || dropped.some((d) => isRefutedBy({ path: d.path, line: d.line, topic: d.topic, titleKey: titleKey(d.title) }, { path, line: entry.line, topic: entry.topic, titleKey: titleOf }));
     }
-    // A release because the lines changed stands in later rounds that do not read the file. A round
-    // that reads it looks again, so a revert reopens the finding and a later change releases it again.
-    // A round that reports the finding clears it (`reported`).
-    if (!reported && status === "not-repeated") {
-      entry.linesChanged = readThisRound.has(path) ? t !== undefined && regionChanged(repoDir, head, path, t) : prior.linesChanged;
+    // A finding that a round settled as fixed or not repeated is looked at again whenever a round reads its
+    // file: the original line back means it is not fixed (a revert reopens it), changed lines release it.
+    // A round that does not read the file keeps what the previous round decided. A round that reports
+    // the finding again makes it `open` and clears all of this.
+    if (!reported) {
+      const settled = (x: LoopStatus) => x === "probably-fixed" || x === "not-repeated";
+      if (t !== undefined && readThisRound.has(path) && settled(status)) {
+        const changed = regionChanged(repoDir, head, path, t);
+        entry.status = changed && status === "probably-fixed" ? "probably-fixed" : "not-repeated";
+        entry.linesChanged = changed;
+      } else if (!readThisRound.has(path) && settled(prior.status)) {
+        entry.status = prior.status;
+        entry.linesChanged = prior.linesChanged;
+      }
     }
     return entry;
   });

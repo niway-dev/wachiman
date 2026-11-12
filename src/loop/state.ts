@@ -40,6 +40,12 @@ export interface LoopState {
   status: "open" | "converged";
   rounds: LoopRound[];
   ledger: LedgerEntry[];
+  /**
+   * The names of the history run files the loop's own rounds saved. The loop replays only these, so a
+   * review outside the loop (another branch, `wachiman local`) cannot settle its findings. A state
+   * written before this field existed has none: its runs are not known, and the ledger carries on.
+   */
+  runs?: string[];
 }
 
 const STATUSES: readonly string[] = ["new", "open", "probably-fixed", "not-repeated", "unknown"];
@@ -52,6 +58,7 @@ function valid(s: any, branch: string): s is LoopState {
     s.branch === branch &&
     typeof s.base === "string" &&
     (s.status === "open" || s.status === "converged") &&
+    (s.runs === undefined || (Array.isArray(s.runs) && s.runs.every((n: unknown) => typeof n === "string"))) &&
     Array.isArray(s.rounds) &&
     s.rounds.every((r: any) => r && Number.isInteger(r.round) && typeof r.head === "string" && typeof r.at === "string") &&
     Array.isArray(s.ledger) &&

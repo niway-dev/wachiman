@@ -9,7 +9,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import { A_HEAD, branchRepo, commit, git, removeTempRepos, type BranchRepo } from "../../test/support/temp-repo";
+import { wachimanHome } from "../accounts/config";
+import { historyRoot, repositoryKey, writeLoopFile } from "../history/store";
 import { parseLoopArgs, runLoop } from "./command";
+import { readLoop } from "./state";
 
 const temps: string[] = [];
 const temp = (prefix: string) => {
@@ -81,6 +84,8 @@ echo 'no answer scripted'; exit 3
     prompt: (n: number) => readFileSync(`${state}.prompt.${n}`, "utf8"),
     loop: (...args: string[]) => run(["loop", ...args]),
     history: (...args: string[]) => run(["history", ...args]),
+    /** A review outside the loop that is saved to the same history. */
+    local: (...args: string[]) => run(["local", "--repo-dir", repo.dir, "--history", ...args]),
     ghCalled: () => existsSync(join(bin, "gh-called")),
     /** The id the history lists for the one finding it tracks. */
     historyIds: () =>
@@ -280,6 +285,54 @@ describe("wachiman loop", () => {
     expect(fifth.released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "probably-fixed" })]);
   }, 300_000);
 
+  test("a review outside the loop, on a branch stacked on this one, cannot release a finding of the loop: only the loop's own runs count", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    expect(s.loop("--base", "main", "--max-rounds", "5").code).toBe(10);
+    const a1 = git(s.repo.dir, "rev-parse", "HEAD").trim();
+    // A stacked branch fixes the Blocker's line and a plain review of it, saved to the same history, does not report it.
+    git(s.repo.dir, "switch", "-q", "-c", "feat/stacked");
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE2 }, "fix on the stacked branch");
+    s.script(2, ["src/a.ts"], []);
+    expect(s.local("--base", a1, "--format", "json").code).toBe(0);
+    expect(s.history().stdout).toContain("probably-fixed");
+    // Back on the loop's branch, a commit to an unrelated file: the Blocker is still there and still open.
+    git(s.repo.dir, "switch", "-q", "feat/x");
+    commit(s.repo.dir, { "docs/note.md": "a note\n" }, "unrelated file");
+    s.script(3, ["docs/note.md"], []);
+    const r = s.loop("--max-rounds", "5", "--format", "json");
+    expect(r.code).toBe(10);
+    const doc = JSON.parse(r.stdout);
+    expect(doc.open.map((f: { path: string }) => f.path)).toEqual(["src/a.ts"]);
+    expect(doc.released).toEqual([]);
+  }, 300_000);
+
+  test("a finding the history marked probably-fixed is open again when a round that reads the file finds the original line back; it stays open in a round that does not read it", () => {
+    const s = scenario();
+    const Y = { path: "src/b.ts", line: 1, severity: "fix", topic: "bug", confidence: "high", title: "Wrong literal", body: "b is 'new'." };
+    s.script(1, BRANCH_FILES, [BLOCKER, Y]);
+    expect(s.loop("--base", "main", "--max-rounds", "6").code).toBe(10);
+    // Round 2 changes the Blocker's line; the model reads src/a.ts and does not report it: released.
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE2 }, "fix line two");
+    s.script(2, ["src/a.ts"], []);
+    const second = JSON.parse(s.loop("--max-rounds", "6", "--format", "json").stdout);
+    expect(second.released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "probably-fixed", status: "probably-fixed" })]);
+    expect(s.history().stdout).toContain("probably-fixed");
+    // Round 3 puts the original line back; the model reads src/a.ts and still does not report it: open again.
+    commit(s.repo.dir, { "src/a.ts": A_HEAD }, "revert the fix");
+    s.script(3, ["src/a.ts"], []);
+    const third = s.loop("--max-rounds", "6", "--format", "json");
+    expect(third.code).toBe(10);
+    const doc = JSON.parse(third.stdout);
+    expect(doc.open.map((f: { path: string }) => f.path).sort()).toEqual(["src/a.ts", "src/b.ts"]);
+    expect(doc.released).toEqual([]);
+    // Round 4 touches an unrelated file: the Blocker does not come back as released.
+    commit(s.repo.dir, { "docs/note.md": "a note\n" }, "unrelated file");
+    s.script(4, ["docs/note.md"], []);
+    const fourth = JSON.parse(s.loop("--max-rounds", "6", "--format", "json").stdout);
+    expect(fourth.open.map((f: { path: string }) => f.path).sort()).toEqual(["src/a.ts", "src/b.ts"]);
+  }, 300_000);
+
   test("a round that reports the finding again at changed lines keeps the loop open", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
@@ -399,6 +452,36 @@ describe("runLoop with a fake review", () => {
     expect(r.code).toBe(11);
     expect(fake.calls).toHaveLength(2);
     expect(JSON.parse(r.out).outcome.reason).toBe("review failed");
+  }, 30_000);
+
+  test("--base replaces a loop state this version cannot read; a plain call reports it with the instruction", () => {
+    const repo = branchRepo();
+    const home = temp("wachiman-home-");
+    const root = historyRoot(wachimanHome({ WACHIMAN_HOME: home }));
+    const key = repositoryKey(repo.dir).key;
+    const old = { format: "wachiman.loop-state/0", branch: "feat/x", base: "main" };
+    for (const state of [old, { format: "wachiman.loop-state/1", branch: "feat/x", base: "main", status: "open", rounds: [] }]) {
+      writeLoopFile(root, key, "feat/x", state);
+      const plain = () => run(repo, fakeReview(repo, ["ok"]), home);
+      expect(plain).toThrow(/start a new loop with `wachiman loop --base <ref>`/);
+      const fake = fakeReview(repo, ["ok"]);
+      expect(run(repo, fake, home, "--base", "main").code).toBe(0);
+      expect(fake.calls).toEqual(["main"]);
+      // The unreadable file was replaced by a state this version reads.
+      expect(() => readLoop(root, key, "feat/x")).not.toThrow();
+      expect(readLoop(root, key, "feat/x")?.base).toBe("main");
+    }
+  }, 30_000);
+
+  test("a loop state written before the runs field existed is still read, and the next round records its run list", () => {
+    const repo = branchRepo();
+    const home = temp("wachiman-home-");
+    const root = historyRoot(wachimanHome({ WACHIMAN_HOME: home }));
+    const key = repositoryKey(repo.dir).key;
+    writeLoopFile(root, key, "feat/x", { format: "wachiman.loop-state/1", branch: "feat/x", base: "main", status: "open", rounds: [], ledger: [] });
+    const fake = fakeReview(repo, ["ok"]);
+    expect(run(repo, fake, home).code).toBe(0);
+    expect(readLoop(root, key, "feat/x")?.runs).toEqual([]);
   }, 30_000);
 
   test("a usage error from the review is not retried", () => {
