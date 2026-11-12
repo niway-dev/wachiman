@@ -16,4 +16,8 @@ describe("inertText references", () => {
   test("a hash that is not followed by a digit stays as written", () => {
     expect(inertText("C# and #hashtag and ## heading")).toBe("C# and #hashtag and ## heading");
   });
+
+  test("an ampersand is escaped so an HTML entity cannot spell a reference or a mention", () => {
+    expect(inertText("fixes &#35;12 by &#64;user").replaceAll(ZWSP, "")).toBe("fixes &amp;#35;12 by &amp;#64;user");
+  });
 });
