@@ -37,3 +37,4 @@ Each document is one unit of evidence. The synthesis is written last, from these
 | [repos/discourse.md](repos/discourse.md) | Discourse testing practice | done |
 | [synthesis.md](synthesis.md) | All of the above | done |
 | [skill-draft-test-map.md](skill-draft-test-map.md) | Test-mapping heuristics (draft skill, not installed) | done |
+| [decisions-2026-11-12.md](decisions-2026-11-12.md) | Owner decisions after the research | done |
