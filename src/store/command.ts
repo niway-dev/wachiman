@@ -51,16 +51,22 @@ function writeFileAtomic(path: string, text: string) {
   const tmp = `${path}.tmp-${process.pid}`;
   const fd = openSync(tmp, "w", 0o600);
   try {
-    writeSync(fd, text);
-    fsyncSync(fd);
+    try {
+      writeSync(fd, text);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    chmodSync(tmp, 0o600);
+    renameSync(tmp, path);
   } catch (error) {
-    closeSync(fd);
-    unlinkSync(tmp);
+    try {
+      unlinkSync(tmp);
+    } catch {
+      // Already gone.
+    }
     throw error;
   }
-  closeSync(fd);
-  chmodSync(tmp, 0o600);
-  renameSync(tmp, path);
 }
 
 export interface DashboardIo {

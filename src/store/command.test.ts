@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { UsageError } from "../config";
 import { checkKeywords, validate } from "../../test/support/json-schema";
 import { ALPHA, EXPECTED, fixtureHome, removeFixtureHomes } from "../../test/support/dashboard-fixture";
@@ -176,6 +176,15 @@ describe("wachiman dashboard (HTML)", () => {
     expect(dashboard(["--out", out], home).stdout).toBe(`${out}\n`);
     expect(readFileSync(out, "utf8")).toContain("Wachiman dashboard");
     expect(dashboard(["--out", out], home).code).toBe(0);
+  });
+
+  test("--out naming a directory fails with exit 1 and leaves no temporary file", () => {
+    const { home } = fixtureHome();
+    const dir = temp("wachiman-dash-out-");
+    const r = dashboard(["--out", dir], home);
+    expect(r.code).toBe(1);
+    expect(readdirSync(tmpdir()).filter((n) => n.startsWith(`${basename(dir)}.tmp-`))).toEqual([]);
+    expect(readdirSync(dir)).toEqual([]);
   });
 
   test("makes no external request: no script, no resource reference, no http(s) address, a policy that forbids them", () => {
