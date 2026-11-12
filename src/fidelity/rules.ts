@@ -78,9 +78,10 @@ export function isTestPath(path: string): boolean {
  * and each added line equals the removed line at its place once the whitespace at its two edges is
  * trimmed. Whitespace inside a line is never touched, so a string literal, `a - -b` against `a --b`,
  * a run of spaces made one, or a statement split or joined over lines is a change. A hunk with a
- * backtick, a `"""` text block or a `<<` heredoc opener is never formatting: the value of such a
- * multiline string depends on its indentation (a `<<` shift operator is caught too, which only makes
- * the file unexplained).
+ * backtick, a `"""` text block or a `<<` heredoc opener, on a changed line or on a context line
+ * around it, is never formatting: the value of such a multiline string depends on its indentation (a
+ * `<<` shift operator is caught too, which only makes the file unexplained). An opener further above
+ * than the hunk's context is not seen.
  * Code that moved between hunks, a changed token, a patch with nothing changed and no patch at all
  * are all false.
  */
@@ -89,15 +90,17 @@ export function isFormattingOnly(patch: string | undefined): boolean {
   let inHunk = false;
   let removed: string[] = [];
   let added: string[] = [];
+  let context: string[] = [];
   let changedHunks = 0;
   const close = (): boolean => {
     const changed = removed.length + added.length > 0;
     if (changed) changedHunks++;
-    const template = [...removed, ...added].some((line) => MULTILINE_STRING_OPENER.some((opener) => line.includes(opener)));
+    const template = [...removed, ...added, ...context].some((line) => MULTILINE_STRING_OPENER.some((opener) => line.includes(opener)));
     const same = removed.length === added.length && removed.every((line, i) => line.trim() === added[i]!.trim());
     const ok = !changed || (same && !template);
     removed = [];
     added = [];
+    context = [];
     return ok;
   };
   for (const line of patch.split("\n")) {
@@ -110,6 +113,8 @@ export function isFormattingOnly(patch: string | undefined): boolean {
       removed.push(line.slice(1));
     } else if (line.startsWith("+")) {
       added.push(line.slice(1));
+    } else if (line.startsWith(" ")) {
+      context.push(line.slice(1));
     }
   }
   if (inHunk && !close()) return false;

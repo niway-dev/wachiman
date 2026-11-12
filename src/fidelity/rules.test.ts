@@ -156,6 +156,13 @@ describe("isFormattingOnly", () => {
     expect(isFormattingOnly(patch("@@ -1 +1 @@", "-$x = <<<EOT", "+  $x = <<<EOT"))).toBe(false);
   });
 
+  test("an opener on an unchanged context line still makes the re-indented body a change", () => {
+    expect(isFormattingOnly(patch("@@ -1,3 +1,3 @@", " const s = `", "-  a", "+    a", " `;"))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1,3 +1,3 @@", ' String s = """', "-    a", "+        a", ' """;'))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1,3 +1,3 @@", " cat <<-EOT", "-  a", "+    a", " EOT"))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1,3 +1,3 @@", " const a = 1;", "-    f();", "+  f();", " g();"))).toBe(true);
+  });
+
   test("a statement joined onto one line, or split over several, is a change", () => {
     expect(isFormattingOnly(patch("@@ -1,2 +1 @@", "-return", "- value;", "+return value;"))).toBe(false);
     expect(isFormattingOnly(patch("@@ -1 +1,3 @@", "-call(a, b, c);", "+call(", "+  a, b, c", "+);"))).toBe(false);
