@@ -259,6 +259,13 @@ describe("explainedByRule", () => {
     ).toBeUndefined();
   });
 
+  test("a test in a flat test directory is matched by stem alone, a known trade-off that also makes test/grade.test.ts find src/fidelity/grade.ts", () => {
+    const confirmed = new Set(["src/auth/index.ts"]);
+    expect(explainedByRule({ path: "test/index.test.ts" }, { confirmedPaths: confirmed })).toBe("test-of-confirmed-claim");
+    expect(explainedByRule({ path: "tests/test_index.py" }, { confirmedPaths: confirmed })).toBe("test-of-confirmed-claim");
+    expect(explainedByRule({ path: "test/index.test.ts" }, { confirmedPaths: new Set(["src/auth/session.ts"]) })).toBeUndefined();
+  });
+
   test("a source file confirmed by a claim is not explained by the test rule, and unknown files stay unexplained", () => {
     expect(explainedByRule({ path: "src/risk.ts" }, { confirmedPaths: new Set(["src/risk.ts"]) })).toBeUndefined();
     expect(explainedByRule({ path: "src/session.ts" })).toBeUndefined();
