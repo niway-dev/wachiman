@@ -94,8 +94,10 @@ export const USAGE = `Usage:
                                                      and verdict and the loop rounds of every repository in
                                                      the local history. Built from an index under the
                                                      Wachiman home that is rebuilt whenever it is missing or
-                                                     out of date; reads files only: no claude, no GitHub,
-                                                     no network, no browser. --repo-dir is accepted and unused
+                                                     out of date. It writes only that index and the page,
+                                                     and, like \`wachiman history\`, moves a damaged run
+                                                     file aside. No claude, no GitHub, no network, no
+                                                     server, no browser. --repo-dir is accepted and unused
   ${setupUsage}
                                                      Bind this repository to an account profile; written
                                                      in the Wachiman home, never in the repository. On a

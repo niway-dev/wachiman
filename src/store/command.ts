@@ -1,7 +1,8 @@
 /**
  * `wachiman dashboard`: brings the local index up to date from the history files, then prints the
- * figures as `wachiman.dashboard/1` JSON or writes them as one static HTML file (ADR 0035). It reads
- * files only: no `claude`, no GitHub, no network, no server, and it never opens a browser.
+ * figures as `wachiman.dashboard/1` JSON or writes them as one static HTML file (ADR 0035). It writes
+ * only the index and the page; like `wachiman history`, it moves a damaged run file aside. No `claude`,
+ * no GitHub, no network, no server, and it never opens a browser.
  */
 import { chmodSync, closeSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
