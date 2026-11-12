@@ -1,10 +1,10 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { UsageError } from "../config";
 import { MAX_INSTRUCTION_BYTES } from "../engine";
-import { spawnGit } from "../evidence";
+import { spawnGit, type GitRunner } from "../evidence";
 import { validate } from "../../test/support/json-schema";
 import { A_HEAD, branchRepo, commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import {
@@ -14,6 +14,7 @@ import {
   removeSnapshot,
   resolveRefs,
   snapshotHead,
+  snapshotTimeoutMs,
   splitPatches,
   tarCommand,
 } from "./local-git";
@@ -278,6 +279,119 @@ describe("snapshotHead", () => {
     expect(warnings).toContain(
       "The snapshot lacks 1 file(s) that the head commit has (export-ignore in .gitattributes, or a submodule): secret.txt",
     );
+  });
+
+  /** Every file under `dir` with its size and mtime: a change anywhere shows. */
+  const stateOf = (dir: string): string[] => {
+    const out: string[] = [];
+    const walk = (d: string) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        const p = join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else out.push(`${p}:${statSync(p).size}:${statSync(p).mtimeMs}`);
+      }
+    };
+    walk(join(dir, ".git"));
+    return out.sort();
+  };
+
+  test("the snapshot borrows the clone's objects through alternates and writes nothing to the clone", () => {
+    const r = branchRepo();
+    const beforeStatus = git(r.dir, "status", "--porcelain");
+    const beforeState = stateOf(r.dir);
+    const snapshot = snapshotHead(r.dir, r.head);
+    snapshots.push(snapshot.dir);
+    const alternates = readFileSync(join(snapshot.dir, ".git", "objects", "info", "alternates"), "utf8");
+    expect(alternates.endsWith("\n")).toBe(true);
+    expect(realpathSync(alternates.trim())).toBe(realpathSync(join(r.dir, ".git", "objects")));
+    const grep = spawnGit(["grep", "-n", "-F", "-e", "export const d = 4;"], { cwd: snapshot.dir, timeoutMs: 5000 });
+    expect(grep.stdout).toBe("src/a.ts:4:export const d = 4;\n");
+    expect(snapshot.missing).toEqual([]);
+    expect(snapshot.extra).toEqual([]);
+    // The file state first: `git status` itself may refresh the index.
+    expect(stateOf(r.dir)).toEqual(beforeState);
+    expect(git(r.dir, "status", "--porcelain")).toBe(beforeStatus);
+  });
+
+  test("a linked worktree borrows the objects of the main repository", () => {
+    const r = branchRepo();
+    const linked = `${mkdtempSync(join(tmpdir(), "wachiman-linked-"))}/wt`;
+    git(r.dir, "worktree", "add", "-q", "--detach", linked, r.head);
+    try {
+      const snapshot = snapshotHead(linked, r.head);
+      snapshots.push(snapshot.dir);
+      const alternates = readFileSync(join(snapshot.dir, ".git", "objects", "info", "alternates"), "utf8").trim();
+      expect(realpathSync(alternates)).toBe(realpathSync(join(r.dir, ".git", "objects")));
+      const grep = spawnGit(["grep", "-n", "-F", "-e", "export const d = 4;"], { cwd: snapshot.dir, timeoutMs: 5000 });
+      expect(grep.stdout).toBe("src/a.ts:4:export const d = 4;\n");
+      expect(snapshot.missing).toEqual([]);
+      expect(snapshot.extra).toEqual([]);
+    } finally {
+      rmSync(dirname(linked), { recursive: true, force: true });
+    }
+  });
+
+  test("an export-ignore path and a submodule gitlink are missing, not extra, and not in the snapshot's index", () => {
+    const r = branchRepo();
+    commit(r.dir, { ".gitattributes": "secret.txt export-ignore\n", "secret.txt": "kept out\n" }, "export-ignore");
+    git(r.dir, "update-index", "--add", "--cacheinfo", `160000,${r.mergeBase},sub`);
+    git(r.dir, "commit", "-q", "-m", "gitlink");
+    const head = git(r.dir, "rev-parse", "HEAD").trim();
+    const snapshot = snapshotHead(r.dir, head);
+    snapshots.push(snapshot.dir);
+    expect([...snapshot.missing].sort()).toEqual(["secret.txt", "sub"]);
+    expect(snapshot.extra).toEqual([]);
+    const listed = git(snapshot.dir, "ls-files").split("\n");
+    expect(listed).not.toContain("secret.txt");
+    expect(listed).not.toContain("sub");
+    expect(listed).toContain("src/a.ts");
+  });
+
+  test("a file on disk that the head does not have is extra", () => {
+    const r = branchRepo();
+    // The fake runner lets `tar` run for real but adds a stray file right after it.
+    const fake: GitRunner = (args, opts) => {
+      const out = spawnGit(args, opts);
+      if (args[0] === "init") writeFileSync(join(opts.cwd, "stray.txt"), "x\n");
+      return out;
+    };
+    const snapshot = snapshotHead(r.dir, r.head, fake);
+    snapshots.push(snapshot.dir);
+    expect(snapshot.extra).toEqual(["stray.txt"]);
+  });
+
+  test("snapshotTimeoutMs is 60 s plus 3 ms per file", () => {
+    expect(snapshotTimeoutMs(0)).toBe(60_000);
+    expect(snapshotTimeoutMs(31_900)).toBe(155_700);
+  });
+
+  test("a timed-out step is reported with its name, the file count and what to do, and nothing is left behind", () => {
+    const r = branchRepo();
+    const before = readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"));
+    const fake: GitRunner = (args, opts) =>
+      args.includes("archive") ? { status: null, stdout: "", timedOut: true, error: "spawnSync git ETIMEDOUT" } : spawnGit(args, opts);
+    let message = "";
+    try {
+      snapshotHead(r.dir, r.head, fake);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain('Snapshot step "git archive" timed out after 60 s on a head of 5 files.');
+    expect(message).toContain("retry when it is less loaded");
+    expect(message).toContain(tmpdir());
+    expect(readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"))).toEqual(before);
+  });
+
+  test("when read-tree fails the snapshot falls back to hashing the files and is the same", () => {
+    const r = branchRepo();
+    const fake: GitRunner = (args, opts) =>
+      args[0] === "read-tree" ? { status: 128, stdout: "", stderr: "missing tree" } : spawnGit(args, opts);
+    const snapshot = snapshotHead(r.dir, r.head, fake);
+    snapshots.push(snapshot.dir);
+    expect(existsSync(join(snapshot.dir, ".git", "objects", "info", "alternates"))).toBe(false);
+    expect(snapshot.missing).toEqual([]);
+    expect(snapshot.extra).toEqual([]);
+    expect(git(snapshot.dir, "ls-files")).toContain("src/a.ts");
   });
 });
 

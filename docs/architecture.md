@@ -384,10 +384,17 @@ same `ReviewInput` from a clone, reading it with `git` only (the minimal environ
    commit's author.
 6. `snapshotHead`: `git archive` of the head extracted with `tar` into a `wachiman-snapshot-`
    directory, which becomes `headDir`. The evidence step runs `git grep` in the head, and a plain
-   directory is not a repository, so the snapshot gets an index of its own (`git init`, `git add
-   -A -f`, no commit, every filter attribute unset); `git grep` then sees exactly the archived
-   files. A snapshot that differs from `git ls-tree` of the head (`export-ignore`, submodules) is
-   a warning.
+   directory is not a repository, so the snapshot gets an index of its own (`git init`, no
+   commit, every filter attribute unset). The index is not built by hashing the files: the
+   snapshot lists the clone's object directory in `objects/info/alternates` (read-only; nothing is
+   written to the clone, and a linked worktree resolves to the main repository's objects),
+   `git read-tree <head>` fills the index from the tree, and the index is trimmed to the files
+   `tar` extracted (submodule gitlinks and `export-ignore` paths are dropped). If `read-tree`
+   fails (a partial clone without the tree objects) it falls back to `git add -A -f`: slower, same
+   result, never a fetch. `git grep` then sees exactly the archived files. Each step may run for
+   60 s plus 3 ms per file of the head (`snapshotTimeoutMs`); a step that times out is an error
+   naming the step and the file count. A snapshot that differs from `git ls-tree` of the head
+   (`export-ignore`, submodules) is a warning.
 7. `wachiman local` (`src/local.ts`) removes the snapshot on every exit path.
 
 Two tests hold the connector to GitHub's: level (b) in `test/parity.test.ts` runs the core on

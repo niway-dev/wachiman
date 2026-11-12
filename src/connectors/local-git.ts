@@ -5,13 +5,14 @@
  * head the agent reads is a snapshot, so later edits of the working tree change nothing.
  *
  * The snapshot is a `git archive` of the head extracted into a temporary directory, with an index
- * of its own (`git init`, `git add -A -f`, no commit): the evidence step runs `git grep` in the
- * head, and in a plain directory that fails (spec correction 1 of the plan).
+ * of its own (`git init`, the clone's objects as alternates, `git read-tree`, trimmed to the
+ * extracted files, no commit): the evidence step runs `git grep` in the head, and in a plain
+ * directory that fails (spec correction 1 of the plan).
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { UsageError } from "../config";
 import {
   instructionFileOf,
@@ -367,29 +368,80 @@ export function tarCommand(platform: string = process.platform, env: Record<stri
 }
 
 /**
- * The committed `head` as a directory: `git archive` extracted with the system `tar`, then an
- * index of its own so `git grep` sees exactly the archived files. `missing` and `extra` compare the
- * snapshot with `git ls-tree` of the head (export-ignore and submodules make them differ).
+ * Time allowed to each snapshot step (archive, tar, read-tree, ls-files, update-index) for a head of
+ * `fileCount` files: the old 60 s floor plus 3 ms per file. `tar -xf` was measured at 9 s for 31.9k
+ * files / 660 MB (about 0.3 ms per file) on a loaded laptop; 3 ms per file is 10x that rate, so 31.9k
+ * files get about 156 s.
+ */
+export const snapshotTimeoutMs = (fileCount: number) => 60_000 + fileCount * 3;
+
+/** The error for a snapshot step that ran out of time: which step, on how many files, what to do. */
+function snapshotTimeout(step: string, ms: number, fileCount: number) {
+  return new Error(
+    `Snapshot step "${step}" timed out after ${Math.round(ms / 1000)} s on a head of ${fileCount.toLocaleString("en-US")} files. ` +
+      `The machine may be busy or the disk slow; retry when it is less loaded, or free space in the temporary directory (${tmpdir()}).`,
+  );
+}
+
+/**
+ * The committed `head` as a directory: `git archive` extracted with the system `tar`, then an index
+ * of its own so `git grep` sees exactly the archived files. The index is not built by hashing the
+ * files (`git add -A -f` took ~50 s on 32k files): the snapshot borrows the clone's objects through
+ * `objects/info/alternates` (read-only; nothing is written to the clone), `git read-tree <head>`
+ * fills the index from the tree, and the index is trimmed to what `tar` extracted (read-tree also
+ * lists submodule gitlinks and export-ignore paths). If read-tree fails (a partial clone lacks tree
+ * objects) the old `git add -A -f` runs instead: slower, same result. `missing` and `extra` compare
+ * the snapshot with `git ls-tree` of the head (export-ignore and submodules make them differ).
+ * Steps get `snapshotTimeoutMs` of the head's file count.
  */
 export function snapshotHead(repoDir: string, head: string, git: GitRunner = spawnGit): { dir: string; missing: string[]; extra: string[] } {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-snapshot-")));
   // Beside the snapshot, not inside it: a file of the same name in the head would collide.
   const tar = `${dir}.tar`;
   try {
+    const tree = new Set(names(run(git, repoDir, ["ls-tree", "-r", "-z", "--name-only", head], DIFF_MAX_BYTES)));
+    const files = tree.size;
+    const limit = snapshotTimeoutMs(files);
+    const step = (label: string, cwd: string, args: string[]) => {
+      const out = git(args, { cwd, timeoutMs: limit, maxBytes: DIFF_MAX_BYTES });
+      if (out.timedOut) throw snapshotTimeout(label, limit, files);
+      if (out.status !== 0 || out.error || out.outputCut) {
+        const why = out.outputCut ? "output too large" : (out.error ?? out.stderr?.trim() ?? `status ${out.status}`);
+        throw new Error(`git ${args.join(" ")} failed in ${cwd}: ${why}`);
+      }
+      return out.stdout;
+    };
     // core.autocrlf=true (the Git for Windows default) and core.eol=native with a `text=auto` attribute
     // would both write CRLF into the archive. The snapshot should hold the committed bytes, so both are
     // switched off for this one command (a file with an explicit `eol=crlf` attribute is still converted).
-    run(git, repoDir, ["-c", "core.autocrlf=false", "-c", "core.eol=lf", "archive", "--format=tar", `--output=${tar}`, head]);
-    const untar = spawnSync(tarCommand(), ["-xf", tar], { cwd: dir, encoding: "utf8", timeout: TIMEOUT_MS });
+    step("git archive", repoDir, ["-c", "core.autocrlf=false", "-c", "core.eol=lf", "archive", "--format=tar", `--output=${tar}`, head]);
+    const untar = spawnSync(tarCommand(), ["-xf", tar], { cwd: dir, encoding: "utf8", timeout: limit });
+    if ((untar.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") throw snapshotTimeout("tar -xf", limit, files);
     if (untar.status !== 0) throw new Error(`tar -xf failed: ${untar.stderr || untar.error}`);
     rmSync(tar, { force: true });
-    run(git, dir, ["init", "-q", "--template="]);
+    step("git init", dir, ["init", "-q", "--template="]);
     // No clean or smudge filter (LFS, git-crypt) runs on the copy: the index only lists the files.
     mkdirSync(join(dir, ".git", "info"), { recursive: true });
     writeFileSync(join(dir, ".git", "info", "attributes"), "* -filter\n");
-    run(git, dir, ["add", "-A", "-f"]);
-    const tree = new Set(names(run(git, repoDir, ["ls-tree", "-r", "-z", "--name-only", head], DIFF_MAX_BYTES)));
-    const copied = new Set(names(run(git, dir, ["ls-files", "-z"], DIFF_MAX_BYTES)));
+    // `--git-path objects` is the common dir's objects for a linked worktree, and may be relative to `repoDir`.
+    const objects = resolve(repoDir, run(git, repoDir, ["rev-parse", "--git-path", "objects"]).trim());
+    const alternates = join(dir, ".git", "objects", "info", "alternates");
+    mkdirSync(dirname(alternates), { recursive: true });
+    writeFileSync(alternates, `${objects}\n`);
+    const read = git(["read-tree", head], { cwd: dir, timeoutMs: limit });
+    if (read.timedOut) throw snapshotTimeout("git read-tree", limit, files);
+    if (read.status !== 0 || read.error) {
+      // Tree objects missing here (a partial clone): hash the files instead. Never fetch.
+      rmSync(alternates, { force: true });
+      rmSync(join(dir, ".git", "index"), { force: true });
+      rmSync(join(dir, ".git", "index.lock"), { force: true });
+      step("git add", dir, ["add", "-A", "-f"]);
+    } else {
+      trimIndex(dir, git, limit, files);
+    }
+    const copied = new Set(names(step("git ls-files", dir, ["ls-files", "-z"])));
+    // Files on disk that the head does not have (what `git add -A -f` used to add): a directory walk, no hashing.
+    for (const f of names(step("git ls-files --others", dir, ["ls-files", "-z", "--others"]))) copied.add(f);
     return {
       dir,
       missing: [...tree].filter((f) => !copied.has(f)),
@@ -399,6 +451,42 @@ export function snapshotHead(repoDir: string, head: string, git: GitRunner = spa
     removeSnapshot(dir);
     throw error;
   }
+}
+
+/**
+ * Drops from the snapshot's index what `tar` did not extract as a file or a symlink: submodule
+ * gitlinks (mode 160000), export-ignore paths and anything else not on disk.
+ */
+function trimIndex(dir: string, git: GitRunner, limit: number, files: number) {
+  const listing = git(["ls-files", "-s", "-z"], { cwd: dir, timeoutMs: limit, maxBytes: DIFF_MAX_BYTES });
+  if (listing.timedOut) throw snapshotTimeout("git ls-files -s", limit, files);
+  if (listing.status !== 0 || listing.error || listing.outputCut) throw new Error(`git ls-files -s failed in ${dir}: ${listing.error ?? listing.stderr?.trim() ?? `status ${listing.status}`}`);
+  const drop: string[] = [];
+  for (const entry of names(listing.stdout)) {
+    // `<mode> <sha> <stage>\t<path>`
+    const tab = entry.indexOf("\t");
+    const path = entry.slice(tab + 1);
+    if (entry.startsWith("160000 ")) {
+      drop.push(path);
+      continue;
+    }
+    try {
+      const stat = lstatSync(join(dir, path));
+      if (!stat.isFile() && !stat.isSymbolicLink()) drop.push(path);
+    } catch {
+      drop.push(path);
+    }
+  }
+  if (drop.length === 0) return;
+  const out = spawnSync("git", [...GIT_BASE_ARGS, "update-index", "--force-remove", "-z", "--stdin"], {
+    cwd: dir,
+    env: gitEnv(),
+    input: `${drop.join("\0")}\0`,
+    timeout: limit,
+    maxBuffer: DIFF_MAX_BYTES,
+  });
+  if ((out.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") throw snapshotTimeout("git update-index", limit, files);
+  if (out.status !== 0) throw new Error(`git update-index --force-remove failed in ${dir}: ${out.stderr?.toString() || out.error}`);
 }
 
 export function removeSnapshot(dir: string) {

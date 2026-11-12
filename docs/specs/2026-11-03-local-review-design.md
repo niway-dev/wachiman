@@ -295,6 +295,12 @@ text above; the plan recorded the first four as spec corrections.
    evidence step runs `git grep` in the head, so the connector runs `git init` and `git add -A -f`
    in the snapshot (no commit, every filter attribute unset). The `ls-tree` comparison compares
    the head's tree with the snapshot's `git ls-files`.
+
+   *Note (2026-11-12, issue #193):* `git add -A -f` rehashed every file and took about 50 s on a
+   32k-file repository, past the fixed 60 s timeout. The snapshot now borrows the clone's objects
+   through `objects/info/alternates`, fills the index with `git read-tree <head>` and trims it to
+   the extracted files; `git add -A -f` stays as the fallback when `read-tree` fails. Timeouts
+   scale with the head's file count.
 2. **A quota stop reuses #109's error classes.** A usage limit is `billing` and ends with
    `stop: "quota"`; a signed-out `claude` ("Not logged in · Please run /login") is `auth` and ends
    with `stop: "error"` and the provider's text, both with the list of files not reviewed. The
