@@ -14,8 +14,8 @@ approves, never requests changes and never blocks a merge, including when a find
 | What you do | What happens |
 | --- | --- |
 | Open a pull request, or mark a draft ready for review | The automatic review runs. |
-| Push more commits | If your caller lists `synchronize` (the templates do), a review of only the commits that are new since the last complete review. See [Reviews on push](#reviews-on-push). Otherwise nothing. |
-| Comment `/wachiman review` (as the operator) | A review of what is new since the last complete review, or of the whole pull request if there is none. |
+| Push more commits | If your caller lists `synchronize` (the templates do), a review of only the commits that are new since the last review, plus the files a partial review did not reach. See [Reviews on push](#reviews-on-push). Otherwise nothing. |
+| Comment `/wachiman review` (as the operator) | A review of what is new since the last review plus the files a partial review did not reach, or of the whole pull request if there is no review yet. |
 | Comment `/wachiman review <path> [path…]` | A review of only those paths. See [Limit a review to some paths](#limit-a-review-to-some-paths). |
 | Comment `/wachiman` followed by anything else | The comment is treated as a question and answered. See [Ask a question](#ask-a-question). |
 
@@ -253,7 +253,8 @@ files into **batches** and makes one provider call per batch, one after another.
 With `synchronize` in the caller's `pull_request` types (both templates have it) and
 `review_on_push` left at `true`, every push to an open pull request starts the automatic review
 job. It is the same incremental review as `/wachiman review`, so it covers only what is new since the
-last complete review ([ADR 0011](adr/0011-review-every-push-incrementally.md)). It still skips
+last review ([ADR 0011](adr/0011-review-every-push-incrementally.md)), plus the files a partial
+review did not reach ([ADR 0036](adr/0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)). It still skips
 drafts, forks, Dependabot and the skipped branch prefixes. A burst of pushes runs once: the job's
 concurrency group cancels the older run, and the cancelled run posts nothing.
 
@@ -311,17 +312,26 @@ push posts one "Automatic reviews paused" notice and no review, and `/wachiman r
 
 | The operator comments… | …and the engine does |
 | --- | --- |
-| `/wachiman review`, a complete review exists, the head moved ahead of it | Reviews only the files that changed since the commit of the last complete review. The first line says "changes since `…`". |
-| `/wachiman review`, no complete review yet | Reviews the whole pull request. |
+| `/wachiman review`, the last review was complete, the head moved ahead of it | Reviews only the files that changed since that review's commit. The first line says "changes since `…`". |
+| `/wachiman review`, the last review was partial, the head moved or not | Reviews the files that changed since that review's commit, if any, and the files it did not reach, each whole. The first line names both: "… and the 3 files the previous review did not reach". |
+| `/wachiman review`, no review yet | Reviews the whole pull request. |
 | `/wachiman review`, head unchanged since the last complete review | Posts "Already reviewed at `…`. Push changes, or ask `/wachiman review <paths>`." No model call. |
-| `/wachiman review`, the branch was rewritten since the last complete review (a rebase, a force-push) | Compares the pull request's lines as in [Reviews on push](#reviews-on-push): no model call if they are the same, only the files that differ otherwise, the whole pull request if that cannot be compared. |
+| `/wachiman review`, the branch was rewritten since the last review (a rebase, a force-push) | Compares the pull request's lines as in [Reviews on push](#reviews-on-push): no model call if they are the same, only the files that differ otherwise, the whole pull request if that cannot be compared. |
 | `/wachiman review`, but every changed file is excluded | Posts "Nothing to review at `…`", saying the files are lockfiles, build output, generated, or outside the requested paths. |
 
-Only a **complete, unscoped** review moves the starting point for the next one. A partial review
-or a scoped review does not, so after either, the next plain `/wachiman review` starts from the last
-complete one and covers everything since, including files the partial or scoped review already
-read. A pull request that always comes back partial therefore keeps being reviewed from the same
-older commit.
+An **unscoped** review moves the starting point for the next one, complete or partial. A partial
+review also records the files it did not reach, and the next unscoped review reads those whole
+([ADR 0036](adr/0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)),
+so the files it did read are not paid for again. Two limits:
+
+- A file sent to the agent in two reviews that came back not reviewed both times is named "Not
+  reviewed after two tries" and is no longer carried. Ask for it with `/wachiman review <path>`.
+- A list of unread files too long to record (about 110 files) is not recorded: the job log warns,
+  and the next review covers the whole pull request again.
+
+A scoped review moves nothing. After it, the next plain `/wachiman review` starts where the last
+unscoped review left off, and reads again the files the scoped review already read if they changed
+since.
 
 ## Limit a review to some paths
 

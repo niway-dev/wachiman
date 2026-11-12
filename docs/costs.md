@@ -166,7 +166,7 @@ for one budget is finished over several pushes, not paid for again from batch 1.
 - **Pushes.** With `synchronize` in the caller (the templates have it), every push to an open pull
   request starts a review with its own `budget_usd`, until the pull request's automatic runs reach
   `auto_budget_usd` ([above](#the-ceiling-per-pull-request)). It reads only what is new since the last
-  complete review, so a small fix costs a small review, but a pull request that gets ten pushes pays
+  review, plus the files a partial review did not reach, so a small fix costs a small review, but a pull request that gets ten pushes pays
   for ten reviews, and a push that changes many files can spend the whole budget again. A rebase
   with no change in the pull request's lines costs no model call (one runner job of a few seconds and
   one line on the pull request). A burst of pushes runs once, because the older run is cancelled; what
