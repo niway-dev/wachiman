@@ -258,12 +258,13 @@ wachiman loop --max-rounds 5 --format json
   --forget` removes the state with the history.
 - **Flags:** `--base`, `--max-rounds <n>` (default 3), `--max-depth`, `--format terminal|json`,
   `--profile`, `--verify|--no-verify`, `--repo-dir`. It takes no paths, `--commit` or `--from`.
-- **The loop stays open** while a 🔴 Blocker or 🟠 Fix is new, open, not-repeated or unknown (the round
-  did not read its file, so nobody has settled it), not refuted by
+- **The loop stays open** while a 🔴 Blocker or 🟠 Fix is new, open or not-repeated, not refuted by
   the verifier and not judged `wrong` with a reason (`wachiman history --verdict <id> wrong
-  --reason "<why>"`). A finding the history settled as `not-repeated` is released only when a later
-  round's commits changed its lines and that round did not report it. 🟡 and ⚪ are listed and never
-  count. A call with no new commit makes no review call and still counts as a round.
+  --reason "<why>"`). The loop decides from each round's own result and the code, not from the
+  history. In a file the round read, a finding it reported again is open; one it did not report is
+  released as `probably-fixed` when its cited line is gone and stays open (`not-repeated`) when the
+  line is still there. A file the round did not read keeps its previous state. 🟡 and ⚪ are listed
+  and never count. A call with no new commit makes no review call and still counts as a round.
 - **Output:** the round, what keeps the loop open (with ids), what no longer does and why
   (`probably-fixed`, `refuted`, `judged wrong`), the notes, and the outcome. `--format json` prints
   `wachiman.loop-round/1`.

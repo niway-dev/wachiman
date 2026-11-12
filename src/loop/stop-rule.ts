@@ -3,15 +3,15 @@
  * The command gathers one `LoopFinding` per finding the loop has seen and this module says which
  * of them keep the loop open.
  *
- * The loop stays open while a 🔴 Blocker or 🟠 Fix is new, open, not-repeated (or unknown: the
- * round did not read its file, so nobody has settled it), not refuted by the verifier and not judged
- * `wrong` with a reason. 🟡 Consider and ⚪ Info are listed as notes and never count.
+ * The loop stays open while a 🔴 Blocker or 🟠 Fix is new, open or not-repeated, not refuted by the
+ * verifier and not judged `wrong` with a reason. 🟡 Consider and ⚪ Info are listed as notes and
+ * never count.
  *
- * `not-repeated` is the history's word for "the file was read, its lines did not change and the run
- * did not report it". A later round only reads the fix commits, so that proves nothing about the
- * lines: the finding is released only when a later round's range changed its lines and that round
- * did not report it again. The command computes that fact (`linesChanged`); a round that did report
- * it again has the status `open`, so `linesChanged` alone never releases a reported finding.
+ * The command sets the status from the round's own result and the code, not from the history: a
+ * finding the round reported again is `open`; in a file the round read, one it did not report is
+ * `probably-fixed` when its cited line is gone and `not-repeated` (still counts) when the line is
+ * still there; a file the round did not read keeps the previous status. `linesChanged` exists only
+ * in states written by the first version of the loop.
  */
 import type { Severity, Topic } from "../engine";
 import type { VerdictWord } from "../history/types";
@@ -31,7 +31,7 @@ export interface LoopFinding {
   /** The verifier dropped this finding with a checked disproof in this round. */
   refuted: boolean;
   /** For a `not-repeated` finding: this round's range changed its lines and the round read the file. */
-  linesChanged: boolean;
+  linesChanged?: boolean;
   verdict?: { verdict: VerdictWord; reason?: string };
 }
 
