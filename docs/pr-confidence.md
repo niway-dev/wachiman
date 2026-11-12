@@ -1,0 +1,67 @@
+# PR Confidence
+
+A trial feature of the GitHub review. After a full review of a pull request, Wachiman writes a
+grade into the pull request description: does the diff do what the title and body say? It is
+off by default. Design: [ADR 0033](adr/0033-a-fidelity-grade-the-engine-computes-from-checked-claims.md). `wachiman local` does not produce it.
+
+In one paragraph: one extra small model call lists the claims in the title and body ("Retries
+failed uploads"). The review batches say which claim each changed file serves and cite the lines
+that show it. The engine checks the cited lines exist and decides the letter. The model proposes;
+it never states the grade.
+
+## What the grade means
+
+The first row that matches wins.
+
+| Grade | When |
+| --- | --- |
+| `cannot say` | The run did not finish, a spend ceiling stopped it, files were left unread, the review of a new commit has not finished, or the title and body changed while the review ran |
+| C | The text makes no checkable claim, a claim is contradicted, or a Blocker finding is open |
+| B | A claim has no cited evidence, a changed file is unexplained, a Fix finding is open, or a risk fact has a high level (auth, money, data migration, irreversible change) |
+| A- | A medium risk fact, a risk fact the engine dropped, a place that needs a person, or a Consider finding is open |
+| A | None of the above |
+
+A file is explained when a confirmed claim covers it, or a fixed rule does: a lockfile, a
+generated file, a formatting-only change, or a test of a confirmed claim. Every other file is named
+as unexplained.
+
+Every A and A- is marked **trial**. A means every claim has cited evidence and no change is
+unexplained. It does not mean the pull request is safe to merge unread.
+
+## What it is not
+
+It is not an approval, a change request or a check status, and it never blocks a merge. It does
+not measure code quality. It is a line in the description for the person reading the pull request.
+
+## When it is written, and when it says "cannot say"
+
+- Only a **full review** is graded: the first review of a pull request, or a review of the whole
+  pull request. An incremental review (new commits only) or a review of given paths reads part of
+  the change, so it writes `cannot say`.
+- At the start of every push run, before the push wait and with no model call, the block is reset
+  to `cannot say` for the new commit. A run cancelled by a newer push, or one that fails, leaves
+  no letter from an older commit.
+- Right before writing, the engine reads the pull request again. If the head moved, or the title
+  and body are no longer the text the claims were read from, the block says `cannot say`.
+- The write is best-effort: a failure is a warning and never fails the review. Nothing is written in
+  a dry run.
+- Wachiman edits only its own block, between two marker comments. The rest of the description is
+  kept byte for byte, and the block is removed before the claims are read.
+
+## Turn it on
+
+- Reusable workflow: `pr_confidence: true` in the caller's `with:`.
+- Copied workflow: `AGENT_REVIEW_CONFIDENCE: 1` in the workflow `env:`.
+- Command line: `AGENT_REVIEW_CONFIDENCE=1`. The reset step is `wachiman reset-confidence <pr>`.
+
+Cost: one extra model call per full review, capped at $0.15 and counted in the review's cost and
+footer. The title, body and diff are untrusted data in every prompt.
+
+## Not built yet
+
+- The human-check thread (slice 2b): "Your check: pending" is a placeholder; nothing records that a
+  person looked.
+- Plus signs (slice 2c): a refutation check on each claim. The block says it was not performed.
+- Binary files are not graded, and an incremental review does not grade.
+
+The result carries it as `fidelity` in `/2` of the [review result](formats/README.md); `/1` does not.

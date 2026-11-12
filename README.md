@@ -100,6 +100,7 @@ same material, in this repository:
 | Find out why there was no review, or an error | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Ask for reviews, scope them, read the results | [docs/reviews.md](docs/reviews.md) |
 | Understand what a run can cost and what coverage means | [docs/costs.md](docs/costs.md) |
+| Read the PR Confidence grade in a description (trial) | [docs/pr-confidence.md](docs/pr-confidence.md) |
 | Tell the reviewer what matters in my repository | [docs/review-policy.md](docs/review-policy.md) |
 | Adopt a new release, or roll one back | [docs/upgrading.md](docs/upgrading.md) |
 | Turn it off and remove it | [docs/uninstall.md](docs/uninstall.md) |
