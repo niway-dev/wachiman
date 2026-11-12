@@ -4,7 +4,8 @@
  * purpose and decided by the engine, never by the model: a file no rule here covers, and no claim
  * explains, is reported as unexplained. Rules look at the path, and at the diff only for
  * formatting. A file that says in its own text that it is generated is not trusted: an author
- * could write that line into hand-written code.
+ * could write that line into hand-written code. A path is trusted on purpose, even for generated
+ * names the engine still reviews: the list is short and a person sees a path in the file list.
  */
 import type { ChangedFile } from "./types";
 
@@ -31,8 +32,9 @@ const LOCKFILES = new Set([
   "packages.lock.json",
 ]);
 
-// `dist`, `build`, `out`, `*.map` and `worker-configuration.d.ts` are the build output and generated
-// files the engine itself skips by default, so the grade must not call them unexplained.
+// Generated is decided by path alone. `dist`, `build`, `out`, `*.map` and `worker-configuration.d.ts`
+// are skipped by the engine by default; `generated/`, `__generated__/`, `*.pb.go`, `*_pb2.py` and
+// `*.min.css` are reviewed but still trusted by their path, because a generator owns those names.
 const GENERATED_DIRS = new Set(["generated", "__generated__", "dist", "build", "out"]);
 const GENERATED_NAME = [
   /\.generated\.[^./]+$/,
