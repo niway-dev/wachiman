@@ -220,22 +220,59 @@ describe("the local index", () => {
     expect(f.spend.byDay).toEqual([]);
   });
 
-  test("a source file that vanishes between the listing and the stat does not stop the index", () => {
+  test("a source file that vanishes between the listing and the stat is left out of the signature", () => {
     const { wachiman, index, root } = fixtureHome();
     const runs = join(root, ALPHA.key, "runs");
     const victim = join(runs, readdirSync(runs).sort()[0]);
-    let calls = 0;
+    let scans = 0;
     const r = refreshIndex(wachiman, warn, {
       afterListing: () => {
-        // Only the first scan: the retry finds the files as they are.
-        if (calls++ === 0) unlinkSync(victim);
+        // Between the listing and the stat of the first scan only.
+        if (scans++ === 0) unlinkSync(victim);
       },
     });
+    // No ENOENT escaped and no retry was needed: the stat skipped the missing file.
+    expect(scans).toBe(1);
     expect(r.rebuilt).toBe(true);
-    expect(calls).toBeGreaterThan(0);
     expect(readFigures(index).totals.runs).toBe(EXPECTED.totals.runs - 1);
-    // What is left is stable.
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
+  });
+
+  test("an ENOENT that escapes the scan or the replay makes the whole refresh run once more, and only once", () => {
+    const { wachiman, index } = fixtureHome();
+    let calls = 0;
+    const r = refreshIndex(wachiman, warn, {
+      beforeReplay: () => {
+        if (calls++ === 0) throw Object.assign(new Error("ENOENT: a history directory was forgotten"), { code: "ENOENT" });
+      },
+    });
+    expect(calls).toBe(2);
+    expect(r.rebuilt).toBe(true);
+    expect(readFigures(index).totals).toEqual(EXPECTED.totals);
+    expect(readdirSync(wachiman).filter((n) => n.startsWith("index.sqlite"))).toEqual(["index.sqlite"]);
+
+    // A second ENOENT is not swallowed, and any other error is not retried.
+    unlinkSync(index);
+    let again = 0;
+    expect(() =>
+      refreshIndex(wachiman, warn, {
+        beforeReplay: () => {
+          again++;
+          throw Object.assign(new Error("gone"), { code: "ENOENT" });
+        },
+      }),
+    ).toThrow("gone");
+    expect(again).toBe(2);
+    let other = 0;
+    expect(() =>
+      refreshIndex(wachiman, warn, {
+        beforeReplay: () => {
+          other++;
+          throw new Error("disk full");
+        },
+      }),
+    ).toThrow("disk full");
+    expect(other).toBe(1);
   });
 
   test("a verdict record without a time is indexed, and the figures still work", () => {

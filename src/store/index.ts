@@ -228,8 +228,11 @@ export interface RefreshHooks {
  * written. Reading the run files has the side effects `history` has: a damaged one is moved aside
  * with a warning. The signature of the sources is taken before the replay and stored with it, so a
  * file written while the index is being built makes the next call rebuild. The old index is replaced
- * by the rename and not before: a rebuild that fails leaves it where it was. A source file that is
- * removed while it is being read (a prune, a forget) makes the scan and the replay run once more.
+ * by the rename and not before: a rebuild that fails leaves it where it was. A missing-file error
+ * (ENOENT) that escapes the scan or the replay, for example a history directory forgotten while it
+ * is listed, makes the whole refresh run once more. A run or loop file removed between the listing
+ * and the parse does not reach that retry: it is skipped with a warning, and the next call rebuilds
+ * because the sources no longer match the stored signature.
  */
 export function refreshIndex(wachimanHome: string, warn: (line: string) => void, hooks: RefreshHooks = {}): { path: string; rebuilt: boolean } {
   const root = historyRoot(wachimanHome);
