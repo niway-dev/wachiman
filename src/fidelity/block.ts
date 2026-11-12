@@ -8,6 +8,7 @@
  * Everything a model wrote is made inert before it is placed here: it cannot close the block,
  * open a link, mention a person, or end the `<details>` section.
  */
+import { inertText } from "./inert";
 import { BLOCK_END, BLOCK_START, blockRegions, digestComment } from "./digest";
 import { groupByFile, trialBound } from "./grade";
 import type { Attention, Claim, Evidence, Fidelity, Grade } from "./types";
@@ -40,20 +41,8 @@ const NOT_SAFE = "This is not a statement that the pull request is safe to merge
 
 const COMMIT = /^[0-9a-f]{7,64}$/i;
 
-/**
- * Model text as one inert line: no HTML, no markdown link, no mention, no newline, and nothing GFM
- * would turn into an autolink (`://` and `www.` are broken with a zero-width space).
- */
-function safe(text: string): string {
-  return text
-    .replace(/\s+/g, " ")
-    .trim()
-    .replaceAll("<", "&lt;")
-    .replaceAll("[", "\\[")
-    .replaceAll("@", "@\u200b")
-    .replaceAll("://", ":\u200b//")
-    .replace(/www\./gi, (m) => `${m.slice(0, 3)}\u200b.`);
-}
+/** Model text as one inert line (see `inertText`). */
+const safe = inertText;
 
 /** A path or commit as an inline code span. */
 const code = (text: string) => `\`${text.replace(/[`\r\n]/g, "")}\``;

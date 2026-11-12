@@ -217,6 +217,25 @@ describe("renderBlock", () => {
     expect(blockDigest(renderBlock(unexplainedB(), opts))).toBe(digest);
   });
 
+  test("a backslash in model text cannot cancel the escaping of a bracket or a backtick", () => {
+    for (const hostile of ["\\[click\\](http://evil.example)", "\\`code\\` \\\\[x\\\\]"]) {
+      const claim: Claim = { text: hostile, status: "unverified", evidence: [] };
+      const out = renderBlock(buildFidelity(input({ claims: [claim] })), opts);
+      // The one line that carries the claim's text has no markup of its own besides the bold marks.
+      const line = out.split("\n").find((l) => l.startsWith("- **") && l.endsWith(":** unverified")) ?? "";
+      expect(line).not.toBe("");
+      const text = line.slice("- **".length, -":** unverified".length);
+      // Every bracket and backtick must be preceded by an odd number of backslashes.
+      for (const [i, ch] of [...text].entries()) {
+        if (!"[]`".includes(ch)) continue;
+        let slashes = 0;
+        while (slashes < i && text[i - 1 - slashes] === "\\") slashes++;
+        expect(slashes % 2).toBe(1);
+      }
+      expect(text).toMatch(/[\[`]/);
+    }
+  });
+
   test("a bare address in model text is broken so GitHub does not autolink it", () => {
     const hostile = "see https://evil.example/x and www.evil.example and ftp://evil.example";
     const f = buildFidelity(
@@ -243,8 +262,8 @@ describe("renderBlock", () => {
     expect(blockRegions(out)).toEqual([{ start: 0, end: out.length }]);
     expect(out.split("<details>").length).toBe(out.split("</details>").length);
     expect(out).not.toContain("@octocat");
-    expect(out).toContain("\\[click]");
-    expect(out).not.toMatch(/(?<!\\)\[click\]/);
+    expect(out).toContain("\\[click\\]");
+    expect(out).not.toMatch(/(?<!\\)\[click/);
     expect(out).not.toContain("<script>");
     expect(out).not.toContain("\n## heading");
   });
