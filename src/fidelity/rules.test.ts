@@ -79,14 +79,30 @@ describe("isTestPath", () => {
 });
 
 describe("isFormattingOnly", () => {
-  test("a hunk whose removed and added lines differ only by whitespace is formatting", () => {
-    expect(
-      isFormattingOnly(patch("@@ -1,2 +1,2 @@", "-const a=1;", "-function f( ){}", "+const a = 1;", "+function f() {}")),
-    ).toBe(true);
+  test("indentation and trailing-space changes are formatting", () => {
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-    const a = 1;", "+  const a = 1;"))).toBe(true);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const a = 1;", "+const a = 1;   "))).toBe(true);
+    expect(isFormattingOnly(patch("@@ -1,2 +1,2 @@", "-\tf();", "-g();  ", "+    f();", "+g();"))).toBe(true);
   });
 
-  test("a line wrapped over several lines is still formatting", () => {
-    expect(isFormattingOnly(patch("@@ -1 +1,3 @@", "-call(a, b, c);", "+call(", "+  a, b, c", "+);"))).toBe(true);
+  test("a run of spaces inside a line made one space is formatting; deleting the space is not", () => {
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const   a  =  1;", "+const a = 1;"))).toBe(true);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const a = 1;", "+const a=1;"))).toBe(false);
+  });
+
+  test("whitespace inside a string literal removed or added is a change", () => {
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", '-const s = "a b";', '+const s = "ab";'))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", '-const s = "ab";', '+const s = "a b";'))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", '-const s = " ";', '+const s = "";'))).toBe(false);
+  });
+
+  test("a space that separates two operators is a change: a - -b against a --b", () => {
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-x = a - -b;", "+x = a --b;"))).toBe(false);
+  });
+
+  test("a statement joined onto one line, or split over several, is a change", () => {
+    expect(isFormattingOnly(patch("@@ -1,2 +1 @@", "-return", "- value;", "+return value;"))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1 +1,3 @@", "-call(a, b, c);", "+call(", "+  a, b, c", "+);"))).toBe(false);
   });
 
   test("a change of a token is not formatting", () => {
@@ -106,7 +122,7 @@ describe("isFormattingOnly", () => {
   });
 
   test("the file header lines of a diff are not read as changed lines", () => {
-    expect(isFormattingOnly(patch("--- a/x.ts", "+++ b/x.ts", "@@ -1 +1 @@", "-a=1", "+a = 1"))).toBe(true);
+    expect(isFormattingOnly(patch("--- a/x.ts", "+++ b/x.ts", "@@ -1 +1 @@", "-  a = 1", "+a = 1"))).toBe(true);
   });
 });
 
@@ -120,7 +136,7 @@ describe("explainedByRule", () => {
   });
 
   test("a formatting-only change is explained, and a real one is not", () => {
-    expect(explainedByRule({ path: "src/a.ts", patch: patch("@@ -1 +1 @@", "-a=1", "+a = 1") })).toBe(
+    expect(explainedByRule({ path: "src/a.ts", patch: patch("@@ -1 +1 @@", "-  a = 1", "+a = 1") })).toBe(
       "formatting-only",
     );
     expect(explainedByRule({ path: "src/a.ts", patch: patch("@@ -1 +1 @@", "-a = 1", "+a = 2") })).toBeUndefined();

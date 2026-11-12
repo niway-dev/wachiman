@@ -60,25 +60,29 @@ export function isTestPath(path: string): boolean {
   );
 }
 
+/** A line with its edges trimmed and every run of whitespace inside it made one space (never deleted). */
+const squeeze = (line: string) => line.trim().replace(/\s+/g, " ");
+
 /**
- * True when every hunk of the patch that changes anything removes and adds the same characters once
- * whitespace is ignored, in the same order. Code that moved between hunks, or a changed token,
- * makes it false, and so does a patch with nothing changed or no patch at all.
+ * True when every hunk of the patch that changes anything removes and adds the same number of lines
+ * and each added line equals the removed line at its place once its edges are trimmed and runs of
+ * whitespace inside it are made one space. Whitespace is never deleted or added inside a line, so a
+ * string literal, `a - -b` against `a --b`, or a statement split or joined over lines is a change.
+ * Code that moved between hunks, a changed token, a patch with nothing changed and no patch at all
+ * are all false.
  */
 export function isFormattingOnly(patch: string | undefined): boolean {
   if (!patch) return false;
   let inHunk = false;
-  let removed = "";
-  let added = "";
-  let changedLines = 0;
+  let removed: string[] = [];
+  let added: string[] = [];
   let changedHunks = 0;
   const close = (): boolean => {
-    const equal = removed === added;
-    if (changedLines > 0) changedHunks++;
-    const ok = changedLines === 0 || equal;
-    removed = "";
-    added = "";
-    changedLines = 0;
+    const changed = removed.length + added.length > 0;
+    if (changed) changedHunks++;
+    const ok = !changed || (removed.length === added.length && removed.every((line, i) => squeeze(line) === squeeze(added[i]!)));
+    removed = [];
+    added = [];
     return ok;
   };
   for (const line of patch.split("\n")) {
@@ -88,11 +92,9 @@ export function isFormattingOnly(patch: string | undefined): boolean {
     } else if (!inHunk) {
       continue;
     } else if (line.startsWith("-")) {
-      removed += line.slice(1).replace(/\s+/g, "");
-      changedLines++;
+      removed.push(line.slice(1));
     } else if (line.startsWith("+")) {
-      added += line.slice(1).replace(/\s+/g, "");
-      changedLines++;
+      added.push(line.slice(1));
     }
   }
   if (inHunk && !close()) return false;

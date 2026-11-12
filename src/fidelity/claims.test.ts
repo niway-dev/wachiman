@@ -104,7 +104,7 @@ describe("unexplainedFiles", () => {
         [
           { path: "bun.lock" },
           { path: "src/generated/api.ts" },
-          { path: "src/a.ts", patch: "@@ -1 +1 @@\n-a=1\n+a = 1" },
+          { path: "src/a.ts", patch: "@@ -1 +1 @@\n-a = 1\n+  a = 1" },
           { path: "src/session.ts" },
         ],
         [],
@@ -120,7 +120,7 @@ describe("unexplainedFiles", () => {
   });
 
   test("a test whose source is explained only by a rule, not by a claim, stays unexplained", () => {
-    const reformatted = { path: "src/a.ts", patch: "@@ -1 +1 @@\n-a=1\n+a = 1" };
+    const reformatted = { path: "src/a.ts", patch: "@@ -1 +1 @@\n-a = 1\n+  a = 1" };
     expect(unexplainedFiles([reformatted, { path: "src/a.test.ts" }], [], [])).toEqual(["src/a.test.ts"]);
   });
 
