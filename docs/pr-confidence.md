@@ -17,8 +17,8 @@ The first row that matches wins.
 | --- | --- |
 | `cannot say` | The run did not finish, a spend ceiling stopped it, files were left unread, the text was too long to read in full, a batch or claims call ended on a turn or time limit (even when it returned usable output), the review of a new commit has not finished, or the title and body changed while the review ran |
 | C | The text makes no checkable claim, a claim is contradicted, or a Blocker finding is open |
-| B | A claim has no cited evidence, a changed file is unexplained, a Fix finding is open, or a risk fact has a high level (auth, money, data migration, irreversible change) |
-| A- | A medium risk fact, a risk fact the engine dropped, a place that needs a person, or a Consider finding is open |
+| B | A claim has no cited evidence, a changed file is unexplained, a Fix finding is open, or the risk level is high (a high risk fact such as auth, money, data migration or an irreversible change, or a file on a high-risk path) |
+| A- | A medium risk fact, a risk fact the engine dropped, a place that needs a person, or a Consider finding is open. A file on a medium-risk path alone does not: the grade stays A |
 | A | None of the above |
 
 A file is explained when a confirmed claim covers it, or a fixed rule does: a lockfile, a
