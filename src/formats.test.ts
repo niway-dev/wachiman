@@ -109,12 +109,33 @@ describe("review result /2", () => {
     expect(v1.format).toBe(REVIEW_RESULT_V1);
     expect(validate(resultSchema, JSON.parse(JSON.stringify(v1)))).toEqual([]);
     const text = JSON.stringify(v1);
-    for (const key of ["verification", "origin", "originReason", "originEvidence", "tier", "account", "candidateId"]) {
+    for (const key of ["verification", "origin", "originReason", "originEvidence", "tier", "account", "candidateId", "fidelity"]) {
       expect(text, key).not.toContain(`"${key}"`);
     }
     // Pure: the input is untouched, and the surviving findings are all still there.
     expect(JSON.stringify(fixtures.resultV2)).toBe(before);
     expect(v1.findings.map((f) => f.title)).toEqual(fixtures.resultV2.findings.map((f) => f.title));
+  });
+
+  test("a /2 result carries fidelity for a pull request review, validated by the schema, and /1 never does", () => {
+    const withFidelity = clone();
+    expect(withFidelity.fidelity?.grade).toBe("B");
+    expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(withFidelity)))).toEqual([]);
+    // The field is optional: a local review has none.
+    const local = clone();
+    delete local.fidelity;
+    expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(local)))).toEqual([]);
+    // Negative controls: a grade that is not a grade, and a claim status the engine does not know.
+    const badGrade = clone();
+    (badGrade.fidelity as { grade: string }).grade = "A+";
+    expect(validate(resultSchemaV2, badGrade).length).toBeGreaterThan(0);
+    const badStatus = clone();
+    (badStatus.fidelity!.claims[0] as { status: string }).status = "proven";
+    expect(validate(resultSchemaV2, badStatus).length).toBeGreaterThan(0);
+    // ADR 0030: /1 has no place for it, and the downgrade drops it.
+    const v1 = toResultV1(withFidelity);
+    expect(v1).not.toHaveProperty("fidelity");
+    expect(validate(resultSchema, JSON.parse(JSON.stringify(v1)))).toEqual([]);
   });
 
   test("a /2 result without verification downgrades with no added notice", () => {
