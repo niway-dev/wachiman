@@ -74,7 +74,9 @@ change, grounded in its stored review when there is one; with no question it wal
 change ([docs/cli.md](docs/cli.md#ask)).
 
 **See what local runs cost.** `wachiman status` shows the cost of the runs kept on this laptop
-([docs/cli.md](docs/cli.md#status)); workflow runs are not in it.
+([docs/cli.md](docs/cli.md#status)); workflow runs are not in it. `wachiman dashboard` writes one
+offline HTML page (or JSON) with the spend per day and repository, the findings by severity and
+verdict and the loop rounds ([docs/local-dashboard.md](docs/local-dashboard.md)).
 
 **Let your coding agent run it.** `wachiman skills install` copies the `wachiman-review` agent
 skill, which teaches Claude Code or Codex to pick the range from what you ask, run a local review
@@ -107,6 +109,7 @@ same material, in this repository:
 | Quick answers and limitations | [docs/faq.md](docs/faq.md) |
 | Run the engine from the command line | [docs/cli.md](docs/cli.md) |
 | Review a branch on my laptop, on my own Claude subscription | [docs/local-review.md](docs/local-review.md) |
+| See the spend, findings and loops of my local reviews on one page | [docs/local-dashboard.md](docs/local-dashboard.md) |
 | See what a provider adapter runs and inherits | [docs/providers/claude-code.md](docs/providers/claude-code.md), [docs/providers/codex.md](docs/providers/codex.md) |
 | Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
 | Understand how a review is built | [docs/architecture.md](docs/architecture.md) |

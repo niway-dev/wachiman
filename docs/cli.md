@@ -32,7 +32,7 @@ provider binary are needed for local reviews; GitHub commands also need `gh`.
 
 Argument rules, as implemented:
 
-- The command (`review`, `comment`, `threads`, `local`, `history`, `setup`, `doctor`, `profile` or `project`) must be the first argument. `--help`/`-h`,
+- The command (`review`, `comment`, `threads`, `local`, `history`, `dashboard`, `setup`, `doctor`, `profile` or `project`) must be the first argument. `--help`/`-h`,
   `--version`/`-v` and `--setup-profile` are recognised only as the first argument too.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
@@ -67,6 +67,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `threads <pr>` | Answers the Wachiman threads that wait for an answer, with no review, and only when the pull request's head was already reviewed. See "What `threads` does" below. |
 | `local [paths…]` | Reviews the committed branch of a clone on your own signed-in `claude` and prints the review; no GitHub call, nothing posted. See [`local`](#local) below and [the guide](local-review.md). |
 | `loop [--base <ref>]` | One round of a review loop on your own signed-in `claude`: a review with history on, a comparison with the rounds before it, and an exit code to branch on (`0` converged, `10` findings open, `11` stopped). A coding agent fixes between calls; the CLI never edits code. See [`loop`](#loop) below. |
+| `dashboard [--json] [--out <file>]` | Writes one static HTML page, or prints JSON, with the spend, findings and loop rounds of every repository in the local history, from a rebuildable SQLite index. No network, no model call. See [`dashboard`](#dashboard) and [the guide](local-dashboard.md). |
 | `ask [question…]` | Answers one question about the local change (or walks through it when there is no question), on your own signed-in `claude`; no GitHub call, nothing posted. See [`ask`](#ask) below. |
 | `setup [--profile <name>]` | Binds this repository to an account profile; on a terminal without `--profile` it asks. See [`setup`](#setup-doctor-profile-and-project). |
 | `init` | Writes the GitHub caller workflow, or hands over to `setup`. See [`init`](#init). |
@@ -515,6 +516,23 @@ branch or a commit.
 
 Exit codes: 0 printed (with no run kept it prints one line saying how to start, and exits 0); 2
 usage error.
+
+### `dashboard`
+
+`wachiman dashboard` shows what this laptop's local runs cost, how many findings they captured and how
+the review loops went, for every repository in `~/.wachiman/history`. It first brings the index at
+`~/.wachiman/index.sqlite` up to date by replaying the history files (a missing, corrupt, old-schema
+or stale index is deleted and rebuilt; no other command reads it), then writes one static HTML file or
+prints JSON. It runs no `claude`, calls no GitHub, starts no server and never opens a browser.
+`--repo-dir` is accepted and not used. What it covers and cannot show: [the guide](local-dashboard.md).
+
+| Option | What it does |
+| --- | --- |
+| `--json` | Print `wachiman.dashboard/1` on stdout ([schema](formats/dashboard.v1.schema.json)) instead of writing the page |
+| `--out <file>` | Where to write the HTML page; default `~/.wachiman/dashboard.html`. Missing directories are created; the file is `0600`. The path is printed. Not allowed with `--json` |
+
+Exit codes: 0 written or printed (also with no run kept); 1 the index or the page could not be written;
+2 usage error.
 
 ## What it posts
 

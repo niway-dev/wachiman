@@ -1,6 +1,6 @@
 # ADR 0035: A rebuildable SQLite index beside the history run files
 
-- **Status:** proposed 2026-11-11. Not implemented. Builds on
+- **Status:** proposed 2026-11-11. Implemented on branch `feat/local-store` (slice 3, `src/store/`), not merged. Builds on
   [ADR 0020](0020-an-opt-in-on-laptop-review-history-with-deterministic-finding-tracking.md)
   without changing it: the run files stay the record. Reuses
   [ADR 0001](0001-distribution-and-trust.md) (no hosted service) and
