@@ -368,7 +368,7 @@ export const isBinaryAtHead = (headDir: string, filename: string) => headContent
 /**
  * Splits the kept files into those a model can review and those it cannot. The engine decides it
  * from the file, never the model: a binary the model skipped as "binary" would leave the review
- * partial, and a partial review writes no incremental marker, so every push would be a full review.
+ * partial, and a partial review has to carry the file to the next push as an unread one.
  * A file with a patch is text by definition (GitHub sends none for a binary); one without is read
  * at the head. One that is not there any more is a binary only when GitHub counted no lines for it
  * either (`additions` and `deletions` both 0): a removed text file too large for a patch still has
@@ -683,6 +683,54 @@ export function annotateDiff(files: ReviewFile[]) {
 export const marker = (sha: string) => `<!-- agent-review sha=${sha} -->`;
 
 /**
+ * What the review at `sha` left for the next run (ADR 0036). A complete review leaves nothing
+ * (`rest` is empty). A partial, unscoped one lists the files it did not review (`rest`) and which
+ * of those a model was already sent once and did not review (`tried`, a subset of `rest`).
+ */
+export interface ReviewState {
+  sha: string;
+  rest: string[];
+  tried: string[];
+}
+
+const PARTIAL_SOURCE = "<!-- wachi:partial sha=([A-Za-z0-9]+) state=([A-Za-z0-9_-]+) -->";
+
+/**
+ * The most characters the partial marker may take. The marker sits in the footer, which the
+ * fitting to `MAX_BODY_CHARS` never cuts, so it is capped at a sixth of the body: about 110 files
+ * of 65 characters. A longer list writes no partial marker (`partialMarker` returns null).
+ */
+export const MAX_PARTIAL_MARKER_CHARS = 10_000;
+
+/**
+ * The marker a partial review writes: `<!-- wachi:partial sha=… state=… -->`. The state is the
+ * JSON `{"r": [files], "t": [indexes into r]}` as base64url, so no file name can end the comment
+ * (the alphabet has no `>`, and the comment's text is never read back as text) and any name GitHub
+ * allows survives (spaces, unicode, `-->`). Null when the marker would pass `MAX_PARTIAL_MARKER_CHARS`.
+ */
+export function partialMarker(state: ReviewState): string | null {
+  const index = new Map(state.rest.map((f, i) => [f, i]));
+  const tried = state.tried.flatMap((f) => (index.has(f) ? [index.get(f) as number] : []));
+  const encoded = Buffer.from(JSON.stringify({ r: state.rest, t: tried }), "utf8").toString("base64url");
+  const text = `<!-- wachi:partial sha=${state.sha} state=${encoded} -->`;
+  return text.length > MAX_PARTIAL_MARKER_CHARS ? null : text;
+}
+
+/** The files and indexes inside a partial marker's state, or null when it is not what `partialMarker` writes. */
+function decodePartialState(sha: string, encoded: string): ReviewState | null {
+  try {
+    const data = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as { r?: unknown; t?: unknown };
+    if (!Array.isArray(data.r) || !Array.isArray(data.t)) return null;
+    if (!data.r.every((f) => typeof f === "string")) return null;
+    const rest = data.r as string[];
+    if (!data.t.every((i) => Number.isInteger(i) && (i as number) >= 0 && (i as number) < rest.length)) return null;
+    return { sha, rest, tried: (data.t as number[]).map((i) => rest[i]) };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Hidden signatures the engine writes outside any model text. With `neutralise` on all model text,
  * the model cannot produce one, so a signed item was written by this engine and not by another
  * workflow that also posts as `github-actions[bot]`.
@@ -729,12 +777,13 @@ export const neutralise = (text: string) =>
  *     <!-- agent-review sha=… -->
  *
  * and the marker is read only as the last line, right after the signature (`postReview` then adds
- * its `<!-- wachi:attempt id=… -->` line after it, which is allowed). Anything else
+ * its `<!-- wachi:attempt id=… -->` line after it, which is allowed). A partial, unscoped review
+ * writes `<!-- wachi:partial sha=… state=… -->` in the marker's place (see `partialMarker`). Anything else
  * (a marker in the middle of the body, in a file name, in a list) is not the engine's footer, even
  * if some string slipped past `neutralise`.
  */
 const SIGNED_FOOTER = new RegExp(
-  `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${MARKER_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`,
+  `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n(?:${MARKER_SOURCE}|${PARTIAL_SOURCE})(?:\\n\\n${ATTEMPT_SOURCE})?$`,
 );
 /** A review written before signatures existed ended with `</sub>`, a blank line and the marker. */
 const LEGACY_FOOTER = new RegExp(`</sub>\\n\\n${MARKER_SOURCE}$`);
@@ -746,7 +795,7 @@ const LEGACY_FOOTER = new RegExp(`</sub>\\n\\n${MARKER_SOURCE}$`);
  * is never read; and the flag is an HTML comment, which `neutralise` defuses in model text.
  */
 const AUTO_FOOTER = new RegExp(
-  `(?:^|\\n\\n)<sub>[^\\n]*\\$(\\d+(?:\\.\\d+)?)</sub>\\n\\n${AUTO_SOURCE}\\n\\n(?:${SIGNATURE_REVIEW_SOURCE}(?:\\n\\n${MARKER_SOURCE})?(?:\\n\\n${ATTEMPT_SOURCE})?|${SIGNATURE_REPLY_SOURCE})$`,
+  `(?:^|\\n\\n)<sub>[^\\n]*\\$(\\d+(?:\\.\\d+)?)</sub>\\n\\n${AUTO_SOURCE}\\n\\n(?:${SIGNATURE_REVIEW_SOURCE}(?:\\n\\n(?:${MARKER_SOURCE}|${PARTIAL_SOURCE}))?(?:\\n\\n${ATTEMPT_SOURCE})?|${SIGNATURE_REPLY_SOURCE})$`,
 );
 
 /** The dollars an engine-signed body records as spent by an automatic run, or null when it records none. */
@@ -790,9 +839,21 @@ export function readCeilingNotice(body: string) {
   return body.trimEnd().match(CEILING_NOTICE)?.[1] ?? null;
 }
 
-/** The marker in a signed review's footer, or null when the body does not end with that footer. */
+/**
+ * What a signed review's footer records: a complete review's marker (nothing left over), or a
+ * partial one's list of the files not reviewed. Null when the body does not end with that footer,
+ * or its partial state is not one `partialMarker` writes.
+ */
+export function readSignedState(body: string): ReviewState | null {
+  const found = body.trimEnd().match(SIGNED_FOOTER);
+  if (!found) return null;
+  if (found[1] !== undefined) return { sha: found[1], rest: [], tried: [] };
+  return decodePartialState(found[2], found[3]);
+}
+
+/** The commit in a signed review's footer, complete or partial, or null when the body does not end with that footer. */
 export function readSignedMarker(body: string) {
-  return body.trimEnd().match(SIGNED_FOOTER)?.[1] ?? null;
+  return readSignedState(body)?.sha ?? null;
 }
 
 /** The marker in the footer a review had before signatures existed (see `lastEngineMarker`). */
@@ -1053,6 +1114,18 @@ export function buildReview(input: {
   fidelity?: Fidelity;
   /** A review of one push to the pull request: the map says it covers that push (ADR 0011). */
   pushOnly?: boolean;
+  /**
+   * The files of `files` reviewed whole because the previous partial review did not reach them
+   * (ADR 0036), named in the headline. Only with `since`.
+   */
+  carried?: string[];
+  /**
+   * The files an earlier run already sent to a model and that came back not reviewed. One that
+   * comes back not reviewed again is named in the notice and left out of the next push's list.
+   */
+  tried?: string[];
+  /** Where the engine's warnings go (a partial marker too long to write). */
+  warn?: (line: string) => void;
 }): Review {
   const { output, files, headSha, since, scoped, costUsd, batches = [], modelLabel, effort } = input;
   const mention = input.mention ?? DEFAULT_MENTION;
@@ -1090,9 +1163,14 @@ export function buildReview(input: {
   const reviewed = new Set(output.files_reviewed);
   const notReviewed = expected.filter((f) => !reviewed.has(f));
   const reasons = new Map(output.files_skipped.map((s) => [s.path, s.reason]));
-  const scope = since
+  const carried = new Set((input.carried ?? []).filter((f) => expected.includes(f)));
+  const sinceScope = since
     ? `the changes since \`${short(since)}\`${input.rebased ? " (after a rebase)" : commitsText(input.commits)}`
     : "the whole pull request";
+  const unread = `the ${countOf(carried.size, "file")} the previous review did not reach`;
+  // A resumed review: what changed since, if anything did, and the files the last one left unread.
+  const scope =
+    since && carried.size > 0 ? (carried.size < expected.length ? `${sinceScope} and ${unread}` : unread) : sinceScope;
   const unreviewable = input.unreviewable ?? [];
   const notReviewable =
     unreviewable.length > 0
@@ -1101,9 +1179,20 @@ export function buildReview(input: {
   const parts: string[] = [];
   const list = notReviewed.map((f) => `\`${neutralise(f)}\`${reasons.has(f) ? ` (${neutralise(reasons.get(f) ?? "")})` : ""}`);
   const fullList = list.join(", ");
+  // What the next push carries (ADR 0036). A file that was sent to a model before and came back
+  // not reviewed again, with a reason other than "not reached" (the run never got to it), has had
+  // its two tries: it is named here and no longer carried. A scoped review leaves the list alone.
+  const notReached = (f: string) => (reasons.get(f) ?? "").startsWith("not reached");
+  const priorTried = new Set(input.tried ?? []);
+  const twice = scoped ? [] : notReviewed.filter((f) => priorTried.has(f) && !notReached(f));
+  const rest = scoped ? [] : notReviewed.filter((f) => !twice.includes(f));
+  const twiceNote =
+    twice.length > 0
+      ? ` Not reviewed after two tries, so the next push will not carry ${twice.length === 1 ? "it" : "them"}: ${fitList(twice.map((f) => `\`${neutralise(f)}\``), 2_000)}.`
+      : "";
   if (notReviewed.length > 0) {
     parts.push(
-      branded(`⚠️ **Partial review**: the agent reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}${notReviewable}. Ask \`${mention} review <paths>\` for the rest.`),
+      branded(`⚠️ **Partial review**: the agent reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}${notReviewable}.${twiceNote} Ask \`${mention} review <paths>\` for the rest.`),
     );
   } else {
     parts.push(
@@ -1172,9 +1261,20 @@ export function buildReview(input: {
   );
   if (input.automatic) parts.push(SIGNATURE.auto);
   parts.push(SIGNATURE.review);
-  // The next `review` request starts from this commit, so only a review that covered everything
-  // may move it; a scoped or partial one would leave the rest never reviewed.
-  if (!scoped && notReviewed.length === 0) parts.push(marker(headSha));
+  // The next `review` request starts from this commit. A review that covered everything moves it
+  // (the complete marker). A partial one moves it too, and lists what it did not reach, so the next
+  // push reviews those files (ADR 0036). A scoped review writes neither: it read only the paths
+  // asked for, so the last unscoped review's commit and list stay as they were.
+  if (!scoped) {
+    const tried = rest.filter((f) => priorTried.has(f) || !notReached(f));
+    const state = rest.length > 0 ? partialMarker({ sha: headSha, rest, tried }) : null;
+    if (rest.length === 0) parts.push(marker(headSha));
+    else if (state !== null) parts.push(state);
+    else
+      input.warn?.(
+        `${rest.length} file(s) not reviewed do not fit in a partial marker (more than ${MAX_PARTIAL_MARKER_CHARS} characters): none is written, so the next push reviews the whole pull request again.`,
+      );
+  }
   // A part another text replaces (or `null`, none) while the body is being fitted.
   const replaced = new Map<number, string | null>();
   const render = () =>
@@ -1725,7 +1825,8 @@ export function listFiles(gh: GhFn, repo: string, pr: number): ReviewFile[] {
 }
 
 /**
- * The commit the last Wachi review covered. A review is Wachi's when `github-actions[bot]` wrote
+ * The commit the last Wachi review covered, complete or partial (a partial review's marker also
+ * lists the files it did not reach; `lastReviewState` returns them). A review is Wachi's when `github-actions[bot]` wrote
  * it AND it carries the review signature: that login is shared by every workflow of the
  * repository, so the login alone proves nothing. The marker counts only at the footer position
  * (see `readSignedMarker`).
@@ -1736,7 +1837,16 @@ export function listFiles(gh: GhFn, repo: string, pr: number): ReviewFile[] {
  * ones are another workflow's and are ignored. Drop the unsigned branch once the cutoff has passed.
  */
 export function lastReviewedSha(gh: GhFn, repo: string, pr: number) {
-  return lastEngineMarker(
+  return lastReviewState(gh, repo, pr)?.sha ?? null;
+}
+
+/**
+ * What the last Wachi review left for the next run (see `lastReviewedSha` for which reviews count):
+ * its commit and, for a partial review, the files it did not reach. The commit alone is enough for
+ * a run that only answers threads. The push path reads the files too (`review`).
+ */
+export function lastReviewState(gh: GhFn, repo: string, pr: number) {
+  return lastEngineState(
     botReviews(gh, repo, pr).map((r) => ({ body: r.body, created_at: r.submitted_at })),
   );
 }
@@ -1751,15 +1861,21 @@ function botReviews(gh: GhFn, repo: string, pr: number) {
   return reviews.map((r) => ({ body: r.body ?? "", submitted_at: r.submitted_at ?? undefined }));
 }
 
-/** The marker of the last review the engine wrote, among `github-actions[bot]` reviews in order. */
-export function lastEngineMarker(reviews: { body: string; created_at?: string }[]) {
+/** The state of the last review the engine wrote, among `github-actions[bot]` reviews in order. */
+export function lastEngineState(reviews: { body: string; created_at?: string }[]): ReviewState | null {
   const firstSigned = reviews.findIndex((r) => r.body.includes(SIGNATURE.review));
-  const found = reviews.map((r, i) => {
-    if (r.body.includes(SIGNATURE.review)) return readSignedMarker(r.body);
+  const found = reviews.map((r, i): ReviewState | null => {
+    if (r.body.includes(SIGNATURE.review)) return readSignedState(r.body);
     const legacy = (firstSigned === -1 || i < firstSigned) && beforeLegacyCutoff(r.created_at);
-    return legacy ? readLegacyMarker(r.body) : null;
+    const sha = legacy ? readLegacyMarker(r.body) : null;
+    return sha === null ? null : { sha, rest: [], tried: [] };
   });
-  return found.filter((m): m is string => m !== null).at(-1) ?? null;
+  return found.filter((m): m is ReviewState => m !== null).at(-1) ?? null;
+}
+
+/** The commit of the last review the engine wrote, complete or partial, among `github-actions[bot]` reviews in order. */
+export function lastEngineMarker(reviews: { body: string; created_at?: string }[]) {
+  return lastEngineState(reviews)?.sha ?? null;
 }
 
 export interface Comparison {
@@ -2451,6 +2567,9 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
     // About 40k tokens at 3.5 characters a token.
     maxChars: options.batchChars,
   });
+  // The files this run reviews whole because the previous review did not reach them.
+  const keptNames = new Set(kept.map((f) => f.filename));
+  const carriedHere = (input.since?.carried ?? []).filter((f) => keptNames.has(f));
   const threads = input.conversation ?? [];
   const threadsByBatch = assignThreads(threads, batches);
   const everyFile = kept.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
@@ -2462,6 +2581,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
     headDir: input.headDir,
     since: input.since?.sha ?? null,
     rebased: input.since?.rebased,
+    ...(carriedHere.length > 0 ? { carried: carriedHere, changedSince: kept.length - carriedHere.length } : {}),
     paths: input.scope,
     dropped: dropped.length,
     everyFile,
@@ -2498,6 +2618,9 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   // The first unclassified error, kept for the message of the final throw.
   let otherError: string | undefined;
   const rejectedFiles: string[] = [];
+  // Files of a batch that was started and then stopped on its budget, so no model refused them:
+  // like the batches never started, they were not reached (ADR 0036).
+  const budgetCut: string[] = [];
   const noteRejection = (r: BatchResult["rejection"]) => {
     if (!r) return;
     if (r.kind === "other") otherError ??= r.text;
@@ -2588,6 +2711,8 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
       if (retry.budget || retry.stopped) anyLimit = true;
       if (retry.output) parts.push({ label: `${label}, retry`, output: retry.output });
       const left = batchGaps(gaps, retry.output);
+      if (retry.rejection && retry.rejection.kind !== "other") rejectedFiles.push(...left.map((f) => f.filename));
+      else if (retry.budget) budgetCut.push(...left.map((f) => f.filename));
       status =
         left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
     } else if (gaps.length > 0) {
@@ -2596,6 +2721,9 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
         : first.stopped === "timeout"
           ? `${gaps.length} file(s) left: the call timed out`
           : `${gaps.length} file(s) left: budget spent`;
+      // A refused call or a spent budget is not the files' doing; a timeout may be, so it stays unexplained.
+      if (rejection) rejectedFiles.push(...gaps.map((f) => f.filename));
+      else if (first.stopped !== "timeout") budgetCut.push(...gaps.map((f) => f.filename));
     }
     reports.push({
       label,
@@ -2638,8 +2766,16 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   } else checked = annotateUnverified(merged.findings);
   for (const path of notRun)
     merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
-  for (const path of rejectedFiles)
-    merged.files_skipped.push({ path, reason: "not reached: the provider rejected the call" });
+  // A file the model listed itself, with a reason of its own, is replaced: the run's own cause comes first.
+  for (const [paths, reason] of [
+    [budgetCut, "not reached: the call ran out of its budget"],
+    [rejectedFiles, "not reached: the provider rejected the call"],
+  ] as const) {
+    for (const path of paths) {
+      merged.files_skipped = merged.files_skipped.filter((s) => s.path !== path);
+      merged.files_skipped.push({ path, reason });
+    }
+  }
 
   // The anchor is decided here, so a sink needs no patch to know which findings sit on a diff line.
   const commentable = new Map(kept.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
@@ -2937,6 +3073,8 @@ export function githubReviewInput(p: {
   since: string | null;
   rebased: boolean;
   commits?: string[];
+  /** The files of `files` the previous partial review did not reach (they carry their whole diff). */
+  carried?: string[];
   threads: Thread[];
 }): ReviewInput {
   return {
@@ -2958,7 +3096,14 @@ export function githubReviewInput(p: {
     headDir: p.headDir,
     scope: p.scope,
     ...(p.since
-      ? { since: { sha: p.since, rebased: p.rebased, ...(p.commits?.length ? { commits: p.commits } : {}) } }
+      ? {
+          since: {
+            sha: p.since,
+            rebased: p.rebased,
+            ...(p.commits?.length ? { commits: p.commits } : {}),
+            ...(p.carried?.length ? { carried: p.carried } : {}),
+          },
+        }
       : {}),
     ...(p.threads.length > 0 ? { conversation: p.threads } : {}),
   };
@@ -2972,6 +3117,12 @@ export function githubReview(
     rebased: boolean;
     /** The commits since `since`, for the headline of a re-review. */
     commits?: string[];
+    /** The files the previous partial review did not reach, reviewed whole in this run. */
+    carried?: string[];
+    /** The files an earlier run sent to a model that came back not reviewed (ADR 0036). */
+    tried?: string[];
+    /** Where a warning goes (a partial marker too long to write). */
+    warn?: (line: string) => void;
     /** What the automatic runs before this one spent, for the footer's running total. */
     priorSpend?: { spent: number; runs: number };
     scoped: boolean;
@@ -2996,6 +3147,9 @@ export function githubReview(
     since: github.since,
     rebased: github.rebased,
     commits: github.commits,
+    carried: github.carried,
+    tried: github.tried,
+    warn: github.warn,
     priorSpend: github.priorSpend,
     unreviewable: result.coverage.unreviewable,
     scoped: github.scoped,
@@ -3032,8 +3186,18 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   if (ignored.length > 0)
     deps.log(`Not paths in this pull request, ignored: ${ignored.join(" ")}`);
   // A dry run may ask for the whole pull request again (AGENT_REVIEW_FULL_REVIEW): no marker read.
-  const last = config.fullReview ? null : lastReviewedSha(gh, repo, pr);
-  if (last === headSha && paths.length === 0) {
+  const state = config.fullReview ? null : lastReviewState(gh, repo, pr);
+  const last = state?.sha ?? null;
+  // What the last review did not reach (ADR 0036), by name. Only an unscoped run carries it over: a
+  // request for paths reviews those paths. The files that left the pull request, or are excluded
+  // now, are dropped here without a word; the rest are reviewed whole, with the patch the pull
+  // request has now, even when they also changed since: nothing of them was ever reviewed.
+  const unread = new Set(paths.length === 0 ? (state?.rest ?? []) : []);
+  const carried: ReviewFile[] =
+    unread.size === 0
+      ? []
+      : filterFiles(prFiles.filter((f) => unread.has(f.filename)), [...DEFAULT_EXCLUDE, ...config.exclude], []).kept;
+  if (last === headSha && paths.length === 0 && carried.length === 0) {
     bodyOnly(
       `Already reviewed at \`${short(headSha)}\`. Push changes, or ask \`${config.mention} review <paths>\`.`,
     );
@@ -3044,7 +3208,12 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   // The commits since `since`, for the headline; only when compare lists every one of them.
   let commits: string[] | undefined;
   let files = prFiles;
-  if (last && paths.length === 0) {
+  // The head did not move but files were never reached: only those are reviewed.
+  if (last === headSha && paths.length === 0) {
+    deps.log(`Resuming at ${short(headSha)}: ${carried.length} file(s) the previous review did not reach: ${carried.map((f) => f.filename).join(", ")}.`);
+    since = last;
+    files = [];
+  } else if (last && paths.length === 0) {
     let status = "unavailable";
     let cmp: ReturnType<typeof compareFiles> | null = null;
     try {
@@ -3082,14 +3251,15 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
           comments: [],
         });
       };
-      if (delta.kind === "unchanged") {
+      if (delta.kind === "unchanged" && carried.length === 0) {
         upToDate(
           `The ${cmp.files.length} file(s) changed since ${short(last)} are not part of the pull request's own change (a merge of the base branch), or their change is the one already reviewed; nothing to review.`,
         );
         return;
       }
       const keep = delta.kind === "changed" ? new Set(delta.files.map((f) => f.filename)) : null;
-      const candidates = keep ? own.filter((f) => keep.has(f.filename)) : own;
+      // "unchanged" reaches here only to resume: nothing changed since, the unread files remain.
+      const candidates = delta.kind === "unchanged" ? [] : keep ? own.filter((f) => keep.has(f.filename)) : own;
       // The file's patch at `last`: "" when the pull request did not change it then, undefined when unknown.
       const before = delta.kind === "changed" ? new Map(delta.before.map((f) => [f.filename, f])) : null;
       const thenOf = (f: ReviewFile) => patchAtReview(before, f, inPr.get(f.filename));
@@ -3111,7 +3281,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
         deps.log(
           `${foreignOnly.length} file(s) changed since ${short(last)} hold only lines that came from the merged branch, not reviewed: ${foreignOnly.join(", ")}.`,
         );
-      if (files.length === 0) {
+      if (files.length === 0 && carried.length === 0) {
         upToDate(`Every change since ${short(last)} in the pull request's files came from the merged branch; nothing to review.`);
         return;
       }
@@ -3119,12 +3289,20 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
         deps.log(
           `${cmp.files.length - files.length} of the ${cmp.files.length} file(s) changed since ${short(last)} are not reviewed: not in the pull request's own change, or that change is the one already reviewed.`,
         );
-      deps.log(`Reviewed since ${short(last)}: ${files.map((f) => f.filename).join(", ")}.`);
+      if (files.length > 0) deps.log(`Reviewed since ${short(last)}: ${files.map((f) => f.filename).join(", ")}.`);
     } else {
       // The branch was rewritten (a rebase, a squash, a force-push). The content decides, not the SHAs.
       const base = baseSha(gh, repo, pr);
       const delta = rebaseDelta(gh, repo, base, last, prFiles);
-      if (delta.kind === "unchanged") {
+      if (delta.kind === "unchanged" && carried.length > 0) {
+        // The same change over a new head, but files were never reached: only those are reviewed.
+        deps.log(
+          `The last reviewed commit ${short(last)} is not behind the head (${status}), but the pull request's changes are the same; rebased with no content change. The ${carried.length} file(s) the previous review did not reach are reviewed.`,
+        );
+        since = last;
+        rebased = true;
+        files = [];
+      } else if (delta.kind === "unchanged") {
         deps.log(
           `The last reviewed commit ${short(last)} is not behind the head (${status}), but the pull request's changes are the same${delta.removed.length > 0 ? ` (no longer in it: ${delta.removed.join(", ")})` : ""}; rebased with no content change, nothing to review.`,
         );
@@ -3138,8 +3316,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
           comments: [],
         });
         return;
-      }
-      if (delta.kind === "changed") {
+      } else if (delta.kind === "changed") {
         deps.log(
           `The last reviewed commit ${short(last)} is not behind the head (${status}); the branch was rewritten. ${delta.files.length} file(s) differ from what was reviewed, ${delta.unchanged} are the same and are not reviewed again.`,
         );
@@ -3154,6 +3331,13 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     }
   }
 
+  // An incremental run adds the unread files to what changed since, each once and with its whole
+  // patch. A run that fell back to the whole pull request (`since` is null) already holds them.
+  const resumed = since !== null ? carried.map((f) => f.filename) : [];
+  if (resumed.length > 0) {
+    const unreadNames = new Set(resumed);
+    files = [...files.filter((f) => !unreadNames.has(f.filename)), ...carried];
+  }
   const { kept, dropped } = filterFiles(files, [...DEFAULT_EXCLUDE, ...config.exclude], paths);
   if (kept.length === 0) {
     bodyOnly(
@@ -3205,6 +3389,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     since,
     rebased,
     commits,
+    carried: resumed,
     threads,
   });
   // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
@@ -3280,6 +3465,9 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     since,
     rebased,
     commits,
+    carried: resumed,
+    tried: paths.length === 0 ? state?.tried : undefined,
+    warn: deps.warn,
     priorSpend: prior,
     scoped: paths.length > 0,
     mention: config.mention,
@@ -3535,6 +3723,9 @@ export interface ReviewContext {
   since: string | null;
   /** The branch was rewritten since `since`: the files are those whose changed lines differ. */
   rebased?: boolean;
+  /** The files reviewed whole because the previous review did not reach them, and how many files changed since. */
+  carried?: readonly string[];
+  changedSince?: number;
   paths: string[];
   dropped: number;
   everyFile: string;
@@ -3587,12 +3778,20 @@ export function buildBatchPrompt(
   evidence = "",
   questions: readonly DataPathQuestion[] = selectQuestions(files),
 ) {
-  const list = files.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
-  const scope = ctx.since
+  const carried = new Set(ctx.carried ?? []);
+  const list = files
+    .map((f) => `- ${f.filename} +${f.additions} −${f.deletions}${carried.has(f.filename) ? " (not reached by the previous review: whole diff)" : ""}`)
+    .join("\n");
+  const sinceScope = ctx.since
     ? ctx.rebased
       ? `only the files whose changed lines differ from what was reviewed at commit ${ctx.since}, the last reviewed one (the branch was rebased since; a file's diff below is still its whole diff against the base)`
       : `only the changes since commit ${ctx.since}, the last reviewed one`
     : "the whole pull request";
+  // A resumed review: the previous one stopped before these files, so they were never reviewed.
+  // They come with their whole diff against the base, changed since or not.
+  const unreached = `${carried.size} file(s) the previous review, at commit ${ctx.since}, did not reach: those files are marked in the lists below and are reviewed whole, because nothing of them was reviewed before, with their whole diff against the base`;
+  const scope =
+    ctx.since && carried.size > 0 ? ((ctx.changedSince ?? 0) > 0 ? `${sinceScope}, and ${unreached}` : `only ${unreached}`) : sinceScope;
   return `You are reviewing ${ctx.describe}, checked out at its head commit ${ctx.headSha}.
 The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
 

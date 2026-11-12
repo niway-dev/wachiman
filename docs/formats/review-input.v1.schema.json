@@ -28,6 +28,11 @@
           "description": "The commits since `sha`, oldest first, named in the report's headline.",
           "type": "array",
           "items": { "type": "string" }
+        },
+        "carried": {
+          "description": "Optional. Files the previous review did not reach, reviewed in this run with their whole diff against the base, not only what changed since `sha`.",
+          "type": "array",
+          "items": { "type": "string" }
         }
       }
     },

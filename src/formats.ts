@@ -66,9 +66,11 @@ export interface ReviewInput {
   scope: string[];
   /**
    * Incremental context: the last reviewed commit, whether the change was rebased since, and
-   * (optional) the commits since it, oldest first, for the report's headline.
+   * (optional) the commits since it, oldest first, for the report's headline. `carried` names
+   * the files of `files` that the previous review did not reach: they carry their whole diff, not
+   * only what changed since, and are reviewed whole.
    */
-  since?: { sha: string; rebased: boolean; commits?: string[] };
+  since?: { sha: string; rebased: boolean; commits?: string[]; carried?: string[] };
   /** Open threads for the model to answer. */
   conversation?: Thread[];
 }
