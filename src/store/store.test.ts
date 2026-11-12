@@ -89,7 +89,7 @@ describe("the local index", () => {
     expect(readFigures(index).totals).toEqual(EXPECTED.totals);
   });
 
-  test("an index that is up to date is reused; a new run file, verdict or loop makes it rebuild", () => {
+  test("an index that is up to date is reused; a new verdict makes it rebuild", () => {
     const { wachiman, index, root } = fixtureHome();
     refreshIndex(wachiman, warn);
     const db = new Database(index);
