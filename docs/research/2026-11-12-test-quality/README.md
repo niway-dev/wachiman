@@ -40,3 +40,4 @@ Each document is one unit of evidence. The synthesis is written last, from these
 | [decisions-2026-11-12.md](decisions-2026-11-12.md) | Owner decisions after the research | done |
 | [t3code/05-pipeline-and-test-signal-agent.md](t3code/05-pipeline-and-test-signal-agent.md) | How the purge pipeline and the test-signal agent work, in rebuildable detail | done |
 | [state-of-the-art.md](state-of-the-art.md) | Test linters, smell detectors, mutation testing, configurable reviewer policy | done |
+| [weak-points-judged.md](weak-points-judged.md) | Attack on both recommendations, judged | done |
