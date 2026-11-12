@@ -37,15 +37,20 @@ named the owner wanting it as a reopen condition. The owner now wants it for the
 3. `loop` exit codes: `0` converged, `10` findings still open, `11` stopped without converging,
    `2` usage. `local` keeps its codes.
 4. Round 1 reviews the whole range. Later rounds review the commits since the previous round's
-   head, **as an ordinary range review**. No file is skipped by reading the history; earlier
-   findings are carried by their history status.
+   head, **as an ordinary range review**. No file is skipped by reading the history. The loop
+   keeps its own ledger of findings and decides release itself (see the amendment below).
 5. The loop stays open while a 🔴 Blocker or 🟠 Fix is `new`, `open` or `not-repeated`, not
    refuted by the verifier and not judged `wrong` with a reason. A finding is released without a
    judgement only when its lines changed and the round that read that change did not report it
    again. A later round reads only the fix commits, so a finding that was not reported again at
-   lines nobody changed is not evidence of a fix. The history never re-settles a settled finding,
-   so the loop makes this check itself and leaves the history statuses as they are. 🟡 Consider
-   and ⚪ Info are listed and never keep it open.
+   lines nobody changed is not evidence of a fix. The loop makes this check itself and does not
+   use the history statuses to decide. 🟡 Consider and ⚪ Info are listed and never keep it open.
+   **Amendment, 2026-11-12.** The loop decides release from the round's own result and the code.
+   In a round that read a finding's file: reported again means `open`; not reported with the cited
+   text gone means `probably-fixed`; not reported with the text still there means `not-repeated`
+   (still counts). A file the round did not read keeps the previous state. History statuses are not
+   used to decide: the history is shared by the whole repository, so a review on another branch
+   could settle the loop's findings. The history still supplies the finding ids.
 6. Three rounds by default, changed with `--max-rounds`. A review call that fails is retried once.
    Every stop prints its reason. A stop is never an approval.
 7. A `wachiman-loop` skill ships beside `skills/wachiman-review`.

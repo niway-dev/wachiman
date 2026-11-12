@@ -30,8 +30,8 @@ Three slices, built in this order.
 | 1 | `wachiman loop` runs one round per call: a local review, a comparison with the previous round, an outcome. The agent fixes between calls. The CLI never edits code | The agent keeps no books in prose; retries, finding tracking and the stop rule live in tested code. The README promise that Wachiman changes no code stays true | 0034 (new) |
 | 2 | Result `/2` carries each finding's history id when history is on. The loop turns history on | The agent and the CLI need one name for a finding. Today the id is only printed in the stderr history block (`src/sinks/common.ts:215-229`) | 0034 |
 | 3 | `loop` has its own exit codes: `0` converged, `10` findings still open, `11` stopped without converging, `2` usage. `local` keeps its codes | `local` exits `0` whenever a review ran (`src/local.ts:234-237`), so a caller cannot branch on it | 0034 |
-| 4 | Round 1 reviews the whole range. Later rounds review the commits since the previous round's head, as an ordinary range. Earlier findings are carried by their history status | Meets ADR 0020's first reopen condition without skipping files by history, so the prompt stays the one GitHub mode uses | 0034, amends 0020 |
-| 5 | The loop stays open while a 🔴 Blocker or 🟠 Fix (ADR 0003) is `new`, `open` or `not-repeated`, not refuted by the verifier and not judged `wrong` with a reason. A finding is released without a judgement only when its lines changed and the round that read that change did not report it again; the loop checks this itself for a `not-repeated` finding, because the history never looks again at a finding it has settled. 🟡 Consider and ⚪ Info are listed and never keep it open | A loop that chases every note never ends; the two top levels are the ones the author is expected to act on in this pull request | 0034 |
+| 4 | Round 1 reviews the whole range. Later rounds review the commits since the previous round's head, as an ordinary range. Earlier findings are carried in the loop's own ledger (ADR 0034, amended 2026-11-12) | Meets ADR 0020's first reopen condition without skipping files by history, so the prompt stays the one GitHub mode uses | 0034, amends 0020 |
+| 5 | The loop stays open while a 🔴 Blocker or 🟠 Fix (ADR 0003) is `new`, `open` or `not-repeated`, not refuted by the verifier and not judged `wrong` with a reason. A finding is released without a judgement only when its lines changed and the round that read that change did not report it again; the loop decides this itself from the round's result and the code, not from history statuses (ADR 0034, amended 2026-11-12). 🟡 Consider and ⚪ Info are listed and never keep it open | A loop that chases every note never ends; the two top levels are the ones the author is expected to act on in this pull request | 0034 |
 | 6 | Three rounds by default (`--max-rounds`). A review call that fails is retried once. Every stop prints its reason. A stop is never an approval | Other tools cap at 3 to 5 rounds and report that the first round carries most of the value (section 5) | 0034 |
 | 7 | A `wachiman-loop` skill ships beside `skills/wachiman-review` | The loop is useless without telling the agent what to do between rounds | 0034 |
 | 8 | Each pull request review lists the **claims** found in the title and body. Each is `confirmed`, `contradicted`, `unverified` or `vague`, with a path and line the engine checks | A grade built on "the reviewer found nothing" certifies whatever the reviewer missed. This asks for positive evidence | 0033 (new) |
@@ -182,10 +182,10 @@ open. The history also settles a finding as `not-repeated` when its file was rev
 did not change and the run did not report it again (`src/history/match.ts:113-127`). A later
 round only reads the fix commits, so an unfixed finding at an unchanged line is often not
 reported again. The loop therefore counts `not-repeated` as still open: the agent either changes
-those lines or judges the finding. The history does not re-settle a settled finding
-(`src/history/match.ts:57,114`), so the loop makes this check on its own: a `not-repeated`
-finding is released when a later round's range changes its lines and that round does not report
-it. The history statuses of ADR 0020 are unchanged. "Fixed" stays inferred, as ADR 0020 says.
+those lines or judges the finding. The loop makes this check on its own and does not use history statuses
+to decide (amended 2026-11-12: a review on another branch shares the history and could settle the
+loop's findings): in a file a round read, a `not-repeated` finding is released when its cited
+text is gone and that round does not report it. The history statuses of ADR 0020 are unchanged. "Fixed" stays inferred, as ADR 0020 says.
 
 ## 3. PR Confidence
 

@@ -263,8 +263,10 @@ wachiman loop --max-rounds 5 --format json
   --reason "<why>"`). The loop decides from each round's own result and the code, not from the
   history. In a file the round read, a finding it reported again is open; one it did not report is
   released as `probably-fixed` when its cited line is gone and stays open (`not-repeated`) when the
-  line is still there. A file the round did not read keeps its previous state. 🟡 and ⚪ are listed
-  and never count. A call with no new commit makes no review call and still counts as a round.
+  line is still there. A file the round did not read keeps its previous state, so a Blocker or Fix
+  left `unknown` by a state from the first version of the loop stays open while its file is not read.
+  When the cited line is short, repeated or line 0, the loop fingerprints the file's blob instead,
+  so any edit to the file releases the finding. 🟡 and ⚪ are listed and never count. A call with no new commit makes no review call and still counts as a round.
 - **Output:** the round, what keeps the loop open (with ids), what no longer does and why
   (`probably-fixed`, `refuted`, `judged wrong`), the notes, and the outcome. `--format json` prints
   `wachiman.loop-round/1`.

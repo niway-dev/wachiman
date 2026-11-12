@@ -10,8 +10,10 @@
  * The command sets the status from the round's own result and the code, not from the history: a
  * finding the round reported again is `open`; in a file the round read, one it did not report is
  * `probably-fixed` when its cited line is gone and `not-repeated` (still counts) when the line is
- * still there; a file the round did not read keeps the previous status. `linesChanged` exists only
- * in states written by the first version of the loop.
+ * still there; a file the round did not read keeps the previous status, so an `unknown` Blocker or
+ * Fix from a state written by the first version stays open until its file is read. When the cited
+ * line is short, repeated or line 0, the file's blob is fingerprinted instead and any edit to the
+ * file releases the finding. `linesChanged` exists only in states written by the first version.
  */
 import type { Severity, Topic } from "../engine";
 import type { VerdictWord } from "../history/types";
@@ -26,11 +28,11 @@ export interface LoopFinding {
   severity: Severity;
   topic: Topic;
   title: string;
-  /** The history status after this round. */
+  /** The status after this round, decided by the loop. */
   status: LoopStatus;
   /** The verifier dropped this finding with a checked disproof in this round. */
   refuted: boolean;
-  /** For a `not-repeated` finding: this round's range changed its lines and the round read the file. */
+  /** Only from a state written by the first version of the loop: a `not-repeated` finding whose lines changed counts as released. */
   linesChanged?: boolean;
   verdict?: { verdict: VerdictWord; reason?: string };
 }
