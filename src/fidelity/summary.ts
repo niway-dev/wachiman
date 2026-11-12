@@ -1,14 +1,23 @@
 /**
  * The short PR Confidence result the review comment carries (ADR 0033 decision 14: the review body
  * is the record, the description holds a mirror). One line. A reason can hold a claim's text, which
- * comes from the author, so each reason is made inert here: one line, no markup, no mention.
+ * comes from the author, so each reason is made one line, with `<`, `[`, `]` and backticks escaped
+ * and `@` broken, so it cannot open a link, a code span, a tag or a mention. Other markdown
+ * (emphasis, a bare address) is left as written: it is one line of text, not a block.
  */
 import type { Fidelity } from "./types";
 
 const A_MEANS = "Every claim has cited evidence and no change is unexplained";
 
 const inert = (text: string) =>
-  text.replace(/\s+/g, " ").trim().replaceAll("<", "&lt;").replaceAll("@", "@\u200b");
+  text
+    .replace(/\s+/g, " ")
+    .trim()
+    .replaceAll("<", "&lt;")
+    .replaceAll("[", "\\[")
+    .replaceAll("]", "\\]")
+    .replaceAll("`", "\\`")
+    .replaceAll("@", "@\u200b");
 
 export function fidelitySummary(f: Fidelity): string {
   const label = f.trial ? `${f.grade} (trial)` : f.grade;

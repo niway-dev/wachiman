@@ -217,6 +217,20 @@ describe("renderBlock", () => {
     expect(blockDigest(renderBlock(unexplainedB(), opts))).toBe(digest);
   });
 
+  test("a bare address in model text is broken so GitHub does not autolink it", () => {
+    const hostile = "see https://evil.example/x and www.evil.example and ftp://evil.example";
+    const f = buildFidelity(
+      input({
+        claims: [confirmed(hostile, "src/Toolbar.tsx", 52, 78), confirmed("ok", "src/export.ts", 1, 2)],
+        openFindings: [{ severity: "fix", path: "src/export.ts", line: 3, title: hostile }],
+      }),
+    );
+    const out = renderBlock(f, opts);
+    expect(out).toContain("evil.example");
+    expect(out).not.toContain("://evil.example");
+    expect(out).not.toContain("www.evil.example");
+  });
+
   test("model text cannot close the block, open a link, mention someone or end the details", () => {
     const hostile = `x ${BLOCK_END} </details> @octocat [click](http://evil.example) <script>\n## heading`;
     const f = buildFidelity(
@@ -250,6 +264,8 @@ describe("upsertBlock", () => {
   });
 
   test("an empty or missing body is just the block", () => {
+    expect(upsertBlock("", block)).toBe(block);
+    expect(upsertBlock(null, block)).toBe(block);
     expect(stripBlock(upsertBlock("", block))).toBe("");
     expect(stripBlock(upsertBlock(null, block))).toBe("");
   });
@@ -319,7 +335,7 @@ describe("cannotSayBlock", () => {
     expect(stripBlock(reset)).toBe("Adds an export button.");
   });
 
-  test("is one whole block, stamped with no digest and linking nothing at HEAD", () => {
+  test("is one whole block, stamped with no digest and linking no file", () => {
     const out = cannotSayBlock("new2222", "The run was cancelled", { date: "2026-11-12", reviewUrl: "https://github.com/o/r/pull/7" });
     expect(blockRegions(out)).toEqual([{ start: 0, end: out.length }]);
     expect(blockDigest(out)).toBeUndefined();
@@ -327,7 +343,7 @@ describe("cannotSayBlock", () => {
     expect(out).toContain("> ### cannot say · The run was cancelled");
     expect(out).toContain("A grade from an earlier commit does not apply to it.");
     expect(out).toContain("2026-11-12");
-    expect(out).not.toContain("HEAD");
+    expect(out).not.toContain("/blob/");
   });
 
   test("without a date it shows the commit alone", () => {

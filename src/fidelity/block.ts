@@ -40,14 +40,19 @@ const NOT_SAFE = "This is not a statement that the pull request is safe to merge
 
 const COMMIT = /^[0-9a-f]{7,64}$/i;
 
-/** Model text as one inert line: no markup, no link, no mention, no newline. */
+/**
+ * Model text as one inert line: no HTML, no markdown link, no mention, no newline, and nothing GFM
+ * would turn into an autolink (`://` and `www.` are broken with a zero-width space).
+ */
 function safe(text: string): string {
   return text
     .replace(/\s+/g, " ")
     .trim()
     .replaceAll("<", "&lt;")
     .replaceAll("[", "\\[")
-    .replaceAll("@", "@​");
+    .replaceAll("@", "@\u200b")
+    .replaceAll("://", ":\u200b//")
+    .replace(/www\./gi, (m) => `${m.slice(0, 3)}\u200b.`);
 }
 
 /** A path or commit as an inline code span. */
@@ -255,7 +260,7 @@ export function upsertBlock(body: string | null | undefined, block: string): str
   if (!isWholeBlock(block)) throw new Error("upsertBlock expects exactly one whole Wachiman block");
   const text = body ?? "";
   const regions = blockRegions(text);
-  if (regions.length === 0) return `${block}\n\n${text}`;
+  if (regions.length === 0) return text === "" ? block : `${block}\n\n${text}`;
 
   let out = "";
   let at = 0;
