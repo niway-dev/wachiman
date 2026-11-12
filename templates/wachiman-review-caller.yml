@@ -1,5 +1,8 @@
 name: Wachiman review
 # Get the key at https://console.anthropic.com and save it as the repository secret ANTHROPIC_API_KEY.
+# To review on a Claude subscription instead, run `claude setup-token` signed in to the account whose
+# plan should pay, save the token with `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo OWNER/REPO`, and
+# swap the commented line under `secrets:` below (docs/install.md, "Review on a Claude subscription").
 # Pin an exact release tag (`@v1.5.0`): it names the release whose workflow and engine run with your
 # key. Maintainers do not move release tags, but a repository admin can; a full commit SHA cannot be
 # re-pointed (see docs/install.md, "What pinning a version does and does not guarantee"). Do not use
@@ -36,3 +39,6 @@ jobs:
       # ask_ceiling_usd: 3     # most all questions from people other than the operator may spend on one pull request
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # To review on a Claude subscription, replace the line above with this one. The token wins when
+      # both are passed, and a refused call is never retried with the key.
+      # CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

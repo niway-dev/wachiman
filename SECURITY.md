@@ -11,13 +11,14 @@ This is a one-person project: reports are handled on a best-effort basis, with n
 
 ## Trust assumptions
 
-These assumptions are what make the tool acceptable to run with an API key. Everything below
+These assumptions are what make the tool acceptable to run with an API key, or with a Claude
+subscription token (see "A subscription token instead of a key" below). Everything below
 describes the default Claude Code workflow (`review.yml` with `provider: claude-code`) unless a
 sentence says otherwise. If an assumption does not hold for your repository, do not install it.
 
 - **Only trusted people can push branches to a repository that runs it.** The review job holds
-  your API key, and on `pull_request` GitHub runs the workflow file from the pull request's own
-  branch. A person who can push can therefore change the workflow and read the key. Nothing in
+  your API key (or your subscription token), and on `pull_request` GitHub runs the workflow file from the pull request's own
+  branch. A person who can push can therefore change the workflow and read the key or the token. Nothing in
   this tool defends against that. The same holds for `pull_request_review_comment`, the event that
   starts a thread-reply run: it is documented to run the workflow file from the pull request's merge
   commit and to give a same-repository head the repository's secrets, like `pull_request`, but the
@@ -48,12 +49,26 @@ sentence says otherwise. If an assumption does not hold for your repository, do 
   is soft: a call can overshoot it (see [docs/costs.md](docs/costs.md)).
 - **The CLI holds the credentials.** It posts the review and posts nothing at all (it stops with an
   error) if any text it would post (the review body, its inline comments, thread replies and
-  answers) contains the active provider's API key, either the job's exact key or anything shaped
+  answers) contains the active provider's API key, either the job's exact key (and, on a subscription
+  token run, the token's exact value) or anything shaped
   like one: `sk-ant-…` for the Claude Code adapter, `sk-…` for the Codex adapter. That is all the
   check does. It is not a secret scanner: it does not look for the GitHub token, other secrets in
   the repository or the runner, or any credential of another shape, and an encoded or split key
   would pass. Text that merely looks like a key (an example key in a diff, say) also stops the
   post.
+- **A subscription token instead of a key.** The reusable workflow also accepts
+  `CLAUDE_CODE_OAUTH_TOKEN`, a token made with `claude setup-token`
+  ([Anthropic's page](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token)).
+  When it is present the agent gets it and never the API key; the engine only passes the variable
+  to the unmodified `claude` binary, never reads `~/.claude` or the keychain, and never calls the
+  API with the token itself ([ADR 0037](docs/adr/0037-the-actions-review-can-run-on-a-claude-code-subscription-token.md)).
+  What changes for the trust assumptions: the token is tied to one person's subscription and shares
+  that plan's usage limits; anyone who can change the workflow on a branch of the same repository can
+  read it, exactly as with the key; Anthropic recommends an API key for a secret shared across an
+  organisation's repositories; and a personal plan is under Anthropic's consumer terms (training
+  setting, retention). The token "can only make model requests", so a leak does not expose the
+  account's sign-in, but it can spend the plan's usage until you revoke it. Wachiman never falls back
+  from the token to an API key.
 - **Only trusted people can start a run on demand.** Only the operator's `/wachiman` comment (or its `@agent-review` and `@claude` aliases) starts
   an on-demand run, and only replies from `OWNER`, `MEMBER` or `COLLABORATOR` reach the agent.
 

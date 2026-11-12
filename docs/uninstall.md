@@ -23,8 +23,8 @@ Pick the least disruptive of these.
    are paid. A review is posted only after its last batch, so a run cancelled before that posts
    nothing.
 3. **Remove the secret as a brake.** If you cannot disable the workflow quickly, deleting
-   `ANTHROPIC_API_KEY` makes every run stop at `wachiman: ANTHROPIC_API_KEY is not set` before
-   any paid call. The runs show red, which is noisy. Disabling is cleaner.
+   `ANTHROPIC_API_KEY` (and `CLAUDE_CODE_OAUTH_TOKEN`, if the caller passes it) makes every run stop at
+   `wachiman: Neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN is set` before any paid call. The runs show red, which is noisy. Disabling is cleaner.
 
 ## Remove it
 
@@ -41,13 +41,17 @@ Pick the least disruptive of these.
    gh secret delete ANTHROPIC_API_KEY -R <owner>/<repo>
    ```
 
-   If other workflows use the same secret, keep it. If it is an organisation secret shared with
+   If you review on a Claude subscription, delete `CLAUDE_CODE_OAUTH_TOKEN` the same way. If other
+   workflows use the same secret, keep it. If it is an organisation secret shared with
    many repositories, remove this repository from its access list instead of deleting it.
 4. **Revoke the key at the provider if it was only for this.** Deleting the GitHub secret removes
    your repository's copy. It does not make the key invalid: the key keeps working at Anthropic
    until you delete it in the [Anthropic Console](https://console.anthropic.com), where you
    created it. Do this when the key was dedicated to Wachiman, and always if you suspect it leaked.
-   Do not delete a key that other tools still use.
+   Do not delete a key that other tools still use. A subscription token is not in the Console: it
+   stays valid for a year after `claude setup-token` made it. To revoke it early, sign out of the
+   account's Claude Code sessions or revoke it in the account's settings at claude.ai, and make a new
+   one if you still need it.
 5. **Remove optional files you no longer need.** Only if nothing else in the repository uses them:
    - `.github/wachiman.md` (or the older `.github/agent-review.md` or `.github/claude-review.md`): the review focus file.
      Nothing else reads it. Leave `CLAUDE.md` and `AGENTS.md`: they are yours, and other tools read

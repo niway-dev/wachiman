@@ -27,7 +27,7 @@
  * best-effort, not a sandbox: it relies on the consumer repository's trust assumption (only trusted people push).
  * The command-line entry point is `src/cli.ts`.
  */
-import { NO_USAGE, addUsage, costLine, costLogLine, type CallCost, type Operation, type TokenUsage } from "./cost";
+import { ESTIMATE_NOTE, NO_USAGE, addUsage, costLine, costLogLine, isEstimate, type CallCost, type Operation, type TokenUsage } from "./cost";
 import { spawnSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1071,6 +1071,12 @@ function commitsText(commits: string[] | undefined) {
 export const prSoFar = (prior: { spent: number; runs: number }, thisRun: number) =>
   `PR so far $${(prior.spent + thisRun).toFixed(2)} over ${countOf(prior.runs + 1, "automatic run")}`;
 
+/** True when this run's dollars are API-price estimates: the engine is on a Claude subscription token (ADR 0037). */
+const onSubscription = (deps: { provider: ProviderAdapter }) => isEstimate(deps.provider.auth);
+
+/** After a `<sub>` line of this run's cost and the pull request's total: the same wording as the cost line's. */
+const estimateTail = (estimate: boolean) => (estimate ? ` · ${ESTIMATE_NOTE}` : "");
+
 export function buildReview(input: {
   /** A finding's `anchor`, when given (a `ReviewResult`'s), decides inline or body; else its file's patch does. */
   output: Omit<ReviewOutput, "findings"> & { findings: (Finding & Partial<Pick<ResultFinding, "anchor" | "origin" | "verification">>)[] };
@@ -1108,6 +1114,8 @@ export function buildReview(input: {
   instructionChanges?: { files: string[]; baseSha: string };
   /** The verifier's record (ADR 0027): its outcome goes in the footer's cost line. */
   verification?: ResultVerificationV2;
+  /** The run is on a Claude subscription: its dollar figures are API-price estimates (ADR 0037). */
+  estimate?: boolean;
   /** The risk map (ADR 0031), rendered right after the count line. */
   riskMap?: RiskMap;
   /** PR Confidence (ADR 0033): the grade as one line after the count line; the description block holds the rest. */
@@ -1241,7 +1249,7 @@ export function buildReview(input: {
         `| ${neutralise(b.label)} | ${b.files} | ${b.lines} | ${b.maxRisk} | ${b.status} | ${b.turns} | $${b.costUsd.toFixed(2)} |`,
     );
     parts.push(
-      `<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n</details>`,
+      `<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost${input.estimate ? " (estimate)" : ""} |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n</details>`,
     );
   }
   parts.push(
@@ -1256,6 +1264,7 @@ export function buildReview(input: {
         ...(input.automatic && input.priorSpend ? [prSoFar(input.priorSpend, costUsd)] : []),
       ],
       usage: input.usage,
+      estimate: input.estimate,
       costUsd,
     }),
   );
@@ -2353,7 +2362,7 @@ export function ceilingRoom(
   postReview(deps, repo, pr, headSha, {
     body: [
       branded(
-        `Automatic reviews paused: $${spent.toFixed(2)} of $${ceiling.toFixed(2)} spent on this pull request. Comment \`${config.mention} review\` to review now.`,
+        `Automatic reviews paused: $${spent.toFixed(2)} of $${ceiling.toFixed(2)} spent on this pull request. Comment \`${config.mention} review\` to review now.${onSubscription(deps) ? " These reviews run on a Claude subscription, so the dollars are API-equivalent estimates, not a bill." : ""}`,
       ),
       SIGNATURE.review,
       ceilingFooter(ceiling),
@@ -3130,6 +3139,8 @@ export function githubReview(
     automatic: boolean;
     /** Computed by the connector from every file of the pull request, not only the reviewed ones. */
     instructionChanges: { files: string[]; baseSha: string };
+    /** The run is on a Claude subscription: the footer says its dollars are estimates. */
+    estimate?: boolean;
   },
 ): Review {
   return buildReview({
@@ -3166,6 +3177,7 @@ export function githubReview(
     ...(result.fidelity ? { fidelity: result.fidelity } : {}),
     pushOnly: github.since !== null,
     ...(result.verification ? { verification: result.verification } : {}),
+    ...(github.estimate ? { estimate: true } : {}),
   });
 }
 
@@ -3416,6 +3428,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
                 operation,
                 extra: prior ? [prSoFar(prior, spent)] : [],
                 usage,
+                estimate: onSubscription(deps),
                 costUsd: spent,
               }),
               SIGNATURE.auto,
@@ -3427,11 +3440,20 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     const { rejection, stop } = result.execution;
     const refused = rejection && rejection.kind !== "other" ? { kind: rejection.kind, text: rejection.text } : undefined;
     if (refused) {
-      const headline = {
-        billing: "**Not reviewed: the reviewer's Anthropic account has no credit.** Top up, then re-run this job.",
-        auth: "**Not reviewed: the reviewer's API key was rejected.** Check the `ANTHROPIC_API_KEY` secret, then re-run.",
-        rate_limit: "**Not reviewed: the Anthropic API kept rate-limiting the reviewer.** Re-run later.",
-      }[refused.kind];
+      // On a subscription token the key is not the credential: say what fits it, and that nothing falls back to a key.
+      const headline = (
+        deps.provider.auth === "oauth-token"
+          ? {
+              billing: "**Not reviewed: the reviewer's Claude subscription refused the call (usage limit or plan access).** Re-run after the limit resets. Wachiman does not fall back to an API key.",
+              auth: "**Not reviewed: the reviewer's Claude subscription token was rejected.** Check the `CLAUDE_CODE_OAUTH_TOKEN` secret (a token lasts a year; make a new one with `claude setup-token`), then re-run.",
+              rate_limit: "**Not reviewed: Claude kept rate-limiting the reviewer.** Re-run later.",
+            }
+          : {
+              billing: "**Not reviewed: the reviewer's Anthropic account has no credit.** Top up, then re-run this job.",
+              auth: "**Not reviewed: the reviewer's API key was rejected.** Check the `ANTHROPIC_API_KEY` secret, then re-run.",
+              rate_limit: "**Not reviewed: the Anthropic API kept rate-limiting the reviewer.** Re-run later.",
+            }
+      )[refused.kind];
       // `oneLine` neutralises the text and cuts it at 300 characters.
       const detail = oneLine(refused.text, 300);
       spentNotice(detail ? `${headline}\n\n> ${detail}` : headline);
@@ -3476,6 +3498,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       files: changedInstructionFiles(prFiles.map((f) => f.filename)),
       baseSha: instructions.baseSha,
     },
+    estimate: onSubscription(deps),
   });
   refuseLeak(deps, [
     built.body,
@@ -3495,7 +3518,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   }
   // This run's cost and the pull request's total, under each reply. Not flagged automatic: the
   // review body above carries the flagged line, so the ceiling would count the run twice.
-  const replyCost = prior ? `\n\n<sub>this run $${spent.toFixed(2)} · ${prSoFar(prior, spent)}</sub>` : "";
+  const replyCost = prior ? `\n\n<sub>this run $${spent.toFixed(2)} · ${prSoFar(prior, spent)}${estimateTail(onSubscription(deps))}</sub>` : "";
   for (const r of result.threadReplies) {
     const label = r.status === "addressed" ? "Looks addressed" : "Still open";
     if (config.dryRun) {
@@ -3703,8 +3726,8 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     const prior = { spent: ceiling.spent, runs: ceiling.runs };
     const cost =
       i === 0
-        ? `\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`, prSoFar(prior, call.costUsd)], usage: call.usage, costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
-        : `\n\n<sub>this run $${call.costUsd.toFixed(2)} · ${prSoFar(prior, call.costUsd)}</sub>`;
+        ? `\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`, prSoFar(prior, call.costUsd)], usage: call.usage, estimate: onSubscription(deps), costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
+        : `\n\n<sub>this run $${call.costUsd.toFixed(2)} · ${prSoFar(prior, call.costUsd)}${estimateTail(onSubscription(deps))}</sub>`;
     const body = `${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(reply.reply)}${cost}\n\n${SIGNATURE.reply}`;
     if (config.dryRun) {
       deps.log(`--- reply to ${reply.comment_id}: ${label} ---\n${body}`);
@@ -4106,6 +4129,7 @@ export function runProvider(
     // (`attempt`); record it that way here, still as a table row and a log line, then fail as before.
     const dead: CallCost = {
       ...what,
+      ...(deps.provider.auth ? { auth: deps.provider.auth } : {}),
       model: limits.model,
       turns: 0,
       durationMs: Date.now() - started,
@@ -4143,10 +4167,12 @@ export function runProvider(
       durationMs: result.durationMs,
       providerError: result.providerError,
       errorText: result.errorText,
+      credential: deps.provider.auth,
     }),
   );
   const cost: CallCost = {
     ...what,
+    ...(deps.provider.auth ? { auth: deps.provider.auth } : {}),
     model: result.model ?? limits.model,
     turns: result.turns,
     durationMs: result.durationMs,
@@ -4319,6 +4345,7 @@ export function answer(deps: Deps, repo: string, pr: number, question: string, o
       effort: deps.config.effort,
       operation: "on-demand",
       usage: result?.usage,
+      estimate: onSubscription(deps),
       costUsd,
     });
     const signed = asker === undefined ? SIGNATURE.answer : `${SIGNATURE.ask}\n\n${SIGNATURE.answer}`;
@@ -4360,7 +4387,7 @@ export function answer(deps: Deps, repo: string, pr: number, question: string, o
 function postAskLimit(deps: Deps, repo: string, pr: number, spent: number) {
   const body = [
     branded(
-      `The question budget for this pull request is used up: questions from collaborators have spent $${spent.toFixed(2)} of the $${deps.config.askCeilingUsd.toFixed(2)} ceiling, so this question is not answered. The repository operator can still ask.`,
+      `The question budget for this pull request is used up: questions from collaborators have spent $${spent.toFixed(2)} of the $${deps.config.askCeilingUsd.toFixed(2)} ceiling, so this question is not answered. The repository operator can still ask.${onSubscription(deps) ? " These are API-equivalent estimates: the reviews run on a Claude subscription, not a bill." : ""}`,
     ),
     SIGNATURE.answer,
     SIGNATURE.askLimit,

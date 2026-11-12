@@ -618,7 +618,7 @@ Required for `review`, `comment` and `threads`:
 | `AGENT_REVIEW_COMMENT_IN_REPLY_TO` | Optional: the id of the comment this one replies to. The answer is posted as a reply under the thread's first comment. |
 | `AGENT_REVIEW_COMMENT_PATH`, `AGENT_REVIEW_COMMENT_LINE` | Optional: the file and the line the review comment is on (`line`, or `original_line` when the line moved). The question is about that line first. |
 | `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs unless `AGENT_REVIEW_ASKERS=write` (see [Questions from collaborators](#questions-from-collaborators)). |
-| Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`. For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
+| Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token from `claude setup-token`; it wins when both are set, and `local` and `ask` never read it). For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
 
 The `gh` CLI and the provider's binary (`claude` for `claude-code`, `codex` for `codex`) must be on
 the `PATH`.

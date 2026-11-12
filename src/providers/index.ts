@@ -1,4 +1,4 @@
-import { ClaudeCodeProvider, type ClaudeAuth } from "./claude-code";
+import { ClaudeCodeProvider, resolveClaudeAuth, type ClaudeAuth } from "./claude-code";
 import { CodexProvider } from "./codex";
 import type { Effort, ProviderAdapter } from "./types";
 
@@ -31,11 +31,14 @@ export function getProvider(
 ): ProviderAdapter {
   if (name === "claude-code") {
     const subscription = options.auth === "subscription";
+    // GitHub mode names no auth: the credential in the environment decides (ADR 0037 decision 1).
+    const auth = options.auth ?? resolveClaudeAuth(process.env);
     return new ClaudeCodeProvider({
       model: options.model,
       requireApiKey: !subscription && !options.dryRun,
       effort: options.effort,
       ...(subscription ? { auth: options.auth, configDir: options.configDir, binary: options.binary } : {}),
+      ...(auth === "oauth-token" ? { auth } : {}),
     });
   }
   if (name === "codex") {

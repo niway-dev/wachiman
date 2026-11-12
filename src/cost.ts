@@ -7,6 +7,7 @@
  * be grepped and summed across runs), and a table in the GitHub Actions job summary.
  */
 import { appendFileSync } from "node:fs";
+import type { ProviderAuth } from "./providers/types";
 
 /**
  * What a call was for.
@@ -46,6 +47,15 @@ export function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
 
 export const hasUsage = (u: TokenUsage) => u.input + u.output + u.cacheRead + u.cacheWrite > 0;
 
+/**
+ * True when the dollar figure of a call is an API-price equivalent, not a charge: a run on a
+ * Claude subscription, locally or with a CI token (ADR 0019 decision 6, ADR 0037 decision 5).
+ */
+export const isEstimate = (auth: ProviderAuth | undefined) => auth === "oauth-token" || auth === "subscription";
+
+/** The footer's wording for an estimate; the same idea as the local mode's "API-equivalent estimate … not a bill". */
+export const ESTIMATE_NOTE = "Claude subscription: API-equivalent estimate, not a bill";
+
 /** One model call, as reported by the provider and tagged by the engine. */
 export interface CallCost {
   operation: Operation;
@@ -60,6 +70,8 @@ export interface CallCost {
   /** False when the call died without a result: its real cost is unknown and `costUsd` is its cap. Default true. */
   costKnown?: boolean;
   terminalReason: string;
+  /** What paid for the call; absent means `api-key`. */
+  auth?: ProviderAuth;
   repo?: string;
   pr?: number;
 }
@@ -84,6 +96,8 @@ export function costLine(parts: {
   /** Anything else for the line, e.g. `2 batches`, `answers 2 thread(s)` or `PR so far $0.77 over 3 automatic runs`. */
   extra?: string[];
   usage?: TokenUsage;
+  /** The amount is an API-price estimate on a Claude subscription: said before the figure, which stays last. */
+  estimate?: boolean;
   costUsd: number;
 }) {
   const { usage } = parts;
@@ -99,6 +113,7 @@ export function costLine(parts: {
     ...(parts.operation ? [parts.operation] : []),
     ...(parts.extra ?? []),
     ...tokens,
+    ...(parts.estimate ? [ESTIMATE_NOTE] : []),
     `$${parts.costUsd.toFixed(2)}`,
   ];
   return `<sub>${segments.join(" · ")}</sub>`;
@@ -126,6 +141,8 @@ export function costLogLine(call: CallCost, extra: { trigger?: string } = {}) {
     cost_usd: call.costKnown === false ? null : Number(call.costUsd.toFixed(6)),
     ...(call.costKnown === false ? { countedUsd: Number(call.costUsd.toFixed(6)) } : {}),
     terminal_reason: call.terminalReason,
+    // `cost_usd` on `oauth-token` or `subscription` is an API-price estimate, not a charge.
+    auth: call.auth ?? "api-key",
   })}`;
 }
 
@@ -149,6 +166,9 @@ export function renderCostSummary(calls: CallCost[]) {
     "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ...rows,
     `| **Total** | | ${turns} | ${total.input} | ${total.output} | ${total.cacheRead} | ${total.cacheWrite} | **$${usd.toFixed(4)}** |`,
+    ...(calls.some((c) => isEstimate(c.auth))
+      ? ["", "These runs used a Claude subscription: the dollars above are API-price estimates (what the calls would cost at API prices), not a bill."]
+      : []),
     ...(unknown.length
       ? [
           "",

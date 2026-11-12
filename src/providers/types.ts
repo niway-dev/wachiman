@@ -99,9 +99,19 @@ export interface ProviderResult {
   raw: unknown;
 }
 
+/**
+ * What pays for a call: `api-key` (a Console key, billed per token), `oauth-token` (a Claude Code
+ * token made with `claude setup-token`, the CI route on a subscription: ADR 0037) or `subscription`
+ * (the developer's own sign-in, the local mode: ADR 0019). The last two report a dollar figure that
+ * is an API-price equivalent, not a charge.
+ */
+export type ProviderAuth = "api-key" | "oauth-token" | "subscription";
+
 export interface ProviderAdapter {
   /** The value of `AGENT_REVIEW_PROVIDER` that selects it. */
   readonly name: string;
+  /** What pays for the calls. Absent means `api-key`. */
+  readonly auth?: ProviderAuth;
   /** Throws when the call would fail anyway: missing binary, settings file or credential. */
   preflight(): void;
   /** For the review footer, e.g. "Claude Sonnet 5.5 via Claude Code 2.1.304". */

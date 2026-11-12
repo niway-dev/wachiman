@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClaudeCodeProvider } from "./providers/claude-code";
 import { CodexProvider } from "./providers/codex";
-import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
+import type { ProviderAdapter, ProviderAuth, ProviderRequest, ProviderResult } from "./providers/types";
 import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts";
 
 // ADR 0012, part A: one ceiling for all automatic runs on a pull request, summed from the
@@ -31,6 +31,10 @@ import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts
 class FakeProvider implements ProviderAdapter {
   readonly name = "fake";
   readonly requests: ProviderRequest[] = [];
+  /** Unset for most tests, like a provider that does not say (the engine treats it as `api-key`). */
+  auth: ProviderAuth | undefined;
+  /** Off for a test that is not about the prompt, so it adds nothing to the pinned golden prompts. */
+  record = true;
   constructor(private readonly script: ((request: ProviderRequest) => Partial<ProviderResult>)[]) {}
   preflight() {}
   modelLabel() {
@@ -41,7 +45,7 @@ class FakeProvider implements ProviderAdapter {
   }
   run(request: ProviderRequest): ProviderResult {
     this.requests.push(request);
-    recordPrompt("ceiling.fake", request);
+    if (this.record) recordPrompt("ceiling.fake", request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
     return { costUsd: 0, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, ...step(request) };
@@ -550,5 +554,89 @@ describe("review() under the ceiling", () => {
     // The partial review's cost is in its footer: $0.05 is left of $0.30, i.e. a batch can still start.
     const next = setup({ env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.3" }, reviews: t.reviews });
     expect(automaticSpend(next.deps.gh, "o/r", 7).spent).toBeCloseTo(0.25, 10);
+  });
+});
+
+describe("a run on a Claude subscription token", () => {
+  const HEAD = "head1234567";
+  const FILE = { filename: "a.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+x" };
+  const NOTE = "Claude subscription: API-equivalent estimate, not a bill";
+
+  function setup(auth: ProviderAuth | undefined, opts: { reviews?: string[]; env?: Record<string, string> } = {}) {
+    const posted: string[] = [];
+    const logs: string[] = [];
+    const reviews = [...(opts.reviews ?? [])];
+    const gh: GhFn = (args, input) => {
+      const line = args.join(" ");
+      if (line.includes("/contents/")) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
+      if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: HEAD, title: "t", body: "b", author: { login: "u" } });
+      if (line.includes("/pulls/7/files")) return JSON.stringify(FILE);
+      if (line.includes("/pulls/7/reviews") && !args.includes("POST"))
+        return reviews.map((body) => JSON.stringify({ body, submitted_at: "2026-11-02T00:00:00Z" })).join("\n");
+      if (line.includes("/pulls/7/comments") && !args.includes("POST")) return "";
+      if (line.includes("-X POST repos/o/r/pulls/7/reviews")) {
+        const body = JSON.parse(input ?? "{}").body as string;
+        posted.push(body);
+        reviews.push(body);
+        return "{}";
+      }
+      if (line.startsWith("api repos/o/r/pulls/7 ")) return "b".repeat(40);
+      if (line.startsWith("api graphql"))
+        return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
+      throw new Error(`unexpected gh call: ${line}`);
+    };
+    const provider = new FakeProvider([() => ({ costUsd: 0.1, structuredOutput: out({}) })]);
+    provider.auth = auth;
+    provider.record = false;
+    const deps: Deps = { gh, provider, config: loadConfig({ AGENT_REVIEW_TRIGGER: "opened", ...opts.env }), log: (l) => void logs.push(l), warn: () => {}, sleep: () => {} };
+    return { deps, posted, logs };
+  }
+
+  test("the footer says the amount is an estimate, and the ceiling reads it exactly like an API-key footer", () => {
+    const token = setup("oauth-token");
+    review(token.deps, "o/r", 7, []);
+    const keyed = setup("api-key");
+    review(keyed.deps, "o/r", 7, []);
+    expect(token.posted[0]).toContain(`${NOTE} · $0.10</sub>`);
+    expect(keyed.posted[0]).not.toContain("Claude subscription");
+    expect(readAutoCost(token.posted[0])).toBeCloseTo(0.1, 10);
+    expect(readAutoCost(token.posted[0])).toBe(readAutoCost(keyed.posted[0]));
+  });
+
+  test("footers written before this change, and new ones, both count toward the pull request's spend", () => {
+    const old = spentBody(0.2, { marker: "aaa1111" });
+    const sub = old.replace("<sub>Fake Model · effort high · $0.20</sub>", `<sub>Fake Model · effort high · ${NOTE} · $0.30</sub>`);
+    expect(sub).not.toBe(old);
+    expect(readAutoCost(old)).toBeCloseTo(0.2, 10);
+    expect(readAutoCost(sub)).toBeCloseTo(0.3, 10);
+    const gh: GhFn = (args) => {
+      const line = args.join(" ");
+      if (line.includes("/pulls/7/reviews")) return [old, sub].map((body) => JSON.stringify({ body })).join("\n");
+      if (line.includes("/pulls/7/comments")) return "";
+      throw new Error(`unexpected gh call: ${line}`);
+    };
+    const { spent, runs } = automaticSpend(gh, "o/r", 7);
+    expect(spent).toBeCloseTo(0.5, 10);
+    expect(runs).toBe(2);
+  });
+
+  test("the cost log line of the call carries the credential", () => {
+    for (const [auth, expected] of [["oauth-token", "oauth-token"], ["api-key", "api-key"], [undefined, "api-key"]] as const) {
+      const t = setup(auth);
+      review(t.deps, "o/r", 7, []);
+      const line = t.logs.find((l) => l.startsWith("wachiman-cost "));
+      expect(JSON.parse((line ?? "").slice("wachiman-cost ".length)).auth).toBe(expected);
+    }
+  });
+
+  test("the paused notice says its dollars are estimates only on a subscription", () => {
+    const env = { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" };
+    const token = setup("oauth-token", { env, reviews: [spentBody(0.5)] });
+    review(token.deps, "o/r", 7, []);
+    expect(token.posted[0]).toContain("Automatic reviews paused: $0.50 of $0.50 spent on this pull request.");
+    expect(token.posted[0]).toContain("API-equivalent estimates");
+    const keyed = setup("api-key", { env, reviews: [spentBody(0.5)] });
+    review(keyed.deps, "o/r", 7, []);
+    expect(keyed.posted[0]).not.toContain("estimate");
   });
 });

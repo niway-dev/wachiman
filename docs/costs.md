@@ -1,7 +1,10 @@
 # Cost, budgets and coverage
 
-Wachiman runs in your GitHub Actions and calls a model provider with your own API key, so the
-provider bills your account. This project runs no service and takes no payment. This page explains
+Wachiman runs in your GitHub Actions and calls a model provider with your own credential: an API
+key, so the provider bills your account per token, or a Claude subscription token, so the calls
+count against a Claude plan's usage limits
+([below](#when-the-review-runs-on-a-claude-subscription)). This project runs no service and takes
+no payment. This page explains
 what bounds the spend of one run, where those bounds are weaker than they sound, and how to read
 the cost a review reports.
 
@@ -97,7 +100,7 @@ no batches and no retry.
 | Turn cap | `--max-turns` (`max_turns`, default 40), checked by Claude Code itself; reaching it ends the call as `turns` | **None.** `codex exec` has no such flag |
 | Wall-clock limit on a call | `call_timeout_s` (default 900), then `SIGKILL`; ends the call as `timeout` | Same limit and signal |
 | Where the reported cost comes from | The cost Claude Code reports for the call (`total_cost_usd`) | Computed by the adapter from token counts times a price table in the code |
-| Available from the reusable workflow | Yes | **No.** The workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY` |
+| Available from the reusable workflow | Yes | **No.** The workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` |
 
 Details: [providers/claude-code.md](providers/claude-code.md) and
 [providers/codex.md](providers/codex.md).
@@ -324,9 +327,31 @@ against one.
 - It does not include GitHub runner minutes.
 
 To see what you were actually charged, use the provider's console (the Anthropic Console for the
-reusable workflow). If you need a hard ceiling, set a spend limit there; the provider's current
+reusable workflow; on a subscription there is no per-call charge, see the next section). If you need a hard ceiling, set a spend limit there; the provider's current
 options are described in its own documentation, which this repository does not verify. Using a key
 dedicated to Wachiman makes its spend easy to read and the key easy to revoke.
+
+## When the review runs on a Claude subscription
+
+With `CLAUDE_CODE_OAUTH_TOKEN` instead of `ANTHROPIC_API_KEY` ([install.md](install.md#review-on-a-claude-subscription)),
+the calls are not billed per token. They draw on the usage limits of the plan of the person who made
+the token, shared with that person's own use of Claude.
+
+- **The dollar figures are estimates.** `total_cost_usd`, which Claude Code prints for each call, is
+  what the call would cost at API prices, not a charge. The review footer says so ("Claude
+  subscription: API-equivalent estimate, not a bill"), the "Automatic reviews paused" notice says so,
+  the job summary says so, and each `wachiman-cost` log line carries `"auth":"oauth-token"` so a
+  script summing `cost_usd` can keep estimates apart from charges.
+- **The budgets still apply.** They bound the work (turns, calls, size of a run), and the ceiling sums
+  the estimates in the footers exactly as it sums real amounts. A plan's own limit, not a dollar
+  figure, is what finally stops a run.
+- **A refused call is reported, never retried with a key.** When the plan's usage limit or a rejected
+  token stops a call, the run posts the same kind of "Not reviewed" notice as for a refused API call,
+  worded for a subscription, and `on_provider_unavailable` decides whether the check passes or fails.
+  Nothing falls back to `ANTHROPIC_API_KEY`.
+- **Not measured yet.** That Claude Code reports `total_cost_usd` with this token, and the exact error
+  text a usage limit produces, have not been observed in a real run; see the pull request that added
+  this route.
 
 ## Coverage is not the same as "every line was read"
 

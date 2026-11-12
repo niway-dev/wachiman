@@ -11,6 +11,7 @@ import {
   InterruptedError,
   leaksKey,
   prettyModel,
+  resolveClaudeAuth,
   SUBSCRIPTION_ENV,
   terminalReasonOf,
   toolNames,
@@ -636,5 +637,131 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
     // The API-key (CI) path never takes a stored binary.
     const ci = getProvider("claude-code", { model: "m", dryRun: true, effort: "high", binary: stored });
     expect((ci as ClaudeCodeProvider).binaryPath).toBe("claude");
+  });
+});
+
+describe("the CI subscription token (CLAUDE_CODE_OAUTH_TOKEN)", () => {
+  const TOKEN = "sk-ant-oat01-SyntheticTokenSyntheticToken0123456789";
+  const parent = {
+    PATH: "/p",
+    HOME: "/h",
+    USER: "me",
+    ANTHROPIC_API_KEY: "sk-ant-api03-SyntheticKeySyntheticKey0123456789",
+    CLAUDE_CODE_OAUTH_TOKEN: TOKEN,
+    ANTHROPIC_BASE_URL: "http://x",
+    GH_TOKEN: "t",
+    CLAUDE_CONFIG_DIR: "/c",
+  };
+  const request = {
+    prompt: "p",
+    cwd: process.cwd(),
+    addDirs: [],
+    allowedTools: ["read" as const],
+    maxBudgetUsd: 0.5,
+    promptViaStdin: true,
+  };
+
+  test("the child gets the token and never the key, even when both are in the parent", () => {
+    const child = buildChildEnv(parent, { auth: "oauth-token" });
+    expect(child.CLAUDE_CODE_OAUTH_TOKEN).toBe(TOKEN);
+    expect(child).not.toHaveProperty("ANTHROPIC_API_KEY");
+    expect(child).toEqual({ PATH: "/p", HOME: "/h", CLAUDE_CODE_OAUTH_TOKEN: TOKEN, CLAUDE_CONFIG_DIR: "/c" });
+  });
+
+  test("none of the local mode's extras appear", () => {
+    const child = buildChildEnv(parent, { auth: "oauth-token" });
+    expect(child).not.toHaveProperty("USER");
+    for (const name of Object.keys(SUBSCRIPTION_ENV)) expect(child).not.toHaveProperty(name);
+    // No isolated profile either: the CI runner's own CLAUDE_CONFIG_DIR, if any, is left alone.
+    expect(buildChildEnv(parent, { auth: "oauth-token", configDir: "/iso" }).CLAUDE_CONFIG_DIR).toBe("/c");
+  });
+
+  test("the key mode never forwards the token, and the local mode never does either", () => {
+    expect(buildChildEnv(parent)).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
+    expect(buildChildEnv(parent, { auth: "subscription" })).not.toHaveProperty("CLAUDE_CODE_OAUTH_TOKEN");
+  });
+
+  test("on Windows the names are matched without case", () => {
+    const child = buildChildEnv({ Path: "C:\\x", Claude_Code_Oauth_Token: TOKEN, Anthropic_Api_Key: "k" }, { auth: "oauth-token", platform: "win32" });
+    expect(child).toEqual({ Path: "C:\\x", Claude_Code_Oauth_Token: TOKEN });
+  });
+
+  test("selection by presence: token only, key only, both (the token wins), neither", () => {
+    expect(resolveClaudeAuth({ CLAUDE_CODE_OAUTH_TOKEN: TOKEN })).toBe("oauth-token");
+    expect(resolveClaudeAuth({ ANTHROPIC_API_KEY: "sk-ant-x" })).toBe("api-key");
+    expect(resolveClaudeAuth({ ANTHROPIC_API_KEY: "sk-ant-x", CLAUDE_CODE_OAUTH_TOKEN: TOKEN })).toBe("oauth-token");
+    expect(resolveClaudeAuth({})).toBe("api-key");
+    // A workflow that does not pass the secret still sets the variable, to "".
+    expect(resolveClaudeAuth({ ANTHROPIC_API_KEY: "sk-ant-x", CLAUDE_CODE_OAUTH_TOKEN: "" })).toBe("api-key");
+  });
+
+  const withEnv = (env: Record<string, string | undefined>, fn: () => void) => {
+    const names = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"];
+    const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+    for (const n of names) delete process.env[n];
+    Object.assign(process.env, env);
+    try {
+      fn();
+    } finally {
+      for (const n of names) {
+        if (saved[n] === undefined) delete process.env[n];
+        else process.env[n] = saved[n];
+      }
+    }
+  };
+  const get = () => getProvider("claude-code", { model: "m", dryRun: false, effort: "high" }) as ClaudeCodeProvider;
+
+  test("getProvider picks the mode from the environment and reports it", () => {
+    withEnv({ CLAUDE_CODE_OAUTH_TOKEN: TOKEN, ANTHROPIC_API_KEY: "sk-ant-api03-x" }, () => expect(get().auth).toBe("oauth-token"));
+    withEnv({ ANTHROPIC_API_KEY: "sk-ant-api03-x" }, () => expect(get().auth).toBe("api-key"));
+  });
+
+  test("with neither variable, preflight fails and names both", () => {
+    const binary = stubBinary('echo "2.1.304"');
+    withEnv({}, () => {
+      const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: true, binary });
+      expect(() => provider.preflight()).toThrow(/ANTHROPIC_API_KEY.*CLAUDE_CODE_OAUTH_TOKEN/);
+    });
+  });
+
+  test("a token run starts without a key and sends the child the token only", () => {
+    const binary = stubBinary(`cat >/dev/null
+printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0.1,"duration_ms":1,"result":"token=[%s] key=[%s] user=[%s]"}' "$CLAUDE_CODE_OAUTH_TOKEN" "$ANTHROPIC_API_KEY" "$USER"`);
+    withEnv({ CLAUDE_CODE_OAUTH_TOKEN: TOKEN, ANTHROPIC_API_KEY: "sk-ant-api03-both" }, () => {
+      const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: true, auth: "oauth-token", binary });
+      expect(() => provider.preflight()).not.toThrow();
+      const result = provider.run(request);
+      expect(result.text).toBe(`token=[${TOKEN}] key=[] user=[]`);
+      expect(result.costKnown).toBe(true);
+    });
+  });
+
+  test("a token run without a token fails its preflight naming the variable", () => {
+    const binary = stubBinary('echo "2.1.304"');
+    withEnv({}, () => {
+      const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: true, auth: "oauth-token", binary });
+      expect(() => provider.preflight()).toThrow("CLAUDE_CODE_OAUTH_TOKEN");
+    });
+  });
+
+  test("the leak check refuses the token's exact value, even a value that is not key-shaped", () => {
+    withEnv({ CLAUDE_CODE_OAUTH_TOKEN: "plain-opaque-value-1234567890" }, () => {
+      const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "oauth-token" });
+      expect(provider.leaksSecret(["quoted: plain-opaque-value-1234567890 here"])).toBe(true);
+      expect(provider.leaksSecret(["nothing here"])).toBe(false);
+    });
+    expect(leaksKey(["x " + TOKEN], "", TOKEN)).toBe(true);
+  });
+
+  test("the key-shape pattern also matches a token shaped like sk-ant-oat01-…", () => {
+    // The docs do not state the token's shape; this is the shape seen in practice. Not loosened.
+    expect(leaksKey([TOKEN], "")).toBe(true);
+    expect(leaksKey(["the guard matches `sk-ant-` literally"], "")).toBe(false);
+  });
+
+  test("the unchanged local mode still refuses a key and still ignores a token in its environment", () => {
+    const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription" });
+    withEnv({ ANTHROPIC_API_KEY: "sk-ant-x" }, () => expect(() => provider.preflight()).toThrow("ANTHROPIC_API_KEY is set."));
+    expect(provider.auth).toBe("subscription");
   });
 });

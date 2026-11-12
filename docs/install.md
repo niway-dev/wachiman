@@ -3,7 +3,8 @@
 This tutorial takes a repository with no Wachiman installation to one posted review. It uses the
 reusable workflow, pinned to release **v1.5.0**. You will add one caller file and one secret,
 open a pull request, and read the review. It takes a few minutes and spends a small amount on
-your own model API key.
+your own model API key, or on your Claude subscription if you choose that route
+([below](#review-on-a-claude-subscription)).
 
 Wachiman is advisory. The review is a plain comment review: it never approves, requests changes
 or blocks a merge.
@@ -17,9 +18,11 @@ You need:
   anyone who can push a branch can change the workflow and read the key. Nothing in this tool
   defends against that. Read [SECURITY.md](../SECURITY.md) first; it is short, and it says what
   is still unverified.
-- **An Anthropic API key.** The reusable workflow runs Claude Code and reads only
-  `ANTHROPIC_API_KEY`. Create the key in the [Anthropic Console](https://console.anthropic.com).
-  Usage is billed by Anthropic to the account that owns the key. Check what usage reporting and
+- **An Anthropic API key, or a Claude subscription token.** The reusable workflow runs Claude
+  Code and reads only `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. This tutorial uses the
+  key; to pay from a Claude plan instead, see
+  [Review on a Claude subscription](#review-on-a-claude-subscription). Create the key in the
+  [Anthropic Console](https://console.anthropic.com). Usage is billed by Anthropic to the account that owns the key. Check what usage reporting and
   spending limits that account offers, and how they are enforced, before relying on them: this
   project does not set or verify them. Other providers: Codex is command-line only
   ([providers/codex.md](providers/codex.md)).
@@ -93,6 +96,49 @@ hand, as below, works the same.
 Commit the change on a branch and open a pull request that adds the caller file. Do not turn on
 auto-merge for it: merging puts a workflow that uses your key on the default branch, so read the
 file once more first.
+
+## Review on a Claude subscription
+
+The review can run on a Claude Pro, Max, Ultra, Team or Enterprise plan instead of an API key.
+Claude Code documents this route for CI: `claude setup-token` makes a one-year token, and you
+pass it as `CLAUDE_CODE_OAUTH_TOKEN`
+([Anthropic's page](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token)).
+
+1. **Make the token.** On your laptop, signed in to the account whose plan should pay, run
+   `claude setup-token`. It prints the token and saves it nowhere. The token can only make model
+   requests.
+2. **Save it as a repository secret.** Run `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo OWNER/REPO`
+   and paste the token at the prompt, so it never lands in your shell history.
+3. **Pass it in the caller.** Under `secrets:`, use the token line instead of the key line:
+
+   ```yaml
+       secrets:
+         CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+   ```
+
+What to know before choosing it:
+
+- **The credential is chosen by which secret you pass.** If the token is present, the agent
+  gets the token and never the API key, even when the caller passes both. If only the key is
+  passed, nothing changes. If neither is passed, the run fails and says so.
+- **There is no fallback to the key.** When the plan refuses a call (a usage limit, a rejected
+  token), the run reports that and stops, the same way a refused API call is reported. It never
+  retries with an API key, because that would spend money you did not decide to spend.
+- **The token is tied to one person's plan.** It draws on that person's usage limits, shared
+  with their own use of Claude. Anthropic recommends an API key for a secret shared across an
+  organisation's repositories, because
+  [an OAuth token is tied to the subscription of the person who ran `claude setup-token`](https://code.claude.com/docs/en/github-actions#set-up-for-an-organization).
+- **The dollar figures become estimates.** `claude -p` still reports a cost, but on a
+  subscription it is what the calls would cost at API prices, not a charge. The budgets and the
+  per-pull-request ceiling keep using it to bound the work. The review footer, the "paused"
+  notice and the `wachiman-cost` log line say it is an estimate (`auth` is `oauth-token`).
+- **The trust rule is the same as for the key.** Anyone who can push a branch of the repository
+  can change the workflow and read the token. A personal plan is under Anthropic's consumer
+  terms (training setting, retention); a Team or Enterprise plan is under commercial terms.
+  [ADR 0037](adr/0037-the-actions-review-can-run-on-a-claude-code-subscription-token.md) records
+  the decision.
+- **The token lasts a year.** When it expires or is revoked, calls are refused with an
+  authentication error; make a new one with the same steps.
 
 ## What the first run does
 
@@ -230,7 +276,8 @@ repository before you have seen it, so it is not recommended.
 
 ## Checks before enabling
 
-- The secret `ANTHROPIC_API_KEY` exists in the repository (or the organisation, shared with it).
+- The secret `ANTHROPIC_API_KEY` (or `CLAUDE_CODE_OAUTH_TOKEN`, if you review on a subscription)
+  exists in the repository (or the organisation, shared with it), and the caller passes it.
 - The operator login is yours, spelled exactly as on GitHub.
 - You are not expecting fork reviews: fork pull requests are skipped on purpose.
 - Everyone who can push to the repository is someone you trust with the key. Read

@@ -145,7 +145,11 @@ The CLI contract (commands, environment, exit codes) is in [cli.md](cli.md). The
 
 1. **An API key.** In the Anthropic Console, create a key for this repository. Check what
    spending limits and usage reporting your account offers and how they are enforced; this project
-   does not set or verify them. Promotional credits may expire: check your billing page.
+   does not set or verify them. Promotional credits may expire: check your billing page. To pay
+   from a Claude plan instead, make a token with `claude setup-token` and use
+   `CLAUDE_CODE_OAUTH_TOKEN` in place of the key everywhere below
+   ([install.md](install.md#review-on-a-claude-subscription)); the copy template has a commented
+   line for it in each job.
 2. **A repository secret, not an environment secret.** The jobs name no environment, so an
    environment secret is not passed to them:
    ```sh

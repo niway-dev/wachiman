@@ -33,6 +33,22 @@ describe("describeCall", () => {
     expect(line).toContain("the API key was rejected. Check the ANTHROPIC_API_KEY secret.");
   });
 
+  test("a refused call on a subscription token never points at the API key secret", () => {
+    const base2 = { ...base, isError: true, terminalReason: "error", credential: "oauth-token" as const };
+    for (const providerError of ["auth", "billing", "rate_limit"] as const) {
+      const line = describeCall({ ...base2, providerError, errorText: "x" });
+      expect(line).not.toContain("ANTHROPIC_API_KEY");
+      expect(line).not.toContain("key was rejected");
+    }
+    expect(describeCall({ ...base2, providerError: "auth" })).toContain("CLAUDE_CODE_OAUTH_TOKEN");
+    expect(describeCall({ ...base2, providerError: "billing" })).toContain("usage limit");
+  });
+
+  test("a finished call on a subscription shows its dollars as an estimate", () => {
+    expect(describeCall({ ...base, credential: "oauth-token" })).toBe("✅ batch 1/2: finished in 3 turns, 42.1 s, $0.31 (API-price estimate).");
+    expect(describeCall({ ...base, credential: "api-key" })).toBe(describeCall(base));
+  });
+
   test("a rate limit says it is temporary", () => {
     const line = describeCall({ ...base, isError: true, terminalReason: "error", providerError: "rate_limit", errorText: "429" });
     expect(line).toStartWith("⏳ batch 1/2: the Anthropic API rate-limited the call.");
