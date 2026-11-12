@@ -38,3 +38,5 @@ Each document is one unit of evidence. The synthesis is written last, from these
 | [synthesis.md](synthesis.md) | All of the above | done |
 | [skill-draft-test-map.md](skill-draft-test-map.md) | Test-mapping heuristics (draft skill, not installed) | done |
 | [decisions-2026-11-12.md](decisions-2026-11-12.md) | Owner decisions after the research | done |
+| [t3code/05-pipeline-and-test-signal-agent.md](t3code/05-pipeline-and-test-signal-agent.md) | How the purge pipeline and the test-signal agent work, in rebuildable detail | done |
+| [state-of-the-art.md](state-of-the-art.md) | Test linters, smell detectors, mutation testing, configurable reviewer policy | done |
