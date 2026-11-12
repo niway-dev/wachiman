@@ -5,6 +5,73 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.13.0](https://github.com/niway-dev/wachiman/compare/v1.12.0...v1.13.0) (2026-11-12)
+
+
+### Features
+
+* **cli:** add reset-confidence, a step with no model call ([58da188](https://github.com/niway-dev/wachiman/commit/58da1883df89b50f5afc6a401c651fdaa17aae31))
+* **config:** add the AGENT_REVIEW_CONFIDENCE flag for PR Confidence ([c053d9d](https://github.com/niway-dev/wachiman/commit/c053d9d0d312bf9f8131c2dfff8e75695abee915))
+* **dashboard:** add wachiman dashboard with JSON and a static HTML page ([eaa0b60](https://github.com/niway-dev/wachiman/commit/eaa0b600aa0be9605fdcb4967a8aec4953dda22c))
+* **dashboard:** see spend, findings and loop rounds locally with wachiman dashboard ([7b47765](https://github.com/niway-dev/wachiman/commit/7b47765e596eddd1481e6b14354bf453766b862f))
+* **engine:** write PR Confidence into the description after a full review ([a5cebfd](https://github.com/niway-dev/wachiman/commit/a5cebfdbf6113dcce6d24f0f9e2d87e59bf9ad74))
+* **fidelity:** add the fixed rules that explain a file without a claim ([4eeb143](https://github.com/niway-dev/wachiman/commit/4eeb143a89d0d163fd4028ce97af3fcb9e8afe51))
+* **fidelity:** add the PR Confidence types ([f450ce0](https://github.com/niway-dev/wachiman/commit/f450ce0be77f56a8d9782b5abcf43c8a9b25aa21))
+* **fidelity:** check claims and list the files nothing explains ([d7e1833](https://github.com/niway-dev/wachiman/commit/d7e183361476c71c9fd9fc29b673ddbb0de9fec8))
+* **fidelity:** claims call prompt, schema and assembly of the batches' claim assignments ([cbe4623](https://github.com/niway-dev/wachiman/commit/cbe462362502753f10ca79497d22dd9cc50a4325))
+* **fidelity:** claims call, batch claim assignments and the grade in the review core ([aa918af](https://github.com/niway-dev/wachiman/commit/aa918afe59bd9527242775e0780b7ad2defdebb4))
+* **fidelity:** compute the PR Confidence grade from checked facts ([698929d](https://github.com/niway-dev/wachiman/commit/698929d9914128a10ecb1fd48c0b845546e6436e))
+* **fidelity:** render and upsert the description block and the cannot say reset ([1440ffc](https://github.com/niway-dev/wachiman/commit/1440ffc0b1e16b72444b3249fc6eecd5a81cc3ff))
+* **fidelity:** strip Wachiman's block and digest the author's text ([6489ff2](https://github.com/niway-dev/wachiman/commit/6489ff2779968dccf221da2d0cab98d81ff57436))
+* **fidelity:** write the description block best-effort and reset it with no model call ([3819808](https://github.com/niway-dev/wachiman/commit/3819808c24f46d8ba94bfd666f27f44907c3a658))
+* **formats:** add fidelity to result /2 and drop it in the /1 downgrade ([0baa2ce](https://github.com/niway-dev/wachiman/commit/0baa2ced92a3b7b0694daab1f983ee04ccea20b2))
+* **local:** result /2 carries each finding's history id when history is on ([c06ab74](https://github.com/niway-dev/wachiman/commit/c06ab740f4314216fcde56b67ba5827a2b3ffc18))
+* **loop:** the stop rule as a pure function ([760dca4](https://github.com/niway-dev/wachiman/commit/760dca4396d1849a0ea631e5c0ef8c4c7bcd42d6))
+* **loop:** the wachiman loop subcommand, one review round per call ([5e9b07a](https://github.com/niway-dev/wachiman/commit/5e9b07af936c5afaa9d65cba37826e1b41f8f451))
+* **skills:** a wachiman-loop skill beside wachiman-review ([cb31b02](https://github.com/niway-dev/wachiman/commit/cb31b02127a56d40cb8848a563217caaf83fb102))
+* skip a review whose estimated cost is above a size gate ([c028361](https://github.com/niway-dev/wachiman/commit/c028361023d31fb9e76b2966728350caed6ec23a))
+* skip a review whose estimated cost is above a size gate ([c1c3d64](https://github.com/niway-dev/wachiman/commit/c1c3d64441d9d089cd2ef2975b6e6b50ee1830eb))
+* Sonnet 5.5 at effort high is the default reviewer ([c3e46d5](https://github.com/niway-dev/wachiman/commit/c3e46d598ca5842b0a6abb7230dd2188f6eee87d))
+* Sonnet 5.5 at effort high is the default reviewer ([54019c3](https://github.com/niway-dev/wachiman/commit/54019c3fccff024c55c54935c4c13cfb33ca675a))
+* **store:** add a rebuildable SQLite index replayed from the history files ([541d1a0](https://github.com/niway-dev/wachiman/commit/541d1a08427aca437f6648e32fc4f656320cc6a2))
+* the Actions review can run on a Claude Code subscription token ([d4474f3](https://github.com/niway-dev/wachiman/commit/d4474f39985c5020a9156ff9175c17721664703e))
+* the Actions review can run on a Claude Code subscription token ([a1ba00e](https://github.com/niway-dev/wachiman/commit/a1ba00eed3ea4957caf9d20f244a56f3a2dbd4a3))
+
+
+### Bug Fixes
+
+* a push after a partial review resumes with the files it did not reach ([7ad4c6a](https://github.com/niway-dev/wachiman/commit/7ad4c6a8302c0247911a1ad3f211feb828527638))
+* a push after a partial review resumes with the files it did not reach ([7e01775](https://github.com/niway-dev/wachiman/commit/7e01775c406f6a99d1a9a76822533f99af6183c5))
+* **ci:** reset gate, reset-confidence docs, and the incremental-review limitation ([7f1f503](https://github.com/niway-dev/wachiman/commit/7f1f503762da3f08fd54342c49a107ee43660cb4))
+* **dashboard:** remove the temporary page file on every write failure ([ac89258](https://github.com/niway-dev/wachiman/commit/ac892582c81837a924c914aefe97832ab524313f))
+* **engine:** grade every file, and fail closed on limits and a cut claims text ([8c6a1db](https://github.com/niway-dev/wachiman/commit/8c6a1db067fd0dcc2944b634c4cfa3d7e472c80f))
+* **fidelity:** a hunk with a backtick is never formatting-only ([ac1aefa](https://github.com/niway-dev/wachiman/commit/ac1aefa73884a2da1ca017fd0838f2d95f9297e6))
+* **fidelity:** an opener on a context line still makes a re-indented string body a change ([9cd32a8](https://github.com/niway-dev/wachiman/commit/9cd32a85eec18bcf62219a2f0883088352596249))
+* **fidelity:** break autolinks, escape brackets, return the bare block for an empty body ([bb5f0a6](https://github.com/niway-dev/wachiman/commit/bb5f0a67cb26cf8395a925833eb5d68694dd6094))
+* **fidelity:** break issue and pull request references in author and model text ([74d2aa2](https://github.com/niway-dev/wachiman/commit/74d2aa2f040606dd6428b9b3521de2a65e4171af))
+* **fidelity:** escape the ampersand so an entity cannot spell a reference ([f2931b1](https://github.com/niway-dev/wachiman/commit/f2931b1be086ccc8c746ba5fe150b9c61346c74b))
+* **fidelity:** escape the backslash first in author and model text ([925b7a3](https://github.com/niway-dev/wachiman/commit/925b7a304a7b8e2a3c6af3f82df51979005298c1))
+* **fidelity:** explain default-excluded build output and snapshots by rule ([ccfc6b8](https://github.com/niway-dev/wachiman/commit/ccfc6b81848ed696936568636cd7e1f33da20694))
+* **fidelity:** leave the block alone when the head has moved on ([aa2dec3](https://github.com/niway-dev/wachiman/commit/aa2dec3752038162f917534daaaed0c34398b58f))
+* **fidelity:** markup and multiline strings are never formatting-only ([02d7607](https://github.com/niway-dev/wachiman/commit/02d760781e2a9f5a6eaa7a3735b524082e5307ac))
+* **fidelity:** say that generated paths are trusted by name, even when reviewed ([062ba33](https://github.com/niway-dev/wachiman/commit/062ba3387ee32862b00dbb1db8d71a9239f51f2f))
+* **fidelity:** treat formatting-only changes conservatively ([c17e14c](https://github.com/niway-dev/wachiman/commit/c17e14c24793f9a5de3aed67614ff884895978c2))
+* **fidelity:** trim only the edges of a line when judging formatting ([75e1b8e](https://github.com/niway-dev/wachiman/commit/75e1b8e94ed28135cc283f207d6ead4add0b89b7))
+* **local-git:** build the snapshot index with read-tree, not git add ([7b1b6c9](https://github.com/niway-dev/wachiman/commit/7b1b6c9e5007496b263823b163e48be32553c34d))
+* **local-git:** build the snapshot index with read-tree, not git add ([484ba10](https://github.com/niway-dev/wachiman/commit/484ba1089d8da118c673273696b09ecdfce3e60a)), closes [#193](https://github.com/niway-dev/wachiman/issues/193)
+* **loop:** a refuted candidate closes a finding only within the same topic ([79fdcf0](https://github.com/niway-dev/wachiman/commit/79fdcf09374ddaafa4fd77fe6904c5d5a5216877))
+* **loop:** a refuted candidate matches only by path, topic and title ([2f42cf1](https://github.com/niway-dev/wachiman/commit/2f42cf13dad87785c11ae72ecad369856c9608c6))
+* **loop:** a release because the lines changed stays in later rounds ([9e0f005](https://github.com/niway-dev/wachiman/commit/9e0f0057e6cc789e478d2fbbbeb3135f62444e13))
+* **loop:** decide release from the round's own result and the code ([37316c4](https://github.com/niway-dev/wachiman/commit/37316c4577ab8b155dd049ee155053637ccbbed7))
+* **loop:** match a refuted candidate the way the history matches a title ([00e8c57](https://github.com/niway-dev/wachiman/commit/00e8c575bf2f8a29ffe773588bc294a88fc689ef))
+* **loop:** own-run status, revert-safe releases and --base over an unreadable state ([f658b1a](https://github.com/niway-dev/wachiman/commit/f658b1af28f11a1588d03a833d20e1cc7ed971d7))
+* **loop:** recompute the lines-changed release in rounds that read the file ([fb58929](https://github.com/niway-dev/wachiman/commit/fb58929fdb19e0a0aadda3a930f0b571b3546709))
+* **store:** do not force a rebuild per call for run files that are kept on purpose ([4e2bedc](https://github.com/niway-dev/wachiman/commit/4e2bedcec2fed3a5177bea9101e2ec7ad5339572))
+* **store:** rebuild until a skipped run file is fixed too, and word the dashboard docs exactly ([9e78af9](https://github.com/niway-dev/wachiman/commit/9e78af9fa63ddecafaba539ae207ae92c71afbc5))
+* **store:** report a loop file that cannot be read and rebuild until a skipped one is fixed ([19a63da](https://github.com/niway-dev/wachiman/commit/19a63dad73dd59358fcaa68227be4e81c883e2bf))
+* **store:** survive vanishing files, incomplete verdicts and a damaged index that looks current ([f5a3b95](https://github.com/niway-dev/wachiman/commit/f5a3b95bcba0f6a05952e6f4080725153e976a02))
+* **store:** take the source signature before the replay and keep the old index until the rename ([feeffb7](https://github.com/niway-dev/wachiman/commit/feeffb78ddc0f745da1bfe7b22fadf8e7eb8efb9))
+
 ## [1.12.0](https://github.com/niway-dev/wachiman/compare/v1.11.0...v1.12.0) (2026-11-11)
 
 
