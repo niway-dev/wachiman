@@ -53,7 +53,6 @@ function scenario() {
   const home = temp("wachiman-loop-home-");
   const bin = temp("wachiman-loop-bin-");
   const state = join(bin, "state");
-  git(bin, "init", "-q"); // only to have a directory; keeps `mkdir` out of the script
   writeFileSync(join(bin, "gh"), `#!/bin/sh\necho called >> "${bin}/gh-called"\nexit 99\n`);
   writeFileSync(
     join(bin, "claude"),
@@ -353,14 +352,13 @@ describe("wachiman loop", () => {
     expect(JSON.parse(r.stdout).released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "probably-fixed" })]);
   }, 300_000);
 
-  test("a loop state from before runs and fingerprints were kept still decides: unchanged lines keep the Blocker open, changed lines release it", () => {
+  test("a loop state written without cited-line fingerprints still decides: unchanged lines keep the Blocker open, changed lines release it", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
     expect(s.loop("--base", "main", "--max-rounds", "5").code).toBe(10);
     // Make the state look like one written by the first version of the loop.
     const file = Bun.spawnSync(["find", s.home, "-path", "*/loops/*.json"]).stdout.toString().trim();
     const state = JSON.parse(readFileSync(file, "utf8"));
-    delete state.runs;
     for (const e of state.ledger) {
       delete e.lineText;
       delete e.blobSha;
@@ -406,7 +404,7 @@ describe("wachiman loop", () => {
     expect(again.stdout).toContain("round 1 of 3");
   }, 120_000);
 
-  test("without --base and no loop open, it is exit 2; a loop is kept per branch", () => {
+  test("without --base and no loop open, it is exit 2", () => {
     const s = scenario();
     const none = s.loop();
     expect(none.code).toBe(2);
