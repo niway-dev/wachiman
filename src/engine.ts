@@ -72,6 +72,22 @@ import {
   type VerifierVerdict,
 } from "./verify";
 import { validate as validateSchema } from "./json-schema";
+import {
+  ASSIGNMENTS_SCHEMA,
+  CLAIMS_BUDGET_USD,
+  CLAIMS_SCHEMA,
+  assembleClaims,
+  buildClaimsPrompt,
+  claimsParagraph,
+  parseClaimList,
+  type ClaimAssignment,
+  type ProposedClaim,
+} from "./fidelity/claims-call";
+import { checkClaims } from "./fidelity/claims";
+import { claimsDigest, claimsInput, stripBlock } from "./fidelity/digest";
+import { buildFidelity } from "./fidelity/grade";
+import { fidelitySummary } from "./fidelity/summary";
+import type { Fidelity } from "./fidelity/types";
 import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
@@ -197,6 +213,8 @@ export interface ReviewOutput {
   risk_facts?: RiskFact[];
   /** The batch's judgement items (ADR 0031). Absent or empty when none apply. */
   judgement?: JudgementItem[];
+  /** The batch's claim assignments (ADR 0033), asked for only when PR Confidence is on; checked by `assembleClaims`. */
+  claim_assignments?: ClaimAssignment[];
   thread_replies: { comment_id: number; status: "addressed" | "still_open"; reply: string }[];
   summary: string;
 }
@@ -1029,6 +1047,8 @@ export function buildReview(input: {
   verification?: ResultVerificationV2;
   /** The risk map (ADR 0031), rendered right after the count line. */
   riskMap?: RiskMap;
+  /** PR Confidence (ADR 0033): the grade as one line after the count line; the description block holds the rest. */
+  fidelity?: Fidelity;
   /** A review of one push to the pull request: the map says it covers that push (ADR 0011). */
   pushOnly?: boolean;
 }): Review {
@@ -1097,6 +1117,7 @@ export function buildReview(input: {
   parts.push(
     `${countLine(output.findings)}; ${comments.length} on their lines. Reply in a comment's thread to answer it.`,
   );
+  if (input.fidelity) parts.push(fidelitySummary(input.fidelity));
   if (input.verification?.status === "failed") {
     parts.push("⚠️ **Not verified**: the second reader that checks each finding did not finish, so these findings are posted as the review wrote them.");
   } else if (input.verification?.status === "partial") {
@@ -2348,6 +2369,13 @@ export interface ReviewOptions {
    * finding above `info`. Its money is reserved out of `totalBudgetUsd` before the batches run.
    */
   verify?: { model: string; budgetUsd: number };
+  /**
+   * PR Confidence (ADR 0033): for a pull request, one small call first lists the claims in its
+   * title and body, every batch says which claim each of its files serves, and the engine computes
+   * the grade into `result.fidelity`. Set by the pull request review for a full review only, never
+   * by `reviewOptionsOf`: a local review and an incremental or scoped one have no grade.
+   */
+  confidence?: { budgetUsd: number };
 }
 
 /** Today's settings as the core's options. */
@@ -2430,6 +2458,18 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   const notRun: string[] = [];
   let spent = 0;
   let usage = NO_USAGE;
+  // PR Confidence (ADR 0033): only a pull request, only when the caller asked. The claims call
+  // comes first so that every batch can say which claim each of its files serves; what it spends
+  // is spent before the batches, so they cannot overspend the pull request's budget.
+  const confidence = change.kind === "pull-request" ? options.confidence : undefined;
+  const claimsStep = confidence
+    ? listClaims(core, options, context, Math.min(confidence.budgetUsd, batchTotal / 4))
+    : undefined;
+  if (claimsStep) {
+    spent += claimsStep.costUsd;
+    usage = addUsage(usage, claimsStep.usage);
+    if (claimsStep.claims && claimsStep.claims.length > 0) context.claims = claimsStep.claims.map((c) => c.text);
+  }
   let budgetError = false;
   let limitError: "turns" | "timeout" | undefined;
   // The first call the provider refused because the reviewer's account cannot make it (no credit,
@@ -2625,6 +2665,38 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
     core.log(
       `Risk map: ${riskMap.droppedFacts} risk fact(s) or judgement item(s) dropped: their file is not in the review, or their line does not exist at the head.`,
     );
+  let fidelity: Fidelity | undefined;
+  if (claimsStep) {
+    const proposed = claimsStep.claims;
+    const entries = parts.flatMap((p) => (Array.isArray(p.output.claim_assignments) ? p.output.claim_assignments : []));
+    const assembled = proposed ? assembleClaims(proposed, entries) : { claims: [], assignments: [] };
+    const sha = change.head.sha;
+    const digest = claimsDigest(change.title ?? "", change.description);
+    fidelity = buildFidelity({
+      claims: checkClaims(assembled.claims, (path, line) => {
+        const count = lineCount(path);
+        return count !== null && line >= 1 && line <= count;
+      }),
+      assignments: assembled.assignments,
+      changedFiles: kept.map((f) => ({ path: f.filename, patch: f.patch })),
+      // Not this change's doing: a pre-existing finding does not grade the pull request.
+      openFindings: findings
+        .filter((f) => f.origin !== "pre-existing")
+        .map((f) => ({ severity: f.severity, path: f.path, line: f.line, title: f.title })),
+      riskMap,
+      run: {
+        // No claims list means no claim was read: that is an unknown, not a pull request that claims nothing.
+        finished: proposed !== undefined && stop === "complete",
+        ...(notRun.length > 0 || budgetError || claimsStep.budget ? { stoppedBy: "spend-ceiling" as const } : {}),
+        unreadFiles: expected.filter((f) => !reviewedSet.has(f)).length,
+        reviewedCommit: sha,
+        // The connector checks again at the moment it writes: here the review and the pull request agree.
+        headCommit: sha,
+        digestAtRead: digest,
+        digestAtWrite: digest,
+      },
+    });
+  }
   return {
     format: REVIEW_RESULT_V2,
     change,
@@ -2660,7 +2732,39 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
       notices,
     },
     ...(verification ? { verification } : {}),
+    ...(fidelity ? { fidelity } : {}),
   };
+}
+
+/**
+ * The claims call (ADR 0033 decision 8): one small call that lists what the title and body claim,
+ * from the author's text alone (Wachiman's own block stripped). It fails closed: with no list the
+ * review still runs, and the grade is `cannot say`. A call that cannot be afforded is not made.
+ */
+function listClaims(
+  deps: CoreDeps,
+  options: ReviewOptions,
+  ctx: ReviewContext,
+  budgetUsd: number,
+): { claims?: ProposedClaim[]; costUsd: number; usage: TokenUsage; budget: boolean } {
+  const none = { costUsd: 0, usage: NO_USAGE, budget: false };
+  if (budgetUsd < MIN_BATCH_USD) {
+    deps.warn("PR Confidence: no budget left for the claims call; the pull request gets no grade.");
+    return { ...none, budget: true };
+  }
+  const prompt = buildClaimsPrompt(claimsInput(ctx.meta.title ?? "", ctx.meta.body));
+  const call = attempt(
+    () => runProvider(deps, options, ctx.headDir, { operation: "review", label: "claims", ...ctx.costTags }, prompt, ctx.headDir, budgetUsd, CLAIMS_SCHEMA),
+    budgetUsd,
+  );
+  if (!call.ok) {
+    deps.warn(`PR Confidence: the claims call failed (${call.error}); the pull request gets no grade.`);
+    return { ...none, costUsd: call.costUsd };
+  }
+  const { value: result } = call;
+  const claims = result.isError ? undefined : parseClaimList(result.structuredOutput);
+  if (!claims) deps.warn("PR Confidence: the claims call returned no usable list; the pull request gets no grade.");
+  return { claims, costUsd: result.costUsd, usage: result.usage ?? NO_USAGE, budget: result.terminalReason === "budget" };
 }
 
 /** Why a verifier call ended without answering everything, from how it ended; undefined for a clean finish. */
@@ -2813,7 +2917,8 @@ export function githubReviewInput(p: {
       base: { sha: p.baseSha },
       head: { sha: p.headSha },
       title: p.meta.title,
-      description: p.meta.body,
+      // Wachiman's own description block is never the author's text (ADR 0033 decision 14).
+      description: p.meta.body === undefined ? undefined : stripBlock(p.meta.body),
       author: p.meta.author?.login ?? undefined,
       identifier: `#${p.pr}`,
     },
@@ -2873,6 +2978,7 @@ export function githubReview(
     mention: github.mention,
     instructionChanges: github.instructionChanges,
     riskMap: result.riskMap,
+    ...(result.fidelity ? { fidelity: result.fidelity } : {}),
     pushOnly: github.since !== null,
     ...(result.verification ? { verification: result.verification } : {}),
   });
@@ -3388,6 +3494,8 @@ export interface ReviewContext {
   meta: { title?: string; body?: string; author?: string };
   /** `renderInstructions` of the base commit's rules. */
   instructions: string;
+  /** PR Confidence on: the claims the batches assign their files to, as the claims call listed them. */
+  claims?: readonly string[];
   /** How the cost log line names the change; absent for a change with no repository or number. */
   costTags?: Pick<CallCost, "repo" | "pr">;
 }
@@ -3476,7 +3584,7 @@ finding that already has an open thread.
 `
     : ""
 }
-${RISK_PARAGRAPH}
+${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}
 
 ${FLOW_QUESTIONS}${renderDataPathQuestions(questions)}
 
@@ -3505,8 +3613,18 @@ export function relativisePaths(output: ReviewOutput, repoDir: string): ReviewOu
   // `wellFormed` drops it later, and it must not throw here.
   const stripItemPath = <T extends { path: string }>(item: T): T =>
     item !== null && typeof item === "object" && typeof item.path === "string" ? { ...item, path: strip(item.path) } : item;
+  // Same rule for a claim assignment: a path that is not a string is left for `assembleClaims` to drop.
+  const stripAssignment = (a: ClaimAssignment): ClaimAssignment =>
+    a !== null && typeof a === "object"
+      ? {
+          ...a,
+          path: typeof a.path === "string" ? strip(a.path) : a.path,
+          evidence: Array.isArray(a.evidence) ? a.evidence.map(stripItemPath) : a.evidence,
+        }
+      : a;
   return {
     ...output,
+    ...(Array.isArray(output.claim_assignments) ? { claim_assignments: output.claim_assignments.map(stripAssignment) } : {}),
     files_reviewed: output.files_reviewed.map(strip),
     files_skipped: output.files_skipped.map((s) => ({ ...s, path: strip(s.path) })),
     findings: output.findings.map((f) => ({ ...f, path: strip(f.path) })),
@@ -3649,7 +3767,7 @@ function reviewBatch(
           prompt,
           dir,
           budgetUsd,
-          SCHEMA,
+          ctx.claims ? { ...SCHEMA, properties: { ...SCHEMA.properties, claim_assignments: ASSIGNMENTS_SCHEMA } } : SCHEMA,
         ),
       budgetUsd,
     );

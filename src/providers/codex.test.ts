@@ -321,6 +321,11 @@ describe("the schema Codex receives", () => {
     expect(strictSchema(schema)).toEqual({ ...schema, required: ["a", "risk_facts", "judgement"] });
   });
 
+  test("the claim assignments of PR Confidence are required too when the batch asks for them", () => {
+    const schema = { type: "object", properties: { a: { type: "string" }, claim_assignments: { type: "array" } }, required: ["a"] };
+    expect(strictSchema(schema)).toEqual({ ...schema, required: ["a", "claim_assignments"] });
+  });
+
   test("a schema without the risk arrays comes back as the same object", () => {
     const schema = { type: "object", properties: { a: { type: "string" } }, required: ["a"] };
     expect(strictSchema(schema)).toBe(schema);
