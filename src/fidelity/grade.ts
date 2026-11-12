@@ -100,6 +100,7 @@ function placesNeedingAttention(input: GradeInput, unexplained: string[]): Atten
     const place: Attention = {
       kind: "finding",
       path: f.path,
+      severity: f.severity,
       text: `${SEVERITY_EMOJI[f.severity]} ${SEVERITY_WORD[f.severity]}: ${f.title}`,
     };
     if (f.line > 0) place.line = f.line;

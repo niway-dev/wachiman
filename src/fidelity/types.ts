@@ -59,6 +59,8 @@ export interface Attention {
   path: string;
   line?: number;
   text: string;
+  /** Only for a finding: how serious it is, so the block can say which place to look at first. */
+  severity?: Severity;
 }
 
 /** The places that need attention in one file. */
