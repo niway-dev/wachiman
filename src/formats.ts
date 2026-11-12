@@ -8,6 +8,7 @@
 import { UsageError } from "./config";
 import type { Contract } from "./contracts";
 import type { TokenUsage } from "./cost";
+import type { Fidelity } from "./fidelity/types";
 import type {
   BaseInstructions,
   BatchReport,
@@ -181,6 +182,11 @@ export interface VerifiedFields {
 export interface ResultFindingV2 extends Finding, VerifiedFields {
   /** Whether the line is one a diff-anchored comment can target (`commentableLines`). */
   anchor: "diff" | "outside";
+  /**
+   * The finding's history id, the one `wachiman history --verdict` takes (ADR 0034). Only a
+   * `local` JSON `/2` written with history on carries it; the core never sets it.
+   */
+  id?: string;
 }
 
 export interface VerificationEntryV2 {
@@ -247,6 +253,11 @@ export interface ReviewResultV2 {
   summary: string;
   /** The risk map (ADR 0031). Only `/2` has it: `toResultV1` leaves it out. */
   riskMap?: RiskMap;
+  /**
+   * PR Confidence (ADR 0033): the claims, the unexplained files and the grade. Only the `/2` result
+   * of a GitHub pull request review has it; a local review never does, and `toResultV1` leaves it out.
+   */
+  fidelity?: Fidelity;
   batches: BatchReport[];
   threadReplies: ReviewOutput["thread_replies"];
   instructionChanges: { files: string[]; baseSha: string };
@@ -309,7 +320,7 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
     throw new UsageError("A working-tree review has no result /1: its head is a tree id, not a commit. Use --result-version 2.");
   }
   const { account: _account, ...provider } = result.provider;
-  const { verification, riskMap: _riskMap, ...rest } = result;
+  const { verification, riskMap: _riskMap, fidelity: _fidelity, ...rest } = result;
   return {
     ...rest,
     format: REVIEW_RESULT_V1,

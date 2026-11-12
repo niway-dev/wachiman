@@ -382,7 +382,7 @@ export const CHECKS: DoctorCheck[] = [
     id: "skills",
     level: "optional",
     run: ({ userHome, fs }) => {
-      const names = ["wachiman-review", "wachiman-audit"] as const;
+      const names = ["wachiman-review", "wachiman-loop", "wachiman-audit"] as const;
       const found = Object.fromEntries(names.map((n) => [n, fs.isDirectory(join(userHome, ".claude", "skills", n))])) as Record<(typeof names)[number], boolean>;
       const where = join(userHome, ".claude", "skills");
       if (!names.some((n) => found[n])) return { id: "skills", level: "optional", status: "skip", evidence: `no Wachiman skill in ${where}`, detail: found };

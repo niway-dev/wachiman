@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/niway-dev/wachiman/docs/formats/dashboard.v1.schema.json",
+  "title": "Wachiman dashboard, version 1",
+  "description": "What `wachiman dashboard --json` prints: figures read from the local index, which is rebuilt from the history run files (ADR 0035). Local runs only. A figure the run files do not record is marked `not recorded`, never guessed. Spend is Claude Code's API-equivalent estimate, not a bill.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "generatedAt",
+    "scope",
+    "totals",
+    "spend",
+    "findings",
+    "loops",
+    "prConfidence"
+  ],
+  "properties": {
+    "format": {
+      "const": "wachiman.dashboard/1"
+    },
+    "generatedAt": {
+      "type": "string",
+      "description": "ISO 8601 time the document was produced; the only field that changes between two calls on the same history."
+    },
+    "scope": {
+      "type": "string"
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositories",
+        "runs",
+        "costUsdEstimate"
+      ],
+      "properties": {
+        "repositories": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsdEstimate": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "spend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "byDay",
+        "byRepository"
+      ],
+      "properties": {
+        "byDay": {
+          "type": "array",
+          "description": "Ascending by UTC day of the run.",
+          "items": {
+            "$ref": "#/$defs/SpendDay"
+          }
+        },
+        "byRepository": {
+          "type": "array",
+          "description": "Most expensive first.",
+          "items": {
+            "$ref": "#/$defs/SpendRepository"
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "bySeverity",
+        "byVerdict"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Distinct findings, as the history replays them: a finding seen in several runs counts once."
+        },
+        "bySeverity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "blocker",
+            "fix",
+            "consider",
+            "info"
+          ],
+          "properties": {
+            "blocker": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fix": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "consider": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "info": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "byVerdict": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "correct",
+            "partial",
+            "wrong",
+            "unjudged"
+          ],
+          "properties": {
+            "correct": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "partial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "wrong": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unjudged": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "loops": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "branches",
+        "totals"
+      ],
+      "properties": {
+        "branches": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LoopBranch"
+          }
+        },
+        "totals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "branches",
+            "rounds",
+            "converged",
+            "open"
+          ],
+          "properties": {
+            "branches": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rounds": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "converged": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "open": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "prConfidence": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PrConfidenceNotRecorded"
+        },
+        {
+          "$ref": "#/$defs/PrConfidenceRecorded"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "SpendDay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "day",
+        "runs",
+        "costUsdEstimate"
+      ],
+      "properties": {
+        "day": {
+          "type": "string",
+          "description": "YYYY-MM-DD"
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsdEstimate": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "SpendRepository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "name",
+        "runs",
+        "costUsdEstimate"
+      ],
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "costUsdEstimate": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "LoopBranch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositoryKey",
+        "repository",
+        "branch",
+        "base",
+        "outcome",
+        "exitReason",
+        "rounds",
+        "ledger"
+      ],
+      "properties": {
+        "repositoryKey": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "base": {
+          "type": "string"
+        },
+        "outcome": {
+          "enum": [
+            "open",
+            "converged"
+          ]
+        },
+        "exitReason": {
+          "enum": [
+            "not recorded"
+          ],
+          "description": "The loop state keeps only open or converged; the round-cap and review-failed stops are printed by `wachiman loop` and never saved."
+        },
+        "rounds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstRoundAt": {
+          "type": "string"
+        },
+        "lastRoundAt": {
+          "type": "string"
+        },
+        "ledger": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "byStatus"
+          ],
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "byStatus": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "new",
+                "open",
+                "probably-fixed",
+                "not-repeated",
+                "unknown"
+              ],
+              "properties": {
+                "new": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "open": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "probably-fixed": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "not-repeated": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unknown": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "PrConfidenceNotRecorded": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "note"
+      ],
+      "properties": {
+        "status": {
+          "const": "not recorded"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "PrConfidenceRecorded": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "gradedRuns",
+        "byGrade"
+      ],
+      "properties": {
+        "status": {
+          "const": "recorded"
+        },
+        "gradedRuns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byGrade": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "A",
+            "A-",
+            "B",
+            "C",
+            "cannot say"
+          ],
+          "properties": {
+            "A": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "A-": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "B": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "C": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cannot say": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

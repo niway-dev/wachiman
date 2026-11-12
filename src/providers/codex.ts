@@ -171,12 +171,13 @@ export function buildChildEnv(
 
 /** The `codex exec` arguments. The prompt always goes through stdin (`-`). */
 /**
- * The top-level properties the engine leaves optional in a batch's schema (ADR 0031). Codex's
+ * The top-level properties the engine leaves optional in a batch's schema (ADR 0031; the claim
+ * assignments of ADR 0033 are asked for only when PR Confidence is on). Codex's
  * structured output is strict: every property must be `required`, so these are required in the
  * schema Codex receives. The model then answers an empty array when a batch has none, and a
  * missing one parses as empty (`risk.ts`). Other properties of other schemas are not touched.
  */
-const RISK_ARRAYS = ["risk_facts", "judgement"];
+const RISK_ARRAYS = ["risk_facts", "judgement", "claim_assignments"];
 
 export function strictSchema(schema: unknown): unknown {
   if (schema === null || typeof schema !== "object") return schema;

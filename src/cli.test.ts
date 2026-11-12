@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { extractRepoDir } from "./cli";
+import { extractRepoDir, runResetConfidence } from "./cli";
+import type { GhFn } from "./engine";
 
 const cli = join(import.meta.dir, "cli.ts");
 const run = (args: string[], env: Record<string, string> = {}) => {
@@ -99,5 +100,75 @@ describe("--repo-dir", () => {
     expect(() => extractRepoDir(["review", "7", "--repo-dir"])).toThrow("needs a directory");
     expect(() => extractRepoDir(["review", "7", "--repo-dir=/nonexistent/head"])).toThrow("not a directory");
     expect(run(["review", "7", "--repo-dir", "/nonexistent/head"]).code).toBe(2);
+  });
+});
+
+describe("reset-confidence", () => {
+  const HEAD = "a".repeat(40);
+  const ENV = { AGENT_REVIEW_CONFIDENCE: "1", GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r" };
+
+  /** A pull request whose description holds an old grade; records what is written. */
+  function fakeGh(head = HEAD) {
+    const writes: string[] = [];
+    let body = "Retries uploads.\n\n<!-- wachiman:confidence:start -->\nold B for bbbbbbb\n<!-- wachiman:confidence:end -->";
+    const gh: GhFn = (args, input) => {
+      const line = args.join(" ");
+      if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: head, title: "t", body });
+      if (line.includes("-X PATCH repos/o/r/pulls/7")) {
+        body = (JSON.parse(input ?? "{}") as { body: string }).body;
+        writes.push(body);
+        return "{}";
+      }
+      throw new Error(`unexpected gh call: ${line}`);
+    };
+    return { gh, writes };
+  }
+
+  test("replaces an old grade with cannot say for the commit, keeping the author's text, with no model", () => {
+    const { gh, writes } = fakeGh();
+    expect(runResetConfidence(["7", "--commit", HEAD], ENV, gh)).toBe(0);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain("cannot say");
+    expect(writes[0]).toContain("aaaaaaa");
+    expect(writes[0]).not.toContain("old B");
+    expect(writes[0]!.startsWith("Retries uploads.\n\n<!-- wachiman:confidence:start -->")).toBe(true);
+    expect(writes[0]!.split("wachiman:confidence:start")).toHaveLength(2);
+  });
+
+  test("a run for an older commit leaves the description alone", () => {
+    const { gh, writes } = fakeGh("c".repeat(40));
+    expect(runResetConfidence(["7", "--commit", HEAD], ENV, gh)).toBe(0);
+    expect(writes).toEqual([]);
+  });
+
+  test("does nothing with the flag off, and writes nothing in a dry run", () => {
+    const off = fakeGh();
+    expect(runResetConfidence(["7"], { ...ENV, AGENT_REVIEW_CONFIDENCE: "0" }, off.gh)).toBe(0);
+    expect(off.writes).toEqual([]);
+    const dry = fakeGh();
+    expect(runResetConfidence(["7"], { ...ENV, AGENT_REVIEW_DRY_RUN: "1" }, dry.gh)).toBe(0);
+    expect(dry.writes).toEqual([]);
+  });
+
+  test("a failed write does not fail the step", () => {
+    // The read works and only the PATCH fails, so the write's error path is the one exercised.
+    const gh: GhFn = (args) => {
+      if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ headRefOid: HEAD, title: "t", body: "b" });
+      throw new Error("gh: HTTP 500");
+    };
+    const warned: string[] = [];
+    const original = console.error;
+    console.error = (line: string) => void warned.push(String(line));
+    try {
+      expect(runResetConfidence(["7"], ENV, gh)).toBe(0);
+    } finally {
+      console.error = original;
+    }
+    expect(warned.join("\n")).toContain("could not be reset");
+  });
+
+  test("needs a pull request number and refuses an unknown flag", () => {
+    expect(() => runResetConfidence([], ENV, fakeGh().gh)).toThrow("pull request number");
+    expect(() => runResetConfidence(["7", "--bogus"], ENV, fakeGh().gh)).toThrow("unexpected");
   });
 });

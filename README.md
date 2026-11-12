@@ -65,16 +65,22 @@ wachiman local --from abc1234                 # that commit and everything after
 wachiman local --format markdown --output review.md
 ```
 
+**Loop until clean.** `wachiman loop --base main` runs one review round per call and exits `0`
+when nothing keeps it open, `10` while findings do and `11` when it stopped without converging; a
+coding agent fixes between calls and the CLI never edits code ([docs/cli.md](docs/cli.md#loop)).
+
 **Ask about a change.** `wachiman ask "<question>"` answers one question about the same local
 change, grounded in its stored review when there is one; with no question it walks you through the
 change ([docs/cli.md](docs/cli.md#ask)).
 
 **See what local runs cost.** `wachiman status` shows the cost of the runs kept on this laptop
-([docs/cli.md](docs/cli.md#status)); workflow runs are not in it.
+([docs/cli.md](docs/cli.md#status)); workflow runs are not in it. `wachiman dashboard` writes one
+offline HTML page (or JSON) with the spend per day and repository, the findings by severity and
+verdict and the loop rounds ([docs/local-dashboard.md](docs/local-dashboard.md)).
 
 **Let your coding agent run it.** `wachiman skills install` copies the `wachiman-review` agent
 skill, which teaches Claude Code or Codex to pick the range from what you ask, run a local review
-and present the findings ([docs/local-review.md](docs/local-review.md#let-your-coding-agent-run-it)).
+and present the findings, and the `wachiman-loop` skill, which fixes between loop rounds ([docs/local-review.md](docs/local-review.md#let-your-coding-agent-run-it)).
 
 **Review every pull request in GitHub Actions.** A short caller file in your repository pins a
 release, passes your key and names the operator. Start with [docs/install.md](docs/install.md),
@@ -96,12 +102,14 @@ same material, in this repository:
 | Find out why there was no review, or an error | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Ask for reviews, scope them, read the results | [docs/reviews.md](docs/reviews.md) |
 | Understand what a run can cost and what coverage means | [docs/costs.md](docs/costs.md) |
+| Read the PR Confidence grade in a description (trial) | [docs/pr-confidence.md](docs/pr-confidence.md) |
 | Tell the reviewer what matters in my repository | [docs/review-policy.md](docs/review-policy.md) |
 | Adopt a new release, or roll one back | [docs/upgrading.md](docs/upgrading.md) |
 | Turn it off and remove it | [docs/uninstall.md](docs/uninstall.md) |
 | Quick answers and limitations | [docs/faq.md](docs/faq.md) |
 | Run the engine from the command line | [docs/cli.md](docs/cli.md) |
 | Review a branch on my laptop, on my own Claude subscription | [docs/local-review.md](docs/local-review.md) |
+| See the spend, findings and loops of my local reviews on one page | [docs/local-dashboard.md](docs/local-dashboard.md) |
 | See what a provider adapter runs and inherits | [docs/providers/claude-code.md](docs/providers/claude-code.md), [docs/providers/codex.md](docs/providers/codex.md) |
 | Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
 | Understand how a review is built | [docs/architecture.md](docs/architecture.md) |

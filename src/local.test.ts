@@ -664,6 +664,36 @@ describe("--history", () => {
     expect(JSON.parse(second.stdout).format).toBe("wachiman.review-result/1");
   }, 30_000);
 
+  test("--result-version 2 with --history prints an id on every finding, the one `history --verdict` accepts; /1 and a run without history carry none", async () => {
+    const home = temp("wachiman-home-");
+    const repo = branchRepo();
+    const two = local("ok", ["--history", "--format", "json", "--result-version", "2"], { HOME: home }, repo);
+    expect(two.code).toBe(0);
+    const findings = JSON.parse(two.stdout).findings as { id?: string }[];
+    expect(findings.length).toBeGreaterThan(0);
+    for (const f of findings) expect(f.id).toMatch(/^[0-9a-f]{10}$/);
+    const { validate } = await import("../test/support/json-schema");
+    const v2 = JSON.parse(readFileSync(join(import.meta.dir, "../docs/formats/review-result.v2.schema.json"), "utf8"));
+    expect(validate(v2, JSON.parse(two.stdout))).toEqual([]);
+    // The same id the stderr block prints, and the one the verdict command accepts.
+    expect(two.stderr).toContain(`(id ${findings[0].id})`);
+    const whome = join(home, ".wachiman");
+    const verdict = Bun.spawnSync([process.execPath, cli, "history", "--repo-dir", repo.dir, "--verdict", findings[0].id!, "wrong", "--reason", "test"], {
+      env: { PATH: process.env.PATH ?? "", HOME: home, WACHIMAN_HOME: whome, USER: "dev" },
+      stdin: "ignore",
+    });
+    expect(verdict.exitCode).toBe(0);
+    expect(verdict.stdout.toString()).toContain(`Recorded: ${findings[0].id} is wrong.`);
+    // A second run keeps the first id.
+    const again = local("ok", ["--history", "--format", "json", "--result-version", "2"], { HOME: home }, repo);
+    expect(JSON.parse(again.stdout).findings[0].id).toBe(findings[0].id);
+    // /1 is unchanged, and without history there is no id.
+    const one = local("ok", ["--history", "--format", "json"], { HOME: home }, repo);
+    expect(JSON.parse(one.stdout).findings.every((f: object) => !("id" in f))).toBe(true);
+    const bare = local("ok", ["--format", "json", "--result-version", "2"], {}, repo);
+    expect(JSON.parse(bare.stdout).findings.every((f: object) => !("id" in f))).toBe(true);
+  }, 60_000);
+
   test("a second run labels the finding open since the first head, with its id", () => {
     const home = temp("wachiman-home-");
     const repo = branchRepo();

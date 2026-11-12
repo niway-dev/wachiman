@@ -176,6 +176,45 @@
     }
   ],
   "summary": "**Batch 1 of 2.** The store has one ordering bug.\n\n**Batch 2 of 2.** The guide matches the code.",
+  "fidelity": {
+    "claims": [
+      {
+        "text": "The session store keeps messages in order.",
+        "status": "confirmed",
+        "evidence": [
+          {
+            "path": "apps/api/src/main/session/store.ts",
+            "line": 1,
+            "endLine": 3
+          }
+        ]
+      },
+      {
+        "text": "Speed up startup.",
+        "status": "vague",
+        "evidence": []
+      }
+    ],
+    "unexplainedFiles": [
+      "apps/api/src/main/session/session-manager.ts"
+    ],
+    "grade": "B",
+    "reasons": [
+      "One unexplained change"
+    ],
+    "trial": false,
+    "judgedAGrades": 0,
+    "questions": [
+      {
+        "kind": "unexplained",
+        "path": "apps/api/src/main/session/session-manager.ts",
+        "text": "no claim in the pull request explains this change."
+      }
+    ],
+    "sensitivePaths": [],
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "reviewedCommit": "abcdef1234567890abcdef1234567890abcdef12"
+  },
   "batches": [
     {
       "label": "Batch 1 of 2",

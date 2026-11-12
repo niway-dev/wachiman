@@ -114,7 +114,7 @@ the same command. Install the optional agent skills separately with `wachiman sk
 
 ### From a clone (unreleased source, and the agent skills)
 
-Install the global `wachiman` command, and the `wachiman-review` and `wachiman-audit` agent
+Install the global `wachiman` command, and the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent
 skills, once from your clone (not from a temporary worktree):
 
 ```sh
@@ -365,10 +365,12 @@ agent, such as Claude Code or Codex, to run this review for you: it picks the ra
 ask ("my branch", "only commit X", "from X on"), finds your profile with `project show` and `profile list`, runs `local` with
 `--history`, presents the findings, and records your verdicts with `history --verdict`. It never
 uses the GitHub modes and never reviews the code itself. Its sibling
-[`skills/wachiman-audit`](../skills/wachiman-audit/SKILL.md) compares Wachiman's posted findings with
+[`skills/wachiman-loop`](../skills/wachiman-loop/SKILL.md) drives `wachiman loop`: it fixes what a round
+reports, or judges a finding wrong with a reason, and calls the next round (never to make it converge). A third skill,
+[`skills/wachiman-audit`](../skills/wachiman-audit/SKILL.md), compares Wachiman's posted findings with
 CodeRabbit's or Pullfrog's on the same commits, through `scripts/pair.ts` in
 [wachiman-benchmarks](https://github.com/niway-dev/wachiman-benchmarks). `wachiman skills install`
-copies both (see section 3). To link them by hand from a clone instead, link each folder into your
+copies all three (see section 3). To link them by hand from a clone instead, link each folder into your
 agent's skills directory and set `WACHIMAN_DIR` to this clone:
 
 ```sh

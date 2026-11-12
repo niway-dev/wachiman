@@ -91,6 +91,13 @@ export interface EngineConfig {
   verifyBudgetUsd: number;
   /** `AGENT_REVIEW_VERIFIER_MODEL`: the verifier's model; it always runs at effort `high`. */
   verifierModel: string;
+  /**
+   * `AGENT_REVIEW_CONFIDENCE`: PR Confidence (ADR 0033). A full review of a pull request lists the
+   * claims in its title and body with one more small call, grades the change against them and
+   * writes the grade into the description. Off by default; enabled only by `1` or `true`. Read by
+   * the pull request review only: `wachiman local` never grades.
+   */
+  confidence: boolean;
 }
 
 /** The verifier's model when `AGENT_REVIEW_VERIFIER_MODEL` is unset (Claude Code only). */
@@ -171,6 +178,10 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   if (verify && verifierModel === undefined) {
     throw new UsageError(`AGENT_REVIEW_VERIFY needs AGENT_REVIEW_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`);
   }
+  const confidenceRaw = get("CONFIDENCE");
+  if (confidenceRaw !== undefined && !["0", "1", "true", "false"].includes(confidenceRaw)) {
+    throw new UsageError(`AGENT_REVIEW_CONFIDENCE must be 1, true, 0 or false (unset means off), got "${confidenceRaw}".`);
+  }
   const askers = get("ASKERS") ?? "operator";
   if (askers !== "operator" && askers !== "write") {
     throw new UsageError(`AGENT_REVIEW_ASKERS must be operator or write, got "${askers}".`);
@@ -205,6 +216,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     verify,
     verifyBudgetUsd: number("VERIFY_BUDGET_USD", 1),
     verifierModel: verifierModel ?? DEFAULT_VERIFIER_MODEL,
+    confidence: confidenceRaw === "1" || confidenceRaw === "true",
   };
 }
 

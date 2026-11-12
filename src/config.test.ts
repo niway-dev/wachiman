@@ -34,6 +34,7 @@ describe("loadConfig", () => {
       verify: false,
       verifyBudgetUsd: 1,
       verifierModel: "claude-opus-5-5",
+      confidence: false,
     });
     expect(warnings).toEqual([]);
   });
@@ -48,6 +49,16 @@ describe("loadConfig", () => {
   test("the question ceiling is a positive number, $3 by default", () => {
     expect(load({ AGENT_REVIEW_ASK_CEILING_USD: "5" }).config.askCeilingUsd).toBe(5);
     expect(() => load({ AGENT_REVIEW_ASK_CEILING_USD: "0" })).toThrow("AGENT_REVIEW_ASK_CEILING_USD must be a positive number");
+  });
+
+  test("PR Confidence is opt-in: only 1 or true turns it on, anything else but 0, false or unset is an error", () => {
+    expect(load({}).config.confidence).toBe(false);
+    expect(load({ AGENT_REVIEW_CONFIDENCE: "1" }).config.confidence).toBe(true);
+    expect(load({ AGENT_REVIEW_CONFIDENCE: "true" }).config.confidence).toBe(true);
+    expect(load({ AGENT_REVIEW_CONFIDENCE: "0" }).config.confidence).toBe(false);
+    expect(load({ AGENT_REVIEW_CONFIDENCE: "false" }).config.confidence).toBe(false);
+    expect(load({ AGENT_REVIEW_CONFIDENCE: "" }).config.confidence).toBe(false);
+    expect(() => load({ AGENT_REVIEW_CONFIDENCE: "yes" })).toThrow(/AGENT_REVIEW_CONFIDENCE must be/);
   });
 
   test("the verifier is opt-in and needs a model outside Claude Code", () => {

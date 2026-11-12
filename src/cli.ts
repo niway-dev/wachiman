@@ -10,10 +10,14 @@
  *                                       when the head was already reviewed
  *   wachiman local [paths…]         review the committed branch of a clone on the signed-in
  *                                       `claude`, and print it; no GitHub call (src/local.ts)
+ *   wachiman loop [--base <ref>]   one review round of a fix loop on the signed-in `claude`; exit 0
+ *                                       converged, 10 findings open, 11 stopped (src/loop/command.ts)
  *   wachiman ask [question…]        answer a question about the local change, or explain it; one
  *                                       call, no GitHub request, grounded in the stored review (src/local-ask.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
  *   wachiman status                 what the local history kept and its estimated cost; files only
+ *   wachiman dashboard              spend, findings and loops across every repository in the history, as one
+ *                                       static HTML file or JSON, from a rebuildable index (src/store/)
  *   wachiman setup [--profile <name>] bind this repository to an account profile (home config only);
  *                                       on a terminal without --profile it asks
  *   wachiman init                   write the GitHub caller workflow, or hand over to `setup`
@@ -24,7 +28,7 @@
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error;
- * 130 cancelled (`local`, `setup`, `init`).
+ * 130 cancelled (`local`, `loop`, `setup`, `init`); `loop` also exits 10 and 11 (see its help).
  * The settings are documented in docs/cli.md.
  */
 import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
@@ -33,8 +37,10 @@ import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
-import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type ReviewLineComment } from "./engine";
+import { dashboardUsage, parseDashboardArgs, runDashboard } from "./store/command";
+import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
+import { loopUsage, parseLoopArgs, runLoop } from "./loop/command";
 import { askUsage, parseAskArgs, runAsk } from "./local-ask";
 import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
@@ -45,6 +51,7 @@ import { DEFAULT_WORKFLOW_REF } from "./init/options";
 import { runInitCommand } from "./init/run";
 import { projectCommands } from "./wizard/command";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
+import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
 import { runSetupCommand } from "./setup/run";
@@ -53,11 +60,20 @@ export const USAGE = `Usage:
   wachiman review <pr> [paths…] [--repo-dir <dir>]   Review a pull request (or only the given paths)
   wachiman comment <pr> [--repo-dir <dir>]           Handle the comment in $REQUEST (a review or an answer)
   wachiman threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
+  wachiman reset-confidence <pr> [--commit <sha>]    Write "cannot say" into the PR Confidence block (no model call;
+                                                     the first step of a review run, with AGENT_REVIEW_CONFIDENCE=1)
   ${localUsage}
                                                      Review the committed branch of a clone on your
                                                      signed-in claude, and print it; nothing is posted.
                                                      --commit: that one commit (<commit>^ → <commit>);
                                                      --from: that commit forward (<commit>^ → HEAD)
+  ${loopUsage}
+                                                     One round of a review loop on your signed-in claude:
+                                                     --base starts it (round 1 reviews the whole range),
+                                                     a call with a loop open continues it and reviews only
+                                                     the commits since the last round. Fix, or judge a
+                                                     finding wrong with a reason, between calls; the CLI
+                                                     never edits code. Three rounds by default
   ${askUsage}
                                                      Answer a question about the change the scope flags
                                                      select, or explain it when no question is given. One
@@ -72,6 +88,17 @@ export const USAGE = `Usage:
                                                      What this laptop kept of its local runs and their
                                                      estimated cost, filterable; uses local history. GitHub
                                                      Actions runs are not counted
+  ${dashboardUsage}
+                                                     Write one static HTML page (or print JSON) with the
+                                                     spend per day and repository, the findings by severity
+                                                     and verdict and the loop rounds of every repository in
+                                                     the local history. Built from an index under the
+                                                     Wachiman home that is rebuilt whenever it is missing or
+                                                     out of date. It writes only that index and, without
+                                                     --json, the page, and, like \`wachiman history\`, moves
+                                                     a damaged run file aside. No claude, no GitHub, no
+                                                     network, no server, no browser. --repo-dir is accepted
+                                                     and unused
   ${setupUsage}
                                                      Bind this repository to an account profile; written
                                                      in the Wachiman home, never in the repository. On a
@@ -92,7 +119,7 @@ export const USAGE = `Usage:
                                                      Claude configuration directory, used in place
   ${projectUsage.split("\n").join("\n  ")}
   ${skillsUsage.split("\n").join("\n  ")}
-                                                     Copy the wachiman-review and wachiman-audit agent
+                                                     Copy the wachiman-review, wachiman-loop and wachiman-audit agent
                                                      skills into ~/.agents/skills and each Claude Code
                                                      config directory; uninstall removes only the copies
                                                      it marked. Never touches ~/.wachiman
@@ -115,9 +142,11 @@ Environment:
 
 Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
+\`loop\`: 0 converged, 10 findings still open, 11 stopped without converging (round cap or review failed), 2 usage error, 130 interrupted. A stop is never an approval.
 \`ask\`: 0 an answer was printed (it may say what it could not answer), 1 no answer (the call failed or returned nothing usable), 2 usage error, 130 interrupted.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 \`status\`: 0 printed (also with no run kept), 2 usage error.
+\`dashboard\`: 0 written or printed (also with no run kept), 2 usage error, 1 the index or the page could not be written.
 \`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
 \`setup\`, \`init\`: 130 cancelled (Escape, Ctrl-C, Ctrl-D); nothing pending is saved.
 \`skills\`: 0 done (copies left in place are warned about), 1 a copy could not be written, 2 usage error or a refused target.
@@ -247,6 +276,37 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
   });
 }
 
+/**
+ * `wachiman reset-confidence <pr> [--commit <sha>]`: the first step of a review run (ADR 0033
+ * decision 14). It rewrites the PR Confidence block to `cannot say` for the commit under review
+ * before the push wait, so a run cancelled during it leaves no letter from an older commit. No
+ * model, no provider. A failure inside the reset itself (reading or writing the description) is a
+ * warning and the exit code stays 0. A usage or configuration error is not: a bad pull request
+ * number or flag, an invalid `AGENT_REVIEW_*` value, or a missing `GH_TOKEN` or
+ * `GITHUB_REPOSITORY` exits non-zero. The workflow steps run it with `continue-on-error`.
+ */
+export function runResetConfidence(args: string[], env: Record<string, string | undefined>, gh: GhFn = defaultGh): number {
+  const [prArg, ...flags] = args;
+  const pr = Number(prArg);
+  if (!/^\d+$/.test(prArg ?? "") || pr <= 0) throw new UsageError("reset-confidence needs a pull request number.");
+  let commit: string | undefined;
+  for (let i = 0; i < flags.length; i++) {
+    if (flags[i] !== "--commit" || !flags[i + 1]) throw new UsageError(`reset-confidence: unexpected "${flags[i]}".`);
+    commit = flags[++i];
+  }
+  const config = loadConfig(env);
+  if (!config.confidence) return 0;
+  required(env, "GH_TOKEN");
+  const repo = required(env, "GITHUB_REPOSITORY");
+  resetConfidence(
+    { gh, dryRun: config.dryRun, log: (line) => console.log(line), warn: (line) => console.error(line) },
+    repo,
+    pr,
+    commit,
+  );
+  return 0;
+}
+
 export async function main(argv: string[], env: Record<string, string | undefined>): Promise<number> {
   const mode = argv[0];
   if (mode === "--help" || mode === "-h") {
@@ -281,6 +341,14 @@ export async function main(argv: string[], env: Record<string, string | undefine
         engineVersion: readVersion(),
       });
     }
+    if (mode === "loop") {
+      // Like `local`: no GitHub token, no `gh` function anywhere on this path.
+      return runLoop(parseLoopArgs(args.slice(1)), repoDir, env, {
+        stdout: (text) => writeAll(1, text),
+        stderr: (line) => console.error(line),
+        engineVersion: readVersion(),
+      });
+    }
     if (mode === "ask") {
       // Like `local`: no GitHub token, no `gh` function anywhere on this path.
       return runAsk(parseAskArgs(args.slice(1)), repoDir, env, {
@@ -298,9 +366,15 @@ export async function main(argv: string[], env: Record<string, string | undefine
       if ("help" in parsed) return (writeAll(1, `${statusUsage}\n`), 0);
       return runStatus(parsed, repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line), version: readVersion() });
     }
+    if (mode === "dashboard") {
+      const parsed = parseDashboardArgs(args.slice(1));
+      if ("help" in parsed) return (writeAll(1, `${dashboardUsage}\n`), 0);
+      return runDashboard(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
+    }
     if (mode === "history") {
       return runHistory(parseHistoryArgs(args.slice(1)), repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
+    if (mode === "reset-confidence") return runResetConfidence(args.slice(1), env);
     const [, prArg, ...rest] = args;
     if (mode !== "review" && mode !== "comment" && mode !== "threads") {
       throw new UsageError(mode ? `Unknown command "${mode}".` : "No command given.");

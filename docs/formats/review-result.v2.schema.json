@@ -320,6 +320,159 @@
         }
       }
     },
+    "fidelity": {
+      "description": "PR Confidence (ADR 0033): the claims in the pull request title and body, the changed files nothing explains, and the grade the engine computed from them. Only the version 2 result of a pull request review has it; local reviews and version 1 never do.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claims",
+        "unexplainedFiles",
+        "grade",
+        "reasons",
+        "trial",
+        "judgedAGrades",
+        "questions",
+        "sensitivePaths",
+        "digest",
+        "reviewedCommit"
+      ],
+      "properties": {
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text",
+              "status",
+              "evidence"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "confirmed",
+                  "contradicted",
+                  "unverified",
+                  "vague"
+                ]
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "line"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "line": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "endLine": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "unexplainedFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "grade": {
+          "enum": [
+            "cannot say",
+            "C",
+            "B",
+            "A-",
+            "A"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "description": "Why the grade is not higher, most important first. Empty for an A.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "trial": {
+          "type": "boolean",
+          "description": "True for every A and A- while the grade is on trial."
+        },
+        "judgedAGrades": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "questions": {
+          "type": "array",
+          "description": "Every place that needs a person; not capped.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "path",
+              "text"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "contradicted-claim",
+                  "unexplained",
+                  "finding",
+                  "risk-fact",
+                  "judgement"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "text": {
+                "type": "string"
+              },
+              "severity": {
+                "enum": [
+                  "blocker",
+                  "fix",
+                  "consider",
+                  "info"
+                ]
+              }
+            }
+          }
+        },
+        "sensitivePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "digest": {
+          "type": "string",
+          "description": "sha256, in hex, of the author's text the claims were read from."
+        },
+        "reviewedCommit": {
+          "type": "string"
+        }
+      }
+    },
     "batches": {
       "type": "array",
       "items": {
@@ -706,6 +859,10 @@
             "Nit",
             "Pre-existing"
           ]
+        },
+        "id": {
+          "description": "The finding's history id, the one `wachiman history --verdict` accepts. Present only in the JSON `wachiman local --history` writes.",
+          "type": "string"
         }
       }
     },
