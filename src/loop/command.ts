@@ -325,10 +325,11 @@ function settle(
       entry.refuted =
         prior.refuted || dropped.some((d) => isRefutedBy({ path: d.path, line: d.line, topic: d.topic, titleKey: titleKey(d.title) }, { path, line: entry.line, topic: entry.topic, titleKey: titleOf }));
     }
-    // Sticky: a release because the lines changed stands in later rounds, even ones that do not read
-    // the file, until a round reports the finding again (`reported` then clears it).
+    // A release because the lines changed stands in later rounds that do not read the file. A round
+    // that reads it looks again, so a revert reopens the finding and a later change releases it again.
+    // A round that reports the finding clears it (`reported`).
     if (!reported && status === "not-repeated") {
-      entry.linesChanged = prior.linesChanged || (t !== undefined && readThisRound.has(path) && regionChanged(repoDir, head, path, t));
+      entry.linesChanged = readThisRound.has(path) ? t !== undefined && regionChanged(repoDir, head, path, t) : prior.linesChanged;
     }
     return entry;
   });

@@ -251,6 +251,35 @@ describe("wachiman loop", () => {
     expect(ids).toHaveLength(2);
   }, 240_000);
 
+  test("a release because the lines changed is recomputed in a round that reads the file: reverting the fix reopens the finding", () => {
+    const s = scenario();
+    const Y = { path: "src/b.ts", line: 1, severity: "fix", topic: "bug", confidence: "high", title: "Wrong literal", body: "b is 'new'." };
+    s.script(1, BRANCH_FILES, [BLOCKER, Y]);
+    expect(s.loop("--base", "main", "--max-rounds", "5").code).toBe(10);
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE4 }, "touch line four");
+    s.script(2, ["src/a.ts"], []);
+    expect(s.loop("--max-rounds", "5").code).toBe(10);
+    // Round 3 changes the Blocker's line and the model, reading src/a.ts, does not report it: released.
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE4.replace("export const b = 20;", "export const b = 21;") }, "fix line two");
+    s.script(3, ["src/a.ts"], []);
+    const third = JSON.parse(s.loop("--max-rounds", "5", "--format", "json").stdout);
+    expect(third.released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "probably-fixed" })]);
+    // Round 4 puts the line back and the model reads src/a.ts and still does not report it: open again.
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE4 }, "revert the fix");
+    s.script(4, ["src/a.ts"], []);
+    const fourth = s.loop("--max-rounds", "5", "--format", "json");
+    expect(fourth.code).toBe(10);
+    const reverted = JSON.parse(fourth.stdout);
+    expect(reverted.open.map((f: { path: string }) => f.path).sort()).toEqual(["src/a.ts", "src/b.ts"]);
+    expect(reverted.released).toEqual([]);
+    // Round 5 changes the line again and the model does not report it: released again.
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE4.replace("export const b = 20;", "export const b = 22;") }, "fix line two again");
+    s.script(5, ["src/a.ts"], []);
+    const fifth = JSON.parse(s.loop("--max-rounds", "5", "--format", "json").stdout);
+    expect(fifth.open.map((f: { path: string }) => f.path)).toEqual(["src/b.ts"]);
+    expect(fifth.released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "probably-fixed" })]);
+  }, 300_000);
+
   test("a round that reports the finding again at changed lines keeps the loop open", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
