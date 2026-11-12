@@ -105,12 +105,25 @@ describe("roundCapReached", () => {
 });
 
 describe("isRefutedBy", () => {
-  const tracked = { path: "src/a.ts", line: 2, topic: "bug" as const, titleKey: "null deref" };
-  test("same file and title, or same file, topic and line; never another file", () => {
-    expect(isRefutedBy({ ...tracked, line: 40 }, tracked)).toBe(true);
-    expect(isRefutedBy({ ...tracked, titleKey: "other" }, tracked)).toBe(true);
-    expect(isRefutedBy({ ...tracked, titleKey: "other", topic: "perf", line: 2 }, tracked)).toBe(false);
-    expect(isRefutedBy({ ...tracked, titleKey: "other", line: 3 }, tracked)).toBe(false);
+  const tracked = { path: "src/a.ts", topic: "bug" as const, titleKey: "null deref", lineText: "returnuser.name;" };
+  test("same file, topic and title key matches", () => {
+    expect(isRefutedBy({ ...tracked, lineText: undefined }, tracked)).toBe(true);
+    expect(isRefutedBy({ ...tracked, lineText: "somethingelse();" }, tracked)).toBe(true);
+  });
+  test("the same title key under another topic does not match", () => {
+    expect(isRefutedBy({ ...tracked, topic: "perf", lineText: "somethingelse();" }, tracked)).toBe(false);
+  });
+  test("the same topic with a different title and different line text does not match, whatever the line number", () => {
+    expect(isRefutedBy({ ...tracked, titleKey: "other", lineText: "somethingelse();" }, tracked)).toBe(false);
+  });
+  test("the same cited line text matches even when the line moved or the title and topic differ", () => {
+    expect(isRefutedBy({ ...tracked, titleKey: "other", topic: "perf" }, tracked)).toBe(true);
+  });
+  test("the text branch is skipped when either side has no line text", () => {
+    expect(isRefutedBy({ ...tracked, titleKey: "other", lineText: undefined }, tracked)).toBe(false);
+    expect(isRefutedBy({ ...tracked, titleKey: "other" }, { ...tracked, lineText: undefined })).toBe(false);
+  });
+  test("never another file", () => {
     expect(isRefutedBy({ ...tracked, path: "src/b.ts" }, tracked)).toBe(false);
   });
 });
