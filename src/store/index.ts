@@ -131,10 +131,22 @@ interface LoopRecord {
   ledger: { status: string }[];
 }
 
-/** A loop state file read leniently: only the fields the index stores. Undefined when it is not a loop state. */
-function readLoopRecord(path: string): LoopRecord | undefined {
+/**
+ * A loop state file read leniently: only the fields the index stores. Undefined when its content is
+ * not a loop state (it does not parse or has the wrong shape; the caller warns and skips it). Null
+ * when the file vanished while it was read, which counts as absent (read once more first). Any other
+ * read error (permissions, I/O) is thrown, not reported as "not a loop state".
+ */
+function readLoopRecord(path: string): LoopRecord | undefined | null {
+  let text: string;
   try {
-    const s = JSON.parse(readFileSync(path, "utf8"));
+    text = retryOnce(() => readFileSync(path, "utf8"));
+  } catch (error) {
+    if (vanished(error)) return null;
+    throw error;
+  }
+  try {
+    const s = JSON.parse(text);
     if (!s || typeof s !== "object" || s.format !== "wachiman.loop-state/1") return undefined;
     if (typeof s.branch !== "string" || typeof s.base !== "string" || (s.status !== "open" && s.status !== "converged")) return undefined;
     if (!Array.isArray(s.rounds) || !s.rounds.every((r: any) => r && typeof r.at === "string")) return undefined;
@@ -145,7 +157,9 @@ function readLoopRecord(path: string): LoopRecord | undefined {
   }
 }
 
-function fill(db: Database, root: string, warn: (line: string) => void) {
+/** Fills the tables; returns how many loop files were skipped because their content is not a loop state. */
+function fill(db: Database, root: string, warn: (line: string) => void): number {
+  let skipped = 0;
   const repo = db.prepare("INSERT INTO repositories (key, name) VALUES (?, ?)");
   const run = db.prepare("INSERT INTO runs (repo_key, saved_at, day, head_sha, model, cost_usd, findings, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
   const finding = db.prepare("INSERT INTO findings (repo_key, first_id, severity, topic, status, verdict, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -158,7 +172,10 @@ function fill(db: Database, root: string, warn: (line: string) => void) {
     const verdicts = readVerdicts(root, key);
     const loops = loopFiles(root, key).flatMap((path) => {
       const record = readLoopRecord(path);
-      if (!record) warn(`dashboard: ${path} is not a loop state; skipped`);
+      if (record === undefined) {
+        skipped++;
+        warn(`dashboard: ${path} is not a loop state; skipped`);
+      }
       return record ? [record] : [];
     });
     if (runs.length === 0 && loops.length === 0) continue;
@@ -188,6 +205,7 @@ function fill(db: Database, root: string, warn: (line: string) => void) {
       for (const [status, count] of counts) ledger.run(key, l.branch, status, count);
     }
   }
+  return skipped;
 }
 
 const unlinkQuiet = (path: string) => {
@@ -231,8 +249,11 @@ export interface RefreshHooks {
  * by the rename and not before: a rebuild that fails leaves it where it was. A missing-file error
  * (ENOENT) that escapes the scan or the replay, for example a history directory forgotten while it
  * is listed, makes the whole refresh run once more. A run or loop file removed between the listing
- * and the parse does not reach that retry: it is skipped with a warning, and the next call rebuilds
- * because the sources no longer match the stored signature.
+ * and the parse does not reach that retry: it is skipped, and the next call rebuilds because the
+ * sources no longer match the stored signature. A loop file that cannot be read for another reason
+ * (permissions, I/O) makes the refresh throw. A loop file whose content is not a loop state is skipped
+ * with a warning, and the index is stored with a signature that never matches, so every later call
+ * rebuilds and warns again until the file is fixed or removed.
  */
 export function refreshIndex(wachimanHome: string, warn: (line: string) => void, hooks: RefreshHooks = {}): { path: string; rebuilt: boolean } {
   const root = historyRoot(wachimanHome);
@@ -251,8 +272,10 @@ export function refreshIndex(wachimanHome: string, warn: (line: string) => void,
     try {
       hooks.beforeReplay?.();
       db.run(SCHEMA);
-      db.transaction(() => fill(db, root, warn))();
-      db.prepare("INSERT INTO meta (key, value) VALUES ('signature', ?)").run(signature);
+      const skipped = db.transaction(() => fill(db, root, warn))();
+      // An index that left a loop file out must not look current: a stored value that no computed
+      // signature equals makes the next call rebuild, and warn again, until the file is fixed.
+      db.prepare("INSERT INTO meta (key, value) VALUES ('signature', ?)").run(skipped > 0 ? `incomplete:${signature}` : signature);
       db.run(`PRAGMA user_version = ${INDEX_SCHEMA_VERSION}`);
       db.close();
       renameSync(tmp, path);

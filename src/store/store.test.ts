@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { appendVerdict, historyRoot, writeLoopFile, writeRun } from "../history/store";
 import type { HistoryRun } from "../history/types";
@@ -191,6 +191,37 @@ describe("the local index", () => {
     refreshIndex(wachiman, (l) => lines.push(l));
     expect(lines.join("\n")).toContain("broken-00000000.json");
     expect(readFigures(index).loops.totals.branches).toBe(2);
+  });
+
+  test("a skipped loop file makes the next call rebuild and warn again, until it is fixed", () => {
+    const { wachiman, index, root } = fixtureHome();
+    const broken = join(root, ALPHA.key, "loops", "broken-00000000.json");
+    writeFileSync(broken, "{ nope");
+    const first: string[] = [];
+    expect(refreshIndex(wachiman, (l) => first.push(l)).rebuilt).toBe(true);
+    const second: string[] = [];
+    expect(refreshIndex(wachiman, (l) => second.push(l)).rebuilt).toBe(true);
+    expect(second.join("\n")).toContain("broken-00000000.json");
+    unlinkSync(broken);
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
+    expect(readFigures(index).loops.totals.branches).toBe(2);
+  });
+
+  const root0 = typeof process.getuid === "function" && process.getuid() === 0;
+  test.skipIf(root0)("a loop file that cannot be read is an error, not a 'not a loop state' warning", () => {
+    const { wachiman, root } = fixtureHome();
+    const locked = join(root, ALPHA.key, "loops", "locked-00000000.json");
+    writeFileSync(locked, "{}");
+    chmodSync(locked, 0o000);
+    try {
+      const lines: string[] = [];
+      expect(() => refreshIndex(wachiman, (l) => lines.push(l))).toThrow(/EACCES|permission/i);
+      expect(lines.join("\n")).not.toContain("not a loop state");
+      expect(readdirSync(wachiman).filter((n) => n.startsWith("index.sqlite"))).toEqual([]);
+    } finally {
+      chmodSync(locked, 0o600);
+    }
   });
 
   test("PR Confidence grades are counted only where the run files record one", () => {
