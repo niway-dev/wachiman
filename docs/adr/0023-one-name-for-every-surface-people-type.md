@@ -2,6 +2,9 @@
 
 - **Status:** accepted 2026-11-06. Supersedes decision 3 of [ADR 0010](0010-name-wachiman.md)
   (`/wachi` stays the default command) and amends its non-goals for the surfaces listed below.
+  The non-goal "renaming the package name" is amended by
+  [ADR 0026](0026-the-local-cli-ships-as-an-npm-package.md) (proposed 2026-11-07, not
+  implemented): the package becomes `wachiman` when it ships on npm.
 - **Date:** 2026-11-06
 - **Numbering:** 0023 because open pull requests already hold 0021 and 0022.
 

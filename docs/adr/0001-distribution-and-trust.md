@@ -13,7 +13,9 @@
   (proposed 2026-11-03, not implemented): the provider adapter is no longer the only boundary; a
   review core sits behind source and sink ports, and a local mode runs on the developer's
   signed-in `claude` with no API key and no GitHub request, so its trust boundary is the
-  developer's own machine and account.
+  developer's own machine and account. **The rejected alternative "An npm package now" is
+  amended** by [ADR 0026](0026-the-local-cli-ships-as-an-npm-package.md) (proposed 2026-11-07,
+  not implemented): the local CLI ships on npm; the GitHub integration stays by Git ref.
 - **Date:** 2026-10-25. **Amended 2026-10-26:** decision 3 now recommends an exact release tag;
   the floating major tag is kept but no longer recommended. See "Amendment" below.
 
