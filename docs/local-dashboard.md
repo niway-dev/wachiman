@@ -80,5 +80,5 @@ path or remote, so it is safer to share.
 `prConfidence` (`{"status": "not recorded", ...}` or the count by grade). `generatedAt` is the only
 field that changes between two calls on the same history. `--json` cannot be combined with `--out`.
 
-Exit codes: 0 written or printed (also with no run kept); 1 the index or the page could not be
-written; 2 usage error.
+Exit codes: 0 written or printed (also with no run kept); 1 a loop file could not be read, or the
+index or the page could not be written; 2 usage error.

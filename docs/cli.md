@@ -531,8 +531,8 @@ prints JSON. It runs no `claude`, calls no GitHub, starts no server and never op
 | `--json` | Print `wachiman.dashboard/1` on stdout ([schema](formats/dashboard.v1.schema.json)) instead of writing the page |
 | `--out <file>` | Where to write the HTML page; default `~/.wachiman/dashboard.html`. Missing directories are created; the file is `0600`. The path is printed. Not allowed with `--json` |
 
-Exit codes: 0 written or printed (also with no run kept); 1 the index or the page could not be written;
-2 usage error.
+Exit codes: 0 written or printed (also with no run kept); 1 a loop file could not be read, or the index or
+the page could not be written; 2 usage error.
 
 ## What it posts
 
