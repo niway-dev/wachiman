@@ -26,14 +26,14 @@ Each document is one unit of evidence. The synthesis is written last, from these
 
 | Document | Source | Status |
 | --- | --- | --- |
-| [t3code/01-pr-inventory.md](t3code/01-pr-inventory.md) | t3code PRs that removed and set up tests | pending |
-| [t3code/02-the-big-purge.md](t3code/02-the-big-purge.md) | #22557 and #13922: which tests were deleted, by category | pending |
-| [t3code/03-over-cuts-and-restores.md](t3code/03-over-cuts-and-restores.md) | #24058, the four restore PRs, #26238 | pending |
-| [t3code/04-codified-criteria.md](t3code/04-codified-criteria.md) | #26166 guidance and test-signal agent, lint rules, config PRs | pending |
-| [repos/calcom.md](repos/calcom.md) | Cal.com testing practice | pending |
-| [repos/sentry.md](repos/sentry.md) | Sentry testing practice | pending |
-| [repos/grafana.md](repos/grafana.md) | Grafana testing practice | pending |
-| [repos/keycloak.md](repos/keycloak.md) | Keycloak testing practice | pending |
-| [repos/discourse.md](repos/discourse.md) | Discourse testing practice | pending |
+| [t3code/01-pr-inventory.md](t3code/01-pr-inventory.md) | t3code PRs that removed and set up tests | done |
+| [t3code/02-the-big-purge.md](t3code/02-the-big-purge.md) | #22557 and #13922: which tests were deleted, by category | done |
+| [t3code/03-over-cuts-and-restores.md](t3code/03-over-cuts-and-restores.md) | #24058, the four restore PRs, #26238 | done |
+| [t3code/04-codified-criteria.md](t3code/04-codified-criteria.md) | #26166 guidance and test-signal agent, lint rules, config PRs | done |
+| [repos/calcom.md](repos/calcom.md) | Cal.com testing practice | done |
+| [repos/sentry.md](repos/sentry.md) | Sentry testing practice | done |
+| [repos/grafana.md](repos/grafana.md) | Grafana testing practice | done |
+| [repos/keycloak.md](repos/keycloak.md) | Keycloak testing practice | done |
+| [repos/discourse.md](repos/discourse.md) | Discourse testing practice | done |
 | synthesis.md | All of the above | pending |
 | skill draft | Test-mapping heuristics | pending |
