@@ -1,8 +1,9 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { appendFileSync, existsSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { appendVerdict } from "../history/store";
+import { appendVerdict, historyRoot, writeLoopFile, writeRun } from "../history/store";
+import type { HistoryRun } from "../history/types";
 import { ALPHA, EXPECTED, fixtureHome, removeFixtureHomes } from "../../test/support/dashboard-fixture";
 import { INDEX_SCHEMA_VERSION, refreshIndex } from "./index";
 import { readFigures } from "./figures";
@@ -111,13 +112,73 @@ describe("the local index", () => {
     expect(readFigures(index).findings.byVerdict).toEqual({ correct: 1, partial: 1, wrong: 1, unjudged: 1 });
   });
 
+  test("a new run file and a new loop file each make an up-to-date index rebuild", () => {
+    const { wachiman, index, root } = fixtureHome();
+    refreshIndex(wachiman, warn);
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
+
+    const [first] = readdirSync(join(root, ALPHA.key, "runs"));
+    const extra = JSON.parse(readFileSync(join(root, ALPHA.key, "runs", first), "utf8")) as HistoryRun;
+    writeRun(root, { ...extra, savedAt: "2026-11-05T10:00:00.000Z" });
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
+    expect(readFigures(index).totals.runs).toBe(EXPECTED.totals.runs + 1);
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
+
+    writeLoopFile(root, ALPHA.key, "feat/z", { format: "wachiman.loop-state/1", branch: "feat/z", base: "main", status: "open", rounds: [{ round: 1, head: "a".repeat(40), at: "2026-11-05T11:00:00.000Z" }], ledger: [] });
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
+    expect(readFigures(index).loops.totals.branches).toBe(3);
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
+  });
+
+  test("a run file written while the index is being built is not lost: the next call rebuilds", () => {
+    const { wachiman, index, root } = fixtureHome();
+    const [first] = readdirSync(join(root, ALPHA.key, "runs"));
+    const extra = JSON.parse(readFileSync(join(root, ALPHA.key, "runs", first), "utf8")) as HistoryRun;
+    // The write lands after the signature was taken and before the replay reads the files.
+    refreshIndex(wachiman, warn, () => writeRun(historyRoot(wachiman), { ...extra, savedAt: "2026-11-06T10:00:00.000Z" }));
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
+    expect(readFigures(index).totals.runs).toBe(EXPECTED.totals.runs + 1);
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
+  });
+
+  test("a rebuild that fails leaves the previous index in place and no temporary file", () => {
+    const { wachiman, index, root } = fixtureHome();
+    refreshIndex(wachiman, warn);
+    const before = readFileSync(index);
+    appendVerdict(root, ALPHA.key, { at: "2026-11-03T00:00:00.000Z", firstId: "c1c1c1c1c1", verdict: "partial" });
+    expect(() =>
+      refreshIndex(wachiman, warn, () => {
+        throw new Error("disk full");
+      }),
+    ).toThrow("disk full");
+    expect(readFileSync(index).equals(before)).toBe(true);
+    expect(readdirSync(wachiman).filter((n) => n.startsWith("index.sqlite"))).toEqual(["index.sqlite"]);
+  });
+
+  test("a temporary file a crashed rebuild left a day ago is swept; a fresh one is not", () => {
+    const { wachiman } = fixtureHome();
+    const old = join(wachiman, "index.sqlite.tmp-111");
+    const fresh = join(wachiman, "index.sqlite.tmp-222");
+    mkdirSync(wachiman, { recursive: true });
+    writeFileSync(old, "x");
+    writeFileSync(fresh, "x");
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
+    utimesSync(old, twoDaysAgo, twoDaysAgo);
+    refreshIndex(wachiman, warn);
+    expect(existsSync(old)).toBe(false);
+    expect(existsSync(fresh)).toBe(true);
+  });
+
   test("a damaged run file is moved aside by the replay, as `history` does, and the rest is indexed", () => {
     const { wachiman, index, root } = fixtureHome();
     const dir = join(root, ALPHA.key, "runs");
-    writeFileSync(join(dir, "2026-11-09T00-00-00-000Z-zzzzzzz.json"), "{ not json");
+    const name = "2026-11-09T00-00-00-000Z-zzzzzzz.json";
+    writeFileSync(join(dir, name), "{ not json");
     const lines: string[] = [];
     refreshIndex(wachiman, (l) => lines.push(l));
-    expect(lines.join("\n")).toContain("cannot be read");
+    expect(lines.join("\n")).toContain("moved to");
+    expect(existsSync(join(dir, name))).toBe(false);
+    expect(readdirSync(dir).filter((n) => n.startsWith(`${name}.unreadable-`))).toHaveLength(1);
     expect(readFigures(index).totals).toEqual(EXPECTED.totals);
   });
 
@@ -148,14 +209,13 @@ describe("the local index", () => {
   });
 
   test("an empty home gives empty figures", () => {
-    const { wachiman, index } = fixtureHome();
-    const empty = join(wachiman, "..", "nothing-here");
-    refreshIndex(empty, warn);
-    const f = readFigures(join(empty, "index.sqlite"));
+    const empty = join(fixtureHome().wachiman, "..", "nothing-here");
+    const { path } = refreshIndex(empty, warn);
+    expect(path).toBe(join(empty, "index.sqlite"));
+    const f = readFigures(path);
     expect(f.totals).toEqual({ repositories: 0, runs: 0, costUsdEstimate: 0 });
     expect(f.findings.total).toBe(0);
     expect(f.spend.byDay).toEqual([]);
-    expect(existsSync(index)).toBe(false);
   });
 
   test("a verdicts line that is half written does not stop the index", () => {

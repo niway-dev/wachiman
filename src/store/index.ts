@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { GRADES } from "../fidelity/types";
-import { loopFiles, historyRoot, listKeys, readRuns, readVerdicts } from "../history/store";
+import { historyRoot, listKeys, loopFiles, readRuns, readVerdicts, runFiles } from "../history/store";
 import { replay } from "../history/match";
 
 /** Bump when a table or a column changes: an index of another version is rebuilt, never read. */
@@ -66,19 +66,13 @@ function sourceSignature(root: string): string {
     lines.push(`${key}/${name}\t${s.size}\t${s.mtimeNs}`);
   };
   for (const key of listKeys(root)) {
-    for (const [sub, names] of [["runs", runFilesOf(root, key)], ["loops", loopFiles(root, key)]] as const) {
+    for (const [sub, names] of [["runs", runFiles(root, key)], ["loops", loopFiles(root, key)]] as const) {
       for (const path of names) stat(key, path, `${sub}/${basename(path)}`);
     }
     const verdicts = join(root, key, "verdicts.jsonl");
     if (existsSync(verdicts)) stat(key, verdicts, "verdicts.jsonl");
   }
   return createHash("sha256").update(lines.sort().join("\n")).digest("hex");
-}
-
-function runFilesOf(root: string, key: string): string[] {
-  const dir = join(root, key, "runs");
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((n) => n.endsWith(".json")).map((n) => join(dir, n));
 }
 
 /** Whether the file at `path` is a readable index of this schema version built from sources that look like `signature`. */
@@ -166,29 +160,44 @@ function fill(db: Database, root: string, warn: (line: string) => void) {
   }
 }
 
-const removeAll = (path: string) => {
-  for (const p of [path, `${path}-journal`, `${path}-wal`, `${path}-shm`]) {
-    try {
-      unlinkSync(p);
-    } catch {
-      // Not there.
-    }
+const unlinkQuiet = (path: string) => {
+  try {
+    unlinkSync(path);
+  } catch {
+    // Not there.
   }
 };
+/** A database file and the journal files SQLite may keep beside it. */
+const removeAll = (path: string) => [path, `${path}-journal`, `${path}-wal`, `${path}-shm`].forEach(unlinkQuiet);
+
+const STALE_TMP_MS = 86_400_000;
+
+/** Temporary files a crashed rebuild left behind: `index.sqlite.tmp-<pid>` untouched for a day. */
+function sweepStaleTemporaries(home: string) {
+  for (const name of readdirSync(home)) {
+    if (!name.startsWith(`${INDEX_FILE}.tmp-`)) continue;
+    try {
+      if (Date.now() - statSync(join(home, name)).mtimeMs > STALE_TMP_MS) removeAll(join(home, name));
+    } catch {
+      // Gone already.
+    }
+  }
+}
 
 /**
  * Makes `<home>/index.sqlite` current and returns its path; `rebuilt` says whether the file was
  * written. Reading the run files has the side effects `history` has: a damaged one is moved aside
- * with a warning.
+ * with a warning. The signature of the sources is taken before the replay and stored with it, so a
+ * file written while the index is being built makes the next call rebuild. The old index is replaced
+ * by the rename and not before: a rebuild that fails leaves it where it was. `beforeReplay` is for tests.
  */
-export function refreshIndex(wachimanHome: string, warn: (line: string) => void): { path: string; rebuilt: boolean } {
+export function refreshIndex(wachimanHome: string, warn: (line: string) => void, beforeReplay?: () => void): { path: string; rebuilt: boolean } {
   const root = historyRoot(wachimanHome);
   const path = indexPath(wachimanHome);
-  if (existsSync(path)) {
-    if (upToDate(path, sourceSignature(root))) return { path, rebuilt: false };
-    removeAll(path);
-  }
+  const signature = sourceSignature(root);
+  if (existsSync(path) && upToDate(path, signature)) return { path, rebuilt: false };
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  sweepStaleTemporaries(dirname(path));
   const tmp = `${path}.tmp-${process.pid}`;
   removeAll(tmp);
   // Created 0600 before SQLite writes a byte; an empty file is a valid new database.
@@ -196,10 +205,10 @@ export function refreshIndex(wachimanHome: string, warn: (line: string) => void)
   chmodSync(tmp, 0o600);
   const db = new Database(tmp);
   try {
+    beforeReplay?.();
     db.run(SCHEMA);
     db.transaction(() => fill(db, root, warn))();
-    // After the replay: a file it moved aside is no longer part of what the next call sees.
-    db.prepare("INSERT INTO meta (key, value) VALUES ('signature', ?)").run(sourceSignature(root));
+    db.prepare("INSERT INTO meta (key, value) VALUES ('signature', ?)").run(signature);
     db.run(`PRAGMA user_version = ${INDEX_SCHEMA_VERSION}`);
     db.close();
     renameSync(tmp, path);
@@ -212,5 +221,7 @@ export function refreshIndex(wachimanHome: string, warn: (line: string) => void)
     removeAll(tmp);
     throw error;
   }
+  // Journal files of the index that was just replaced belong to it, not to the new one.
+  for (const stale of [`${path}-journal`, `${path}-wal`, `${path}-shm`]) unlinkQuiet(stale);
   return { path, rebuilt: true };
 }

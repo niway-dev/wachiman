@@ -208,7 +208,7 @@ function parseRun(path: string): HistoryRun {
   return parsed as HistoryRun;
 }
 
-const runFiles = (root: string, key: string) => {
+export const runFiles = (root: string, key: string) => {
   const dir = runsDir(root, key);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)

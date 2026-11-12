@@ -1,6 +1,6 @@
 /**
- * A fixture history for the local index and the dashboard: two repositories, five runs, three
- * verdicts-worth of findings and two loops, written with the same store functions the product uses.
+ * A fixture history for the local index and the dashboard: two repositories, four runs, four
+ * distinct findings, two verdicts and two loops, written with the same store functions the product uses.
  * Illustrative data, not recorded from a real review. The expected figures are in `EXPECTED`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
