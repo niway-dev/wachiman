@@ -324,6 +324,16 @@ export function readVerdicts(root: string, key: string): Map<string, VerdictLine
 const loopPath = (root: string, key: string, branch: string) =>
   join(keyDir(root, key), "loops", `${safeName(branch)}-${sha256(branch).slice(0, 8)}.json`);
 
+/** Every loop state file of a repository, in name order: what the local index replays. */
+export function loopFiles(root: string, key: string): string[] {
+  const dir = join(keyDir(root, key), "loops");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((n) => n.endsWith(".json"))
+    .sort()
+    .map((n) => join(dir, n));
+}
+
 /** The stored loop state of a branch as parsed JSON, or undefined when there is none. A file that is not JSON is an error naming it. */
 export function readLoopFile(root: string, key: string, branch: string): unknown | undefined {
   const path = loopPath(root, key, branch);
