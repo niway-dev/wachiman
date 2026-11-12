@@ -11,7 +11,7 @@ const sha256 = (text: string) => createHash("sha256").update(text).digest("hex")
 export const stripWhitespace = (s: string) => s.replace(/\s+/g, "");
 
 /** A cited line shorter than this, once stripped, is too common to identify anything. */
-const MIN_LINE_CHARS = 8;
+export const MIN_LINE_CHARS = 8;
 
 /** The title lowercased, backticks and punctuation removed, every digit run a `#`, whitespace collapsed. */
 export function titleKey(title: string): string {

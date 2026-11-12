@@ -78,6 +78,7 @@ echo 'no answer scripted'; exit 3
   return {
     repo,
     bin,
+    home,
     /** Script the answer of the n-th review call. */
     script: (n: number, files: string[], findings: object[]) => writeFileSync(`${state}.answer.${n}`, answer(files, findings)),
     calls: () => (existsSync(`${state}.count`) ? Number(readFileSync(`${state}.count`, "utf8")) : 0),
@@ -227,7 +228,7 @@ describe("wachiman loop", () => {
     expect(third.code).toBe(0);
     const doc = JSON.parse(third.stdout);
     expect(doc.open).toEqual([]);
-    expect(doc.released).toEqual([expect.objectContaining({ id, why: "probably-fixed", status: "not-repeated" })]);
+    expect(doc.released).toEqual([expect.objectContaining({ id, why: "probably-fixed", status: "probably-fixed" })]);
   }, 180_000);
 
   test("a release because the lines changed is kept in later rounds that do not read the file; another open finding alone keeps the loop open", () => {
@@ -331,6 +332,51 @@ describe("wachiman loop", () => {
     s.script(4, ["docs/note.md"], []);
     const fourth = JSON.parse(s.loop("--max-rounds", "6", "--format", "json").stdout);
     expect(fourth.open.map((f: { path: string }) => f.path).sort()).toEqual(["src/a.ts", "src/b.ts"]);
+  }, 300_000);
+
+  test("a finding that a review outside the loop already settled is released by a loop round that reads the fixed file and does not report it", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    expect(s.loop("--base", "main", "--max-rounds", "5").code).toBe(10);
+    const a1 = git(s.repo.dir, "rev-parse", "HEAD").trim();
+    git(s.repo.dir, "switch", "-q", "-c", "feat/stacked");
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE2 }, "fix on the stacked branch");
+    s.script(2, ["src/a.ts"], []);
+    expect(s.local("--base", a1, "--format", "json").code).toBe(0);
+    expect(s.history().stdout).toContain("probably-fixed");
+    // The same fix lands on the loop's branch: the loop round reads it and the Blocker is gone.
+    git(s.repo.dir, "switch", "-q", "feat/x");
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE2 }, "fix line two");
+    s.script(3, ["src/a.ts"], []);
+    const r = s.loop("--max-rounds", "5", "--format", "json");
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout).released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "probably-fixed" })]);
+  }, 300_000);
+
+  test("a loop state from before runs and fingerprints were kept still decides: unchanged lines keep the Blocker open, changed lines release it", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    expect(s.loop("--base", "main", "--max-rounds", "5").code).toBe(10);
+    // Make the state look like one written by the first version of the loop.
+    const file = Bun.spawnSync(["find", s.home, "-path", "*/loops/*.json"]).stdout.toString().trim();
+    const state = JSON.parse(readFileSync(file, "utf8"));
+    delete state.runs;
+    for (const e of state.ledger) {
+      delete e.lineText;
+      delete e.blobSha;
+      e.linesChanged = false;
+    }
+    writeFileSync(file, JSON.stringify(state));
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE4 }, "touch line four");
+    s.script(2, ["src/a.ts"], []);
+    const second = s.loop("--max-rounds", "5", "--format", "json");
+    expect(second.code).toBe(10);
+    expect(JSON.parse(second.stdout).open).toEqual([expect.objectContaining({ path: "src/a.ts", status: "not-repeated" })]);
+    commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE4.replace("export const b = 20;", "export const b = 21;") }, "fix line two");
+    s.script(3, ["src/a.ts"], []);
+    const third = s.loop("--max-rounds", "5", "--format", "json");
+    expect(third.code).toBe(0);
+    expect(JSON.parse(third.stdout).released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "probably-fixed" })]);
   }, 300_000);
 
   test("a round that reports the finding again at changed lines keeps the loop open", () => {
@@ -471,17 +517,6 @@ describe("runLoop with a fake review", () => {
       expect(() => readLoop(root, key, "feat/x")).not.toThrow();
       expect(readLoop(root, key, "feat/x")?.base).toBe("main");
     }
-  }, 30_000);
-
-  test("a loop state written before the runs field existed is still read, and the next round records its run list", () => {
-    const repo = branchRepo();
-    const home = temp("wachiman-home-");
-    const root = historyRoot(wachimanHome({ WACHIMAN_HOME: home }));
-    const key = repositoryKey(repo.dir).key;
-    writeLoopFile(root, key, "feat/x", { format: "wachiman.loop-state/1", branch: "feat/x", base: "main", status: "open", rounds: [], ledger: [] });
-    const fake = fakeReview(repo, ["ok"]);
-    expect(run(repo, fake, home).code).toBe(0);
-    expect(readLoop(root, key, "feat/x")?.runs).toEqual([]);
   }, 30_000);
 
   test("a usage error from the review is not retried", () => {

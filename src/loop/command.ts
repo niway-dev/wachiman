@@ -16,9 +16,9 @@ import { neutralise, SEVERITY, TOPIC, type ReviewResult } from "../engine";
 import { spawnGit } from "../evidence";
 import { readReviewResultFormat } from "../formats";
 import { wachimanHome } from "../accounts/config";
-import { stripWhitespace, titleKey } from "../history/fingerprint";
+import { MIN_LINE_CHARS, stripWhitespace, titleKey } from "../history/fingerprint";
 import { replay, type ReplayedFinding } from "../history/match";
-import { historyRoot, readRuns, readVerdicts, repositoryKey, runFileNames } from "../history/store";
+import { historyRoot, readRuns, readVerdicts, repositoryKey } from "../history/store";
 import { LOCAL_FLAGS, parseFlags, runLocal, type LocalArgs, type LocalDeps } from "../local";
 import { location, sha7 } from "../sinks/common";
 import { LOOP_STATE_FORMAT, readLoop, writeLoop, type LedgerEntry, type LoopState } from "./state";
@@ -135,6 +135,21 @@ function regionChanged(repoDir: string, head: string, path: string, t: Pick<Repl
   return blob.status !== 0 || t.blobSha === undefined || blob.stdout.trim() !== t.blobSha;
 }
 
+/**
+ * What `regionChanged` compares against later: the cited line without whitespace, or the file's blob
+ * when the line is too short, repeated or missing, as the history fingerprints a finding.
+ */
+function fingerprintAt(repoDir: string, head: string, path: string, line: number): { lineText?: string; blobSha?: string } {
+  const shown = git(repoDir, ["show", `${head}:${path}`]);
+  if (shown.status === 0 && Number.isInteger(line) && line >= 1) {
+    const lines = shown.stdout.split("\n");
+    const text = line <= lines.length ? stripWhitespace(lines[line - 1]) : "";
+    if (text.length >= MIN_LINE_CHARS && lines.filter((l) => stripWhitespace(l) === text).length === 1) return { lineText: text };
+  }
+  const blob = git(repoDir, ["rev-parse", `${head}:${path}`]);
+  return blob.status === 0 ? { blobSha: blob.stdout.trim() } : {};
+}
+
 /** A complete `/2` result whose findings all carry their history id. */
 type IdentifiedResult = ReviewResult & { findings: { id: string }[] };
 type Attempt = { ok: true; result: IdentifiedResult } | { ok: false; why: string } | { interrupted: true };
@@ -243,7 +258,6 @@ export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, str
     ...(args.profile !== undefined ? { profile: args.profile } : {}),
     ...(args.maxDepth !== undefined ? { maxDepth: args.maxDepth } : {}),
   };
-  const runsBefore = new Set(runFileNames(root, key));
   let made = attempt(localArgs, repoDir, env, io, deps);
   if ("ok" in made && !made.ok) {
     io.stderr(`loop: the review failed (${made.why}); trying once more.`);
@@ -264,11 +278,9 @@ export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, str
   }
 
   const { result } = made;
-  const ownRuns = [...(state.runs ?? []), ...thisRound(root, key, runsBefore, result)];
-  const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts(), new Set(ownRuns));
+  const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts());
   state = {
     ...state,
-    runs: ownRuns,
     rounds: [...state.rounds, { round, head: result.change.head.sha, at: now() }],
     ledger: decision.ledger,
     status: decision.decision.converged ? "converged" : "open",
@@ -279,20 +291,12 @@ export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, str
 }
 
 /**
- * The history run file this round's review saved: among the files that appeared during the call, the
- * newest one for this head whose findings are the result's (a failed first attempt may have saved one too).
+ * The new ledger and the decision after a round. The loop decides from the round's own result and the
+ * code, never from the history's settled map (a review outside the loop writes to the same history).
+ * In a round that reads a finding's file: reported again means open; not reported with its cited
+ * line gone means probably fixed; not reported with the line still there means not repeated, which
+ * still counts. A round that does not read the file keeps the previous state.
  */
-function thisRound(root: string, key: string, before: ReadonlySet<string>, result: IdentifiedResult): string[] {
-  const names = runFileNames(root, key).filter((n) => !before.has(n));
-  const head = result.change.head.sha;
-  const ids = result.findings.map((f) => f.id).sort().join(",");
-  const candidates = names.flatMap((name) => readRuns(root, key, () => {}, new Set([name])).map((run) => ({ name, run }))).filter((c) => c.run.result.change.head.sha === head);
-  const exact = candidates.filter((c) => c.run.tracking.map((t) => t.firstId).sort().join(",") === ids);
-  const pick = (exact.length > 0 ? exact : candidates).at(-1);
-  return pick ? [pick.name] : [];
-}
-
-/** The new ledger and the decision after a round whose result and history entry exist. */
 function settle(
   state: LoopState,
   result: IdentifiedResult,
@@ -301,73 +305,63 @@ function settle(
   root: string,
   rangeFrom: string,
   verdicts: ReturnType<typeof readVerdicts>,
-  ownRuns: ReadonlySet<string>,
 ): { ledger: LedgerEntry[]; decision: Decision } {
-  // Only the runs of this loop's own rounds: a finding another review settled says nothing about this branch.
-  const tracked = new Map(replay(readRuns(root, key, () => {}, ownRuns), verdicts).findings.map((f) => [f.firstId, f]));
   const head = result.change.head.sha;
-  const reportedIds = new Set(result.findings.map((f) => f.id));
   const renames = renamesIn(repoDir, rangeFrom, head);
   const expected = new Set(result.coverage.expected);
   const readThisRound = new Set(result.coverage.reviewed.filter((p) => expected.has(p)));
   const dropped = (result.verification?.entries ?? []).filter((e) => e.outcome === "dropped" && e.status === "refuted");
+  type Reported = { id: string; path: string; line: number; severity: LedgerEntry["severity"]; topic: LedgerEntry["topic"]; title: string };
+  const findings = result.findings as unknown as Reported[];
 
-  const byId = new Map(state.ledger.map((e) => [e.id, e]));
-  for (const f of result.findings) {
-    if (byId.has(f.id)) continue;
-    const t = tracked.get(f.id);
-    byId.set(f.id, {
-      id: f.id,
-      path: t?.path ?? (f as { path: string }).path,
-      line: t?.line ?? (f as { line: number }).line,
-      severity: (f as { severity: LedgerEntry["severity"] }).severity,
-      topic: (f as { topic: LedgerEntry["topic"] }).topic,
-      title: (f as { title: string }).title,
-      status: "new",
-      refuted: false,
-      linesChanged: false,
-    });
+  const prior = state.ledger.map((e) => ({ ...e, path: renames.get(e.path) ?? e.path }));
+  // A reported finding is the ledger entry with its id, or failing that the one in the same file with the same topic and title.
+  const reportedBy = new Map<string, Reported>();
+  const unmatched: Reported[] = [];
+  for (const f of findings) {
+    const e = prior.find((x) => x.id === f.id && !reportedBy.has(x.id));
+    if (e) reportedBy.set(e.id, f);
+    else unmatched.push(f);
+  }
+  const fresh: Reported[] = [];
+  for (const f of unmatched) {
+    const e = prior.find((x) => !reportedBy.has(x.id) && x.path === f.path && x.topic === f.topic && titleKey(x.title) === titleKey(f.title));
+    if (e) reportedBy.set(e.id, f);
+    else fresh.push(f);
   }
 
-  const ledger: LedgerEntry[] = [...byId.values()].map((prior) => {
-    const t = tracked.get(prior.id);
-    const reported = reportedIds.has(prior.id);
-    const path = t ? (renames.get(t.path) ?? t.path) : prior.path;
-    const status: LoopStatus = t ? t.status : prior.status;
-    const entry: LedgerEntry = {
-      id: prior.id,
-      path,
-      line: t?.line ?? prior.line,
-      severity: t?.severity ?? prior.severity,
-      topic: t?.topic ?? prior.topic,
-      title: t?.title ?? prior.title,
-      status: reported ? "open" : status,
-      refuted: false,
-      linesChanged: false,
-    };
-    if (!reported) {
-      const titleOf = titleKey(entry.title);
-      entry.refuted =
-        prior.refuted || dropped.some((d) => isRefutedBy({ path: d.path, line: d.line, topic: d.topic, titleKey: titleKey(d.title) }, { path, line: entry.line, topic: entry.topic, titleKey: titleOf }));
-    }
-    // A finding that a round settled as fixed or not repeated is looked at again whenever a round reads its
-    // file: the original line back means it is not fixed (a revert reopens it), changed lines release it.
-    // A round that does not read the file keeps what the previous round decided. A round that reports
-    // the finding again makes it `open` and clears all of this.
-    if (!reported) {
-      const settled = (x: LoopStatus) => x === "probably-fixed" || x === "not-repeated";
-      if (t !== undefined && readThisRound.has(path) && settled(status)) {
-        const changed = regionChanged(repoDir, head, path, t);
-        entry.status = changed && status === "probably-fixed" ? "probably-fixed" : "not-repeated";
-        entry.linesChanged = changed;
-      } else if (!readThisRound.has(path) && settled(prior.status)) {
-        entry.status = prior.status;
-        entry.linesChanged = prior.linesChanged;
-      }
-    }
-    return entry;
+  // Fingerprints of entries written before the loop kept them come from the history, by id: data only, never a status.
+  let past: Map<string, ReplayedFinding> | undefined;
+  const fingerprintOf = (e: LedgerEntry) => {
+    if (e.lineText !== undefined || e.blobSha !== undefined) return e;
+    past ??= new Map(replay(readRuns(root, key, () => {}), verdicts).findings.map((f) => [f.firstId, f]));
+    return past.get(e.id);
+  };
+  const seen = (f: Reported): LedgerEntry => ({
+    id: f.id,
+    path: f.path,
+    line: f.line,
+    severity: f.severity,
+    topic: f.topic,
+    title: f.title,
+    status: "open",
+    refuted: false,
+    ...fingerprintAt(repoDir, head, f.path, f.line),
   });
-  // A finding reported in this round is new or open, never settled.
+
+  const ledger: LedgerEntry[] = [
+    ...prior.map((e): LedgerEntry => {
+      const again = reportedBy.get(e.id);
+      if (again) return { ...seen(again), id: e.id };
+      const refuted =
+        e.refuted ||
+        dropped.some((d) => isRefutedBy({ path: d.path, line: d.line, topic: d.topic, titleKey: titleKey(d.title) }, { path: e.path, line: e.line, topic: e.topic, titleKey: titleKey(e.title) }));
+      const fp = readThisRound.has(e.path) ? fingerprintOf(e) : undefined;
+      if (!fp || (fp.lineText === undefined && fp.blobSha === undefined)) return { ...e, refuted };
+      return { ...e, refuted, linesChanged: undefined, lineText: fp.lineText, blobSha: fp.blobSha, status: regionChanged(repoDir, head, e.path, fp) ? "probably-fixed" : "not-repeated" };
+    }),
+    ...fresh.map(seen),
+  ];
   return { ledger, decision: evaluate(withVerdicts(ledger, verdicts)) };
 }
 
