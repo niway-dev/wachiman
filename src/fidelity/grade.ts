@@ -85,7 +85,11 @@ const count = (n: number, one: string, many: string) => (n === 1 ? `One ${one}` 
 const byPathThenLine = (a: Attention, b: Attention) =>
   a.path < b.path ? -1 : a.path > b.path ? 1 : (a.line ?? 0) - (b.line ?? 0);
 
-/** The places that need a person, one entry each, ordered by file then line. Nothing is capped. */
+/**
+ * The places that need a person, one entry each, ordered by file then line. Nothing here caps the
+ * list, but the judgement items arrive already cut to three by buildRiskMap (src/risk.ts), so at
+ * most three of them appear here and count in the A- reason.
+ */
 function placesNeedingAttention(input: GradeInput, unexplained: string[]): Attention[] {
   const places: Attention[] = [];
   for (const c of input.claims) {

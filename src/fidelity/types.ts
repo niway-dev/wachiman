@@ -80,7 +80,10 @@ export interface Fidelity {
   trial: boolean;
   /** How many A-graded pull requests the owner has judged so far. */
   judgedAGrades: number;
-  /** Every place that needs a person, no cap, ordered by file then line. */
+  /**
+   * Every place that needs a person, ordered by file then line. The judgement items are capped at
+   * three upstream (buildRiskMap), so at most three of those are listed.
+   */
   questions: Attention[];
   /** Paths the risk map marks as sensitive. */
   sensitivePaths: string[];
