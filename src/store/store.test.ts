@@ -135,7 +135,7 @@ describe("the local index", () => {
     const [first] = readdirSync(join(root, ALPHA.key, "runs"));
     const extra = JSON.parse(readFileSync(join(root, ALPHA.key, "runs", first), "utf8")) as HistoryRun;
     // The write lands after the signature was taken and before the replay reads the files.
-    refreshIndex(wachiman, warn, () => writeRun(historyRoot(wachiman), { ...extra, savedAt: "2026-11-06T10:00:00.000Z" }));
+    refreshIndex(wachiman, warn, { beforeReplay: () => writeRun(historyRoot(wachiman), { ...extra, savedAt: "2026-11-06T10:00:00.000Z" }) });
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
     expect(readFigures(index).totals.runs).toBe(EXPECTED.totals.runs + 1);
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
@@ -147,8 +147,10 @@ describe("the local index", () => {
     const before = readFileSync(index);
     appendVerdict(root, ALPHA.key, { at: "2026-11-03T00:00:00.000Z", firstId: "c1c1c1c1c1", verdict: "partial" });
     expect(() =>
-      refreshIndex(wachiman, warn, () => {
-        throw new Error("disk full");
+      refreshIndex(wachiman, warn, {
+        beforeReplay: () => {
+          throw new Error("disk full");
+        },
       }),
     ).toThrow("disk full");
     expect(readFileSync(index).equals(before)).toBe(true);
@@ -216,6 +218,43 @@ describe("the local index", () => {
     expect(f.totals).toEqual({ repositories: 0, runs: 0, costUsdEstimate: 0 });
     expect(f.findings.total).toBe(0);
     expect(f.spend.byDay).toEqual([]);
+  });
+
+  test("a source file that vanishes between the listing and the stat does not stop the index", () => {
+    const { wachiman, index, root } = fixtureHome();
+    const runs = join(root, ALPHA.key, "runs");
+    const victim = join(runs, readdirSync(runs).sort()[0]);
+    let calls = 0;
+    const r = refreshIndex(wachiman, warn, {
+      afterListing: () => {
+        // Only the first scan: the retry finds the files as they are.
+        if (calls++ === 0) unlinkSync(victim);
+      },
+    });
+    expect(r.rebuilt).toBe(true);
+    expect(calls).toBeGreaterThan(0);
+    expect(readFigures(index).totals.runs).toBe(EXPECTED.totals.runs - 1);
+    // What is left is stable.
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
+  });
+
+  test("a verdict record without a time is indexed, and the figures still work", () => {
+    const { wachiman, index, root } = fixtureHome();
+    appendFileSync(join(root, ALPHA.key, "verdicts.jsonl"), `${JSON.stringify({ firstId: "c1c1c1c1c1", verdict: "partial" })}\n`);
+    refreshIndex(wachiman, warn);
+    expect(readFigures(index).findings.byVerdict).toEqual({ correct: 1, partial: 1, wrong: 1, unjudged: 1 });
+  });
+
+  test("an index that keeps its version and signature but lost a table or a column is rebuilt", () => {
+    for (const damage of ["DROP TABLE loop_ledger", "ALTER TABLE runs DROP COLUMN cost_usd"]) {
+      const { wachiman, index } = fixtureHome();
+      refreshIndex(wachiman, warn);
+      const db = new Database(index);
+      db.run(damage);
+      db.close();
+      expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
+      expect(readFigures(index).totals).toEqual(EXPECTED.totals);
+    }
   });
 
   test("a verdicts line that is half written does not stop the index", () => {

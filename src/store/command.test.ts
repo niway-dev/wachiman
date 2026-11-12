@@ -5,7 +5,8 @@ import { basename, join } from "node:path";
 import { UsageError } from "../config";
 import { checkKeywords, validate } from "../../test/support/json-schema";
 import { ALPHA, EXPECTED, fixtureHome, removeFixtureHomes } from "../../test/support/dashboard-fixture";
-import { DASHBOARD_FORMAT, parseDashboardArgs } from "./command";
+import { DASHBOARD_FORMAT, loadFigures, parseDashboardArgs } from "./command";
+import { readFigures } from "./figures";
 import { esc } from "./html";
 
 const temps: string[] = [];
@@ -107,6 +108,27 @@ describe("wachiman dashboard --json", () => {
       gradedRuns: 1,
       byGrade: { A: 0, "A-": 0, B: 1, C: 0, "cannot say": 0 },
     });
+  });
+});
+
+describe("loadFigures", () => {
+  test("rebuilds the index once and reads again when reading the figures fails", () => {
+    const { wachiman, index } = fixtureHome();
+    let reads = 0;
+    const lines: string[] = [];
+    const figs = loadFigures(wachiman, (l) => lines.push(l), (path) => {
+      if (reads++ === 0) throw new Error("no such table: runs");
+      return readFigures(path);
+    });
+    expect(reads).toBe(2);
+    expect(figs.totals).toEqual(EXPECTED.totals);
+    expect(existsSync(index)).toBe(true);
+    // A second failure is the caller's error.
+    expect(() =>
+      loadFigures(wachiman, () => {}, () => {
+        throw new Error("no such table: runs");
+      }),
+    ).toThrow("no such table");
   });
 });
 

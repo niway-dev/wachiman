@@ -7,7 +7,7 @@ import { chmodSync, closeSync, fsyncSync, mkdirSync, openSync, renameSync, unlin
 import { dirname, join, resolve } from "node:path";
 import { wachimanHome } from "../accounts/config";
 import { UsageError } from "../config";
-import { readFigures } from "./figures";
+import { readFigures, type Figures } from "./figures";
 import { renderHtml, type DashboardDocument } from "./html";
 import { refreshIndex } from "./index";
 
@@ -69,6 +69,20 @@ function writeFileAtomic(path: string, text: string) {
   }
 }
 
+/**
+ * The figures from an up-to-date index. If reading them fails (a damaged or half-built index that
+ * looked current), the index is rebuilt once and read again; a second failure is the caller's.
+ */
+export function loadFigures(home: string, warn: (line: string) => void, read: (path: string) => Figures = readFigures): Figures {
+  const { path } = refreshIndex(home, warn);
+  try {
+    return read(path);
+  } catch {
+    refreshIndex(home, warn, { force: true });
+    return read(path);
+  }
+}
+
 export interface DashboardIo {
   stdout: (text: string) => void;
   stderr: (line: string) => void;
@@ -77,12 +91,11 @@ export interface DashboardIo {
 
 export function runDashboard(args: DashboardArgs, env: Record<string, string | undefined>, io: DashboardIo): number {
   const home = wachimanHome(env);
-  const { path } = refreshIndex(home, io.stderr);
   const doc: DashboardDocument = {
     format: DASHBOARD_FORMAT,
     generatedAt: (io.now?.() ?? new Date()).toISOString(),
     scope: LOCAL_ONLY,
-    ...readFigures(path),
+    ...loadFigures(home, io.stderr),
   };
   if (args.json) {
     io.stdout(`${JSON.stringify(doc, null, 2)}\n`);

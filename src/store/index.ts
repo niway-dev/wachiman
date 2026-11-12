@@ -41,7 +41,7 @@ CREATE TABLE findings (
   verdict TEXT,
   last_seen_at TEXT NOT NULL
 );
-CREATE TABLE verdicts (repo_key TEXT NOT NULL, first_id TEXT NOT NULL, at TEXT NOT NULL, verdict TEXT NOT NULL);
+CREATE TABLE verdicts (repo_key TEXT NOT NULL, first_id TEXT NOT NULL, at TEXT, verdict TEXT NOT NULL);
 CREATE TABLE loops (
   repo_key TEXT NOT NULL,
   branch TEXT NOT NULL,
@@ -54,26 +54,55 @@ CREATE TABLE loops (
 CREATE TABLE loop_ledger (repo_key TEXT NOT NULL, branch TEXT NOT NULL, status TEXT NOT NULL, count INTEGER NOT NULL);
 `;
 
+const vanished = (error: unknown) => (error as NodeJS.ErrnoException)?.code === "ENOENT";
+
+/** Runs `fn`; when a file or directory it listed was removed meanwhile (a prune, a forget, another dashboard), once more. */
+function retryOnce<T>(fn: () => T): T {
+  try {
+    return fn();
+  } catch (error) {
+    if (!vanished(error)) throw error;
+    return fn();
+  }
+}
+
 /**
  * Stat of every file the index is built from: when it equals the one stored in the index, nothing
  * was added, edited or removed since, and the index is reused. Size and modification time in
- * nanoseconds; no file is read.
+ * nanoseconds; no file is read. A file that vanishes between the listing and the stat is absent.
  */
-function sourceSignature(root: string): string {
-  const lines: string[] = [];
-  const stat = (key: string, path: string, name: string) => {
-    const s = statSync(path, { bigint: true });
-    lines.push(`${key}/${name}\t${s.size}\t${s.mtimeNs}`);
-  };
+function sourceSignature(root: string, afterListing?: () => void): string {
+  const listed: { name: string; path: string }[] = [];
   for (const key of listKeys(root)) {
     for (const [sub, names] of [["runs", runFiles(root, key)], ["loops", loopFiles(root, key)]] as const) {
-      for (const path of names) stat(key, path, `${sub}/${basename(path)}`);
+      for (const path of names) listed.push({ name: `${key}/${sub}/${basename(path)}`, path });
     }
     const verdicts = join(root, key, "verdicts.jsonl");
-    if (existsSync(verdicts)) stat(key, verdicts, "verdicts.jsonl");
+    if (existsSync(verdicts)) listed.push({ name: `${key}/verdicts.jsonl`, path: verdicts });
+  }
+  afterListing?.();
+  const lines: string[] = [];
+  for (const { name, path } of listed) {
+    try {
+      const s = statSync(path, { bigint: true });
+      lines.push(`${name}\t${s.size}\t${s.mtimeNs}`);
+    } catch (error) {
+      if (!vanished(error)) throw error;
+    }
   }
   return createHash("sha256").update(lines.sort().join("\n")).digest("hex");
 }
+
+/** One probe per table: it fails when the table or any column the figures read is missing. */
+const PROBES = [
+  "SELECT key, value FROM meta LIMIT 0",
+  "SELECT key, name FROM repositories LIMIT 0",
+  "SELECT repo_key, saved_at, day, head_sha, model, cost_usd, findings, grade FROM runs LIMIT 0",
+  "SELECT repo_key, first_id, severity, topic, status, verdict, last_seen_at FROM findings LIMIT 0",
+  "SELECT repo_key, first_id, at, verdict FROM verdicts LIMIT 0",
+  "SELECT repo_key, branch, base, outcome, rounds, first_round_at, last_round_at FROM loops LIMIT 0",
+  "SELECT repo_key, branch, status, count FROM loop_ledger LIMIT 0",
+];
 
 /** Whether the file at `path` is a readable index of this schema version built from sources that look like `signature`. */
 function upToDate(path: string, signature: string): boolean {
@@ -84,6 +113,7 @@ function upToDate(path: string, signature: string): boolean {
     if (version !== INDEX_SCHEMA_VERSION) return false;
     const check = db.query("PRAGMA quick_check").get() as { quick_check: string };
     if (check.quick_check !== "ok") return false;
+    for (const probe of PROBES) db.query(probe).all();
     const row = db.query("SELECT value FROM meta WHERE key = 'signature'").get() as { value: string } | null;
     return row?.value === signature;
   } catch {
@@ -150,7 +180,7 @@ function fill(db: Database, root: string, warn: (line: string) => void) {
     for (const f of replay(runs, verdicts).findings) {
       finding.run(key, f.firstId, f.severity, f.topic, f.status, f.verdict?.verdict ?? null, f.lastSeenAt);
     }
-    for (const v of verdicts.values()) verdict.run(key, v.firstId, v.at, v.verdict);
+    for (const v of verdicts.values()) verdict.run(key, v.firstId, typeof v.at === "string" ? v.at : null, v.verdict);
     for (const l of loops) {
       loop.run(key, l.branch, l.base, l.outcome, l.rounds.length, l.rounds[0]?.at ?? null, l.rounds.at(-1)?.at ?? null);
       const counts = new Map<string, number>();
@@ -184,44 +214,56 @@ function sweepStaleTemporaries(home: string) {
   }
 }
 
+export interface RefreshHooks {
+  /** For tests: runs after the signature was taken and before the replay reads the files. */
+  beforeReplay?: () => void;
+  /** For tests: runs between the listing of the source files and their stat. */
+  afterListing?: () => void;
+  /** Rebuild even when the index looks current. */
+  force?: boolean;
+}
+
 /**
  * Makes `<home>/index.sqlite` current and returns its path; `rebuilt` says whether the file was
  * written. Reading the run files has the side effects `history` has: a damaged one is moved aside
  * with a warning. The signature of the sources is taken before the replay and stored with it, so a
  * file written while the index is being built makes the next call rebuild. The old index is replaced
- * by the rename and not before: a rebuild that fails leaves it where it was. `beforeReplay` is for tests.
+ * by the rename and not before: a rebuild that fails leaves it where it was. A source file that is
+ * removed while it is being read (a prune, a forget) makes the scan and the replay run once more.
  */
-export function refreshIndex(wachimanHome: string, warn: (line: string) => void, beforeReplay?: () => void): { path: string; rebuilt: boolean } {
+export function refreshIndex(wachimanHome: string, warn: (line: string) => void, hooks: RefreshHooks = {}): { path: string; rebuilt: boolean } {
   const root = historyRoot(wachimanHome);
   const path = indexPath(wachimanHome);
-  const signature = sourceSignature(root);
-  if (existsSync(path) && upToDate(path, signature)) return { path, rebuilt: false };
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  sweepStaleTemporaries(dirname(path));
-  const tmp = `${path}.tmp-${process.pid}`;
-  removeAll(tmp);
-  // Created 0600 before SQLite writes a byte; an empty file is a valid new database.
-  closeSync(openSync(tmp, "w", 0o600));
-  chmodSync(tmp, 0o600);
-  const db = new Database(tmp);
-  try {
-    beforeReplay?.();
-    db.run(SCHEMA);
-    db.transaction(() => fill(db, root, warn))();
-    db.prepare("INSERT INTO meta (key, value) VALUES ('signature', ?)").run(signature);
-    db.run(`PRAGMA user_version = ${INDEX_SCHEMA_VERSION}`);
-    db.close();
-    renameSync(tmp, path);
-  } catch (error) {
-    try {
-      db.close();
-    } catch {
-      // Already closed.
-    }
+  return retryOnce(() => {
+    const signature = sourceSignature(root, hooks.afterListing);
+    if (!hooks.force && existsSync(path) && upToDate(path, signature)) return { path, rebuilt: false };
+    mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+    sweepStaleTemporaries(dirname(path));
+    const tmp = `${path}.tmp-${process.pid}`;
     removeAll(tmp);
-    throw error;
-  }
-  // Journal files of the index that was just replaced belong to it, not to the new one.
-  for (const stale of [`${path}-journal`, `${path}-wal`, `${path}-shm`]) unlinkQuiet(stale);
-  return { path, rebuilt: true };
+    // Created 0600 before SQLite writes a byte; an empty file is a valid new database.
+    closeSync(openSync(tmp, "w", 0o600));
+    chmodSync(tmp, 0o600);
+    const db = new Database(tmp);
+    try {
+      hooks.beforeReplay?.();
+      db.run(SCHEMA);
+      db.transaction(() => fill(db, root, warn))();
+      db.prepare("INSERT INTO meta (key, value) VALUES ('signature', ?)").run(signature);
+      db.run(`PRAGMA user_version = ${INDEX_SCHEMA_VERSION}`);
+      db.close();
+      renameSync(tmp, path);
+    } catch (error) {
+      try {
+        db.close();
+      } catch {
+        // Already closed.
+      }
+      removeAll(tmp);
+      throw error;
+    }
+    // Journal files of the index that was just replaced belong to it, not to the new one.
+    for (const stale of [`${path}-journal`, `${path}-wal`, `${path}-shm`]) unlinkQuiet(stale);
+    return { path, rebuilt: true };
+  });
 }
