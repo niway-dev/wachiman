@@ -1,13 +1,16 @@
 # One record of spend, a daily and weekly limit, and one dashboard
 
-- **Status:** draft 2026-11-12. Nothing here is implemented. The decisions are proposals until the
-  owner answers the open questions; no ADR file is written yet.
+- **Status:** draft, revised 2026-11-12 after the owner's answers. Nothing here is implemented and
+  no ADR file is written yet. The owner widened the direction from "a ledger and a local page" to
+  a platform. Three conversations decide what the first draft assumed: #205 (the platform and its
+  backend), #206 (the GitHub App), #207 (accounts and login at `wachiman init`).
 - **Date:** 2026-11-12
 - **Refs:** #122 (daily spend limit), #129 (its implementation, open, conflicting), #124 (its
-  design, draft), #189 (local index and `wachiman dashboard`, merged), #199 (subscription token,
-  merged)
-- **Creates:** one new ADR and an amendment of ADR 0021 (see "ADRs" below). Numbers are assigned
-  when the two files numbered 0037 on `main` are resolved.
+  design, draft), #134 and #135 (three ways to run: the App, the panel and sign-in, designed
+  2026-11-07, open), #189 (local index and `wachiman dashboard`, merged), #199 (subscription
+  token, merged), #205, #206, #207
+- **Creates:** ADRs are listed when the three conversations close. Numbers are assigned when the
+  two files numbered 0037 on `main` are resolved.
 
 ## Summary (one minute)
 
@@ -16,60 +19,107 @@ tokens, turns, duration, dollars and, since #199, which credential paid. Nothing
 GitHub Actions logs expire, the laptop's history holds laptop runs only, and no limit spans more
 than one pull request. The 2026-11-12 spend audit had to be rebuilt by hand from logs.
 
-This design keeps the lines. The ledger service of #129 (a small Cloudflare Worker the owner
-deploys) stops being only a counter for a daily limit: it becomes the record of every Actions run
-of one account, and it enforces a maximum per day, per week, or both. The laptop downloads that
-record and `wachiman dashboard`, which exists, shows laptop runs and Actions runs on one page.
-Everything is optional: a consumer that configures no ledger gets no request, no record and no
-limit, exactly as today.
+This design keeps the lines in a platform: a transactional service that every enrolled Actions run
+asks before it starts and tells what it spent when it ends. The platform is the record and the
+limit: a maximum per day and per week for one account. A dashboard with charts reads it, as a web
+page and as a local page. Everything is optional: a consumer that configures nothing gets no
+request, no record and no limit, exactly as today.
 
-| # | Decision | Why | ADR |
-| --- | --- | --- | --- |
-| 1 | The ledger stores one entry per Actions run with the fields of its `wachiman-cost` lines: repository, pull request, trigger, model, turns, tokens, duration, dollars, `auth` | The run already tells the ledger what it spent (`settle`). One place then answers "how much, where, on what" and "may this run start". Logs expire and review comments miss runs that post nothing | amends 0021 |
-| 2 | A limit per day, per week, or both, per account. Day and week are calendar periods in UTC, the week starting Monday. An empty value means no limit for that period | The owner asked for a daily or weekly maximum; ADR 0021 has one daily limit | amends 0021 |
-| 3 | No ledger configured means no ledger call, no record and no limit. No new required input, permission or secret for a consumer that leaves it empty | "Users may leave everything empty." The first user is the owner | new |
-| 4 | The laptop only reads. `wachiman dashboard` downloads the account's entries into day files under `~/.wachiman/ledger/` and the SQLite index is rebuilt from them. Laptop runs are never sent anywhere | Keeps ADR 0019 decision 5 (no telemetry in local mode) and ADR 0035 decision 2 (the index holds nothing that cannot be rebuilt from files) | new |
-| 5 | One dashboard: the existing local page gains the source of each run (Actions or laptop), the credential, a per-week view, tables per pull request and per model, and the limit drawn on the spend chart | The page and its per-day and per-repository charts exist (#189); the missing part is the Actions data | new |
-| 6 | The unit is dollars. On a subscription they are API-price estimates, shown as such and counted by the limit like any other dollar | Dollars are the only figure a run reports. Plan usage is not visible to the engine | reuses the subscription ADR (0037) |
-| 7 | Each owner runs their own ledger. The Wachiman project hosts nothing for other users | Keeps "no hosted service" true for everyone who does not opt in | reuses 0021 |
-| 8 | Laptop runs are shown on the dashboard and are not counted against the limit | A laptop has no GitHub identity token, so it cannot reserve in the ledger as #129 designs it | new |
-| 9 | #129 is not rebased as one piece. Its ledger and engine code are re-landed on current `main` in three slices: the ledger with the record, the engine's reserve and settle with the limit, the laptop download with the dashboard | 4,076 lines, conflicts in 13 files, written before #194, #199 and #201 changed the same engine paths | none |
+The limit is best-effort, not a hard maximum: the owner chose that a review runs when the platform
+cannot be reached, so an outage can end a day above the limit. The design says so wherever the
+limit is shown.
+
+| # | Decision | Why | State | ADR |
+| --- | --- | --- | --- | --- |
+| 1 | The platform is both the record of every enrolled Actions run and the limit | One place answers "how much, where, on what" and "may this run start". The owner chose it on 2026-11-12 and asked for a transactional system that feeds the dashboard | decided by the owner | amends 0021 |
+| 2 | One row per model call with the fields of its `wachiman-cost` line, plus one reservation per run with its state: reserved, settled, or never settled | A run can call two models (a reviewer and a verifier), so one row per run cannot draw a chart per model. A killed run has a reservation and no real cost, and must not be drawn as spend | proposed | amends 0021 |
+| 3 | A limit per day and per week, per account. Calendar periods in UTC, the week starting Monday. A run belongs to the day and week in which it reserved. Day and week are checked in one transaction. Default $10 per day, customizable; an empty value means no limit for that period | The owner asked for calendar periods and a default of $10 that can be changed. The boundary rule comes from the weak-points attack | decided by the owner; boundary rule proposed | amends 0021 |
+| 4 | Platform unreachable: the review runs, the job summary says the run was not reserved, and the dashboard counts those runs apart. An input lets a repository choose to stop instead | The owner's answer of 2026-11-12. It reverses ADR 0021 decision 5 ("fail closed"), written when every dollar was billed; on a subscription an overshoot costs plan usage, not cash | decided by the owner; the input is proposed | amends 0021 |
+| 5 | Nothing configured means no call, no record and no limit, and no new required input, permission or secret | "Users may leave everything empty" | decided by the owner | new |
+| 6 | The dashboard exists as a web page and as a local page, behind one reporting interface with two implementations. The local page works from the laptop's files with the network off and without a login | The owner asked for both. ADR 0035 decision 2 keeps the laptop's index rebuildable from files | decided by the owner; where the web page lives is open in #205 | new |
+| 7 | The unit is dollars. On a subscription they are API-price estimates, shown as such and counted by the limit like any other dollar | Dollars are the only figure a run reports. Plan usage is not visible to the engine | decided by the owner | reuses the subscription ADR (0037) |
+| 8 | Laptop runs are shown on the local page. They are not counted against the limit by default; counting them is opt-in | The owner's answer of 2026-11-12. Opting in sends run records from local mode, which ADR 0019 decision 5 forbids today | decided by the owner; the mechanism is open in #207 | amends 0019 |
+| 9 | `wachiman init` can log in to the platform. Without an account nothing changes | The owner's answer of 2026-11-12 | open in #207 | new |
+| 10 | Only the ad-hoc script that sums `wachiman-cost` lines from Actions logs is retired. The $6 ceiling per pull request, read from review footers, stays | It bounds one pull request and needs no platform | decided by the owner | none |
+| 11 | Backend: the Cloudflare pieces already designed (#129, #135) or Convex | The owner proposed Convex for its reactivity; ADR 0021 rejected it for a counter. This draft recommends Cloudflare (see #205) | open in #205 | new |
+| 12 | Hosting: each owner deploys their own platform, or one hosted platform serves every user | The first draft said each owner. A web page with sign-in pulls toward one hosted platform | open in #205 | supersedes parts of 0001 either way |
+| 13 | The GitHub App: sign-in, repository linking, comment identity, and in which order | Designed in #135 as identity and linking. The platform gives it the backend it needs | open in #206 | ADR 0024 of #135 |
+| 14 | #129 is re-landed on current `main` in slices instead of rebased as one piece | 4,076 lines, conflicts in 13 files, written before #194, #199 and #201 changed the same engine paths | proposed; depends on 11 | none |
+
+## Answered by the owner (2026-11-12)
+
+1. Local page or web page: both.
+2. Which week: the calendar week, with filters on the dashboard.
+3. The numbers: $10 per day by default, customizable.
+4. What is retired: only the ad-hoc log-summing script.
+5. Platform unreachable: the review runs.
+6. Laptop runs against the limit: no, but configurable.
+7. Login: `wachiman init` should be able to log in to the platform.
 
 ## Open questions
 
-Each has the default this draft uses if it is not answered.
+1. **One hosted platform or one per owner?** (#205) It decides which ADRs are superseded and where
+   the web page lives.
+2. **Cloudflare or Convex?** (#205) Default of this draft: Cloudflare, unless a one-day spike on
+   Convex passes real Actions OIDC verification, the two-runs race and the lost-response retry,
+   and is less work to finish than re-landing #129.
+3. **What is an account?** (#207) One per person holding repositories of any GitHub owner, or one
+   per GitHub owner with a limit across accounts. Does the limit follow the account or the
+   credential?
+4. **Is login a step of `init` or its own command that `init` offers?** (#207)
+5. **Which functions of the GitHub App ship, and when?** (#206)
+6. **How long entries are kept.** Default: 90 days, as in #129. A calendar view wants longer or an
+   export.
+7. **Which filters.** Default: repository, pull request, model, trigger, credential, source
+   (Actions or laptop) and date range.
+8. **Which of the two ADR files numbered 0037 on `main` is renumbered.**
 
-1. **Is "the app" the local page or a web page?** Default: the local page written by
-   `wachiman dashboard`; the Worker serves JSON only. A page served by the Worker would be a
-   hosted dashboard, which ADR 0035 rejected.
-2. **Which week?** Default: the calendar week in UTC, Monday to Sunday. The alternative is a
-   rolling seven days, which never "resets" on a known day.
-3. **The numbers.** Default: $10 per day (the owner's figure of 2026-11-12), no weekly limit until
-   one is named.
-4. **What the "old measurement" to retire is.** Default: only the ad-hoc script that sums
-   `wachiman-cost` lines from Actions logs. The $6 ceiling per pull request, read from review
-   footers, stays: it bounds one pull request and needs no ledger.
-5. **Ledger unreachable.** Default: the review runs, the job summary says the run was not counted,
-   and nothing fails. The alternative, refusing to review, turns a ledger outage into a review
-   outage.
-6. **How the laptop proves it may read.** Default: a read-only token per account, set as a Worker
-   secret and stored in the laptop's Wachiman profile. It can read spend figures and nothing else.
-7. **Should laptop runs count against the limit?** Default: no (decision 8). Counting them needs
-   either a write path from the laptop, which contradicts ADR 0019 decision 5, or a local check
-   that two terminals can race.
-8. **One entry per run or per model call?** Default: one entry per run, carrying the list of its
-   calls. A run has one to a few dozen calls.
-9. **How long the ledger keeps entries.** Default: 90 days, as in #129. The laptop's copy is not
-   pruned, so the dashboard keeps history as long as the laptop downloads at least once in 90 days.
+## Already designed before this draft
+
+The first draft did not put these side by side. They are open pull requests, not on `main`:
+
+- #135 (2026-11-07): the GitHub App is "direct mode plus identity and linking", never a hosted
+  reviewer (ADR 0024). The account panel lives in the private site repository, already deployed
+  on Cloudflare as static pages; D1 holds the account table; sign-in uses the App's user
+  authorization; "a user with no membership gets an account of their own on first sign-in"; a
+  direct-mode repository links with a single-use code (ADR 0025).
+- #129 (2026-11-06): ADR 0021 rejected "Convex or a database behind a Worker" as "more moving
+  parts than one Durable Object for a counter and a few thousand rows a month", and rejected
+  failing open "by the owner: a missed review is cheaper than an unbounded day". Decisions 4 and
+  11 above reopen both.
+
+## Weak points found (2026-11-12)
+
+Two claims were attacked by a model of another provider that saw only the claim and the facts:
+"a reserve-and-settle service is enough for a complete record and a maximum", and "Convex is a
+suitable backend for this platform". Each weak point was then judged against the repository.
+
+| Weak point | Verdict | Where it went |
+| --- | --- | --- |
+| A maximum cannot hold if reviews run while the service is down | real | decision 4, the summary, failures below |
+| An account is a budget, not a GitHub owner, an actor or a subscription | real | open question 3, #207 |
+| One row per run cannot draw a chart per model | real | decision 2 |
+| A killed run has a reservation and no real cost | real | decision 2, failures below |
+| A run that crosses a week boundary needs a rule | real | decision 3 |
+| Replacing the prototype on another backend is a second implementation | real | decision 11, #205 |
+| The local page must not depend on the hosted backend | real | decision 6 |
+| A login does not say who may attach a company repository | real | #207 |
+| The reservation must bound what the run can spend | handled | #129 grants `min(wanted, limits left)` and the engine runs inside the grant; a single call can still overshoot its cap (`docs/costs.md`) |
+| A retry or a lost response is counted twice | handled | #129: a retry of the same run replaces its settlement; re-tested when re-landed |
+| A valid token is not permission to spend an account | handled | #129: the account is derived from the verified `repository_id`, never from the request |
+| Estimated dollars are not plan headroom | handled | decision 7 |
+| A consumer that configures nothing is not covered | handled | decision 5: the promise is for enrolled runs only |
+| The runner reports its own cost and could under-report | accepted | the limit protects the consumer's own budget |
 
 ## Out of scope
 
-- A hosted dashboard, and any ledger run by the Wachiman project for other users.
+- A hosted reviewer. The engine keeps running in the consumer's own Actions with the consumer's
+  own credential, whatever #205 and #206 decide.
 - Measuring the usage limit of a Claude subscription. Only estimated dollars are known.
 - A monthly limit (ADR 0021 non-goal) and per-organisation wallets (ADR 0022, designed, not built).
 - Cost per correct finding (the 2026-10-31 usage spec, decision 4). It needs verdicts joined to
   spend and is a separate design.
-- Sending laptop history to the ledger.
+- Sending laptop history to the platform without an explicit opt-in (decision 8).
 - Changing the per-run and per-pull-request budgets.
 
 ## Failures this must protect against
@@ -95,9 +145,29 @@ These are risks, not observed events, except where a source is linked.
   the split being visible.
 - The read token leaks. The damage must be limited to reading spend figures.
 
+Added by the weak-points attacks of 2026-11-12:
+
+- The platform is down, reviews run, and the day ends above the limit without anyone seeing it.
+  Runs that were not reserved are counted apart and shown, and no screen calls the limit a hard
+  maximum.
+- Personal and company repositories are counted in two budgets while one subscription pays for
+  both, so each stays under its limit and the total does not.
+- A run that calls two models is stored as one row, and the chart per model is wrong.
+- A killed run is drawn as spend for the full amount it reserved.
+- A run that starts on Sunday at 23:59 UTC and ends on Monday is counted in neither week, or in
+  both.
+- A workflow in an unrelated repository names another account and spends its balance.
+- The local page makes a network request, or asks for a login, to show the laptop's own runs.
+- Someone who can log in attaches a company repository to their personal account, or reads a
+  company's spend, without authority over it.
+
 Observed: spend was not bounded across pull requests. The audit of 2026-11-12 found $170.41 for
 2026-11-01 to 2026-11-12 from the Actions logs of the consumer repositories; that analysis lives
 in the owner's working notes and is not published in this repository.
+
+> The sections from here down were written for the first draft (each owner's own ledger, a local
+> page only). They are revised when #205, #206 and #207 close. Where they disagree with the
+> decisions table above, the table wins.
 
 ## Acceptance criteria
 
@@ -221,3 +291,27 @@ Three slices, each a pull request on current `main`, each usable alone:
 Not checked: release activity of `github-action-benchmark` and `ccusage`; the usage dashboards of
 other review products; whether Claude's account usage page separates a CI token from interactive
 use.
+
+Added 2026-11-12 with the revision (read the same day):
+
+- Convex transactions and optimistic concurrency: https://docs.convex.dev/database/advanced/occ
+- Convex HTTP actions: https://docs.convex.dev/functions/http-actions
+- Convex custom JWT providers: https://docs.convex.dev/auth/advanced/custom-jwt
+- Convex pricing and limits: https://www.convex.dev/pricing and
+  https://docs.convex.dev/production/state/limits
+- Convex self-hosting: https://docs.convex.dev/self-hosting
+- Durable Objects pricing and WebSockets:
+  https://developers.cloudflare.com/durable-objects/platform/pricing/ and
+  https://developers.cloudflare.com/durable-objects/best-practices/websockets/
+- GitHub Actions OIDC claims and `id-token: write`:
+  https://docs.github.com/en/actions/reference/security/oidc
+- Workflow cancellation kills the process tree:
+  https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-cancellation
+- An OIDC token exchanged for a GitHub App installation token, in production:
+  https://raw.githubusercontent.com/anthropics/claude-code-action/main/src/github/token.ts
+- GitHub device flow and App user tokens:
+  https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps and
+  https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens
+
+Not checked: that Convex's custom JWT configuration accepts a GitHub Actions token end to end;
+Marketplace listing requirements; the dashboards of other review products.
