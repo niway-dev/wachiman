@@ -150,6 +150,12 @@ describe("isFormattingOnly", () => {
     expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const s = 'a';", "+  const s = 'a';"))).toBe(true);
   });
 
+  test("a hunk with a text block or a heredoc opener is never formatting: the indentation is part of the string", () => {
+    expect(isFormattingOnly(patch("@@ -1,3 +1,3 @@", '-String s = """', "-    a", '-    """;', '+String s = """', "+        a", '+    """;'))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1,2 +1,2 @@", "-cat <<-EOT", "-  a", "+cat <<-EOT", "+    a"))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-$x = <<<EOT", "+  $x = <<<EOT"))).toBe(false);
+  });
+
   test("a statement joined onto one line, or split over several, is a change", () => {
     expect(isFormattingOnly(patch("@@ -1,2 +1 @@", "-return", "- value;", "+return value;"))).toBe(false);
     expect(isFormattingOnly(patch("@@ -1 +1,3 @@", "-call(a, b, c);", "+call(", "+  a, b, c", "+);"))).toBe(false);
@@ -197,6 +203,13 @@ describe("explainedByRule", () => {
     expect(explainedByRule({ path: "tool.py", patch: indent })).toBeUndefined();
     expect(explainedByRule({ path: ".github/workflows/ci.yml", patch: indent })).toBeUndefined();
     expect(explainedByRule({ path: "Makefile", patch: indent })).toBeUndefined();
+  });
+
+  test("an indentation change in markup where indentation means something is not formatting", () => {
+    const indent = patch("@@ -1,2 +1,2 @@", "-- item", "-  - nested", "+- item", "+      - nested");
+    for (const p of ["README.md", "docs/guide.markdown", "docs/index.rst", "docs/page.mdx"]) {
+      expect(explainedByRule({ path: p, patch: indent })).toBeUndefined();
+    }
   });
 
   test("a test is explained only when the source it tests is explained by a confirmed claim", () => {

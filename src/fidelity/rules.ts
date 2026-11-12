@@ -46,7 +46,8 @@ const GENERATED_NAME = [
 const TEST_DIRS = new Set(["test", "tests", "__tests__", "__snapshots__", "spec", "specs"]);
 
 /** Where a change of whitespace can change what the program does, so it is never formatting. */
-const WHITESPACE_SENSITIVE_EXT = new Set(["py", "pyi", "yml", "yaml", "mk", "pug", "haml", "coffee", "nim"]);
+const WHITESPACE_SENSITIVE_EXT = new Set(["py", "pyi", "yml", "yaml", "mk", "pug", "haml", "coffee", "nim", "md", "markdown", "mdx", "rst"]);
+const MULTILINE_STRING_OPENER = ["`", '"""', "<<"];
 const WHITESPACE_SENSITIVE_NAME = new Set(["Makefile", "makefile", "GNUmakefile"]);
 
 const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
@@ -75,7 +76,9 @@ export function isTestPath(path: string): boolean {
  * and each added line equals the removed line at its place once the whitespace at its two edges is
  * trimmed. Whitespace inside a line is never touched, so a string literal, `a - -b` against `a --b`,
  * a run of spaces made one, or a statement split or joined over lines is a change. A hunk with a
- * backtick is never formatting: the value of a multiline template literal depends on its indentation.
+ * backtick, a `"""` text block or a `<<` heredoc opener is never formatting: the value of such a
+ * multiline string depends on its indentation (a `<<` shift operator is caught too, which only makes
+ * the file unexplained).
  * Code that moved between hunks, a changed token, a patch with nothing changed and no patch at all
  * are all false.
  */
@@ -88,7 +91,7 @@ export function isFormattingOnly(patch: string | undefined): boolean {
   const close = (): boolean => {
     const changed = removed.length + added.length > 0;
     if (changed) changedHunks++;
-    const template = [...removed, ...added].some((line) => line.includes("`"));
+    const template = [...removed, ...added].some((line) => MULTILINE_STRING_OPENER.some((opener) => line.includes(opener)));
     const same = removed.length === added.length && removed.every((line, i) => line.trim() === added[i]!.trim());
     const ok = !changed || (same && !template);
     removed = [];
