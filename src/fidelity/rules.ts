@@ -31,10 +31,19 @@ const LOCKFILES = new Set([
   "packages.lock.json",
 ]);
 
-const GENERATED_DIRS = new Set(["generated", "__generated__"]);
-const GENERATED_NAME = [/\.generated\.[^./]+$/, /\.pb\.go$/, /_pb2(?:_grpc)?\.pyi?$/, /\.min\.(?:js|css)$/];
+// `dist`, `build`, `out`, `*.map` and `worker-configuration.d.ts` are the build output and generated
+// files the engine itself skips by default, so the grade must not call them unexplained.
+const GENERATED_DIRS = new Set(["generated", "__generated__", "dist", "build", "out"]);
+const GENERATED_NAME = [
+  /\.generated\.[^./]+$/,
+  /\.pb\.go$/,
+  /_pb2(?:_grpc)?\.pyi?$/,
+  /\.min\.(?:js|css)$/,
+  /\.map$/,
+  /^worker-configuration\.d\.ts$/,
+];
 
-const TEST_DIRS = new Set(["test", "tests", "__tests__", "spec", "specs"]);
+const TEST_DIRS = new Set(["test", "tests", "__tests__", "__snapshots__", "spec", "specs"]);
 
 /** Where a change of whitespace can change what the program does, so it is never formatting. */
 const WHITESPACE_SENSITIVE_EXT = new Set(["py", "pyi", "yml", "yaml", "mk", "pug", "haml", "coffee", "nim"]);
@@ -45,7 +54,7 @@ const dirSegments = (path: string) => path.split("/").slice(0, -1);
 const extension = (name: string) => (name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : "");
 const withoutExtension = (name: string) => (name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : name);
 
-export const isLockfile = (path: string): boolean => LOCKFILES.has(baseName(path));
+export const isLockfile = (path: string): boolean => LOCKFILES.has(baseName(path)) || baseName(path).endsWith(".lock");
 
 export const isGeneratedPath = (path: string): boolean =>
   dirSegments(path).some((s) => GENERATED_DIRS.has(s)) || GENERATED_NAME.some((re) => re.test(baseName(path)));
@@ -56,7 +65,8 @@ export function isTestPath(path: string): boolean {
     dirSegments(path).some((s) => TEST_DIRS.has(s)) ||
     /\.(?:test|spec)\.[^./]+$/.test(name) ||
     /_test\.[^./]+$/.test(name) ||
-    /^test_[^/]+$/.test(name)
+    /^test_[^/]+$/.test(name) ||
+    name.endsWith(".snap")
   );
 }
 
@@ -106,7 +116,8 @@ export function isFormattingOnly(patch: string | undefined): boolean {
  * of the name and the extension: `test/fidelity/grade.test.ts` gives `fidelity/grade`.
  */
 function testSubject(path: string): string {
-  const stem = withoutExtension(baseName(path))
+  const name = baseName(path);
+  const stem = withoutExtension(name.endsWith(".snap") ? name.slice(0, -".snap".length) : name)
     .replace(/\.(?:test|spec)$/, "")
     .replace(/_test$/, "")
     .replace(/^test_/, "");

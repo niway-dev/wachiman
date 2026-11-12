@@ -143,6 +143,19 @@ describe("what the review did not read or finish", () => {
     expect(f.grade).toBe("B");
   });
 
+  test("build output the engine skips by default, beside two confirmed claims, keeps A", () => {
+    const input = prInput(paths);
+    input.files = [
+      ...input.files,
+      { filename: "dist/app.js", additions: 5, deletions: 5, patch: patchOf(5) },
+      { filename: "packages/web/build/main.css", additions: 5, deletions: 5, patch: patchOf(5) },
+      { filename: "app.js.map", additions: 5, deletions: 5, patch: patchOf(5) },
+      { filename: "src/__snapshots__/upload.test.ts.snap", additions: 5, deletions: 5, patch: patchOf(5) },
+    ];
+    const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
+    expect(reviewChange(input, graded(), deps(provider)).fidelity).toMatchObject({ grade: "A", unexplainedFiles: [] });
+  });
+
   test("a lockfile alone beside two confirmed claims keeps A", () => {
     const input = prInput(paths);
     input.files = [...input.files, { filename: "bun.lock", additions: 5, deletions: 5, patch: patchOf(5) }];

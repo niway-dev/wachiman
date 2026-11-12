@@ -46,8 +46,46 @@ describe("isGeneratedPath", () => {
     }
   });
 
+  test("build output the engine excludes by default is generated, at any depth", () => {
+    for (const p of [
+      "dist/app.js",
+      "packages/web/dist/index.d.ts",
+      "build/main.css",
+      "apps/api/out/server.js",
+      "public/app.js.map",
+      "worker-configuration.d.ts",
+      "apps/edge/worker-configuration.d.ts",
+    ]) {
+      expect(isGeneratedPath(p)).toBe(true);
+      expect(explainedByRule({ path: p })).toBe("generated");
+    }
+  });
+
+  test("every default exclusion except a snapshot is explained by a rule", async () => {
+    const { DEFAULT_EXCLUDE } = await import("../engine");
+    const sample: Record<string, string> = {
+      "**/bun.lock": "bun.lock",
+      "**/package-lock.json": "package-lock.json",
+      "**/yarn.lock": "a/yarn.lock",
+      "**/pnpm-lock.yaml": "pnpm-lock.yaml",
+      "**/*.lock": "tools/custom.lock",
+      "**/dist/**": "a/dist/x.js",
+      "**/build/**": "build/x.js",
+      "**/out/**": "out/x.js",
+      "**/*.min.js": "a/x.min.js",
+      "**/*.map": "a/x.js.map",
+      "**/*.generated.*": "a/x.generated.ts",
+      "**/worker-configuration.d.ts": "worker-configuration.d.ts",
+    };
+    for (const pattern of DEFAULT_EXCLUDE) {
+      if (pattern === "**/*.snap") continue;
+      expect(sample[pattern]).toBeDefined();
+      expect(explainedByRule({ path: sample[pattern]! })).toBeDefined();
+    }
+  });
+
   test("a name that merely resembles one is not generated", () => {
-    for (const p of ["src/generate.ts", "src/generator/index.ts", "src/minimal.js", "docs/generated-docs.md"]) {
+    for (const p of ["src/generate.ts", "src/generator/index.ts", "src/minimal.js", "docs/generated-docs.md", "src/distance.ts", "src/builder/a.ts", "src/map.ts"]) {
       expect(isGeneratedPath(p)).toBe(false);
     }
   });
@@ -69,6 +107,10 @@ describe("isTestPath", () => {
     ]) {
       expect(isTestPath(p)).toBe(true);
     }
+  });
+
+  test("a snapshot file is a test file", () => {
+    expect(isTestPath("src/__snapshots__/a.test.ts.snap")).toBe(true);
   });
 
   test("source files whose name contains test are not tests", () => {
@@ -164,6 +206,16 @@ describe("explainedByRule", () => {
     );
     expect(explainedByRule({ path: "src/other.test.ts" }, { confirmedPaths: confirmed })).toBeUndefined();
     expect(explainedByRule({ path: "src/risk.test.ts" })).toBeUndefined();
+  });
+
+  test("a snapshot file is a test of its subject: explained when that source is confirmed, not otherwise", () => {
+    const confirmed = new Set(["src/foo.ts"]);
+    for (const p of ["src/foo.test.ts.snap", "src/__snapshots__/foo.test.ts.snap", "test/__snapshots__/foo.spec.ts.snap"]) {
+      expect(isTestPath(p)).toBe(true);
+      expect(explainedByRule({ path: p }, { confirmedPaths: confirmed })).toBe("test-of-confirmed-claim");
+      expect(explainedByRule({ path: p })).toBeUndefined();
+    }
+    expect(explainedByRule({ path: "src/bar.test.ts.snap" }, { confirmedPaths: confirmed })).toBeUndefined();
   });
 
   test("a test in a mirrored test directory is matched to its source", () => {

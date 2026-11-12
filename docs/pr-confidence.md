@@ -15,15 +15,18 @@ The first row that matches wins.
 
 | Grade | When |
 | --- | --- |
-| `cannot say` | The run did not finish, a spend ceiling stopped it, files were left unread, the review of a new commit has not finished, or the title and body changed while the review ran |
+| `cannot say` | The run did not finish, a spend ceiling stopped it, files were left unread, the text was too long to read in full, a batch or claims call ended on a turn or time limit (even when it returned usable output), the review of a new commit has not finished, or the title and body changed while the review ran |
 | C | The text makes no checkable claim, a claim is contradicted, or a Blocker finding is open |
 | B | A claim has no cited evidence, a changed file is unexplained, a Fix finding is open, or a risk fact has a high level (auth, money, data migration, irreversible change) |
 | A- | A medium risk fact, a risk fact the engine dropped, a place that needs a person, or a Consider finding is open |
 | A | None of the above |
 
 A file is explained when a confirmed claim covers it, or a fixed rule does: a lockfile, a
-generated file, a formatting-only change, or a test of a confirmed claim. Every other file is named
-as unexplained.
+generated file, a formatting-only change, or a test of a confirmed claim. Generated includes the
+build output the engine skips by default (`dist`, `build` and `out` directories, `*.map`,
+`worker-configuration.d.ts`). A snapshot (`*.snap`) is a test of its source file, explained when a
+confirmed claim covers that source. Every other file is named as unexplained, including a path the
+repository's own `exclude` setting skips.
 
 Every A and A- is marked **trial**. A means every claim has cited evidence and no change is
 unexplained. It does not mean the pull request is safe to merge unread.
@@ -70,6 +73,5 @@ footer. The title, body and diff are untrusted data in every prompt.
 - The human-check thread (slice 2b): "Your check: pending" is a placeholder; nothing records that a
   person looked.
 - Plus signs (slice 2c): a refutation check on each claim. The block says it was not performed.
-- An incremental review does not grade. A file the review did not read (a binary, an oversize diff, an excluded path) is listed as an unexplained change unless a rule explains it, so it holds the grade at B.
 
 The result carries it as `fidelity` in `/2` of the [review result](formats/README.md); `/1` does not.
