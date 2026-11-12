@@ -38,6 +38,10 @@ not measure code quality. It is a line in the description for the person reading
 - Only a **full review** is graded: the first review of a pull request, or a review of the whole
   pull request. An incremental review (new commits only) or a review of given paths reads part of
   the change, so it writes `cannot say`.
+- **Known limitation of this slice.** After the first review, every push is reviewed
+  incrementally, so after a push the block shows `cannot say` ("This review covered only part of the
+  pull request") until a review of the whole range runs: the rebase fallback, or a new review of the
+  whole pull request. Files that were not read fail closed instead of being assumed fine.
 - At the start of every push run, before the push wait and with no model call, the block is reset
   to `cannot say` for the new commit. A run cancelled by a newer push, or one that fails, leaves
   no letter from an older commit.

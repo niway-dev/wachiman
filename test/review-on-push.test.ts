@@ -140,7 +140,10 @@ describe("PR Confidence reset before the push wait", () => {
 
   test("the copy template switches it with AGENT_REVIEW_CONFIDENCE, off by default", () => {
     expect(copy).toMatch(/^ {2}AGENT_REVIEW_CONFIDENCE: 0$/m);
-    expect(stepText(stepsOf(copy), "Reset PR Confidence for this commit")).toContain("env.AGENT_REVIEW_CONFIDENCE == '1'");
+    // No gate on the value: the command returns early when the flag is off (the engine accepts 1 and true).
+    const reset = stepText(stepsOf(copy), "Reset PR Confidence for this commit");
+    expect(reset).not.toContain("AGENT_REVIEW_CONFIDENCE ==");
+    expect(reset).toContain("github.event.action == 'synchronize'");
   });
 
   test("the caller template documents the input", () => {

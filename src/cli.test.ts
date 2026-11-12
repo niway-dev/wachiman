@@ -151,10 +151,20 @@ describe("reset-confidence", () => {
   });
 
   test("a failed write does not fail the step", () => {
-    const gh: GhFn = () => {
+    // The read works and only the PATCH fails, so the write's error path is the one exercised.
+    const gh: GhFn = (args) => {
+      if (args[0] === "pr" && args[1] === "view") return JSON.stringify({ headRefOid: HEAD, title: "t", body: "b" });
       throw new Error("gh: HTTP 500");
     };
-    expect(runResetConfidence(["7"], ENV, gh)).toBe(0);
+    const warned: string[] = [];
+    const original = console.error;
+    console.error = (line: string) => void warned.push(String(line));
+    try {
+      expect(runResetConfidence(["7"], ENV, gh)).toBe(0);
+    } finally {
+      console.error = original;
+    }
+    expect(warned.join("\n")).toContain("could not be reset");
   });
 
   test("needs a pull request number and refuses an unknown flag", () => {

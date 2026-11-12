@@ -265,7 +265,10 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
  * `wachiman reset-confidence <pr> [--commit <sha>]`: the first step of a review run (ADR 0033
  * decision 14). It rewrites the PR Confidence block to `cannot say` for the commit under review
  * before the push wait, so a run cancelled during it leaves no letter from an older commit. No
- * model, no provider. Best-effort like the block write: it never fails the run.
+ * model, no provider. A failure inside the reset itself (reading or writing the description) is a
+ * warning and the exit code stays 0. A usage or configuration error is not: a bad pull request
+ * number or flag, an invalid `AGENT_REVIEW_*` value, or a missing `GH_TOKEN` or
+ * `GITHUB_REPOSITORY` exits non-zero. The workflow steps run it with `continue-on-error`.
  */
 export function runResetConfidence(args: string[], env: Record<string, string | undefined>, gh: GhFn = defaultGh): number {
   const [prArg, ...flags] = args;

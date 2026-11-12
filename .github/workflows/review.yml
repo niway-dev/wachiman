@@ -166,8 +166,10 @@ on:
         description: >-
           Trial. Write PR Confidence, a grade of whether the diff does what the title and body say,
           into the pull request description after the review (one more small model call per full
-          review), and reset it to "cannot say" at the start of every push run. Not an approval or
-          a check. See docs/pr-confidence.md
+          review), and reset it to "cannot say" at the start of every push run. A push after the first
+          review is reviewed incrementally and an incremental review is not graded, so the block shows
+          "cannot say" until a review of the whole pull request runs. Not an approval or a check.
+          See docs/pr-confidence.md
         type: boolean
         default: false
     secrets:

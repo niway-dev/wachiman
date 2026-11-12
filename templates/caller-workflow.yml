@@ -119,8 +119,9 @@ env:
   AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180
   # Trial. PR Confidence: after a full review of a pull request, one more small model call grades
   # whether the diff does what the title and body say, and writes it into the pull request
-  # description. Each push first resets it to "cannot say". Not an approval or a check. `1` turns
-  # it on. See docs/pr-confidence.md
+  # description. Each push first resets it to "cannot say", and a push after the first review is
+  # reviewed incrementally, which is not graded, so it stays "cannot say" until a review of the whole
+  # pull request runs. Not an approval or a check. `1` turns it on. See docs/pr-confidence.md
   AGENT_REVIEW_CONFIDENCE: 0
 
 jobs:
@@ -158,9 +159,10 @@ jobs:
 
       # PR Confidence: before the push wait and with no model call, the description block becomes
       # "cannot say" for the commit under review, so a run that a newer push cancels during the wait
-      # leaves no grade of an older commit. Best-effort: a failure never stops the review.
+      # leaves no grade of an older commit. The command does nothing when AGENT_REVIEW_CONFIDENCE is
+      # off, so no condition on it is needed here. Best-effort: it never stops the review.
       - name: Reset PR Confidence for this commit
-        if: env.AGENT_REVIEW_CONFIDENCE == '1' && github.event.action == 'synchronize'
+        if: github.event.action == 'synchronize'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
