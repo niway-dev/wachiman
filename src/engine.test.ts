@@ -12,6 +12,7 @@ import {
   FLOW_QUESTIONS,
   label,
   lastReviewedSha,
+  lastReviewState,
   lastEngineMarker,
   neutralise,
   RULES,
@@ -782,7 +783,15 @@ describe("repository-controlled strings in a review body", () => {
     const review = build();
     expect(review.body).toContain("Partial review");
     expect(review.body).not.toContain(evil);
-    expect(lastReviewedSha(fakeReviews([review.body]), "o/r", 1)).toBeNull();
+    // A partial review now records the head and what it did not reach, but only through the signed
+    // footer: the evil name is carried as data, never as a second marker.
+    expect(review.body.match(/<!-- agent-review sha=/g)).toBeNull();
+    expect(lastReviewedSha(fakeReviews([review.body]), "o/r", 1)).toBe("head1234567");
+    expect(lastReviewState(fakeReviews([review.body]), "o/r", 1)).toEqual({
+      sha: "head1234567",
+      rest: [evil],
+      tried: [evil], // no "not reached" reason: it counts as sent and not reviewed
+    });
   });
 
   test("a file named like a marker is not read even when it reaches the body un-neutralised", () => {
@@ -801,9 +810,11 @@ describe("repository-controlled strings in a review body", () => {
       batches: [{ label: evil, files: 1, lines: 1, maxRisk: 1, status: "ok", turns: 1, costUsd: 0 } as never],
     });
     expect(review.body.split("<!-- wachi:review -->")).toHaveLength(2);
-    // Only the engine's signature is left (b.ts is not reviewed, so there is no marker).
-    expect(review.body.match(/<!--/g)).toHaveLength(1);
-    expect(lastReviewedSha(fakeReviews([review.body]), "o/r", 1)).toBeNull();
+    // Only the engine's signature and the partial marker are left (b.ts is not reviewed, so the
+    // marker is the partial one; the evil label and file name are not in it as text).
+    expect(review.body.match(/<!--/g)).toHaveLength(2);
+    expect(review.body.match(/<!-- wachi:partial sha=head1234567 state=[A-Za-z0-9_-]+ -->/g)).toHaveLength(1);
+    expect(lastReviewedSha(fakeReviews([review.body]), "o/r", 1)).toBe("head1234567");
   });
 });
 

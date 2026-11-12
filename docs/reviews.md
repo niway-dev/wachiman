@@ -184,7 +184,12 @@ The first line of the review says whether everything was covered:
   binaries posts a one-line "Nothing to review … not reviewable" notice with the marker and no
   cost line: no model was called.
 - Partial: "⚠️ **Partial review**: the agent reviewed 3 of 4 files … Not reviewed: … Ask
-  `/wachiman review <paths>` for the rest."
+  `/wachiman review <paths>` for the rest." A partial review of the whole change also records which
+  files it did not reach. The next push reviews the changes since plus those files (with their whole
+  diff), and its headline says so: "review of the changes since `a1b2c3d` and the 4 files the previous
+  review did not reach". A file sent to the agent that came back not reviewed twice is named "Not
+  reviewed after two tries" and is no longer carried: ask for it by path. See
+  [cli.md](cli.md#incremental-reviews).
 
 Read the number as "files in this run", not "files in the pull request":
 
@@ -203,7 +208,8 @@ Read the number as "files in this run", not "files in the pull request":
 - **A file that is unaccounted for gets one retry**, in a second call with only those files, if
   budget remains. What is still missing after that is listed under "Not reviewed". A file the
   budget never reached is listed with the reason "not reached: the pull request's budget was
-  spent".
+  spent" (or "the call ran out of its budget" for a batch whose call stopped on its cap). A "not
+  reached" file is carried to the next push without limit; any other not-reviewed file is carried once.
 
 The **Coverage by batch** table (collapsed under the summary) shows each batch's files, changed
 lines, highest risk score, status, turns and cost. Statuses include "reviewed", "reviewed after a

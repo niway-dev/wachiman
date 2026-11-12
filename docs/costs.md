@@ -146,9 +146,11 @@ That is a heuristic on file names. It does not mean they are safe.
 
 To cover the rest, ask for those paths with `/wachiman review <path> [path...]`. A scoped review is a new
 run with a new budget, and it does not move the "reviewed up to here" marker, so it is not a way to
-finish an incremental review. See [reviews.md](reviews.md). A partial review does not move the marker
-either: the next unscoped `/wachiman review` covers the changes since the last complete review again,
-and spends again.
+finish an incremental review. See [reviews.md](reviews.md). A partial review, by contrast, records the
+files it did not reach, so the next push or unscoped `/wachiman review` reviews those files (with their
+whole diff) plus what changed since, and not the files the partial review already read. Each such run
+is a new run with its own `budget_usd`, and counts against `auto_budget_usd`: a pull request too big
+for one budget is finished over several pushes, not paid for again from batch 1.
 
 ## Things that add to the total
 
