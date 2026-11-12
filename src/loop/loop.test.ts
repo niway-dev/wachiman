@@ -438,6 +438,24 @@ describe("wachiman loop", () => {
     expect(r.stderr).toContain("starting over");
   }, 120_000);
 
+  test("a loop state file that is not JSON: a plain call exits 2 naming the file, and --base starts the loop again", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    expect(s.loop("--base", "main").code).toBe(10);
+    const file = Bun.spawnSync(["find", s.home, "-path", "*/loops/*.json"]).stdout.toString().trim();
+    writeFileSync(file, "{not json");
+    const plain = s.loop();
+    expect(plain.code).toBe(2);
+    expect(plain.stderr).toContain("is not a loop state file");
+    expect(s.calls()).toBe(1);
+    s.script(2, BRANCH_FILES, [BLOCKER]);
+    const again = s.loop("--base", "main");
+    expect(again.code).toBe(10);
+    expect(again.stdout).toContain("round 1 of 3");
+    expect(again.stdout).toContain("Keeps the loop open (1):");
+    expect(s.calls()).toBe(2);
+  }, 120_000);
+
   test("the loop never changes the repository: the work tree, the index and the branch are as the agent left them", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
@@ -448,23 +466,27 @@ describe("wachiman loop", () => {
 });
 
 describe("runLoop with a fake review", () => {
+  /** What one fake review call reports besides an empty `src/a.ts` read: findings and the verifier's entries. */
+  type Shape = { findings?: object[]; entries?: object[] };
   /** A `review` seam that answers like `runLocal` with `--format json`, minus the history save. */
-  function fakeReview(repo: BranchRepo, outcomes: ("fail" | "throw" | "ok")[]) {
+  function fakeReview(repo: BranchRepo, outcomes: ("fail" | "throw" | "ok")[], shapes: Shape[] = []) {
     const calls: string[] = [];
     return {
       calls,
       review: ((args: { base?: string }, _repo: string, _env: unknown, io: { stdout: (t: string) => void }) => {
         const outcome = outcomes[calls.length] ?? "fail";
+        const shape = shapes[calls.length];
         calls.push(args.base ?? "");
         if (outcome === "throw") throw new Error("claude crashed");
         if (outcome === "fail") return 1;
         io.stdout(
           JSON.stringify({
             format: "wachiman.review-result/2",
-            change: { head: { sha: repo.head } },
+            change: { head: { sha: git(repo.dir, "rev-parse", "HEAD").trim() } },
             coverage: { expected: ["src/a.ts"], reviewed: ["src/a.ts"], partial: false },
             execution: { stop: "complete" },
-            findings: [],
+            findings: shape?.findings ?? [],
+            ...(shape?.entries ? { verification: { entries: shape.entries } } : {}),
           }),
         );
         return 0;
@@ -516,6 +538,48 @@ describe("runLoop with a fake review", () => {
       expect(readLoop(root, key, "feat/x")?.base).toBe("main");
     }
   }, 30_000);
+
+  /** A candidate the verifier dropped with a checked disproof, as `verification.entries` lists it. */
+  const droppedCandidate = (over: object) => ({
+    id: "candidate-1",
+    path: "src/a.ts",
+    line: 2,
+    title: "Off by ten",
+    topic: "bug",
+    severity: "blocker",
+    status: "refuted",
+    origin: "unknown",
+    reason: "the code is right",
+    checked: [],
+    outcome: "dropped",
+    ...over,
+  });
+  const SEEDED = { id: "aaaaaaaaaa", path: "src/a.ts", line: 2, severity: "blocker", topic: "bug", title: "Off by ten" };
+
+  /** Round 1 reports the seeded Blocker; round 2, after one more commit, reports nothing and returns `entries`. */
+  const refutedRound = (entries: object[]) => {
+    const repo = branchRepo();
+    const home = temp("wachiman-home-");
+    const fake = fakeReview(repo, ["ok", "ok"], [{ findings: [SEEDED] }, { entries }]);
+    expect(run(repo, fake, home, "--base", "main").code).toBe(10);
+    commit(repo.dir, { "docs/more.md": "one more commit\n" }, "one more commit");
+    return { fake, second: run(repo, fake, home, "--format", "json") };
+  };
+
+  test("a Blocker the verifier refuted in a later round, by the same path, topic and title, is released as refuted (exit 0)", () => {
+    const { fake, second } = refutedRound([droppedCandidate({ line: 9 })]);
+    expect(fake.calls).toHaveLength(2);
+    expect(second.code).toBe(0);
+    expect(JSON.parse(second.out).released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "refuted" })]);
+  }, 60_000);
+
+  test("a dropped candidate in the same file with another topic and title, on another line, does not release the Blocker (exit 10)", () => {
+    const { second } = refutedRound([droppedCandidate({ line: 4, topic: "security", title: "Unrelated candidate" })]);
+    expect(second.code).toBe(10);
+    const doc = JSON.parse(second.out);
+    expect(doc.released).toEqual([]);
+    expect(doc.open).toEqual([expect.objectContaining({ path: "src/a.ts", severity: "blocker" })]);
+  }, 60_000);
 
   test("a usage error from the review is not retried", () => {
     const repo = branchRepo();
