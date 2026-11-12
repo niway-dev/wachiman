@@ -12,6 +12,7 @@ describe("loadConfig", () => {
     expect(config).toEqual({
       budgetUsd: 3,
       autoBudgetUsd: 6,
+      sizeGateUsd: 6,
       threadsBudgetUsd: 0.25,
       trigger: undefined,
       batchBudgetUsd: 0.75,
@@ -94,6 +95,14 @@ describe("loadConfig", () => {
       expect(() => load({ AGENT_REVIEW_THREADS_BUDGET_USD: bad })).toThrow(UsageError);
     }
     expect(() => load({ AGENT_REVIEW_AUTO_BUDGET_USD: "abc" })).toThrow("AGENT_REVIEW_AUTO_BUDGET_USD");
+  });
+
+  test("reads the size gate and rejects one that is not a positive number", () => {
+    expect(load({ AGENT_REVIEW_SIZE_GATE_USD: "12.5" }).config.sizeGateUsd).toBe(12.5);
+    for (const bad of ["0", "-1", "two", "NaN", "Infinity"]) {
+      expect(() => load({ AGENT_REVIEW_SIZE_GATE_USD: bad })).toThrow(UsageError);
+    }
+    expect(() => load({ AGENT_REVIEW_SIZE_GATE_USD: "abc" })).toThrow("AGENT_REVIEW_SIZE_GATE_USD");
   });
 
   test("a run is automatic unless the trigger is absent or the operator's comment", () => {

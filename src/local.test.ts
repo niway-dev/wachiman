@@ -6,7 +6,7 @@ import { UsageError } from "./config";
 import type { WachimanConfigV1 } from "./accounts/config";
 import { toResultV1 } from "./formats";
 import { localFiles } from "./connectors/local-git";
-import { parseLocalArgs, readInputFile, runLocal } from "./local";
+import { parseLocalArgs, readInputFile, runLocal, sizeWarning } from "./local";
 import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
 import { A_HEAD, branchRepo, commit, emptyCommits, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
@@ -348,6 +348,44 @@ describe("wachiman local", () => {
     expect(r.calls()).toHaveLength(1);
     for (const dir of (r.read("dirs") ?? "").split("\n").filter(Boolean)) expect(existsSync(dir)).toBe(false);
   }, 30_000);
+
+  describe("the size gate only warns", () => {
+    /** An --input file with `count` files of 1,000 changed lines each, every one in its own module: one batch per file. */
+    const sizedInput = (repo: BranchRepo, count: number) => {
+      const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+      fixture.change.head.sha = repo.head;
+      fixture.files = Array.from({ length: count }, (_, i) => ({ filename: `pkg${i}/mod.ts`, additions: 1000, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+x" }));
+      const file = join(temp("wachiman-input-"), "input.json");
+      writeFileSync(file, JSON.stringify(fixture));
+      return file;
+    };
+    const WARNING = /^warning: reviewing all of this would cost about \$\d+\.\d\d at API prices \(\d+ batches × \$0\.\d\d for [^)]+\), above the \$6\.00 size gate\./m;
+
+    test("a large input prints one warning and still calls the model", () => {
+      const repo = branchRepo();
+      const r = local("ok", ["--input", sizedInput(repo, 30)], { AGENT_REVIEW_MODEL: "claude-sonnet-5-5" }, repo);
+      expect(r.code).toBe(0);
+      expect(r.stderr.match(/^warning: reviewing all of this/gm)).toHaveLength(1);
+      expect(r.stderr).toMatch(WARNING);
+      expect(r.stderr).toContain("stops at its budget, $3.00 (AGENT_REVIEW_BUDGET_USD).");
+      expect(r.calls().length).toBeGreaterThan(0);
+    }, 30_000);
+
+    test("a small input prints no warning", () => {
+      const repo = branchRepo();
+      const r = local("ok", ["--input", sizedInput(repo, 2)], {}, repo);
+      expect(r.code).toBe(0);
+      expect(r.stderr).not.toContain("size gate");
+    }, 30_000);
+
+    test("the warning text names the estimate, the batches, the model, the gate and the budget", () => {
+      const estimate = { files: 606, lines: 58706, batches: 68, perBatchUsd: 0.32, usd: 21.76 };
+      expect(sizeWarning(estimate, 6, 3, "claude-sonnet-5-5")).toBe(
+        "warning: reviewing all of this would cost about $21.76 at API prices (68 batches × $0.32 for claude-sonnet-5-5), above the $6.00 size gate. Local runs are never refused; this one continues and stops at its budget, $3.00 (AGENT_REVIEW_BUDGET_USD).",
+      );
+      expect(sizeWarning({ ...estimate, usd: 6 }, 6, 3, "m")).toBeNull();
+    });
+  });
 
   test("--input reviews a ReviewInput file and snapshots its head from --repo-dir", () => {
     const repo = branchRepo();

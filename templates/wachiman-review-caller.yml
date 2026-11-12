@@ -35,6 +35,7 @@ jobs:
       # push_debounce_seconds: 180   # a push waits this long first; a newer push cancels it unspent (0 = no wait)
       # pr_confidence: true     # trial: grade whether the diff does what the title and body say, in the description (docs/pr-confidence.md)
       # auto_budget_usd: 2      # most all automatic runs on one pull request may spend together
+      # size_gate_usd: 6       # a review estimated above this (before any model call) is skipped with one comment; raise budget_usd to lift it
       # askers: write          # collaborators with admin, maintain or write permission may ask questions too (default: operator)
       # ask_ceiling_usd: 3     # most all questions from people other than the operator may spend on one pull request
     secrets:

@@ -173,8 +173,8 @@ which instruction files it read.
   workflow has no input for either. `AGENT_REVIEW_EXCLUDE` adds exclusions only in the
   copy-the-files install; see [configuration.md](configuration.md) and
   [setup-copy.md](setup-copy.md).
-- **Budgets and batch sizes come from the workflow, never from these files.** These instruction
-  files cannot raise a budget. A pull request can change its caller workflow, which is why
+- **Budgets, the size gate and batch sizes come from the workflow, never from these files.** These instruction
+  files cannot raise a budget or the gate. A pull request can change its caller workflow, which is why
   everyone who can push must be trusted with the key.
 - **The model provider receives these files.** They are part of every prompt. Do not put secrets
   in them. See [faq.md](faq.md) for where code goes.

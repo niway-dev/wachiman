@@ -383,6 +383,13 @@ export WACHIMAN_DIR="$PWD"   # in your shell profile
 - **Work limits, and the estimate guard.** Each call is bounded by `AGENT_REVIEW_MAX_TURNS` and
   `AGENT_REVIEW_CALL_TIMEOUT_S`; the run by `AGENT_REVIEW_BUDGET_USD` (default $3), counted in the
   API-equivalent estimate. See [configuration](configuration.md#local-mode).
+- **Size warning, never a refusal.** Before the first call, `local` estimates what reviewing all of
+  the change would cost. When that is above `AGENT_REVIEW_SIZE_GATE_USD` (default $6) and above your
+  budget, it prints one warning line on stderr and carries on. The money caps are
+  `AGENT_REVIEW_BUDGET_USD` for the run (default $3) and `AGENT_REVIEW_BATCH_BUDGET_USD` for each
+  call (passed to Claude Code as `--max-budget-usd`, a soft cap); there is no per-pull-request
+  ceiling. On a subscription the cost is Claude Code's API-equivalent figure, not a bill. See
+  [the size gate](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
 - **A usage limit ends the run.** When your plan's usage runs out mid-review, the run stops (it
   never waits for the window to reset) and prints a partial report:
   `stop: quota — the account's usage limit ended the run; N file(s) not reviewed: …`. Exit code 0.

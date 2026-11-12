@@ -226,6 +226,13 @@ count and the number of batches on stderr, then `verify: off` or `verify: on (<m
 prints, never posts:** the report goes to stdout (or `--output`), so `--format json` on stdout is
 the result alone.
 
+Size never blocks a run. When the estimated cost of the whole review is above the larger of
+`AGENT_REVIEW_SIZE_GATE_USD` and `AGENT_REVIEW_BUDGET_USD`, `local` prints one warning on stderr
+before the first model call and continues. The run is capped by `AGENT_REVIEW_BUDGET_USD` (default $3)
+and each call by `AGENT_REVIEW_BATCH_BUDGET_USD` (passed to Claude Code as `--max-budget-usd`, soft);
+there is no `AGENT_REVIEW_AUTO_BUDGET_USD` ceiling locally. See [the size gate](costs.md#the-size-gate)
+and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+
 It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `AGENT_REVIEW_PROVIDER`
 is not `claude-code`, for a detached or unborn `HEAD`, a `HEAD` on the base branch without `--base`, a range deeper than `--max-depth`, a base with no merge-base, `--base`, `--from` and `--commit` used together, a `--from` that is not an ancestor of `HEAD`, a `--commit` or `--from` that is not a commit, a refused
 isolated profile, or an `--input` whose format is not `/1` or whose head is not in the clone.

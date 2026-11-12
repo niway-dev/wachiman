@@ -58,6 +58,14 @@ on:
           several push reviews
         type: number
         default: 6
+      size_gate_usd:
+        description: >-
+          A review whose estimated cost (from the diff size, before any model call) is above this,
+          in USD, is not run: one comment gives the estimate and the inputs to raise. The gate is
+          never below what the run may spend (`budget_usd`, and for automatic runs also
+          `auto_budget_usd`), so raising those lifts it. There is no unlimited value
+        type: number
+        default: 6
       threads_budget_usd:
         description: Most one thread-reply run may spend, in USD (it counts against `auto_budget_usd`)
         type: number
@@ -336,6 +344,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           AGENT_REVIEW_BUDGET_USD: ${{ inputs.budget_usd }}
+          AGENT_REVIEW_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
           AGENT_REVIEW_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
           AGENT_REVIEW_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
           AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
@@ -599,6 +608,7 @@ jobs:
           # The operator's own request: `auto_budget_usd` does not limit it.
           AGENT_REVIEW_TRIGGER: comment
           AGENT_REVIEW_BUDGET_USD: ${{ inputs.budget_usd }}
+          AGENT_REVIEW_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
           AGENT_REVIEW_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
           AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
           AGENT_REVIEW_BATCH_LINES: ${{ inputs.batch_lines }}
