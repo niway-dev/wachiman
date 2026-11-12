@@ -121,6 +121,14 @@ describe("assembling claims from the batches", () => {
     expect(claims[0]?.status).toBe("unverified");
   });
 
+  test("a contradiction with no cited line still contradicts the claim, even beside support", () => {
+    const { claims } = assembleClaims(proposed, [
+      supports("a.ts", 0, 1),
+      { path: "b.ts", claim: 0, verdict: "contradicts", evidence: [] },
+    ]);
+    expect(claims[0]).toEqual({ text: "Retries uploads.", status: "contradicted", evidence: [] });
+  });
+
   test("a vague claim cannot be confirmed or contradicted", () => {
     const { claims } = assembleClaims(proposed, [
       supports("a.ts", 2, 1),
