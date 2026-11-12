@@ -20,7 +20,7 @@ describe("loadConfig", () => {
       batchChars: 140000,
       dryRun: false,
       fullReview: false,
-      model: "claude-opus-5-5",
+      model: "claude-sonnet-5-5",
       provider: "claude-code",
       effort: "high",
       maxTurns: 40,

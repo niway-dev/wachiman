@@ -95,7 +95,7 @@ on:
       model:
         description: Model the agent uses
         type: string
-        default: claude-opus-5-5
+        default: claude-sonnet-5-5
       effort:
         description: Reasoning effort the model runs at (low, medium, high, xhigh or max); printed in every review footer
         type: string

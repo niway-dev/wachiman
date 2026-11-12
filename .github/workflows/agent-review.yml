@@ -14,7 +14,7 @@ jobs:
     uses: niway-dev/wachiman/.github/workflows/review.yml@0536f89466cb3c0c981848acae1c9df52bfb8c4a # v1.10.1
     with:
       operator: csdev19
-      model: claude-opus-5-5
+      model: claude-sonnet-5-5
       effort: high
       verify: false
     secrets:
