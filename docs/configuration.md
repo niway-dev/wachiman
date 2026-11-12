@@ -61,7 +61,7 @@ engine through the environment variable in the third column; those variables are
 | --- | --- | --- | --- | --- |
 | `operator` | string, required | `AGENT_REVIEW_OPERATOR` | none | The one GitHub login whose comments can start an on-demand run. Both jobs fail early while it is empty or a template placeholder (`EDIT…`, `your-github-login`, compared case-insensitively, whitespace removed). This is true of the automatic job too, even though it never compares the operator to anyone. |
 | `mention` | string | `AGENT_REVIEW_MENTION` | `/wachiman` | The command word the on-demand job listens for, next to `/wachiman`, `/wachi`, `@agent-review` and `@claude`, which always work. See [Mentions and commands](#mentions-and-commands). |
-| `budget_usd` | number | `AGENT_REVIEW_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit: that is `auto_budget_usd`. See [Budgets](#budgets). |
+| `budget_usd` | number | `AGENT_REVIEW_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit: that is `auto_budget_usd`. A pull request too big for one budget is finished over several runs: a partial review records the files it did not reach and the next push reviews them. See [Budgets](#budgets) and [Incremental reviews](cli.md#incremental-reviews). |
 | `auto_budget_usd` | number | `AGENT_REVIEW_AUTO_BUDGET_USD` | `6` | The most **all automatic runs on one pull request** may spend together: the first review, push reviews and thread-reply runs ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)). **New in v1.5.0.** The engine sums it from the cost line of its own signed review footers marked automatic, so it needs no server. A run starts with at most what is left; at the ceiling it posts one notice and stops. The operator's `/wachiman review` is not limited by it. A number greater than 0. See [Budgets](#budgets). |
 | `threads_budget_usd` | number | `AGENT_REVIEW_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in v1.5.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
 | `batch_budget_usd` | number | `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
@@ -376,7 +376,8 @@ file when it is the file's exact path or a directory prefix of it (`src` or `src
   spends money on the whole pull request or on what changed since the last review. On a head that
   is already reviewed it posts `Already reviewed` and spends nothing. Check the spelling before
   relying on a scope to limit spend. This is today's behaviour; it has not been changed.
-- A scoped review does not advance the incremental marker. A path under an
+- A scoped review does not advance the incremental marker and does not change the list of files a
+  partial review left unread. A path under an
   [excluded](#excluded-files) pattern is still excluded: there is no way to include it.
 
 How to use these commands day to day is in [reviews.md](reviews.md).

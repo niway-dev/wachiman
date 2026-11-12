@@ -82,12 +82,29 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 - Later unscoped `review`: only what changed since the last reviewed commit, when that commit is an
   ancestor of the head. If it is not (after a force-push or rebase), the whole pull request is
   reviewed again, and the engine logs that it fell back to a full review.
-- The last reviewed commit is the one recorded by the engine's own most recent complete, unscoped
-  review. A scoped review, or one that left files unreviewed, does not move it. The marker is read
-  only from reviews by `github-actions[bot]` that carry the engine's signature; an unsigned legacy
-  marker counts only on reviews from before 2026-11-01 and before the first signed review.
-- If the head is the last reviewed commit and no path was given, the review is skipped with an
-  `Already reviewed` notice. A request with a path that matches a changed file always runs.
+- The last reviewed commit is the one recorded by the engine's own most recent unscoped review,
+  complete or partial. A scoped review does not move it. The marker is read only from reviews by
+  `github-actions[bot]` that carry the engine's signature; an unsigned legacy marker counts only on
+  reviews from before 2026-11-01 and before the first signed review.
+- **After a partial review the next run resumes.** A partial, unscoped review (its budget ran out,
+  or a model left files out) also records the files it did not review. The next unscoped run
+  reviews what changed since that commit **and** those files, each once, the unread ones with their
+  whole diff against the base (nothing of them was ever reviewed), even when they also changed. A
+  push that changes no file still reviews the unread ones: it does not stop at `Already reviewed`
+  or at a "rebased, no new changes" notice. A file that left the pull request, or is excluded now,
+  is dropped without a word. When everything is reviewed, the review is complete and the next push
+  is incremental again.
+- A file that the run did not reach (the budget was spent) is carried again and again, until the
+  pull request's `auto_budget_usd` ceiling stops the automatic runs. A file that was sent to the
+  agent and came back not reviewed is carried once; if it comes back not reviewed a second time,
+  the review names it as "Not reviewed after two tries" and the next push no longer carries it:
+  ask `/wachiman review <paths>` for it.
+- If the unread files are too many to record (the marker is capped at 10,000 characters, about
+  110 files), the review writes no list, logs a warning, and the next unscoped run reviews the whole
+  pull request again, as it did before this list existed.
+- If the head is the last reviewed commit, no path was given and no file is waiting, the review is
+  skipped with an `Already reviewed` notice. A request with a path that matches a changed file
+  always runs.
 
 ### Scope
 

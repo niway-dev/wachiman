@@ -244,16 +244,23 @@ log: `A batch call failed: ...`, or a JSON line with `"is_error":true`.
 
 A file in the "Not reviewed" list can carry a reason in parentheses: `binary` or
 `no_diff_and_unreadable` (GitHub sent no diff and the agent could not read it), or
-`not reached: the pull request's budget was spent`. A file with no reason is one the agent did not
-account for after the retry.
+`not reached: the pull request's budget was spent`, `not reached: the call ran out of its budget` or
+`not reached: the provider rejected the call`. A "not reached" file was never read by a model. A
+file with no reason is one the agent did not account for after the retry: it was sent to a model and
+came back not reviewed.
 
 To cover the rest, comment `/wachiman review <path> <path>` with the listed files. To avoid it next
 time, raise the budgets or lower the batch size: see [costs.md](costs.md) and
 [configuration.md](configuration.md). Coverage is what the agent reports per file. It is not a
 measurement of which lines it read.
 
-A partial or scoped review does not move the incremental marker. The next plain `/wachiman review`
-therefore starts again from the last complete review and pays for the same files again.
+A scoped review does not move the incremental marker. A partial, unscoped review does record the
+files it did not review, so the next push (or plain `/wachiman review`) reviews what changed since
+plus those files, and does not pay again for the files already read. A file that was sent to the agent
+and came back not reviewed gets one more try; if it comes back not reviewed again, the review lists it
+as "Not reviewed after two tries" and the next push no longer carries it. Ask for it by path.
+If more than about 110 files are left unread, the list does not fit in the marker: the review logs a
+warning, writes no list, and the next plain run starts again from the last complete review.
 
 ### "The agent ran out of its budget"
 
