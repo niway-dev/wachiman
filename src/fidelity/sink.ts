@@ -6,8 +6,9 @@
  *
  * The block goes into the description as it is now, read right before the write, so an edit made
  * while the review ran is kept. The same read gives the commit and the text the grade is checked
- * against: a grade whose commit is no longer the head, or whose claims were read from text that has
- * changed, is written as `cannot say`.
+ * against: a grade whose claims were read from text that has changed is written as `cannot say`. A
+ * review whose commit is no longer the head writes nothing: the run for the newer commit owns the
+ * block.
  */
 import type { GhFn } from "../engine";
 import { cannotSayBlock, renderBlock, upsertBlock } from "./block";
@@ -15,7 +16,7 @@ import { claimsDigest } from "./digest";
 import { computeGrade } from "./grade";
 import type { Fidelity } from "./types";
 
-/** What the block says when no review of the commit has finished (the reset, and a newer head). */
+/** What the reset block says: no review of this commit has finished. */
 export const RESET_REASON = "The review of this commit has not finished";
 
 export interface SinkDeps {
