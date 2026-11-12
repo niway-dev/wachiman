@@ -36,4 +36,4 @@ Each document is one unit of evidence. The synthesis is written last, from these
 | [repos/keycloak.md](repos/keycloak.md) | Keycloak testing practice | done |
 | [repos/discourse.md](repos/discourse.md) | Discourse testing practice | done |
 | [synthesis.md](synthesis.md) | All of the above | done |
-| skill draft | Test-mapping heuristics | pending |
+| [skill-draft-test-map.md](skill-draft-test-map.md) | Test-mapping heuristics (draft skill, not installed) | done |
