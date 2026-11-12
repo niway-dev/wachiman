@@ -49,6 +49,10 @@ not measure code quality. It is a line in the description for the person reading
   and body are no longer the text the claims were read from, the block says `cannot say`.
 - The write is best-effort: a failure is a warning and never fails the review. Nothing is written in
   a dry run.
+- GitHub has no compare-and-swap for a description: Wachiman reads the body and then writes it, so an
+  author edit or a newer reset that lands in the milliseconds between the two can be overwritten.
+  The commit and the digest stamped in the block let a reader notice that the block and the text no
+  longer match.
 - Wachiman edits only its own block, between two marker comments. The rest of the description is
   kept byte for byte, and the block is removed before the claims are read.
 
@@ -66,6 +70,6 @@ footer. The title, body and diff are untrusted data in every prompt.
 - The human-check thread (slice 2b): "Your check: pending" is a placeholder; nothing records that a
   person looked.
 - Plus signs (slice 2c): a refutation check on each claim. The block says it was not performed.
-- Binary files are not graded, and an incremental review does not grade.
+- An incremental review does not grade. A file the review did not read (a binary, an oversize diff, an excluded path) is listed as an unexplained change unless a rule explains it, so it holds the grade at B.
 
 The result carries it as `fidelity` in `/2` of the [review result](formats/README.md); `/1` does not.
