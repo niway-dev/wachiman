@@ -157,7 +157,7 @@ function readLoopRecord(path: string): LoopRecord | undefined | null {
   }
 }
 
-/** Fills the tables; returns how many loop files were skipped because their content is not a loop state. */
+/** Fills the tables; returns how many run or loop files were left out because they could not be used. */
 function fill(db: Database, root: string, warn: (line: string) => void): number {
   let skipped = 0;
   const repo = db.prepare("INSERT INTO repositories (key, name) VALUES (?, ?)");
@@ -168,7 +168,12 @@ function fill(db: Database, root: string, warn: (line: string) => void): number 
   const ledger = db.prepare("INSERT INTO loop_ledger (repo_key, branch, status, count) VALUES (?, ?, ?, ?)");
 
   for (const key of listKeys(root)) {
-    const runs = readRuns(root, key, warn);
+    // Every warning readRuns gives is a run file left out of the index (a moved-aside file changes the
+    // sources anyway, so counting it only costs one extra rebuild).
+    const runs = readRuns(root, key, (line) => {
+      skipped++;
+      warn(line);
+    });
     const verdicts = readVerdicts(root, key);
     const loops = loopFiles(root, key).flatMap((path) => {
       const record = readLoopRecord(path);
@@ -252,8 +257,9 @@ export interface RefreshHooks {
  * and the parse does not reach that retry: it is skipped, and the next call rebuilds because the
  * sources no longer match the stored signature. A loop file that cannot be read for another reason
  * (permissions, I/O) makes the refresh throw. A loop file whose content is not a loop state is skipped
- * with a warning, and the index is stored with a signature that never matches, so every later call
- * rebuilds and warns again until the file is fixed or removed.
+ * with a warning, and so is a run file that readRuns leaves in place (another format version, or one
+ * that could not be moved aside); the index is stored with a signature that never matches, so every
+ * later call rebuilds and warns again until the file is fixed or removed.
  */
 export function refreshIndex(wachimanHome: string, warn: (line: string) => void, hooks: RefreshHooks = {}): { path: string; rebuilt: boolean } {
   const root = historyRoot(wachimanHome);

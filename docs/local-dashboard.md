@@ -60,9 +60,11 @@ files, using Bun's built-in SQLite ([ADR 0035](adr/0035-a-rebuildable-sqlite-ind
 - **A damaged run file** is moved aside to `<name>.unreadable-<unix-seconds>` with a warning, exactly as
   `wachiman history` does. A loop state file whose content does not parse, or has the wrong shape, is
   skipped with a `dashboard:` warning and left in place, so the index is rebuilt on every call and the
-  warning repeats until the file is fixed or removed. A loop file that cannot be read for another reason,
-  such as permissions or I/O, makes the command fail with that error. A half-written last line in
-  `verdicts.jsonl` is ignored without a warning.
+  warning repeats until the file is fixed or removed. The same holds for a run file written by another
+  version, which is left in place, and for a damaged run file that could not be moved aside. A loop file
+  that cannot be read for another reason, such as permissions or I/O, makes the command fail with that
+  error. A line of `verdicts.jsonl` that is not a verdict (for example a half-written last line) is
+  ignored without a warning.
 
 ## The HTML page
 

@@ -208,6 +208,20 @@ describe("the local index", () => {
     expect(readFigures(index).loops.totals.branches).toBe(2);
   });
 
+  test("a run file written by another version is left in place and makes the next call rebuild and warn again", () => {
+    const { wachiman, root } = fixtureHome();
+    const foreign = join(root, ALPHA.key, "runs", "future-00000000.json");
+    writeFileSync(foreign, JSON.stringify({ format: "wachiman.history-run/99" }));
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
+    const second: string[] = [];
+    expect(refreshIndex(wachiman, (l) => second.push(l)).rebuilt).toBe(true);
+    expect(second.join("\n")).toContain("future-00000000.json");
+    expect(existsSync(foreign)).toBe(true);
+    unlinkSync(foreign);
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
+    expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
+  });
+
   const root0 = typeof process.getuid === "function" && process.getuid() === 0;
   test.skipIf(root0)("a loop file that cannot be read is an error, not a 'not a loop state' warning", () => {
     const { wachiman, root } = fixtureHome();
