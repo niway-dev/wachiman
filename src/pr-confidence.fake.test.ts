@@ -117,6 +117,67 @@ const batchOf = (paths: string[], extra: Partial<ReviewOutput> = {}) => () => ({
   }),
 });
 
+/** The claims call and the batches end on a limit with usable output; the grade must not trust it. */
+const limited = (reason: "turns" | "timeout", step: () => Partial<ProviderResult>) => () => ({ ...step(), terminalReason: reason });
+
+describe("what the review did not read or finish", () => {
+  const paths = ["src/upload.ts", "src/log.ts"];
+
+  test("a confirmed change plus a binary file the review never read gives B, naming the binary", () => {
+    const input = prInput(paths);
+    mkdirSync(join(input.headDir!, "assets"));
+    writeFileSync(join(input.headDir!, "assets/logo.png"), Buffer.from([0, 1, 2, 3, 0, 255]));
+    input.files = [...input.files, { filename: "assets/logo.png", additions: 0, deletions: 0 }];
+    const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
+    const f = reviewChange(input, graded(), deps(provider)).fidelity!;
+    expect(f.unexplainedFiles).toEqual(["assets/logo.png"]);
+    expect(f.grade).toBe("B");
+  });
+
+  test("a file the owner excluded from the review is named too, and a lockfile is still explained", () => {
+    const input = prInput([...paths, "src/notes.md"]);
+    input.files = [...input.files, { filename: "bun.lock", additions: 5, deletions: 5, patch: patchOf(5) }];
+    const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
+    const f = reviewChange(input, { ...graded(), exclude: ["src/notes.md"] }, deps(provider)).fidelity!;
+    expect(f.unexplainedFiles).toEqual(["src/notes.md"]);
+    expect(f.grade).toBe("B");
+  });
+
+  test("a lockfile alone beside two confirmed claims keeps A", () => {
+    const input = prInput(paths);
+    input.files = [...input.files, { filename: "bun.lock", additions: 5, deletions: 5, patch: patchOf(5) }];
+    const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
+    expect(reviewChange(input, graded(), deps(provider)).fidelity).toMatchObject({ grade: "A", unexplainedFiles: [] });
+  });
+
+  test("a title and body too long for the claims call give cannot say with that reason", () => {
+    const description = `Retries failed uploads and logs each retry. ${"More detail. ".repeat(3000)}`;
+    const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
+    const f = reviewChange(prInput(paths, { description }), graded(), deps(provider)).fidelity!;
+    expect(f.grade).toBe("cannot say");
+    expect(f.reasons).toEqual(["The pull request text was too long to read in full"]);
+    expect(f.trial).toBe(false);
+  });
+
+  test("a batch that hits the turn limit with usable output gives cannot say", () => {
+    const provider = new FakeProvider([TWO_CLAIMS, limited("turns", batchOf(paths))]);
+    const f = reviewChange(prInput(paths), graded(), deps(provider)).fidelity!;
+    expect(f.grade).toBe("cannot say");
+    expect(f.reasons).toEqual(["The run did not finish"]);
+  });
+
+  test("a batch killed by the time limit with usable output gives cannot say", () => {
+    const provider = new FakeProvider([TWO_CLAIMS, limited("timeout", batchOf(paths))]);
+    expect(reviewChange(prInput(paths), graded(), deps(provider)).fidelity?.grade).toBe("cannot say");
+  });
+
+  test("a claims call that hits the turn limit with a usable list gives cannot say", () => {
+    const provider = new FakeProvider([limited("turns", TWO_CLAIMS), batchOf(paths)]);
+    const f = reviewChange(prInput(paths), graded(), deps(provider)).fidelity!;
+    expect(f.grade).toBe("cannot say");
+  });
+});
+
 describe("the grade of a pull request review", () => {
   test("two confirmed claims and one file no claim explains give B, and the file is named", () => {
     const paths = ["src/upload.ts", "src/log.ts", "src/extra.ts"];

@@ -150,6 +150,12 @@ describe("cannot say", () => {
     expect(r.reasons).toEqual(["The pull request text changed while the review was running"]);
   });
 
+  test("a pull request text too long to read in full", () => {
+    const r = computeGrade(withRun({ textTruncated: true }));
+    expect(r.grade).toBe("cannot say");
+    expect(r.reasons).toEqual(["The pull request text was too long to read in full"]);
+  });
+
   test("lists every reason that applies", () => {
     const r = computeGrade(withRun({ unreadFiles: 2, digestAtWrite: "d2" }));
     expect(r.reasons).toEqual(["2 files were not read", "The pull request text changed while the review was running"]);

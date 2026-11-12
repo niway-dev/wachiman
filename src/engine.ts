@@ -79,6 +79,7 @@ import {
   assembleClaims,
   buildClaimsPrompt,
   claimsParagraph,
+  claimsTextTruncated,
   parseClaimList,
   type ClaimAssignment,
   type ProposedClaim,
@@ -2488,6 +2489,9 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   }
   let budgetError = false;
   let limitError: "turns" | "timeout" | undefined;
+  // Any call, a retry included, that ended on a turn or time limit or on its budget: a batch that
+  // still gave usable output is not a finished review, so PR Confidence cannot grade it.
+  let anyLimit = false;
   // The first call the provider refused because the reviewer's account cannot make it (no credit,
   // bad key, rate limit that outlasted its retry): every later call would fail the same way.
   let rejection: { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
@@ -2544,6 +2548,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
     if (first.output) parts.push({ label, output: first.output });
     if (first.budget) budgetError = true;
     if (first.stopped) limitError = first.stopped;
+    if (first.budget || first.stopped) anyLimit = true;
     let status = first.output
       ? "reviewed"
       : first.budget
@@ -2580,6 +2585,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
       turns += retry.turns;
       cost += retry.costUsd;
       noteRejection(retry.rejection);
+      if (retry.budget || retry.stopped) anyLimit = true;
       if (retry.output) parts.push({ label: `${label}, retry`, output: retry.output });
       const left = batchGaps(gaps, retry.output);
       status =
@@ -2694,7 +2700,9 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
         return count !== null && line >= 1 && line <= count;
       }),
       assignments: assembled.assignments,
-      changedFiles: kept.map((f) => ({ path: f.filename, patch: f.patch })),
+      // Every file of the pull request, not only the ones the review read: a binary, an oversize
+      // diff or a path the owner excluded is explained only by a rule, or it is named unexplained.
+      changedFiles: input.files.map((f) => ({ path: f.filename, patch: f.patch })),
       // Not this change's doing: a pre-existing finding does not grade the pull request.
       openFindings: findings
         .filter((f) => f.origin !== "pre-existing")
@@ -2702,8 +2710,9 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
       riskMap,
       run: {
         // No claims list means no claim was read: that is an unknown, not a pull request that claims nothing.
-        finished: proposed !== undefined && stop === "complete",
+        finished: proposed !== undefined && stop === "complete" && !anyLimit,
         ...(notRun.length > 0 || budgetError || claimsStep.budget ? { stoppedBy: "spend-ceiling" as const } : {}),
+        ...(claimsStep.truncated ? { textTruncated: true } : {}),
         unreadFiles: expected.filter((f) => !reviewedSet.has(f)).length,
         reviewedCommit: sha,
         // The connector checks again at the moment it writes: here the review and the pull request agree.
@@ -2762,13 +2771,15 @@ function listClaims(
   options: ReviewOptions,
   ctx: ReviewContext,
   budgetUsd: number,
-): { claims?: ProposedClaim[]; costUsd: number; usage: TokenUsage; budget: boolean } {
-  const none = { costUsd: 0, usage: NO_USAGE, budget: false };
+): { claims?: ProposedClaim[]; costUsd: number; usage: TokenUsage; budget: boolean; truncated: boolean } {
+  const input = claimsInput(ctx.meta.title ?? "", ctx.meta.body);
+  const truncated = claimsTextTruncated(input);
+  const none = { costUsd: 0, usage: NO_USAGE, budget: false, truncated };
   if (budgetUsd < MIN_BATCH_USD) {
     deps.warn("PR Confidence: no budget left for the claims call; the pull request gets no grade.");
     return { ...none, budget: true };
   }
-  const prompt = buildClaimsPrompt(claimsInput(ctx.meta.title ?? "", ctx.meta.body));
+  const prompt = buildClaimsPrompt(input);
   const call = attempt(
     () => runProvider(deps, options, ctx.headDir, { operation: "review", label: "claims", ...ctx.costTags }, prompt, ctx.headDir, budgetUsd, CLAIMS_SCHEMA),
     budgetUsd,
@@ -2778,9 +2789,13 @@ function listClaims(
     return { ...none, costUsd: call.costUsd };
   }
   const { value: result } = call;
-  const claims = result.isError ? undefined : parseClaimList(result.structuredOutput);
-  if (!claims) deps.warn("PR Confidence: the claims call returned no usable list; the pull request gets no grade.");
-  return { claims, costUsd: result.costUsd, usage: result.usage ?? NO_USAGE, budget: result.terminalReason === "budget" };
+  // A call that ended on its turn or time limit is not trusted even when its list parses: the list
+  // may be the part it got to, and nothing is salvaged from an unfinished call.
+  const limited = result.terminalReason === "turns" || result.terminalReason === "timeout";
+  const claims = result.isError || limited ? undefined : parseClaimList(result.structuredOutput);
+  if (limited) deps.warn(`PR Confidence: the claims call ended on its ${result.terminalReason} limit; the pull request gets no grade.`);
+  else if (!claims) deps.warn("PR Confidence: the claims call returned no usable list; the pull request gets no grade.");
+  return { claims, costUsd: result.costUsd, usage: result.usage ?? NO_USAGE, budget: result.terminalReason === "budget", truncated };
 }
 
 /** Why a verifier call ended without answering everything, from how it ended; undefined for a clean finish. */

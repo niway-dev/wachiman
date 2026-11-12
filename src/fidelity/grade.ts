@@ -48,6 +48,8 @@ export interface RunState {
   /** Set when the engine stopped the run on its own limit. */
   stoppedBy?: "spend-ceiling" | "depth-cap";
   unreadFiles: number;
+  /** The claims call read only the start of the title and body: claims after the cut were never judged. */
+  textTruncated?: boolean;
   /** The commit this review read. */
   reviewedCommit: string;
   /** The commit the pull request has now. Different from `reviewedCommit`: the review of the new one is not done. */
@@ -129,6 +131,7 @@ function cannotSayReasons(run: RunState): string[] {
   if (run.stoppedBy === "spend-ceiling") reasons.push("The run stopped at the spend ceiling");
   else if (run.stoppedBy === "depth-cap") reasons.push("The run stopped at the depth cap");
   else if (!run.finished) reasons.push("The run did not finish");
+  if (run.textTruncated) reasons.push("The pull request text was too long to read in full");
   if (run.unreadFiles > 0) {
     reasons.push(run.unreadFiles === 1 ? "One file was not read" : `${run.unreadFiles} files were not read`);
   }
