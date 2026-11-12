@@ -7,7 +7,8 @@ name: Wachiman review (reusable)
 # What the consumer must trust (see SECURITY.md and docs/adr/0001-distribution-and-trust.md):
 #   - Everyone who can push a branch to the calling repository. On `pull_request` GitHub runs
 #     the caller file from the pull request's own merge commit, so a person who can push can
-#     edit the caller and read `ANTHROPIC_API_KEY`. Nothing here defends against that.
+#     edit the caller and read `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, whichever it
+#     passes. Nothing here defends against that.
 #   - The ref of this workflow that the caller pins. A floating tag such as `v1` is a trust
 #     dependency on this repository's maintainers; pin a full commit SHA for immutability.
 #
@@ -172,10 +173,17 @@ on:
           See docs/pr-confidence.md
         type: boolean
         default: false
+    # Pass exactly one in the caller. With both, the token wins and the key never reaches the agent
+    # (ADR 0037); a run is never retried with the other credential. With neither, the run fails.
     secrets:
       ANTHROPIC_API_KEY:
-        description: Anthropic API key that pays for the review
-        required: true
+        description: Anthropic API key that pays for the review (billed per token)
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: >-
+          Token from `claude setup-token` that lets the review run on the Claude subscription of the
+          person who made it (tied to that person's plan and usage limits)
+        required: false
 
 # Concurrency is per job, never per workflow: every comment on a pull request starts a run,
 # and a workflow-level group would let a skipped `on-demand` cancel a review.
@@ -324,6 +332,7 @@ jobs:
         if: steps.gate.outputs.skip != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           AGENT_REVIEW_BUDGET_USD: ${{ inputs.budget_usd }}
@@ -443,6 +452,7 @@ jobs:
       - name: Answer the pending threads
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
@@ -581,6 +591,7 @@ jobs:
       - name: Review or answer
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.issue.number }}
           REQUEST: ${{ github.event.comment.body }}

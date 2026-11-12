@@ -95,6 +95,18 @@ describe("the footer cost line", () => {
     expect(readAutoCost(old)).toBe(0.42);
   });
 
+  test("a subscription run says the amount is an estimate, before the figure the ceiling reads", () => {
+    const line = costLine({ modelLabel: "m", effort: "high", operation: "review", estimate: true, costUsd: 0.31 });
+    expect(line).toBe("<sub>m · effort high · review · Claude subscription: API-equivalent estimate, not a bill · $0.31</sub>");
+    const body = `x\n\n${line}\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
+    // Exactly what an API-key footer of the same amount reads.
+    const keyed = `x\n\n${costLine({ modelLabel: "m", effort: "high", operation: "review", costUsd: 0.31 })}\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
+    expect(readAutoCost(body)).toBe(0.31);
+    expect(readAutoCost(body)).toBe(readAutoCost(keyed));
+    const reply = `x\n\n${costLine({ modelLabel: "m", operation: "reply", extra: ["answers 1 thread(s)"], estimate: true, costUsd: 0.12 })}\n\n${SIGNATURE.auto}\n\n${SIGNATURE.reply}`;
+    expect(readAutoCost(reply)).toBe(0.12);
+  });
+
   test("formats token counts", () => {
     expect([0, 842, 1500, 12345, 999999, 4_100_000].map(formatTokens)).toEqual(["0", "842", "1.5k", "12k", "1000k", "4.1M"]);
   });
@@ -121,7 +133,15 @@ describe("the machine-readable log line", () => {
       costKnown: true,
       cost_usd: 0.4321,
       terminal_reason: "success",
+      auth: "api-key",
     });
+  });
+
+  test("carries the credential of the run, so a subscription estimate is never summed as spend by mistake", () => {
+    for (const auth of ["api-key", "oauth-token", "subscription"] as const) {
+      const line = costLogLine(call({ auth }));
+      expect(JSON.parse(line.slice("wachiman-cost ".length)).auth).toBe(auth);
+    }
   });
 });
 

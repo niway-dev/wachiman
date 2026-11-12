@@ -10,7 +10,7 @@ import { UsageError } from "../config";
 import type { TokenUsage } from "../cost";
 import { locatePrompt } from "./locate";
 import { classifyProviderError } from "./errors";
-import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, type Effort, type NeutralTool, type ProviderAdapter, ProviderRequest, ProviderResult } from "./types";
+import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, type Effort, type NeutralTool, type ProviderAdapter, type ProviderAuth, ProviderRequest, ProviderResult } from "./types";
 
 const BINARY = "claude";
 const SETTINGS_FILE = "claude-code.settings.json";
@@ -36,8 +36,14 @@ export function prettyModel(model: string): string {
   return `Claude ${family} ${match[2].replaceAll("-", ".")}`;
 }
 
-export function leaksKey(texts: string[], key: string) {
-  return texts.some((t) => (key !== "" && t.includes(key)) || KEY_SHAPE.test(t));
+/**
+ * True when a text holds a credential: the exact value of any of `exact` (the key, the CI token),
+ * or anything shaped like an Anthropic key. The shape is not loosened for the CI token: Anthropic's
+ * documentation does not state the token's shape, so the exact value is what the check relies on.
+ */
+export function leaksKey(texts: string[], ...exact: string[]) {
+  const values = exact.filter((v) => v !== "");
+  return texts.some((t) => values.some((v) => t.includes(v)) || KEY_SHAPE.test(t));
 }
 
 /**
@@ -57,6 +63,9 @@ export const CHILD_ENV_ALLOWLIST = [
   "CI",
   "GITHUB_ACTIONS",
 ] as const;
+
+/** The variable `claude setup-token` documents for CI; allowlisted only in the `oauth-token` mode. */
+export const OAUTH_TOKEN_VAR = "CLAUDE_CODE_OAUTH_TOKEN";
 
 /**
  * What a child process needs on Windows to start and find its own sign-in: the profile and
@@ -80,10 +89,22 @@ export const WINDOWS_CHILD_ENV_ALLOWLIST = [
 const LOCALE_PREFIX = "LC_";
 
 /**
- * `api-key`: the CI path, billed to `ANTHROPIC_API_KEY`. `subscription`: the local review, on the
- * developer's own signed-in `claude` (ADR 0019 decision 3); the key is refused and never forwarded.
+ * `api-key`: the CI path, billed to `ANTHROPIC_API_KEY`. `oauth-token`: the CI path on a
+ * subscription, with the token `claude setup-token` made, in `CLAUDE_CODE_OAUTH_TOKEN` (ADR 0037);
+ * the key is never forwarded. `subscription`: the local review, on the developer's own signed-in
+ * `claude` (ADR 0019 decision 3); the key is refused and never forwarded.
  */
-export type ClaudeAuth = "api-key" | "subscription";
+export type ClaudeAuth = ProviderAuth;
+
+/**
+ * The CI credential by presence, the token first: with both set, `claude -p` would bill the key
+ * (it outranks the token in Claude Code's precedence), so the token wins here and the key never
+ * reaches the child. An empty value counts as absent: a workflow that does not pass a secret still
+ * sets the variable, to the empty string.
+ */
+export function resolveClaudeAuth(env: Record<string, string | undefined>): "api-key" | "oauth-token" {
+  return env[OAUTH_TOKEN_VAR] ? "oauth-token" : "api-key";
+}
 
 /** D10: set in every local call; what each one switches off is in docs/providers/claude-code.md. */
 export const SUBSCRIPTION_ENV = {
@@ -96,7 +117,9 @@ export const SUBSCRIPTION_ENV = {
 } as const;
 
 /**
- * The child's environment. In subscription mode the allowlist loses `ANTHROPIC_API_KEY` and gains
+ * The child's environment. In `oauth-token` mode the allowlist loses `ANTHROPIC_API_KEY` and gains
+ * `CLAUDE_CODE_OAUTH_TOKEN`, and nothing else changes: the extras below are the local mode's. In
+ * subscription mode the allowlist loses `ANTHROPIC_API_KEY` and gains
  * `USER` (without it, `claude` on macOS cannot find its own sign-in: spec D17) and the D10
  * switches; `configDir` (an isolated profile) replaces any `CLAUDE_CONFIG_DIR` of the parent. The
  * sign-in itself is never read here: the binary finds it through `HOME`, `USER` and
@@ -107,14 +130,17 @@ export function buildChildEnv(
   opts: { auth?: ClaudeAuth; configDir?: string; platform?: string } = {},
 ) {
   const subscription = opts.auth === "subscription";
+  const token = opts.auth === "oauth-token";
   // Windows names are case-insensitive and the search path is usually `Path`, so match them so.
   const windows = (opts.platform ?? process.platform) === "win32";
-  const allowed = new Set<string>([...CHILD_ENV_ALLOWLIST, ...(windows ? WINDOWS_CHILD_ENV_ALLOWLIST : [])].map((n) => (windows ? n.toUpperCase() : n)));
+  const allowed = new Set<string>(
+    [...CHILD_ENV_ALLOWLIST, ...(token ? [OAUTH_TOKEN_VAR] : []), ...(windows ? WINDOWS_CHILD_ENV_ALLOWLIST : [])].map((n) => (windows ? n.toUpperCase() : n)),
+  );
   const child: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined) continue;
     const key = windows ? name.toUpperCase() : name;
-    if (subscription && key === "ANTHROPIC_API_KEY") continue;
+    if ((subscription || token) && key === "ANTHROPIC_API_KEY") continue;
     if (allowed.has(key) || name.startsWith(LOCALE_PREFIX)) {
       child[name] = value;
     }
@@ -278,6 +304,11 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     return this.opts.auth === "subscription";
   }
 
+  /** What pays for the calls (`api-key` unless the constructor said otherwise). */
+  get auth(): ProviderAuth {
+    return this.opts.auth ?? "api-key";
+  }
+
   private childEnv() {
     return buildChildEnv(process.env, { auth: this.opts.auth, configDir: this.opts.configDir });
   }
@@ -301,8 +332,11 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       );
     }
     this.version = probe.stdout.match(/\d+\.\d+\.\d+/)?.[0] ?? null;
-    if (this.opts.requireApiKey && !process.env.ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not set");
+    if (this.opts.requireApiKey) {
+      if (this.auth === "oauth-token" && !process.env[OAUTH_TOKEN_VAR]) throw new Error(`${OAUTH_TOKEN_VAR} is not set`);
+      if (this.auth === "api-key" && !process.env.ANTHROPIC_API_KEY) {
+        throw new Error(`Neither ANTHROPIC_API_KEY nor ${OAUTH_TOKEN_VAR} is set: pass a Console API key, or a token from \`claude setup-token\` to review on a Claude subscription.`);
+      }
     }
   }
 
@@ -311,7 +345,8 @@ export class ClaudeCodeProvider implements ProviderAdapter {
   }
 
   leaksSecret(texts: string[]) {
-    return leaksKey(texts, process.env.ANTHROPIC_API_KEY ?? "");
+    // The token is checked too in the CI modes: it is a credential in the engine's environment.
+    return leaksKey(texts, process.env.ANTHROPIC_API_KEY ?? "", this.auth === "oauth-token" ? (process.env[OAUTH_TOKEN_VAR] ?? "") : "");
   }
 
   run(request: ProviderRequest): ProviderResult {

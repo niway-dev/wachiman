@@ -134,8 +134,10 @@ Options:
 
 Environment:
   GH_TOKEN, GITHUB_REPOSITORY        required (not read by \`local\`, \`ask\` or \`--setup-profile\`)
-  ANTHROPIC_API_KEY                  required by the claude-code provider (not in a dry run);
-                                     \`local\` and \`ask\` refuse to start when it is set
+  ANTHROPIC_API_KEY                  the claude-code provider needs this or CLAUDE_CODE_OAUTH_TOKEN
+                                     (not in a dry run); \`local\` and \`ask\` refuse to start when it is set
+  CLAUDE_CODE_OAUTH_TOKEN            a Claude subscription token (\`claude setup-token\`); if set, it is
+                                     used and ANTHROPIC_API_KEY never reaches the agent
   REQUEST                            the comment text, for \`comment\`
   AGENT_REVIEW_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
   AGENT_REVIEW_*                     optional settings; see docs/cli.md

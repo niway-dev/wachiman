@@ -3,7 +3,7 @@
 <img src="docs/assets/wachi.png" alt="Wachiman, a cartoon watchman with a cap and a whistle" width="96" align="right">
 
 Advisory code reviews by an agent CLI. Review a branch on your laptop with your own Claude
-subscription, or review every pull request inside your own GitHub Actions with your own API key.
+subscription, or review every pull request inside your own GitHub Actions with your own API key or Claude subscription token.
 One engine, same findings either way. Wachiman never approves or blocks a merge: it warns, you
 decide.
 
@@ -48,7 +48,7 @@ See [project setup](docs/local-review.md#configure-this-project).
 | Way | Where it runs | What you need | Guide |
 | --- | --- | --- | --- |
 | `wachiman local` | Your laptop, on a branch or commit; nothing is posted | Claude Code signed in; no API key | [docs/local-review.md](docs/local-review.md) |
-| Reusable GitHub Actions workflow | Your repository's runners, on each pull request | A provider API key as a secret | [docs/install.md](docs/install.md) |
+| Reusable GitHub Actions workflow | Your repository's runners, on each pull request | A provider API key, or a Claude subscription token, as a secret | [docs/install.md](docs/install.md) |
 
 A GitHub App is a design only; it is not implemented.
 
@@ -189,7 +189,8 @@ provider adapter boundary are in place. The older `CLAUDE_REVIEW_*` variables,
 read with a notice; see [docs/upgrading.md](docs/upgrading.md).
 
 - **Claude Code** (`claude -p`) is the provider the reusable workflow installs and runs, with
-  `ANTHROPIC_API_KEY` ([docs/providers/claude-code.md](docs/providers/claude-code.md)).
+  `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` to run on a Claude subscription
+  ([docs/providers/claude-code.md](docs/providers/claude-code.md)).
 - **Codex CLI** (`codex exec`, for OpenAI models) is a second adapter, available only from the
   command line. The reusable workflow does not install it or pass an OpenAI key
   ([docs/providers/codex.md](docs/providers/codex.md)).

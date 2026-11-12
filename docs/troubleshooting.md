@@ -164,14 +164,20 @@ The engine repeats the check with its own messages, which you see when you run t
 
 ## Secrets and credentials
 
-### `ANTHROPIC_API_KEY is not set`
+### `Neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN is set`
 
-The line reads `wachiman: ANTHROPIC_API_KEY is not set`, the step fails with exit 1, and no
-paid call was made. The caller passed an empty value. Check each of these:
+The line reads `wachiman: Neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN is set: ...`, the
+step fails with exit 1, and no paid call was made. The caller passed no credential, or passed
+empty values. Check each of these:
 
-- The secret exists and is spelled exactly `ANTHROPIC_API_KEY`. The reusable workflow accepts no
-  other secret name.
-- The caller file passes it: `secrets: ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}`.
+- The secret exists and is spelled exactly `ANTHROPIC_API_KEY` (a Console key) or
+  `CLAUDE_CODE_OAUTH_TOKEN` (a token from `claude setup-token`, to review on a Claude
+  subscription: [install.md](install.md#review-on-a-claude-subscription)). The reusable workflow
+  accepts no other secret name.
+- The caller file passes it: `secrets: ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}` or
+  `secrets: CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`. If you pass both and
+  the token is not empty, the token is used and the key is not; a missing secret reaches the engine
+  as an empty value, which counts as absent.
 - It is a repository secret (or an organisation secret shared with this repository), not an
   environment secret. The caller's job declares no environment, so an environment secret is not
   visible to it. A copy-install setup lost a run to this mistake ([setup-copy.md](setup-copy.md)).
@@ -186,6 +192,21 @@ result: `A batch call failed: ...` lines, or JSON lines with `"is_error":true`, 
 `wachiman: The agent did not return a review for any batch.` What Claude Code prints for a rejected key was not captured, so the first diagnostic is outside
 Wachiman: open the Anthropic Console
 and check that the key is active and that the workspace has credit and no exhausted limit.
+
+### The subscription token is rejected, or the plan's limit is reached
+
+On a run that passes `CLAUDE_CODE_OAUTH_TOKEN`, a refused call posts a notice worded for the
+subscription, never one that tells you to check `ANTHROPIC_API_KEY`:
+
+- "the reviewer's Claude subscription token was rejected": the token expired (they last one year),
+  was revoked, or was copied wrong. Make a new one with `claude setup-token` while signed in to the
+  account whose plan should pay, save it with `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo OWNER/REPO`,
+  and re-run.
+- "the reviewer's Claude subscription refused the call (usage limit or plan access)": the plan's
+  usage limit is spent, or the plan no longer allows Claude Code. Wait for the limit to reset and
+  re-run. The review never switches to an API key by itself, even if one is also set in the
+  repository. The exact text Claude Code prints for a usage limit has not been captured in a real
+  run; the notice quotes it, and an unrecognised message is `other` and fails the job.
 
 ### The provider binary
 
@@ -235,7 +256,7 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
 | `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log of that call has a readable line (`❌ batch 1/1: the Anthropic API refused the call: the account has no credit…`) next to a JSON line with `error_class` and `error`. Fix the account, then re-run. |
 
-If **no** batch produced a review because the provider refused the calls, the job posts one notice ("Not reviewed: the reviewer's Anthropic account has no credit", "...API key was rejected" or "...kept rate-limiting the reviewer") with the provider's message quoted, and the check passes. Set `on_provider_unavailable: fail` to make it fail instead. A failed check blocks a merge only when the repository's branch rules require `Wachiman review`; otherwise it is only a red mark. The classification matches the CLI's error text against a short list of phrases (`src/providers/errors.ts`). Only the no-credit message (`Credit balance is too low`) is confirmed against a live run; the others are from memory of Anthropic's messages; an error it does not recognise is `other` and always fails the job, with the text in the error message.
+If **no** batch produced a review because the provider refused the calls, the job posts one notice ("Not reviewed: the reviewer's Anthropic account has no credit", "...API key was rejected" or "...kept rate-limiting the reviewer"; on a subscription token, the notices of the section above) with the provider's message quoted, and the check passes. Set `on_provider_unavailable: fail` to make it fail instead. A failed check blocks a merge only when the repository's branch rules require `Wachiman review`; otherwise it is only a red mark. The classification matches the CLI's error text against a short list of phrases (`src/providers/errors.ts`). Only the no-credit message (`Credit balance is too low`) is confirmed against a live run; the others are from memory of Anthropic's messages; an error it does not recognise is `other` and always fails the job, with the text in the error message.
 
 The source also defines the labels `ran out of its budget`, `hit the turn limit`, `timed out`,
 `the call failed` and `returned no review`, but the retry logic replaces them with one of the statuses above whenever a batch has a
@@ -296,7 +317,9 @@ Check these before you assume a bug:
 - A cancelled or timed-out run keeps what its finished calls cost.
 
 The Anthropic Console shows what you were billed. The number in the review footer, `<sub>… · $0.00</sub>`,
-is the engine's own sum of what the provider reported.
+is the engine's own sum of what the provider reported. On a Claude subscription (`CLAUDE_CODE_OAUTH_TOKEN`)
+nothing is billed per call: the footer then says "Claude subscription: API-equivalent estimate, not a
+bill", and the amount is what the calls would cost at API prices ([costs.md](costs.md#when-the-review-runs-on-a-claude-subscription)).
 
 ### `The agent did not answer (<reason>).`
 
@@ -310,7 +333,7 @@ wachiman: The output contains something shaped like a provider credential; not p
 ```
 
 Before it posts anything, the engine checks the review, every inline comment, every thread reply and
-every answer for your exact API key and for a string shaped like an Anthropic key (`sk-ant-`
+every answer for your exact API key, your exact subscription token when the run uses one, and for a string shaped like an Anthropic key (`sk-ant-`
 followed by a long run of key characters). One match stops the whole post: no review and no
 replies from that run. Exit 1.
 
@@ -402,7 +425,7 @@ exits 1, not 2. That setting is available only in the CLI.
 
 ## Codex and the reusable workflow
 
-The reusable workflow installs only Claude Code, and it passes only `ANTHROPIC_API_KEY`. The
+The reusable workflow installs only Claude Code, and it passes only `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. The
 `provider` input accepts any string and does not stop you from writing `codex`, but the run cannot
 work: the workflow never installs Codex and never passes `OPENAI_API_KEY`. If you set
 `provider: codex` and leave the default `model`, you get this first:

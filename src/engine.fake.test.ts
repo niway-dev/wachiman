@@ -20,13 +20,16 @@ import {
   type GhFn,
   type ReviewOutput,
 } from "./engine";
-import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
+import type { ProviderAdapter, ProviderAuth, ProviderRequest, ProviderResult } from "./providers/types";
 import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts";
 
 /** Plays back one scripted answer per call and records what the engine asked for. */
 class FakeProvider implements ProviderAdapter {
   readonly name = "fake";
   readonly requests: ProviderRequest[] = [];
+  auth: ProviderAuth | undefined;
+  /** Off for a test that is not about the prompt, so it adds nothing to the pinned golden prompts. */
+  record = true;
   constructor(private readonly script: ((request: ProviderRequest) => Partial<ProviderResult>)[]) {}
   preflight() {}
   modelLabel() {
@@ -37,7 +40,7 @@ class FakeProvider implements ProviderAdapter {
   }
   run(request: ProviderRequest): ProviderResult {
     this.requests.push(request);
-    recordPrompt("engine.fake", request);
+    if (this.record) recordPrompt("engine.fake", request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
     return {
@@ -386,6 +389,36 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     expect(t.posted.review?.body).toContain("the reviewer's API key was rejected");
     expect(t.posted.review?.body).toContain("ANTHROPIC_API_KEY");
     expect(t.provider.requests).toHaveLength(1);
+  });
+
+  test("on a subscription token, the notices name the token and never the API key secret", () => {
+    for (const [kind, text] of [
+      ["auth", "API Error: 401 authentication_error: invalid bearer token"],
+      ["billing", "5-hour usage limit reached"],
+      ["rate_limit", "API Error: 429 rate_limit_error"],
+    ] as const) {
+      // A rate limit is retried once, with the same credential, before the notice.
+      const t = setup(kind === "rate_limit" ? [rejected(kind, text), rejected(kind, text)] : [rejected(kind, text)]);
+      t.provider.auth = "oauth-token";
+      t.provider.record = false;
+      review(t.deps, "o/r", 7, []);
+      const body = t.posted.review?.body ?? "";
+      expect(body).toContain("Not reviewed");
+      expect(body).toContain(text);
+      expect(body).not.toContain("ANTHROPIC_API_KEY");
+      expect(body).not.toContain("key was rejected");
+      if (kind === "auth") expect(body).toContain("CLAUDE_CODE_OAUTH_TOKEN");
+      // The run reports the refusal and stops: it never retries with another credential.
+      expect(t.provider.requests).toHaveLength(kind === "rate_limit" ? 2 : 1);
+    }
+  });
+
+  test("on a subscription token, mode fail still throws so the check goes red", () => {
+    const t = setup([rejected("billing", "usage limit reached")], { AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "fail" });
+    t.provider.auth = "oauth-token";
+    t.provider.record = false;
+    expect(() => review(t.deps, "o/r", 7, [])).toThrow("Not reviewed: the provider rejected the call (billing)");
+    expect(t.posted.review?.body).not.toContain("ANTHROPIC_API_KEY");
   });
 
   test("the provider's text is neutralised and truncated in the notice", () => {

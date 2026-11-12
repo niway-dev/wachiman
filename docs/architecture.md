@@ -516,7 +516,8 @@ nothing from the head is loaded. `test/bun-isolation.test.ts` checks this with a
 **Environment.** The workflow passes inputs to the engine as `AGENT_REVIEW_*` variables and the
 comment text as `REQUEST`; untrusted text is never interpolated into a `run:` script. The Claude
 Code adapter builds the agent's environment from `CHILD_ENV_ALLOWLIST` (`PATH`, `HOME`, `TMPDIR`,
-`TERM`, `LANG`, `LC_*`, `ANTHROPIC_API_KEY`, `CLAUDE_CONFIG_DIR`, `CI`, `GITHUB_ACTIONS`), so the
+`TERM`, `LANG`, `LC_*`, `ANTHROPIC_API_KEY`, `CLAUDE_CONFIG_DIR`, `CI`, `GITHUB_ACTIONS`; in the
+`oauth-token` mode `ANTHROPIC_API_KEY` is replaced by `CLAUDE_CODE_OAUTH_TOKEN`, ADR 0037), so the
 agent never receives `GH_TOKEN`, a base URL, a proxy, `NODE_OPTIONS`, `BUN_*` or `LD_PRELOAD`.
 
 **Claude Code flags** (`buildClaudeArgs` in `src/providers/claude-code.ts`; details in
@@ -614,7 +615,7 @@ and the copy-the-files install. The two sets must stay equal.
   `AGENT_REVIEW_HISTORY=1`, only by `local` and `history`, never by GitHub mode, and never leaves
   the machine.
 - No `pull_request_target` trigger, anywhere, and no caller template that adds one.
-- No `secrets: inherit`: the caller passes `ANTHROPIC_API_KEY` explicitly.
+- No `secrets: inherit`: the caller passes `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` explicitly.
 - Fork pull requests never run: the `review` job checks the head repository, the `on-demand` job
   checks it before it reads the head.
 - Untrusted text (a comment body, a branch name, a pull request title) is never interpolated into

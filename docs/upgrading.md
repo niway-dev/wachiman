@@ -157,6 +157,23 @@ the `uses:` line runs the new version's review job on that pull request, with yo
 merges. Comment-triggered runs use the file on the default branch, so they keep the old ref until
 the change merges.
 
+## Switching from the API key to a Claude subscription token
+
+The release that adds `CLAUDE_CODE_OAUTH_TOKEN` changes nothing for a caller that passes only
+`ANTHROPIC_API_KEY`: the key stays optional-in-the-workflow, required-by-the-engine, and the run
+behaves as before. To move a repository to a subscription, pin that release (or a later one), then:
+
+1. Run `claude setup-token` signed in to the account whose plan should pay.
+2. Run `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo OWNER/REPO` and paste the token at the prompt.
+3. In the caller, replace the `ANTHROPIC_API_KEY:` line under `secrets:` with
+   `CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}`.
+
+With both lines in the caller, the token wins and the key never reaches the agent; with neither, the
+run fails before any call. To go back, restore the key line. Details, costs and the limits of the
+route: [install.md](install.md#review-on-a-claude-subscription) and
+[costs.md](costs.md#when-the-review-runs-on-a-claude-subscription). Delete the old key in the
+Anthropic Console if you no longer need it ([uninstall.md](uninstall.md)).
+
 ## Rolling back
 
 Edit one thing: the ref in the `uses:` line of your caller file, back to the previous release (an

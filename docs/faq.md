@@ -37,7 +37,8 @@ To the model provider you chose, and to nobody else on this project's side. Conc
 - For each batch, the engine puts the diff and your [instruction files](review-policy.md) into the
   prompt and makes the pull request's title and body available to the agent. The agent can also
   read other files of the head with its read tools. All of that is sent to the provider:
-  Anthropic by default, with your `ANTHROPIC_API_KEY`, under your terms with them.
+  Anthropic by default, with your `ANTHROPIC_API_KEY` (or the subscription token
+  `CLAUDE_CODE_OAUTH_TOKEN`, under the terms of that plan), under your terms with them.
 - The review is posted to GitHub through the job's own token.
 
 Wachiman does not remove the need to decide whether your code may go to that provider. See
@@ -76,7 +77,8 @@ discarded after the job. On a runner that persists, they stay until the temp dir
 
 ### What does it cost?
 
-Model usage on your API key, plus normal GitHub Actions minutes. The defaults are a budget of
+Model usage on your API key (or, if you pass `CLAUDE_CODE_OAUTH_TOKEN`, on your Claude plan's usage
+limits, with the dollar figures shown as estimates), plus normal GitHub Actions minutes. The defaults are a budget of
 `$3` for one review, `$0.75` for one batch call and `$1` for one question. They are **budgets, not
 price quotes**: the review stops starting new batches when the budget is spent. For Claude the cap
 is soft, so a call can exceed it a little; the Codex adapter has no dollar cap at all. This page
@@ -107,7 +109,7 @@ here. The Codex adapter defaults to `gpt-6.1-sol`. See [configuration.md](config
 
 From the command line, yes. In the reusable workflow, not yet. The engine has a Codex adapter
 (`AGENT_REVIEW_PROVIDER=codex`, needs `OPENAI_API_KEY` and the `codex` binary), but the reusable
-workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY`. The two adapters are
+workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. The two adapters are
 hardened differently, and the Codex page lists what its hardening does not cover (for example, the
 model can run the branch's code inside Codex's sandbox). See
 [providers/codex.md](providers/codex.md).

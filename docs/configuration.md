@@ -79,7 +79,7 @@ engine through the environment variable in the third column; those variables are
 | `max_turns` | number | `AGENT_REVIEW_MAX_TURNS` | `40` | Most agent turns one provider call may take. A whole number. **New in v1.4.0.** Sent as `--max-turns` to Claude Code, the only provider the workflow runs. A call that reaches the cap is reported and its files get one retry. See [Turn cap and call timeout](#turn-cap-and-call-timeout). |
 | `call_timeout_s` | number | `AGENT_REVIEW_CALL_TIMEOUT_S` | `900` | Wall-clock seconds one provider call may run before the process is killed. A whole number. **New in v1.4.0.** Keep it well under the job's 30-minute limit. See [Turn cap and call timeout](#turn-cap-and-call-timeout). |
 | `on_provider_unavailable` | string | `AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE` | `warn` | What a run does when the Anthropic account rejects every call (no credit or spend limit, a rejected key, a rate limit that persists after one retry). `warn` posts a "Not reviewed" notice with the provider's message and passes the check; `fail` posts it and fails the check, which blocks a merge only when branch rules require that check. Any other value is a usage error. Errors the engine cannot classify always fail. See [troubleshooting](troubleshooting.md). |
-| `provider` | string | `AGENT_REVIEW_PROVIDER` | `claude-code` | Selects the adapter. The workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY`, so `claude-code` is the only value that can work in it. Setting `codex` fails before any call (the default `model` has no Codex price, and the Codex binary and key are not provided). Codex is available from the CLI only: [providers/codex.md](providers/codex.md). |
+| `provider` | string | `AGENT_REVIEW_PROVIDER` | `claude-code` | Selects the adapter. The workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, so `claude-code` is the only value that can work in it. Setting `codex` fails before any call (the default `model` has no Codex price, and the Codex binary and key are not provided). Codex is available from the CLI only: [providers/codex.md](providers/codex.md). |
 | `claude_code_version` | string | installer `CLAUDE_CODE_VERSION` | `2.1.304` | The exact Claude Code version downloaded. See [Claude Code installer](#claude-code-installer). |
 | `claude_code_sha256` | string | installer `CLAUDE_CODE_SHA256` | empty | SHA-256 of the Claude Code binary for the runner's platform (`linux-x64` on `ubuntu-latest`). Empty means the installer reads the expected hash from the publisher's manifest. |
 | `bun_version` | string | `oven-sh/setup-bun` | `1.3.4` | The Bun version the engine runs on. Not an engine setting. CI in this repository pins Bun separately. |
@@ -96,11 +96,19 @@ Numeric inputs that the engine rejects (zero, negative, not a number, a fraction
 Defaults in `review.yml` and in `src/config.ts` are kept in sync by hand. Where they differ, the
 workflow's value wins, because the workflow always passes its inputs.
 
-### Secret
+### Secrets
 
 | Secret | Required | Used for |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | yes | The only secret the reusable workflow accepts. Passed to the engine, which gives it to Claude Code. It pays for the review. |
+| `ANTHROPIC_API_KEY` | one of the two | A Console API key. Passed to the engine, which gives it to Claude Code. It pays for the review, billed per token. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | one of the two | A token from `claude setup-token`. Passed to the engine, which gives it to Claude Code. The review runs on the Claude subscription of the person who made it. See [install.md](install.md#review-on-a-claude-subscription). |
+
+These are the only two secrets the reusable workflow accepts, and neither is required by the
+workflow itself: the engine fails before any call when it finds neither. The caller chooses by
+which `secrets:` lines it passes; there is no input for it. If the token is present, the agent
+gets the token and never the key, even when both are passed. A call the subscription refuses is
+never retried with the key. On a subscription, the dollar figures the review shows are
+API-price estimates, not charges, and the `wachiman-cost` line carries `"auth":"oauth-token"`.
 
 The `GH_TOKEN` the engine uses is the run's own `github.token`; you do not pass it. There is no
 input for a different token, an OpenAI key or a base URL.
@@ -305,7 +313,8 @@ Read directly, not through `loadConfig`.
 | `GITHUB_REPOSITORY` | `review`, `comment` | `owner/name` of the repository. Must be set (exit 2 if not). |
 | `REQUEST` | `comment` | The comment text. Must be set (exit 2 if not). The workflow passes it through the environment, never interpolated into a shell command. |
 | `AGENT_REVIEW_COMMENT_AUTHOR` | `comment`, optional | Login of the comment's author. If set and different from the operator (compared case-insensitively), `comment` prints a notice and exits 0 without doing anything. If unset or empty, the engine does no author check of its own, so a caller that runs `comment` directly must restrict who can reach it. The workflow sets it from the event. |
-| `ANTHROPIC_API_KEY` | Claude provider | Required unless `AGENT_REVIEW_DRY_RUN=1`. Checked before any paid call: `ANTHROPIC_API_KEY is not set` exits 1. |
+| `ANTHROPIC_API_KEY` | Claude provider | Required unless `AGENT_REVIEW_DRY_RUN=1`, or unless `CLAUDE_CODE_OAUTH_TOKEN` is set. Checked before any paid call: with neither, `Neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN is set` exits 1. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Claude provider | A non-empty value selects the subscription route and wins over `ANTHROPIC_API_KEY`: the agent gets the token and never the key. An empty value counts as unset. `local` and `ask` never read it. |
 | `OPENAI_API_KEY` | Codex provider | Required unless `AGENT_REVIEW_DRY_RUN=1`; handed to Codex as `CODEX_API_KEY`. `OPENAI_API_KEY is not set` exits 1. |
 | `CODEX_HOME`, `HOME` | Codex provider, dry run only | In a dry run, Codex uses `$CODEX_HOME`, else `$HOME/.codex`, as its login. Outside a dry run the adapter creates fresh directories. |
 
@@ -504,7 +513,7 @@ When everything that changed is excluded or outside the requested scope, the run
 | --- | --- | --- |
 | Where it runs | Reusable workflow and CLI | CLI only. The workflow installs neither Codex nor an OpenAI key. |
 | Default model | `claude-sonnet-5-5` | `gpt-6.1-sol` |
-| Credential | `ANTHROPIC_API_KEY` | `OPENAI_API_KEY` |
+| Credential | `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` (a Claude subscription) | `OPENAI_API_KEY` |
 | Binary on `PATH` | `claude` (the workflow installs a pinned version) | `codex` |
 | Cost | Reported by Claude Code | Estimated from tokens at a per-million-token price |
 | Price needed | No | Yes. Built in for `gpt-6.1-sol` and `gpt-6-sol` ($2 input, $0.10 cached input, $10 output, $5 cache write); any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`, or the run stops in preflight. These are constants in the code, not a current price quote: check the vendor's pricing page. |
@@ -576,7 +585,7 @@ Each of these is a fixed behaviour of the engine at this release:
 | `GH_TOKEN is not set`, `GITHUB_REPOSITORY is not set`, `REQUEST is not set` | A required variable is missing or empty. | 2 |
 | `--repo-dir … is not a directory.` | The directory does not exist. | 2 |
 | `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "…".` | The price is not three or four comma-separated numbers of 0 or more. Raised as an ordinary error, not a usage error. | 1 |
-| `ANTHROPIC_API_KEY is not set` / `OPENAI_API_KEY is not set` | Missing credential outside a dry run. | 1 |
+| `Neither ANTHROPIC_API_KEY nor CLAUDE_CODE_OAUTH_TOKEN is set` / `OPENAI_API_KEY is not set` | Missing credential outside a dry run. | 1 |
 | `The Claude Code binary "claude" did not run (--version)` / `The Codex binary "codex" did not run (--version)` | The binary is missing or broken. | 1 |
 | `No price is known for model "…"` | Codex model without a built-in price and without `AGENT_REVIEW_PRICE_PER_MTOK`. | 1 |
 | `The operator login is empty.` / `…is still the template placeholder "…".` | `comment` ran with an empty or placeholder operator. | 1 |

@@ -243,6 +243,7 @@ export function exitCodeOf(result: ReviewResult) {
 export function interruptible(provider: ProviderAdapter, state: { interrupted: boolean }): ProviderAdapter {
   return {
     name: provider.name,
+    auth: provider.auth,
     preflight: () => provider.preflight(),
     modelLabel: () => provider.modelLabel(),
     leaksSecret: (texts) => provider.leaksSecret(texts),

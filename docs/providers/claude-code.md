@@ -4,10 +4,10 @@
 its settings file is `src/providers/claude-code.settings.json`. It runs `claude -p` once per batch.
 
 Requirements: the `claude` binary on the `PATH` (the reusable workflow and the copy template pin
-version 2.1.304), and `ANTHROPIC_API_KEY` in the environment. A dry run
-(`AGENT_REVIEW_DRY_RUN=1`) does not require the key and uses whatever login the machine has.
+version 2.1.304), and `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the environment. A dry run
+(`AGENT_REVIEW_DRY_RUN=1`) does not require either and uses whatever login the machine has.
 `preflight()` runs before any call is paid for and fails if the binary does not answer
-`--version`, the settings file is missing, or `ANTHROPIC_API_KEY` is unset and it is not a dry run.
+`--version`, the settings file is missing, or neither variable is set and it is not a dry run.
 
 ## How the binary is verified
 
@@ -63,6 +63,29 @@ Always added by the adapter, whatever the engine asks: `--restricted`, `--strict
 `--settings <claude-code.settings.json>` and `--disallowedTools
 Bash,Read(//proc/**),Grep(//proc/**),Glob(//proc/**)`. The settings file denies the same set.
 
+
+## The CI subscription token (`oauth-token` mode)
+
+The CI route on a Claude subscription ([ADR 0037](../adr/0037-the-actions-review-can-run-on-a-claude-code-subscription-token.md)).
+In GitHub mode the credential is chosen by presence (`resolveClaudeAuth`): a non-empty
+`CLAUDE_CODE_OAUTH_TOKEN` selects `oauth-token`, otherwise the run is `api-key`. In Claude Code's own
+precedence the API key outranks the token in `claude -p`, so with both set the key would be billed;
+the engine therefore passes the token and drops the key. The mode is a third value of `ClaudeAuth`,
+separate from the local `subscription` mode, and changes only this (`buildChildEnv(env, { auth: "oauth-token" })`):
+
+| Variable | In `oauth-token` mode |
+| --- | --- |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Passed (allowlisted only in this mode; the key and local modes never pass it) |
+| `ANTHROPIC_API_KEY` | Never passed, even when set in the parent. `preflight()` does not refuse a key |
+| everything else | As in the key mode. None of the local mode's extras (`USER`, the isolated `CLAUDE_CONFIG_DIR`, `SUBSCRIPTION_ENV`, `--no-session-persistence`) |
+
+The engine never reads `~/.claude`, the keychain or the token's content beyond handing the variable to
+the unmodified `claude` binary, and never calls the API with it. Bare mode does not read this token;
+the adapter does not use `--bare`. A call the subscription refuses is classified and reported like a
+refused API call, with a message that names the token, never the key, and is not retried with a key.
+`total_cost_usd` on a subscription is an API-price equivalent, so the footer, the paused notice and
+the `wachiman-cost` line (`auth: "oauth-token"`) say it is an estimate.
+
 ## The child environment
 
 The adapter builds the `claude` process environment from an allowlist (`CHILD_ENV_ALLOWLIST` and
@@ -76,7 +99,7 @@ Only these variables are passed, and only when they are set:
 | `TMPDIR` | Temporary files |
 | `TERM` | Terminal capabilities |
 | `LANG` and every `LC_*` | Locale |
-| `ANTHROPIC_API_KEY` | The credential the agent exists to use |
+| `ANTHROPIC_API_KEY` | The credential the agent exists to use. Not passed when `CLAUDE_CODE_OAUTH_TOKEN` is set (see below) |
 | `CLAUDE_CONFIG_DIR` | A non-default Claude Code configuration folder, if the operator set one |
 | `CI`, `GITHUB_ACTIONS` | Tell Claude Code it runs unattended |
 
@@ -128,7 +151,7 @@ is already neutralised by `--restricted` and `--strict-mcp-config`; the check ke
 
 The footer label is built from the model name and `claude --version`, for example "Claude Sonnet
 5.5 via Claude Code 2.1.304". Credential detection (`leaksSecret`) matches the exact
-`ANTHROPIC_API_KEY` and anything shaped like an Anthropic key; the engine throws and posts nothing
+`ANTHROPIC_API_KEY` (and, on a token run, the exact `CLAUDE_CODE_OAUTH_TOKEN`) and anything shaped like an Anthropic key; the engine throws and posts nothing
 when any text matches. An encoded key would pass that check.
 
 ## Start outside the head
