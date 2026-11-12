@@ -55,39 +55,96 @@ describe("push debounce", () => {
     expect(input?.[1]).toMatch(/default: 180/);
   });
 
-  test("the first step of the review job sleeps for synchronize only, before any checkout or model call", () => {
+  test("the wait step sleeps for synchronize only, before the head checkout, any model call and the review", () => {
     const steps = job.slice(job.indexOf("\n    steps:"));
-    const first = steps.slice(steps.indexOf("- name:"), steps.indexOf("\n      - name:", steps.indexOf("- name:") + 1));
-    expect(first).toContain("name: Wait for further pushes");
-    expect(first).toContain("if: github.event.action == 'synchronize'");
-    expect(first).toContain("DEBOUNCE: ${{ inputs.push_debounce_seconds }}");
-    expect(first).toContain('sleep "$seconds"');
-    expect(first).toContain('-gt 0');
-    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("uses: actions/checkout"));
-    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("cli.ts review"));
+    const start = steps.indexOf("- name: Wait for further pushes");
+    const wait = steps.slice(start, steps.indexOf("\n      - name:", start + 1));
+    expect(wait).toContain("if: github.event.action == 'synchronize'");
+    expect(wait).toContain("DEBOUNCE: ${{ inputs.push_debounce_seconds }}");
+    expect(wait).toContain('sleep "$seconds"');
+    expect(wait).toContain('-gt 0');
+    expect(start).toBeLessThan(steps.indexOf("- name: Checkout the pull request head"));
+    expect(start).toBeLessThan(steps.indexOf("- name: Install Claude Code"));
+    expect(start).toBeLessThan(steps.indexOf("cli.ts review"));
   });
 
   test("only the review job debounces: the thread and on-demand jobs have no wait", () => {
     expect(text.match(/Wait for further pushes/g)).toHaveLength(1);
   });
 
-  test("the copy template's review job has the same first step, driven by AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS (180)", () => {
+  test("the copy template's review job has the same wait step, driven by AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS (180)", () => {
     const copy = read("templates/caller-workflow.yml");
     expect(copy).toMatch(/AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180\b/);
     const review = copy.slice(copy.indexOf("\n  review:"), copy.indexOf("\n  threads:"));
     const steps = review.slice(review.indexOf("\n    steps:"));
-    const first = steps.slice(steps.indexOf("- name:"), steps.indexOf("\n      - name:", steps.indexOf("- name:") + 1));
-    expect(first).toContain("name: Wait for further pushes");
-    expect(first).toContain("if: github.event.action == 'synchronize'");
-    expect(first).toContain('sleep "$seconds"');
-    expect(first).toContain("-gt 0");
-    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("uses: actions/checkout"));
-    expect(steps.indexOf("Wait for further pushes")).toBeLessThan(steps.indexOf("cli.ts review"));
+    const start = steps.indexOf("- name: Wait for further pushes");
+    const wait = steps.slice(start, steps.indexOf("\n      - name:", start + 1));
+    expect(wait).toContain("if: github.event.action == 'synchronize'");
+    expect(wait).toContain('sleep "$seconds"');
+    expect(wait).toContain("-gt 0");
+    expect(start).toBeLessThan(steps.indexOf("- name: Install Claude Code"));
+    expect(start).toBeLessThan(steps.indexOf("cli.ts review"));
     expect(copy.match(/Wait for further pushes/g)).toHaveLength(1);
   });
 
   test("the caller template documents the input", () => {
     expect(read("templates/wachiman-review-caller.yml")).toContain("push_debounce_seconds");
+  });
+});
+
+// ADR 0033 decision 14: a run cancelled during the push wait must leave "cannot say" for the new
+// commit, never a letter from an older one. The reset runs before the wait and calls no model.
+describe("PR Confidence reset before the push wait", () => {
+  const reusable = read(".github/workflows/review.yml");
+  const copy = read("templates/caller-workflow.yml");
+  const stepsOf = (text: string) => {
+    const job = text.slice(text.indexOf("\n  review:"), text.indexOf("\n  threads:"));
+    return job.slice(job.indexOf("\n    steps:"));
+  };
+  const stepText = (steps: string, name: string) => {
+    const start = steps.indexOf(`- name: ${name}`);
+    return steps.slice(start, steps.indexOf("\n      - name:", start + 1) === -1 ? undefined : steps.indexOf("\n      - name:", start + 1));
+  };
+
+  for (const [label, text, command] of [
+    ["the reusable workflow", reusable, 'src/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"'],
+    ["the copy template", copy, 'scripts/agent-review/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"'],
+  ] as const) {
+    test(`${label} resets the block before the wait, only for a push, and never blocks the review`, () => {
+      const steps = stepsOf(text);
+      const reset = stepText(steps, "Reset PR Confidence for this commit");
+      expect(reset).toContain(command);
+      expect(reset).toContain("github.event.action == 'synchronize'");
+      expect(reset).toContain("continue-on-error: true");
+      expect(reset).toContain("GH_TOKEN: ${{ github.token }}");
+      // No model: no provider key and no review command in the step.
+      expect(reset).not.toContain("ANTHROPIC_API_KEY");
+      expect(reset).not.toMatch(/cli\.ts review/);
+      const at = steps.indexOf("- name: Reset PR Confidence for this commit");
+      expect(at).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(steps.indexOf("- name: Wait for further pushes"));
+      expect(at).toBeLessThan(steps.indexOf("- name: Install Claude Code"));
+      expect(at).toBeLessThan(steps.indexOf("cli.ts review"));
+      expect(text.match(/Reset PR Confidence for this commit/g)).toHaveLength(1);
+    });
+  }
+
+  test("the reusable workflow has a pr_confidence input, off by default, passed to the review and the reset", () => {
+    const input = reusable.match(/\n {6}pr_confidence:\n([\s\S]*?)(?=\n {4}secrets:)/);
+    expect(input?.[1]).toMatch(/type: boolean/);
+    expect(input?.[1]).toMatch(/default: false/);
+    const steps = stepsOf(reusable);
+    expect(stepText(steps, "Reset PR Confidence for this commit")).toContain("inputs.pr_confidence");
+    expect(stepText(steps, "Review the pull request")).toContain("AGENT_REVIEW_CONFIDENCE: ${{ inputs.pr_confidence }}");
+  });
+
+  test("the copy template switches it with AGENT_REVIEW_CONFIDENCE, off by default", () => {
+    expect(copy).toMatch(/^ {2}AGENT_REVIEW_CONFIDENCE: 0$/m);
+    expect(stepText(stepsOf(copy), "Reset PR Confidence for this commit")).toContain("env.AGENT_REVIEW_CONFIDENCE == '1'");
+  });
+
+  test("the caller template documents the input", () => {
+    expect(read("templates/wachiman-review-caller.yml")).toContain("pr_confidence");
   });
 });
 

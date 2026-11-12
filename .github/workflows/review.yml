@@ -162,6 +162,14 @@ on:
           minute job limit.
         type: number
         default: 180
+      pr_confidence:
+        description: >-
+          Trial. Write PR Confidence, a grade of whether the diff does what the title and body say,
+          into the pull request description after the review (one more small model call per full
+          review), and reset it to "cannot say" at the start of every push run. Not an approval or
+          a check. See docs/pr-confidence.md
+        type: boolean
+        default: false
     secrets:
       ANTHROPIC_API_KEY:
         description: Anthropic API key that pays for the review
@@ -194,23 +202,6 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      # Before any model call. The concurrency group above cancels this run when a newer push
-      # arrives, so a run cancelled here has spent nothing. Only `synchronize` waits.
-      - name: Wait for further pushes
-        if: github.event.action == 'synchronize'
-        env:
-          DEBOUNCE: ${{ inputs.push_debounce_seconds }}
-        run: |
-          seconds="${DEBOUNCE//[[:space:]]/}"
-          if ! [[ "$seconds" =~ ^[0-9]+$ ]]; then
-            echo "::warning title=push_debounce_seconds ignored::'$DEBOUNCE' is not a whole number of seconds; not waiting."
-            exit 0
-          fi
-          if [ "$seconds" -gt 0 ]; then
-            echo "Waiting ${seconds}s for further pushes; a newer push cancels this run before it spends anything."
-            sleep "$seconds"
-          fi
-
       - name: Check the operator input
         env:
           OPERATOR: ${{ inputs.operator }}
@@ -237,19 +228,6 @@ jobs:
             fi
           done
 
-      # The head, not the default merge commit, so the files match the diff's lines. It is
-      # data: it goes into `head/`, a sibling of the engine's `engine/`, no credentials stay in
-      # its .git, and the engine never runs with it as its working directory, so Bun reads no
-      # `bunfig.toml` or `.env` from it.
-      - name: Checkout the pull request head
-        if: steps.gate.outputs.skip != 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: head
-          fetch-depth: 1
-          persist-credentials: false
-
       # In a reusable workflow, `github.workflow_sha` and `github.workflow_ref` describe the
       # caller's workflow, not this one. The `job` context describes the workflow file that
       # defines the job, and the GitHub docs use exactly these two properties to check out a
@@ -266,6 +244,57 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Setup Bun
+        if: steps.gate.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ inputs.bun_version }}
+
+      # PR Confidence (ADR 0033 decision 14): before the push wait and with no model call, the
+      # description block becomes "cannot say" for the commit under review. A run that a newer
+      # push cancels during the wait, or that fails later, leaves no grade of an older commit.
+      # It is best-effort: a failure is a warning and never stops the review.
+      - name: Reset PR Confidence for this commit
+        if: steps.gate.outputs.skip != 'true' && inputs.pr_confidence && github.event.action == 'synchronize'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AGENT_REVIEW_CONFIDENCE: ${{ inputs.pr_confidence }}
+        working-directory: engine
+        run: bun --no-env-file --config=bunfig.toml src/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"
+
+      # Before any model call. The concurrency group above cancels this run when a newer push
+      # arrives, so a run cancelled here has spent nothing. Only `synchronize` waits.
+      - name: Wait for further pushes
+        if: github.event.action == 'synchronize'
+        env:
+          DEBOUNCE: ${{ inputs.push_debounce_seconds }}
+        run: |
+          seconds="${DEBOUNCE//[[:space:]]/}"
+          if ! [[ "$seconds" =~ ^[0-9]+$ ]]; then
+            echo "::warning title=push_debounce_seconds ignored::'$DEBOUNCE' is not a whole number of seconds; not waiting."
+            exit 0
+          fi
+          if [ "$seconds" -gt 0 ]; then
+            echo "Waiting ${seconds}s for further pushes; a newer push cancels this run before it spends anything."
+            sleep "$seconds"
+          fi
+
+      # The head, not the default merge commit, so the files match the diff's lines. It is
+      # data: it goes into `head/`, a sibling of the engine's `engine/`, no credentials stay in
+      # its .git, and the engine never runs with it as its working directory, so Bun reads no
+      # `bunfig.toml` or `.env` from it.
+      - name: Checkout the pull request head
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Record the engine version
         if: steps.gate.outputs.skip != 'true'
         env:
@@ -274,12 +303,6 @@ jobs:
         run: |
           echo "Engine $ENGINE_REPO@$ENGINE_SHA, run from engine/ with --no-env-file and its own bunfig.toml." >> "$GITHUB_STEP_SUMMARY"
           echo "The reviewed head is in head/ and is read as data: its bunfig.toml and .env are never loaded." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Setup Bun
-        if: steps.gate.outputs.skip != 'true'
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: ${{ inputs.bun_version }}
 
       - name: Install Claude Code
         if: steps.gate.outputs.skip != 'true'
@@ -321,6 +344,7 @@ jobs:
           # `opened`, `ready_for_review` or `synchronize`: each is an automatic run that counts
           # against `auto_budget_usd`.
           AGENT_REVIEW_TRIGGER: ${{ github.event.action }}
+          AGENT_REVIEW_CONFIDENCE: ${{ inputs.pr_confidence }}
         # Bun's working directory is `engine/`, which this repository owns. `--config=<path>`
         # needs the equals sign: `-c <path>` did not replace the head's config in Bun 1.3.4.
         working-directory: engine
