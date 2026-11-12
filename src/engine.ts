@@ -87,6 +87,7 @@ import { checkClaims } from "./fidelity/claims";
 import { claimsDigest, claimsInput, stripBlock } from "./fidelity/digest";
 import { buildFidelity } from "./fidelity/grade";
 import { fidelitySummary } from "./fidelity/summary";
+import { publishConfidence } from "./fidelity/sink";
 import type { Fidelity } from "./fidelity/types";
 import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter } from "./providers/types";
@@ -2278,18 +2279,30 @@ function reviewLanded(deps: Deps, repo: string, pr: number, attemptId: string) {
   return reviews.some((r) => (r.body ?? "").trimEnd().endsWith(attemptFooter(attemptId)));
 }
 
-export function postReview(deps: Deps, repo: string, pr: number, headSha: string, review: Review) {
+/** The address of the review GitHub created, from the answer to the POST; undefined when it said none. */
+function reviewUrlOf(answer: string): string | undefined {
+  try {
+    const url = (JSON.parse(answer) as { html_url?: unknown }).html_url;
+    return typeof url === "string" && url.startsWith("https://") ? url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Posts the review. Returns its address when GitHub gave one (the description block links to it). */
+export function postReview(deps: Deps, repo: string, pr: number, headSha: string, review: Review): string | undefined {
   if (deps.config.dryRun) {
     deps.log(`--- review at ${short(headSha)} ---\n${review.body}`);
     for (const c of review.comments) deps.log(`--- ${c.path}:${c.line} ---\n${c.body}`);
-    return;
+    return undefined;
   }
+  let url: string | undefined;
   const sleep = deps.sleep ?? blockingSleep;
   // One id for this call: the retries and the fallback are the same attempt, and an older review
   // of the same head does not carry it.
   const attemptId = crypto.randomUUID();
-  const send = (r: Review) =>
-    deps.gh(
+  const send = (r: Review) => {
+    const answer = deps.gh(
       ["api", "-X", "POST", `repos/${repo}/pulls/${pr}/reviews`, "--input", "-"],
       JSON.stringify({
         commit_id: headSha,
@@ -2298,6 +2311,8 @@ export function postReview(deps: Deps, repo: string, pr: number, headSha: string
         comments: r.comments,
       }),
     );
+    url = reviewUrlOf(answer);
+  };
   // A transient error may hide a POST that did land, so look before each retry.
   const sendWithRetry = (r: Review) => {
     for (let retry = 0; ; retry++) {
@@ -2327,6 +2342,7 @@ export function postReview(deps: Deps, repo: string, pr: number, headSha: string
     deps.warn(`GitHub refused the inline comments; posting them in the body. ${error}`);
     sendWithRetry(moveCommentsToBody(review));
   }
+  return url;
 }
 
 /**
@@ -3176,7 +3192,14 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     commits,
     threads,
   });
-  const result = reviewChange(input, reviewOptionsOf(config, totalBudget), deps);
+  // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
+  // part of the change, and "nothing else changed" cannot be said of a part.
+  const fullReview = since === null && paths.length === 0;
+  const options: ReviewOptions = {
+    ...reviewOptionsOf(config, totalBudget),
+    ...(config.confidence && fullReview ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
+  };
+  const result = reviewChange(input, options, deps);
   const { usage, costUsdEstimate: spent } = result.execution;
   const operation: Operation = since ? "re-review" : "review";
 
@@ -3256,7 +3279,17 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     ...built.comments.map((c) => c.body),
     ...result.threadReplies.map((r) => r.reply),
   ]);
-  postReview(deps, repo, pr, headSha, built);
+  const reviewUrl = postReview(deps, repo, pr, headSha, built);
+  // After the review, best-effort: the review is the record and is already posted.
+  if (config.confidence) {
+    publishConfidence({ gh, dryRun: config.dryRun, log: deps.log, warn: deps.warn, now: deps.now }, repo, pr, {
+      headSha,
+      fidelity: result.fidelity,
+      partialReason: "This review covered only part of the pull request, so it cannot grade the whole change",
+      reviewUrl,
+      permalinkBase: `https://github.com/${repo}`,
+    });
+  }
   // This run's cost and the pull request's total, under each reply. Not flagged automatic: the
   // review body above carries the flagged line, so the ceiling would count the run twice.
   const replyCost = prior ? `\n\n<sub>this run $${spent.toFixed(2)} · ${prSoFar(prior, spent)}</sub>` : "";
