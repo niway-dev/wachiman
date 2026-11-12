@@ -272,7 +272,7 @@ describe("the grade of a pull request review", () => {
     expect(result.fidelity?.reasons).toEqual(["Claim not verified: Logs each retry."]);
   });
 
-  test("an open Blocker gives C, and a pre-existing one does not", () => {
+  test("an open Blocker gives C", () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const blocker = { path: "src/upload.ts", line: 2, severity: "blocker" as const, topic: "bug" as const, confidence: "high" as const, title: "Loses data", body: "It drops the file." };
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths, { findings: [blocker] })]);
