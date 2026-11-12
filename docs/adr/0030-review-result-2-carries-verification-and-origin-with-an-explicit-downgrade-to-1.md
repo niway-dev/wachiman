@@ -2,6 +2,8 @@
 
 > **Default configuration update 2026-11-10:** The default is now Opus 5.5 at effort `high`, with verification off. Enable verification explicitly with `verify: true`, `AGENT_REVIEW_VERIFY=1`, or `local --verify`. This supersedes statements below about the 2026-11-09 defaults; historical decisions remain for context.
 
+> **Default configuration update 2026-11-12:** The default reviewer is now Sonnet 5.5 at effort `high` (verification still off, verifier model still Opus 5.5). Reason and data: https://github.com/niway-dev/wachiman-benchmarks/blob/8acba099ec3a00020a19d58294be25366055e906/martian/models.md.
+
 - **Status:** accepted 2026-11-09; implemented by slice 2 of the CLI plan (branch
   `feat/verified-result-v2`), with working-tree results implemented by slice 6 (`feat/cli-working-tree`); except base evidence in GitHub
   mode, whose shallow credential-free checkout (ADR 0011) has no base commit. Amends the verifier

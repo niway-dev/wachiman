@@ -310,7 +310,7 @@ describe("selection", () => {
     expect(PROVIDER_NAMES).toContain("codex");
     expect(getProvider("codex", { model: "gpt-6.1-sol", dryRun: false, effort: "high" }).name).toBe("codex");
     expect(loadConfig({ AGENT_REVIEW_PROVIDER: "codex" }).model).toBe(DEFAULT_MODELS.codex);
-    expect(loadConfig({}).model).toBe("claude-opus-5-5");
+    expect(loadConfig({}).model).toBe("claude-sonnet-5-5");
     expect(loadConfig({ AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_MODEL: "gpt-6-sol" }).model).toBe("gpt-6-sol");
   });
 });

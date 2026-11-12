@@ -70,7 +70,7 @@ engine through the environment variable in the third column; those variables are
 | `ask_ceiling_usd` | number | `AGENT_REVIEW_ASK_CEILING_USD` | `3` | The most all questions from people other than the operator may spend on one pull request. The operator's questions are not limited. Used only with `askers: write`. |
 | `batch_lines` | number | `AGENT_REVIEW_BATCH_LINES` | `1000` | Changed lines (additions plus deletions) per batch. A whole number. |
 | `batch_chars` | number | `AGENT_REVIEW_BATCH_CHARS` | `140000` | Characters of diff per batch. A whole number. |
-| `model` | string | `AGENT_REVIEW_MODEL` | `claude-opus-5-5` | The model name passed to the provider. The workflow always sends a value, so the engine's per-provider default never applies here. |
+| `model` | string | `AGENT_REVIEW_MODEL` | `claude-sonnet-5-5` | The model name passed to the provider. The workflow always sends a value, so the engine's per-provider default never applies here. |
 | `effort` | string | `AGENT_REVIEW_EFFORT` | `high` | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max`. **New in v1.4.0; v1.3.0's workflow has no such input.** Sent to the engine by both jobs and used by both providers. See [Reasoning effort](#reasoning-effort). |
 | `verify` | boolean | `AGENT_REVIEW_VERIFY` | `false` | After the batches, one more call tries to refute every finding above `info`; a finding is dropped only when the verifier names a disproof whose path and line exist at head, and one it cannot confirm is posted at `low` confidence. **New in v1.10.0, off by default since the 2026-11-10 configuration update; set `true` to enable verification.** ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)) Runs on automatic reviews and `/wachiman review`, not on thread replies. |
 | `verify_budget_usd` | number | `AGENT_REVIEW_VERIFY_BUDGET_USD` | `1` | The verifier's reserve, taken out of `budget_usd` before the batches run, at most half of it. The verifier gets this plus whatever the batches did not spend. Counts against `auto_budget_usd` like any call. |
@@ -159,7 +159,7 @@ applies.
 | `AGENT_REVIEW_ASK_CEILING_USD` | number | `3` | Finite, greater than 0 | The most the questions of everyone but the operator may spend on one pull request, summed from the answers' own cost footers. The operator's questions are not limited. Used only with `askers: write`. | both |
 | `AGENT_REVIEW_BATCH_LINES` | integer | `1000` | Whole number, greater than 0 | Changed lines per batch. | both |
 | `AGENT_REVIEW_BATCH_CHARS` | integer | `140000` | Whole number, greater than 0 | Diff characters per batch (the comment in the code equates this to about 40k tokens at 3.5 characters a token). It counts the diff only, not the whole prompt. | both |
-| `AGENT_REVIEW_MODEL` | string | `claude-opus-5-5` for `claude-code`, `gpt-6.1-sol` for `codex` | Any string the provider accepts | The model name passed to the provider. Not validated by the engine; Codex additionally needs a known price. | both |
+| `AGENT_REVIEW_MODEL` | string | `claude-sonnet-5-5` for `claude-code`, `gpt-6.1-sol` for `codex` | Any string the provider accepts | The model name passed to the provider. Not validated by the engine; Codex additionally needs a known price. | both |
 | `AGENT_REVIEW_PROVIDER` | string | `claude-code` | `claude-code`, `codex` | Which adapter runs the agent. Any other value is a usage error (exit 2) that lists the accepted ones. | n/a |
 | `AGENT_REVIEW_PRICE_PER_MTOK` | string | unset | `input,cached_input,output[,cache_write]`: three or four numbers, each 0 or more | USD per million tokens, used to turn Codex's token counts into dollars. Without the fourth field, cache writes are priced at 2.5 times the input rate (see [costs.md](costs.md)). Takes precedence over the built-in price, also for a model that has one. | Codex only; ignored by Claude |
 | `AGENT_REVIEW_EFFORT` | string | `high` | `low`, `medium`, `high`, `xhigh`, `max` | How hard the model reasons. Always passed explicitly, so a change in a provider CLI's own default cannot alter reviews. **New in v1.4.0.** Any other value is a usage error (exit 2). See [Reasoning effort](#reasoning-effort). | both |
@@ -502,7 +502,7 @@ When everything that changed is excluded or outside the requested scope, the run
 | | Claude Code (`claude-code`) | Codex (`codex`) |
 | --- | --- | --- |
 | Where it runs | Reusable workflow and CLI | CLI only. The workflow installs neither Codex nor an OpenAI key. |
-| Default model | `claude-opus-5-5` | `gpt-6.1-sol` |
+| Default model | `claude-sonnet-5-5` | `gpt-6.1-sol` |
 | Credential | `ANTHROPIC_API_KEY` | `OPENAI_API_KEY` |
 | Binary on `PATH` | `claude` (the workflow installs a pinned version) | `codex` |
 | Cost | Reported by Claude Code | Estimated from tokens at a per-million-token price |
