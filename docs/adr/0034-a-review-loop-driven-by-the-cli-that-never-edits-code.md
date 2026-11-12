@@ -50,7 +50,9 @@ named the owner wanting it as a reopen condition. The owner now wants it for the
    text gone means `probably-fixed`; not reported with the text still there means `not-repeated`
    (still counts). A file the round did not read keeps the previous state. History statuses are not
    used to decide: the history is shared by the whole repository, so a review on another branch
-   could settle the loop's findings. The history still supplies the finding ids.
+   could settle the loop's findings. The history still supplies the finding ids. When the cited line
+   is too short, repeated or missing, the loop fingerprints the file's blob instead, so any edit to
+   that file releases the finding (an accepted limit, see `docs/cli.md`).
 6. Three rounds by default, changed with `--max-rounds`. A review call that fails is retried once.
    Every stop prints its reason. A stop is never an approval.
 7. A `wachiman-loop` skill ships beside `skills/wachiman-review`.
