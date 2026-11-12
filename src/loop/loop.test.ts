@@ -587,8 +587,8 @@ describe("runLoop with a fake review", () => {
     expect(JSON.parse(second.out).released).toEqual([]);
   }, 60_000);
 
-  test("a refuted candidate in another topic on the same cited text does not release the Blocker (exit 10)", () => {
-    const { second } = refutedRound([droppedCandidate({ line: 2, topic: "security", title: "Re-titled candidate" })]);
+  test("a refuted candidate with the same title but another topic does not release the Blocker (exit 10)", () => {
+    const { second } = refutedRound([droppedCandidate({ topic: "security" })]);
     expect(second.code).toBe(10);
     expect(JSON.parse(second.out).released).toEqual([]);
   }, 60_000);
