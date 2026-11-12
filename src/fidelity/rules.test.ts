@@ -85,8 +85,10 @@ describe("isFormattingOnly", () => {
     expect(isFormattingOnly(patch("@@ -1,2 +1,2 @@", "-\tf();", "-g();  ", "+    f();", "+g();"))).toBe(true);
   });
 
-  test("a run of spaces inside a line made one space is formatting; deleting the space is not", () => {
-    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const   a  =  1;", "+const a = 1;"))).toBe(true);
+  test("any change of whitespace inside a line is not formatting: collapsed, widened, deleted or a tab", () => {
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const   a  =  1;", "+const a = 1;"))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", '-const s = "a  b";', '+const s = "a b";'))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", '-const s = "a\tb";', '+const s = "a b";'))).toBe(false);
     expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const a = 1;", "+const a=1;"))).toBe(false);
   });
 
