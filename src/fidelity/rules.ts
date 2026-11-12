@@ -64,7 +64,8 @@ export function isTestPath(path: string): boolean {
  * True when every hunk of the patch that changes anything removes and adds the same number of lines
  * and each added line equals the removed line at its place once the whitespace at its two edges is
  * trimmed. Whitespace inside a line is never touched, so a string literal, `a - -b` against `a --b`,
- * a run of spaces made one, or a statement split or joined over lines is a change.
+ * a run of spaces made one, or a statement split or joined over lines is a change. A hunk with a
+ * backtick is never formatting: the value of a multiline template literal depends on its indentation.
  * Code that moved between hunks, a changed token, a patch with nothing changed and no patch at all
  * are all false.
  */
@@ -77,7 +78,9 @@ export function isFormattingOnly(patch: string | undefined): boolean {
   const close = (): boolean => {
     const changed = removed.length + added.length > 0;
     if (changed) changedHunks++;
-    const ok = !changed || (removed.length === added.length && removed.every((line, i) => line.trim() === added[i]!.trim()));
+    const template = [...removed, ...added].some((line) => line.includes("`"));
+    const same = removed.length === added.length && removed.every((line, i) => line.trim() === added[i]!.trim());
+    const ok = !changed || (same && !template);
     removed = [];
     added = [];
     return ok;

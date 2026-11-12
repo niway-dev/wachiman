@@ -102,6 +102,12 @@ describe("isFormattingOnly", () => {
     expect(isFormattingOnly(patch("@@ -1 +1 @@", "-x = a - -b;", "+x = a --b;"))).toBe(false);
   });
 
+  test("a hunk with a backtick is never formatting: a template literal's value depends on its indentation", () => {
+    expect(isFormattingOnly(patch("@@ -1,2 +1,2 @@", "-const s = `a", "-  b`;", "+const s = `a", "+    b`;"))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const s = `a`;", "+  const s = `a`;"))).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1 +1 @@", "-const s = 'a';", "+  const s = 'a';"))).toBe(true);
+  });
+
   test("a statement joined onto one line, or split over several, is a change", () => {
     expect(isFormattingOnly(patch("@@ -1,2 +1 @@", "-return", "- value;", "+return value;"))).toBe(false);
     expect(isFormattingOnly(patch("@@ -1 +1,3 @@", "-call(a, b, c);", "+call(", "+  a, b, c", "+);"))).toBe(false);
