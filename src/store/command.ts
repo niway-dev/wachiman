@@ -1,0 +1,89 @@
+/**
+ * `wachiman dashboard`: brings the local index up to date from the history files, then prints the
+ * figures as `wachiman.dashboard/1` JSON or writes them as one static HTML file (ADR 0035). It reads
+ * files only: no `claude`, no GitHub, no network, no server, and it never opens a browser.
+ */
+import { chmodSync, closeSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { wachimanHome } from "../accounts/config";
+import { UsageError } from "../config";
+import { readFigures } from "./figures";
+import { renderHtml, type DashboardDocument } from "./html";
+import { refreshIndex } from "./index";
+
+export const DASHBOARD_FORMAT = "wachiman.dashboard/1";
+export const DASHBOARD_FILE = "dashboard.html";
+
+export const dashboardUsage = `wachiman dashboard [--json] [--out <file>] [--repo-dir <dir>]`;
+
+export const LOCAL_ONLY = "Local runs only: those kept by `wachiman local --history` and `wachiman loop`. Runs by the GitHub Actions workflow are not counted.";
+
+export interface DashboardArgs {
+  json: boolean;
+  out?: string;
+}
+
+/** The arguments after `dashboard` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
+export function parseDashboardArgs(argv: string[]): DashboardArgs | { help: true } {
+  const args: DashboardArgs = { json: false };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--help" || arg === "-h") return { help: true };
+    if (!arg.startsWith("--")) throw new UsageError(`dashboard takes no argument "${arg}".`);
+    const eq = arg.indexOf("=");
+    const name = eq === -1 ? arg : arg.slice(0, eq);
+    if (name === "--json") {
+      if (eq !== -1) throw new UsageError("--json takes no value.");
+      args.json = true;
+    } else if (name === "--out") {
+      const v = eq === -1 ? argv[++i] : arg.slice(eq + 1);
+      if (v === undefined || v === "" || (eq === -1 && v.startsWith("--"))) throw new UsageError("--out needs a file name.");
+      args.out = v;
+    } else throw new UsageError(`Unknown option ${name} for dashboard.`);
+  }
+  if (args.json && args.out !== undefined) throw new UsageError("--out writes the HTML page; --json prints to stdout and takes no --out.");
+  return args;
+}
+
+/** Writes `text` to `path` at 0600 through a temporary name beside it: all or nothing. */
+function writeFileAtomic(path: string, text: string) {
+  mkdirSync(dirname(path), { recursive: true });
+  const tmp = `${path}.tmp-${process.pid}`;
+  const fd = openSync(tmp, "w", 0o600);
+  try {
+    writeSync(fd, text);
+    fsyncSync(fd);
+  } catch (error) {
+    closeSync(fd);
+    unlinkSync(tmp);
+    throw error;
+  }
+  closeSync(fd);
+  chmodSync(tmp, 0o600);
+  renameSync(tmp, path);
+}
+
+export interface DashboardIo {
+  stdout: (text: string) => void;
+  stderr: (line: string) => void;
+  now?: () => Date;
+}
+
+export function runDashboard(args: DashboardArgs, env: Record<string, string | undefined>, io: DashboardIo): number {
+  const home = wachimanHome(env);
+  const { path } = refreshIndex(home, io.stderr);
+  const doc: DashboardDocument = {
+    format: DASHBOARD_FORMAT,
+    generatedAt: (io.now?.() ?? new Date()).toISOString(),
+    scope: LOCAL_ONLY,
+    ...readFigures(path),
+  };
+  if (args.json) {
+    io.stdout(`${JSON.stringify(doc, null, 2)}\n`);
+    return 0;
+  }
+  const out = args.out === undefined ? join(home, DASHBOARD_FILE) : resolve(args.out);
+  writeFileAtomic(out, renderHtml(doc));
+  io.stdout(`${out}\n`);
+  return 0;
+}

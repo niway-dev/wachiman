@@ -16,6 +16,8 @@
  *                                       call, no GitHub request, grounded in the stored review (src/local-ask.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
  *   wachiman status                 what the local history kept and its estimated cost; files only
+ *   wachiman dashboard              spend, findings and loops across every repository in the history, as one
+ *                                       static HTML file or JSON, from a rebuildable index (src/store/)
  *   wachiman setup [--profile <name>] bind this repository to an account profile (home config only);
  *                                       on a terminal without --profile it asks
  *   wachiman init                   write the GitHub caller workflow, or hand over to `setup`
@@ -35,6 +37,7 @@ import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
+import { dashboardUsage, parseDashboardArgs, runDashboard } from "./store/command";
 import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { loopUsage, parseLoopArgs, runLoop } from "./loop/command";
@@ -85,6 +88,14 @@ export const USAGE = `Usage:
                                                      What this laptop kept of its local runs and their
                                                      estimated cost, filterable; uses local history. GitHub
                                                      Actions runs are not counted
+  ${dashboardUsage}
+                                                     Write one static HTML page (or print JSON) with the
+                                                     spend per day and repository, the findings by severity
+                                                     and verdict and the loop rounds of every repository in
+                                                     the local history. Built from an index under the
+                                                     Wachiman home that is rebuilt whenever it is missing or
+                                                     out of date; reads files only: no claude, no GitHub,
+                                                     no network, no browser. --repo-dir is accepted and unused
   ${setupUsage}
                                                      Bind this repository to an account profile; written
                                                      in the Wachiman home, never in the repository. On a
@@ -132,6 +143,7 @@ Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
 \`ask\`: 0 an answer was printed (it may say what it could not answer), 1 no answer (the call failed or returned nothing usable), 2 usage error, 130 interrupted.
 \`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
 \`status\`: 0 printed (also with no run kept), 2 usage error.
+\`dashboard\`: 0 written or printed (also with no run kept), 2 usage error, 1 the index or the page could not be written.
 \`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
 \`setup\`, \`init\`: 130 cancelled (Escape, Ctrl-C, Ctrl-D); nothing pending is saved.
 \`skills\`: 0 done (copies left in place are warned about), 1 a copy could not be written, 2 usage error or a refused target.
@@ -350,6 +362,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
       const parsed = parseStatusArgs(args.slice(1));
       if ("help" in parsed) return (writeAll(1, `${statusUsage}\n`), 0);
       return runStatus(parsed, repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line), version: readVersion() });
+    }
+    if (mode === "dashboard") {
+      const parsed = parseDashboardArgs(args.slice(1));
+      if ("help" in parsed) return (writeAll(1, `${dashboardUsage}\n`), 0);
+      return runDashboard(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "history") {
       return runHistory(parseHistoryArgs(args.slice(1)), repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
