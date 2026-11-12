@@ -40,7 +40,8 @@ name: Wachiman review
 # Before the agent is called, `scripts/agent-review/cli.ts` drops lockfiles, build output and
 # generated files, then packs the rest into batches of about 1,000 changed lines, riskiest
 # first, one agent call each with its diff inside the prompt. A batch that leaves files
-# unaccounted for is re-run once with only those files. There is no size gate: the budgets
+# unaccounted for is re-run once with only those files. A pull request whose estimate is above
+# the size gate is skipped with one comment. Otherwise the budgets
 # below limit each run (Claude Code's per-call limit is a soft cap that can be exceeded; see
 # docs/providers/claude-code.md), and a file still not accounted for marks the review
 # "partial" on its first line.
@@ -100,6 +101,9 @@ env:
   # may spend together; the engine sums it from its own signed review footers. `/wachiman review`
   # is not limited by it. A thread-reply run has its own cap, inside this one.
   AGENT_REVIEW_AUTO_BUDGET_USD: 2
+  # A review whose estimate (from the diff size, before any model call) is above this is skipped
+  # with one comment. It is never below what the run may spend, so raising the budgets lifts it.
+  AGENT_REVIEW_SIZE_GATE_USD: 6
   AGENT_REVIEW_THREADS_BUDGET_USD: 0.25
   AGENT_REVIEW_ANSWER_BUDGET_USD: 1
   # Who may ask a question by comment: `operator` (only the operator) or `write` (also a collaborator

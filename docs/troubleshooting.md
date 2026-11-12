@@ -121,6 +121,13 @@ Wachiman replies, since after two Wachiman stays silent there. A scoped `/wachim
 answers open threads. Only replies from `OWNER`, `MEMBER` and `COLLABORATOR` are passed to the
 agent. See [reviews.md](reviews.md#reply-to-a-finding).
 
+**7a. "Not reviewed: this pull request is above the size gate."** The engine estimated the cost of
+reviewing the whole pull request (batches times a per-batch figure, no model call) and it is above
+`size_gate_usd` (default $6) and above the run budget, so nothing was sent and nothing was spent. The
+comment gives the estimate. Set `budget_usd` in your caller to the figure it suggests, then comment
+`/wachiman review`; also raise `auto_budget_usd` to have pushes reviewed automatically. Or comment
+`/wachiman review <path>` for part of it. See [costs.md](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+
 **7b. "Automatic reviews paused: $X of $Y spent on this pull request."** The pull request's automatic
 runs (first review, push reviews, thread replies) reached `auto_budget_usd`. Comment `/wachiman review`
 to review now (it is not limited), or raise `auto_budget_usd` in your caller. See

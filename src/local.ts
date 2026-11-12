@@ -23,7 +23,8 @@ import {
   snapshotHead,
   warnSnapshotDifferences,
 } from "./connectors/local-git";
-import { DEFAULT_EXCLUDE, filterFiles, planBatches, reviewChange, reviewOptionsOf, type ReviewInput, type ReviewResult } from "./engine";
+import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, type ReviewInput, type ReviewResult } from "./engine";
+import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
@@ -433,6 +434,15 @@ export function localScopeInput(p: {
   return { input: built.input, release: () => removeSnapshot(built.snapshotDir) };
 }
 
+/**
+ * The one warning a local run prints when its estimate is above the size gate, or null. Local runs
+ * are never refused: the run continues and stops at its budget.
+ */
+export function sizeWarning(estimate: ReviewEstimate, gate: number, budgetUsd: number, model: string): string | null {
+  if (estimate.usd <= gate) return null;
+  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), above the $${gate.toFixed(2)} size gate. Local runs are never refused; this one continues and stops at its budget, $${budgetUsd.toFixed(2)} (AGENT_REVIEW_BUDGET_USD).`;
+}
+
 export function runLocal(
   args: LocalArgs,
   repoDir: string,
@@ -510,6 +520,8 @@ export function runLocal(
     });
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
     io.stderr(`batches: ${batches.length}`);
+    const warning = sizeWarning(estimateFor(kept, config), sizeGate(config, false), config.budgetUsd, config.model);
+    if (warning) io.stderr(warning);
     io.stderr(
       config.verify
         ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})`

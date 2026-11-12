@@ -63,6 +63,7 @@ engine through the environment variable in the third column; those variables are
 | `mention` | string | `AGENT_REVIEW_MENTION` | `/wachiman` | The command word the on-demand job listens for, next to `/wachiman`, `/wachi`, `@agent-review` and `@claude`, which always work. See [Mentions and commands](#mentions-and-commands). |
 | `budget_usd` | number | `AGENT_REVIEW_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit: that is `auto_budget_usd`. A pull request too big for one budget is finished over several runs: a partial review records the files it did not reach and the next push reviews them. See [Budgets](#budgets) and [Incremental reviews](cli.md#incremental-reviews). |
 | `auto_budget_usd` | number | `AGENT_REVIEW_AUTO_BUDGET_USD` | `6` | The most **all automatic runs on one pull request** may spend together: the first review, push reviews and thread-reply runs ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)). **New in v1.5.0.** The engine sums it from the cost line of its own signed review footers marked automatic, so it needs no server. A run starts with at most what is left; at the ceiling it posts one notice and stops. The operator's `/wachiman review` is not limited by it. A number greater than 0. See [Budgets](#budgets). |
+| `size_gate_usd` | number | `AGENT_REVIEW_SIZE_GATE_USD` | `6` | **New in the next release** ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). A gate, not a budget. Above the estimated cost of the whole review the run posts no review and spends nothing, and one comment says what the review would cost and which `budget_usd` to set. Never below what the run may spend: the larger of this and `budget_usd` for `/wachiman review`, the larger of this and the smaller of `budget_usd` and `auto_budget_usd` for an automatic run. A finite number greater than 0; there is no unlimited value. See [the size gate](costs.md#the-size-gate). |
 | `threads_budget_usd` | number | `AGENT_REVIEW_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in v1.5.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
 | `batch_budget_usd` | number | `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
 | `answer_budget_usd` | number | `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | The cap given to the one call that answers a question. Separate from `budget_usd`. |
@@ -151,6 +152,7 @@ applies.
 | `AGENT_REVIEW_MENTION` | string | `/wachiman` | Any non-empty string | The command word `comment` looks for, in addition to `/wachiman`, `@agent-review` and `@claude`. An empty value counts as unset. | both |
 | `AGENT_REVIEW_BUDGET_USD` | number | `3` | Finite, greater than 0 | Total for one `review` invocation. See [Budgets](#budgets). | both |
 | `AGENT_REVIEW_AUTO_BUDGET_USD` | number | `6` | Finite, greater than 0 | Ceiling for all automatic runs on one pull request, summed from the engine's own signed review footers. **New in v1.5.0.** Applies only when `AGENT_REVIEW_TRIGGER` names an automatic run; `/wachiman review` (`comment`) ignores it. See [Budgets](#budgets). | both |
+| `AGENT_REVIEW_SIZE_GATE_USD` | number | `6` | Finite, greater than 0 | The size gate ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). **New in the next release.** In GitHub mode, a run whose estimated cost is above the gate posts one comment and no review, and spends nothing. In `local` it only prints a warning and the run continues. See [the size gate](costs.md#the-size-gate). | both |
 | `AGENT_REVIEW_THREADS_BUDGET_USD` | number | `0.25` | Finite, greater than 0 | Cap for the one provider call of a `threads` run. **New in v1.5.0.** | same as the batch cap |
 | `AGENT_REVIEW_TRIGGER` | string | unset | A lowercase event action: `opened`, `ready_for_review`, `synchronize`, `comment`, `thread`… | Why the run started. **New in v1.5.0.** `comment` is the operator's command and is never limited by the ceiling; any other value is an automatic run that is. Unset means a person ran the CLI by hand, which is not limited either. The workflow sets it (`github.event.action`, `comment`, `thread`); the `comment` and `threads` commands set it themselves, whatever the environment says. A value that is not a lowercase word is a usage error (exit 2). | both |
 | `AGENT_REVIEW_BATCH_BUDGET_USD` | number | `0.75` | Finite, greater than 0 | Cap passed with each provider call in a review, limited by what is left of the total. | Claude: sent as `--max-budget-usd`, a soft cap. Codex: used for accounting only, never enforced. |
@@ -287,6 +289,10 @@ GitHub-side applies.
   Also `AGENT_REVIEW_HISTORY=1` (keep the [history](local-review.md#keep-a-history-of-your-runs-optional)
   of the run, the same as `--history`) and `AGENT_REVIEW_HISTORY_DAYS` (days to keep it, default 30,
   `0` forever, anything else exits 2 before any call). GitHub mode ignores both.
+- **Apply as a warning only:** `AGENT_REVIEW_SIZE_GATE_USD`. Above it, `local` prints one line on
+  stderr and continues; it never refuses or asks ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)).
+  The money caps are `AGENT_REVIEW_BUDGET_USD` for the run and `AGENT_REVIEW_BATCH_BUDGET_USD` for
+  each call.
 - **Do not apply:** `AGENT_REVIEW_AUTO_BUDGET_USD` (no ceiling), `AGENT_REVIEW_THREADS_BUDGET_USD`,
   `AGENT_REVIEW_OPERATOR`, `AGENT_REVIEW_MENTION`, `AGENT_REVIEW_TRIGGER` (ignored: the run is a
   person's) and `AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE` (a refused call is the `stop:` line of the
@@ -384,7 +390,8 @@ How to use these commands day to day is in [reviews.md](reviews.md).
 
 ## Budgets
 
-There are five dollar settings and they bound different things. Four of them are per invocation: one
+There are five dollar settings and they bound different things. A sixth number, `size_gate_usd`, is
+not one of them: it spends nothing and only decides whether a run starts (see the last row). Four of them are per invocation: one
 automatic run, one comment, one thread-reply run, or one CLI call. A re-run, a second comment, or two
 jobs at once each start from the full budget. The fifth, `auto_budget_usd`, adds the automatic runs
 of one pull request together.
@@ -396,6 +403,7 @@ of one pull request together.
 | `batch_budget_usd` / `AGENT_REVIEW_BATCH_BUDGET_USD` | The cap handed to each single provider call. |
 | `threads_budget_usd` / `AGENT_REVIEW_THREADS_BUDGET_USD` | The cap handed to the one call of a thread-reply run (default $0.25). |
 | `answer_budget_usd` / `AGENT_REVIEW_ANSWER_BUDGET_USD` | The cap handed to the one call that answers a question. An answer does not touch `budget_usd`, and a review does not touch this. |
+| `size_gate_usd` / `AGENT_REVIEW_SIZE_GATE_USD` | Not a budget: the estimated cost of the whole review above which a run posts no review and spends nothing, default $6 ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). Never below the run budget. See [costs.md](costs.md#the-size-gate). |
 | `ask_ceiling_usd` / `AGENT_REVIEW_ASK_CEILING_USD` | The most all questions from people other than the operator may spend on one pull request (default $3), summed from the answers' cost footers. See [Questions from collaborators](cli.md#questions-from-collaborators). |
 
 ### The ceiling per pull request

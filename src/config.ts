@@ -23,6 +23,12 @@ export interface EngineConfig {
    * footers. The operator's `comment` is not limited by it.
    */
   autoBudgetUsd: number;
+  /**
+   * `AGENT_REVIEW_SIZE_GATE_USD`: the most a review's estimate may be before a GitHub run skips it
+   * and posts one comment instead. The effective gate is never below what the run may spend
+   * (`sizeGate` in estimate.ts), so raising the budgets lifts it. Local runs only warn.
+   */
+  sizeGateUsd: number;
   /** `AGENT_REVIEW_THREADS_BUDGET_USD`: the one provider call of a thread-only run. */
   threadsBudgetUsd: number;
   /**
@@ -193,6 +199,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   return {
     budgetUsd: number("BUDGET_USD", 3),
     autoBudgetUsd: number("AUTO_BUDGET_USD", 6),
+    sizeGateUsd: number("SIZE_GATE_USD", 6),
     threadsBudgetUsd: number("THREADS_BUDGET_USD", 0.25),
     trigger: trigger || undefined,
     batchBudgetUsd: number("BATCH_BUDGET_USD", 0.75),

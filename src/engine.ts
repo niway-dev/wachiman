@@ -32,6 +32,7 @@ import { spawnSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { isAutomatic, operatorProblem, type EngineConfig, type Trigger } from "./config";
 import {
   EVIDENCE_CAPS,
@@ -2363,6 +2364,81 @@ export function ceilingRoom(
   return null;
 }
 
+/** The estimate of reviewing `files` with this configuration: the batches `planBatches` makes, priced per batch. */
+export function estimateFor(files: ReviewFile[], config: EngineConfig): ReviewEstimate {
+  const batches = planBatches(files, { maxLines: config.batchLines, maxChars: config.batchChars }).length;
+  return estimateReview(files, { batches, batchBudgetUsd: config.batchBudgetUsd, model: config.model });
+}
+
+/** The hidden marker of the size-gate comment, so the next push updates it instead of adding another. */
+export const SIZE_GATE_MARKER = "<!-- wachi:size-gate -->";
+
+const usd2 = (n: number) => `$${n.toFixed(2)}`;
+const count = (n: number) => n.toLocaleString("en-US");
+
+/**
+ * The comment that says a pull request was not reviewed because its estimate is above the size
+ * gate (nothing was sent to a model), what the estimate rests on, and the inputs that lift it.
+ */
+export function sizeGateBody(o: {
+  estimate: ReviewEstimate;
+  gate: number;
+  headSha: string;
+  mention: string;
+  model: string;
+}): string {
+  const { estimate: e, gate, headSha, mention, model } = o;
+  const budget = suggestedBudget(e.usd);
+  return [
+    branded(
+      `**Not reviewed: this pull request is above the size gate.** Reviewing all of it would cost about **${usd2(e.usd)}**, and the gate is **${usd2(gate)}**, so nothing was sent to a model and nothing was spent.`,
+    ),
+    `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines), from the diff alone, before any model call. It can be off by about 40% either way.`,
+    `To review the whole pull request, set the run budget in the workflow that calls Wachiman, then comment \`${mention} review\`:`,
+    ["```yaml", "    with:", `      budget_usd: ${budget}`, "```"].join("\n"),
+    `A \`budget_usd\` at or above the estimate lifts the gate for that run. To have pushes reviewed automatically as well, also set \`auto_budget_usd: ${budget}\`. To review part of it now, comment \`${mention} review <path> [path…]\`.`,
+    `<sub>Estimated at \`${short(headSha)}\`. This comment is updated on each push instead of a new one.</sub>`,
+    SIZE_GATE_MARKER,
+  ].join("\n\n");
+}
+
+/**
+ * Posts the size-gate comment, or updates the one already there. Only the bot's own comments are
+ * looked at, so a person cannot plant the marker. The comment has no cost line, so
+ * `automaticSpend` does not count it.
+ */
+export function postSizeGateNotice(
+  deps: Deps,
+  repo: string,
+  pr: number,
+  headSha: string,
+  estimate: ReviewEstimate,
+  gate: number,
+) {
+  const { config } = deps;
+  const body = sizeGateBody({
+    estimate,
+    gate,
+    headSha,
+    mention: config.mention,
+    model: config.model,
+  });
+  if (config.dryRun) {
+    deps.log("--- size gate comment ---\n" + body);
+    return;
+  }
+  const jq = '.[] | select(.user.login == "github-actions[bot]") | {id, body} | @json';
+  const existing = jsonLines<{ id: number; body: string | null }>(
+    deps.gh(["api", "--paginate", `repos/${repo}/issues/${pr}/comments`, "--jq", jq]),
+  ).filter((c) => (c.body ?? "").includes(SIZE_GATE_MARKER));
+  const last = existing[existing.length - 1];
+  if (last) {
+    deps.gh(["api", "-X", "PATCH", `repos/${repo}/issues/comments/${last.id}`, "-f", `body=${body}`]);
+    return;
+  }
+  deps.gh(["pr", "comment", String(pr), "-R", repo, "--body-file", "-"], body);
+}
+
 /** Waits before the 1st and 2nd retry of a review POST GitHub answered with a transient error. */
 export const REVIEW_RETRY_DELAYS_MS = [1_000, 3_000];
 
@@ -3361,6 +3437,15 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
       ].join("\n\n"),
       comments: [],
     });
+    return;
+  }
+  // The size gate: what this run would send, priced before any model call. Nothing is posted as a
+  // review and no marker is written, so the next push sees no marker and gates again.
+  const estimate = estimateFor(allBinary.reviewable, config);
+  const gate = sizeGate(config, isAutomatic(config.trigger));
+  if (estimate.usd > gate) {
+    deps.log(`Estimated $${estimate.usd.toFixed(2)} is above the $${gate.toFixed(2)} size gate; nothing sent to a model.`);
+    postSizeGateNotice(deps, repo, pr, headSha, estimate, gate);
     return;
   }
   // After the rebase exits above (they cost nothing and move the marker) and before any paid step.

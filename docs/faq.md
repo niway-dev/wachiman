@@ -149,6 +149,15 @@ within seconds of a push is answered by that push's review), and only while the 
 `auto_budget_usd`. A collaborator's or a stranger's reply starts nothing. A caller written earlier
 has to add the trigger ([upgrading.md](upgrading.md)). See [reviews.md](reviews.md#reply-to-a-finding).
 
+### Wachiman posted "Not reviewed: this pull request is above the size gate". Why?
+
+Before any model call, Wachiman estimates what reviewing the whole pull request would cost. When
+that is above `size_gate_usd` (default $6) and above your run budget, it reviews nothing, spends
+nothing and posts one comment with the estimate. Set `budget_usd` in your caller workflow to the
+figure in the comment, then comment `/wachiman review`; raise `auto_budget_usd` too for automatic
+push reviews. Or ask for part with `/wachiman review <path>`. See
+[costs.md](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+
 ### What does a dry run cost?
 
 It prints the review instead of posting it, and it still calls the model, so it can still spend
