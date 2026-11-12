@@ -573,8 +573,8 @@ describe("runLoop with a fake review", () => {
     expect(JSON.parse(second.out).released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "refuted" })]);
   }, 60_000);
 
-  test("a dropped candidate in the same file with another topic and title, on another line, does not release the Blocker (exit 10)", () => {
-    const { second } = refutedRound([droppedCandidate({ line: 4, topic: "security", title: "Unrelated candidate" })]);
+  test("a dropped candidate in the same file and topic with another title, on a line with other text, does not release the Blocker (exit 10)", () => {
+    const { second } = refutedRound([droppedCandidate({ line: 4, title: "Unrelated candidate" })]);
     expect(second.code).toBe(10);
     const doc = JSON.parse(second.out);
     expect(doc.released).toEqual([]);

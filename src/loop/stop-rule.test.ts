@@ -113,7 +113,7 @@ describe("isRefutedBy", () => {
   test("the same title key under another topic does not match", () => {
     expect(isRefutedBy({ ...tracked, topic: "perf", lineText: "somethingelse();" }, tracked)).toBe(false);
   });
-  test("the same topic with a different title and different line text does not match, whatever the line number", () => {
+  test("the same topic with a different title and different line text does not match: no line number is compared", () => {
     expect(isRefutedBy({ ...tracked, titleKey: "other", lineText: "somethingelse();" }, tracked)).toBe(false);
   });
   test("the same cited line text and topic matches even when the line moved or the title differs", () => {
