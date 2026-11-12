@@ -311,7 +311,7 @@ function settle(
   const expected = new Set(result.coverage.expected);
   const readThisRound = new Set(result.coverage.reviewed.filter((p) => expected.has(p)));
   const dropped = (result.verification?.entries ?? []).filter((e) => e.outcome === "dropped" && e.status === "refuted");
-  const droppedKeys = dropped.map((d) => ({ path: d.path, topic: d.topic, titleKey: titleKey(d.title), lineText: fingerprintAt(repoDir, head, d.path, d.line).lineText }));
+  const droppedKeys = dropped.map((d) => ({ path: d.path, topic: d.topic, titleKey: titleKey(d.title) }));
   type Reported = { id: string; path: string; line: number; severity: LedgerEntry["severity"]; topic: LedgerEntry["topic"]; title: string };
   const findings = result.findings as unknown as Reported[];
 
@@ -356,7 +356,7 @@ function settle(
       if (again) return { ...seen(again), id: e.id };
       const refuted =
         e.refuted ||
-        droppedKeys.some((d) => isRefutedBy(d, { path: e.path, topic: e.topic, titleKey: titleKey(e.title), lineText: e.lineText }));
+        droppedKeys.some((d) => isRefutedBy(d, { path: e.path, topic: e.topic, titleKey: titleKey(e.title) }));
       const fp = readThisRound.has(e.path) ? fingerprintOf(e) : undefined;
       if (!fp || (fp.lineText === undefined && fp.blobSha === undefined)) return { ...e, refuted };
       return { ...e, refuted, linesChanged: undefined, lineText: fp.lineText, blobSha: fp.blobSha, status: regionChanged(repoDir, head, e.path, fp) ? "probably-fixed" : "not-repeated" };

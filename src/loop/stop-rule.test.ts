@@ -105,26 +105,15 @@ describe("roundCapReached", () => {
 });
 
 describe("isRefutedBy", () => {
-  const tracked = { path: "src/a.ts", topic: "bug" as const, titleKey: "null deref", lineText: "returnuser.name;" };
+  const tracked = { path: "src/a.ts", topic: "bug" as const, titleKey: "null deref" };
   test("same file, topic and title key matches", () => {
-    expect(isRefutedBy({ ...tracked, lineText: undefined }, tracked)).toBe(true);
-    expect(isRefutedBy({ ...tracked, lineText: "somethingelse();" }, tracked)).toBe(true);
+    expect(isRefutedBy(tracked, tracked)).toBe(true);
   });
   test("the same title key under another topic does not match", () => {
-    expect(isRefutedBy({ ...tracked, topic: "perf", lineText: "somethingelse();" }, tracked)).toBe(false);
+    expect(isRefutedBy({ ...tracked, topic: "perf" }, tracked)).toBe(false);
   });
-  test("the same topic with a different title and different line text does not match: no line number is compared", () => {
-    expect(isRefutedBy({ ...tracked, titleKey: "other", lineText: "somethingelse();" }, tracked)).toBe(false);
-  });
-  test("the same cited line text and topic matches even when the line moved or the title differs", () => {
-    expect(isRefutedBy({ ...tracked, titleKey: "other" }, tracked)).toBe(true);
-  });
-  test("the same cited line text under another topic does not match: a disproof of another concern closes nothing", () => {
-    expect(isRefutedBy({ ...tracked, titleKey: "other", topic: "security" }, tracked)).toBe(false);
-  });
-  test("the text branch is skipped when either side has no line text", () => {
-    expect(isRefutedBy({ ...tracked, titleKey: "other", lineText: undefined }, tracked)).toBe(false);
-    expect(isRefutedBy({ ...tracked, titleKey: "other" }, { ...tracked, lineText: undefined })).toBe(false);
+  test("the same topic with a different title does not match: a disproof of another claim closes nothing", () => {
+    expect(isRefutedBy({ ...tracked, titleKey: "other" }, tracked)).toBe(false);
   });
   test("never another file", () => {
     expect(isRefutedBy({ ...tracked, path: "src/b.ts" }, tracked)).toBe(false);
