@@ -57,7 +57,12 @@ files, using Bun's built-in SQLite ([ADR 0035](adr/0035-a-rebuildable-sqlite-ind
   the schema, or one older than the files it was built from (a new run, a new verdict, a loop round)
   is deleted and built again. The new file is written under a temporary name and renamed into place,
   with mode `0600`, so a reader sees all of it or none.
-- **A damaged history file** is moved aside with a warning, exactly as `wachiman history` does.
+- **A damaged run file** is moved aside to `<name>.unreadable-<unix-seconds>` with a warning, exactly as
+  `wachiman history` does. A loop state file whose content does not parse, or has the wrong shape, is
+  skipped with a `dashboard:` warning and left in place, so the index is rebuilt on every call and the
+  warning repeats until the file is fixed or removed. A loop file that cannot be read for another reason,
+  such as permissions or I/O, makes the command fail with that error. A half-written last line in
+  `verdicts.jsonl` is ignored without a warning.
 
 ## The HTML page
 
