@@ -116,8 +116,11 @@ describe("isRefutedBy", () => {
   test("the same topic with a different title and different line text does not match, whatever the line number", () => {
     expect(isRefutedBy({ ...tracked, titleKey: "other", lineText: "somethingelse();" }, tracked)).toBe(false);
   });
-  test("the same cited line text matches even when the line moved or the title and topic differ", () => {
-    expect(isRefutedBy({ ...tracked, titleKey: "other", topic: "perf" }, tracked)).toBe(true);
+  test("the same cited line text and topic matches even when the line moved or the title differs", () => {
+    expect(isRefutedBy({ ...tracked, titleKey: "other" }, tracked)).toBe(true);
+  });
+  test("the same cited line text under another topic does not match: a disproof of another concern closes nothing", () => {
+    expect(isRefutedBy({ ...tracked, titleKey: "other", topic: "security" }, tracked)).toBe(false);
   });
   test("the text branch is skipped when either side has no line text", () => {
     expect(isRefutedBy({ ...tracked, titleKey: "other", lineText: undefined }, tracked)).toBe(false);

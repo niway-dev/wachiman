@@ -581,6 +581,18 @@ describe("runLoop with a fake review", () => {
     expect(doc.open).toEqual([expect.objectContaining({ path: "src/a.ts", severity: "blocker" })]);
   }, 60_000);
 
+  test("a Blocker is also released when the verifier refuted a candidate in the same topic on the same cited text, whatever its title", () => {
+    const { second } = refutedRound([droppedCandidate({ line: 2, title: "Re-titled candidate" })]);
+    expect(second.code).toBe(0);
+    expect(JSON.parse(second.out).released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "refuted" })]);
+  }, 60_000);
+
+  test("a refuted candidate in another topic on the same cited text does not release the Blocker (exit 10)", () => {
+    const { second } = refutedRound([droppedCandidate({ line: 2, topic: "security", title: "Re-titled candidate" })]);
+    expect(second.code).toBe(10);
+    expect(JSON.parse(second.out).released).toEqual([]);
+  }, 60_000);
+
   test("a usage error from the review is not retried", () => {
     const repo = branchRepo();
     let calls = 0;

@@ -85,16 +85,17 @@ export const roundCapReached = (roundsRun: number, max: number) => roundsRun >= 
 /**
  * Whether a candidate the verifier dropped with a checked disproof is a finding the loop already
  * tracks. A dropped candidate has no history id (it was never reported), so it is matched the way
- * the history matches a finding: in the same file, either the same topic and the same title key, or
+ * the history matches a finding: in the same file and the same topic, either the same title key or
  * the same stripped text on the cited line (`lineText`, taken at the current head by the caller).
- * A line number never matches, and the text branch is skipped when either side has no `lineText`
- * (only a blob sha).
+ * The topic is always required, because here a match closes a finding (the history's topic-free line
+ * match only links a sighting to one that stays open). A line number never matches, and the text
+ * branch is skipped when either side has no `lineText` (only a blob sha).
  */
 export function isRefutedBy(
   dropped: { path: string; topic: Topic; titleKey: string; lineText?: string },
   tracked: { path: string; topic: Topic; titleKey: string; lineText?: string },
 ): boolean {
-  if (dropped.path !== tracked.path) return false;
-  if (dropped.topic === tracked.topic && dropped.titleKey === tracked.titleKey) return true;
+  if (dropped.path !== tracked.path || dropped.topic !== tracked.topic) return false;
+  if (dropped.titleKey === tracked.titleKey) return true;
   return dropped.lineText !== undefined && tracked.lineText !== undefined && dropped.lineText === tracked.lineText;
 }
