@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, readdirSync, symlinkSync, mkdirSync, statSync, chmodSync, copyFileSync, unlinkSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, symlinkSync, mkdirSync, statSync, chmodSync, unlinkSync, rmSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { emptyRepo, commit, git, removeTempRepos } from "../../test/support/temp-repo";
 import { commentableLines, annotateDiff } from "../engine";
@@ -276,23 +276,29 @@ test("all freezes every tracked identity before reading content, so a later file
 function gitWorkingTree(dir: string) {
   const scratch = emptyRepo();
   const index = join(scratch, ".git/index");
-  copyFileSync(join(dir, ".git/index"), index);
-  const run = (...args: string[]) => {
+  const run = (input: string | undefined, ownIndex: boolean, ...args: string[]) => {
     const r = spawnSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", ...args], {
       cwd: dir,
+      input,
       env: {
         ...process.env,
-        GIT_INDEX_FILE: index,
-        GIT_OBJECT_DIRECTORY: join(scratch, ".git/objects"),
-        GIT_ALTERNATE_OBJECT_DIRECTORIES: join(dir, ".git/objects"),
+        ...(ownIndex && {
+          GIT_INDEX_FILE: index,
+          GIT_OBJECT_DIRECTORY: join(scratch, ".git/objects"),
+          GIT_ALTERNATE_OBJECT_DIRECTORIES: join(dir, ".git/objects"),
+        }),
       },
       encoding: "utf8",
     });
     expect(r.status).toBe(0);
-    return r.stdout.trim();
+    return ownIndex ? r.stdout.trim() : r.stdout;
   };
-  run("add", "-u");
-  return run("write-tree");
+  // Rebuild the scratch index from the entries alone instead of copying the index file. A copy keeps
+  // the recorded stat data and gets a fresh mtime, so Git's racy-timestamp check no longer fires and
+  // `add -u` trusts "same size and same whole-second mtime" to skip re-hashing an edited file.
+  run(run(undefined, false, "ls-files", "--stage", "-z"), true, "update-index", "-z", "--index-info");
+  run(undefined, true, "add", "-u");
+  return run(undefined, true, "write-tree");
 }
 
 function capturedTree(dir: string) {
@@ -358,6 +364,23 @@ for (const fileMode of [false, true]) {
     });
   }
 }
+
+test("all sees a same-size edit that keeps the indexed mtime, which Git's stat shortcut would skip", () => {
+  const dir = emptyRepo();
+  // Git then compares only size and whole-second mtime, so equal values below mean "unchanged" to it.
+  git(dir, "config", "core.checkStat", "minimal");
+  git(dir, "config", "core.trustCtime", "false");
+  const file = join(dir, "same-size");
+  const past = new Date(Math.floor(Date.now() / 1000) * 1000 - 3600_000); // Old enough that no racy-timestamp rule applies.
+  writeFileSync(file, "old-value\n");
+  utimesSync(file, past, past);
+  commit(dir, {}, "same size");
+  writeFileSync(file, "new-value\n"); // Same inode, same size, same mtime: the index entry still matches.
+  utimesSync(file, past, past);
+  const expected = gitWorkingTree(dir);
+  expect(expected).not.toBe(git(dir, "rev-parse", "HEAD^{tree}").trim());
+  expect(capturedTree(dir)).toBe(expected);
+});
 
 test("all uses the owner executable bit, like Git, when file modes are trusted", () => {
   const dir = emptyRepo();
