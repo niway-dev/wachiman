@@ -77,8 +77,8 @@ Each has the default the build uses if nobody answers.
    are not in it. *Default:* unchanged in phase 1; phase 0 measures the extra cost; if it exceeds
    the bar, the estimate gains a sibling term in its own decision.
 5. **`pinned` beyond a JSON key.** Lockfiles, Swift packages, Gradle catalogs pin versions in
-   formats the engine does not parse. *Default:* phase 1 reads an exact version from a dotted key
-   of a JSON file in the consumer, or a literal ref in the manifest; anything else falls back to
+   formats the engine does not parse. *Default:* phase 1 reads an exact version from a key path
+   (an array of literal keys) of a JSON file in the consumer, or a literal ref in the manifest; anything else falls back to
    `tip` with the reason in the report.
 6. **Where the per-user workspace file lives.** *Default:* `~/.wachiman/workspaces.json`, a list of
    workspaces keyed by the manifest's absolute path, next to the ADR 0029 config, never in a
@@ -321,7 +321,7 @@ agent on the user's word:
 
 | Rule | What is read | When it cannot be resolved |
 | --- | --- | --- |
-| `pinned` (default) | When the reviewed repository is the consumer and the sibling the provider: the commit of the tag the consumer pins. The pin is a literal `ref` in the contract, or `pin: { "file": "package.json", "key": "dependencies.@acme/ui-kit", "tag": "v{version}" }` read from the reviewed head | No pin declared, a range instead of an exact version, the tag not in the sibling's local refs, or any other direction (nothing pins a consumer): read `tip`, and the report says why |
+| `pinned` (default) | When the reviewed repository is the consumer and the sibling the provider: the commit of the tag the consumer pins. The pin is a literal `ref` in the contract, or `pin: { "file": "package.json", "key": ["dependencies", "@acme/ui-kit"], "tag": "v{version}" }` read from the reviewed head. `key` is a path of literal keys, never a dotted string, because package names contain dots (`chart.js`) | No pin declared, a range instead of an exact version, the tag not in the sibling's local refs, or any other direction (nothing pins a consumer): read `tip`, and the report says why |
 | `local` | The sibling's `HEAD` commit, whatever branch it is on, for an all-local test with a version made up on the laptop | Uncommitted changes are not read and are reported (open question 3) |
 | `tip` | The commit `refs/remotes/origin/HEAD` points to, as last fetched; never fetched by Wachiman (ADR 0019) | No remote default recorded: read `local`, and the report says why |
 
@@ -357,7 +357,9 @@ any fallback with its reason, the SHA read, and for `tip` the age of the last fe
 
 ### Result format
 
-Additive, optional fields on result `/2` (ADR 0019 decision 9's rule):
+Additive, optional fields on result `/2` (ADR 0019 decision 9's rule). The published schema
+(`docs/formats/review-result.v2.schema.json`, closed with `additionalProperties: false`) gains them
+in the same change (ADR 0043, Consequences):
 
 - `siblings[]`: `member`, `repo`, `visibility`, `rule`, `ruleSource`, `fallback?`, `sha`,
   `fetchedAt?`, `paths[]`, `status` (`read`, `not-cloned`, `not-watched`, `uncommitted-not-read`).
@@ -374,7 +376,7 @@ re-materialises the same snapshots from each sibling's repository by the stored 
 gone or the member is not cloned, the answer says which sibling it could not read, and references
 into it are removed and counted. An answer grounded in a labelled review is labelled.
 
-`ask` selects no sibling of its own: it reads exactly what the stored review read. `ask --distributed-repo` on a range whose stored review has no siblings, or with no stored review, exits 2 and says to run `wachiman local --distributed-repo --history` first; a per-user default of `on` in that case does nothing and says so in one line. `ask` without the flag on a review that read siblings still re-materialises them and labels the answer, because the answer must stand on the same evidence as the review (ADR 0043 decision 4).
+`ask` selects no sibling of its own: it reads exactly what the stored review read. `ask --distributed-repo` on a range whose stored review has no siblings, or with no stored review, exits 2 and says to run `wachiman local --distributed-repo --history` first; a per-user default of `on` in that case does nothing and says so in one line. `ask` without the flag on a review that read siblings still re-materialises them and labels the answer, because the answer must stand on the same evidence as the review (ADR 0043 decisions 4 and 5).
 
 ## Phase 0: measure before building
 

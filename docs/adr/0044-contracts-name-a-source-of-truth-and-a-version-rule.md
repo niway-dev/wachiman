@@ -61,10 +61,12 @@ keeps per-user overrides in `local_manifests`
    reported. `--sibling <dir>` adds a member by hand for one run. With none applied, the report
    says "no workspace contract applied" in one line.
 5. **A version rule resolves each sibling's commit.** `pinned` (default): the tag the consumer
-   pins, from a literal `ref` in the contract or a `pin` (a JSON file in the consumer, a dotted
-   key, a tag template); when it cannot be resolved, or when nothing pins the side being read, the
+   pins, from a literal `ref` in the contract or a `pin` (a JSON file in the consumer, a key path
+   of literal keys, a tag template); when it cannot be resolved, or when nothing pins the side being read, the
    engine reads `tip` and the report says why. `local`: the sibling's `HEAD` commit. `tip`: the
-   commit `refs/remotes/origin/HEAD` points to, as last fetched. Wachiman never fetches.
+   commit `refs/remotes/origin/HEAD` points to, as last fetched. Wachiman never fetches. With no
+   `refs/remotes/origin/HEAD` recorded, `tip` reads `local` and the report says so, so a `tip`
+   line that is really a read of unpushed work is visible.
 6. **One precedence, one place per level.** First match wins: the per-user workspace file per
    contract, then per member; the manifest's contract, then its member; then `pinned`. The
    per-user file (`~/.wachiman/workspaces.json`) is never committed and also holds the mode's

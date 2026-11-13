@@ -48,7 +48,9 @@ is a new decision, not a reopen.
    user wrote it. **The engine expands the globs itself:** it lists the
    tree at `<sha>` (`git ls-tree -r --name-only`), matches it with the same matcher that decides
    whether a contract applies (ADR 0044 decision 4), and passes the resulting literal file list to
-   `git archive` under git's global `--literal-pathspecs` option, next to the
+   `git archive` under git's global `--literal-pathspecs` option, in as many calls as the
+   operating system's argument limit needs, all extracted into the same directory (a
+   `--sibling <dir>`, which reads the whole tracked tree, passes no paths at all), next to the
    `-c core.autocrlf=false -c core.eol=lf` options the reviewed-head snapshot already passes
    (`git --literal-pathspecs -c core.autocrlf=false -c core.eol=lf archive <sha> -- <files>`). Git's
    own pathspec rules never decide what is read. The live checkout is never passed to the model.
@@ -93,7 +95,10 @@ is a new decision, not a reopen.
 - The reference check, the verifier's inputs and `ask`'s inputs each gain a snapshot map keyed by
   member. Without the flag the map is empty and every prompt is byte-identical to today's.
 - Result `/2` gains optional `member` and `sha` on references and a `siblings[]` list; consumers
-  that ignore unknown fields are unaffected (ADR 0019 decision 9's additive rule).
+  that ignore unknown fields are unaffected (ADR 0019 decision 9's additive rule). The published
+  schema `docs/formats/review-result.v2.schema.json` sets `additionalProperties: false`, so it,
+  its examples and its tests gain the new fields in the same change, as ADR 0031 did for
+  `riskMap`; a strict validator needs that schema before it sees a run made with the flag.
 - Snapshots cost disk and time per `(member, sha)`; a member read at two commits in one run is two
   snapshots.
 - A stored review whose sibling commit was garbage-collected can no longer ground `ask` in that
