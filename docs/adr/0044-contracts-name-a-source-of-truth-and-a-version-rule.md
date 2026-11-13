@@ -42,6 +42,11 @@ keeps per-user overrides in `local_manifests`
 1. **Contracts are declared in the workspace manifest.** Wachiman reads `format`, `members[]`
    (`dir`, `repo`, `visibility`) and `contracts[]`, and ignores every other key. An unknown
    `format` is refused with a message. The keys are documented in `docs/formats/`.
+   **Naming:** these entries are *workspace contracts*. The review already has *contract lines*
+   (the `contracts` a review reports, ADR 0031 decision 3 and ADR 0027): claims a change makes
+   about an interface. They are different things. Docs say "workspace contract" wherever both
+   could be meant, and the result fields carry the prefix (`workspaceContractsApplied`); the
+   manifest key stays `contracts`, because the manifest has no other kind.
 2. **A contract has sides with roles.** Each side is a member, `role: provider | consumer`, and
    path globs. The roles give the direction: a consumer change reads its providers (upward); a
    provider change reads its consumers (downward) to report impact.
@@ -49,10 +54,12 @@ keeps per-user overrides in `local_manifests`
    review of a member that does not hold it reads the source when it is cloned, and reports
    "source of truth not cloned: not checked" when it is not.
 4. **The engine picks, never the model.** A contract applies when a changed path of the review,
-   including both paths of a rename and deleted paths, matches the reviewed member's globs in it.
+   including both paths of a rename and deleted paths, matches the reviewed member's side paths in
+   it, or the contract's source-of-truth paths when the reviewed member holds the source (a change
+   to the source reads the copies and consumers that depend on it).
    No model call, no network, no reading of unchanged code to decide. The selection is logged and
    reported. `--sibling <dir>` adds a member by hand for one run. With none applied, the report
-   says "no contract applied" in one line.
+   says "no workspace contract applied" in one line.
 5. **A version rule resolves each sibling's commit.** `pinned` (default): the tag the consumer
    pins, from a literal `ref` in the contract or a `pin` (a JSON file in the consumer, a dotted
    key, a tag template); when it cannot be resolved, or when nothing pins the side being read, the
@@ -92,7 +99,7 @@ keeps per-user overrides in `local_manifests`
 ## Consequences
 
 - The kit that writes the manifest must keep `contracts` accurate; a stale glob triggers nothing.
-  The "no contract applied" line and phase 0's consecutive sample make that visible.
+  The "no workspace contract applied" line and phase 0's consecutive sample make that visible.
 - `pinned` falls back to `tip` often in version 1 (copies have no pin; only JSON pins are read).
   Every fallback is in the report, so the rate can be measured.
 - A member can be read at different commits by different contracts; ADR 0043 keys snapshots by

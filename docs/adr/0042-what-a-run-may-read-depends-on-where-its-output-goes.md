@@ -8,7 +8,7 @@
 - **Spec:** [Distributed-repo review](../specs/2026-11-13-distributed-repo-review-design.md),
   decisions 2 to 4.
 - **Tracker:** NIW2-761
-- **Numbering:** 0042 because `main` holds up to 0039, #202 reserves 0040 and 0041, and #210,
+- **Numbering:** 0042 because `main` holds up to 0039 (0037 is used twice), #202 reserves 0040 and 0041, and #210,
   #223 and #232 hold 0045 to 0048.
 
 ## Context
@@ -45,6 +45,8 @@ quoting a private linked repository in a public comment.
    unknown value is private.
 4. **Version 1 has only the laptop destination.** `--distributed-repo` exists only on
    `wachiman local` and `wachiman ask`. No GitHub-mode code path reads a manifest or a sibling.
+   On `ask` the flag reads nothing the stored review did not read, and an answer grounded in a
+   labelled review is labelled with or without the flag (ADR 0043 decision 5).
 5. **A result that read a non-public sibling is labelled** `privateContext` (with the members) in
    the result JSON and in history. `ask` answers grounded in it are labelled. The terminal, the
    Markdown report and the review loop print one line: "Built with private context from:

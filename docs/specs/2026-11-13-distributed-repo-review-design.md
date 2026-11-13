@@ -11,7 +11,8 @@
   references carry the member and the commit),
   [ADR 0044](../adr/0044-contracts-name-a-source-of-truth-and-a-version-rule.md) (contracts name a
   source of truth and a version rule).
-- **Numbering:** `main` holds up to 0039. Open pull requests hold 0040 and 0041 (#202, reserved in
+- **Numbering:** `main` holds up to 0039 (0037 is used twice there, by the size gate and by the
+  subscription-token Actions review). Open pull requests hold 0040 and 0041 (#202, reserved in
   its text) and 0045 to 0048 (#210, #223, #232). 0042 is the first free number.
 - **Reuses:** ADR 0016 (the engine, not the model, picks what to add), ADR 0019 (local mode makes
   no GitHub request; snapshots), ADR 0029 (per-user settings kept in the home directory), ADR 0034
@@ -46,7 +47,7 @@ single-repository review misses, at a cost worth paying.
 | 2 | Version 1 is local only: `wachiman local` and `wachiman ask`. No GitHub-mode path reads a manifest or a sibling | The siblings are already on disk; no token or app install is needed; ADR 0019's "no GitHub request" holds | reuses 0019 |
 | 3 | What a run may read depends on where its output goes. Output that reaches a public place never reads a private sibling; laptop output may read any cloned sibling. Unknown visibility counts as private | A run that never read private code cannot paraphrase it; a name filter cannot catch a paraphrase | 0042 (new) |
 | 4 | A result built with any non-public sibling carries a `privateContext` label in the JSON, history, `ask`, the review loop, the terminal and the Markdown report; any sink that writes outside the laptop refuses a labelled result | Local output does not stay local by itself: history and `ask` reuse it | 0042 (new) |
-| 5 | The engine picks siblings from the manifest's `contracts`, never the model. A contract applies when a changed path (either side of a rename, or a deleted path) matches the reviewed member's globs in it. `--sibling <dir>` adds a member by hand. With no contract applied, the report says so in one line | Reproducible and testable, like the data-path questions; a silent miss would read as coverage | 0044 (new), reuses 0016 |
+| 5 | The engine picks siblings from the manifest's `contracts`, never the model. A contract applies when a changed path (either side of a rename, or a deleted path) matches the reviewed member's side paths in it, or the contract's source-of-truth paths when the reviewed member holds the source. `--sibling <dir>` adds a member by hand. With no workspace contract applied, the report says so in one line | Reproducible and testable, like the data-path questions; a silent miss would read as coverage | 0044 (new), reuses 0016 |
 | 6 | Each contract names its sides with a role (`provider` or `consumer`, which gives the direction) and its **source of truth**. A review of the side that does not hold the source reads the source when it is cloned and says "source of truth not cloned: not checked" when it is not | The owner: the source of truth does not move, but every side must know where it is and try to consult it | 0044 (new) |
 | 7 | A **version rule** per contract or member: `pinned` (default; the version the consumer pins), `local` (the sibling's `HEAD` commit), `tip` (the sibling's recorded `origin/<default>`, never fetched). A per-user file overrides it. The report states the rule applied, why, and the SHA read | Reading the tip of a dependency the consumer pins gives false alarms and false passes; an all-local test needs the version made up locally; one place holds all these rules | 0044 (new) |
 | 8 | Siblings are read as snapshots: `git archive` of the resolved commit, tracked files under the contract's paths only (globs expanded by the engine's own matcher, never by git pathspecs), no `.git`, symlinks dropped and listed, manifest paths with `..` or absolute paths refused. Never the live checkout | `--add-dir` on a checkout grants the whole tree, untracked files included | 0043 (new) |
@@ -72,7 +73,7 @@ Each has the default the build uses if nobody answers.
    and report "has uncommitted changes, not read". A tracked-only working-tree snapshot, like the
    `staged|all` one ADR 0019's status line records for the reviewed repository, is the later
    option.
-4. **Size gate and estimate.** ADR 0037's estimate is a pure function of the diff, so sibling reads
+4. **Size gate and estimate.** [ADR 0037 on the size gate](../adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)'s estimate is a pure function of the diff, so sibling reads
    are not in it. *Default:* unchanged in phase 1; phase 0 measures the extra cost; if it exceeds
    the bar, the estimate gains a sibling term in its own decision.
 5. **`pinned` beyond a JSON key.** Lockfiles, Swift packages, Gradle catalogs pin versions in
@@ -116,7 +117,7 @@ names private repositories). Each is an input for a test.
 6. `pinned` cannot be resolved (no pin declared, a range instead of a version, the tag not present
    locally) and the review silently reads something else.
 7. The snapshot exposes more than the contract: untracked files, `.git`, a symlink out of the
-   tree, a manifest glob with `..`.
+   tree, a manifest glob with `..`, a manifest member `dir` that resolves outside the workspace.
 8. A change outside the declared paths (a shared helper, a renamed file) triggers nothing, and the
    report reads as if the workspace was checked.
 9. A sibling reference is dropped by the head-only check, or survives against the wrong commit;
@@ -149,7 +150,8 @@ Phase 1 is done when every item holds. Phase 0 is a precondition, recorded first
       manifest and in a sibling next to the checkout is absent from every provider input
       (fake-provider test), and the GitHub sink refuses a result carrying `privateContext`.
 - [ ] A sibling snapshot holds only tracked files under the contract's paths at the resolved
-      commit: an untracked file, `.git`, an escaping symlink and a `..` glob are absent or refused
+      commit: an untracked file, `.git`, an escaping symlink, a `..` glob and a manifest `dir` that resolves
+      outside the coordinator are absent or refused
       (fixture test).
 - [ ] Every reference into a sibling survives only if its line exists in that member's snapshot at
       that SHA; the report states how many were removed.
@@ -359,9 +361,10 @@ Additive, optional fields on result `/2` (ADR 0019 decision 9's rule):
 
 - `siblings[]`: `member`, `repo`, `visibility`, `rule`, `ruleSource`, `fallback?`, `sha`,
   `fetchedAt?`, `paths[]`, `status` (`read`, `not-cloned`, `not-watched`, `uncommitted-not-read`).
-- `contractsApplied[]`: names; and `noContractApplied: true` when none did.
+- `workspaceContractsApplied[]`: names; and `noWorkspaceContractApplied: true` when none did.
+  The prefix keeps them apart from the review's existing contract lines (ADR 0044 decision 1).
 - `privateContext?`: `{ members: [...] }`, present when any read sibling is not public.
-- On every structured reference (finding evidence, contract facts, risk facts, verifier disproofs,
+- On every structured reference (finding evidence, contract-line facts, risk facts, verifier disproofs,
   `ask` references): optional `member` and `sha`. Absent means the reviewed head, as today.
 
 ### `ask` and history
@@ -370,6 +373,8 @@ History stores the result with its `siblings` and `privateContext`. `wachiman as
 re-materialises the same snapshots from each sibling's repository by the stored SHA. When a SHA is
 gone or the member is not cloned, the answer says which sibling it could not read, and references
 into it are removed and counted. An answer grounded in a labelled review is labelled.
+
+`ask` selects no sibling of its own: it reads exactly what the stored review read. `ask --distributed-repo` on a range whose stored review has no siblings, or with no stored review, exits 2 and says to run `wachiman local --distributed-repo --history` first; a per-user default of `on` in that case does nothing and says so in one line. `ask` without the flag on a review that read siblings still re-materialises them and labels the answer, because the answer must stand on the same evidence as the review (ADR 0043 decision 4).
 
 ## Phase 0: measure before building
 

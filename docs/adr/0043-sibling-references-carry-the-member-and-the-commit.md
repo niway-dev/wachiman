@@ -42,14 +42,21 @@ is a new decision, not a reopen.
    runs `git archive <sha> -- <paths>` in the member's repository and extracts it into a temporary
    directory: tracked files under the contract's paths only, no `.git`, no untracked files.
    Symlinks are dropped and listed in the report. A manifest path that is absolute or contains
-   `..` is refused before anything is read. **The engine expands the globs itself:** it lists the
+   `..` is refused before anything is read. A member's `dir` from the manifest must resolve,
+   after `realpath`, inside the coordinator directory; one that resolves outside is refused with a
+   message. Only a `dir` the user sets in their own per-user file may point elsewhere, because the
+   user wrote it. **The engine expands the globs itself:** it lists the
    tree at `<sha>` (`git ls-tree -r --name-only`), matches it with the same matcher that decides
    whether a contract applies (ADR 0044 decision 4), and passes the resulting literal file list to
-   `git archive` with `--literal-pathspecs`. Git's own pathspec rules never decide what is read. The live checkout is never passed to the model.
+   `git archive` under git's global `--literal-pathspecs` option, next to the
+   `-c core.autocrlf=false -c core.eol=lf` options the reviewed-head snapshot already passes
+   (`git --literal-pathspecs -c core.autocrlf=false -c core.eol=lf archive <sha> -- <files>`). Git's
+   own pathspec rules never decide what is read. The live checkout is never passed to the model.
 2. **A reference is `{member, sha, path, line}`.** Rendered as `member@sha:path:line` (short SHA
    in text, full SHA in JSON). An absent `member` means the reviewed head, exactly as today. The
    fields are optional additions to every structured reference of result `/2`: finding evidence,
-   contract facts, risk facts, verifier disproofs and `ask` references.
+   contract-line facts (the review's existing `contracts`, not the manifest's workspace
+   contracts), risk facts, verifier disproofs and `ask` references.
 3. **The check follows the reference.** A sibling reference survives only if `member` is one the
    run read, `sha` is the snapshot's commit, and the line exists in that snapshot. The run states
    how many references it removed, as it does today. A finding's own location stays in the
@@ -62,7 +69,10 @@ is a new decision, not a reopen.
 5. **`ask` re-materialises by SHA.** History stores each sibling's member, repository, SHA and
    paths. `ask` on a stored review snapshots the same commits again. When a commit is gone or the
    member is not cloned, the answer says which sibling it could not read, and references into it
-   are removed and counted.
+   are removed and counted. `ask` never selects siblings itself: `ask --distributed-repo` on a
+   stored review without siblings, or with none stored, exits 2 and points to
+   `wachiman local --distributed-repo --history`. `ask` without the flag on a review that read
+   siblings still re-materialises them and labels the answer.
 
 ## Alternatives rejected
 
