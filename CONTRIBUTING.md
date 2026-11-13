@@ -54,7 +54,8 @@ It installs into `~/.local/share/wachiman-dev` and links `~/.local/bin/wachiman-
 leaves the previous one working. With `--as-wachiman` it also points `~/.local/bin/wachiman` at the
 build and saves the link that was there, which `--uninstall` puts back. It reads
 the same `~/.wachiman` profiles as `wachiman`, so a review it runs is a real review on your
-account, and `wachiman-dev skills install` overwrites the installed Wachiman skills with this build's copy.
+account, and `wachiman-dev skills install` updates the Wachiman skills it installed before (a copy you edited is
+left alone) to this build's version.
 
 ## License of your contribution
 
