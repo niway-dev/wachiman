@@ -95,9 +95,10 @@ export const USAGE = `Usage:
                                                      Actions runs are included only after \`ledger pull\`
                                                      (--refresh does it first); without a ledger they are not counted
   ${ledgerUsage.replaceAll("\n", "\n  ")}
-                                                     Connect to the spend ledger with a read token and download
-                                                     its entries into ~/.wachiman/ledger. \`pull\` and \`--refresh\`
-                                                     are the only requests; nothing is ever sent from the laptop
+                                                     Connect to the spend ledger with a read token (not the
+                                                     workflow's \`ledger_url\`) and download its entries
+                                                     into ~/.wachiman/ledger. \`pull\` and \`--refresh\`
+                                                     are the only requests; no run data is ever sent from the laptop
   ${dashboardUsage}
                                                      Write one static HTML page (or print JSON) with the
                                                      spend per day and repository, the findings by severity

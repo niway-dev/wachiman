@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
@@ -13,7 +13,6 @@ import { listLedgerAccounts } from "./files";
 import { readLedgerFromFiles } from "./rows";
 import { parseEntriesResponse } from "./types";
 import { runStatus, parseStatusArgs } from "../status/command";
-import { utimesSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
 import { pullLedger, type PullDeps } from "./pull";
 
 const temps: string[] = [];
@@ -203,7 +202,6 @@ describe("requests happen only on an explicit command", () => {
     try {
       const { wachiman: home } = fixtureHome();
       writeCredentials(home, { url: URL_, token: TOKEN });
-      const { runStatus, parseStatusArgs } = await import("../status/command");
       const out: string[] = [];
       runStatus(parseStatusArgs(["--all-repos"]) as never, home, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW });
       dash(home);
@@ -480,5 +478,116 @@ describe("review fixes", () => {
     expect(bySource).toHaveLength(2);
     for (const x of counted) expect(x).toContain('class="limit"');
     for (const x of bySource) expect(x).not.toContain('class="limit"');
+  });
+});
+
+describe("page polish and the two ledger clients", () => {
+  async function pagehtml() {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const out = join(home, "p.html");
+    runDashboard({ json: false, out }, { WACHIMAN_HOME: home }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
+    return readFileSync(out, "utf8");
+  }
+  test("backtick spans become <code> after escaping, and a span cannot open a tag", async () => {
+    const { withCode } = await import("../store/html");
+    expect(withCode("<b>`x&y`</b>")).toBe("&lt;b&gt;<code>x&amp;y</code>&lt;/b&gt;");
+    const html = await pagehtml();
+    expect(html).toContain("<code>wachiman local --history</code>");
+    expect(html).not.toContain("`");
+  });
+  test("each by-source chart has a legend with two swatches", async () => {
+    const html = await pagehtml();
+    const legends = html.match(/<p class="legend">.*?<\/p>/g) ?? [];
+    expect(legends).toHaveLength(2);
+    for (const l of legends) {
+      expect(l).toContain("GitHub Actions");
+      expect(l).toContain("laptop");
+      expect(l.match(/class="sw/g)).toHaveLength(2);
+    }
+  });
+  test("the day axis names about every seventh day, newest included", async () => {
+    const html = await pagehtml();
+    const daily = html.split("<svg").find((x) => /by source/.test(x) && /per UTC day/.test(x))!;
+    const labels = [...daily.matchAll(/<text class="axis"[^>]*text-anchor="middle">([^<]+)<\/text>/g)].map((m) => m[1]);
+    expect(labels.length).toBeGreaterThanOrEqual(4);
+    expect(labels.at(-1)).toBe("11-12");
+    expect(labels).toContain("11-05");
+  });
+  test("the help and the docs tell the read side from the workflow's ledger client", async () => {
+    const { USAGE } = await import("../cli");
+    expect(USAGE).toMatch(/not the\s+workflow's `ledger_url`/);
+    const doc = readFileSync(join(import.meta.dir, "..", "..", "docs", "cli.md"), "utf8");
+    const section = doc.slice(doc.indexOf("### `ledger`"));
+    expect(section).toContain("AGENT_REVIEW_LEDGER_URL");
+    expect(section).toContain("read token");
+  });
+});
+
+describe("one account at a time", () => {
+  test("after pulling a second account only that account is read, with its own limits", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const other = { account: "acct-0", limits: { dailyUsd: 99, weeklyUsd: 99 }, entries: [entry("z1", "2026-11-12", "2026-11-09", "settled", { settledUsd: 7, calls: [call("claude-opus-5-5", "api-key", 7)] })] };
+    await pullLedger(home, {}, undefined, { fetch: fakeFetch(other).fn, now: () => new Date("2026-11-12T13:00:00Z") });
+    expect(listLedgerAccounts(home).map((a) => a.account)).toEqual(["acct-0"]);
+    const l = readLedgerFromFiles(home, () => {});
+    expect(l.rows.map((r) => r.runId)).toEqual(["z1"]);
+    expect(l.limits).toEqual({ dailyUsd: 99, weeklyUsd: 99 });
+    const out: string[] = [];
+    runStatus(parseStatusArgs(["--all-repos", "--json"]) as never, home, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW });
+    expect(JSON.parse(out.join("")).limitUse.day).toMatchObject({ usedUsd: 7, limitUsd: 99 });
+  });
+});
+
+describe("dollars of an unknown credential", () => {
+  const mystery = entry("m1", "2026-11-10", "2026-11-09", "settled", { settledUsd: 0.3, calls: [call("claude-opus-5-5", "mystery-auth", 0.3)] });
+  async function home() {
+    const h = tempHome();
+    writeCredentials(h, { url: URL_, token: TOKEN });
+    await pullLedger(h, {}, undefined, deps(fakeFetch({ ...RESPONSE, entries: [mystery] })));
+    return h;
+  }
+  test("the page shows them as their own figure, never as subscription estimates", async () => {
+    const h = await home();
+    const out = join(h, "p.html");
+    runDashboard({ json: false, out }, { WACHIMAN_HOME: h }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
+    const html = readFileSync(out, "utf8");
+    expect(html).toContain("<b>$0.00</b>estimated (subscription)");
+    expect(html).toContain("<b>$0.30</b>unknown credential");
+    expect(html).toMatch(/\$0\.00 \/ \$0\.00 \+ \$0\.30 unknown/);
+  });
+  test("status keeps them out of the estimated column", async () => {
+    const h = await home();
+    const out: string[] = [];
+    runStatus(parseStatusArgs(["--all-repos"]) as never, h, { WACHIMAN_HOME: h }, { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW });
+    expect(out.join("")).toMatch(/2026-11-10\s+1\s+1\s+\$0\.00\s+\$0\.00 \+ \$0\.30 unknown/);
+  });
+});
+
+describe("small review fixes", () => {
+  test("--repo matches a ledger repository by bare name whatever the case", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const runs = (repo: string) => {
+      const out: string[] = [];
+      runStatus(parseStatusArgs(["--repo", repo, "--json"]) as never, home, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW });
+      return JSON.parse(out.join("")).report.totals.total.runs;
+    };
+    expect(runs("alpha")).toBeGreaterThan(0);
+    expect(runs("ALPHA")).toBe(runs("alpha"));
+    expect(runs("O/Alpha")).toBe(runs("alpha"));
+  });
+  test("the help does not claim that nothing at all is sent from the laptop", async () => {
+    const { USAGE } = await import("../cli");
+    expect(USAGE).not.toMatch(/nothing is ever sent/);
+    expect(USAGE).toMatch(/no run data is ever sent/);
+  });
+  test("the docs say what status --json totals mean with a ledger", () => {
+    const doc = readFileSync(join(import.meta.dir, "..", "..", "docs", "cli.md"), "utf8");
+    expect(doc).toMatch(/costUsdEstimate[^\n]*billed/);
   });
 });

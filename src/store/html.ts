@@ -31,7 +31,14 @@ export function esc(text: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
+/** Escaped text where `backtick spans` become <code>; the escape runs first, so a span cannot open a tag. */
+export function withCode(text: string): string {
+  return esc(text).replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
 const usd = (n: number) => `$${n.toFixed(2)}`;
+/** Estimated dollars, with unknown-credential dollars named beside them and never added in. */
+const estimated = (s: Split) => (s.byCredential.unknown.usd > 0 ? `${usd(s.byCredential.estimated.usd)} + ${usd(s.byCredential.unknown.usd)} unknown` : usd(s.byCredential.estimated.usd));
 const SEVERITY_WORD: Record<string, string> = { blocker: "Blocker", fix: "Fix", consider: "Consider", info: "Info" };
 
 /** A bar as wide as `value` is of `max`, drawn as inline SVG; `max` 0 gives an empty bar. */
@@ -47,7 +54,7 @@ function table(head: string[], rows: string[][], numeric: number[] = []): string
     .join("")}</tbody></table>`;
 }
 
-const empty = (text: string) => `<p class="muted">${esc(text)}</p>`;
+const empty = (text: string) => `<p class="muted">${withCode(text)}</p>`;
 
 
 const NO_DATA = "no data";
@@ -83,7 +90,7 @@ function bucketTable(buckets: Bucket[], kind: "day" | "week"): string {
       usd(b.spend.total.usd),
       sourceCell(b.spend, "actions", b.known.actions),
       sourceCell(b.spend, "laptop", b.known.laptop),
-      `${usd(b.spend.byCredential.billed.usd)} / ${usd(b.spend.byCredential.estimated.usd + b.spend.byCredential.unknown.usd)}`,
+      `${usd(b.spend.byCredential.billed.usd)} / ${estimated(b.spend)}`,
     ]);
   }
   flush();
@@ -95,7 +102,7 @@ function bucketTable(buckets: Bucket[], kind: "day" | "week"): string {
  * "counted" is what the ledger counts against its limit (GitHub Actions only) with the limit line;
  * "source" is settled dollars by source (GitHub Actions below, laptop above) and has no limit line.
  */
-function chart(buckets: Bucket[], kind: "counted" | "source", limit: number | null, what: string, limitWord: string): string {
+function chart(buckets: Bucket[], kind: "counted" | "source", limit: number | null, what: string, limitWord: string, tickEvery: number): string {
   const W = 640;
   const H = 170;
   const left = 46;
@@ -125,11 +132,15 @@ function chart(buckets: Bucket[], kind: "counted" | "source", limit: number | nu
     const label = `${b.key}: ${usd(b.spend.total.usd)} (GitHub Actions ${b.known.actions ? usd(a) : NO_DATA}, laptop ${b.known.laptop ? usd(l) : NO_DATA})`;
     return `<g><title>${esc(label)}</title><rect class="fill" x="${x.toFixed(1)}" y="${y(a).toFixed(1)}" width="${barW.toFixed(1)}" height="${(top + plotH - y(a)).toFixed(1)}"/><rect class="fill2" x="${x.toFixed(1)}" y="${y(a + l).toFixed(1)}" width="${barW.toFixed(1)}" height="${(y(a) - y(a + l)).toFixed(1)}"/></g>`;
   });
+  // A label under every `tickEvery`-th bucket, counted back from the newest so that the last one is always named.
+  const ticks = buckets
+    .map((b, i) => ((buckets.length - 1 - i) % tickEvery === 0 ? `<text class="axis" x="${(left + i * slot + slot / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(b.key.slice(5))}</text>` : ""))
+    .join("");
   const limitLine =
     kind !== "counted" || limit === null
       ? ""
       : `<line class="limit" x1="${left}" x2="${W - 8}" y1="${y(limit).toFixed(1)}" y2="${y(limit).toFixed(1)}"/><text class="axis" x="${W - 10}" y="${(y(limit) - 3).toFixed(1)}" text-anchor="end">${esc(limitWord)} ${esc(usd(limit))}</text>`;
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(what)}"><title>${esc(what)}</title><line class="axisline" x1="${left}" x2="${W - 8}" y1="${top + plotH}" y2="${top + plotH}"/><text class="axis" x="${left - 4}" y="${top + plotH}" text-anchor="end">$0</text><text class="axis" x="${left - 4}" y="${top + 8}" text-anchor="end">${esc(usd(max))}</text><text class="axis" x="${left}" y="${H - 6}">${esc(buckets[0].key)}</text><text class="axis" x="${W - 8}" y="${H - 6}" text-anchor="end">${esc(buckets.at(-1)!.key)}</text>${parts.join("")}${limitLine}</svg>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(what)}"><title>${esc(what)}</title><line class="axisline" x1="${left}" x2="${W - 8}" y1="${top + plotH}" y2="${top + plotH}"/><text class="axis" x="${left - 4}" y="${top + plotH}" text-anchor="end">$0</text><text class="axis" x="${left - 4}" y="${top + 8}" text-anchor="end">${esc(usd(max))}</text>${ticks}${parts.join("")}${limitLine}</svg>`;
 }
 
 const cell = (m: Money, known: boolean) => (known ? usd(m.usd) : NO_DATA);
@@ -148,7 +159,7 @@ function groupTable(head: string, groups: Group[], coverage: Report["coverage"],
       cell(g.split.bySource.actions, hasActions),
       cell(g.split.bySource.laptop, hasLaptop),
       usd(g.split.byCredential.billed.usd),
-      usd(g.split.byCredential.estimated.usd + g.split.byCredential.unknown.usd),
+      estimated(g.split),
     ]),
     [1, 2, 3, 4, 5, 6, 7],
   );
@@ -175,6 +186,7 @@ function renderUsage(u: UsageSection): string {
   const limitText = limits && (limits.dailyUsd !== null || limits.weeklyUsd !== null)
     ? `Ledger limits: ${limits.dailyUsd !== null ? `daily ${usd(limits.dailyUsd)}` : "no daily limit"}, ${limits.weeklyUsd !== null ? `weekly ${usd(limits.weeklyUsd)}` : "no weekly limit"}. The limit is best-effort and counts GitHub Actions runs only, never laptop runs.`
     : "The ledger limit, when one is set, is best-effort and counts GitHub Actions runs only, never laptop runs.";
+  const legend = `<p class="legend"><span class="sw"></span>${esc(SOURCE_WORD.actions)}<span class="sw sw2"></span>${esc(SOURCE_WORD.laptop)}</p>`;
   const tile = (value: string, label: string) => `<div class="tile"><b>${value}</b>${esc(label)}</div>`;
   return `<h2>Spend, laptop and GitHub Actions</h2>
 <p class="muted">${lastPull}</p>
@@ -182,23 +194,24 @@ function renderUsage(u: UsageSection): string {
 <div class="tiles">
 ${tile(String(t.total.runs), "finished runs")}
 ${tile(usd(t.byCredential.billed.usd), "billed (API key)")}
-${tile(usd(t.byCredential.estimated.usd + t.byCredential.unknown.usd), "estimated (subscription)")}
+${tile(usd(t.byCredential.estimated.usd), "estimated (subscription)")}
+${t.byCredential.unknown.usd > 0 ? tile(usd(t.byCredential.unknown.usd), "unknown credential") : ""}
 ${tile(r.coverage.actions ? usd(t.bySource.actions.usd) : NO_DATA, SOURCE_WORD.actions)}
 ${tile(r.coverage.laptop ? usd(t.bySource.laptop.usd) : NO_DATA, SOURCE_WORD.laptop)}
 </div>
 <h2>Counted against the limit, per day (GitHub Actions runs)</h2>
 <p class="muted">Each bar is what the ledger counts against its limit on one UTC day: settled runs, runs recorded without a reservation, and dollars still held by reservations. GitHub Actions only, for the whole account. A grey dash means no data for that day. ${limits?.dailyUsd != null ? "The dashed line is the daily limit." : "No daily limit is set."}</p>
-${chart(r.days, "counted", limits?.dailyUsd ?? null, "Dollars counted against the ledger limit per UTC day, GitHub Actions runs", "daily limit")}
+${chart(r.days, "counted", limits?.dailyUsd ?? null, "Dollars counted against the ledger limit per UTC day, GitHub Actions runs", "daily limit", 7)}
 <h2>Spend per day, by source</h2>
 <p class="muted">Each bar is the dollars of finished runs on one UTC day: GitHub Actions in the lower colour, this laptop in the upper colour. A grey dash means no data for that day. There is no limit line here because the limit does not count laptop runs.</p>
-${chart(r.days, "source", null, "Dollars of finished runs per UTC day, by source", "")}
+${chart(r.days, "source", null, "Dollars of finished runs per UTC day, by source", "", 7)}${legend}
 ${bucketTable(r.days, "day")}
 <h2>Counted against the limit, per week (GitHub Actions runs)</h2>
 <p class="muted">The same counting per week, which starts on Monday, UTC. ${limits?.weeklyUsd != null ? "The dashed line is the weekly limit." : "No weekly limit is set."}</p>
-${chart(r.weeks, "counted", limits?.weeklyUsd ?? null, "Dollars counted against the ledger limit per week starting Monday UTC, GitHub Actions runs", "weekly limit")}
+${chart(r.weeks, "counted", limits?.weeklyUsd ?? null, "Dollars counted against the ledger limit per week starting Monday UTC, GitHub Actions runs", "weekly limit", 4)}
 <h2>Spend per week, by source</h2>
 <p class="muted">Each bar is the dollars of finished runs in one week that starts on Monday, UTC, with no limit line.</p>
-${chart(r.weeks, "source", null, "Dollars of finished runs per week starting Monday UTC, by source", "")}
+${chart(r.weeks, "source", null, "Dollars of finished runs per week starting Monday UTC, by source", "", 4)}${legend}
 ${bucketTable(r.weeks, "week")}
 <h2>Per repository</h2>
 ${groupTable("Repository", r.groups.repository, r.coverage, "No finished run yet.")}
@@ -279,6 +292,10 @@ th { font-weight: 500; color: var(--muted); font-size: .85rem; }
 .fill2 { fill: var(--fill2); }
 .nodata { fill: var(--muted); opacity: .5; }
 .chart { width: 100%; height: auto; display: block; margin: .5rem 0; }
+.legend { font-size: .85rem; color: var(--muted); margin: 0 0 .5rem; }
+.sw { display: inline-block; width: .8em; height: .8em; margin: 0 .35em 0 .9em; background: var(--fill); }
+.sw:first-child { margin-left: 0; }
+.sw2 { background: var(--fill2); }
 .axis { fill: var(--muted); font-size: 9px; }
 .axisline { stroke: var(--line); stroke-width: 1; }
 .limit { stroke: #c0392b; stroke-width: 1.5; stroke-dasharray: 5 3; }
@@ -288,7 +305,7 @@ code { font: .9em ui-monospace, monospace; }
 <body>
 <main>
 <h1>Wachiman dashboard</h1>
-<p class="muted">${esc(doc.scope)}</p>
+<p class="muted">${withCode(doc.scope)}</p>
 <p class="muted">Generated ${esc(doc.generatedAt)} from ${doc.usage ? "the local history and the ledger entries downloaded earlier" : "the local history. Spend is an API-equivalent estimate, not a bill"}. Nothing on this page was sent anywhere.</p>
 <div class="tiles">
 ${doc.usage ? "" : `<div class="tile"><b>${totals.runs}</b>runs</div>

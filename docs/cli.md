@@ -535,7 +535,7 @@ API-equivalent estimate, not a bill. A new `--history` run deletes runs older th
 | `--by day\|week\|repo\|pr\|model\|profile\|source` | How the table groups runs (default `day`); repositories are grouped by their unique key; weeks start on Monday, UTC; `pr` groups ledger runs by pull request and laptop runs by "local branch" |
 | `--source laptop\|actions\|all` | Only laptop runs, only GitHub Actions runs from the pulled ledger, or both (default `all`). `--profile` leaves out Actions runs, which have no profile |
 | `--refresh` | Run [`ledger pull`](#ledger) first (the only request `status` can make); without it no request is made. A failed download warns and keeps the entries already on disk. With no ledger connected it exits 2 |
-| `--json` | `wachiman.status/1`: the filters, totals, groups and every run with its attributes; with a pulled ledger also `report`, the one spend report with every figure split by source and credential |
+| `--json` | `wachiman.status/1`: the filters, totals, groups and every run with its attributes; with a pulled ledger also `report`, the one spend report with every figure split by source and credential, and `limitUse`, the day's and week's figure against the ledger limit. With a ledger `totals.costUsdEstimate` and `groups[].costUsdEstimate` are the sum of billed (API key) and estimated dollars, not an estimate alone: read `report.totals.byCredential` for the split |
 
 Each run in the JSON carries `at`, `repositoryKey`, `repository`, `change`, `head`, `model`,
 `effort`, `profile`, `engineVersion`, `costUsdEstimate`, `tokens` and `findings`, so any other
@@ -590,6 +590,12 @@ downloads its entries, so `status` and `dashboard` show GitHub Actions runs next
 The laptop only reads, only when you configured it, and only on an explicit command: local mode
 still sends nothing and makes no GitHub request.
 
+This is the read side and is separate from the workflow's own ledger client. The workflow reserves and
+settles dollars with `ledger_url` (`AGENT_REVIEW_LEDGER_URL`) and a GitHub OIDC identity, and exits 3
+when the ledger stops a run ([configuration.md](configuration.md), `src/ledger.ts`). `ledger connect`
+keeps a different credential, a read token that can call only `GET /v1/entries`, in
+`WACHIMAN_LEDGER_URL` or `credentials.json`; neither setting reads or changes the other.
+
 | Command | What it does |
 | --- | --- |
 | `ledger connect <url>` | Asks for the read token on standard input without echoing it, and writes `~/.wachiman/ledger/credentials.json` (`{url, token}`) at mode `0600`. The URL must be https (http only for loopback: `localhost`, `127.0.0.1` or `[::1]`) |
@@ -598,6 +604,9 @@ still sends nothing and makes no GitHub request.
 
 `WACHIMAN_LEDGER_URL` and `WACHIMAN_LEDGER_TOKEN` override the file. The token is never printed,
 logged, or written anywhere but the credentials file; it is not in the index or the dashboard page.
+Only the account pulled last is read. Directories of accounts pulled earlier stay on disk (a disconnect
+keeps entries) and are ignored, so figures and limits never mix two accounts.
+
 The dashboard's index (`~/.wachiman/index.sqlite`) is rebuilt from the day files like the rest and
 holds nothing the files do not; `status` does not use it.
 

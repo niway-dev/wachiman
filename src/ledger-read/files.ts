@@ -99,8 +99,19 @@ export interface LedgerAccountFiles {
   pullFile: string;
 }
 
-/** The accounts that have a readable `pull.json`; a directory without one holds nothing the report can use. */
+/**
+ * The account the laptop is connected to: the one pulled last, as a list of zero or one. Directories of
+ * accounts pulled earlier stay on disk (a disconnect keeps entries) and are ignored, so the figures and the
+ * limit never mix two accounts. A directory without a readable `pull.json` holds nothing the report can use.
+ */
 export function listLedgerAccounts(home: string): LedgerAccountFiles[] {
+  const all = readAllLedgerAccounts(home);
+  if (all.length <= 1) return all;
+  const newest = [...all].sort((a, b) => b.meta.pulledAt.localeCompare(a.meta.pulledAt) || a.account.localeCompare(b.account))[0];
+  return [newest];
+}
+
+function readAllLedgerAccounts(home: string): LedgerAccountFiles[] {
   const root = ledgerDir(home);
   if (!existsSync(root)) return [];
   const out: LedgerAccountFiles[] = [];

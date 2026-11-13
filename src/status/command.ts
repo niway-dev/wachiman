@@ -11,7 +11,7 @@ import { wachimanHome } from "../accounts/config";
 import { historySettings, historyRoot, listKeys, readRuns, repositoryKey } from "../history/store";
 import type { HistoryRun } from "../history/types";
 import { readLedgerFromFiles } from "../ledger-read/rows";
-import { buildReport, deriveCoverage, group as groupRows, limitUse, SOURCES, weekStart, type GroupBy, type LimitUse, type Report, type Source, type SpendRow } from "../spend/report";
+import { buildReport, deriveCoverage, group as groupRows, limitUse, SOURCES, weekStart, type GroupBy, type LimitUse, type Report, type Source, type Split, type SpendRow } from "../spend/report";
 
 export const STATUS_FORMAT = "wachiman.status/1";
 
@@ -171,9 +171,10 @@ function remoteSlug(remote: string | undefined): string | undefined {
 /** Ledger rows kept by the same filters as the laptop runs; `slug` scopes them to one repository. */
 function filterLedgerRows(rows: SpendRow[], args: StatusArgs, now: Date, slug: string | undefined, all: StatusRun[]): SpendRow[] {
   const cutoff = args.sinceDays === undefined ? undefined : now.getTime() - args.sinceDays * 86_400_000;
-  const tail = (r: SpendRow) => r.repository.split("/").at(-1);
+  const tail = (r: SpendRow) => r.repository.split("/").at(-1)?.toLowerCase();
+  const wanted = args.repo?.toLowerCase();
   const repoMatches = (r: SpendRow) => {
-    if (args.repo !== undefined) return r.repository.toLowerCase() === args.repo.toLowerCase() || tail(r) === args.repo || all.some((l) => l.repositoryKey === args.repo && l.repository === tail(r));
+    if (args.repo !== undefined) return r.repository.toLowerCase() === args.repo.toLowerCase() || tail(r) === wanted || all.some((l) => l.repositoryKey === args.repo && l.repository.toLowerCase() === tail(r));
     return args.allRepos || (slug !== undefined && r.repository.toLowerCase() === slug);
   };
   return rows.filter(
@@ -188,6 +189,12 @@ function filterLedgerRows(rows: SpendRow[], args: StatusArgs, now: Date, slug: s
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 const pad = (text: string, width: number) => text + " ".repeat(Math.max(0, width - text.length));
+
+/** Estimated dollars, with unknown-credential dollars named beside them and never added in. */
+function estimatedWithUnknown(s: Split): string {
+  const c = s.byCredential;
+  return c.unknown.usd > 0 ? `${usd(c.estimated.usd)} + ${usd(c.unknown.usd)} unknown` : usd(c.estimated.usd);
+}
 
 function creditLine(report: Report): string {
   const c = report.totals.byCredential;
@@ -297,7 +304,7 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
     lines.push(`${settled.length} run${settled.length === 1 ? "" : "s"}, ${creditLine(report)}, ${days[0]} → ${days.at(-1)}`);
     lines.push(...limitLines(limits, now), ...asideLine(report), "");
     lines.push(`  ${pad(args.by, w)}  runs  calls  billed  estimated`);
-    for (const g of groups) lines.push(`  ${pad(g.key, w)}  ${pad(String(g.split.total.runs), 4)}  ${pad(String(g.split.total.calls), 5)}  ${pad(usd(g.split.byCredential.billed.usd), 6)}  ${usd(g.split.byCredential.estimated.usd + g.split.byCredential.unknown.usd)}`);
+    for (const g of groups) lines.push(`  ${pad(g.key, w)}  ${pad(String(g.split.total.runs), 4)}  ${pad(String(g.split.total.calls), 5)}  ${pad(usd(g.split.byCredential.billed.usd), 6)}  ${estimatedWithUnknown(g.split)}`);
   } else {
     lines.push(`${settled.length} run${settled.length === 1 ? "" : "s"}, ${usd(total)} estimated (API-equivalent, not a bill), ${laptopRuns[0].at.slice(0, 10)} → ${laptopRuns.at(-1)!.at.slice(0, 10)}`, "");
     lines.push(`  ${pad(args.by, w)}  runs  cost`);

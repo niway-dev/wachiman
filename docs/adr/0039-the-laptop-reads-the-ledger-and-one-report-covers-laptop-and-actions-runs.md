@@ -69,6 +69,8 @@ the user connected is not sending, but it must stay explicit and opt-in.
   the home can read the ledger's entries; the token can call only `GET /v1/entries`.
 - The limit lines of `status` and the limit line of the dashboard are the whole account's figure,
   computed from every pulled ledger row whatever the filters say; they count Actions runs only.
+- Only the account pulled last is read; directories of earlier accounts stay on disk and are ignored,
+  so a figure never adds two accounts or compares them with one account's limit.
 - The same repository can appear under different identities in the two sources (a ledger
   `owner/name` against a local clone's key); unifying them is left to the owner and is not decided here.
 - A laptop that never connects a ledger sees no change, apart from one line on the page saying how
