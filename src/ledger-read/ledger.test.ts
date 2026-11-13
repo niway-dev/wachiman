@@ -525,8 +525,8 @@ describe("page polish and the two ledger clients", () => {
     expect(() => resolveCredentials(home, { WACHIMAN_LEDGER_TOKEN: TOKEN })).toThrow(/not valid JSON/);
   });
   test("the help and the docs tell the read side from the workflow's ledger client", async () => {
-    const { USAGE } = await import("../cli");
-    expect(USAGE).toMatch(/not the\s+workflow's `ledger_url`/);
+    const { commandHelp } = await import("../help");
+    expect(commandHelp(["ledger"])).toMatch(/not the\s+workflow's `ledger_url`/);
     const doc = readFileSync(join(import.meta.dir, "..", "..", "docs", "cli.md"), "utf8");
     const section = doc.slice(doc.indexOf("### `ledger`"));
     expect(section).toContain("WACHIMAN_LEDGER_URL");
@@ -591,9 +591,9 @@ describe("small review fixes", () => {
     expect(runs("O/Alpha")).toBe(runs("alpha"));
   });
   test("the help does not claim that nothing at all is sent from the laptop", async () => {
-    const { USAGE } = await import("../cli");
-    expect(USAGE).not.toMatch(/nothing is ever sent/);
-    expect(USAGE).toMatch(/no run data is ever sent/);
+    const { commandHelp } = await import("../help");
+    expect(commandHelp(["ledger"])).not.toMatch(/nothing is ever sent/);
+    expect(commandHelp(["ledger"])).toMatch(/no\s+run\s+data\s+is\s+ever\s+sent/);
   });
   test("the docs say what status --json totals mean with a ledger", () => {
     const doc = readFileSync(join(import.meta.dir, "..", "..", "docs", "cli.md"), "utf8");

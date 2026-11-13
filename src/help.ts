@@ -267,7 +267,7 @@ const ledgerPage = (usage: string, summary: string, options: readonly Row[], exa
 });
 const ledgerRoot = ledgerPage(
   ledgerUsage,
-  "Connect to the spend ledger with a read token and download its entries, so status and dashboard can show GitHub Actions runs next to laptop runs. pull and --refresh are the only requests; nothing from a run is ever sent. Run `wachiman ledger <subcommand> --help` for one of them.",
+  "Connect with a read token (not the workflow's `ledger_url`) and download the spend ledger's entries, so status and dashboard can show Actions runs next to laptop runs. Only pull and --refresh make a request, and no run data is ever sent from the laptop. Run `wachiman ledger <subcommand> --help` for one of them.",
   [],
   ["wachiman ledger connect https://ledger.example.com", "wachiman ledger pull --since 14d"],
 );
