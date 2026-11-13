@@ -51,7 +51,7 @@ scripts/dev-build.sh --uninstall   # removes wachiman-dev and its files
 
 It installs into `~/.local/share/wachiman-dev` and links `~/.local/bin/wachiman-dev`. It reads
 the same `~/.wachiman` profiles as `wachiman`, so a review it runs is a real review on your
-account, and `wachiman-dev skills install` replaces the skills you have installed.
+account, and `wachiman-dev skills install` overwrites the installed Wachiman skills with this build's copy.
 
 ## License of your contribution
 

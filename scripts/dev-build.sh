@@ -24,14 +24,10 @@ link="$bindir/wachiman-dev"
 case "${1:-}" in
   "") ;;
   --uninstall)
-    # rm -rf only on a directory this script would have made.
-    case "$(basename "$state")" in
-      wachiman-dev*) ;;
-      *) echo "dev-build: refusing to remove $state (its name does not start with wachiman-dev)" >&2; exit 1 ;;
-    esac
+    # Only what a build made: the link and the prefix; the directory goes too if nothing else is in it.
     if [[ -L "$link" && "$(readlink "$link")" == "$state/"* ]]; then rm "$link"; echo "removed $link"; fi
-    rm -rf "$state"
-    echo "removed $state"
+    if [[ -d "$state/prefix" ]]; then rm -rf "$state/prefix"; echo "removed $state/prefix"; fi
+    rmdir "$state" 2>/dev/null || true
     exit 0
     ;;
   *) echo "usage: dev-build.sh [--uninstall]" >&2; exit 2 ;;
@@ -46,9 +42,10 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/wachiman-dev.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
 # The files a release would pack, from npm itself.
-(cd "$root" && npm pack --dry-run --json --ignore-scripts 2>/dev/null) \
+(cd "$root" && npm pack --dry-run --json --ignore-scripts --loglevel=error) \
   | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const f of JSON.parse(s)[0].files)console.log(f.path)})' \
   > "$work/files"
+[[ -s "$work/files" ]] || { echo "dev-build: npm pack listed no files in $root" >&2; exit 1; }
 
 # "dev-<hash>" is one alphanumeric identifier, valid semver even when the hash is all digits.
 commit="$(git -C "$root" rev-parse --short HEAD)"
@@ -56,7 +53,7 @@ dirty=""
 packed=()
 while IFS= read -r f; do packed+=("$f"); done < "$work/files"
 [[ -n "$(cd "$root" && git status --porcelain -- "${packed[@]}")" ]] && dirty=".dirty"
-base="$(node -p "require('$root/package.json').version")"
+base="$(node -p 'require(process.argv[1]).version' "$root/package.json")"
 version="$base-dev-$commit$dirty"
 
 # Pack a copy, so the checkout's package.json keeps its real version.
