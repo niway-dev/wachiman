@@ -37,6 +37,22 @@ report and is merged only after its author has accepted the agreement.
 - Do not add a dependency without an issue first. The engine has none on purpose (ADR 0002), and
   every dependency has to be compatible with the license.
 
+## Try a change before it is released
+
+`scripts/dev-build.sh` packs your checkout the way a release does and installs it as
+`wachiman-dev`, next to the released `wachiman`. Nothing is published.
+
+```sh
+scripts/dev-build.sh               # from any branch or worktree; run it again after each change
+wachiman-dev --version             # <version>-dev.<commit>, with .dirty when changes are uncommitted
+wachiman-dev                       # the interactive launcher, as a user would get it
+scripts/dev-build.sh --uninstall   # removes wachiman-dev and its files
+```
+
+It installs into `~/.local/share/wachiman-dev` and links `~/.local/bin/wachiman-dev`. It reads
+the same `~/.wachiman` profiles as `wachiman`, so a review it runs is a real review on your
+account.
+
 ## License of your contribution
 
 Your contribution is distributed under the project's license, `FSL-1.1-ALv2`, and NIWAY may
