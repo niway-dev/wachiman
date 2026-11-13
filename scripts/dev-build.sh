@@ -4,11 +4,17 @@
 # `files` list, same Node launcher, the real dependencies from npm), with the version
 # `<package version>-dev-<commit>`, and installs that tarball into a prefix of its own.
 #
-#   scripts/dev-build.sh               build the current checkout (a branch, a worktree) and install it
-#   scripts/dev-build.sh --uninstall   remove wachiman-dev and its prefix
+#   scripts/dev-build.sh                 build the current checkout (a branch, a worktree) and install it
+#   scripts/dev-build.sh --as-wachiman   the same, and the `wachiman` command runs this build too
+#   scripts/dev-build.sh --uninstall     remove wachiman-dev and its prefix; give `wachiman` back
 #
 # Then: `wachiman-dev --version`, `wachiman-dev` (the launcher), `wachiman-dev init`, and so on.
-# Run it again after each change you want to try; the newest build replaces the previous one.
+# Run it again after each change you want to try; the newest build replaces the previous one only
+# once it installed, so a failed build leaves the previous one working.
+#
+# --as-wachiman points `~/.local/bin/wachiman` at the build, so hooks, skills and anything else
+# that calls `wachiman` use it. The link that was there before is saved and put back by
+# --uninstall. Once set, later builds keep it until --uninstall.
 #
 # Uncommitted changes are included, and the version says so (`-dev-<commit>.dirty`).
 # wachiman-dev reads the same ~/.wachiman configuration and profiles as `wachiman`: a review
@@ -20,21 +26,41 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 state="${WACHIMAN_DEV_HOME:-$HOME/.local/share/wachiman-dev}"
 bindir="${WACHIMAN_DEV_BIN:-$HOME/.local/bin}"
 link="$bindir/wachiman-dev"
+main_link="$bindir/wachiman"
+# What `wachiman` pointed at before --as-wachiman (empty when there was nothing).
+saved="$state/previous-wachiman"
 
+ours() { [[ -L "$1" && "$(readlink "$1")" == "$state/"* ]]; }
+
+as_wachiman=0
 case "${1:-}" in
   "") ;;
+  --as-wachiman) as_wachiman=1 ;;
   --uninstall)
-    # Only what a build made: the link and the prefix; the directory goes too if nothing else is in it.
-    if [[ -L "$link" && "$(readlink "$link")" == "$state/"* ]]; then rm "$link"; echo "removed $link"; fi
+    # Only what a build made: the links and the prefix; the directory goes too if nothing else is in it.
+    if ours "$link"; then rm "$link"; echo "removed $link"; fi
+    if [[ -f "$saved" ]]; then
+      if ours "$main_link"; then
+        rm "$main_link"
+        previous="$(cat "$saved")"
+        if [[ -n "$previous" ]]; then ln -s "$previous" "$main_link"; echo "restored $main_link -> $previous"; else echo "removed $main_link"; fi
+      fi
+      rm "$saved"
+    fi
     if [[ -d "$state/prefix" ]]; then rm -rf "$state/prefix"; echo "removed $state/prefix"; fi
+    rm -rf "$state/prefix.new" # what a failed build left
     rmdir "$state" 2>/dev/null || true
     exit 0
     ;;
-  *) echo "usage: dev-build.sh [--uninstall]" >&2; exit 2 ;;
+  *) echo "usage: dev-build.sh [--as-wachiman | --uninstall]" >&2; exit 2 ;;
 esac
 
-if [[ -e "$link" && ! -L "$link" ]] || { [[ -L "$link" ]] && [[ "$(readlink "$link")" != "$state/"* ]]; }; then
+if [[ -e "$link" || -L "$link" ]] && ! ours "$link"; then
   echo "dev-build: $link exists and was not made by this script; move it away first." >&2
+  exit 1
+fi
+if (( as_wachiman )) && [[ -e "$main_link" && ! -L "$main_link" ]]; then
+  echo "dev-build: $main_link is a file, not a link; move it away first, or skip --as-wachiman." >&2
   exit 1
 fi
 
@@ -66,11 +92,21 @@ node -e 'const fs=require("fs"),p=process.argv[1];const j=JSON.parse(fs.readFile
   "$work/src/package.json" "$version"
 tarball="$(cd "$work/src" && npm pack --pack-destination "$work" --ignore-scripts --silent)"
 
-# A fresh prefix each time, so nothing from an older build is left behind.
-rm -rf "$state/prefix"
+# Install into a new prefix and swap it in only when the install worked, so a failed build (the
+# registry offline, a failed download) leaves the previous build in place and working.
 mkdir -p "$state" "$bindir"
-npm install --global --prefix "$state/prefix" --no-audit --no-fund --loglevel=error "$work/$tarball"
+rm -rf "$state/prefix.new"
+npm install --global --prefix "$state/prefix.new" --no-audit --no-fund --loglevel=error "$work/$tarball"
+rm -rf "$state/prefix"
+mv "$state/prefix.new" "$state/prefix"
 ln -sfn "$state/prefix/bin/wachiman" "$link"
+
+if (( as_wachiman )) && ! ours "$main_link"; then
+  # Saved once: the link from before the first --as-wachiman, never a link of ours.
+  if [[ -L "$main_link" ]]; then readlink "$main_link" > "$saved"; else : > "$saved"; fi
+  ln -sfn "$state/prefix/bin/wachiman" "$main_link"
+  echo "wachiman now runs this build; --uninstall gives back $(if [[ -s "$saved" ]]; then cat "$saved"; else echo "no wachiman"; fi)"
+fi
 
 echo "installed wachiman-dev $version from $root"
 case ":$PATH:" in

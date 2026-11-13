@@ -46,10 +46,13 @@ report and is merged only after its author has accepted the agreement.
 scripts/dev-build.sh               # from any branch or worktree; run it again after each change
 wachiman-dev --version             # <version>-dev-<commit>, with .dirty when changes are uncommitted
 wachiman-dev                       # the interactive launcher, as a user would get it
-scripts/dev-build.sh --uninstall   # removes wachiman-dev and its files
+scripts/dev-build.sh --as-wachiman # the same, and `wachiman` (hooks, skills) runs this build too
+scripts/dev-build.sh --uninstall   # removes wachiman-dev and its files; gives `wachiman` back
 ```
 
-It installs into `~/.local/share/wachiman-dev` and links `~/.local/bin/wachiman-dev`. It reads
+It installs into `~/.local/share/wachiman-dev` and links `~/.local/bin/wachiman-dev`. A failed build
+leaves the previous one working. With `--as-wachiman` it also points `~/.local/bin/wachiman` at the
+build and saves the link that was there, which `--uninstall` puts back. It reads
 the same `~/.wachiman` profiles as `wachiman`, so a review it runs is a real review on your
 account, and `wachiman-dev skills install` overwrites the installed Wachiman skills with this build's copy.
 
