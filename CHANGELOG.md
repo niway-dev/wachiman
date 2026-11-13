@@ -5,6 +5,25 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.14.0](https://github.com/niway-dev/wachiman/compare/v1.13.0...v1.14.0) (2026-11-13)
+
+
+### Features
+
+* **engine:** reserve before the first model call, settle after the last ([895804a](https://github.com/niway-dev/wachiman/commit/895804a8267d0a9c146a8b1d4de127de1775d432))
+* **engine:** reserve before the first model call, settle after the last ([b877afb](https://github.com/niway-dev/wachiman/commit/b877afb4aa186b8ba799690d4e19cd0070725ca4))
+
+
+### Bug Fixes
+
+* **engine:** settle every reservation, stop on a wrong ledger url, https only ([077399c](https://github.com/niway-dev/wachiman/commit/077399cc29195ed7e4c494cdef9e32bab8f04797))
+* **ledger:** pasteable enrollment hint, honest docs and tests for the settle paths ([9c135e5](https://github.com/niway-dev/wachiman/commit/9c135e5bef1c23c3b280056d6df394bebe34cf61))
+* **local:** raise the default --max-depth from 50 to 250 ([662c805](https://github.com/niway-dev/wachiman/commit/662c805f265d8b09c8d881a548f36e236449d0bd))
+* **local:** raise the default --max-depth to 250 ([57502b7](https://github.com/niway-dev/wachiman/commit/57502b72fabe059d3a70abbc1b898dee360531f8))
+* remove the agent-review name everywhere ([ef441fb](https://github.com/niway-dev/wachiman/commit/ef441fb0aea9a47bd9eaa5b715cba3515be8c989))
+* remove the agent-review name everywhere ([e1f2a92](https://github.com/niway-dev/wachiman/commit/e1f2a9240d3ab3f734be6e173caa4c74b665da0b))
+* remove the agent-review name everywhere ([d18356b](https://github.com/niway-dev/wachiman/commit/d18356b91c0a70e16711216b43789a1df40ca88f))
+
 ## [1.13.0](https://github.com/niway-dev/wachiman/compare/v1.12.0...v1.13.0) (2026-11-12)
 
 
