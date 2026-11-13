@@ -512,7 +512,7 @@ describe("the start commit and the maximum depth", () => {
     expect(r.stderr).toContain(`depth: ${DEFAULT_MAX_DEPTH} commits (max ${DEFAULT_MAX_DEPTH})`);
   }, 30_000);
 
-  test("--max-depth 100 lets 51 commits run; a lower one refuses a short branch", () => {
+  test("--max-depth sets the cap for the run: 100 is shown on 51 commits, 1 refuses a short branch", () => {
     const repo = branchRepo();
     emptyCommits(repo.dir, 49);
     const wide = local("ok", ["--max-depth", "100"], {}, repo);
