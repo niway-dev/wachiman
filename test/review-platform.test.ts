@@ -10,11 +10,18 @@ const read = (path: string) => readFileSync(join(root, path), "utf8");
 const review = read(".github/workflows/review.yml");
 const platform = read(".github/workflows/review-platform.yml");
 
+type Trigger = { workflow_call: { inputs: Record<string, { type: string; default?: unknown }> } };
 type Workflow = {
-  on: { workflow_call: { inputs: Record<string, { type: string; default?: unknown }> } };
+  on?: Trigger;
+  // Bun 1.3.4 reads the YAML 1.1 key `on` as the boolean `true`, so the key is the string "true"; Bun 1.4 keeps "on".
+  true?: Trigger;
   jobs: Record<string, { permissions?: Record<string, string>; steps?: { env?: Record<string, string> }[] }>;
 };
 const parse = (text: string) => Bun.YAML.parse(text) as Workflow;
+const inputsOf = (text: string) => {
+  const workflow = parse(text);
+  return (workflow.on ?? workflow.true)!.workflow_call.inputs;
+};
 
 const LEDGER_ENV = [
   "AGENT_REVIEW_LEDGER_URL",
@@ -47,8 +54,8 @@ describe("review-platform.yml", () => {
   });
 
   test("both workflows have the same inputs, and the ledger inputs have the documented types and defaults", () => {
-    const plain = parse(review).on.workflow_call.inputs;
-    expect(parse(platform).on.workflow_call.inputs).toEqual(plain);
+    const plain = inputsOf(review);
+    expect(inputsOf(platform)).toEqual(plain);
     expect(plain.ledger_url).toMatchObject({ type: "string", default: "" });
     expect(plain.daily_budget_usd).toMatchObject({ type: "number", default: 0 });
     expect(plain.weekly_budget_usd).toMatchObject({ type: "number", default: 0 });
