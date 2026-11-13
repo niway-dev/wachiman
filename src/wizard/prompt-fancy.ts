@@ -6,7 +6,7 @@
  */
 import { playIntro } from "./mascot";
 import type { Choice, Outcome, Prompter, PromptIO } from "./prompt";
-import { describeCommand, terminalStyle, type Tone } from "./style";
+import { describeCommand, terminalStyle, withoutShell, type Tone } from "./style";
 import type { LogKind, Ui } from "./ui";
 
 type Terminal = NodeJS.ReadableStream & { isTTY?: boolean; isRaw?: boolean; setRawMode?: (mode: boolean) => unknown };
@@ -97,6 +97,12 @@ export function createFancyPrompter(io: PromptIO, env: Record<string, string | u
       }
     },
     nextStep(command, note) {
+      // On Windows one step arrives once per shell: keep it as one step with both commands.
+      const last = next.at(-1);
+      if (!note && last && last.commands.length > 0 && withoutShell(last.commands[0]) === withoutShell(command) && last.commands[0] !== command) {
+        last.commands.push(command);
+        return;
+      }
       next.push({ note: note ? note[0].toUpperCase() + note.slice(1) : describeCommand(command), commands: [command] });
     },
     nextAction(note, commands = []) {

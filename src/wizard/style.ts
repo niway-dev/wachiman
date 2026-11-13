@@ -61,8 +61,14 @@ export interface NextStepSink {
   report?: (line: string, kind: "success" | "warning" | "info") => void;
 }
 
+/** A Windows hint names its shell first ("PowerShell: wachiman setup"); this drops that label. */
+export function withoutShell(command: string): string {
+  return command.replace(/^(PowerShell|Git Bash): /, "");
+}
+
 /** What a closing hint is for, when the hint itself only names the command. */
 export function describeCommand(command: string): string {
+  command = withoutShell(command);
   if (/^wachiman local\b/.test(command)) return "Review your branch on your signed-in Claude";
   if (/^wachiman doctor\b/.test(command)) return "See which checks need attention";
   if (/^wachiman setup\b/.test(command)) return "Bind this repository to a Claude account";

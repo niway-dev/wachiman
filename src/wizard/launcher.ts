@@ -284,7 +284,7 @@ async function planFor(top: Exclude<Top, "exit">, prompter: Prompter, ctx: { cwd
     const mode = await prompter.select<"start" | "continue" | Back>(
       "Review loop",
       [
-        { label: "Start a new loop", value: "start", description: "round 1 reviews everything since the base" },
+        { label: "Start a new loop", value: "start", description: "replaces an open loop; round 1 reviews everything since the base" },
         { label: "Continue the open loop", value: "continue", description: "reviews only the commits since the last round" },
         { label: "Back", value: "back" },
       ],

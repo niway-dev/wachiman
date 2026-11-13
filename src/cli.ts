@@ -277,7 +277,16 @@ async function refreshLedger(env: Record<string, string | undefined>) {
 
 export async function main(argv: string[], env: Record<string, string | undefined>): Promise<number> {
   const mode = argv[0];
-  if (argv.length === 0) return await runNoArgs(env);
+  if (argv.length === 0) {
+    // A command picked in the launcher goes through `main` again and handles its own errors; this
+    // catches the launcher's (reading the repository, the config, the terminal) the same way.
+    try {
+      return await runNoArgs(env);
+    } catch (error) {
+      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
+      return 1;
+    }
+  }
   if (mode === "--help" || mode === "-h") return await printRootHelp(env);
   // Before extractRepoDir, the configuration, git, authentication and any model: help reads nothing. The
   // `help` branches of the parsers below only serve direct callers of `parse*`; `helpFor` catches every

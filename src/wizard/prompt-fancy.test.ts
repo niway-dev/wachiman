@@ -107,6 +107,20 @@ describe("the terminal session on a scripted Ui", () => {
     expect(ui.of("cancel")).toHaveLength(0);
   });
 
+  test("on Windows the PowerShell and Git Bash forms of one hint are one titled step", () => {
+    const ui = fakeUi();
+    const p = createPrompter(streams(), {}, ui);
+    p.nextStep("PowerShell: wachiman setup");
+    p.nextStep("Git Bash: wachiman setup");
+    p.close("done");
+    const message = ui.of("note")[0].message;
+    expect(message).toContain("1. Bind this repository to a Claude account");
+    expect(message).toContain("PowerShell: wachiman setup");
+    expect(message).toContain("Git Bash: wachiman setup");
+    expect(message).not.toContain("2.");
+    expect(message).not.toContain("Run");
+  });
+
   test("a cancelled or failed run ends with the cancel line, not the outro", () => {
     for (const [outcome, text] of [["cancelled", "Cancelled."], ["failed", "Stopped."]] as const) {
       const ui = fakeUi();
