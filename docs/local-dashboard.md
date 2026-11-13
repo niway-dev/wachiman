@@ -35,8 +35,9 @@ this page does not merge the two views.
 - **The reason a loop stopped.** The loop state keeps only `open` or `converged`. The round cap and a
   failed review are printed by `wachiman loop` and not saved, so the dashboard writes
   `not recorded` for the exit reason of every loop.
-- **PR Confidence grades, today.** The grade is computed for GitHub pull request reviews only
-  (`wachiman local` and `wachiman loop` never produce it), and those never write the local history.
+- **PR Confidence grades, today.** The grade is computed for GitHub pull request reviews
+  and for `wachiman local --confidence <file>` (`wachiman loop` never produces it). GitHub reviews never
+  write the local history; a local run does only with `--history`.
   So the dashboard normally says `not recorded`. If a run file carries `fidelity.grade`, the
   dashboard counts it by grade; it does not guess one for a run that has none, and it does not read
   GitHub for the owner's judgement of a grade.

@@ -185,6 +185,7 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
   }
   if (args.confidence !== undefined) {
     if (args.workingTree) throw new UsageError("--confidence grades a committed change: it cannot be used with --working-tree.");
+    if (args.input !== undefined) throw new UsageError("--confidence grades the change --base, --from or --commit select: it cannot be used with --input.");
     if (args.paths.length > 0) throw new UsageError("--confidence grades the whole change: it takes no paths.");
     if (args.format === "json" && args.resultVersion === 1) throw new UsageError("--confidence needs --result-version 2: the grade is not part of result /1.");
   }
@@ -255,8 +256,8 @@ export interface ConfidenceText {
 }
 
 /**
- * The `--confidence` file: `{ "title": string, "body": string, "number"?: number, "url"?: string }`.
- * The body loses Wachiman's own block, as the pull request review does (ADR 0033 decision 14).
+ * The `--confidence` file: `{ "title": string, "body": string, "number"?: number, "url"?: string }`
+ * (`url` is the pull request's `https://…/pull/<n>` address). The body loses Wachiman's own block, as the pull request review does (ADR 0033 decision 14).
  */
 export function readConfidenceFile(path: string): ConfidenceText {
   let parsed: unknown;
@@ -272,7 +273,7 @@ export function readConfidenceFile(path: string): ConfidenceText {
     if (!isString(f.title)) problems.push("title");
     if (!isString(f.body)) problems.push("body");
     if (f.number !== undefined && !(typeof f.number === "number" && Number.isSafeInteger(f.number) && f.number > 0)) problems.push("number");
-    if (f.url !== undefined && !(isString(f.url) && /^https:\/\/[^\s<>]+$/.test(f.url))) problems.push("url");
+    if (f.url !== undefined && !(isString(f.url) && /^https:\/\/[^\s<>]+\/pull\/\d+(?:[/?#][^\s<>]*)?$/.test(f.url))) problems.push("url");
   }
   if (problems.length > 0) throw new UsageError(`--confidence ${path} is missing or mistypes: ${problems.join(", ")}.`);
   const ok = f as Record<string, any>;
@@ -528,12 +529,6 @@ export function runLocal(
 ): number {
   const fileInput = args.input === undefined ? undefined : readInputFile(args.input);
   const confidenceText = args.confidence === undefined ? undefined : readConfidenceFile(args.confidence);
-  if (confidenceText && fileInput?.change.kind === "working-tree") {
-    throw new UsageError("--confidence grades a committed change: the input is a working tree.");
-  }
-  if (confidenceText && args.input !== undefined && args.resultVersion === 1) {
-    throw new UsageError("--confidence needs --result-version 2: the grade is not part of result /1.");
-  }
   if ((args.workingTree || fileInput?.change.kind === "working-tree") && args.resultVersion === 1) {
     throw new UsageError("Working-tree reviews require --result-version 2; a tree is not a commit.");
   }

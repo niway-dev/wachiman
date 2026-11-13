@@ -85,8 +85,8 @@ Each has a default that applies if the owner does not answer.
 - CI results as a proof. The engine does not read checks today, and CI is usually still running
   when the review is posted. It needs a run with no model call when CI ends.
 - The linked issue's acceptance criteria as the source of intent.
-- PR Confidence in `wachiman local`. Local mode only reads commit subjects
-  (`src/connectors/local-git.ts:461`), which is too little to grade.
+- PR Confidence in `wachiman local` by default. Local mode only reads commit subjects
+  (`src/connectors/local-git.ts:461`), which is too little to grade; `--confidence <file>` supplies the real text.
 - Per-rule check agents. ADR 0006 is not implemented.
 - Anything for running agents on another machine.
 

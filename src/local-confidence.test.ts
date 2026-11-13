@@ -93,6 +93,9 @@ describe("wachiman local --confidence", () => {
     expect(result.format).toBe("wachiman.review-result/2");
     expect(result.change.kind).toBe("pull-request");
     expect(result.change.title).toBe("Add a module");
+    expect(result.change.identifier).toBe("#12");
+    expect(result.change.describe).toContain("pull request #12");
+    expect(result.change.repository.url).toBe("https://github.com/o/r");
     expect(result.fidelity.grade).toMatch(/^(A|A-|B|C|D|cannot say)$/);
     expect(result.fidelity.claims).toHaveLength(1);
     expect(provider.claimsCalls).toHaveLength(1);
@@ -121,8 +124,18 @@ describe("wachiman local --confidence", () => {
     expect(() => parseLocalArgs(["--working-tree", "all", "--confidence", f])).toThrow(UsageError);
     expect(() => parseLocalArgs(["--confidence", f, "src/a.ts"])).toThrow("takes no paths");
     expect(() => parseLocalArgs(["--confidence", f, "--format", "json", "--result-version", "1"])).toThrow("result-version 2");
+    expect(() => parseLocalArgs(["--confidence", f, "--input", f])).toThrow("--input");
     expect(() => parseLocalArgs(["--confidence", "/nonexistent/pr.json"])).toThrow("does not exist");
   });
+
+  test("the body loses Wachiman's own block, and a url without /pull/<n> is refused", () => {
+    const repo = branchRepo();
+    const provider = new FakeProvider();
+    const body = "Adds a new module.\n<!-- wachiman:confidence:start -->\nold\n<!-- wachiman:confidence:end -->";
+    const r = grade(["--commit", repo.head, "--confidence", prFile({ body }), "--format", "json"], repo, provider);
+    expect(JSON.parse(r.stdout).change.description.trim()).toBe("Adds a new module.");
+    expect(() => grade(["--commit", repo.head, "--confidence", prFile({ url: "https://github.com/o/r/issues/3" })], repo, new FakeProvider())).toThrow("url");
+  }, 30_000);
 
   test("a malformed file is a usage error naming the field", () => {
     const repo = branchRepo();
