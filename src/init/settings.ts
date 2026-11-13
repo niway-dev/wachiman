@@ -1,8 +1,9 @@
 /**
- * The repository settings file `.wachiman.yml`, written by `init` (ADR 0048). Today it holds
- * one key, `kind`, as metadata: nothing else in Wachiman reads it, and it never chooses an account,
- * a profile or a binary. It is plain string handling on purpose (no YAML library): init only ever
- * creates the file or replaces the one top-level `kind:` line, and keeps every other line as it was.
+ * The repository settings file `.wachiman.yml`, written by `init` (ADR 0048). `init` records one
+ * key, `kind`, and a new file carries `model` and `effort` commented out (ADR 0049); the engine reads
+ * the file through `parseRepoSettings` in `src/repo-settings.ts`. It never chooses an account, a
+ * profile or a binary. Writing is plain string handling on purpose: init only ever creates the file
+ * or replaces the one top-level `kind:` line, and keeps every other line as it was.
  *
  * It lives at the repository root so it is visible in every mode, including local mode where there
  * is no workflow and no `.github/` folder. It is never inside `.github/workflows/`: GitHub parses
@@ -12,10 +13,11 @@ import { randomBytes } from "node:crypto";
 import { linkSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { UsageError } from "../config";
+import { parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
 import type { ProjectKind } from "./options";
 import { inspectTarget, type TargetState } from "./write";
 
-export const SETTINGS_PATH = ".wachiman.yml";
+export { SETTINGS_PATH };
 
 const KIND_LINE = /^kind:[^\r\n]*/m;
 
@@ -25,6 +27,10 @@ export const settingsContent = (kind: ProjectKind) =>
     "# Wachiman settings for this repository, written by `wachiman init`. Commit it like any file.",
     '# kind: the shape of the repository, "monorepo" or "single". Metadata only for now.',
     `kind: ${kind}`,
+    "",
+    "# Optional. Wachiman's defaults are what its benchmarks measure; change them knowing that.",
+    "# model: claude-sonnet-5-5",
+    "# effort: high",
     "",
   ].join("\n");
 
@@ -38,11 +44,34 @@ export function readKind(content: string): string | undefined {
   return value === "" ? undefined : value;
 }
 
-/** The file with only its top-level `kind:` line replaced (or `kind: X` appended when there is none). */
+/** Any top-level line that names the key, however it is written (`kind:`, `"kind":`, `'kind' :`). */
+const ANY_KIND_KEY = /^(?:kind|"kind"|'kind')[ \t]*:/gm;
+
+/**
+ * The file with only its top-level `kind:` line replaced (or `kind: X` appended when there is none).
+ * Plain string handling can miss a differently written key (a quoted key, a flow mapping) and leave
+ * a duplicate or invalid result, so the result is checked before it is returned: it must parse with
+ * the engine's own parser, name `kind` exactly once and say `kind: X`. Otherwise this refuses, and
+ * the person edits the file by hand.
+ */
 export function withKind(content: string, kind: ProjectKind): string {
-  if (KIND_LINE.test(content)) return content.replace(KIND_LINE, `kind: ${kind}`);
-  const separator = content === "" || content.endsWith("\n") ? "" : "\n";
-  return `${content}${separator}kind: ${kind}\n`;
+  let next: string;
+  if (KIND_LINE.test(content)) next = content.replace(KIND_LINE, `kind: ${kind}`);
+  else {
+    const separator = content === "" || content.endsWith("\n") ? "" : "\n";
+    next = `${content}${separator}kind: ${kind}\n`;
+  }
+  const byHand = `Edit ${SETTINGS_PATH} by hand to say \`kind: ${kind}\`; init will not rewrite it.`;
+  let parsed: ReturnType<typeof parseRepoSettings>;
+  try {
+    parsed = parseRepoSettings(next);
+  } catch (error) {
+    throw new UsageError(`${SETTINGS_PATH} cannot be updated safely (${error instanceof Error ? error.message : error}) ${byHand}`);
+  }
+  if ((next.match(ANY_KIND_KEY) ?? []).length !== 1 || parsed.kind !== kind) {
+    throw new UsageError(`${SETTINGS_PATH} has a \`kind\` key that init cannot rewrite as a plain top-level line (a quoted key, a flow mapping or a duplicate). ${byHand}`);
+  }
+  return next;
 }
 
 export type SettingsPlan =

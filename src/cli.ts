@@ -43,7 +43,7 @@ import { parseStatusArgs, runStatus } from "./status/command";
 import { parseDashboardArgs, runDashboard } from "./store/command";
 import { parseLedgerArgs, runLedger } from "./ledger-read/command";
 import { pullLedger } from "./ledger-read/pull";
-import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
+import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, withBaseSettings, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { parseLocalArgs, runLocal } from "./local";
 import { parseLoopArgs, runLoop } from "./loop/command";
 import { parseAskArgs, runAsk } from "./local-ask";
@@ -384,13 +384,38 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // decision 4); the rest of the thread-only run is unchanged. Its trigger is the question's, not
     // an automatic run's, so it does not spend from the automatic ceiling.
     const effective = routeMode(mode, commentLine, env.REQUEST ?? "", loaded.mention);
-    const config = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
-    const provider = getProvider(config.provider, config);
-    // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
-    const verifier = config.verify && mode !== "threads" ? getProvider(config.provider, { ...config, model: config.verifierModel, effort: "high" }) : undefined;
+    const routed = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
+    const adapters = (c: typeof routed) => ({
+      provider: getProvider(c.provider, c),
+      // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
+      verifier: c.verify && mode !== "threads" ? getProvider(c.provider, { ...c, model: c.verifierModel, effort: "high" }) : undefined,
+    });
+    let { provider, verifier } = adapters(routed);
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
     const request = effective === "comment" ? required(env, "REQUEST") : "";
+    // Before any call is paid for: a missing binary or settings file would fail every batch.
+    try {
+      provider.preflight();
+      verifier?.preflight();
+    } catch (error) {
+      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
+      return 1;
+    }
+    // Where no workflow input or WACHIMAN_* set them, the model and the effort come from the base
+    // commit's `.wachiman.yml` (never the head's, ADR 0049), so the estimate, the size gate and every
+    // call agree. The adapters are rebuilt only when the file changed one of them.
+    const config = withBaseSettings(routed, defaultGh, repo, pr, (line) => console.log(line), (line) => console.error(line));
+    if (config.model !== routed.model || config.effort !== routed.effort) {
+      ({ provider, verifier } = adapters(config));
+      try {
+        provider.preflight();
+        verifier?.preflight();
+      } catch (error) {
+        console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
+        return 1;
+      }
+    }
     const costs: CallCost[] = [];
     const ledgerNotes: string[] = [];
     const deps: Deps = {
@@ -405,14 +430,6 @@ export async function main(argv: string[], env: Record<string, string | undefine
       log: (line) => console.log(line),
       warn: (line) => console.error(line),
     };
-    // Before any call is paid for: a missing binary or settings file would fail every batch.
-    try {
-      provider.preflight();
-      verifier?.preflight();
-    } catch (error) {
-      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
-      return 1;
-    }
     try {
       if (effective === "review") review(deps, repo, pr, rest);
       else if (effective === "threads") threadReplies(deps, repo, pr, env.WACHIMAN_COMMENT_AUTHOR || undefined);

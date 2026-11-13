@@ -382,7 +382,7 @@ and confirmations to stderr; `--json` prints the document named below.
 | `project show [--json] [--repo-dir <dir>]` | The repository's key, its binding, and what `local` would use here now, with the rule and any ignored values. `--json` prints `wachiman.project/1` |
 | `project unbind [--repo-dir <dir>] [--yes]` | Removes this repository's binding |
 | `setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to a profile, prints exactly what it will write, asks `Bind <repo> to <name>?` (only on a terminal), then runs the `doctor` summary. On a terminal without `--profile` it is a wizard: see below |
-| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `history`, `skills`, `isolation`. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
+| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `settings`, `history`, `skills`, `isolation`. The `settings` row reads `.wachiman.yml` in the working tree (read-only: it never writes or moves anything) and reports its `kind`, `model` and `effort` and where the effective model and effort of a run come from (the environment, the file or the default); an invalid working copy is a required failure (runs read the file at the base commit or merge-base and ignore a broken one with a warning, so the fix takes effect once committed and merged), and an old `.github/wachiman.yml` is a warning: its fix is `git mv .github/wachiman.yml .wachiman.yml`, or, when a root `.wachiman.yml` also exists, to merge the old file into it and remove the old one. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
 
 `remove` and `unbind` ask before writing. Without a terminal (or with `CI` set) they need `--yes`;
 without it they exit 2. `setup` needs `--profile <name>` when it cannot ask (no terminal, `CI` is `true` or `1`
@@ -446,10 +446,10 @@ opens a PR or creates a secret.
 `.github/workflows/`, where GitHub would parse it as a workflow). On a terminal it asks "What kind
 of repository is this?" (Monorepo, Single project, or Distributed repository, which is listed as
 coming soon and cannot be picked); `--project-kind monorepo|single` answers it. The kind is
-metadata only: nothing else in Wachiman reads it, and the file never chooses an account, a profile
+metadata only, and the file never chooses an account, a profile
 or a binary ([ADR 0048](adr/0048-a-repository-settings-file-at-the-root-wachiman-yml.md)). It applies
 in all three modes. Without a terminal and without `--project-kind` the file is not written or
-changed. A new file holds two comment lines and `kind: monorepo` (or `single`). The same kind
+changed. A new file holds two comment lines, `kind: monorepo` (or `single`), and `model` and `effort` commented out under a line saying Wachiman's defaults are what its benchmarks measure (`init` never asks for them; see [configuration](configuration.md#the-settings-file-wachimanyml)). The same kind
 leaves it untouched (`.wachiman.yml already says kind: X.`); a different or missing `kind:`
 line is replaced or appended, every other line kept, after a confirmation on a terminal or with
 `--force` without one. `--dry-run` never writes it and prints `would write .wachiman.yml

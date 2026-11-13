@@ -18,13 +18,14 @@ import {
   sections,
   verificationNotes,
   providerLine,
+  type SettingsFrom,
   sha7,
   sinceLastRunText,
   stopLine,
   type HistoryAnnotation,
 } from "./common";
 
-export function renderTerminal(result: ReviewResult, opts: { profileNote?: string; agentPrompt: boolean; history?: HistoryAnnotation }): string {
+export function renderTerminal(result: ReviewResult, opts: { profileNote?: string; agentPrompt: boolean; history?: HistoryAnnotation; settingsFrom?: SettingsFrom }): string {
   const blocks: string[] = [];
   blocks.push(
     [
@@ -51,7 +52,7 @@ export function renderTerminal(result: ReviewResult, opts: { profileNote?: strin
     blocks.push(`Not reviewed:\n${missing.map((f) => `  - ${neutralise(f.path)}${f.reason ? ` (${neutralise(f.reason)})` : ""}`).join("\n")}`);
   }
   if (result.summary) blocks.push(`Summary:\n${indent(neutralise(result.summary), "    ")}`);
-  blocks.push([estimateLine(result), stopLine(result), providerLine(result)].join("\n"));
+  blocks.push([estimateLine(result), stopLine(result), providerLine(result, opts.settingsFrom)].join("\n"));
   if (opts.agentPrompt) blocks.push(agentPrompt(result));
   return `${blocks.join("\n\n")}\n`;
 }

@@ -477,7 +477,7 @@ describe("the repository settings file .wachiman.yml", () => {
   const settingsFile = (w: World) => join(w.repo, ".wachiman.yml");
   const baseArgs = ["--mode", "github", "--operator", "me", "--version", "v1.5.0"];
 
-  test("a new file has the explanatory comments and the kind, and the next steps name it", async () => {
+  test("a new file has the explanatory comments, the kind, and model and effort commented out, and the next steps name it", async () => {
     const w = world();
     expect(await init(w, [...baseArgs, "--project-kind", "monorepo"])).toBe(0);
     expect(readFileSync(settingsFile(w), "utf8")).toBe(
@@ -485,6 +485,10 @@ describe("the repository settings file .wachiman.yml", () => {
         "# Wachiman settings for this repository, written by `wachiman init`. Commit it like any file.",
         '# kind: the shape of the repository, "monorepo" or "single". Metadata only for now.',
         "kind: monorepo",
+        "",
+        "# Optional. Wachiman's defaults are what its benchmarks measure; change them knowing that.",
+        "# model: claude-sonnet-5-5",
+        "# effort: high",
         "",
       ].join("\n"),
     );
@@ -529,6 +533,18 @@ describe("the repository settings file .wachiman.yml", () => {
     expect(await init(w, ["--mode", "local", "--project-kind", "single", "--force"])).toBe(0);
     expect(readFileSync(settingsFile(w), "utf8")).toBe("# mine\nowner: team-a\nkind: single\nnested:\n  kind: keep-me\n");
     expect(readdirSync(w.repo).filter((f) => f.startsWith(".wachiman.yml"))).toEqual([".wachiman.yml"]); // no backup file is left behind
+  });
+
+  test("--force refuses a settings file whose kind key it cannot rewrite safely, and writes nothing", async () => {
+    for (const content of ['"kind": monorepo\nmodel: claude-opus-5-5\n', "{kind: monorepo, model: x}\n", "model: [unclosed\n"]) {
+      const w = world();
+      mkdirSync(join(w.repo, ".github"));
+      writeFileSync(settingsFile(w), content);
+      const before = snapshotTree(w.repo);
+      expect(await exit2(init(w, ["--mode", "local", "--project-kind", "single", "--force"]))).toContain("by hand");
+      expect(snapshotTree(w.repo)).toEqual(before);
+      expect(readFileSync(settingsFile(w), "utf8")).toBe(content);
+    }
   });
 
   test("an edit to the settings file during the write is never overwritten, and the workflow written before it stays", async () => {
@@ -655,5 +671,13 @@ describe("settings text helpers", () => {
     expect(readKind("kind:\n")).toBeUndefined();
     expect(readKind("kind: # not set yet\n")).toBeUndefined();
     expect(withKind("a: 1\r\nkind: x\r\nb: 2\r\n", "single")).toBe("a: 1\r\nkind: single\r\nb: 2\r\n");
+  });
+
+  test("withKind refuses a result that is invalid YAML or whose kind key is not the plain line it wrote", () => {
+    expect(() => withKind('"kind": monorepo\n', "single")).toThrow(/by hand/); // a quoted key would end up duplicated
+    expect(() => withKind("'kind' : monorepo\nmodel: x\n", "single")).toThrow(/by hand/);
+    expect(() => withKind("{kind: monorepo}\n", "single")).toThrow(/cannot be updated safely/); // appending to a flow mapping is invalid YAML
+    expect(() => withKind("kind: a\nkind: b\n", "single")).toThrow(/by hand/); // a duplicate the regex would half-fix
+    expect(withKind("model: x\n", "single")).toBe("model: x\nkind: single\n");
   });
 });

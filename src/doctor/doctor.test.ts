@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import { repositoryKey } from "../history/store";
 import { fakeToolchain, signedIn, type RecordedCall, type Tools } from "../../test/support/fake-toolchain";
-import { emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
+import { emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
 import { buildDoctorReport, parseDoctorArgs, runDoctor, type DoctorDeps } from "./run";
 import { redactReport, renderJson, renderText } from "./render";
 import { tierOf, type DoctorReport, type DoctorRow } from "./checks";
@@ -21,7 +21,7 @@ afterAll(() => {
   removeTempRepos();
 });
 
-const ROWS = ["wachiman", "bun", "git", "tar", "config", "profile", "auth", "environment", "project", "history", "skills", "isolation"];
+const ROWS = ["wachiman", "bun", "git", "tar", "config", "profile", "auth", "environment", "project", "settings", "history", "skills", "isolation"];
 
 interface Machine {
   home: string;
@@ -165,6 +165,76 @@ describe("required checks that fail turn the exit code to 1", () => {
     expect(row(report, "profile").status).toBe("fail");
     expect(row(report, "auth")).toMatchObject({ status: "skip", detail: { networkObserved: "unknown" } });
     expect(report.failedRequired).toBe(1);
+  });
+});
+
+describe("settings row: the repository's .wachiman.yml", () => {
+  const settingsRow = (m: Machine, repo: string, env: Record<string, string> = {}) => row(m.report({ repoDir: repo }, env), "settings");
+
+  test("outside a git working tree the row is skipped", () => {
+    expect(row(machine().report(), "settings").status).toBe("skip");
+  });
+
+  test("no file: ok, with the defaults named as the source of the model and the effort", () => {
+    const r = settingsRow(machine(), emptyRepo());
+    expect(r).toMatchObject({ level: "optional", status: "ok", detail: { file: null, valid: true, effectiveModel: "claude-sonnet-5-5", modelFrom: "default", effectiveEffort: "high", effortFrom: "default" } });
+    expect(r.evidence).toContain("no .wachiman.yml");
+    expect(r.evidence).toContain("base commit");
+  });
+
+  test("a file with model and effort: they are reported and win over the defaults", () => {
+    const repo = emptyRepo();
+    write(repo, { ".wachiman.yml": "kind: monorepo\nmodel: claude-opus-5-5\neffort: medium\n" });
+    const r = settingsRow(machine(), repo);
+    expect(r).toMatchObject({
+      status: "ok",
+      detail: { kind: "monorepo", model: "claude-opus-5-5", effort: "medium", effectiveModel: "claude-opus-5-5", modelFrom: "file", effectiveEffort: "medium", effortFrom: "file" },
+    });
+    expect(r.evidence).toContain("from .wachiman.yml");
+  });
+
+  test("an explicit WACHIMAN_MODEL / WACHIMAN_EFFORT wins over the file and is reported as the environment", () => {
+    const repo = emptyRepo();
+    write(repo, { ".wachiman.yml": "model: claude-opus-5-5\neffort: medium\n" });
+    const r = settingsRow(machine(), repo, { WACHIMAN_MODEL: "claude-haiku-5-5", WACHIMAN_EFFORT: "max" });
+    expect(r.detail).toMatchObject({ effectiveModel: "claude-haiku-5-5", modelFrom: "env", effectiveEffort: "max", effortFrom: "env", model: "claude-opus-5-5" });
+  });
+
+  test("an invalid file is a required failure with the fix, and the exit code is 1", () => {
+    const repo = emptyRepo();
+    write(repo, { ".wachiman.yml": "effort: turbo\n" });
+    const m = machine();
+    const report = m.report({ repoDir: repo });
+    expect(row(report, "settings")).toMatchObject({ level: "required", status: "fail", detail: { valid: false } });
+    expect(row(report, "settings").evidence).toContain('got "turbo"');
+    expect(row(report, "settings").fix).toContain("remove it");
+    expect(row(report, "settings").evidence).toContain("the working copy of .wachiman.yml is invalid");
+    expect(row(report, "settings").evidence).toContain("takes effect once committed and merged");
+    expect(row(report, "settings").evidence).not.toContain("stops");
+    expect(report.failedRequired).toBe(1);
+    expect(report.exitCode).toBe(1);
+  });
+
+  test("the old .github/wachiman.yml is a warning whose fix is git mv, and nothing is moved", () => {
+    const repo = emptyRepo();
+    write(repo, { ".github/wachiman.yml": "kind: single\n" });
+    const r = settingsRow(machine(), repo);
+    expect(r).toMatchObject({ status: "warn", level: "optional", fix: "git mv .github/wachiman.yml .wachiman.yml" });
+    expect(r.evidence).toContain("never read");
+    expect(existsSync(join(repo, ".github", "wachiman.yml"))).toBe(true);
+    expect(existsSync(join(repo, ".wachiman.yml"))).toBe(false);
+  });
+
+  test("with both files the fix is to merge, since git mv would overwrite the root file", () => {
+    const repo = emptyRepo();
+    write(repo, { ".github/wachiman.yml": "kind: single\n", ".wachiman.yml": "kind: monorepo\n" });
+    expect(settingsRow(machine(), repo).fix).toContain("merge");
+  });
+
+  test("a subfolder of the working tree finds the file at the root", () => {
+    const repo = emptyRepo();
+    write(repo, { ".wachiman.yml": "effort: low\n", "pkg/a.txt": "x" });
+    expect(row(machine().report({ repoDir: join(repo, "pkg") }), "settings").detail).toMatchObject({ effectiveEffort: "low", effortFrom: "file" });
   });
 });
 

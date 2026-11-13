@@ -53,10 +53,9 @@ text; bindings live in the home directory. Both `local` mode (no workflow at all
 - `--dry-run` never writes it; it prints `would write .wachiman.yml (kind: X)` on stderr
   and stdout stays the workflow only.
 - Changing the kind later is `wachiman init --project-kind <kind> --force` (or editing the line).
-- The file is not read by any engine or CLI path today. A later feature that reads it needs its
-  own decision about what it may influence. Reading more keys can use Bun's built-in
-  `Bun.YAML.parse` (no dependency). Any key that changes spend must be read from the base commit in
-  Actions, like the focus file, never from the pull request's head.
+- When this ADR was accepted the file was not read by any engine or CLI path. [ADR 0049](0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md)
+  adds two keys, `model` and `effort`, and makes the engine read the file from the base commit in
+  Actions and from the merge-base locally, as the rule below required. `kind` is still metadata only.
 
 ## Non-goals
 
@@ -65,12 +64,12 @@ text; bindings live in the home directory. Both `local` mode (no workflow at all
   decides.
 - A distributed repository is not implemented. The choice is shown as coming soon and `--project-kind
   distributed` is refused with that message.
-- No settings schema, no validation of unknown keys, and no merging beyond the `kind:` line.
+- No settings schema, no validation of unknown keys, and no merging beyond the `kind:` line. (ADR 0049 adds `model` and `effort` and validates only those; unknown keys are still ignored.)
 
 ## Reopen when
 
 - A feature needs a second key, or needs the engine to read the file in CI: decide the schema,
-  its limits and whether it is read from the base commit like `.github/wachiman.md`.
+  its limits and whether it is read from the base commit like `.github/wachiman.md`. (Met by ADR 0049 for `model` and `effort`.)
 - Distributed repositories get an implementation: add the value and what it means.
 - The file starts being used to select an account, a profile or a binary: that contradicts this
   decision and needs a new one.

@@ -16,10 +16,12 @@ import type { HistoryRepository } from "../history/types";
 import { detectInstall, type InstallKind } from "../install-kind";
 import { inspectIsolatedProfile } from "../profiles";
 import { buildChildEnv } from "../providers/claude-code";
+import { effectiveSettings, OLD_SETTINGS_PATH, parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
+import { UsageError } from "../config";
 
 export type CheckLevel = "required" | "optional";
 export type CheckStatus = "ok" | "fail" | "warn" | "skip";
-export type CheckId = "wachiman" | "bun" | "git" | "tar" | "config" | "profile" | "auth" | "environment" | "project" | "history" | "skills" | "isolation";
+export type CheckId = "wachiman" | "bun" | "git" | "tar" | "config" | "profile" | "auth" | "environment" | "project" | "settings" | "history" | "skills" | "isolation";
 
 export interface DoctorRow {
   id: CheckId;
@@ -102,6 +104,8 @@ export interface DoctorContext {
   config: ConfigRead;
   /** The repository of `--repo-dir`, or why there is none. */
   repository: { ok: true; value: HistoryRepository } | { ok: false; reason: string };
+  /** The top of the working tree of `--repo-dir` (where `.wachiman.yml` is looked for); undefined when it is not one. */
+  root?: string;
   /** The profile the full resolution picks (or the one `--profile` names); undefined when it resolves to nothing. */
   primary: ResolvedProfile | undefined;
   /** The profile this pass of `profile`, `auth` and `isolation` looks at. */
@@ -357,6 +361,61 @@ export const CHECKS: DoctorCheck[] = [
           would,
         detail: { key: repo.key, keyedBy: repo.keyedBy, bound: binding !== undefined, profile: binding?.profile ?? null, ...(repo.remote ? { remote: repo.remote } : {}) },
       };
+    },
+  },
+  {
+    // Read-only: reports the repository's `.wachiman.yml` (the working tree is fine here; a run reads
+    // the base commit) and where the model and the effort of a run would come from. Never writes or moves anything.
+    id: "settings",
+    level: "optional",
+    run: ({ root, env, fs }) => {
+      if (root === undefined) return { id: "settings", level: "optional", status: "skip", evidence: "not in a git working tree: no repository settings to read" };
+      const file = join(root, SETTINGS_PATH);
+      const old = join(root, OLD_SETTINGS_PATH);
+      const hasFile = fs.exists(file);
+      const hasOld = fs.exists(old);
+      let settings: ReturnType<typeof parseRepoSettings> | undefined;
+      if (hasFile) {
+        try {
+          settings = parseRepoSettings(fs.read(file));
+        } catch (error) {
+          const why = error instanceof UsageError ? error.message : `${SETTINGS_PATH} cannot be read (${error instanceof Error ? error.message : error})`;
+          return {
+            id: "settings",
+            level: "required",
+            status: "fail",
+            evidence: `the working copy of ${SETTINGS_PATH} is invalid: ${why} Runs read it at the base commit (Actions) or the merge-base (local), so it takes effect once committed and merged; a run with a broken file at that commit ignores it with a warning and uses the defaults.`,
+            fix: `fix ${SETTINGS_PATH} (effort is low, medium, high, xhigh or max; model is a model name), or remove it to use the defaults`,
+            detail: { file, valid: false },
+          };
+        }
+      }
+      const effective = effectiveSettings(env, settings);
+      const from = (s: { value: string; source: string }) => `${s.value} (${s.source === "file" ? `from ${SETTINGS_PATH}` : s.source === "env" ? "from the environment" : "default"})`;
+      const read = hasFile ? `${SETTINGS_PATH}: kind ${settings?.kind ?? "not set"}, model ${settings?.model ?? "not set"}, effort ${settings?.effort ?? "not set"}` : `no ${SETTINGS_PATH}`;
+      const detail = {
+        file: hasFile ? file : null,
+        valid: true,
+        kind: settings?.kind ?? null,
+        model: settings?.model ?? null,
+        effort: settings?.effort ?? null,
+        effectiveModel: effective.model.value,
+        modelFrom: effective.model.source,
+        effectiveEffort: effective.effort.value,
+        effortFrom: effective.effort.source,
+      };
+      const evidence = `${read}; a run here would use model ${from(effective.model)}, effort ${from(effective.effort)}. GitHub Actions reads the file from the base commit of the pull request, not from the head`;
+      if (hasOld) {
+        return {
+          id: "settings",
+          level: "optional",
+          status: "warn",
+          evidence: `${OLD_SETTINGS_PATH} exists and is never read (the settings file is ${SETTINGS_PATH} at the root); ${evidence}`,
+          fix: hasFile ? `merge ${OLD_SETTINGS_PATH} into ${SETTINGS_PATH}, then remove it` : `git mv ${OLD_SETTINGS_PATH} ${SETTINGS_PATH}`,
+          detail: { ...detail, oldLocation: old },
+        };
+      }
+      return { id: "settings", level: "optional", status: "ok", evidence, detail };
     },
   },
   {

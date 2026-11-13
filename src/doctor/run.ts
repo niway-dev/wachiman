@@ -9,7 +9,7 @@ import { confirmProfile, type ConfirmIo, type SpawnFn } from "../accounts/confir
 import { buildProfileList, managedDir } from "../accounts/profile-list";
 import { parseProfileRef, resolveProfile } from "../accounts/resolve";
 import { UsageError } from "../config";
-import { type GitRunner } from "../evidence";
+import { spawnGit, type GitRunner } from "../evidence";
 import { parseFlags } from "../flags";
 import { repositoryKey } from "../history/store";
 import { CHECKS, detectInstall, PROFILE_SCOPED, realDoctorFs, tierOf, type DoctorContext, type DoctorFs, type DoctorReport, type InstallKind, type Target } from "./checks";
@@ -76,6 +76,9 @@ export function buildDoctorReport(opts: DoctorOptions, env: Record<string, strin
   } catch {
     repository = { ok: false, reason: `${opts.repoDir} is not a git repository` };
   }
+  // Where `.wachiman.yml` is looked for: the top of the working tree (a linked worktree has its own copy).
+  const top = (deps.git ?? spawnGit)(["rev-parse", "--show-toplevel"], { cwd: opts.repoDir, timeoutMs: 15_000 });
+  const root = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : undefined;
   const binding =
     repository.ok && accounts && Object.hasOwn(accounts.projects, repository.value.key) ? accounts.projects[repository.value.key] : undefined;
 
@@ -111,6 +114,7 @@ export function buildDoctorReport(opts: DoctorOptions, env: Record<string, strin
     arch,
     config,
     repository,
+    root,
     primary,
   };
 
