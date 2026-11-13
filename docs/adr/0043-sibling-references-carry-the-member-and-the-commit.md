@@ -42,7 +42,10 @@ is a new decision, not a reopen.
    runs `git archive <sha> -- <paths>` in the member's repository and extracts it into a temporary
    directory: tracked files under the contract's paths only, no `.git`, no untracked files.
    Symlinks are dropped and listed in the report. A manifest path that is absolute or contains
-   `..` is refused before anything is read. The live checkout is never passed to the model.
+   `..` is refused before anything is read. **The engine expands the globs itself:** it lists the
+   tree at `<sha>` (`git ls-tree -r --name-only`), matches it with the same matcher that decides
+   whether a contract applies (ADR 0044 decision 4), and passes the resulting literal file list to
+   `git archive` with `--literal-pathspecs`. Git's own pathspec rules never decide what is read. The live checkout is never passed to the model.
 2. **A reference is `{member, sha, path, line}`.** Rendered as `member@sha:path:line` (short SHA
    in text, full SHA in JSON). An absent `member` means the reviewed head, exactly as today. The
    fields are optional additions to every structured reference of result `/2`: finding evidence,

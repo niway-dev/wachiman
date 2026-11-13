@@ -19,8 +19,8 @@ touches a file, which side is the real source, and which version of the sibling 
 
 Three cases from the design conversation, with invented names:
 
-- **A copy.** `web-site` keeps a copy of the palette in `desktop-app/Assets/palette.json` and tests
-  its tokens against its own copy. The source of truth stays in the app; a review of either side
+- **A copy.** `web-site` keeps a copy of the palette whose source is
+  `desktop-app/Assets/palette.json`, and tests its tokens against its own copy. The source of truth stays in the app; a review of either side
   needs the other, and a review of the copy must consult the real source, or say it could not.
 - **An API.** `billing-service` provides routes; `api-client` calls them and keeps the document
   both must match. The provider and the source of truth are different members.
@@ -62,7 +62,9 @@ keeps per-user overrides in `local_manifests`
    contract, then per member; the manifest's contract, then its member; then `pinned`. The
    per-user file (`~/.wachiman/workspaces.json`) is never committed and also holds the mode's
    default (`off` until the user changes it), where uncloned members live, and which cloned
-   members are not watched.
+   members are not watched. When the mode is on because of that default rather than the flag,
+   every run prints `distributed-repo: on (default from ~/.wachiman/workspaces.json)` before it
+   reads anything, and the report repeats it.
 7. **The report states the rule.** For each sibling: the rule, where it came from, any fallback
    and its reason, the SHA read, and for `tip` the age of the last fetch.
 8. **`kind` is informative.** `kind: distributed` in `.github/wachiman.yml` (ADR 0048, open PR
@@ -83,7 +85,9 @@ keeps per-user overrides in `local_manifests`
 - **Rules only in the committed manifest.** One file. Rejected: an all-local test with a made-up
   version is one developer's choice, not the team's.
 - **`kind: distributed` turns the mode on.** One less setting. Rejected: a one-line edit nobody
-  reviews as a security change would widen what every run reads.
+  reviews as a security change would widen what every run reads, for everyone who clones the
+  repository. The per-user default also widens reads, but only for its owner, only on the laptop
+  destination (ADR 0042), and every run it affects announces it (decision 6).
 
 ## Consequences
 

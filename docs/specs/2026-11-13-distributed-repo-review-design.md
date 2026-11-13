@@ -49,7 +49,7 @@ single-repository review misses, at a cost worth paying.
 | 5 | The engine picks siblings from the manifest's `contracts`, never the model. A contract applies when a changed path (either side of a rename, or a deleted path) matches the reviewed member's globs in it. `--sibling <dir>` adds a member by hand. With no contract applied, the report says so in one line | Reproducible and testable, like the data-path questions; a silent miss would read as coverage | 0044 (new), reuses 0016 |
 | 6 | Each contract names its sides with a role (`provider` or `consumer`, which gives the direction) and its **source of truth**. A review of the side that does not hold the source reads the source when it is cloned and says "source of truth not cloned: not checked" when it is not | The owner: the source of truth does not move, but every side must know where it is and try to consult it | 0044 (new) |
 | 7 | A **version rule** per contract or member: `pinned` (default; the version the consumer pins), `local` (the sibling's `HEAD` commit), `tip` (the sibling's recorded `origin/<default>`, never fetched). A per-user file overrides it. The report states the rule applied, why, and the SHA read | Reading the tip of a dependency the consumer pins gives false alarms and false passes; an all-local test needs the version made up locally; one place holds all these rules | 0044 (new) |
-| 8 | Siblings are read as snapshots: `git archive` of the resolved commit, tracked files under the contract's paths only, no `.git`, symlinks dropped and listed, manifest paths with `..` or absolute paths refused. Never the live checkout | `--add-dir` on a checkout grants the whole tree, untracked files included | 0043 (new) |
+| 8 | Siblings are read as snapshots: `git archive` of the resolved commit, tracked files under the contract's paths only (globs expanded by the engine's own matcher, never by git pathspecs), no `.git`, symlinks dropped and listed, manifest paths with `..` or absolute paths refused. Never the live checkout | `--add-dir` on a checkout grants the whole tree, untracked files included | 0043 (new) |
 | 9 | References into a sibling are structured `{member, sha, path, line}` and survive only if that line exists in that member's snapshot at that commit; the verifier and `ask` get the same snapshots | Today a sibling reference is dropped by the head-only check, and the verifier cannot see the sibling premise | 0043 (new), supersedes 0031/0032 decision 3 and the 0032 non-goal; amends 0027 |
 | 10 | Wachiman reports impact (which consumer or copy is affected and where) and never edits a sibling or proposes a change set across members | Propagating edits is delicate when not everyone can see them; the review loop already never edits code | reuses 0034 |
 | 11 | `kind: distributed` in `.github/wachiman.yml` is informative. It never turns on sibling reads; the flag and the contracts decide | A label that changes what is read would widen reads on a file edit nobody reviews as a security change | reuses 0048 (open PR #232) |
@@ -244,7 +244,7 @@ Illustrative, with invented names. Any other key is ignored.
 
 ```json
 {
-  "format": 1,
+  "format": "workspace/1",
   "members": [
     { "dir": "api-client",      "repo": "acme/api-client",      "visibility": "public"  },
     { "dir": "billing-service", "repo": "acme/billing-service", "visibility": "private" },
@@ -273,7 +273,9 @@ Illustrative, with invented names. Any other key is ignored.
 }
 ```
 
-- `format`: an integer. An unknown value is refused with a message; Wachiman never guesses.
+- `format`: the kit's identifier for the file, ending in `/<major>`. Wachiman reads the majors it
+  knows and refuses any other with a message; it never guesses. Which identifiers it accepts is
+  part of open question 1.
 - `members[]`: `dir` (relative to the coordinator), `repo` (`owner/name`, matched against the
   reviewed repository's normalised `origin`), `visibility` (`public` or `private`; anything else or
   missing counts as private).
@@ -305,7 +307,9 @@ agent on the user's word:
 ```
 
 - `distributedRepo`: the default when the flag is not given (`off` unless the user changes it).
-  `--distributed-repo` and `--no-distributed-repo` win over it for one run.
+  `--distributed-repo` and `--no-distributed-repo` win over it for one run. A run turned on by
+  this default prints `distributed-repo: on (default from ~/.wachiman/workspaces.json)` before
+  reading anything, so a change to the file never widens reads silently.
 - `members.<dir>.dir`: where that member is cloned, when not inside the coordinator.
   `members.<dir>.watch: false` leaves a cloned member out, reported as "not watched".
 - `versions`: per contract name or member `dir`. Precedence, first match wins: this file per
