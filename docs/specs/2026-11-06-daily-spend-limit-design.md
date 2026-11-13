@@ -8,7 +8,7 @@
   [ADR 0021 Amendments](../adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md); where they
   disagree with this spec, they win. In particular, a repository enrolled in a ledger calls
   `review-platform.yml` (which carries `id-token: write`), not `review.yml`; the `id-token`
-  instructions below are historical. The engine client is on `main` (`src/ledger.ts`). The input names below follow the shipped engine (`limit_mode`, `limit_bypass`, `/wachiman review`; ADR 0021, Amendment (i)); the Interfaces table still lists only the first version's inputs. Text below that
+  instructions below are historical. The engine client is on `main` (`src/ledger.ts`). The '"No credits today"' comment, its footer `wachi:nocredits` and the acceptance items that mention them are historical (see the note under that heading). The input names below follow the shipped engine (`limit_mode`, `limit_bypass`, `/wachiman review`; ADR 0021, Amendment (i)); the Interfaces table still lists only the first version's inputs. Text below that
   says the ledger's code is public in this repository or lives under `ledger/` is superseded by ADR 0021,
   Amendment (h).
 - **Creates:** [ADR 0021](../adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md) (a hosted
@@ -227,6 +227,8 @@ Account table (private, not in git): `{account_id, name, organization_id?, limit
 repositories: [{repository_id, repository, limit_usd?, tags: [...]}]}`.
 
 ## The "No credits today" comment
+
+*Historical: the engine posts "Spend limit reached." with the footer `<!-- wachi:limit reason=… on=… -->`, once per pull request, reason and period (a weekly refusal posts one too), not the text and footer below. See `docs/troubleshooting.md`.*
 
 Posted as a review comment (same path as ADR 0012's notice), branded, one per pull request per
 UTC day:
