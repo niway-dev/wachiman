@@ -28,7 +28,7 @@ Pick the least disruptive of these.
 
 ## Remove it
 
-1. **Delete the caller file**, `.github/workflows/wachiman-review.yml` if you used the template's name (`agent-review.yml` before the naming release),
+1. **Delete the caller file**, `.github/workflows/wachiman-review.yml` if you used the template's name,
    through your normal change process. Comment-triggered runs use the file on your default branch,
    so `/wachiman` stops when the deletion merges.
 2. **Check that nothing waits for the check.** If you made "Wachiman review" a required status check
@@ -53,12 +53,12 @@ Pick the least disruptive of these.
    account's Claude Code sessions or revoke it in the account's settings at claude.ai, and make a new
    one if you still need it.
 5. **Remove optional files you no longer need.** Only if nothing else in the repository uses them:
-   - `.github/wachiman.md` (or the older `.github/agent-review.md` or `.github/claude-review.md`): the review focus file.
+   - `.github/wachiman.md` (or the older `.github/claude-review.md`): the review focus file.
      Nothing else reads it. Leave `CLAUDE.md` and `AGENTS.md`: they are yours, and other tools read
      them.
    - `.github/dependabot.yml`: keep it if it also updates other actions, which is its normal use.
      The `github-actions` entry covers every workflow file, so it is rarely safe to delete.
-   - A copied install ([setup-copy.md](setup-copy.md)): the `scripts/agent-review/` folder
+   - A copied install ([setup-copy.md](setup-copy.md)): the `scripts/wachiman/` folder
      (including its `bunfig.toml` and `providers/`), the copied workflow
      `.github/workflows/wachiman-review.yml`, and the decision record you wrote for it.
 6. **Confirm it is gone.** In Actions, check that no "Wachiman review" workflow is listed and that new
@@ -87,7 +87,7 @@ Pick the least disruptive of these.
   review, a reply in a review thread, a pull request comment). It never edits or deletes what it
   posted, and it has no cleanup command. They carry hidden HTML
   comments that markdown does not display: `<!-- wachi:review -->`, `<!-- wachi:finding -->`,
-  `<!-- wachi:reply -->`, `<!-- wachi:attempt id=… -->` and `<!-- agent-review sha=… -->`. They do
+  `<!-- wachi:reply -->`, `<!-- wachi:attempt id=… -->` and `<!-- wachiman sha=… -->`. They do
   nothing once the tool is gone. If you want the comments removed, do it by hand with GitHub's own
   controls, and check GitHub's current documentation for what can be hidden or deleted.
 - **Actions history.** Past runs, their job summaries and their logs stay until GitHub's retention

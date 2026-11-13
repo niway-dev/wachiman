@@ -27,7 +27,7 @@ Rules that apply to all of them:
   requests and head branches that start with a skipped prefix (default `release-please--`).
   These checks apply only to the automatic review. A comment from the operator also works on a
   draft or on a skipped branch; it is refused only for a fork.
-- **The keyword.** The default is `/wachiman`. The older `/wachi`, `@agent-review` and `@claude`
+- **The keyword.** The default is `/wachiman`. `/wachi` and `@claude`
   are accepted as well, but only `/wachiman` is documented. The keyword must start a word
   (`docs/wachiman` is not a command), it is matched case-sensitively (`/Wachiman review` is
   ignored), and it can be on any line of the comment. Only the rest of that line is read for
@@ -183,7 +183,7 @@ The first line of the review says whether everything was covered:
   a review partial and does not keep the incremental marker from moving. A push that changes only
   binaries posts a one-line "Nothing to review … not reviewable" notice with the marker and no
   cost line: no model was called.
-- Partial: "⚠️ **Partial review**: the agent reviewed 3 of 4 files … Not reviewed: … Ask
+- Partial: "⚠️ **Partial review**: reviewed 3 of 4 files … Not reviewed: … Ask
   `/wachiman review <paths>` for the rest." A partial review of the whole change also records which
   files it did not reach. The next push reviews the changes since plus those files (with their whole
   diff), and its headline says so: "review of the changes since `a1b2c3d` and the 4 files the previous
@@ -263,7 +263,7 @@ call. A newer push cancels the run during the sleep and it spends nothing. Pushe
 apart (an AI agent committing in steps) are reviewed once, at the last one. `opened`,
 `ready_for_review` and comment runs do not wait. The price is that a lone push is reviewed three
 minutes later, plus the runner minutes of the wait. The copy-the-files template waits the same way,
-through its `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` variable.
+through its `WACHIMAN_PUSH_DEBOUNCE_SECONDS` variable.
 
 | The push… | …and the engine does |
 | --- | --- |
@@ -430,13 +430,13 @@ answered as a question:
   sections (what it does, how it is built, what it connects to, open findings, what was not
   covered).
 
-- **Only the operator asks by default.** With `AGENT_REVIEW_ASKERS=write` a collaborator may ask
+- **Only the operator asks by default.** With `WACHIMAN_ASKERS=write` a collaborator may ask
   too, but only a question, never `review`. GitHub must report that person as `admin`, `maintain` or
   `write` on the repository; the engine checks this on each question and does not trust the
   comment's `author_association`. A refused collaborator gets no comment, only a line in the job log.
 - **Collaborators' questions share a ceiling.** Each answer to a collaborator records its cost in
   its footer. When the next one would take their total on the pull request past
-  `AGENT_REVIEW_ASK_CEILING_USD` (default `$3`), the engine posts one notice and answers nothing more
+  `WACHIMAN_ASK_CEILING_USD` (default `$3`), the engine posts one notice and answers nothing more
   until the ceiling is raised. The operator's questions are neither limited nor counted.
 - **A question in a finding's thread is answered in that thread**, with the thread's earlier comments
   as context. A new comment on a diff line (not a reply) is routed too when it starts with the

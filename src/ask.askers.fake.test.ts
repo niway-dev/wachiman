@@ -31,7 +31,7 @@ class FakeProvider implements ProviderAdapter {
 const HEAD = "head1234567";
 const BASE = "b".repeat(40);
 const FINDING = `🟠 **Fix · logic: retry ignores budget**\n\nThe loop does not read the budget.\n\n<!-- wachi:finding -->`;
-const REVIEW = `${BRAND} · review of the whole pull request.\n\n## Risk map\n\nRead first: src/a.ts\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=${HEAD} -->`;
+const REVIEW = `${BRAND} · review of the whole pull request.\n\n## Risk map\n\nRead first: src/a.ts\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- wachiman sha=${HEAD} -->`;
 const ANSWER = {
   sections: [{ title: "Overview", body: "The retry loop ignores the budget.", refs: [{ path: "src/a.ts", line: 3 }] }],
   not_answered: "",
@@ -122,14 +122,14 @@ function depsFor(provider: FakeProvider, s: Site, env: Record<string, string> = 
   return {
     gh: fakeGh(s),
     provider,
-    config: loadConfig({ AGENT_REVIEW_OPERATOR: "boss", ...env }),
+    config: loadConfig({ WACHIMAN_OPERATOR: "boss", ...env }),
     repoDir: checkout(),
     log: () => {},
     warn: (line) => s.warnings.push(line),
   };
 }
 
-const WRITE = { AGENT_REVIEW_ASKERS: "write" };
+const WRITE = { WACHIMAN_ASKERS: "write" };
 const ADMIN = { permission: "admin", role_name: "admin", user: { type: "User" } };
 const WRITER = { permission: "write", role_name: "write", user: { type: "User" } };
 const READER = { permission: "read", role_name: "read", user: { type: "User" } };
@@ -407,15 +407,15 @@ describe("line questions (R5, R6)", () => {
 
   test("the comment's id, reply target, path and line come from the environment", () => {
     expect(readCommentLine({})).toBeUndefined();
-    expect(readCommentLine({ AGENT_REVIEW_COMMENT_ID: "50", AGENT_REVIEW_COMMENT_IN_REPLY_TO: "40", AGENT_REVIEW_COMMENT_PATH: "src/a.ts", AGENT_REVIEW_COMMENT_LINE: "3" })).toEqual(LINE);
-    expect(readCommentLine({ AGENT_REVIEW_COMMENT_ID: "50", AGENT_REVIEW_COMMENT_PATH: "", AGENT_REVIEW_COMMENT_LINE: "" })).toEqual({ id: 50, replyTo: null, path: null, line: null });
-    expect(() => readCommentLine({ AGENT_REVIEW_COMMENT_ID: "x" })).toThrow("AGENT_REVIEW_COMMENT_ID must be a comment id");
-    expect(() => readCommentLine({ AGENT_REVIEW_COMMENT_ID: "5", AGENT_REVIEW_COMMENT_LINE: "3.5" })).toThrow("AGENT_REVIEW_COMMENT_LINE must be");
+    expect(readCommentLine({ WACHIMAN_COMMENT_ID: "50", WACHIMAN_COMMENT_IN_REPLY_TO: "40", WACHIMAN_COMMENT_PATH: "src/a.ts", WACHIMAN_COMMENT_LINE: "3" })).toEqual(LINE);
+    expect(readCommentLine({ WACHIMAN_COMMENT_ID: "50", WACHIMAN_COMMENT_PATH: "", WACHIMAN_COMMENT_LINE: "" })).toEqual({ id: 50, replyTo: null, path: null, line: null });
+    expect(() => readCommentLine({ WACHIMAN_COMMENT_ID: "x" })).toThrow("WACHIMAN_COMMENT_ID must be a comment id");
+    expect(() => readCommentLine({ WACHIMAN_COMMENT_ID: "5", WACHIMAN_COMMENT_LINE: "3.5" })).toThrow("WACHIMAN_COMMENT_LINE must be");
   });
 
   test("a new line comment, with no reply target, is a question under itself, from the workflow's environment", () => {
     // What the threads job exports for a top-level comment: the reply id is empty, path and line are set.
-    const top = readCommentLine({ AGENT_REVIEW_COMMENT_ID: "50", AGENT_REVIEW_COMMENT_IN_REPLY_TO: "", AGENT_REVIEW_COMMENT_PATH: "src/a.ts", AGENT_REVIEW_COMMENT_LINE: "3" });
+    const top = readCommentLine({ WACHIMAN_COMMENT_ID: "50", WACHIMAN_COMMENT_IN_REPLY_TO: "", WACHIMAN_COMMENT_PATH: "src/a.ts", WACHIMAN_COMMENT_LINE: "3" });
     expect(top).toEqual({ id: 50, replyTo: null, path: "src/a.ts", line: 3 });
     expect(routeMode("threads", top, QUESTION, "/wachiman")).toBe("comment");
     const s = site({ threads: [] });

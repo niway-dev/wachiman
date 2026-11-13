@@ -42,7 +42,7 @@ on:
         type: string
         required: true
       mention:
-        description: Command that starts an on-demand run (`/wachi`, `/wachiman`, `@agent-review` and `@claude` are always accepted too)
+        description: Command that starts an on-demand run (`/wachi`, `/wachiman` and `@claude` are always accepted too)
         type: string
         default: "/wachiman"
       budget_usd:
@@ -242,7 +242,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30 # batches run one after another
     concurrency:
-      group: agent-review-${{ github.event.pull_request.number }}
+      group: wachiman-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -307,7 +307,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          AGENT_REVIEW_CONFIDENCE: ${{ inputs.pr_confidence }}
+          WACHIMAN_CONFIDENCE: ${{ inputs.pr_confidence }}
         working-directory: engine
         run: bun --no-env-file --config=bunfig.toml src/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"
 
@@ -371,34 +371,34 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          AGENT_REVIEW_BUDGET_USD: ${{ inputs.budget_usd }}
-          AGENT_REVIEW_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
-          AGENT_REVIEW_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
-          AGENT_REVIEW_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
-          AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
-          AGENT_REVIEW_BATCH_LINES: ${{ inputs.batch_lines }}
-          AGENT_REVIEW_BATCH_CHARS: ${{ inputs.batch_chars }}
-          AGENT_REVIEW_MODEL: ${{ inputs.model }}
-          AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
-          AGENT_REVIEW_VERIFY: ${{ inputs.verify }}
-          AGENT_REVIEW_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
-          AGENT_REVIEW_VERIFIER_MODEL: ${{ inputs.verifier_model }}
-          AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
-          AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
-          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
-          AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
-          AGENT_REVIEW_MENTION: ${{ inputs.mention }}
-          AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
-          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
-          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
-          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
-          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
-          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
-          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
+          WACHIMAN_BUDGET_USD: ${{ inputs.budget_usd }}
+          WACHIMAN_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
+          WACHIMAN_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
+          WACHIMAN_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
+          WACHIMAN_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
+          WACHIMAN_BATCH_LINES: ${{ inputs.batch_lines }}
+          WACHIMAN_BATCH_CHARS: ${{ inputs.batch_chars }}
+          WACHIMAN_MODEL: ${{ inputs.model }}
+          WACHIMAN_EFFORT: ${{ inputs.effort }}
+          WACHIMAN_VERIFY: ${{ inputs.verify }}
+          WACHIMAN_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
+          WACHIMAN_VERIFIER_MODEL: ${{ inputs.verifier_model }}
+          WACHIMAN_MAX_TURNS: ${{ inputs.max_turns }}
+          WACHIMAN_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          WACHIMAN_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
+          WACHIMAN_PROVIDER: ${{ inputs.provider }}
+          WACHIMAN_MENTION: ${{ inputs.mention }}
+          WACHIMAN_OPERATOR: ${{ inputs.operator }}
+          WACHIMAN_LEDGER_URL: ${{ inputs.ledger_url }}
+          WACHIMAN_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          WACHIMAN_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          WACHIMAN_LIMIT_MODE: ${{ inputs.limit_mode }}
+          WACHIMAN_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          WACHIMAN_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
           # `opened`, `ready_for_review` or `synchronize`: each is an automatic run that counts
           # against `auto_budget_usd`.
-          AGENT_REVIEW_TRIGGER: ${{ github.event.action }}
-          AGENT_REVIEW_CONFIDENCE: ${{ inputs.pr_confidence }}
+          WACHIMAN_TRIGGER: ${{ github.event.action }}
+          WACHIMAN_CONFIDENCE: ${{ inputs.pr_confidence }}
         # Bun's working directory is `engine/`, which this repository owns. `--config=<path>`
         # needs the equals sign: `-c <path>` did not replace the head's config in Bun 1.3.4.
         working-directory: engine
@@ -421,7 +421,6 @@ jobs:
       ((github.event.comment.user.login == inputs.operator && github.event.comment.in_reply_to_id) ||
        ((startsWith(github.event.comment.body, inputs.mention) ||
          startsWith(github.event.comment.body, '/wachi') ||
-         startsWith(github.event.comment.body, '@agent-review') ||
          startsWith(github.event.comment.body, '@claude')) &&
         (github.event.comment.user.login == inputs.operator ||
          (inputs.askers == 'write' &&
@@ -433,7 +432,7 @@ jobs:
     # seconds before. GitHub keeps one pending run per group, and a run handles every pending
     # thread, so a dropped pending run loses nothing.
     concurrency:
-      group: agent-review-threads-${{ github.event.pull_request.number }}
+      group: wachiman-review-threads-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -498,35 +497,35 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          WACHIMAN_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           # The reply's text and place: a question in a thread is answered in it (ADR 0032 decision 4).
           # Environment only, never interpolated into the script.
           REQUEST: ${{ github.event.comment.body }}
-          AGENT_REVIEW_COMMENT_ID: ${{ github.event.comment.id }}
-          AGENT_REVIEW_COMMENT_IN_REPLY_TO: ${{ github.event.comment.in_reply_to_id }}
-          AGENT_REVIEW_COMMENT_PATH: ${{ github.event.comment.path }}
-          AGENT_REVIEW_COMMENT_LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
-          AGENT_REVIEW_TRIGGER: thread
-          AGENT_REVIEW_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
-          AGENT_REVIEW_THREADS_BUDGET_USD: ${{ inputs.threads_budget_usd }}
-          AGENT_REVIEW_MODEL: ${{ inputs.model }}
-          AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
-          AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
-          AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
-          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
-          AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
-          AGENT_REVIEW_MENTION: ${{ inputs.mention }}
-          AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
-          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
-          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
-          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
-          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
-          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
-          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
-          AGENT_REVIEW_ASKERS: ${{ inputs.askers }}
-          AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
+          WACHIMAN_COMMENT_ID: ${{ github.event.comment.id }}
+          WACHIMAN_COMMENT_IN_REPLY_TO: ${{ github.event.comment.in_reply_to_id }}
+          WACHIMAN_COMMENT_PATH: ${{ github.event.comment.path }}
+          WACHIMAN_COMMENT_LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
+          WACHIMAN_TRIGGER: thread
+          WACHIMAN_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
+          WACHIMAN_THREADS_BUDGET_USD: ${{ inputs.threads_budget_usd }}
+          WACHIMAN_MODEL: ${{ inputs.model }}
+          WACHIMAN_EFFORT: ${{ inputs.effort }}
+          WACHIMAN_MAX_TURNS: ${{ inputs.max_turns }}
+          WACHIMAN_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          WACHIMAN_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
+          WACHIMAN_PROVIDER: ${{ inputs.provider }}
+          WACHIMAN_MENTION: ${{ inputs.mention }}
+          WACHIMAN_OPERATOR: ${{ inputs.operator }}
+          WACHIMAN_LEDGER_URL: ${{ inputs.ledger_url }}
+          WACHIMAN_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          WACHIMAN_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          WACHIMAN_LIMIT_MODE: ${{ inputs.limit_mode }}
+          WACHIMAN_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          WACHIMAN_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
+          WACHIMAN_ASKERS: ${{ inputs.askers }}
+          WACHIMAN_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
           # A question in the review panel is answered with this cap (routed to `comment`).
-          AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
+          WACHIMAN_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
         # Bun's working directory is `engine/`; see the `review` job.
         working-directory: engine
         run: bun --no-env-file --config=bunfig.toml src/cli.ts threads "$PR" --repo-dir "$GITHUB_WORKSPACE/head"
@@ -546,11 +545,9 @@ jobs:
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         (startsWith(github.event.comment.body, inputs.mention) ||
          startsWith(github.event.comment.body, '/wachi') ||
-         startsWith(github.event.comment.body, '@agent-review') ||
          startsWith(github.event.comment.body, '@claude')))) &&
       (contains(github.event.comment.body, inputs.mention) ||
        contains(github.event.comment.body, '/wachi') ||
-       contains(github.event.comment.body, '@agent-review') ||
        contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
     timeout-minutes: 30 # batches run one after another
@@ -558,7 +555,7 @@ jobs:
     # question gets its own group that never cancels, so it cannot cancel the operator's review of
     # the same pull request.
     concurrency:
-      group: agent-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != inputs.operator && '-ask' || '' }}
+      group: wachiman-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != inputs.operator && '-ask' || '' }}
       cancel-in-progress: ${{ github.event.comment.user.login == inputs.operator }}
     permissions:
       contents: read
@@ -644,34 +641,34 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.issue.number }}
           REQUEST: ${{ github.event.comment.body }}
-          AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          WACHIMAN_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           # The operator's own request: `auto_budget_usd` does not limit it.
-          AGENT_REVIEW_TRIGGER: comment
-          AGENT_REVIEW_BUDGET_USD: ${{ inputs.budget_usd }}
-          AGENT_REVIEW_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
-          AGENT_REVIEW_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
-          AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
-          AGENT_REVIEW_BATCH_LINES: ${{ inputs.batch_lines }}
-          AGENT_REVIEW_BATCH_CHARS: ${{ inputs.batch_chars }}
-          AGENT_REVIEW_MODEL: ${{ inputs.model }}
-          AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
-          AGENT_REVIEW_VERIFY: ${{ inputs.verify }}
-          AGENT_REVIEW_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
-          AGENT_REVIEW_VERIFIER_MODEL: ${{ inputs.verifier_model }}
-          AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
-          AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
-          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
-          AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
-          AGENT_REVIEW_MENTION: ${{ inputs.mention }}
-          AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
-          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
-          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
-          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
-          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
-          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
-          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
-          AGENT_REVIEW_ASKERS: ${{ inputs.askers }}
-          AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
+          WACHIMAN_TRIGGER: comment
+          WACHIMAN_BUDGET_USD: ${{ inputs.budget_usd }}
+          WACHIMAN_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
+          WACHIMAN_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
+          WACHIMAN_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
+          WACHIMAN_BATCH_LINES: ${{ inputs.batch_lines }}
+          WACHIMAN_BATCH_CHARS: ${{ inputs.batch_chars }}
+          WACHIMAN_MODEL: ${{ inputs.model }}
+          WACHIMAN_EFFORT: ${{ inputs.effort }}
+          WACHIMAN_VERIFY: ${{ inputs.verify }}
+          WACHIMAN_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
+          WACHIMAN_VERIFIER_MODEL: ${{ inputs.verifier_model }}
+          WACHIMAN_MAX_TURNS: ${{ inputs.max_turns }}
+          WACHIMAN_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          WACHIMAN_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
+          WACHIMAN_PROVIDER: ${{ inputs.provider }}
+          WACHIMAN_MENTION: ${{ inputs.mention }}
+          WACHIMAN_OPERATOR: ${{ inputs.operator }}
+          WACHIMAN_LEDGER_URL: ${{ inputs.ledger_url }}
+          WACHIMAN_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          WACHIMAN_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          WACHIMAN_LIMIT_MODE: ${{ inputs.limit_mode }}
+          WACHIMAN_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          WACHIMAN_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
+          WACHIMAN_ASKERS: ${{ inputs.askers }}
+          WACHIMAN_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
         # Bun's working directory is `engine/`; see the `review` job.
         working-directory: engine
         run: bun --no-env-file --config=bunfig.toml src/cli.ts comment "$PR" --repo-dir "$GITHUB_WORKSPACE/head"

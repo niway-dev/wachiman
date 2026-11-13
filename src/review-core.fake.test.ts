@@ -88,7 +88,7 @@ function coreDeps(provider: FakeProvider) {
   return { deps, warnings };
 }
 
-const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({ ...reviewOptionsOf(loadConfig({ AGENT_REVIEW_VERIFY: "0" }), 5), ...over });
+const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "0" }), 5), ...over });
 
 /** The files a part's prompt lists, so a fake answer accounts for exactly them. */
 const partFiles = (prompt: string) =>

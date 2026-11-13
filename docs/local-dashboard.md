@@ -41,7 +41,7 @@ this page does not merge the two views.
   dashboard counts it by grade; it does not guess one for a run that has none, and it does not read
   GitHub for the owner's judgement of a grade.
 - **Anything older than the history's retention.** A new `--history` run deletes runs older than 30
-  days (`AGENT_REVIEW_HISTORY_DAYS`, `0` keeps them all), and the dashboard only sees what is left.
+  days (`WACHIMAN_HISTORY_DAYS`, `0` keeps them all), and the dashboard only sees what is left.
 
 ## The index
 

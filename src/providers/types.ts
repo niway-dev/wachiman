@@ -24,12 +24,12 @@ export type Effort = (typeof EFFORTS)[number];
 export const DEFAULT_EFFORT: Effort = "high";
 
 /**
- * Default cap on the agent's turns per call (`AGENT_REVIEW_MAX_TURNS`). Wachiman's batches take
+ * Default cap on the agent's turns per call (`WACHIMAN_MAX_TURNS`). Wachiman's batches take
  * 5–12 turns and an external agent's whole-PR reviews took 19–46, so 40 never cuts a normal batch;
  * it only stops a run that is looping.
  */
 export const DEFAULT_MAX_TURNS = 40;
-/** Default wall-clock limit on one provider call, in seconds (`AGENT_REVIEW_CALL_TIMEOUT_S`). */
+/** Default wall-clock limit on one provider call, in seconds (`WACHIMAN_CALL_TIMEOUT_S`). */
 export const DEFAULT_CALL_TIMEOUT_S = 900;
 
 /** Tool names the engine may ask for. Each adapter maps them to its own names. */
@@ -108,7 +108,7 @@ export interface ProviderResult {
 export type ProviderAuth = "api-key" | "oauth-token" | "subscription";
 
 export interface ProviderAdapter {
-  /** The value of `AGENT_REVIEW_PROVIDER` that selects it. */
+  /** The value of `WACHIMAN_PROVIDER` that selects it. */
   readonly name: string;
   /** What pays for the calls. Absent means `api-key`. */
   readonly auth?: ProviderAuth;

@@ -193,9 +193,8 @@ Only the operator's comments count, unless `askers` allows collaborators to ask 
 | `/wachiman` followed by a question | Answers it as one pull request comment. One model call over the diff and the latest review, capped by `answer_budget_usd`. Each file and line reference it makes is checked against the head and linked there. |
 | `/wachiman` alone, or `/wachiman explain` | Explains the change in five fixed sections (what it does, how it is built, what it connects to, open findings, what was not covered). One model call, same cap. |
 
-The command word is the workflow's `mention` input, `/wachiman` by default. The older `/wachi`,
-`@agent-review` and `@claude` still work, so a caller or a habit from before the naming release
-keeps answering. Comment requests need the caller file on the repository's
+The command word is the workflow's `mention` input, `/wachiman` by default. `/wachi` and
+`@claude` also work. Comment requests need the caller file on the repository's
 default branch, because GitHub runs `issue_comment` workflows from there. They work on any open
 pull request from then on, including ones opened earlier.
 

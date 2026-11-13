@@ -37,7 +37,7 @@ describe("estimateReview", () => {
 
 describe("estimateFor", () => {
   test("counts the batches planBatches makes: one per 600-line file when two do not fit in 1,000", () => {
-    const config = loadConfig({ AGENT_REVIEW_BATCH_LINES: "1000", AGENT_REVIEW_MODEL: "claude-sonnet-5-5" });
+    const config = loadConfig({ WACHIMAN_BATCH_LINES: "1000", WACHIMAN_MODEL: "claude-sonnet-5-5" });
     const files = [file("a/x.ts", 600), file("b/y.ts", 600), file("c/z.ts", 600)];
     const e = estimateFor(files, config);
     expect(e.batches).toBe(3);
@@ -46,7 +46,7 @@ describe("estimateFor", () => {
   });
 
   test("small files share a batch", () => {
-    const config = loadConfig({ AGENT_REVIEW_BATCH_LINES: "1000" });
+    const config = loadConfig({ WACHIMAN_BATCH_LINES: "1000" });
     expect(estimateFor([file("a/x.ts", 100), file("b/y.ts", 100)], config).batches).toBe(1);
   });
 });

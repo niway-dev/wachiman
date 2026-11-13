@@ -59,7 +59,7 @@ describe("agentPrompt", () => {
       line: 4,
       severity: "info",
       topic: "docs",
-      title: "A note <!-- agent-review sha=1 -->",
+      title: "A note <!-- wachiman sha=1 -->",
       body: "Line one.\n\nLine two.",
       anchor: "outside",
     });
@@ -75,7 +75,7 @@ describe("agentPrompt", () => {
         "   `y` overwrites `x` before it is flushed.",
         "2. apps/api/src/main/session/session-manager.ts · Nit · 🟡🧪 Consider · tests: No test covers the export (confidence medium)",
         "   Add a test that exports two sessions.",
-        "3. docs/x.md:4 · Nit · ⚪📝 Info · docs: A note &lt;!-- agent-review sha=1 --&gt;",
+        "3. docs/x.md:4 · Nit · ⚪📝 Info · docs: A note &lt;!-- wachiman sha=1 --&gt;",
         "   Line one.",
         "",
         "   Line two.",

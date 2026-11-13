@@ -62,8 +62,8 @@ not measure code quality. It is a line in the description for the person reading
 ## Turn it on
 
 - Reusable workflow: `pr_confidence: true` in the caller's `with:`.
-- Copied workflow: `AGENT_REVIEW_CONFIDENCE: 1` in the workflow `env:`.
-- Command line: `AGENT_REVIEW_CONFIDENCE=1`. The reset step is `wachiman reset-confidence <pr>`.
+- Copied workflow: `WACHIMAN_CONFIDENCE: 1` in the workflow `env:`.
+- Command line: `WACHIMAN_CONFIDENCE=1`. The reset step is `wachiman reset-confidence <pr>`.
 
 Cost: one extra model call per full review, capped at $0.15 and counted in the review's cost and
 footer. The title, body and diff are untrusted data in every prompt.

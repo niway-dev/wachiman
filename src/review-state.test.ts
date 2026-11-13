@@ -160,7 +160,7 @@ describe("buildReview and the partial marker", () => {
       files: [file("a.ts"), file("b.ts"), file("c.ts")],
     }).body;
     expect(readSignedState(partial)).toEqual({ sha: SHA, rest: ["b.ts", "c.ts"], tried: ["b.ts"] });
-    expect(partial).not.toContain("agent-review sha=");
+    expect(partial).not.toContain("wachiman sha=");
 
     const complete = buildReview({ ...base, output: out({ files_reviewed: ["a.ts"] }), files: [file("a.ts")] }).body;
     expect(complete.endsWith(`${SIGNATURE.review}\n\n${marker(SHA)}`)).toBe(true);
@@ -176,7 +176,7 @@ describe("buildReview and the partial marker", () => {
     }).body;
     expect(body).toContain("⚠️ **Partial review**");
     expect(body).not.toContain("wachi:partial");
-    expect(body).not.toContain("agent-review sha=");
+    expect(body).not.toContain("wachiman sha=");
   });
 
   test("a file not reached keeps being carried; one sent and not reviewed gets a second try, then is named and left out", () => {
@@ -245,7 +245,7 @@ describe("buildReview and the partial marker", () => {
     });
     expect(built.body).toContain("⚠️ **Partial review**");
     expect(built.body).not.toContain("wachi:partial");
-    expect(built.body).not.toContain("agent-review sha=");
+    expect(built.body).not.toContain("wachiman sha=");
     expect(built.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("400 file(s)");

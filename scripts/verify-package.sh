@@ -120,10 +120,7 @@ stub_bun
 
 got="$("$bin/wachiman" --version)"
 [[ "$got" == "$version" ]] || fail "wachiman --version printed '$got', expected '$version'"
-ok "wachiman --version -> $got"
-got="$("$bin/agent-review" --version)"
-[[ "$got" == "$version" ]] || fail "agent-review --version printed '$got', expected '$version'"
-ok "agent-review --version -> $got (bundled Bun is a stub, so the Bun on PATH ran)"
+ok "wachiman --version -> $got (bundled Bun is a stub, so the Bun on PATH ran)"
 
 # An npm exec run that can only succeed from an installed copy: the tarball goes into a project's
 # node_modules, the registry is a closed port and the cache is empty, so a registry download

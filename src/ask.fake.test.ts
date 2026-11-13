@@ -29,7 +29,7 @@ class FakeProvider implements ProviderAdapter {
 const HEAD = "head1234567";
 const BASE = "b".repeat(40);
 const FINDING = `🟠 **Fix · logic: retry ignores budget**\n\nThe loop does not read the budget.\n\n<!-- wachi:finding -->`;
-const REVIEW = `👮 **Wachiman** · review of the whole pull request, at \`head123\`.\n\n## Risk map\n\nRead first: src/a.ts\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=${HEAD} -->`;
+const REVIEW = `👮 **Wachiman** · review of the whole pull request, at \`head123\`.\n\n## Risk map\n\nRead first: src/a.ts\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- wachiman sha=${HEAD} -->`;
 
 /** A checkout with one five-line file, which the answer's references are checked against. */
 function checkout() {
@@ -93,7 +93,7 @@ function depsFor(provider: FakeProvider, gh: GhFn, posted: string[], repoDir = c
       return gh(args, input);
     },
     provider,
-    config: loadConfig({ AGENT_REVIEW_OPERATOR: "boss" }),
+    config: loadConfig({ WACHIMAN_OPERATOR: "boss" }),
     repoDir,
     log: () => {},
     warn: () => {},
@@ -144,7 +144,7 @@ describe("the on-demand answer on a pull request", () => {
   test("with no earlier review the prompt says so, and no review file is written", () => {
     const posted: string[] = [];
     const provider = new FakeProvider([() => ({ structuredOutput: ANSWER })]);
-    comment(depsFor(provider, fakeGh([]), posted), "o/r", 7, "@agent-review why is this here?", "boss");
+    comment(depsFor(provider, fakeGh([]), posted), "o/r", 7, "/wachiman why is this here?", "boss");
     const request = provider.requests[0];
     expect(request.prompt).toContain("No review of this change is available");
     expect(request.prompt).not.toContain("holds the review Wachiman already ran");
@@ -155,13 +155,13 @@ describe("the on-demand answer on a pull request", () => {
     const posted: string[] = [];
     const provider = new FakeProvider([() => ({ structuredOutput: ANSWER })]);
     const stranger = "A review by someone else, with no signature.";
-    comment(depsFor(provider, fakeGh([REVIEW, stranger]), posted), "o/r", 7, "@agent-review why?", "boss");
+    comment(depsFor(provider, fakeGh([REVIEW, stranger]), posted), "o/r", 7, "/wachiman why?", "boss");
     expect(reviewFileOf(provider.requests[0])).toContain("## Risk map");
     expect(reviewFileOf(provider.requests[0])).not.toContain(stranger);
   });
 
   test("explain, and a bare mention, ask for the walkthrough", () => {
-    for (const request of ["/wachiman explain", "@agent-review"]) {
+    for (const request of ["/wachiman explain", "/wachiman"]) {
       const posted: string[] = [];
       const provider = new FakeProvider([() => ({ structuredOutput: ANSWER })]);
       comment(depsFor(provider, fakeGh([REVIEW]), posted), "o/r", 7, request, "boss");

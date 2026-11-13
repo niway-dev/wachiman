@@ -195,7 +195,7 @@ option-parse probes, $0). Your pin is 2.1.304; I did not install it to compare.
 | `--safe-mode`, `--fallback-model` | Yes | All customizations off with normal auth/tools; switch model when the primary is overloaded | Not used; a silent fallback would make runs non-comparable (ADR 0004 logic) |
 
 **A turn cap per batch.** Add `--max-turns <n>` in `buildClaudeArgs`, fed by an engine/env input (not the PR, per ADR 0001 decision 6), for example
-`AGENT_REVIEW_BATCH_MAX_TURNS`. Counting rule: each tool-call turn plus one final text-only turn, so a cap that is too small yields `error_max_turns` with
+`WACHIMAN_BATCH_MAX_TURNS`. Counting rule: each tool-call turn plus one final text-only turn, so a cap that is too small yields `error_max_turns` with
 **no** `structured_output`. Reference points: your live batch took 4 turns for 4 files; Pullfrog runs 25–45. Start with headroom such as files × 2 + 4 [my
 suggestion, untested]. Two code gaps [source: `claude-code.ts:215-219`]: `terminalReason` maps only `/budget/` to `"budget"` and every other non-success to
 `"error"`, so `error_max_turns` would look like a generic failure and could be retried or miscounted; add a `"turns"` reason or map it to `"budget"`.
