@@ -364,6 +364,14 @@ page. Tokens minted with the old key last at most one hour more.
 
 ## 6. Build order
 
+**Parked behind the ledger (owner, 2026-11-12).** Nothing below starts until the spend ledger
+records and limits real runs of one repository (pull requests
+[#211](https://github.com/niway-dev/wachiman/pull/211),
+[#212](https://github.com/niway-dev/wachiman/pull/212) and
+[#213](https://github.com/niway-dev/wachiman/pull/213)). The ledger needs nothing from the App.
+The App stays optional for every repository: with or without it the review is the same, and
+only its author changes.
+
 Each line is one pull request for the build thread, except S2.
 
 - **S1. One own-author rule in the engine** (ADR 0046), with the set holding only
