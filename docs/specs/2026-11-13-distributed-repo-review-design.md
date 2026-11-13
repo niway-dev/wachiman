@@ -341,7 +341,7 @@ any fallback with its reason, the SHA read, and for `tip` the age of the last fe
 3. **Choose what to read.** For each applied contract: the other sides' paths, and the source of
    truth's paths when another member holds it. A member that is not cloned, or not watched, is
    reported, never silently skipped. `--sibling <dir>` adds a member by hand with its whole
-   tracked tree.
+   tracked tree. The directory must be a member of the manifest (matched by `dir`); it keeps that member's name, `visibility` and version rule from the usual precedence, and a directory that is not a member exits 2.
 4. **Resolve versions** (table above), then **check the destination** (ADR 0042): in version 1 the
    destination is always the laptop, so every cloned sibling may be read, and a non-public one sets
    the `privateContext` label.

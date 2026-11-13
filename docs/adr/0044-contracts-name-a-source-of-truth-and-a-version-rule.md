@@ -58,7 +58,7 @@ keeps per-user overrides in `local_manifests`
    it, or the contract's source-of-truth paths when the reviewed member holds the source (a change
    to the source reads the copies and consumers that depend on it).
    No model call, no network, no reading of unchanged code to decide. The selection is logged and
-   reported. `--sibling <dir>` adds a member by hand for one run. With none applied, the report
+   reported. `--sibling <dir>` adds a member by hand for one run. The directory must be a member of the manifest (matched by `dir`); it keeps that member's name, `visibility` and version rule from the usual precedence, and a directory that is not a member exits 2. With none applied, the report
    says "no workspace contract applied" in one line.
 5. **A version rule resolves each sibling's commit.** `pinned` (default): the tag the consumer
    pins, from a literal `ref` in the contract or a `pin` (a JSON file in the consumer, a key path

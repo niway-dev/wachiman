@@ -46,7 +46,8 @@ is a new decision, not a reopen.
    after `realpath`, inside the coordinator directory; one that resolves outside is refused with a
    message. Only a `dir` the user sets in their own per-user file may point elsewhere, because the
    user wrote it. **The engine expands the globs itself:** it lists the
-   tree at `<sha>` (`git ls-tree -r --name-only`), matches it with the same matcher that decides
+   tree at `<sha>` (`git ls-tree -r -z --name-only`, NUL-separated, so a name with a newline or a quote is
+   never split or quoted), matches it with the same matcher that decides
    whether a contract applies (ADR 0044 decision 4), and passes the resulting literal file list to
    `git archive` under git's global `--literal-pathspecs` option, in as many calls as the
    operating system's argument limit needs, all extracted into the same directory (a
