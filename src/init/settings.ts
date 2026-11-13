@@ -34,7 +34,7 @@ export function readKind(content: string): string | undefined {
   if (!line) return undefined;
   let value = line[0].slice("kind:".length).trim();
   const quoted = /^(["'])(.*?)\1/.exec(value);
-  value = quoted ? quoted[2] : value.replace(/\s+#.*$/, "").trim();
+  value = quoted ? quoted[2] : value.replace(/(^|\s+)#.*$/, "").trim();
   return value === "" ? undefined : value;
 }
 

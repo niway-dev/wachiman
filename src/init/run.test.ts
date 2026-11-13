@@ -653,6 +653,7 @@ describe("settings text helpers", () => {
     expect(readKind("kind: monorepo # why\n")).toBe("monorepo");
     expect(readKind("  kind: nested\n")).toBeUndefined();
     expect(readKind("kind:\n")).toBeUndefined();
+    expect(readKind("kind: # not set yet\n")).toBeUndefined();
     expect(withKind("a: 1\r\nkind: x\r\nb: 2\r\n", "single")).toBe("a: 1\r\nkind: single\r\nb: 2\r\n");
   });
 });
