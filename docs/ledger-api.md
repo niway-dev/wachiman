@@ -75,10 +75,26 @@ GitHub Actions OIDC token (RS256) that the job requested with `audience` set to 
 
 The ledger must verify, against GitHub's published signing keys (the `jwks_uri` of the issuer's OpenID discovery document, `https://token.actions.githubusercontent.com/.well-known/openid-configuration`):
 
-- the RS256 signature, with a key found by `kid` (refetching the key set when the `kid` is unknown);
+- the RS256 signature, with a key found by `kid` (see the next paragraph for an unknown `kid`);
 - `iss` equals `https://token.actions.githubusercontent.com`;
 - `aud` (a string or an array) contains the ledger's own audience;
 - `nbf` and `exp` bracket the current time.
+
+**An unknown `kid` is not always a refusal.** GitHub rotates its signing keys, so a valid token can
+carry a `kid` the ledger has not seen yet. *Required:* while the ledger cannot say whether such a
+token is valid (it is refreshing the key set, or the refresh just failed), it must answer **503**,
+not 401, because the client reads 401 as "this run may not spend" and 503 as an outage. A `kid` that
+is still unknown after a successful refresh is a bad token: 401.
+
+*What the hosted ledger does, not binding on yours:* it refetches the key set once for an unknown
+`kid` and answers 503 with a `Retry-After` header (whole seconds, at least 1) and the body
+`{"reason":"unavailable","detail":"…","retryAfterSeconds":N}` while that refetch is in flight and for
+5 seconds after one failed (the first unknown `kid` after those 5 seconds starts a new refetch). After
+a successful refetch it does not refetch again for 60 seconds, so an unknown `kid` in that window is
+401. The two requests of a refetch (the discovery document and the key set) time out after 5
+seconds, and a refetch that never finishes is taken as lost after 12 seconds. Any other failure to
+run the verification is a 503 `{"reason":"unavailable","detail":"token verification could not run"}`
+without `Retry-After`. The client ignores `Retry-After` and the body.
 
 **The audience rule.** The engine requests the audience `ledger_url` as the workflow author wrote
 it, minus trailing slashes. The ledger compares its configured audience to that value exactly,
@@ -93,7 +109,8 @@ or repository. A pull request from a fork has no OIDC token, so it never reaches
 
 | Answer | When |
 | --- | --- |
-| 401 `{"reason":"unauthorized","detail":"..."}` | no bearer token, or the token fails any check above |
+| 401 `{"reason":"unauthorized","detail":"..."}` | no bearer token, or the token fails any check above, including a `kid` that is still unknown after a successful key refetch |
+| 503 `{"reason":"unavailable",…}`, with `Retry-After` for an unknown `kid` | the ledger cannot verify the token right now: the key refetch is running or has just failed, or the verification could not run |
 | 403 `{"reason":"not_linked","repository":"owner/name"}` | the token is valid but the repository is not linked to any account |
 
 ## Routes
@@ -367,7 +384,7 @@ This part is what makes a ledger "look like" a ledger to the engine. The client 
 
 | What happened | The client's reading | What the run does |
 | --- | --- | --- |
-| Network error, timeout, 5xx, 429 | The ledger is unreachable | `ledger_unavailable: run` reviews under the normal budgets and tries to record at the end; `stop` exits with code 3 before any model call |
+| Network error, timeout, 5xx, 429 (a 503 for a key rotation included) | The ledger is unreachable | `ledger_unavailable: run` reviews under the normal budgets and tries to record at the end; `stop` exits with code 3 before any model call |
 | Any 4xx whose body's `reason` is one of `limit`, `weekly_limit`, `repository_limit`, `not_linked` or `unauthorized`; or a 402, 401 or 403 with any other body | A refusal. The body's `reason` wins; without one, 402 reads as `limit`, 401 as `unauthorized`, 403 as `not_linked` | No model call. A limit reason (`limit`, `weekly_limit`, `repository_limit`) posts the limit notice and exits 3 with `limit_mode: fail`, or 0 with `notice`. `not_linked` and `unauthorized` always exit 3 |
 | Any other unexpected answer: a redirect, a 4xx that is not a refusal (such as 400, 404 or 405), a 200 whose body is not the documented JSON, a grant that is not a finite non-negative number | Not a ledger: `ledger_url` is wrong or the service is broken | No model call, exit code 3, whatever `ledger_unavailable` says |
 | No OIDC request variables in the job | The job cannot ask for a token | No model call, exit code 3, unless `limit_bypass` is set |
@@ -377,6 +394,12 @@ This part is what makes a ledger "look like" a ledger to the engine. The client 
 else. Any other answer, an outage or "not a ledger" alike, never stops or fails the run: the review
 stands, a failed settle leaves the reservation counted at the reserved amount, and the job summary
 says the settlement or the record was not delivered. Refusals are not read on these routes.
+
+A key rotation at GitHub therefore reads as an outage, not as a refusal, with one narrow exception
+listed under Known differences: the client does not read `Retry-After` and does not retry, so under
+the default `ledger_unavailable: run` the review runs and the run is recorded afterwards (if the
+ledger still cannot verify the new token at that point, the record fails and the job summary says
+the run was not recorded).
 
 Consequences for an implementer: answer a refusal with 402, 401 or 403 and the documented body,
 never with 400 or 404. A request the ledger rejects on reserve for a size or range reason (400) is
@@ -393,6 +416,7 @@ side that is right. They are listed rather than hidden; none changes what an imp
 | A request with an amount above the 1000 USD ceiling (a `wantedUsd` from a `budget_usd` above 1000) or more than 200 calls gets a 400 from the Worker. On reserve the client reads any 400 as "`ledger_url` does not look like the spend ledger". | The Worker. A 400 for an invalid request is correct. | The client's message is misleading for this case: the ledger is the right one and the address is fine. The client should read a 400 with `reason: "bad_request"` as a bad request and show `detail`. Until then, the contract's advice above stands. |
 | `terminal_reason` is typed `string` in the client and always sent as a string. The Worker also accepts `null` or an absent field. | Neither is wrong. | The contract says what the client sends and asks a ledger to accept both. |
 | A receipt key that cannot be loaded. The Worker stores the settlement first, then answers 500 `{"reason":"misconfigured","detail":"…"}` naming the secret; after the secret is fixed, a retry of the same settle returns the receipt. | The Worker. The amount is never lost and the error is structured. | The client reads the 500 as an outage: the review stands, the comment has no receipt, and the job summary says the settlement was not delivered although the ledger stored it. The engine does not retry the settle, so that run's receipt is lost: only a retry of the same `reservationId` returns it. A GitHub re-run is a new attempt that reserves and spends again under its own receipt. The job summary's wording ("the reservation stays counted instead of the amount spent") is wrong for this case, because the stored settlement is what counts. |
+| An unknown `kid` within 60 seconds after a *successful* key refetch is answered 401, so a valid token signed with a key GitHub published inside that window is read by the client as `unauthorized` and stops the run with exit code 3, whatever `ledger_unavailable` says. | The contract's requirement (503 while the ledger cannot say). | A gap in the hosted ledger's cooldown. It is narrow, because a successful refetch has already fetched GitHub's current set and GitHub is expected to publish a key before signing with it; it was not observed. |
 
 ## Running your own ledger
 
