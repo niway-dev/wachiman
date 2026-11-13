@@ -472,7 +472,7 @@ confirms. Without a terminal, menus are numbered lists, exactly as before.
 
 On a terminal, `init`, `setup` and the launcher open with a short pixel-art animation of a police
 car (about a second; any key skips it) that settles into `👮 wachiman v<version> · on watch`.
-It is skipped, and the static header is printed, when stdout is not a terminal, `NO_COLOR` is
+It is skipped, and the static header is printed, when stdin or stderr (where the prompts go) is not a terminal, `NO_COLOR` is
 non-empty, `CI` is set, `TERM=dumb`, the terminal is narrower than 40 columns, or
 `WACHIMAN_NO_ANIMATION` is set. The animation never flashes faster than three times a second, and
 the cursor is restored on every exit path, including Ctrl-C.
@@ -658,7 +658,9 @@ Read by the account commands and `local`:
 | --- | --- |
 | `WACHIMAN_HOME` | The Wachiman home, an absolute path. Default `~/.wachiman` |
 | `WACHIMAN_PROFILE` | The profile `local` uses when there is no `--profile` and no project binding |
-| `WACHIMAN_NO_ANIMATION` | Any non-empty value turns off the intro animation of `init`, `setup` and the launcher; the static header is printed instead |
+
+`WACHIMAN_NO_ANIMATION` (any non-empty value) is read only by the intro of `init`, `setup` and the launcher: it
+turns the animation off and prints the static header instead.
 
 All optional settings (`WACHIMAN_BUDGET_USD`, `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER`,
 `WACHIMAN_DRY_RUN`, `WACHIMAN_EXCLUDE`, `WACHIMAN_COMMENT_AUTHOR` and the rest) are in

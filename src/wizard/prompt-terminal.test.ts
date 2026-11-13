@@ -87,6 +87,40 @@ describe("the arrow-key menu", () => {
     p.close();
   });
 
+  test("a lone Escape cancels with null and restores the terminal", async () => {
+    const t = terminalIo();
+    const p = createPrompter(t, env);
+    const pending = p.select("Pick one", choices, 0);
+    await tick();
+    t.input.write("\x1b");
+    // readline waits for the rest of an escape sequence before it calls a lone Escape a key.
+    await new Promise((r) => setTimeout(r, 700));
+    expect(await pending).toBeNull();
+    expect(t.input.isRaw).toBe(false);
+    expect(t.written()).toContain("\x1b[?25h");
+    p.close();
+  });
+
+  test("the input ending while the menu is open cancels with null and restores the terminal", async () => {
+    const t = terminalIo();
+    const p = createPrompter(t, env);
+    const pending = p.select("Pick one", choices, 0);
+    await tick();
+    t.input.end();
+    expect(await pending).toBeNull();
+    expect(t.input.isRaw).toBe(false);
+    expect(t.written()).toContain("\x1b[?25h");
+    p.close();
+  });
+
+  test("the intro is not played again when the environment says it already was", async () => {
+    const t = terminalIo();
+    const p = createPrompter(t, { ...env, WACHIMAN_INTRO_DONE: "1" });
+    await p.intro("1.0.0");
+    expect(t.written()).toBe("");
+    p.close();
+  });
+
   test("descriptions are shown under their row and a long label is cut to the terminal width", async () => {
     const t = terminalIo(30);
     const p = createPrompter(t, env);

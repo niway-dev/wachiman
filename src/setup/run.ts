@@ -109,7 +109,8 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   };
 
   try {
-    // Only the command that opened the session plays the intro; `init` already did when it hands over.
+    // Only the command that opened the session plays the intro; `init` already did when it hands over,
+    // and so did the launcher (it marks WACHIMAN_INTRO_DONE, which `prompter.intro` honors).
     if (ownsPrompter) await prompter.intro(deps.doctor?.version ?? "unknown");
     let answers;
     try {

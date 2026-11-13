@@ -326,7 +326,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
   }
   if (mode === undefined) {
     // A bare `wachiman` on a terminal opens the menu; anywhere else it falls through to "No command given".
-    const launched = await maybeLaunch({ env, version: readVersion(), dispatch: (args) => main(args, env) });
+    const launched = await maybeLaunch({ env, version: readVersion(), dispatch: (args) => main(args, { ...env, WACHIMAN_INTRO_DONE: "1" }) });
     if (launched !== undefined) return launched;
   }
   try {

@@ -191,6 +191,11 @@ export async function runLauncher(deps: LauncherDeps): Promise<number> {
       const top = await prompter.select<Top>("What would you like to do?", TOP, 0);
       if (top === null) return finish(cancelled(prompter));
       if (top === "exit") return finish(0);
+      if ((top === "review" || top === "ask" || top === "loop") && !context.name) {
+        // Fail before the scope, base and question prompts: none of these can run outside a clone.
+        prompter.say("This needs a git repository. Run wachiman from inside a clone.", "error");
+        continue;
+      }
       const plan = await planFor(top, prompter, { cwd, git: deps.git, context });
       if (plan === "back") continue;
       if (plan === null) return finish(cancelled(prompter));

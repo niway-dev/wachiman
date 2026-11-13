@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import { main } from "../cli";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { scripted } from "../../test/support/scripted-prompt";
@@ -209,7 +210,7 @@ describe("the menu, end to end", () => {
     ["Escape at the scope question", ["1", "\u001b"]],
     ["Escape at the base question", ["1", "1", "\u001b"]],
     ["Escape at the confirmation", ["1", "1", "", "\u001b"]],
-    ["the input ending at the confirmation", ["1", "1", ""].slice(0, 2)],
+    ["the input ending at the confirmation", ["1", "1", ""]],
   ])("%s cancels before dispatch: nothing runs, exit 130", async (_name, keys) => {
     const r = await launch(keys);
     expect(r.calls).toEqual([]);
@@ -232,7 +233,7 @@ describe("the menu, end to end", () => {
   test("outside a git repository a command that spends is not offered to run", async () => {
     const outside = mkdtempSync(join(tmpdir(), "wachiman-launcher-outside-"));
     try {
-      const r = await launch(["1", "3", "6"], outside);
+      const r = await launch(["1", "6"], outside);
       expect(r.calls).toEqual([]);
       expect(r.printed).toContain("not inside a git repository");
       expect(r.printed).toContain("This needs a git repository.");
@@ -242,7 +243,10 @@ describe("the menu, end to end", () => {
   });
 
   test("the prompt session is closed before the command starts", async () => {
-    const io = scripted(["4", "1"]);
+    // The input stays open, so only closing the session can remove readline's listener.
+    const input = new PassThrough();
+    input.write("4\n1\n");
+    const io = { input, output: new PassThrough() };
     let readersAtDispatch: number | undefined;
     await runLauncher({
       env,
@@ -251,10 +255,11 @@ describe("the menu, end to end", () => {
       promptIO: io,
       dispatch: async () => {
         // readline reads through a "data" listener; a closed session has none left.
-        readersAtDispatch = (io.input as unknown as { listenerCount: (e: string) => number }).listenerCount("data");
+        readersAtDispatch = input.listenerCount("data");
         return 0;
       },
     });
+    input.end();
     expect(readersAtDispatch).toBe(0);
   });
 });

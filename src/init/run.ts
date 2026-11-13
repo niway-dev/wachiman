@@ -62,7 +62,8 @@ export async function runInitCommand(flags: RawInitFlags, env: Record<string, st
     let answered = flags;
     if (session) {
       checkSupplied(flags);
-      // Only the command that opened the session plays the intro; a caller that passed its own prompter did already.
+      // Only the command that opened the session plays the intro; a caller that passed its own prompter did already,
+      // and the launcher marks WACHIMAN_INTRO_DONE, which `prompter.intro` honors.
       if (!deps.prompter) await session.prompter.intro(deps.version ?? "unknown");
       session.prompter.step("Project", 1);
       session.prompter.say(root, "muted");

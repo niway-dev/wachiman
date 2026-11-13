@@ -45,7 +45,7 @@ export interface Prompter extends NextStepSink {
   readonly fancy: boolean;
   /** The police-car intro, or its one-line header. Does nothing without a terminal. A Ctrl-C during it cancels the next question. */
   intro(version: string): Promise<void>;
-  /** Runs slow work behind a spinner line that ends in a check mark (or a warning when `ok` says the result is bad). Without a terminal it only runs the work. */
+  /** Runs slow work behind a spinner line that ends in a check mark (or a warning when `ok` says the result is bad). Without a terminal it only runs the work. The spinner turns only while `work` yields to the event loop; a synchronous `work` shows its first frame, then the check mark. */
   task<T>(label: string, work: () => T | Promise<T>, ok?: (result: T) => boolean): Promise<T>;
   /** A closing step that is more than one command, for the "Next steps" box printed by `close`. */
   nextAction(note: string, commands?: string[]): void;
@@ -282,7 +282,8 @@ export function createPrompter(io: PromptIO, env: Record<string, string | undefi
       next.push({ note, commands });
     },
     async intro(version) {
-      if (!fancy) return;
+      // A caller that already played it (the launcher, before it dispatches) marks the environment.
+      if (!fancy || env.WACHIMAN_INTRO_DONE) return;
       suspend();
       const result = await playIntro({ term: { input, output }, env, version });
       if (result === "interrupted") {
