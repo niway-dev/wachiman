@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { generateKeyPairSync, sign } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { everythingIn, readCurlConfig } from "./fixtures/curl-config";
@@ -338,6 +338,7 @@ describe("secrets and payloads stay out of the argument list", () => {
          const s = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(req) {
            const url = new URL(req.url);
            fs.writeFileSync(${JSON.stringify(dir)} + "/seen.json", JSON.stringify({ path: url.pathname, auth: req.headers.get("authorization"), type: req.headers.get("content-type"), body: await req.text() }));
+           if (url.pathname.startsWith("/redirect")) return new Response(null, { status: 302, headers: { location: "/v1/settle" } });
            return Response.json({ receipt: ${JSON.stringify(receipt)}, signature: "c2ln" });
          } });
          console.log(s.port);`,
@@ -349,12 +350,27 @@ describe("secrets and payloads stay out of the argument list", () => {
       const port = Number(new TextDecoder().decode((await reader.read()).value).trim());
       expect(port).toBeGreaterThan(0);
       const many = Array.from({ length: 700 }, (_, i) => ({ ...CALL, label: `call-${i}-${"x".repeat(200)}` }));
+      // What real curl must read back unchanged. JSON already writes control characters as `\\n` and the like, so the
+      // characters that reach the configuration are the quote, the backslash, non-ASCII, `@` and `#`.
+      many.push({ ...CALL, label: 'a "quoted" \\ back\nslash\tand\r\v end ñ 😀 @file # not a comment' });
       const sent = JSON.stringify({ reservationId: "r1", spentUsd: 1.25, calls: many });
       expect(sent.length).toBeGreaterThan(128 * 1024);
       const out = settle(`http://127.0.0.1:${port}/`, ID_TOKEN, "r1", 1.25, many, defaultCurl);
       expect(out.receipt).toEqual(receipt);
       const seen = JSON.parse(readFileSync(join(dir, "seen.json"), "utf8"));
       expect(seen).toEqual({ path: "/v1/settle", auth: `Bearer ${ID_TOKEN}`, type: "application/json", body: sent });
+      // A `.curlrc` that follows redirects does not change what a ledger call does: a 302 stays a 302.
+      const home = join(dir, "home");
+      mkdirSync(home);
+      writeFileSync(join(home, ".curlrc"), "location\n");
+      const before = process.env.CURL_HOME;
+      process.env.CURL_HOME = home;
+      try {
+        expect(() => reserve(`http://127.0.0.1:${port}/redirect`, ID_TOKEN, reserveBody, defaultCurl)).toThrow(/does not look like the spend ledger.*HTTP 302/);
+      } finally {
+        if (before === undefined) delete process.env.CURL_HOME;
+        else process.env.CURL_HOME = before;
+      }
     } finally {
       server.kill();
       rmSync(dir, { recursive: true, force: true });

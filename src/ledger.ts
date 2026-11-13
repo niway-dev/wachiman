@@ -19,9 +19,12 @@ import { createPublicKey, verify } from "node:crypto";
  */
 export type CurlFn = (args: string[], stdin?: string) => { status: number; stdout: string; stderr: string };
 
-/** Twenty seconds at most, and no redirect is followed (curl's default: no `--location`). */
+/**
+ * Twenty seconds at most, and no redirect is followed (curl's default: no `--location`). `-q` must
+ * come first: it keeps the machine's `~/.curlrc` from changing either (a `location`, a `proxy`).
+ */
 export const defaultCurl: CurlFn = (args, stdin) => {
-  const run = spawnSync("curl", ["--silent", "--show-error", "--max-time", "20", ...args], { encoding: "utf8", input: stdin });
+  const run = spawnSync("curl", ["-q", "--silent", "--show-error", "--max-time", "20", ...args], { encoding: "utf8", input: stdin });
   return { status: run.status ?? 1, stdout: run.stdout ?? "", stderr: run.stderr ?? run.error?.message ?? "" };
 };
 
