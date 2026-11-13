@@ -41,6 +41,8 @@ export interface InitDeps {
   /** The directory a relative `--repo-dir` was resolved against, for the `setup` line. Default: `process.cwd()`. */
   cwd?: string;
   hooks?: WriteHooks;
+  /** The same hook for the settings file, for a test. */
+  settingsHooks?: WriteHooks;
 }
 
 const TEMPLATE = join(import.meta.dir, "..", "..", "templates", "wachiman-review-caller.yml");
@@ -138,7 +140,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   };
   const commitSettings = () => {
     if (!settingsToWrite) return;
-    writeSettings(root, settingsToWrite);
+    writeSettings(root, settingsToWrite, deps.settingsHooks);
     settingsWritten = true;
     io.stderr(`wrote ${SETTINGS_PATH} (kind: ${settingsToWrite.kind}).`);
   };
@@ -189,10 +191,16 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     } else {
       io.stderr(`writing ${shown} (${inspected.exists ? "replacing the existing file; a .bak copy is kept" : "new"}).`);
     }
-    commitSettings();
+    // The workflow first: it is what the run is for. If the settings file then fails, the error says the workflow stays.
     const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
     written = shown;
     io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
+    try {
+      commitSettings();
+    } catch (error) {
+      io.stderr(`${shown} was written before ${SETTINGS_PATH} failed and stays in place.`);
+      throw error;
+    }
     if (options.mode === "github") prompter?.step("Checks and next actions", 5, 5);
     if (prompter?.fancy) {
       // The same two things, as the closing "Next steps" box with the commands to run.

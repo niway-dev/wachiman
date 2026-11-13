@@ -34,7 +34,7 @@ export function readKind(content: string): string | undefined {
   let value = line[0].slice("kind:".length).trim();
   const quoted = /^(["'])(.*?)\1/.exec(value);
   value = quoted ? quoted[2] : value.replace(/\s+#.*$/, "").trim();
-  return value;
+  return value === "" ? undefined : value;
 }
 
 /** The file with only its top-level `kind:` line replaced (or `kind: X` appended when there is none). */
@@ -60,7 +60,7 @@ export function planSettings(repoDir: string, kind: ProjectKind): SettingsPlan {
 }
 
 /** Writes a planned create or change: an exclusive temporary file, then a link (new) or a rename (only if the file is unchanged since the plan). */
-export function writeSettings(repoDir: string, plan: Exclude<SettingsPlan, { action: "same" }>): string {
+export function writeSettings(repoDir: string, plan: Exclude<SettingsPlan, { action: "same" }>, hooks?: { beforeCommit?: () => void }): string {
   const { inspected } = plan;
   const dir = dirname(inspected.target);
   mkdirSync(dir, { recursive: true });
@@ -71,7 +71,14 @@ export function writeSettings(repoDir: string, plan: Exclude<SettingsPlan, { act
   const tmp = join(dir, `.${basename(inspected.target)}.${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
   writeFileSync(tmp, plan.content, { flag: "wx", mode: 0o644 });
   try {
-    if (inspected.exists) renameSync(tmp, inspected.target);
+    hooks?.beforeCommit?.();
+    if (inspected.exists) {
+      // Checked again right before the rename: an edit made since the plan is never overwritten.
+      if (inspectTarget(repoDir, SETTINGS_PATH).identity !== inspected.identity) {
+        throw new UsageError(`${inspected.target} changed while init was running; it was not replaced. Run it again.`);
+      }
+      renameSync(tmp, inspected.target);
+    }
     else {
       try {
         linkSync(tmp, inspected.target);

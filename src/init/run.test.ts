@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CTRL_C, ESC, scripted } from "../../test/support/scripted-prompt";
@@ -530,6 +530,25 @@ describe("the repository settings file .github/wachiman.yml", () => {
     expect(readdirSync(join(w.repo, ".github"))).toEqual(["wachiman.yml"]); // no backup file is left behind
   });
 
+  test("an edit to the settings file during the write is never overwritten, and the workflow written before it stays", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, ".github"));
+    writeFileSync(settingsFile(w), "kind: monorepo\n");
+    const edited = "kind: monorepo\nowner: someone-else\n";
+    const settingsHooks = { beforeCommit: () => { unlinkSync(settingsFile(w)); writeFileSync(settingsFile(w), edited); } };
+    expect(await exit2(init(w, [...baseArgs, "--project-kind", "single", "--force"], { settingsHooks }))).toContain("changed while init was running");
+    expect(readFileSync(settingsFile(w), "utf8")).toBe(edited);
+    expect(existsSync(w.target)).toBe(true);
+    expect(w.err.join("\n")).toContain("was written before .github/wachiman.yml failed and stays in place.");
+  });
+
+  test("a settings file that appears during the write is never overwritten", async () => {
+    const w = world();
+    const settingsHooks = { beforeCommit: () => writeFileSync(settingsFile(w), "kind: theirs\n") };
+    expect(await exit2(init(w, ["--mode", "local", "--project-kind", "single"], { settingsHooks }))).toContain("appeared while init was running");
+    expect(readFileSync(settingsFile(w), "utf8")).toBe("kind: theirs\n");
+  });
+
   test("a file without a kind line gets one appended", async () => {
     const w = world();
     mkdirSync(join(w.repo, ".github"));
@@ -632,6 +651,7 @@ describe("settings text helpers", () => {
     expect(readKind('kind: "single"\n')).toBe("single");
     expect(readKind("kind: monorepo # why\n")).toBe("monorepo");
     expect(readKind("  kind: nested\n")).toBeUndefined();
+    expect(readKind("kind:\n")).toBeUndefined();
     expect(withKind("a: 1\r\nkind: x\r\nb: 2\r\n", "single")).toBe("a: 1\r\nkind: single\r\nb: 2\r\n");
   });
 });

@@ -479,7 +479,7 @@ command that binds the repository later.
 | `--dry-run` | Prints the rendered file to stdout and writes nothing |
 | `--yes` | No prompts |
 
-`--mode local` with `--operator`, `--version`, `--path`, `--force` (unless `--project-kind` is given) or `--dry-run` is exit 2. A
+`--mode local` with `--operator`, `--version`, `--path`, `--force` (unless a kind is given with `--project-kind` or answered on a terminal) or `--dry-run` is exit 2. A
 `.github`, `workflows` or target that is a symbolic link is refused. On a terminal the file is
 previewed on stderr and `Write it?` is asked first; Escape, Ctrl-C or Ctrl-D exit 130 and write
 nothing.
