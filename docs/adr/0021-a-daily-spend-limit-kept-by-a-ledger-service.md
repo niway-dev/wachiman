@@ -7,7 +7,7 @@
   **Supersedes, for this one purpose,** the non-goal "A hosted service, a queue" of
   [ADR 0001](0001-distribution-and-trust.md) and the non-goal "A hosted queue or a server-side
   spend counter" of [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md).
-  **Amends ADR 0012 decision 3:** the operator's `/wachi review` is still outside the
+  **Amends ADR 0012 decision 3:** the operator's `/wachiman review` is still outside the
   per-pull-request ceiling but is inside the daily limit. Everything else in those records stands.
 - **Spec:** [A daily spend limit across every repository](../specs/2026-11-06-daily-spend-limit-design.md)
 - **Issue:** [#122](https://github.com/niway-dev/wachiman/issues/122)
@@ -45,13 +45,13 @@ reason is a new requirement that no server-less design can satisfy atomically.
    day's reservations and settlements. A run is granted `min(wanted, caller limit left,
    repository limit left, account limit left)`; a balance below $0.05 (the smallest batch) grants nothing
    unless the call is `forced`.
-4. **Every run counts.** Automatic runs, `/wachi review`, `/wachi <question>` and thread runs.
-   `/wachi review --force`, operator only, is granted past the limit and settled like any run.
+4. **Every run counts.** Automatic runs, `/wachiman review`, `/wachiman <question>` and thread runs.
+   `/wachiman review --force`, operator only, is granted past the limit and settled like any run.
 5. **Fail closed, per-repository mode, per-repository bypass.** *(Fail-closed part superseded by
    Amendment (c): an unreachable ledger no longer stops the run by default.)* With `ledger_url` set, an
    unreachable ledger, a missing permission or a refusal ends the run with exit code 3 before
-   any model call. `daily_limit_mode` chooses a red job (`fail`, default) or a green job with the
-   comment (`notice`). `daily_limit_bypass: true` skips the ledger and says so in the footer.
+   any model call. `limit_mode` chooses a red job (`fail`, default) or a green job with the
+   comment (`notice`). `limit_bypass: true` skips the ledger and says so in the footer.
 6. **A signed receipt in the footer.** `settle` returns `{account, repository, run_id, usd,
    day}` signed with the Worker's Ed25519 key; the engine writes it into the hidden footer
    where the model cannot write (ADR 0012's signed-footer rule). Anyone can verify it with
@@ -96,7 +96,7 @@ reason is a new requirement that no server-less design can satisfy atomically.
   of the same run replaces it. This is the opposite bias to ADR 0012 and is intentional.
 - The limit is still soft by the amount a single Claude Code call can overshoot its cap
   (`docs/costs.md`); the ledger bounds what the engine allows itself, not what the provider bills.
-- The engine gains one module (`src/ledger.ts`), one exit code (3), four inputs, one comment
+- The engine gains one module (`src/ledger.ts`), one exit code (3), inputs (four at first, six now: Amendment (i)), one comment
   and one footer line. *(The Worker's own package, tests and deploy were first planned here; Amendment (h) puts them outside this repository.)*
 - The usage-dashboard spec of 2026-10-31 ("nothing leaves the repository") is relaxed for one
   number per run; review content still never leaves.
@@ -150,6 +150,15 @@ The decisions above stand except where a point below says otherwise.
   second half (private data, no review content, diffs, prompts, findings or keys) stands.
   Amendment (d)'s "anyone can deploy their own copy from `ledger/`" and the alternative "keep the
   ledger's code private" are affected as marked above.
+  The owner made this decision on 2026-11-12: the hosted service that gates consumers' reviews stays
+  closed, and the public contract is what a consumer can audit.
+- **(i) 2026-11-12, the names the shipped engine uses.** Decisions 4 and 5 and the status line first
+  said `daily_limit_mode`, `daily_limit_bypass` and `/wachi review`. Those names were renamed before
+  release, and this record now uses the shipped ones: the inputs `limit_mode` (`fail` or `notice`)
+  and `limit_bypass`, and the operator's command `/wachiman review` (ADR 0023 made `/wachiman` the
+  default mention). The engine's ledger inputs are six, not four: `ledger_url`, `daily_budget_usd`,
+  `weekly_budget_usd`, `limit_mode`, `limit_bypass` and `ledger_unavailable`. The reference for them is
+  [`docs/configuration.md`](../configuration.md).
 
 ## Non-goals
 

@@ -8,7 +8,7 @@
   [ADR 0021 Amendments](../adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md); where they
   disagree with this spec, they win. In particular, a repository enrolled in a ledger calls
   `review-platform.yml` (which carries `id-token: write`), not `review.yml`; the `id-token`
-  instructions below are historical. The engine client is on `main` (`src/ledger.ts`). Text below that
+  instructions below are historical. The engine client is on `main` (`src/ledger.ts`). The input names below follow the shipped engine (`limit_mode`, `limit_bypass`, `/wachiman review`; ADR 0021, Amendment (i)); the Interfaces table still lists only the first version's inputs. Text below that
   says the ledger's code is public in this repository or lives under `ledger/` is superseded by ADR 0021,
   Amendment (h).
 - **Creates:** [ADR 0021](../adr/0021-a-daily-spend-limit-kept-by-a-ledger-service.md) (a hosted
@@ -49,10 +49,10 @@ consumer's repository; the ledger sees repository names and dollars, nothing els
 | 4 | Three concepts: **organization** (optional, cross-cutting admin), **account** (the wallet, the only hard-limit holder with its repositories), **repository** (linked once by hand, proven by OIDC on every call). **Tags** cross accounts and only group reports and alerts | Flexibility without coordination: hard limits live where atomicity lives; grouping for people is free-form | 0022 (new) |
 | 5 | Hard limits: per account (the daily number), per repository (optional, stricter), per organization (designed, not built: a second reservation in the organization's object). No limit per tag | A tag limit would need every reservation to coordinate several objects | 0022 |
 | 6 | `reserve` grants `min(run budget, repository left, account left)`; a balance of $0.05 or more starts a run with what is left; a balance below $0.05, the smallest batch, counts as no credits and starts nothing | The owner's grace rule: $0.30 left still runs; below one batch ($0.05) a run could only end in an engine error | 0021 |
-| 7 | **Every** run counts and is limited, including `/wachi review` and `/wachi <question>`; `/wachi review --force` (operator only) runs past the limit and is still recorded | A money ceiling that a comment can skip is not a ceiling; the owner keeps one explicit override | amends 0012 |
-| 8 | Per repository, `daily_limit_mode: fail` (default) ends the run with exit code **3** and a red job; `notice` posts the comment and exits 0. Both post one "No credits today" comment per pull request per UTC day | The owner wants a visible pipeline error; a repository with a required check can choose the quiet mode | none |
+| 7 | **Every** run counts and is limited, including `/wachiman review` and `/wachiman <question>`; `/wachiman review --force` (operator only) runs past the limit and is still recorded | A money ceiling that a comment can skip is not a ceiling; the owner keeps one explicit override | amends 0012 |
+| 8 | Per repository, `limit_mode: fail` (default) ends the run with exit code **3** and a red job; `notice` posts the comment and exits 0. Both post one "No credits today" comment per pull request per UTC day | The owner wants a visible pipeline error; a repository with a required check can choose the quiet mode | none |
 | 9 | The ledger's URL is a caller input (`ledger_url`); the global number lives in the ledger and is edited there; the caller's `daily_budget_usd` is optional and can only be stricter than the account's limit | One source of truth for the shared number; a repository can protect itself further | 0021 |
-| 10 | Fail closed: with `ledger_url` set, a missing `id-token` permission, an unreachable ledger, a 401/403 or an unlinked repository ends the run with exit 3 and no model call. `daily_limit_bypass: true` skips the ledger entirely, at the repository's own risk, and the run says so in its footer | The owner prefers a missed review to an unbounded bill; the bypass is the escape hatch | 0021 |
+| 10 | Fail closed: with `ledger_url` set, a missing `id-token` permission, an unreachable ledger, a 401/403 or an unlinked repository ends the run with exit 3 and no model call. `limit_bypass: true` skips the ledger entirely, at the repository's own risk, and the run says so in its footer | The owner prefers a missed review to an unbounded bill; the bypass is the escape hatch | 0021 |
 | 11 | The ledger answers `settle` with a signed receipt (`account`, `repository`, `run_id`, `usd`, `day`); the engine writes it into the review's hidden footer | A reader can verify what the ledger recorded with the ledger's public key; it replaces trust in the private data with a check | 0021 |
 | 12 | *(Superseded by ADR 0021, Amendment (h): the ledger's source is not in this repository; its contract is `docs/ledger-api.md`.)* The ledger's Worker code is public in this repository under `ledger/`; the account table, the data and the dashboard are private. Secrets: the Cloudflare deploy token in a protected `production` environment of this repository; the receipt signing key as a Worker secret | Trust: the consumer can read what decides whether its review runs; the FSL already forbids a competing service | 0021 |
 | 13 | The engine's ledger client has no dependencies (ADR 0002): `fetch`, the OIDC request with `ACTIONS_ID_TOKEN_REQUEST_URL`/`_TOKEN`, JSON | Same rule as every other engine module | reuses 0002 |
@@ -123,15 +123,15 @@ Engine (`niway-dev/wachiman`, `src/ledger.ts`, `src/engine.ts`, `src/cli.ts`, `r
       its first model call and `settle` after its last, with the run's real cost.
 - [ ] With $0.30 left for the day, the run starts with a budget of $0.30; with $0.00 or less,
       no model call happens.
-- [ ] `daily_limit_mode: fail` ends the run with exit code 3 and the job is red;
-      `daily_limit_mode: notice` exits 0; both post exactly one "No credits today" comment per
+- [ ] `limit_mode: fail` ends the run with exit code 3 and the job is red;
+      `limit_mode: notice` exits 0; both post exactly one "No credits today" comment per
       pull request per UTC day (a second run on the same day posts nothing).
-- [ ] `/wachi review --force` by the operator runs past the limit; its cost is settled and its
+- [ ] `/wachiman review --force` by the operator runs past the limit; its cost is settled and its
       footer says `forced`. The same command by anyone else is ignored like any non-operator
       command.
 - [ ] With `ledger_url` set and no `id-token: write`, or an unreachable ledger, or a 401/403,
       the run exits 3 before any model call with a message that names the cause.
-- [ ] `daily_limit_bypass: true` makes no ledger call and writes `ledger bypassed` in the
+- [ ] `limit_bypass: true` makes no ledger call and writes `ledger bypassed` in the
       footer.
 - [ ] The caller's `daily_budget_usd` is applied as `min(caller, account left)`; a caller value
       above the account's limit changes nothing.
@@ -197,11 +197,11 @@ Caller inputs (reusable workflow `with:`, all optional):
 | --- | --- | --- |
 | `ledger_url` | unset | The ledger's base URL. Unset: no daily limit, no ledger call, behaviour as today |
 | `daily_budget_usd` | unset | A stricter daily number for this repository; never raises the account's |
-| `daily_limit_mode` | `fail` | `fail`: exit 3 and a red job at the limit; `notice`: comment and exit 0 |
-| `daily_limit_bypass` | `false` | Skip the ledger entirely; the footer says so |
+| `limit_mode` | `fail` | `fail`: exit 3 and a red job at the limit; `notice`: comment and exit 0 |
+| `limit_bypass` | `false` | Skip the ledger entirely; the footer says so |
 
 Engine environment: `AGENT_REVIEW_LEDGER_URL`, `AGENT_REVIEW_DAILY_BUDGET_USD`,
-`AGENT_REVIEW_DAILY_LIMIT_MODE`, `AGENT_REVIEW_DAILY_LIMIT_BYPASS`, plus the GitHub-provided
+`AGENT_REVIEW_LIMIT_MODE`, `AGENT_REVIEW_LIMIT_BYPASS`, plus the GitHub-provided
 `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`.
 
 Exit codes: 0 and 1 and 2 as in `docs/cli.md`; **3**: the daily limit refused the run, or the
@@ -233,8 +233,8 @@ UTC day:
 
 > 👮 **Wachiman** · **No credits today.** Automatic reviews spent **$6.12 of $6.00** across your
 > repositories; the limit resets at **00:00 UTC** (in 5 h 12 min). To review this pull request
-> now, comment `/wachi review --force`. To change the limit, edit the account in the ledger; to
-> let this repository ignore it, set `daily_limit_bypass: true` (at your own risk).
+> now, comment `/wachiman review --force`. To change the limit, edit the account in the ledger; to
+> let this repository ignore it, set `limit_bypass: true` (at your own risk).
 
 The amounts and the time to reset come from the 402 answer. The hidden footer
 `<!-- wachi:nocredits day=2026-11-06 -->` stops a second comment the same day.
