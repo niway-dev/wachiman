@@ -37,18 +37,18 @@ import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
-import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
-import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
-import { dashboardUsage, parseDashboardArgs, runDashboard } from "./store/command";
+import { parseHistoryArgs, runHistory } from "./history/command";
+import { parseStatusArgs, runStatus } from "./status/command";
+import { parseDashboardArgs, runDashboard } from "./store/command";
 import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
-import { localUsage, parseLocalArgs, runLocal } from "./local";
-import { loopUsage, parseLoopArgs, runLoop } from "./loop/command";
-import { askUsage, parseAskArgs, runAsk } from "./local-ask";
-import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
+import { parseLocalArgs, runLocal } from "./local";
+import { parseLoopArgs, runLoop } from "./loop/command";
+import { parseAskArgs, runAsk } from "./local-ask";
+import { parseProfileArgs, parseProjectArgs, runProfile, runProject } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
-import { parseSkillsArgs, runSkills, skillsUsage } from "./skills/install";
-import { doctorUsage, parseDoctorArgs, runDoctor } from "./doctor/run";
-import { initUsage, parseInitFlags } from "./init/args";
+import { parseSkillsArgs, runSkills } from "./skills/install";
+import { parseDoctorArgs, runDoctor } from "./doctor/run";
+import { parseInitFlags } from "./init/args";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
 import { runInitCommand } from "./init/run";
 import { projectCommands } from "./wizard/command";
@@ -57,7 +57,7 @@ import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
 import { runSetupCommand } from "./setup/run";
-import { helpFor, isCommand, paintFor, rootHelp } from "./help";
+import { commandHelp, helpFor, isCommand, paintFor, rootHelp } from "./help";
 
 /** package.json sits one level above src/; in a copied layout it may belong to someone else. */
 export function readVersion(dir = import.meta.dir) {
@@ -160,7 +160,7 @@ function runAccountCommand(mode: "doctor" | "profile" | "project", args: string[
   if (mode === "profile") return runProfile(parseProfileArgs(args), env, io, deps);
   if (mode === "project") return runProject(parseProjectArgs(args, repoDir), env, io, deps);
   const parsed = parseDoctorArgs(args, repoDir);
-  if ("help" in parsed) return (io.stdout(`${doctorUsage}\n`), 0);
+  if ("help" in parsed) return (io.stdout(commandHelp(["doctor"])!), 0);
   return runDoctor(parsed, env, io, deps.doctor);
 }
 
@@ -170,11 +170,11 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
   const version = readVersion();
   if (mode === "setup") {
     const flags = parseSetupFlags(args, repoDir);
-    if (flags.help) return (io.stdout(`${setupUsage}\n`), 0);
+    if (flags.help) return (io.stdout(commandHelp(["setup"])!), 0);
     return runSetupCommand(flags, env, io, { doctor: { version } });
   }
   const flags = parseInitFlags(args, repoDir);
-  if (flags.help) return (io.stdout(`${initUsage}\n`), 0);
+  if (flags.help) return (io.stdout(commandHelp(["init"])!), 0);
   return runInitCommand(flags, env, io, {
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
@@ -238,7 +238,9 @@ export async function main(argv: string[], env: Record<string, string | undefine
   const mode = argv[0];
   if (argv.length === 0) return runNoArgs(env);
   if (mode === "--help" || mode === "-h") return printRootHelp(env);
-  // Before extractRepoDir, the configuration, git, authentication and any model: help reads nothing.
+  // Before extractRepoDir, the configuration, git, authentication and any model: help reads nothing. The
+  // `help` branches of the parsers below only serve direct callers of `parse*`; `helpFor` catches every
+  // `--help` and `-h` first.
   const help = helpFor(argv, paintFor(process.stdout, env));
   if (help !== undefined) {
     if ("error" in help) return usageError(help.error, "help");
@@ -261,7 +263,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "skills") {
       // Before extractRepoDir: no repository is read, so `--repo-dir` is a usage error here.
       const parsed = parseSkillsArgs(argv.slice(1));
-      if ("help" in parsed) return (writeAll(1, `${skillsUsage}\n`), 0);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["skills"])!), 0);
       return runSkills(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
     }
     const { repoDir, rest: args } = extractRepoDir(argv);
@@ -295,12 +297,12 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "setup" || mode === "init") return await runWizard(mode, args.slice(1), repoDir, env);
     if (mode === "status") {
       const parsed = parseStatusArgs(args.slice(1));
-      if ("help" in parsed) return (writeAll(1, `${statusUsage}\n`), 0);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["status"])!), 0);
       return runStatus(parsed, repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line), version: readVersion() });
     }
     if (mode === "dashboard") {
       const parsed = parseDashboardArgs(args.slice(1));
-      if ("help" in parsed) return (writeAll(1, `${dashboardUsage}\n`), 0);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["dashboard"])!), 0);
       return runDashboard(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "history") {
@@ -309,7 +311,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "reset-confidence") return runResetConfidence(args.slice(1), env);
     const [, prArg, ...rest] = args;
     if (mode !== "review" && mode !== "comment" && mode !== "threads") {
-      throw new UsageError(mode ? `Unknown command "${mode}".` : "No command given.");
+      throw new UsageError(`Unknown command "${mode}".`);
     }
     const pr = Number(prArg);
     if (!/^\d+$/.test(prArg ?? "") || pr <= 0) {

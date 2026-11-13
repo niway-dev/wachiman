@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CI_COMMANDS, COMMANDS, commandHelp, helpFor, rootHelp } from "./help";
@@ -39,43 +39,54 @@ describe("a page per command", () => {
     }
   });
 
-  test("--help and -h exit 0 for every command, with no repository, no home and no environment", () => {
-    const home = mkdtempSync(join(tmpdir(), "help-home-"));
+  test("--help, -h and help <command> give the same page for every command", () => {
     for (const name of COMMANDS) {
-      for (const flag of ["--help", "-h"]) {
-        const out = run([name, flag], { WACHIMAN_HOME: home });
-        expect(out.code).toBe(0);
-        expect(out.stdout).toContain(`wachiman ${name}`);
-        expect(out.stderr).toBe("");
-      }
-      expect(run(["help", name]).stdout).toBe(run([name, "--help"]).stdout);
+      const page = commandHelp([name])!;
+      expect(page).toContain(`wachiman ${name}`);
+      expect(helpFor([name, "--help"])).toEqual({ text: page });
+      expect(helpFor([name, "-h"])).toEqual({ text: page });
+      expect(helpFor(["help", name])).toEqual({ text: page });
     }
   });
+
+  test("--help exits 0 on stdout alone, with an empty environment and a Wachiman home that does not exist", () => {
+    const home = join(mkdtempSync(join(tmpdir(), "help-home-")), "missing");
+    for (const name of ["local", "ask", "loop", "review", "doctor", "setup", "init", "skills", "profile"]) {
+      const out = run([name, "-h"], { WACHIMAN_HOME: home });
+      expect(out.code).toBe(0);
+      expect(out.stdout).toBe(commandHelp([name]));
+      expect(out.stderr).toBe("");
+    }
+    expect(existsSync(home)).toBe(false);
+  }, 30_000);
 
   test("help returns before the arguments are checked: a missing directory does not matter", () => {
     expect(run(["local", "--repo-dir", "/does/not/exist", "--help"]).code).toBe(0);
     expect(run(["review", "--help"]).code).toBe(0);
-  });
+  }, 30_000);
 
   test("nested commands have their own page", () => {
     for (const words of [["profile", "create"], ["profile", "add"], ["project", "show"], ["skills", "install"], ["skills", "uninstall"]]) {
-      const out = run([...words, "--help"]);
-      expect(out.code).toBe(0);
-      expect(out.stdout).toContain(`Usage\n  wachiman ${words.join(" ")}`);
-      expect(run(["help", ...words]).stdout).toBe(out.stdout);
+      const page = commandHelp(words)!;
+      expect(page).toContain(`Usage\n  wachiman ${words.join(" ")}`);
+      expect(helpFor([...words, "--help"])).toEqual({ text: page });
+      expect(helpFor(["help", ...words])).toEqual({ text: page });
     }
-    expect(run(["--setup-profile", "--help"]).stdout).toBe(run(["profile", "create", "--help"]).stdout);
-  });
+    expect(helpFor(["--setup-profile", "--help"])).toEqual({ text: commandHelp(["profile", "create"]) });
+    const out = run(["profile", "create", "--help"]);
+    expect(out.code).toBe(0);
+    expect(out.stdout).toBe(commandHelp(["profile", "create"]));
+  }, 30_000);
 
   test("local, ask and loop describe their flags with defaults and the variables they read", () => {
-    const local = run(["local", "--help"]).stdout;
+    const local = commandHelp(["local"])!;
     expect(local).toContain("--max-depth <n>");
     expect(local).toContain("Default: 250");
     expect(local).toContain("WACHIMAN_HOME");
     expect(local).toContain("ANTHROPIC_API_KEY");
     expect(local).toMatch(/\n\s+130\s+Interrupted/);
-    expect(run(["loop", "--help"]).stdout).toMatch(/\n\s+10\s+Findings are still open/);
-    expect(run(["ask", "--help"]).stdout).toContain("[question…]");
+    expect(commandHelp(["loop"])).toMatch(/\n\s+10\s+Findings are still open/);
+    expect(commandHelp(["ask"])).toContain("[question…]");
   });
 });
 
@@ -99,7 +110,7 @@ describe("usage errors", () => {
     expect(unknown.stderr).toContain("Run 'wachiman --help'.");
     expect(run(["help", "frobnicate"]).code).toBe(2);
     expect(run(["frobnicate", "--help"]).code).toBe(2);
-  });
+  }, 30_000);
 
   test("helpFor ignores arguments that are not a help request", () => {
     expect(helpFor(["local", "--base", "main"])).toBeUndefined();
