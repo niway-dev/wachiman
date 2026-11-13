@@ -178,9 +178,17 @@ are the repository's spend this week and the caller's weekly limit. For `reposit
 timestamp: the next UTC midnight for `period: day`, the next UTC Monday midnight for `period: week`.
 
 **Repeated reserve.** A reserve for a run id that already has an *unsettled* entry on the same day
-from the same or a lower attempt replaces that entry, so a repeated request counts once. The old
-reservation id then answers 404 on settle. A settled entry is never replaced: a retry gets a new
-entry beside it.
+from a **lower** attempt (a GitHub re-run) replaces that entry; the old reservation id then answers
+404 on settle. A settled entry is never replaced: the retry gets a new entry beside it.
+
+A reserve from the **same** attempt never replaces anything. Every job of one workflow run carries
+the same run id and attempt in its token, so a second reserve may be another live job, and replacing
+the first job's reservation would lose its spend. Both reservations are kept and both count, each
+settling under its own id. The consequence for a client: **do not repeat a reserve whose answer was
+lost.** A repeat holds a second reservation that, if it is never settled, stays counted in that day's and that
+week's totals. Run with the
+normal budgets instead and call `POST /v1/record` at the end: if the first reserve did reach the
+ledger, record settles that reservation.
 
 ### `POST /v1/settle`
 
@@ -225,8 +233,20 @@ run that believes it reserved nothing, because the ledger was unreachable. 200:
 - `unreserved`: the run held none, so a new entry is stored. It counts in the day and week totals
   and is never refused.
 
-Record is idempotent per repository, run id and run attempt: calling it again replaces that entry.
-The client reads only the status; any 200 is a success.
+Record is idempotent per repository, run id and run attempt: calling it again replaces that entry
+(the amount, the calls and the trigger). A `pr` that is missing from the request keeps the stored one.
+When several entries share the repository, run id and attempt (every job of a run does), record
+settles the unsettled reservation first, because it is the one whose answer was lost, and otherwise
+the newest entry. The client reads only the status; any 200 is a success.
+
+**Limit of version 1: record carries no job identity.** The token names the run and the attempt, not
+the job. A record may therefore land on another job's entry of the same run and attempt and replace
+its amount and calls, whether that entry is settled or not. Three cases: the run's only entry is
+another job's settled reservation, which the record overwrites; job A is still running and job B,
+whose reserve never reached the ledger, records first, which settles A's live reservation with B's
+amount (A's later settle then replaces it, and B's spend is gone); and two jobs that both failed to
+reserve both record, so the second replaces the first one's `unreserved` entry. A client-chosen
+idempotency key would tell the jobs apart; version 1 does not have one.
 
 ### `GET /v1/today`
 
@@ -291,7 +311,8 @@ Entries are ordered by `created_at`, then by insertion order. `settledUsd` and `
 ### `GET /v1/public-key`
 
 No authentication. 200 `{"alg": "Ed25519", "jwk": { … }, "pem": "-----BEGIN PUBLIC KEY-----…"}`:
-the key that verifies receipts, as a JWK and as an SPKI PEM.
+the key that verifies receipts, as a JWK and as an SPKI PEM. A ledger whose key is missing or
+invalid answers 500 `{"reason":"misconfigured","detail":"…"}`.
 
 ## Calls
 
@@ -371,7 +392,7 @@ side that is right. They are listed rather than hidden; none changes what an imp
 | --- | --- | --- |
 | A request with an amount above the 1000 USD ceiling (a `wantedUsd` from a `budget_usd` above 1000) or more than 200 calls gets a 400 from the Worker. On reserve the client reads any 400 as "`ledger_url` does not look like the spend ledger". | The Worker. A 400 for an invalid request is correct. | The client's message is misleading for this case: the ledger is the right one and the address is fine. The client should read a 400 with `reason: "bad_request"` as a bad request and show `detail`. Until then, the contract's advice above stands. |
 | `terminal_reason` is typed `string` in the client and always sent as a string. The Worker also accepts `null` or an absent field. | Neither is wrong. | The contract says what the client sends and asks a ledger to accept both. |
-| The Worker signs the receipt after it has committed the settlement. A receipt key that cannot be loaded makes it answer 500 after the amount is already stored. | The contract. A ledger should sign before it commits, or answer 200 without a signature. | A defect in the Worker, not documented here as intended. The client treats the 500 as an outage and says the settlement was not delivered, although it was stored. A retry is idempotent and replaces the same entry. |
+| A receipt key that cannot be loaded. The Worker stores the settlement first, then answers 500 `{"reason":"misconfigured","detail":"…"}` naming the secret; after the secret is fixed, a retry of the same settle returns the receipt. | The Worker. The amount is never lost and the error is structured. | The client reads the 500 as an outage: the review stands, the comment has no receipt, and the job summary says the settlement was not delivered although the ledger stored it. The engine does not retry the settle, so that run's receipt is lost: only a retry of the same `reservationId` returns it. A GitHub re-run is a new attempt that reserves and spends again under its own receipt. The job summary's wording ("the reservation stays counted instead of the amount spent") is wrong for this case, because the stored settlement is what counts. |
 
 ## Running your own ledger
 
