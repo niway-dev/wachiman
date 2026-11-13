@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { PassThrough } from "node:stream";
 import { CTRL_C, ESC, scripted } from "../../test/support/scripted-prompt";
 import { createPrompter } from "./prompt";
+import { stripAnsi } from "./style";
 
 const choices = [
   { label: "alpha", value: "a" },
@@ -163,7 +164,8 @@ describe("a terminal", () => {
       input.write("\x7f");
       await new Promise((r) => setTimeout(r, 20));
       const afterClear = written.slice(written.lastIndexOf("\x1b[0J"));
-      expect(afterClear).toContain("Name: ab");
+      // On a terminal the question carries a marker and colors; what matters is that it is still in front of the edited text.
+      expect(stripAnsi(afterClear)).toContain("? Name: ab");
       input.write("\r");
       expect(await answer).toBe("ab");
     } finally {

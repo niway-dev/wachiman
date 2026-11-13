@@ -59,7 +59,6 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   }
 
   const repoDir = flags.repoDir ?? ".";
-  io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env);
   const home = wachimanHome(env);
   const userHome = deps.userHome ?? homedir();
   const now = deps.now ?? (() => new Date().toISOString());
@@ -75,6 +74,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
 
   const prompter = deps.prompter ?? createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env);
   const ownsPrompter = deps.prompter === undefined;
+  io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env, prompter);
   /** What already happened on disk or in Claude and cannot be rolled back; reported whenever the run ends early. */
   const effects: string[] = [];
   const reportEffects = () => {
@@ -109,6 +109,8 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   };
 
   try {
+    // Only the command that opened the session plays the intro; `init` already did when it hands over.
+    if (ownsPrompter) await prompter.intro(deps.doctor?.version ?? "unknown");
     let answers;
     try {
       answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged, fromInit: deps.fromInit, initMode: deps.initMode }, prompter);
@@ -150,7 +152,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     const probe = () => confirmProfile(resolvedProfile, env, deps.spawn, deps.doctor?.confirmIo);
     // The probes block while claude runs; an Enter typed meanwhile must not reach "Sign in now?" through a live readline.
     prompter.suspend();
-    let status = probe();
+    let status = await prompter.task("Checking your Claude account", probe, (s) => s.ok);
     const signedOut = !status.ok && status.stage === "auth" && status.auth !== undefined && status.auth.exitCode !== 0;
     // True once the user was told the account state in its own words, so the generic warning would repeat it.
     let explained = false;
@@ -168,7 +170,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
           io.stderr(`cancelled: the binding of ${repo.name} to ${name} was saved and stays.`);
           return 130;
         }
-        status = probe();
+        status = await prompter.task("Checking your Claude account", probe, (s) => s.ok);
       } else {
         io.stderr(`not signed in: run \`wachiman profile login ${name}\` before \`wachiman local\`.`);
         explained = true;

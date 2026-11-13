@@ -455,6 +455,28 @@ command that binds the repository later.
 previewed on stderr and `Write it?` is asked first; Escape, Ctrl-C or Ctrl-D exit 130 and write
 nothing.
 
+### Interactive launcher and intro
+
+`wachiman` with no arguments opens a menu when stdin, stdout and stderr are all terminals and `CI`
+is unset. Otherwise it prints the usage as before. The menu offers: Review changes, Ask about
+changes, Review loop, Findings & usage, Configure and Exit. Review and Ask first ask for a scope
+(this branch against the base, one commit, staged changes, or the whole working tree).
+
+Before anything that spends your subscription, the launcher shows the repository, the scope, the
+profile and the exact command it will run, then asks `Run it?`. Declining runs nothing and returns
+to the menu; Escape or Ctrl-C exits 130 with nothing run. The launcher closes its prompt and then
+runs the same command handler you would get by typing the command.
+
+Arrow keys move the highlight in every menu on a terminal; a number jumps to its row and Enter
+confirms. Without a terminal, menus are numbered lists, exactly as before.
+
+On a terminal, `init`, `setup` and the launcher open with a short pixel-art animation of a police
+car (about a second; any key skips it) that settles into `👮 wachiman v<version> · on watch`.
+It is skipped, and the static header is printed, when stdout is not a terminal, `NO_COLOR` is
+non-empty, `CI` is set, `TERM=dumb`, the terminal is narrower than 40 columns, or
+`WACHIMAN_NO_ANIMATION` is set. The animation never flashes faster than three times a second, and
+the cursor is restored on every exit path, including Ctrl-C.
+
 ### `skills`
 
 ```
@@ -636,6 +658,7 @@ Read by the account commands and `local`:
 | --- | --- |
 | `WACHIMAN_HOME` | The Wachiman home, an absolute path. Default `~/.wachiman` |
 | `WACHIMAN_PROFILE` | The profile `local` uses when there is no `--profile` and no project binding |
+| `WACHIMAN_NO_ANIMATION` | Any non-empty value turns off the intro animation of `init`, `setup` and the launcher; the static header is printed instead |
 
 All optional settings (`WACHIMAN_BUDGET_USD`, `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER`,
 `WACHIMAN_DRY_RUN`, `WACHIMAN_EXCLUDE`, `WACHIMAN_COMMENT_AUTHOR` and the rest) are in

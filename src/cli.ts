@@ -52,6 +52,7 @@ import { initUsage, parseInitFlags } from "./init/args";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
 import { runInitCommand } from "./init/run";
 import { projectCommands } from "./wizard/command";
+import { maybeLaunch } from "./wizard/launcher";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
@@ -322,6 +323,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
   if (mode === "--version" || mode === "-v") {
     console.log(readVersion());
     return 0;
+  }
+  if (mode === undefined) {
+    // A bare `wachiman` on a terminal opens the menu; anywhere else it falls through to "No command given".
+    const launched = await maybeLaunch({ env, version: readVersion(), dispatch: (args) => main(args, env) });
+    if (launched !== undefined) return launched;
   }
   try {
     if (mode === "--setup-profile") {

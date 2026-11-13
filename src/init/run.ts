@@ -13,7 +13,7 @@ import { repositoryKey } from "../history/store";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
 import { wizardIo } from "../wizard/style";
-import { projectCommands } from "../wizard/command";
+import { projectCommands, quoteArgument } from "../wizard/command";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
 import { callerHeader, renderCallerWorkflow } from "./render";
@@ -55,13 +55,15 @@ export async function runInitCommand(flags: RawInitFlags, env: Record<string, st
   // Fail before asking for an operator or account in an unusable target.
   const root = worktreeRoot(flags.repoDir ?? ".", deps.git);
   const interactive = deps.interactive ?? isInteractive(flags, env, deps.streams ?? { stdin: process.stdin, stdout: process.stdout });
-  if (interactive) io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env);
   const defaultWorkflowRef = "defaultWorkflowRef" in deps ? deps.defaultWorkflowRef : DEFAULT_WORKFLOW_REF;
   const session = interactive ? openSession(deps, env) : undefined;
+  if (interactive) io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env, session?.prompter);
   try {
     let answered = flags;
     if (session) {
       checkSupplied(flags);
+      // Only the command that opened the session plays the intro; a caller that passed its own prompter did already.
+      if (!deps.prompter) await session.prompter.intro(deps.version ?? "unknown");
       session.prompter.step("Project", 1);
       session.prompter.say(root, "muted");
       const asked = await promptForInit(flags, { defaultWorkflowRef }, session.prompter);
@@ -125,10 +127,17 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     written = shown;
     io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
     if (options.mode === "github") prompter?.step("Checks and next actions", 4, 4);
-    io.stderr("Two things are left to do in GitHub:");
-    io.stderr("  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.");
-    io.stderr(`  2. Open a pull request that adds ${shown}. init does not commit, push or open one.`);
-    io.stderr("Local runs use your signed-in claude, never this key.");
+    if (prompter?.fancy) {
+      // The same two things, as the closing "Next steps" box with the commands to run.
+      prompter.nextAction("Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.", ["gh secret set ANTHROPIC_API_KEY"]);
+      prompter.nextAction(`Open a pull request that adds ${shown}. init does not commit, push or open one.`, [`git add ${quoteArgument(shown, "posix")}`, 'git commit -m "Add the Wachiman review workflow"', "git push"]);
+      prompter.say("Local runs use your signed-in claude, never this key.", "muted");
+    } else {
+      io.stderr("Two things are left to do in GitHub:");
+      io.stderr("  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.");
+      io.stderr(`  2. Open a pull request that adds ${shown}. init does not commit, push or open one.`);
+      io.stderr("Local runs use your signed-in claude, never this key.");
+    }
   }
 
   if (options.mode === "github") {

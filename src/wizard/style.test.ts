@@ -32,3 +32,28 @@ test("plain steps do not depend on Unicode or ANSI to convey progress", () => {
   p.close();
   expect(io.printed()).toBe("\nStep 1  Project\n\nStep 3/5  Claude account\n");
 });
+
+test("on a terminal session the closing next: hints go to the Next steps box instead of loose lines", () => {
+  const lines: string[] = [];
+  const steps: [string, string | undefined][] = [];
+  const session = { fancy: true, nextStep: (command: string, note?: string) => void steps.push([command, note]) };
+  const io = wizardIo({ stderr: (s: string) => void lines.push(s) }, { isTTY: true }, { TERM: "xterm" }, session);
+  io.stderr("next: wachiman local");
+  io.stderr("Next, on this machine: wachiman setup   (binds this repository to a Claude account)");
+  io.stderr("bound: example");
+  expect(steps).toEqual([
+    ["wachiman local", undefined],
+    ["wachiman setup", "binds this repository to a Claude account"],
+  ]);
+  expect(lines).toHaveLength(1);
+  expect(lines[0]).toContain("\x1b[32m\u2714 bound: example"); // success lines get a check mark on a terminal session
+});
+
+test("without a terminal session the hints are printed as they always were", () => {
+  const lines: string[] = [];
+  const session = { fancy: false, nextStep: () => { throw new Error("not used"); } };
+  const io = wizardIo({ stderr: (s: string) => void lines.push(s) }, { isTTY: false }, {}, session);
+  io.stderr("next: wachiman local");
+  io.stderr("bound: example");
+  expect(lines).toEqual(["next: wachiman local", "bound: example"]);
+});
