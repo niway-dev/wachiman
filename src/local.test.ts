@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { UsageError } from "./config";
 import type { WachimanConfigV1 } from "./accounts/config";
 import { toResultV1 } from "./formats";
-import { localFiles } from "./connectors/local-git";
+import { DEFAULT_MAX_DEPTH, localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile, runLocal, sizeWarning } from "./local";
 import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
@@ -268,8 +268,8 @@ describe("wachiman local", () => {
     expect(r.code).toBe(0);
     const lines = r.stderr.split("\n");
     // branchRepo's feat/x has two commits past the merge-base.
-    expect(lines).toContain("depth: 2 commits (max 50)");
-    expect(lines.indexOf("depth: 2 commits (max 50)")).toBe(lines.indexOf(`merge-base: ${sha7(r.repo.mergeBase)}`) + 1);
+    expect(lines).toContain(`depth: 2 commits (max ${DEFAULT_MAX_DEPTH})`);
+    expect(lines.indexOf(`depth: 2 commits (max ${DEFAULT_MAX_DEPTH})`)).toBe(lines.indexOf(`merge-base: ${sha7(r.repo.mergeBase)}`) + 1);
   }, 30_000);
 
   test("the review runs against the snapshot, not the working tree", () => {
@@ -488,14 +488,14 @@ describe("the start commit and the maximum depth", () => {
     expect(existsSync(r.canary)).toBe(false);
   };
 
-  test("51 commits past the merge-base: exit 2, the message, zero provider calls", () => {
+  test("DEFAULT_MAX_DEPTH + 1 commits past the merge-base: exit 2, the message, zero provider calls", () => {
     const repo = branchRepo();
-    emptyCommits(repo.dir, 49); // feat/x already has 2
-    expect(git(repo.dir, "rev-list", "--count", `${repo.mergeBase}..HEAD`).trim()).toBe("51");
+    emptyCommits(repo.dir, DEFAULT_MAX_DEPTH - 1); // feat/x already has 2
+    expect(git(repo.dir, "rev-list", "--count", `${repo.mergeBase}..HEAD`).trim()).toBe(String(DEFAULT_MAX_DEPTH + 1));
     const r = local("ok", [], {}, repo);
     expect(r.code).toBe(2);
     expect(r.stderr).toContain(
-      `The range from ${sha7(repo.mergeBase)} to ${sha7(sha(repo.dir, "HEAD"))} is 51 commits, more than the maximum depth of 50. Pass a closer --base <commit>, or raise the limit with --max-depth <n>.`,
+      `The range from ${sha7(repo.mergeBase)} to ${sha7(sha(repo.dir, "HEAD"))} is ${DEFAULT_MAX_DEPTH + 1} commits, more than the maximum depth of ${DEFAULT_MAX_DEPTH}. Pass a closer --base <commit>, or raise the limit with --max-depth <n>.`,
     );
     noReview(r);
     expect(r.stdout).toBe("");
@@ -503,12 +503,13 @@ describe("the start commit and the maximum depth", () => {
     expect(r.read("dirs")).toBeUndefined();
   }, 30_000);
 
-  test("exactly 50 commits runs", () => {
+  test("exactly DEFAULT_MAX_DEPTH commits runs", () => {
     const repo = branchRepo();
-    emptyCommits(repo.dir, 48);
+    emptyCommits(repo.dir, DEFAULT_MAX_DEPTH - 2); // feat/x already has 2
+    expect(git(repo.dir, "rev-list", "--count", `${repo.mergeBase}..HEAD`).trim()).toBe(String(DEFAULT_MAX_DEPTH));
     const r = local("ok", [], {}, repo);
     expect(r.code).toBe(0);
-    expect(r.stderr).toContain("depth: 50 commits (max 50)");
+    expect(r.stderr).toContain(`depth: ${DEFAULT_MAX_DEPTH} commits (max ${DEFAULT_MAX_DEPTH})`);
   }, 30_000);
 
   test("--max-depth 100 lets 51 commits run; a lower one refuses a short branch", () => {
@@ -548,17 +549,17 @@ describe("the start commit and the maximum depth", () => {
     const r = local("ok", ["--base", repo.mergeBase], {}, repo);
     expect(r.code).toBe(0);
     expect(r.stderr).toContain(`merge-base: ${sha7(repo.mergeBase)}`);
-    expect(r.stderr).toContain("depth: 1 commit (max 50)");
+    expect(r.stderr).toContain(`depth: 1 commit (max ${DEFAULT_MAX_DEPTH})`);
     expect(r.calls().length).toBeGreaterThan(0);
   }, 30_000);
 
   test("on the base branch with --base further back than the depth: exit 2, zero calls", () => {
     const repo = branchRepo();
     git(repo.dir, "switch", "-q", "main");
-    emptyCommits(repo.dir, 60);
+    emptyCommits(repo.dir, DEFAULT_MAX_DEPTH);
     const r = local("ok", ["--base", repo.mergeBase], {}, repo);
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain("is 61 commits, more than the maximum depth of 50.");
+    expect(r.stderr).toContain(`is ${DEFAULT_MAX_DEPTH + 1} commits, more than the maximum depth of ${DEFAULT_MAX_DEPTH}.`);
     noReview(r);
   }, 30_000);
 
@@ -897,12 +898,12 @@ describe("--commit and --from", () => {
     const lines = r.stderr.split("\n");
     expect(lines).toContain(`mode: from ${sha7(first)} to HEAD`);
     expect(lines).toContain(`start: ${sha7(parent)}`);
-    expect(lines).toContain("depth: 2 commits (max 50)");
+    expect(lines).toContain(`depth: 2 commits (max ${DEFAULT_MAX_DEPTH})`);
     expect(lines).toContain(`head: feat/x (${sha7(repo.head)})`);
     expect(r.read("prompt") ?? "").toContain("src/b.ts"); // added by the named commit itself
 
     const last = local("ok", ["--from", repo.head], {}, repo);
-    expect(last.stderr.split("\n")).toContain("depth: 1 commit (max 50)");
+    expect(last.stderr.split("\n")).toContain(`depth: 1 commit (max ${DEFAULT_MAX_DEPTH})`);
     expect(filesLine(last.stderr)).toBe("files: 3 (0 excluded)");
   }, 30_000);
 
@@ -911,7 +912,7 @@ describe("--commit and --from", () => {
     const r = local("ok", ["--from", repo.mergeBase], {}, repo);
     expect(r.code).toBe(0);
     expect(r.stderr.split("\n")).toContain("start: the empty tree (a root commit)");
-    expect(r.stderr.split("\n")).toContain("depth: 3 commits (max 50)");
+    expect(r.stderr.split("\n")).toContain(`depth: 3 commits (max ${DEFAULT_MAX_DEPTH})`);
   }, 30_000);
 
   test("--from a commit that is not an ancestor of HEAD: exit 2, zero calls", () => {
@@ -935,13 +936,13 @@ describe("--commit and --from", () => {
   test("--from over the depth: exit 2, zero provider calls; --max-depth lifts it", () => {
     const repo = branchRepo();
     const first = sha(repo.dir, "HEAD~1");
-    emptyCommits(repo.dir, 50);
+    emptyCommits(repo.dir, DEFAULT_MAX_DEPTH);
     const r = local("ok", ["--from", first], {}, repo);
     expect(r.code).toBe(2);
-    expect(r.stderr).toContain("is 52 commits, more than the maximum depth of 50");
+    expect(r.stderr).toContain(`is ${DEFAULT_MAX_DEPTH + 2} commits, more than the maximum depth of ${DEFAULT_MAX_DEPTH}`);
     noReview(r);
     expect(r.read("dirs")).toBeUndefined();
-    const raised = local("ok", ["--from", first, "--max-depth", "52"], {}, repo);
+    const raised = local("ok", ["--from", first, "--max-depth", String(DEFAULT_MAX_DEPTH + 2)], {}, repo);
     expect(raised.code).toBe(0);
   }, 30_000);
 

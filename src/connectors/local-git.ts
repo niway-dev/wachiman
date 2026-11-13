@@ -31,7 +31,7 @@ const DIFF_MAX_BYTES = 512 * 1024 * 1024;
 const short = (sha: string) => sha.slice(0, 7);
 
 /** The most commits a local review may span, from its start commit to `HEAD`; `--max-depth` changes it for one run. */
-export const DEFAULT_MAX_DEPTH = 50;
+export const DEFAULT_MAX_DEPTH = 250;
 
 /** Which commits a local review spans; without one, the branch against its base (`merge-base(base, HEAD) → HEAD`). */
 /** `LocalRefs.baseRef` of a root commit, which has no parent to start from. */
