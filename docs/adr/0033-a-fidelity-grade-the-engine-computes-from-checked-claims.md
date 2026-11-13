@@ -100,7 +100,7 @@ top grade; a grade reserved for documentation changes was rejected by the owner.
 
 - Submitting an approval, setting a check status, or gating a merge.
 - Judging code quality.
-- A grade in `wachiman local`.
+- A grade in `wachiman local` by default. Only `--confidence <file>`, given the pull request's text, grades a local run.
 
 ## Reopen if
 

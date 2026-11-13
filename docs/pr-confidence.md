@@ -2,7 +2,7 @@
 
 A trial feature of the GitHub review. After a full review of a pull request, Wachiman writes a
 grade into the pull request description: does the diff do what the title and body say? It is
-off by default. Design: [ADR 0033](adr/0033-a-fidelity-grade-the-engine-computes-from-checked-claims.md). `wachiman local` does not produce it.
+off by default. Design: [ADR 0033](adr/0033-a-fidelity-grade-the-engine-computes-from-checked-claims.md). `wachiman local` produces it only when given `--confidence <file>` (see [Grade a pull request on your laptop](#grade-a-pull-request-on-your-laptop)).
 
 In one paragraph: one extra small model call lists the claims in the title and body ("Retries
 failed uploads"). The review batches say which claim each changed file serves and cite the lines
@@ -75,3 +75,15 @@ footer. The title, body and diff are untrusted data in every prompt.
 - Plus signs (slice 2c): a refutation check on each claim. The block says it was not performed.
 
 The result carries it as `fidelity` in `/2` of the [review result](formats/README.md); `/1` does not.
+
+## Grade a pull request on your laptop
+
+`wachiman local --commit <sha> --confidence pr.json --format json` grades a committed change with your
+own signed-in `claude`. The file is `{ "title": string, "body": string, "number"?: number, "url"?: string }`:
+the pull request's title and description. The change is treated as that pull request, the claims call
+uses the same budget as the Action's, and nothing is posted. It works with `--base`, `--from`, `--commit`
+or `--input`, not with `--working-tree` or paths.
+
+With `--format json` the grade is the `fidelity` field of the `/2` result (the flag makes `/2` the
+default; `--result-version 1` is refused because `/1` never carries it). With `terminal` or `markdown`,
+the rendered block follows the report.

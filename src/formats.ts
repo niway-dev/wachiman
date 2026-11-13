@@ -257,7 +257,7 @@ export interface ReviewResultV2 {
   riskMap?: RiskMap;
   /**
    * PR Confidence (ADR 0033): the claims, the unexplained files and the grade. Only the `/2` result
-   * of a GitHub pull request review has it; a local review never does, and `toResultV1` leaves it out.
+   * of a pull request review, or of `wachiman local --confidence`, has it; `toResultV1` leaves it out.
    */
   fidelity?: Fidelity;
   batches: BatchReport[];
