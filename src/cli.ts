@@ -27,7 +27,9 @@
  *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
- * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error;
+ * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error; 3 the spend
+ * ledger stopped the run before any model call (a limit with `limit_mode: fail`, a repository it does
+ * not know, a job without an OIDC token, or an unreachable ledger with `ledger_unavailable: stop`);
  * 130 cancelled (`local`, `loop`, `setup`, `init`); `loop` also exits 10 and 11 (see its help).
  * The settings are documented in docs/cli.md.
  */
@@ -38,7 +40,7 @@ import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
 import { dashboardUsage, parseDashboardArgs, runDashboard } from "./store/command";
-import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
+import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { loopUsage, parseLoopArgs, runLoop } from "./loop/command";
 import { askUsage, parseAskArgs, runAsk } from "./local-ask";
@@ -142,7 +144,9 @@ Environment:
   AGENT_REVIEW_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
   AGENT_REVIEW_*                     optional settings; see docs/cli.md
 
-Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error.
+Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error, 3 the spend ledger stopped the run
+(a limit with \`limit_mode: fail\`, an unlinked repository, no OIDC token, or an unreachable ledger with
+\`ledger_unavailable: stop\`); with \`limit_mode: notice\` a limit exits 0.
 \`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
 \`loop\`: 0 converged, 10 findings still open, 11 stopped without converging (round cap or review failed), 2 usage error, 130 interrupted. A stop is never an approval.
 \`ask\`: 0 an answer was printed (it may say what it could not answer), 1 no answer (the call failed or returned nothing usable), 2 usage error, 130 interrupted.
@@ -402,8 +406,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
     const repo = required(env, "GITHUB_REPOSITORY");
     const request = effective === "comment" ? required(env, "REQUEST") : "";
     const costs: CallCost[] = [];
+    const ledgerNotes: string[] = [];
     const deps: Deps = {
       costs,
+      ledgerNotes,
       gh: defaultGh,
       provider,
       ...(verifier ? { verifier } : {}),
@@ -427,13 +433,26 @@ export async function main(argv: string[], env: Record<string, string | undefine
       else comment(deps, repo, pr, request, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined, commentLine);
     } finally {
       // Also after a failed run: the calls it made were paid for.
-      writeStepSummary(costs, env);
+      writeStepSummary(costs, env, undefined, ledgerNotes);
     }
     return 0;
   } catch (error) {
     if (error instanceof UsageError || error instanceof UnknownProviderError) {
       console.error(`wachiman: ${error.message}\n\n${USAGE}`);
       return 2;
+    }
+    if (error instanceof SpendLimitReached) {
+      // The notice is already posted. `notice` mode keeps the job green.
+      if (error.mode === "notice") {
+        console.log(`wachiman: spend limit reached: ${error.message}`);
+        return 0;
+      }
+      console.error(`wachiman: spend limit reached: ${error.message}`);
+      return 3;
+    }
+    if (error instanceof LedgerStopped) {
+      console.error(`wachiman: ledger: ${error.message}`);
+      return 3;
     }
     console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
     return 1;

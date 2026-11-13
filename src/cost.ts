@@ -146,6 +146,30 @@ export function costLogLine(call: CallCost, extra: { trigger?: string } = {}) {
   })}`;
 }
 
+/**
+ * One call as the spend ledger receives it: the fields of the `wachiman-cost` line that describe
+ * the call, nothing about where it ran. `repo` and `trigger` are the ledger's own (it knows the
+ * repository from the verified token and gets the trigger when it reserves); `countedUsd` is the
+ * spent amount the settle already carries. Same names and values as `costLogLine`.
+ */
+export function ledgerCall(call: CallCost) {
+  return {
+    operation: call.operation,
+    label: call.label,
+    model: call.model,
+    turns: call.turns,
+    duration_ms: call.durationMs,
+    input_tokens: call.usage.input,
+    output_tokens: call.usage.output,
+    cache_read_tokens: call.usage.cacheRead,
+    cache_write_tokens: call.usage.cacheWrite,
+    cost_usd: call.costKnown === false ? null : Number(call.costUsd.toFixed(6)),
+    costKnown: call.costKnown !== false,
+    terminal_reason: call.terminalReason,
+    auth: call.auth ?? "api-key",
+  };
+}
+
 /** The job summary: one row per call and a total row. Empty string when no call was made. */
 export function renderCostSummary(calls: CallCost[]) {
   if (calls.length === 0) return "";
@@ -187,9 +211,12 @@ export function writeStepSummary(
   calls: CallCost[],
   env: Record<string, string | undefined>,
   append: (path: string, text: string) => void = appendFileSync,
+  /** What the spend ledger did or could not do in this run, one line each (`### Wachiman spend limit`). */
+  ledgerNotes: string[] = [],
 ) {
   const path = env.GITHUB_STEP_SUMMARY;
-  const text = renderCostSummary(calls);
+  const notes = ledgerNotes.length === 0 ? "" : ["### Wachiman spend limit", "", ...ledgerNotes.map((n) => `- ${n}`)].join("\n");
+  const text = [renderCostSummary(calls), notes].filter(Boolean).join("\n\n");
   if (!path || !text) return false;
   try {
     append(path, `${text}\n`);
