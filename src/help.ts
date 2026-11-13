@@ -527,6 +527,19 @@ export type HelpRequest = { text: string } | { error: string };
  * are not a help request. It looks at the arguments only: the caller returns before any configuration,
  * authentication, git or model use.
  */
+/**
+ * Whether `rest` (the arguments after a command) ask for help. Free text and option values are not flags:
+ * nothing after a `--` counts, `ask` takes it only as its first argument (the rest is the question), and
+ * the value of `--reason` is never a request.
+ */
+function asksForHelp(command: string, rest: readonly string[]): boolean {
+  const end = rest.indexOf("--");
+  const args = end === -1 ? rest : rest.slice(0, end);
+  const isHelp = (arg: string) => arg === "--help" || arg === "-h";
+  if (command === "ask") return args.length > 0 && isHelp(args[0]);
+  return args.some((arg, i) => isHelp(arg) && args[i - 1] !== "--reason");
+}
+
 export function helpFor(argv: readonly string[], paint: Paint = plain): HelpRequest | undefined {
   const [first, ...rest] = argv;
   if (first === "help") {
@@ -536,10 +549,10 @@ export function helpFor(argv: readonly string[], paint: Paint = plain): HelpRequ
     const text = commandHelp(words, paint);
     return text === undefined ? { error: `Unknown help topic "${words[0]}".` } : { text };
   }
-  if (first === "--setup-profile" && rest.some((arg) => arg === "--help" || arg === "-h")) {
+  if (first === "--setup-profile" && asksForHelp(first, rest)) {
     return { text: commandHelp(["profile", "create"], paint)! };
   }
-  if (isCommand(first) && rest.some((arg) => arg === "--help" || arg === "-h")) {
+  if (isCommand(first) && asksForHelp(first, rest)) {
     return { text: commandHelp([first, ...rest.filter((arg) => !arg.startsWith("-"))], paint)! };
   }
   return undefined;

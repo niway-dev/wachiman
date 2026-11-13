@@ -344,7 +344,7 @@ describe("nothing existing depends on the index", () => {
         else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts") && !path.includes(`${join("src", "store")}`) && path !== join(import.meta.dir, "..", "cli.ts")) {
           // The help text may take the dashboard's usage string and nothing else from the store.
           const text = path === join(import.meta.dir, "..", "help.ts")
-            ? readFileSync(path, "utf8").replace('import { dashboardUsage } from "./store/command";', "")
+            ? readFileSync(path, "utf8").replace(/import\s*\{\s*dashboardUsage\s*\}\s*from\s*"\.\/store\/command";?/, "")
             : readFileSync(path, "utf8");
           if (/from "\.\.?\/(\.\.\/)?store\//.test(text)) offenders.push(path);
         }

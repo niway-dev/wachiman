@@ -46,7 +46,7 @@ provider binary are needed for local reviews; GitHub commands also need `gh`.
 Argument rules, as implemented:
 
 - The command (`review`, `comment`, `threads`, `reset-confidence`, `local`, `loop`, `ask`, `history`, `status`, `dashboard`, `ledger`, `setup`, `init`, `doctor`, `profile`, `project` or `skills`) must be the first argument. `--help`/`-h`,
-  `--version`/`-v`, `help` and `--setup-profile` are recognised only as the first argument too. `--help` or `-h` anywhere after a command prints that command's help and exits 0, before any other argument is checked.
+  `--version`/`-v`, `help` and `--setup-profile` are recognised only as the first argument too. `--help` or `-h` after a command prints that command's help and exits 0, before any other argument is checked. It is not a request where it is text or a value: after a `--`, as the value of `--reason`, or anywhere but the first argument of `ask`, whose other words are the question.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
   rest are read, so it is never taken for a path.

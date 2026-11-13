@@ -112,6 +112,14 @@ describe("usage errors", () => {
     expect(run(["frobnicate", "--help"]).code).toBe(2);
   }, 30_000);
 
+  test("-h and --help are not a help request where they are text or a value", () => {
+    expect(helpFor(["ask", "what", "does", "--help", "do"])).toBeUndefined();
+    expect(helpFor(["history", "--verdict", "3f9a1c", "wrong", "--reason", "-h"])).toBeUndefined();
+    expect(helpFor(["local", "--", "--help"])).toBeUndefined();
+    expect(helpFor(["ask", "--help"])).toBeDefined();
+    expect(helpFor(["ask", "-h", "anything"])).toBeDefined();
+  });
+
   test("helpFor ignores arguments that are not a help request", () => {
     expect(helpFor(["local", "--base", "main"])).toBeUndefined();
     expect(helpFor(["--version"])).toBeUndefined();

@@ -486,7 +486,7 @@ The canonical table is in [cli.md](cli.md). What each code means when you read a
 | --- | --- | --- |
 | 0 | A review or an answer was posted, or there was nothing to do: not a command, not the operator, `Already reviewed`, `Nothing to review`, an all-budget `ran out of its budget` comment. | Green does not mean a review exists. |
 | 1 | An engine error: missing key or binary, a failed `gh` call, `The agent did not return a review for any batch.`, the credential-shaped output refusal, a failed answer. | Not always "nothing posted": see above. |
-| 2 | A usage error: unknown command, bad pull request number, a missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting such as `WACHIMAN_BUDGET_USD must be a positive number, got "0".`, or an unknown provider. | Printed with the usage text. |
+| 2 | A usage error: unknown command, bad pull request number, a missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting such as `WACHIMAN_BUDGET_USD must be a positive number, got "0".`, or an unknown provider. | One line on stderr, then `Run 'wachiman <command> --help'.` |
 | 3 | The spend ledger stopped the run before any model call: a limit with `limit_mode: fail`, a repository the ledger does not know, a rejected identity token, a job without `id-token: write` while `ledger_url` is set, or an unreachable ledger with `ledger_unavailable: stop`. | See [The spend ledger](#the-spend-ledger). A limit with `limit_mode: notice` exits 0. |
 
 One setting breaks that pattern: a malformed `WACHIMAN_PRICE_PER_MTOK` (the Codex price override)
