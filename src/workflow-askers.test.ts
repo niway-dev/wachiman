@@ -155,7 +155,7 @@ describe("the workflows let a collaborator's question reach the engine, and noth
   test("copy template: the on-demand concurrency keeps the operator's group and cancels only for the operator", () => {
     const concurrency = jobOf(read(COPY), "on-demand").match(/\n    concurrency:\n([\s\S]*?)\n    permissions:/)?.[1] ?? "";
     expect(concurrency).toContain(
-      "      group: agent-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != 'your-github-login' && '-ask' || '' }}",
+      "      group: wachiman-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != 'your-github-login' && '-ask' || '' }}",
     );
     expect(concurrency).toContain("      cancel-in-progress: ${{ github.event.comment.user.login == 'your-github-login' }}");
   });

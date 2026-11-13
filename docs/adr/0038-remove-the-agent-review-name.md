@@ -65,6 +65,9 @@ These are breaking changes, marked as breaking (`refactor!`):
 - **Threads from older releases lose their link.** A review whose last line is
   `<!-- agent-review sha=… -->` is no longer recognised as a complete review, so the next push
   or `/wachiman review` reviews the whole pull request again instead of only the new commits.
+  The same footer check counts automatic spend and recognises the engine's own review, so on
+  such a pull request the `WACHIMAN_AUTO_BUDGET_USD` ceiling starts again from $0, without a
+  message, and replies treat that review as not the engine's.
 - **The `agent-review` bin** is not installed. A script that calls it must call `wachiman`.
 - **Concurrency groups and check names** change. A repository that cancels runs by group name or
   requires the old check by name must follow.

@@ -306,7 +306,7 @@ jobs:
     # The login is a literal here because a concurrency block cannot read env: keep it equal to
     # WACHIMAN_OPERATOR.
     concurrency:
-      group: agent-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != 'your-github-login' && '-ask' || '' }}
+      group: wachiman-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != 'your-github-login' && '-ask' || '' }}
       cancel-in-progress: ${{ github.event.comment.user.login == 'your-github-login' }}
     permissions:
       contents: read

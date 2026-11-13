@@ -141,8 +141,8 @@ Environment:
   CLAUDE_CODE_OAUTH_TOKEN            a Claude subscription token (\`claude setup-token\`); if set, it is
                                      used and ANTHROPIC_API_KEY never reaches the agent
   REQUEST                            the comment text, for \`comment\`
-  WACHIMAN_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
-  WACHIMAN_*                     optional settings; see docs/cli.md
+  WACHIMAN_COMMENT_AUTHOR            the login of the comment's author, for \`comment\` and \`threads\`
+  WACHIMAN_*                         optional settings; see docs/cli.md
 
 Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error, 3 the spend ledger stopped the run
 (a limit with \`limit_mode: fail\`, an unlinked repository, no OIDC token, or an unreachable ledger with

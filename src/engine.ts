@@ -268,7 +268,7 @@ export const DEFAULT_EXCLUDE = [
   "**/worker-configuration.d.ts",
 ];
 
-// The old marker is still read so repositories reviewed before the rename keep their incremental state.
+// `claude-review` is still read so repositories reviewed under that name keep their incremental state.
 const MARKER_SOURCE = "<!-- (?:wachiman|claude-review) sha=([A-Za-z0-9]+) -->";
 const short = (sha: string) => sha.slice(0, 7);
 /**
