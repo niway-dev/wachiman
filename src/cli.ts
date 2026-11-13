@@ -405,15 +405,18 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // Where no workflow input or WACHIMAN_* set them, the model and the effort come from the base
     // commit's `.wachiman.yml` (never the head's, ADR 0049), so the estimate, the size gate and every
     // call agree. The adapters are rebuilt only when the file changed one of them.
-    const config = withBaseSettings(routed, defaultGh, repo, pr, (line) => console.log(line), (line) => console.error(line));
+    let config = withBaseSettings(routed, defaultGh, repo, pr, (line) => console.log(line), (line) => console.error(line));
     if (config.model !== routed.model || config.effort !== routed.effort) {
+      const before = { provider, verifier };
       ({ provider, verifier } = adapters(config));
       try {
         provider.preflight();
         verifier?.preflight();
       } catch (error) {
-        console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
-        return 1;
+        // A value the base file set that this provider cannot use must not block the pull request that fixes it.
+        console.error(`wachiman: ignored model/effort from .wachiman.yml at the base commit: ${error instanceof Error ? error.message : error}; using the workflow's values.`);
+        ({ provider, verifier } = before);
+        config = routed;
       }
     }
     const costs: CallCost[] = [];

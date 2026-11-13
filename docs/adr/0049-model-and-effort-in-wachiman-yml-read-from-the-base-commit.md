@@ -15,8 +15,8 @@ repository to review under another model has to know both and keep them in step,
 never sees the workflow's inputs at all.
 
 [ADR 0048](0048-a-repository-settings-file-at-the-root-wachiman-yml.md) created `.wachiman.yml` at the
-repository root, visible in every mode, and said that any key that changes spend must be read from
-the base commit in Actions. `model` and `effort` are exactly such keys: a stronger model or a higher
+repository root, visible in every mode, with one metadata key that nothing read. A key that
+changes spend needs more care than that: `model` and `effort` are exactly such keys: a stronger model or a higher
 effort is a larger bill on the owner's key, and a pull request can edit any file in the repository.
 
 ## Decision

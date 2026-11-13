@@ -30,8 +30,9 @@ A Team or Enterprise account of your employer is the easier request to approve.
 
 **What leaves the machine:** the diff of the branch, the files the model chooses to read in the
 snapshot (read-only tools only: `Read`, `Glob`, `Grep`), the repository's instruction files
-(`CLAUDE.md`, `AGENTS.md`, `.github/wachiman.md`) at the merge-base, and the prompt. The model and effort can come from `.wachiman.yml`, also read at the merge-base (`WACHIMAN_MODEL` and `WACHIMAN_EFFORT` win; see [configuration.md](configuration.md#the-settings-file-wachimanyml)). They go to
-`api.anthropic.com` through your `claude`. **What does not:** nothing goes to GitHub, and Wachiman
+(`CLAUDE.md`, `AGENTS.md`, `.github/wachiman.md`) at the merge-base, and the prompt. They go to `api.anthropic.com` through your `claude`. (The
+model and effort can come from `.wachiman.yml`, also read at the merge-base; `WACHIMAN_MODEL` and
+`WACHIMAN_EFFORT` win. See [configuration.md](configuration.md#the-settings-file-wachimanyml).) **What does not:** nothing goes to GitHub, and Wachiman
 itself sends nothing. Claude Code's own metrics, error reports, feedback survey, auto-updater and
 marketplace auto-install are switched off in every call (see section 7 for what is verified).
 
