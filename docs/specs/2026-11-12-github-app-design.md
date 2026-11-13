@@ -4,7 +4,7 @@
   `main` yet: the hosted spend platform (issue
   [#205](https://github.com/niway-dev/wachiman/issues/205), draft
   [#202](https://github.com/niway-dev/wachiman/pull/202)) and the reusable workflow
-  `review-platform.yml` that carries `id-token: write`.
+  `wachiman-platform.yml` that carries `id-token: write`.
 - **Issue:** [#206](https://github.com/niway-dev/wachiman/issues/206)
 - **ADRs:** [0045](../adr/0045-a-github-app-whose-private-key-lives-alone-in-an-exchange-worker.md),
   [0046](../adr/0046-own-output-is-recognised-by-bot-account-id-never-by-text-in-the-body.md)
@@ -119,7 +119,7 @@ Each has the default that will be built if the owner does not answer.
 - [ ] The same test with a human comment and a third bot's comment that copy every marker and
       footer: neither is counted.
 - [ ] `POST /v1/app/token` answers 403 for each of: a `job_workflow_ref` other than
-      `review-platform.yml` at a `v*` tag, `event_name` `pull_request_target`, a repository without
+      `wachiman-platform.yml` at a `v*` tag, `event_name` `pull_request_target`, a repository without
       the installation, a token with the ledger's audience; and 429 above the owner's limit.
 - [ ] A 200 answer's token, sent to `GET /installation/repositories`, lists one repository, and
       its `permissions` are `metadata: read` and `pull_requests: write`.
@@ -154,8 +154,8 @@ A repository can run in three ways, and all three stay:
 | Way | Caller uses | Spend recorded and checked | Author of the review |
 | --- | --- | --- | --- |
 | Direct | `review.yml` at a tag | no | `github-actions[bot]` |
-| Platform | `review-platform.yml` at a tag | yes, before the model runs | `github-actions[bot]` |
-| Platform with the App installed | `review-platform.yml` at a tag | yes | the App |
+| Platform | `wachiman-platform.yml` at a tag | yes, before the model runs | `github-actions[bot]` |
+| Platform with the App installed | `wachiman-platform.yml` at a tag | yes | the App |
 
 Recording spend and checking whether a run may spend need the platform workflow and the run's
 OIDC token. They need nothing from the App.
@@ -224,7 +224,7 @@ The text below is section 3 of `docs/specs/2026-11-07-three-modes-design.md` on 
 | --- | --- | --- | --- |
 | A1 | The route is in the ledger Worker | The route is in its own Worker, source in the private backend repository | Decision 3 |
 | A2 | Bearer has the ledger's audience | The engine requests a second OIDC token whose audience is the exchange Worker's origin; the exchange refuses any other audience | With two services, a token read at one must not be usable at the other |
-| A3 | `job_workflow_ref` names `review.yml` | It names `review-platform.yml` | `review.yml` has no `id-token: write`; the platform twin does |
+| A3 | `job_workflow_ref` names `review.yml` | It names `wachiman-platform.yml` | `review.yml` has no `id-token: write`; the platform twin does |
 | A4 | `event_name` is `pull_request` or `issue_comment` | Also `pull_request_review_comment` | The threads job answers on that event; without it every reply would fall back |
 | A5 | Step 4 reads an `installations` table | Step 4 calls `GET /repos/{owner}/{repo}/installation` with the App JWT, using the `repository` claim; 404 gives 403 `not_installed` | No database in the Worker that holds the key. One more GitHub call per run |
 | A6 | The token carries `pull_requests` and `issues` write | `pull_requests: write` only | Decision 2 |
@@ -355,7 +355,7 @@ Where each value goes:
 | Client secret | yes | platform Worker secret, when web sign-in ships. Generated then, not before |
 | Client ID | no | platform Worker variable, and a constant in the CLI for the device flow |
 | Bot account id | no | a constant in the engine (ADR 0046) |
-| Exchange URL | no | an input of `review-platform.yml` with the hosted URL as default |
+| Exchange URL | no | an input of `wachiman-platform.yml` with the hosted URL as default |
 
 No consumer repository receives a secret from the App.
 
@@ -378,9 +378,9 @@ Each line is one pull request for the build thread, except S2.
   `github-actions[bot]`. No behaviour change. Does not depend on the platform.
 - **S2. The owner registers the App** (section 5, steps 1 to 8) and installs it on one test
   repository.
-- **S3. The exchange Worker and the engine's call**, on `review-platform.yml` only, with the
+- **S3. The exchange Worker and the engine's call**, on `wachiman-platform.yml` only, with the
   fallback and the footer line. Needs S1, S2 and the platform pull requests that add
-  `review-platform.yml`. Ships with the probes:
+  `wachiman-platform.yml`. Ships with the probes:
   - P1. A Worker imports the PKCS#8 key and signs RS256 with `crypto.subtle`.
   - P2. `GITHUB_TOKEN` edits a notice the App wrote, and the App token edits one
     `github-actions[bot]` wrote.

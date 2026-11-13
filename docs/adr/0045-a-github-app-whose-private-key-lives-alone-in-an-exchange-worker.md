@@ -2,7 +2,7 @@
 
 - **Status:** proposed 2026-11-12, not implemented. Depends on the hosted platform (issue
   [#205](https://github.com/niway-dev/wachiman/issues/205)) and on the reusable workflow
-  `review-platform.yml`, neither on `main` yet. When the exchange ships, this record
+  `wachiman-platform.yml`, neither on `main` yet. When the exchange ships, this record
   **supersedes** decision 5 of [ADR 0005](0005-name-wachi-reviewer.md) ("Reviews keep posting as
   `github-actions[bot]`. No GitHub App and no backend.") and the rejected alternative "A GitHub
   App or bot account so the avatar shows the mascot" of [ADR 0010](0010-name-wachiman.md). It
@@ -53,7 +53,7 @@ on that ("the Worker's public code never calls GitHub with the minted token"). B
    deployed by hand; no CI credential can deploy it. The ledger Worker, the panel and the webhook
    never hold the key.
 4. **The exchange is the one specified in pull request #135, section 3,** with the eight
-   amendments in the spec: its own Worker, its own OIDC audience, `review-platform.yml` in
+   amendments in the spec: its own Worker, its own OIDC audience, `wachiman-platform.yml` in
    `job_workflow_ref`, `pull_request_review_comment` admitted, the installation looked up at
    GitHub instead of in a table, `pull_requests: write` only, a request limit per repository owner,
    and the call moved to the moment of posting.
