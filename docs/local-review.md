@@ -207,6 +207,7 @@ wachiman local --repo-dir . --from abc1234        # that commit and everything a
 | `--max-depth <n>` | The most commits the review may span, from its start commit to `HEAD`. Default 250. The cap catches a wrong base, such as reviewing all of `main` by accident; it does not limit cost, the size gate does. Over it, the run stops with exit 2 before any call; raise it (or lower it) for one run. A positive integer; no environment variable |
 | `[paths…]` | Review only the changed files under these paths. A word that names no changed file is ignored, with a line on stderr |
 | `--input <file>` | Review a `wachiman.review-input/1` file ([formats](formats/README.md)) instead of computing the diff; its `change.head.sha` must exist in `--repo-dir` |
+| `--confidence <file>` | Grade the change as the pull request in `{ "title", "body", "number"?, "url"? }`: PR Confidence, in `fidelity` of the `/2` JSON ([page](pr-confidence.md#grade-a-pull-request-on-your-laptop)) |
 | `--format terminal\|markdown\|json` | Default `terminal` (plain text). `markdown` holds every finding and ends with the prompt for your agent. `json` is the [`ReviewResult`](formats/README.md) |
 | `--output <file>` | Write the report there instead of stdout |
 | `--agent-prompt` | With `terminal`: also print the prompt for your agent |

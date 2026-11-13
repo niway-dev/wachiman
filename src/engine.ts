@@ -2900,7 +2900,8 @@ export interface ReviewOptions {
    * PR Confidence (ADR 0033): for a pull request, one small call first lists the claims in its
    * title and body, every batch says which claim each of its files serves, and the engine computes
    * the grade into `result.fidelity`. Set by the pull request review for a full review only, never
-   * by `reviewOptionsOf`: a local review and an incremental or scoped one have no grade.
+   * by `reviewOptionsOf`: an incremental or scoped review has no grade. A local review has one only
+   * when `wachiman local --confidence <file>` gives it the pull request's text.
    */
   confidence?: { budgetUsd: number };
 }

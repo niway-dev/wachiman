@@ -23,7 +23,10 @@ import {
   snapshotHead,
   warnSnapshotDifferences,
 } from "./connectors/local-git";
-import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, type ReviewInput, type ReviewResult } from "./engine";
+import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, type ReviewInput, type ReviewOptions, type ReviewResult } from "./engine";
+import { CLAIMS_BUDGET_USD } from "./fidelity/claims-call";
+import { renderBlock } from "./fidelity/block";
+import { stripBlock } from "./fidelity/digest";
 import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
@@ -62,12 +65,14 @@ export interface LocalArgs {
   /** `--result-version`: with `--format json`, which result version to write (default 1 for a committed change). */
   resultVersion?: 1 | 2;
   input?: string;
+  /** `--confidence <file>`: the title and body of the pull request to grade (see `readConfidenceFile`). */
+  confidence?: string;
 }
 
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
                [--profile <name>] [--agent-prompt] [--history] [--verify | --no-verify]
-               [--result-version 1|2] [--working-tree staged|all]`;
+               [--result-version 1|2] [--working-tree staged|all] [--confidence <file>]`;
 
 /** Every flag `local` takes. `ask` takes the subset it names in `ask-command`. */
 export const LOCAL_FLAGS = [
@@ -85,6 +90,7 @@ export const LOCAL_FLAGS = [
   "--profile",
   "--format",
   "--input",
+  "--confidence",
 ] as const;
 
 /** The arguments after `local` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
@@ -163,6 +169,10 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
       const v = value();
       if (!existsSync(v)) throw new UsageError(`--input ${v} does not exist.`);
       args.input = v;
+    } else if (name === "--confidence") {
+      const v = value();
+      if (!existsSync(v)) throw new UsageError(`--confidence ${v} does not exist.`);
+      args.confidence = v;
     } else throw new UsageError(`Unknown option ${name} for ${command}.`);
   }
   if (sawVerify && sawNoVerify) throw new UsageError("--verify and --no-verify cannot be used together.");
@@ -172,6 +182,11 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
   if (base !== undefined) args.base = base;
   if (args.input !== undefined && (picked.length > 0 || args.paths.length > 0)) {
     throw new UsageError("--input reviews the file's change as it is: it takes no --base, --from or --commit, and no paths.");
+  }
+  if (args.confidence !== undefined) {
+    if (args.workingTree) throw new UsageError("--confidence grades a committed change: it cannot be used with --working-tree.");
+    if (args.paths.length > 0) throw new UsageError("--confidence grades the whole change: it takes no paths.");
+    if (args.format === "json" && args.resultVersion === 1) throw new UsageError("--confidence needs --result-version 2: the grade is not part of result /1.");
   }
   if (args.workingTree && args.resultVersion === 1) throw new UsageError("Working-tree reviews require --result-version 2.");
   return args;
@@ -229,6 +244,62 @@ export function readInputFile(path: string): Omit<ReviewInput, "headDir"> {
   // In memory only (docs/formats): the head the agent reads is always the engine's own snapshot.
   if ("headDir" in input) throw new UsageError(`--input ${path} carries headDir, which a review input file never holds.`);
   return input as Omit<ReviewInput, "headDir">;
+}
+
+/** What `--confidence <file>` reads: the title and description of the pull request being graded. */
+export interface ConfidenceText {
+  title: string;
+  body: string;
+  number?: number;
+  url?: string;
+}
+
+/**
+ * The `--confidence` file: `{ "title": string, "body": string, "number"?: number, "url"?: string }`.
+ * The body loses Wachiman's own block, as the pull request review does (ADR 0033 decision 14).
+ */
+export function readConfidenceFile(path: string): ConfidenceText {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new UsageError(`--confidence ${path} is not JSON: ${error instanceof Error ? error.message : error}`);
+  }
+  const f = parsed as Record<string, unknown> | null;
+  const problems: string[] = [];
+  if (!f || typeof f !== "object" || Array.isArray(f)) problems.push("the file is not an object");
+  else {
+    if (!isString(f.title)) problems.push("title");
+    if (!isString(f.body)) problems.push("body");
+    if (f.number !== undefined && !(typeof f.number === "number" && Number.isSafeInteger(f.number) && f.number > 0)) problems.push("number");
+    if (f.url !== undefined && !(isString(f.url) && /^https:\/\/[^\s<>]+$/.test(f.url))) problems.push("url");
+  }
+  if (problems.length > 0) throw new UsageError(`--confidence ${path} is missing or mistypes: ${problems.join(", ")}.`);
+  const ok = f as Record<string, any>;
+  return {
+    title: ok.title,
+    body: stripBlock(ok.body),
+    ...(ok.number !== undefined ? { number: ok.number } : {}),
+    ...(ok.url !== undefined ? { url: ok.url } : {}),
+  };
+}
+
+/** The change, treated as the pull request the file describes, so the review can grade it. */
+export function asPullRequest(input: ReviewInput, text: ConfidenceText): ReviewInput {
+  const c = input.change;
+  const repoUrl = text.url?.replace(/\/pull\/\d+.*$/, "");
+  return {
+    ...input,
+    change: {
+      ...c,
+      kind: "pull-request",
+      describe: text.number !== undefined ? `pull request #${text.number} in ${c.repository.name}` : c.describe,
+      repository: { ...c.repository, ...(repoUrl ? { url: repoUrl } : {}) },
+      title: text.title,
+      description: text.body,
+      ...(text.number !== undefined ? { identifier: `#${text.number}` } : {}),
+    } as ReviewInput["change"],
+  };
 }
 
 /** Exit code for a finished review (decision 8). */
@@ -456,6 +527,13 @@ export function runLocal(
   deps: LocalDeps = {},
 ): number {
   const fileInput = args.input === undefined ? undefined : readInputFile(args.input);
+  const confidenceText = args.confidence === undefined ? undefined : readConfidenceFile(args.confidence);
+  if (confidenceText && fileInput?.change.kind === "working-tree") {
+    throw new UsageError("--confidence grades a committed change: the input is a working tree.");
+  }
+  if (confidenceText && args.input !== undefined && args.resultVersion === 1) {
+    throw new UsageError("--confidence needs --result-version 2: the grade is not part of result /1.");
+  }
   if ((args.workingTree || fileInput?.change.kind === "working-tree") && args.resultVersion === 1) {
     throw new UsageError("Working-tree reviews require --result-version 2; a tree is not a commit.");
   }
@@ -514,6 +592,7 @@ export function runLocal(
       input = { ...fromFile, headDir: snapshot.dir };
       io.stderr(`head: ${short(head)}`);
     }
+    if (confidenceText) input = asPullRequest(input, confidenceText);
     const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
     const batches = planBatches(kept, {
       maxLines: config.batchLines,
@@ -529,7 +608,13 @@ export function runLocal(
         : "verify: off",
     );
 
-    const result = reviewChange(input, reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), {
+    // PR Confidence (ADR 0033): only when `--confidence` gave the pull request's text, and the same
+    // claims budget the pull request review uses. Nothing is posted: the grade goes to the output.
+    const options: ReviewOptions = {
+      ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"),
+      ...(confidenceText ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
+    };
+    const result = reviewChange(input, options, {
       provider,
       ...(verifier ? { verifier } : {}),
       // The verifier reads the code before the change too; made once, only when there is something to check.
@@ -579,7 +664,7 @@ export function runLocal(
       args.format === "json"
         ? renderJson(
             result,
-            args.resultVersion ?? (input.change.kind === "working-tree" ? 2 : 1),
+            args.resultVersion ?? (input.change.kind === "working-tree" || confidenceText ? 2 : 1),
             // ADR 0034: with history on, a `/2` finding names itself by the id `history --verdict` takes.
             annotation ? result.findings.map((_, i) => annotation!.byIndex.get(i)?.id) : undefined,
           )
@@ -590,11 +675,20 @@ export function runLocal(
               agentPrompt: args.agentPrompt,
               history: annotation,
             });
+    const block =
+      args.format !== "json" && result.fidelity
+        ? `\n${renderBlock(result.fidelity, {
+            reviewedCommit: result.change.head.sha,
+            date: new Date().toISOString().slice(0, 10),
+            ...(result.change.repository.url ? { permalinkBase: result.change.repository.url } : {}),
+          })}\n`
+        : "";
+    const shown = text + block;
     if (args.output !== undefined) {
       const path = resolve(args.output);
-      writeFileSync(path, text);
+      writeFileSync(path, shown);
       io.stderr(`report: ${path}`);
-    } else io.stdout(text);
+    } else io.stdout(shown);
     return exitCodeOf(result);
   } finally {
     process.off("SIGINT", onSigint);
