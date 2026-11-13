@@ -215,17 +215,17 @@ describe("settings row: the repository's .wachiman.yml", () => {
     expect(report.exitCode).toBe(1);
   });
 
-  test("the old .github/wachiman.yml is a warning whose fix is git mv, and nothing is moved", () => {
+  test("the old .github/wachiman.yml is a warning whose fix is mv (it works whether the file is tracked or not), and nothing is moved", () => {
     const repo = emptyRepo();
     write(repo, { ".github/wachiman.yml": "kind: single\n" });
     const r = settingsRow(machine(), repo);
-    expect(r).toMatchObject({ status: "warn", level: "optional", fix: "git mv .github/wachiman.yml .wachiman.yml" });
+    expect(r).toMatchObject({ status: "warn", level: "optional", fix: "mv .github/wachiman.yml .wachiman.yml" });
     expect(r.evidence).toContain("never read");
     expect(existsSync(join(repo, ".github", "wachiman.yml"))).toBe(true);
     expect(existsSync(join(repo, ".wachiman.yml"))).toBe(false);
   });
 
-  test("with both files the fix is to merge, since git mv would overwrite the root file", () => {
+  test("with both files the fix is to merge, since mv would overwrite the root file", () => {
     const repo = emptyRepo();
     write(repo, { ".github/wachiman.yml": "kind: single\n", ".wachiman.yml": "kind: monorepo\n" });
     expect(settingsRow(machine(), repo).fix).toContain("merge");

@@ -49,7 +49,7 @@ effort is a larger bill on the owner's key, and a pull request can edit any file
    where the effective model and effort would come from, and a required failure when the working
    copy of the file is invalid (it says runs read the file at the base commit or merge-base, so the
    fix takes effect once committed and merged). It also warns about an old `.github/wachiman.yml`:
-   when no root `.wachiman.yml` exists the fix is `git mv .github/wachiman.yml .wachiman.yml`; when
+   when no root `.wachiman.yml` exists the fix is `mv .github/wachiman.yml .wachiman.yml`; when
    both exist the fix is to merge the old file into the root one, then remove it. Doctor never
    writes or moves anything and reads the working tree.
 8. **`init` does not ask for either key.** A new file carries them commented out under a line that

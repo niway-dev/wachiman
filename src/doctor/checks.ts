@@ -411,7 +411,7 @@ export const CHECKS: DoctorCheck[] = [
           level: "optional",
           status: "warn",
           evidence: `${OLD_SETTINGS_PATH} exists and is never read (the settings file is ${SETTINGS_PATH} at the root); ${evidence}`,
-          fix: hasFile ? `merge ${OLD_SETTINGS_PATH} into ${SETTINGS_PATH}, then remove it` : `git mv ${OLD_SETTINGS_PATH} ${SETTINGS_PATH}`,
+          fix: hasFile ? `merge ${OLD_SETTINGS_PATH} into ${SETTINGS_PATH}, then remove it` : `mv ${OLD_SETTINGS_PATH} ${SETTINGS_PATH}`,
           detail: { ...detail, oldLocation: old },
         };
       }
