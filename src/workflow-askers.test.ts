@@ -108,8 +108,8 @@ describe("the workflows let a collaborator's question reach the engine, and noth
 
   test("copy template: the collaborator branches sit behind the askers literal, which the copy's env sets", () => {
     const text = read(COPY);
-    expect(text).toContain("  AGENT_REVIEW_ASKERS: operator\n");
-    expect(text).toContain("  AGENT_REVIEW_ASK_CEILING_USD: 3\n");
+    expect(text).toContain("  WACHIMAN_ASKERS: operator\n");
+    expect(text).toContain("  WACHIMAN_ASK_CEILING_USD: 3\n");
     for (const job of ["threads", "on-demand"]) {
       expect(ifBlockOf(text, job), job).toMatch(/'operator' == 'write' &&\s*contains\(fromJSON/);
     }
@@ -130,11 +130,11 @@ describe("the workflows let a collaborator's question reach the engine, and noth
     const text = read(REUSABLE);
     for (const job of ["threads", "on-demand"]) {
       const body = jobOf(text, job);
-      expect(body, job).toContain("AGENT_REVIEW_ASKERS: ${{ inputs.askers }}");
-      expect(body, job).toContain("AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}");
+      expect(body, job).toContain("WACHIMAN_ASKERS: ${{ inputs.askers }}");
+      expect(body, job).toContain("WACHIMAN_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}");
     }
     // A question routed from the threads job to `comment` is capped by the answer budget.
-    expect(jobOf(text, "threads")).toContain("AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}");
+    expect(jobOf(text, "threads")).toContain("WACHIMAN_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}");
   });
 
   test("the caller template lists both inputs as commented entries", () => {
@@ -146,7 +146,7 @@ describe("the workflows let a collaborator's question reach the engine, and noth
   test("review.yml: the on-demand concurrency keeps the operator's group and cancels only for the operator", () => {
     const concurrency = jobOf(read(REUSABLE), "on-demand").match(/\n    concurrency:\n([\s\S]*?)\n    permissions:/)?.[1] ?? "";
     expect(concurrency).toContain(
-      "      group: agent-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != inputs.operator && '-ask' || '' }}",
+      "      group: wachiman-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != inputs.operator && '-ask' || '' }}",
     );
     expect(concurrency).toContain("      cancel-in-progress: ${{ github.event.comment.user.login == inputs.operator }}");
     expect(jobOf(read(REUSABLE), "threads")).toContain("cancel-in-progress: false");
@@ -163,7 +163,7 @@ describe("the workflows let a collaborator's question reach the engine, and noth
   test("review.yml passes the thread reply's place to the thread-only run through env", () => {
     const text = FILES[0].text;
     const threads = text.slice(text.indexOf("\n  threads:\n"), text.indexOf("\n  on-demand:\n"));
-    for (const name of ["AGENT_REVIEW_COMMENT_ID", "AGENT_REVIEW_COMMENT_IN_REPLY_TO", "AGENT_REVIEW_COMMENT_PATH", "AGENT_REVIEW_COMMENT_LINE", "REQUEST"]) {
+    for (const name of ["WACHIMAN_COMMENT_ID", "WACHIMAN_COMMENT_IN_REPLY_TO", "WACHIMAN_COMMENT_PATH", "WACHIMAN_COMMENT_LINE", "REQUEST"]) {
       expect(threads).toContain(`${name}: \${{ github.event.comment.`);
     }
     expect(threads).toContain("github.event.comment.line || github.event.comment.original_line");

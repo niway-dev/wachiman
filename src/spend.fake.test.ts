@@ -213,7 +213,7 @@ function setup(opts: Opts = {}) {
   const deps: Deps = {
     gh: guarded,
     provider,
-    config: loadConfig({ AGENT_REVIEW_OPERATOR: "owner", ...opts.env }),
+    config: loadConfig({ WACHIMAN_OPERATOR: "owner", ...opts.env }),
     repoDir: dir,
     curl: fake.curl,
     ledgerEnv: TOKEN_ENV,
@@ -228,8 +228,8 @@ function setup(opts: Opts = {}) {
 
 
 const ANSWER = { sections: [{ title: "Answer", body: "Because of the guard.", refs: [] }], not_answered: "" };
-const WITH_LEDGER = { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "opened" };
-const COMMENT = { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "comment" };
+const WITH_LEDGER = { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "opened" };
+const COMMENT = { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "comment" };
 
 const CALL_KEYS = [
   "auth",
@@ -260,7 +260,7 @@ function thrownBy(run: () => void): unknown {
 
 describe("review() with no ledger_url", () => {
   test("no curl call of any kind and no token request: the run is what it was before the ledger existed", () => {
-    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened" } });
+    const t = setup({ env: { WACHIMAN_TRIGGER: "opened" } });
     review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.events).toEqual(["model"]);
@@ -271,10 +271,10 @@ describe("review() with no ledger_url", () => {
   });
 
   test("the same for a thread run and an answer", () => {
-    const thread = setup({ env: { AGENT_REVIEW_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })] });
+    const thread = setup({ env: { WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })] });
     threadReplies(thread.deps, "o/r", 7, "owner");
     expect(thread.urls).toEqual([]);
-    const asked = setup({ env: { AGENT_REVIEW_TRIGGER: "comment" }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
+    const asked = setup({ env: { WACHIMAN_TRIGGER: "comment" }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
     answer(asked.deps, "o/r", 7, "why?");
     expect(asked.urls).toEqual([]);
     expect(asked.events).toEqual(["model"]);
@@ -304,13 +304,13 @@ describe("review() with the spend ledger", () => {
 
   test("the reserve asks for min(budget, what the ceiling leaves)", () => {
     const spent = `x\n\n<sub>m · $1.90</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
-    const t = setup({ env: { ...WITH_LEDGER, AGENT_REVIEW_AUTO_BUDGET_USD: "2" }, reviews: [spent] });
+    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_AUTO_BUDGET_USD: "2" }, reviews: [spent] });
     review(t.deps, "o/r", 7, []);
     expect(t.reserves[0]!.wantedUsd as number).toBeCloseTo(0.1, 10);
   });
 
   test("the repository's own daily and weekly budgets are sent as the caller's limits", () => {
-    const t = setup({ env: { ...WITH_LEDGER, AGENT_REVIEW_DAILY_BUDGET_USD: "1.5", AGENT_REVIEW_WEEKLY_BUDGET_USD: "6" } });
+    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_DAILY_BUDGET_USD: "1.5", WACHIMAN_WEEKLY_BUDGET_USD: "6" } });
     review(t.deps, "o/r", 7, []);
     expect(t.reserves[0]).toMatchObject({ callerLimitUsd: 1.5, callerWeeklyLimitUsd: 6 });
     const unset = setup({ env: WITH_LEDGER });
@@ -409,7 +409,7 @@ describe("a limit refuses the run", () => {
   for (const c of CASES) {
     for (const mode of ["fail", "notice"] as const) {
       test(`${c.reason} (${c.period}) in ${mode} mode: one notice says the period, the amounts and the reset; no model call; the error carries the mode`, () => {
-        const t = setup({ env: { ...WITH_LEDGER, AGENT_REVIEW_LIMIT_MODE: mode }, ledger: { reserve: () => body(c.reason, c.over) } });
+        const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LIMIT_MODE: mode }, ledger: { reserve: () => body(c.reason, c.over) } });
         const thrown = thrownBy(() => review(t.deps, "o/r", 7, []));
         expect(thrown).toBeInstanceOf(SpendLimitReached);
         expect((thrown as SpendLimitReached).mode).toBe(mode);
@@ -449,7 +449,7 @@ describe("a limit refuses the run", () => {
   });
 
   test("in a dry run the notice is logged by postReview, not posted", () => {
-    const t = setup({ env: { ...WITH_LEDGER, AGENT_REVIEW_DRY_RUN: "1" }, ledger: { reserve: () => body("limit") } });
+    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_DRY_RUN: "1" }, ledger: { reserve: () => body("limit") } });
     expect(() => review(t.deps, "o/r", 7, [])).toThrow(SpendLimitReached);
     expect(t.posted).toHaveLength(0);
     expect(t.logs.some((l) => l.includes("Spend limit reached"))).toBe(true);
@@ -468,7 +468,7 @@ describe("a limit refuses the run", () => {
 describe("configuration errors are not outages", () => {
   for (const unavailable of ["run", "stop"]) {
     test(`not_linked, unauthorized and a missing OIDC permission stop the run before any model call with ledger_unavailable: ${unavailable}`, () => {
-      const env = { ...WITH_LEDGER, AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable };
+      const env = { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable };
       const unlinked = setup({ env, ledger: { reserve: () => ({ status: 403, body: { reason: "not_linked" } }) } });
       expect(thrownBy(() => review(unlinked.deps, "o/r", 7, []))).toBeInstanceOf(LedgerStopped);
       expect(unlinked.notes[0]).toContain("not linked");
@@ -549,7 +549,7 @@ describe("an unreachable ledger", () => {
   });
 
   test("ledger_unavailable stop: the run ends before any model call and posts nothing", () => {
-    const t = setup({ env: { ...WITH_LEDGER, AGENT_REVIEW_LEDGER_UNAVAILABLE: "stop" }, ledger: { down: true } });
+    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: "stop" }, ledger: { down: true } });
     const thrown = thrownBy(() => review(t.deps, "o/r", 7, []));
     expect(thrown).toBeInstanceOf(LedgerStopped);
     expect((thrown as Error).message).toContain("ledger_unavailable");
@@ -577,7 +577,7 @@ describe("the operator's --force, a bypass and a failed run", () => {
     comment(operator.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(operator.reserves[0]).toMatchObject({ forced: true, trigger: "comment" });
 
-    const unset = setup({ env: { AGENT_REVIEW_LEDGER_URL: LEDGER } });
+    const unset = setup({ env: { WACHIMAN_LEDGER_URL: LEDGER } });
     comment(unset.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(unset.reserves[0]).toMatchObject({ forced: true, trigger: "cli" });
 
@@ -619,7 +619,7 @@ describe("the operator's --force, a bypass and a failed run", () => {
   });
 
   test("bypass makes no ledger call, logs ledger bypassed, and the footer says so", () => {
-    const t = setup({ env: { ...WITH_LEDGER, AGENT_REVIEW_LIMIT_BYPASS: "true" } });
+    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LIMIT_BYPASS: "true" } });
     review(t.deps, "o/r", 7, []);
     expect(t.events).toEqual(["model"]);
     expect(t.urls).toEqual([]);
@@ -684,7 +684,7 @@ const THREAD_REPLY = { thread_replies: [{ comment_id: 7, status: "addressed", re
 describe("threadReplies and answer with the spend ledger", () => {
   test("threadReplies reserves, runs, settles with the call's cost; the first reply carries the receipt before the cost line", () => {
     const t = setup({
-      env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" },
+      env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
       threads: [THREAD],
       script: [() => ({ costUsd: 0.12, structuredOutput: THREAD_REPLY })],
@@ -715,7 +715,7 @@ describe("threadReplies and answer with the spend ledger", () => {
 
   test("a refused threadReplies posts the notice and runs nothing; an unreachable ledger lets it run and marks the first reply", () => {
     const refused = setup({
-      env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" },
+      env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
       threads: [THREAD],
       ledger: { reserve: () => ({ status: 402, body: { reason: "limit", accountSpentUsd: 6, accountLimitUsd: 6, day: DAY } }) },
@@ -725,7 +725,7 @@ describe("threadReplies and answer with the spend ledger", () => {
     expect(refused.posted[0]).toContain("**Spend limit reached.**");
 
     const down = setup({
-      env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" },
+      env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
       threads: [THREAD],
       ledger: { down: true },
@@ -761,7 +761,7 @@ describe("a reservation never outlives a step that fails after it", () => {
 
   test("threadReplies: a gh failure while reading the pull request or writing its files leaves no unsettled reservation", () => {
     const t = setup({
-      env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" },
+      env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
       threads: [THREAD],
       script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })],
@@ -790,7 +790,7 @@ describe("a provider that dies after the reserve still settles, in the thread an
 
   test("threadReplies settles once, with what its calls cost", () => {
     const t = setup({
-      env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" },
+      env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
       threads: [THREAD],
       script: [died],
@@ -825,7 +825,7 @@ describe("a provider that dies after the reserve still settles, in the thread an
     const wrong = { reserve: () => ({ status: 404, body: "Not Found" }) };
     const b = setup({ env: COMMENT, ledger: wrong });
     expect(() => answer(b.deps, "o/r", 7, "why?")).toThrow(LedgerStopped);
-    const c = setup({ env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], ledger: wrong });
+    const c = setup({ env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], ledger: wrong });
     expect(() => threadReplies(c.deps, "o/r", 7, "owner")).toThrow(LedgerStopped);
     expect(c.provider.requests).toHaveLength(0);
     expect(c.settles).toHaveLength(0);
@@ -845,7 +845,7 @@ describe("an answer that is not the ledger's stops the run, whatever ledger_unav
     test(`reserve answered 404, 405, 400, 301 or a malformed 200 stops before any model call (ledger_unavailable: ${unavailable})`, () => {
       for (const [status, body] of CASES) {
         const t = setup({
-          env: { ...WITH_LEDGER, AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable },
+          env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable },
           ledger: { reserve: () => ({ status, body }) },
         });
         const thrown = thrownBy(() => review(t.deps, "o/r", 7, []));
@@ -885,7 +885,7 @@ describe("a grant below the minimum a call needs", () => {
       body: { reservationId: "res-1", grantedUsd: 0.01, accountLeftUsd: 0.01, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: 0.01 },
     }),
   };
-  const threadEnv = { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" };
+  const threadEnv = { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" };
 
   test("threadReplies makes no model call, settles with 0 and says so in the job summary", () => {
     const t = setup({ env: threadEnv, reviewedAt: HEAD, threads: [THREAD], ledger: small });
@@ -929,7 +929,7 @@ describe("a grant below the minimum a call needs", () => {
   });
 
   test("with no ledger there is no minimum to check", () => {
-    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "comment" }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
+    const t = setup({ env: { WACHIMAN_TRIGGER: "comment" }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
     answer(t.deps, "o/r", 7, "why?");
     expect(t.provider.requests).toHaveLength(1);
   });
@@ -954,7 +954,7 @@ describe("the job summary on a subscription token says its dollars are estimates
   });
 
   test("a grant below the minimum", () => {
-    const env = { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "comment" };
+    const env = { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "comment" };
     const token = setup({ env, auth: "subscription", ledger: small });
     answer(token.deps, "o/r", 7, "why?");
     expect(token.notes.join(" ")).toContain("API-equivalent estimate, not a bill");
@@ -966,7 +966,7 @@ describe("the job summary on a subscription token says its dollars are estimates
 
 describe("--force with no ledger", () => {
   test("is still a word that names no file, logged as ignored, exactly as before the ledger existed", () => {
-    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "comment" } });
+    const t = setup({ env: { WACHIMAN_TRIGGER: "comment" } });
     comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(t.logs).toContain("Not paths in this pull request, ignored: --force");
     expect(t.urls).toEqual([]);

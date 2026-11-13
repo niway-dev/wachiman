@@ -108,7 +108,7 @@ here. The Codex adapter defaults to `gpt-6.1-sol`. See [configuration.md](config
 ### Does it work with Codex or OpenAI models?
 
 From the command line, yes. In the reusable workflow, not yet. The engine has a Codex adapter
-(`AGENT_REVIEW_PROVIDER=codex`, needs `OPENAI_API_KEY` and the `codex` binary), but the reusable
+(`WACHIMAN_PROVIDER=codex`, needs `OPENAI_API_KEY` and the `codex` binary), but the reusable
 workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. The two adapters are
 hardened differently, and the Codex page lists what its hardening does not cover (for example, the
 model can run the branch's code inside Codex's sandbox). See

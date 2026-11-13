@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { loadConfig as loadConfigWithDefaults } from "./config";
 
 /** These tests script the batches only; the opt-in verifier has its own tests. */
-const loadConfig = (env: Record<string, string | undefined>) => loadConfigWithDefaults({ AGENT_REVIEW_VERIFY: "0", ...env });
+const loadConfig = (env: Record<string, string | undefined>) => loadConfigWithDefaults({ WACHIMAN_VERIFY: "0", ...env });
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -168,9 +168,9 @@ describe("the batch loop against a fake provider", () => {
       gh: fakeGh(posted),
       provider,
       config: loadConfig({
-        AGENT_REVIEW_BATCH_LINES: "10",
-        AGENT_REVIEW_BATCH_BUDGET_USD: "0.5",
-        AGENT_REVIEW_BUDGET_USD: "0.8",
+        WACHIMAN_BATCH_LINES: "10",
+        WACHIMAN_BATCH_BUDGET_USD: "0.5",
+        WACHIMAN_BUDGET_USD: "0.8",
       }),
       log: () => {},
       warn: () => {},
@@ -204,7 +204,7 @@ describe("the batch loop against a fake provider", () => {
     expect(posted.review?.comments[0].body.startsWith("👮 **Wachiman** · Important · 🟠🐛")).toBe(true);
     expect(body.split("\n")[0]).not.toContain("Partial review");
     expect(body.split("\n")[0]).toContain(`all 3 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
-    expect(body).toContain("agent-review sha=");
+    expect(body).toContain("wachiman sha=");
     expect(body).toContain("1 finding(s): 1 to fix; 1 on their lines");
     expect(body).toContain("| Batch 1 of 2 | 2 | 9 | 5 | reviewed after a retry | 6 | $0.40 |");
     expect(body).toContain("| Batch 2 of 2 | 1 | 4 | 1 | reviewed | 3 | $0.20 |");
@@ -239,7 +239,7 @@ describe("the batch loop against a fake provider", () => {
       warn: () => {},
     };
     review(deps, "o/r", 7, []);
-    expect(posted.review?.body).toContain("<!-- agent-review sha=head1234567 -->");
+    expect(posted.review?.body).toContain("<!-- wachiman sha=head1234567 -->");
   });
 
   test("refuses to post text the provider flags as a credential", () => {
@@ -269,7 +269,7 @@ describe("the turn cap and the wall-clock kill", () => {
     const deps: Deps = {
       gh: fakeGh(posted),
       provider,
-      config: loadConfig({ AGENT_REVIEW_MAX_TURNS: "12", AGENT_REVIEW_CALL_TIMEOUT_S: "60", ...env }),
+      config: loadConfig({ WACHIMAN_MAX_TURNS: "12", WACHIMAN_CALL_TIMEOUT_S: "60", ...env }),
       log: () => {},
       warn: (line) => warnings.push(line),
     };
@@ -310,7 +310,7 @@ describe("the turn cap and the wall-clock kill", () => {
     const body = posted.review?.body ?? "";
     expect(body).toContain("Partial review");
     expect(body).toContain(`\`${STORE}\``);
-    expect(body).not.toContain("agent-review sha=");
+    expect(body).not.toContain("wachiman sha=");
   });
 
   test("a call killed at the time limit is not retried, and the review still posts", () => {
@@ -320,7 +320,7 @@ describe("the turn cap and the wall-clock kill", () => {
         () => ({ terminalReason: "timeout", isError: true, turns: 0, costUsd: 0 }),
         () => ({ structuredOutput: out({ files_reviewed: [GUIDE], summary: "guide ok" }) }),
       ],
-      { AGENT_REVIEW_BATCH_LINES: "10" },
+      { WACHIMAN_BATCH_LINES: "10" },
     );
     review(deps, "o/r", 7, []);
     expect(provider.requests).toHaveLength(2);
@@ -372,7 +372,7 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     };
     return { posted, warnings, logs, sleeps, provider, deps };
   };
-  const TWO_BATCHES = { AGENT_REVIEW_BATCH_LINES: "10" };
+  const TWO_BATCHES = { WACHIMAN_BATCH_LINES: "10" };
 
   test("a billing rejection posts a notice with the reason, does not throw, skips the gaps retry and the other batches", () => {
     const t = setup([rejected("billing", CREDIT)], TWO_BATCHES);
@@ -414,7 +414,7 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
   });
 
   test("on a subscription token, mode fail still throws so the check goes red", () => {
-    const t = setup([rejected("billing", "usage limit reached")], { AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "fail" });
+    const t = setup([rejected("billing", "usage limit reached")], { WACHIMAN_ON_PROVIDER_UNAVAILABLE: "fail" });
     t.provider.auth = "oauth-token";
     t.provider.record = false;
     expect(() => review(t.deps, "o/r", 7, [])).toThrow("Not reviewed: the provider rejected the call (billing)");
@@ -430,7 +430,7 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
   });
 
   test("mode fail posts the same notice, then throws so the check goes red", () => {
-    const t = setup([rejected("billing", CREDIT)], { AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: "fail" });
+    const t = setup([rejected("billing", CREDIT)], { WACHIMAN_ON_PROVIDER_UNAVAILABLE: "fail" });
     expect(() => review(t.deps, "o/r", 7, [])).toThrow("credit balance is too low");
     expect(t.posted.review?.body).toContain("has no credit");
     expect(t.provider.requests).toHaveLength(1);
@@ -609,7 +609,7 @@ describe("flow questions and contracts against a fake provider", () => {
         },
       ],
       () => 100,
-      { AGENT_REVIEW_BATCH_LINES: "10" },
+      { WACHIMAN_BATCH_LINES: "10" },
     );
     expect(provider.requests).toHaveLength(2);
     expect(posted?.body).toContain("What the change connects to (2 closed, 0 open)");
@@ -643,7 +643,7 @@ const THREAD = (id: number, path: string, after: ReturnType<typeof threadComment
 });
 
 describe("one review carries its inline comments (issue #17)", () => {
-  const PRIOR = `👮 **Wachiman** · review of the whole pull request, at \`old1111\`: all 4 files reviewed.\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=old1111111 -->\n\n<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->`;
+  const PRIOR = `👮 **Wachiman** · review of the whole pull request, at \`old1111\`: all 4 files reviewed.\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- wachiman sha=old1111111 -->\n\n<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->`;
 
   test("three findings and two thread replies: one POST to /reviews with all three comments, replies on the replies endpoint", () => {
     const posts: { url: string; payload: { body?: string; comments?: unknown[] } }[] = [];
@@ -827,7 +827,7 @@ describe("the ADR notice", () => {
           ? withAdr.map((f) => JSON.stringify(f)).join("\n")
           : gh(args, input),
       provider,
-      config: loadConfig(exclude ? { AGENT_REVIEW_EXCLUDE: exclude } : {}),
+      config: loadConfig(exclude ? { WACHIMAN_EXCLUDE: exclude } : {}),
       log: () => {},
       warn: () => {},
     };
@@ -862,11 +862,11 @@ describe("comment", () => {
         throw new Error("must not call GitHub");
       },
       provider,
-      config: loadConfig({ AGENT_REVIEW_OPERATOR: "Boss" }),
+      config: loadConfig({ WACHIMAN_OPERATOR: "Boss" }),
       log: () => {},
       warn: () => {},
     };
-    comment(deps, "o/r", 7, "@agent-review review", "stranger");
+    comment(deps, "o/r", 7, "/wachiman review", "stranger");
     comment(deps, "o/r", 7, "no mention here", "boss");
     expect(provider.requests).toHaveLength(0);
   });
@@ -1022,12 +1022,12 @@ describe("the answer path reads the instructions from the base commit", () => {
         throw new Error(`unexpected gh call: ${line}`);
       },
       provider,
-      config: loadConfig({ AGENT_REVIEW_OPERATOR: "boss" }),
+      config: loadConfig({ WACHIMAN_OPERATOR: "boss" }),
       repoDir: headDir,
       log: () => {},
       warn: () => {},
     };
-    comment(deps, "o/r", 7, "@agent-review why is this here?", "boss");
+    comment(deps, "o/r", 7, "/wachiman why is this here?", "boss");
     const prompt = provider.requests[0].prompt;
     expect(prompt).toContain("Repository instructions (from the base commit bbbbbbb)");
     expect(prompt).toContain("RULES-FROM-BASE");
@@ -1059,13 +1059,13 @@ describe("the on-demand answer reports its cost", () => {
         throw new Error(`unexpected gh call: ${line}`);
       },
       provider,
-      config: loadConfig({ AGENT_REVIEW_OPERATOR: "boss" }),
+      config: loadConfig({ WACHIMAN_OPERATOR: "boss" }),
       repoDir: mkdtempSync(join(tmpdir(), "head-")),
       costs,
       log: () => {},
       warn: () => {},
     };
-    comment(deps, "o/r", 7, "@agent-review why is this here?", "boss");
+    comment(deps, "o/r", 7, "/wachiman why is this here?", "boss");
     expect(posted[0]).toContain("effort high · on-demand · 50 in / 60 out / 7.0k cache read / 800 cache write · $0.07</sub>");
     expect(costs).toMatchObject([{ operation: "on-demand", label: "question", usage, costUsd: 0.07, pr: 7, repo: "o/r" }]);
   });
@@ -1079,7 +1079,7 @@ describe("comment with an operator that is not a real login", () => {
         throw new Error("must not call GitHub");
       },
       provider,
-      config: loadConfig(operator === "" ? {} : { AGENT_REVIEW_OPERATOR: operator }),
+      config: loadConfig(operator === "" ? {} : { WACHIMAN_OPERATOR: operator }),
       log: () => {},
       warn: () => {},
     };
@@ -1089,7 +1089,7 @@ describe("comment with an operator that is not a real login", () => {
   for (const operator of ["", "   ", "EDIT-THIS-github-login", "your-github-login", "Your-GitHub-Login", "EDIT-ME", "edit"]) {
     test(`refuses "${operator}" before reading the comment or calling anything`, () => {
       const { deps, provider } = depsFor(operator);
-      expect(() => comment(deps, "o/r", 7, "@agent-review review", "someone")).toThrow(/operator login/);
+      expect(() => comment(deps, "o/r", 7, "/wachiman review", "someone")).toThrow(/operator login/);
       expect(provider.requests).toHaveLength(0);
     });
   }
@@ -1098,7 +1098,7 @@ describe("comment with an operator that is not a real login", () => {
 describe("a push after a review (incremental, rebase-aware)", () => {
   const LAST = "old1111111";
   const HEAD = "head1234567";
-  const PRIOR_BODY = `👮 **Wachiman** · review of the whole pull request, at \`old1111\`: all 4 files reviewed.\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=${LAST} -->\n\n<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->`;
+  const PRIOR_BODY = `👮 **Wachiman** · review of the whole pull request, at \`old1111\`: all 4 files reviewed.\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- wachiman sha=${LAST} -->\n\n<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->`;
 
   /** The same added lines as `prFiles`, over a different base: other context rows and other line numbers. */
   const rebasedFiles: typeof prFiles = [
@@ -1202,7 +1202,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(first).toBe(
       `👮 **Wachiman** · review of the changes since \`old1111\` (after a rebase), at \`head123\`: all 1 files reviewed.`,
     );
-    expect(r.posted?.body).toContain(`<!-- agent-review sha=${HEAD} -->`);
+    expect(r.posted?.body).toContain(`<!-- wachiman sha=${HEAD} -->`);
   });
 
   test("a new file after a rebase is reviewed; the unchanged ones are not", () => {
@@ -1220,7 +1220,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     const r = run({ status: "diverged", old: oldFiles, current: withLogoBlob(rebasedFiles, "logo-blob-2") });
     expect(r.provider.requests).toHaveLength(0);
     expect(r.posted?.body.split("\n")[0]).toContain(`Nothing to review at \`head123\`: not reviewable: \`${LOGO}\` (binary).`);
-    expect(r.posted?.body).toContain("agent-review sha=");
+    expect(r.posted?.body).toContain("wachiman sha=");
     expect(r.posted?.body).not.toContain(SIGNATURE.auto);
     expect(r.posted?.body).not.toContain("<sub>");
     // GitHub sent no blob for either side: nothing proves the logo is the same, so it is in the delta again.
@@ -1758,7 +1758,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     const deps = (trigger: string): Deps => ({
       gh: w.gh,
       provider,
-      config: loadConfig({ AGENT_REVIEW_TRIGGER: trigger }),
+      config: loadConfig({ WACHIMAN_TRIGGER: trigger }),
       log: () => {},
       warn: () => {},
       repoDir: headWithLogo(),
@@ -1768,7 +1768,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     review(deps("opened"), "o/r", 7, []);
     expect(w.reviews).toHaveLength(1);
     expect(w.reviews[0].split("\n")[0]).toContain(`all 2 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
-    expect(w.reviews[0]).toContain(`agent-review sha=${SHA[0]}`);
+    expect(w.reviews[0]).toContain(`wachiman sha=${SHA[0]}`);
     expect(readAutoCost(w.reviews[0])).toBeCloseTo(0.1, 10);
 
     // Push 2: the owner answered Wachiman's finding. It is a re-review (incremental), not a full one.
@@ -1780,7 +1780,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     const second = w.reviews[1];
     expect(second.split("\n")[0]).toContain("(2 commits: `c0ffee1`, `c0ffee2`)");
     expect(second).toContain("PR so far $0.30 over 2 automatic runs");
-    expect(second).toContain(`agent-review sha=${SHA[1]}`);
+    expect(second).toContain(`wachiman sha=${SHA[1]}`);
     expect(w.replies.map((r) => r.id)).toEqual([THREAD_ID]);
     expect(w.replies[0].body).toContain("<sub>this run $0.20 · PR so far $0.30 over 2 automatic runs</sub>");
     // The reply repeats the cost for the reader; only the review body's flagged line is summed.

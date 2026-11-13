@@ -50,7 +50,7 @@ edited. A correction goes in a dated `## Amendments` section.
 | Metric | "reviews get better" | "real Medium+ bugs found per data-path PR" |
 | Predicted | "fewer false positives" | "invalid findings ≤ 1 in 20" |
 | Baseline | none | "0 of 76 invalid, v1.3/1.4, field run 2026-11-02" |
-| Where to read it | "the logs" | "`Data-path questions for part` log line, `review / Agent review` job" |
+| Where to read it | "the logs" | "`Data-path questions for part` log line, `review / Wachiman review` job" |
 | Falsified if | none | "a fired batch costs > 25 % more than an unfired one (ADR 0016)" |
 
 ## Common mistakes

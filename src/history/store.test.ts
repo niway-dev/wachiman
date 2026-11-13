@@ -48,20 +48,20 @@ function run(savedAt: string, firstIds: string[] = ["aaaaaaaaaa"], key = "r-1234
 }
 
 describe("historySettings", () => {
-  test("off by default, on with --history or AGENT_REVIEW_HISTORY=1", () => {
+  test("off by default, on with --history or WACHIMAN_HISTORY=1", () => {
     expect(historySettings({}, false).enabled).toBe(false);
     expect(historySettings({}, true).enabled).toBe(true);
-    expect(historySettings({ AGENT_REVIEW_HISTORY: "1" }, false).enabled).toBe(true);
-    expect(historySettings({ AGENT_REVIEW_HISTORY: "0" }, false).enabled).toBe(false);
+    expect(historySettings({ WACHIMAN_HISTORY: "1" }, false).enabled).toBe(true);
+    expect(historySettings({ WACHIMAN_HISTORY: "0" }, false).enabled).toBe(false);
   });
 
   test("days defaults to 30, accepts 0, refuses a non-integer or a negative", () => {
     expect(historySettings({}, true).days).toBe(30);
-    expect(historySettings({ AGENT_REVIEW_HISTORY_DAYS: "0" }, true).days).toBe(0);
-    expect(historySettings({ AGENT_REVIEW_HISTORY_DAYS: "7" }, true).days).toBe(7);
+    expect(historySettings({ WACHIMAN_HISTORY_DAYS: "0" }, true).days).toBe(0);
+    expect(historySettings({ WACHIMAN_HISTORY_DAYS: "7" }, true).days).toBe(7);
     for (const bad of ["x", "-1", "1.5"]) {
-      expect(() => historySettings({ AGENT_REVIEW_HISTORY_DAYS: bad }, true)).toThrow(UsageError);
-      expect(() => historySettings({ AGENT_REVIEW_HISTORY_DAYS: bad }, true)).toThrow("AGENT_REVIEW_HISTORY_DAYS");
+      expect(() => historySettings({ WACHIMAN_HISTORY_DAYS: bad }, true)).toThrow(UsageError);
+      expect(() => historySettings({ WACHIMAN_HISTORY_DAYS: bad }, true)).toThrow("WACHIMAN_HISTORY_DAYS");
     }
   });
 });

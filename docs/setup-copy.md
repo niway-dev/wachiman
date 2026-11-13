@@ -1,7 +1,7 @@
 # Migrate a copied installation
 
 This page is for a repository that already runs Wachiman from a copy of the files: `src/` copied
-to `scripts/agent-review/` and a workflow built from
+to `scripts/wachiman/` and a workflow built from
 [`templates/caller-workflow.yml`](../templates/caller-workflow.yml). It explains how to move to
 the maintained reusable workflow, and it keeps the reference for the copy setup for as long as
 copied installations exist. For a new installation, use [install.md](install.md) instead.
@@ -28,12 +28,12 @@ What changes when you migrate:
 
 ## Migrate, step by step
 
-1. **Identify what you have.** Find the workflow file (usually `.github/workflows/agent-review.yml`,
-   or an older name), the folder holding the copied engine (usually `scripts/agent-review/`,
+1. **Identify what you have.** Find the workflow file (usually `.github/workflows/wachiman-review.yml`,
+   or an older name), the folder holding the copied engine (usually `scripts/wachiman/`,
    or the older `scripts/claude-review.ts`), the operator login (set twice in the template: the
-   `AGENT_REVIEW_OPERATOR` value and the `if:` of the on-demand job), and any environment
+   `WACHIMAN_OPERATOR` value and the `if:` of the on-demand job), and any environment
    settings you changed. The template names its own `EDIT THIS` markers.
-2. **Back up your policy.** Keep your focus file (`.github/agent-review.md`, or the older
+2. **Back up your policy.** Keep your focus file (`.github/wachiman.md`, or the older
    `.github/claude-review.md`) and any settings you tuned. The focus file needs no migration:
    the current engine reads it from the pull request's base commit
    ([review-policy.md](review-policy.md)).
@@ -42,7 +42,7 @@ What changes when you migrate:
    [`templates/wachiman-review-caller.yml`](../templates/wachiman-review-caller.yml) as
    `.github/workflows/wachiman-review.yml` (replacing the copy workflow, which uses the same
    file name) with `operator` set to the login you used before and your mapped inputs. Reuse the same
-   repository secret `ANTHROPIC_API_KEY`. Leave `scripts/agent-review/` in place for now. A
+   repository secret `ANTHROPIC_API_KEY`. Leave `scripts/wachiman/` in place for now. A
    `pull_request` workflow runs from the pull request's own branch, so this pull request is
    reviewed by the reusable workflow alone, with no duplicate review. The job summary names the
    engine commit that ran.
@@ -53,26 +53,26 @@ What changes when you migrate:
 6. **Merge, then validate the comment path on the next pull request.** `/wachiman review` runs from
    the default branch, so it can be tried only after the merge ([install.md](install.md#ask-for-a-review)).
 7. **Clean up in a later pull request.** Once the new setup has worked on a second pull request,
-   delete `scripts/agent-review/` (including its `bunfig.toml`). Keep it until then; it is what
+   delete `scripts/wachiman/` (including its `bunfig.toml`). Keep it until then; it is what
    makes rollback a one-step revert.
 
 ### Settings map
 
 | In the copy | In the reusable workflow |
 | --- | --- |
-| `AGENT_REVIEW_OPERATOR` and the login in the on-demand `if:` | `operator` (required, set once) |
-| `AGENT_REVIEW_BUDGET_USD`, `AGENT_REVIEW_BATCH_BUDGET_USD`, `AGENT_REVIEW_ANSWER_BUDGET_USD` | `budget_usd`, `batch_budget_usd`, `answer_budget_usd` |
-| `AGENT_REVIEW_BATCH_LINES`, `AGENT_REVIEW_BATCH_CHARS` | `batch_lines`, `batch_chars` |
-| `AGENT_REVIEW_MODEL`, `AGENT_REVIEW_PROVIDER` | `model`, `provider` (the workflow installs Claude Code only; see [providers/codex.md](providers/codex.md)) |
-| `AGENT_REVIEW_MENTION` | `mention` |
+| `WACHIMAN_OPERATOR` and the login in the on-demand `if:` | `operator` (required, set once) |
+| `WACHIMAN_BUDGET_USD`, `WACHIMAN_BATCH_BUDGET_USD`, `WACHIMAN_ANSWER_BUDGET_USD` | `budget_usd`, `batch_budget_usd`, `answer_budget_usd` |
+| `WACHIMAN_BATCH_LINES`, `WACHIMAN_BATCH_CHARS` | `batch_lines`, `batch_chars` |
+| `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER` | `model`, `provider` (the workflow installs Claude Code only; see [providers/codex.md](providers/codex.md)) |
+| `WACHIMAN_MENTION` | `mention` |
 | `CLAUDE_CODE_VERSION`, `CLAUDE_CODE_SHA256` | `claude_code_version`, `claude_code_sha256` |
 | Bun version in the workflow | `bun_version` |
 | The `release-please--` branch check in the job `if:` | `skip_branch_prefixes` |
-| Old `CLAUDE_REVIEW_*` variables | Rename to the `AGENT_REVIEW_*` input above ([cli.md](cli.md#deprecated-names)) |
-| `AGENT_REVIEW_EXCLUDE` | no input |
-| `AGENT_REVIEW_DRY_RUN` | no input |
-| `AGENT_REVIEW_REASONING_EFFORT` | `effort`, new in v1.4.0 (variable `AGENT_REVIEW_EFFORT`, default `high`, both providers); the old name still works but is deprecated and ignored when the new one is set ([configuration.md](configuration.md)). At v1.3.0 there is no input |
-| `AGENT_REVIEW_PRICE_PER_MTOK` | no input (Codex setting) |
+| Old `CLAUDE_REVIEW_*` variables | Rename to the `WACHIMAN_*` input above ([cli.md](cli.md#deprecated-names)) |
+| `WACHIMAN_EXCLUDE` | no input |
+| `WACHIMAN_DRY_RUN` | no input |
+| `WACHIMAN_REASONING_EFFORT` | `effort`, new in v1.4.0 (variable `WACHIMAN_EFFORT`, default `high`, both providers); the old name still works but is deprecated and ignored when the new one is set ([configuration.md](configuration.md)). At v1.3.0 there is no input |
+| `WACHIMAN_PRICE_PER_MTOK` | no input (Codex setting) |
 | Edits you made to the copied engine, such as `RISK_RULES` weights | not carried over |
 
 There is no engine configuration file. The risk weights and the built-in excludes (lockfiles,
@@ -94,7 +94,7 @@ Details: [upgrading.md](upgrading.md).
 ### Roll back
 
 Revert the migration pull request. That restores the copy workflow and, because you kept
-`scripts/agent-review/`, the engine it runs. A copy made before review signatures may not
+`scripts/wachiman/`, the engine it runs. A copy made before review signatures may not
 recognise the markers the current engine writes, and could review a whole pull request again; this
 has not been checked against every older copy, so try it on a small pull request. To turn Wachiman
 off altogether, see [uninstall.md](uninstall.md).
@@ -109,7 +109,7 @@ are in [costs.md](costs.md).
 | When | What happens |
 | --- | --- |
 | A pull request opens ready for review, or leaves draft | A review in batches; after a complete, unscoped review, later requests cover only what changed since it |
-| A push to an open pull request (`synchronize`) | Review of only the commits new since the last review; a rebase with no change in the pull request's lines posts one line and calls no model. Each push can spend up to `AGENT_REVIEW_BUDGET_USD`; remove `synchronize` from the trigger to opt out |
+| A push to an open pull request (`synchronize`) | Review of only the commits new since the last review; a rebase with no change in the pull request's lines posts one line and calls no model. Each push can spend up to `WACHIMAN_BUDGET_USD`; remove `synchronize` from the trigger to opt out |
 | The operator comments `/wachiman review` | A review of what changed since the last complete, unscoped review; when it has work to do, it also answers the replies in its open threads |
 | `/wachiman review <path>…` | A review of those paths only; words that name no changed file are ignored |
 | Any other `/wachiman …` by the operator | The question is answered as a comment |
@@ -125,7 +125,7 @@ refuses about 65,000): a long "Not reviewed" list is cut to what fits and ends w
 
 The per-call limit on Claude Code is a soft client-side cap and can be exceeded
 ([providers/claude-code.md](providers/claude-code.md)). A dry run
-(`AGENT_REVIEW_DRY_RUN=1 GH_TOKEN=… GITHUB_REPOSITORY=… bun scripts/agent-review/cli.ts review <pr>`)
+(`WACHIMAN_DRY_RUN=1 GH_TOKEN=… GITHUB_REPOSITORY=… bun scripts/wachiman/cli.ts review <pr>`)
 reads GitHub and prints the review instead of posting it, but it still calls the agent, so it
 costs money.
 
@@ -133,9 +133,9 @@ costs money.
 
 | Copy to | From |
 | --- | --- |
-| `scripts/agent-review/` | The whole `src/` folder of this repository: `cli.ts`, `engine.ts`, `config.ts`, `install-claude-code.sh` and `providers/` (including `providers/claude-code.settings.json`, which the adapter looks for next to itself and refuses to run without). Leave out the `*.test.ts` files, or keep them and run them with `bun test ./scripts/agent-review` |
-| `scripts/agent-review/bunfig.toml` | The `bunfig.toml` at the root of this repository. The workflow passes it with `--config=` so Bun reads no `bunfig.toml` from the pull request's checkout |
-| `.github/workflows/wachiman-review.yml` | `templates/caller-workflow.yml`: edit its trust paragraph, the operator login (twice) and the other `EDIT THIS` markers. Its `AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables) is the copy's `push_debounce_seconds`: the first step of the `review` job sleeps that long on a push (`synchronize`) before the checkout or any model call, so a newer push cancels the run unspent |
+| `scripts/wachiman/` | The whole `src/` folder of this repository: `cli.ts`, `engine.ts`, `config.ts`, `install-claude-code.sh` and `providers/` (including `providers/claude-code.settings.json`, which the adapter looks for next to itself and refuses to run without). Leave out the `*.test.ts` files, or keep them and run them with `bun test ./scripts/wachiman` |
+| `scripts/wachiman/bunfig.toml` | The `bunfig.toml` at the root of this repository. The workflow passes it with `--config=` so Bun reads no `bunfig.toml` from the pull request's checkout |
+| `.github/workflows/wachiman-review.yml` | `templates/caller-workflow.yml`: edit its trust paragraph, the operator login (twice) and the other `EDIT THIS` markers. Its `WACHIMAN_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables) is the copy's `push_debounce_seconds`: the first step of the `review` job sleeps that long on a push (`synchronize`) before the checkout or any model call, so a newer push cancels the run unspent |
 | `.github/wachiman.md` | Write it: the repository's review focus, as a short list. Optional |
 
 The CLI contract (commands, environment, exit codes) is in [cli.md](cli.md). The CLI needs Bun
@@ -158,7 +158,7 @@ The CLI contract (commands, environment, exit codes) is in [cli.md](cli.md). The
    In the web UI: Settings → Secrets and variables → Actions → **Repository secrets** → New
    repository secret.
 3. **Copy the files** above. Run
-   `bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts --help`
+   `bun --no-env-file --config=scripts/wachiman/bunfig.toml scripts/wachiman/cli.ts --help`
    once to check the copy.
 4. **Write `.github/wachiman.md`**: the rules a reviewer of this repository must know, taken
    from its `CLAUDE.md`, not invented.
@@ -177,7 +177,7 @@ The CLI contract (commands, environment, exit codes) is in [cli.md](cli.md). The
   `Already reviewed at …`. The same is true of a plain `/wachiman review`. Push a change, or name a
   path: `/wachiman review <path>` ([install.md](install.md#ask-for-a-review)).
 - **Every comment on a pull request starts a workflow run**, skipped unless it is the operator's
-  `/wachiman` (or the `@agent-review` and `@claude` aliases). Concurrency is per job for that reason:
+  `/wachiman` (or the `/wachi` and `@claude` aliases). Concurrency is per job for that reason:
   a workflow-level group lets a skipped run cancel a review.
 - **`anthropics/claude-code-action@v1` failed with `billing_error`** in one setup while `claude -p`
   with the same key, version and runner worked. The tool calls `claude -p` directly. If you try the
@@ -201,7 +201,7 @@ to the repository. Reviewing outside contributors' code needs a different design
 
 ### Settings
 
-The full list of `AGENT_REVIEW_*` variables, their defaults and the exit codes is in
+The full list of `WACHIMAN_*` variables, their defaults and the exit codes is in
 [configuration.md](configuration.md) and [cli.md](cli.md). The template sets, in the workflow
 `env` (the review job reads it from the pull request's branch, which the trust assumption
 covers):
@@ -209,16 +209,16 @@ covers):
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `CLAUDE_CODE_VERSION` | `2.1.304` | Pinned Claude Code; bump by hand and run a review |
-| `AGENT_REVIEW_BATCH_LINES` | `1000` | Changed lines per batch |
-| `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | Limit for one batch call; retries count against the total |
-| `AGENT_REVIEW_BUDGET_USD` | `3` | Total for all batches (and retries) of one review |
-| `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | Limit for one question |
-| `AGENT_REVIEW_OPERATOR` | (edit) | The login allowed to command the tool |
+| `WACHIMAN_BATCH_LINES` | `1000` | Changed lines per batch |
+| `WACHIMAN_BATCH_BUDGET_USD` | `0.75` | Limit for one batch call; retries count against the total |
+| `WACHIMAN_BUDGET_USD` | `3` | Total for all batches (and retries) of one review |
+| `WACHIMAN_ANSWER_BUDGET_USD` | `1` | Limit for one question |
+| `WACHIMAN_OPERATOR` | (edit) | The login allowed to command the tool |
 
 ## Migrating a very old copy
 
 An older copy used `CLAUDE_REVIEW_*` variables, `scripts/claude-review.ts` and `@claude`. The
 current CLI reads each old variable when the new one is unset (with a notice on stderr), reads
-`.github/claude-review.md` and `.github/agent-review.md` when the new focus file (`.github/wachiman.md`) is absent, and accepts `@claude` as an alias,
+`.github/claude-review.md` when the new focus file (`.github/wachiman.md`) is absent, and accepts `@claude` as an alias,
 so a repository can switch to the new files first and rename variables afterwards. Reviews that
 carry the old unsigned marker are covered in "Reviews you already have" above.

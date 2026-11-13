@@ -4,7 +4,7 @@
  * itself (flags, binary, hardening) lives in `src/providers/`.
  *
  * Every kept file is accounted for: reviewed, retried, or listed with a closed reason. Files
- * nobody reviews (lockfiles, build output, generated code, `AGENT_REVIEW_EXCLUDE` matches) are
+ * nobody reviews (lockfiles, build output, generated code, `WACHIMAN_EXCLUDE` matches) are
  * dropped first and never read. The rest are scored by risk (`riskScore`) and packed into
  * batches of about 1,000 changed lines (`planBatches`), riskiest first; each batch is one provider call with its diff
  * inside the prompt. A batch that leaves files unaccounted for is re-run once with only those
@@ -20,7 +20,7 @@
  * and the operator's replies and answers in each thread. It never resolves one.
  *
  * What to look for beyond the defaults comes from `.github/wachiman.md` when the repository
- * has one (`.github/agent-review.md` and `.github/claude-review.md` are still read, with a notice).
+ * has one (`.github/claude-review.md` is still read, with a notice).
  *
  * The engine holds the GitHub token and posts; the agent only reads and gets no token. The engine
  * throws, posting nothing, when the provider says any text to post holds a credential. That is
@@ -269,7 +269,7 @@ export const DEFAULT_EXCLUDE = [
 ];
 
 // The old marker is still read so repositories reviewed before the rename keep their incremental state.
-const MARKER_SOURCE = "<!-- (?:agent-review|claude-review) sha=([A-Za-z0-9]+) -->";
+const MARKER_SOURCE = "<!-- (?:wachiman|claude-review) sha=([A-Za-z0-9]+) -->";
 const short = (sha: string) => sha.slice(0, 7);
 /**
  * `Important · 🟠📝 **Fix · docs: stale cell (confidence high)**`: the tier word, both emojis, then
@@ -302,7 +302,7 @@ export const DEFAULT_MENTION = "/wachiman";
  * earlier handles. Only the default is documented. `/wachi` does not match `/wachiman`, since a
  * keyword must end a word, so both are listed.
  */
-export const MENTION_ALIASES = ["/wachiman", "/wachi", "@agent-review", "@claude"];
+export const MENTION_ALIASES = ["/wachiman", "/wachi", "@claude"];
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The keyword or an alias, as a word of its own: "docs/wachi" or "me@claude" is not a mention. */
@@ -430,7 +430,7 @@ export function fileKind(path: string): FileKind {
 /**
  * Path rules for `riskScore`. These are defaults taken from the first consumer (`ipc`, `preload`,
  * `main`, `apps/<name>/src`) and are the owner's to tune; per-repository configuration is planned
- * (https://github.com/niway-dev/agent-review/issues/5).
+ * (https://github.com/niway-dev/wachiman/issues/5).
  * The highest matching weight wins. A test or a document scores its kind's weight whatever its
  * path, so `ipc/foo.test.ts` does not outrank the IPC code it tests.
  */
@@ -701,7 +701,7 @@ export function annotateDiff(files: ReviewFile[]) {
   return out.join("\n");
 }
 
-export const marker = (sha: string) => `<!-- agent-review sha=${sha} -->`;
+export const marker = (sha: string) => `<!-- wachiman sha=${sha} -->`;
 
 /**
  * What the review at `sha` left for the next run (ADR 0036). A complete review leaves nothing
@@ -795,7 +795,7 @@ export const neutralise = (text: string) =>
  *
  *     <!-- wachi:review -->
  *
- *     <!-- agent-review sha=… -->
+ *     <!-- wachiman sha=… -->
  *
  * and the marker is read only as the last line, right after the signature (`postReview` then adds
  * its `<!-- wachi:attempt id=… -->` line after it, which is allowed). A partial, unscoped review
@@ -1223,7 +1223,7 @@ export function buildReview(input: {
       : "";
   if (notReviewed.length > 0) {
     parts.push(
-      branded(`⚠️ **Partial review**: the agent reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}${notReviewable}.${twiceNote} Ask \`${mention} review <paths>\` for the rest.`),
+      branded(`⚠️ **Partial review**: reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}${notReviewable}.${twiceNote} Ask \`${mention} review <paths>\` for the rest.`),
     );
   } else {
     parts.push(
@@ -1610,8 +1610,8 @@ empty list. Cite only lines you read: the engine checks that each cited line exi
 answer is true. When an answer shows a defect, report it as a finding as well.`;
 
 export const FOCUS_PATH = ".github/wachiman.md";
-/** The paths used before the rename, newest first; the first one found is still read, with a notice. */
-export const OLD_FOCUS_PATHS = [".github/agent-review.md", ".github/claude-review.md"] as const;
+/** The path used before the rename; it is still read when the focus file is absent, with a notice. */
+export const OLD_FOCUS_PATHS = [".github/claude-review.md"] as const;
 
 /** Repository rules the engine reads from the pull request's base commit, in prompt order. */
 export const INSTRUCTION_PATHS = [FOCUS_PATH, "CLAUDE.md", "AGENTS.md"] as const;
@@ -3586,7 +3586,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[], fo
   );
   if (ignored.length > 0)
     deps.log(`Not paths in this pull request, ignored: ${ignored.join(" ")}`);
-  // A dry run may ask for the whole pull request again (AGENT_REVIEW_FULL_REVIEW): no marker read.
+  // A dry run may ask for the whole pull request again (WACHIMAN_FULL_REVIEW): no marker read.
   const state = config.fullReview ? null : lastReviewState(gh, repo, pr);
   const last = state?.sha ?? null;
   // What the last review did not reach (ADR 0036), by name. Only an unscoped run carries it over: a
@@ -4410,7 +4410,7 @@ function reviewBatch(
   part: { index: number; total: number; retry?: boolean },
   budgetUsd: number,
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "agent-review-"));
+  const dir = mkdtempSync(join(tmpdir(), "wachiman-review-"));
   // The run dir holds the change's text (title, body, threads, evidence): removed once the call
   // is over, whatever happened. Nothing reads it after the provider returns.
   try {
@@ -4859,7 +4859,7 @@ export function comment(deps: Deps, repo: string, pr: number, request: string, a
     return;
   }
   if (author === undefined) {
-    throw new Error("askers is write, but the caller did not say who wrote the comment (AGENT_REVIEW_COMMENT_AUTHOR); not answering.");
+    throw new Error("askers is write, but the caller did not say who wrote the comment (WACHIMAN_COMMENT_AUTHOR); not answering.");
   }
   if (command?.kind !== "answer") {
     deps.warn(`Comment by ${author} is not a question; only the operator starts a review. Nothing to do.`);

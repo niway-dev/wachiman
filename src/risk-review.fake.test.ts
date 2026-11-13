@@ -75,7 +75,7 @@ const deps = (provider: FakeProvider): CoreDeps => ({
   engineVersion: undefined,
 });
 
-const options = (): ReviewOptions => reviewOptionsOf(loadConfig({ AGENT_REVIEW_VERIFY: "0" }), 5);
+const options = (): ReviewOptions => reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "0" }), 5);
 
 const GITHUB = {
   since: null,

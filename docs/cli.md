@@ -24,7 +24,7 @@ bun src/cli.ts --help
 bun src/cli.ts --version
 ```
 
-`package.json` installs both `wachiman` and `agent-review` through the Node launcher
+`package.json` installs `wachiman` through the Node launcher
 `bin/wachiman.js`. Node 20 or later must be on `PATH`. The package installs Bun as
 its dependency; the launcher uses that binary when usable, otherwise a compatible
 Bun on `PATH`. Source contributors can still run `bun src/cli.ts`. Git and the
@@ -122,17 +122,17 @@ therefore widen a review instead of narrowing it. Details and the exact matching
 
 The checks run in this order:
 
-1. If `AGENT_REVIEW_OPERATOR` is empty or a template placeholder (`EDIT…`, `your-github-login`),
+1. If `WACHIMAN_OPERATOR` is empty or a template placeholder (`EDIT…`, `your-github-login`),
    `comment` fails with exit 1. This is checked before anything else, including before it looks at
    the comment.
-2. If `AGENT_REVIEW_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
-   notice and exits 0 without doing anything, unless `AGENT_REVIEW_ASKERS=write`; then see
+2. If `WACHIMAN_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
+   notice and exits 0 without doing anything, unless `WACHIMAN_ASKERS=write`; then see
    [Questions from collaborators](#questions-from-collaborators). If it is unset, the engine does no
    author check under `askers: operator`: a caller that runs `comment` directly decides who may reach
    it. Under `askers: write` an unset author is an error (exit 1), because nobody can then be trusted
    without a login.
-3. If the comment contains no command word (`AGENT_REVIEW_MENTION`, default `/wachiman`, or the
-   aliases `/wachi`, `@agent-review`, `@claude`), nothing happens and it exits 0.
+3. If the comment contains no command word (`WACHIMAN_MENTION`, default `/wachiman`, or the
+   aliases `/wachi`, `@claude`), nothing happens and it exits 0.
 4. If the first word after the command word is `review`, it runs `review` with the remaining words
    as paths.
 5. Otherwise the whole comment is a question, and one agent call answers it as a pull request
@@ -148,21 +148,21 @@ even a comment that would do nothing needs a working provider binary and credent
 
 ### Questions from collaborators
 
-Only the operator's comments run a review. With `AGENT_REVIEW_ASKERS=write`, a collaborator's
+Only the operator's comments run a review. With `WACHIMAN_ASKERS=write`, a collaborator's
 comment that asks a question is answered too. In the reusable workflow that is the `askers` input
 (default `operator`), and the ceiling in step 4 is the `ask_ceiling_usd` input (default `3`); the
 copy template sets both at the top of its file. After step 1 above, such a comment must pass these
 checks, in this order:
 
-1. It must have an author (`AGENT_REVIEW_COMMENT_AUTHOR`), or the run exits 1.
+1. It must have an author (`WACHIMAN_COMMENT_AUTHOR`), or the run exits 1.
 2. It must be a question or a walkthrough request. Anything else, including `review`, prints a
    notice and exits 0.
 3. GitHub must report the author's permission on the repository as `admin`, `maintain` or `write`
    (or a role named `maintain`), from `repos/{repo}/collaborators/{login}/permission`. Bots, a failed
    lookup and any other permission are refused. A refusal posts nothing; it is a line in the job log.
 4. The question ceiling must have room. Each answer to a collaborator ends with a footer that records
-   its cost. The sum of those footers on the pull request, plus `AGENT_REVIEW_ANSWER_BUDGET_USD`, must
-   not exceed `AGENT_REVIEW_ASK_CEILING_USD` (default `3`). When it would, the engine posts one notice
+   its cost. The sum of those footers on the pull request, plus `WACHIMAN_ANSWER_BUDGET_USD`, must
+   not exceed `WACHIMAN_ASK_CEILING_USD` (default `3`). When it would, the engine posts one notice
    and answers nothing. It does not post the notice again while it is still the latest Wachiman
    comment on the pull request.
 
@@ -171,12 +171,12 @@ A call that fails still posts a note with its cost, so the ceiling counts what w
 
 ### What `threads` does
 
-`threads` is an automatic run (`AGENT_REVIEW_TRIGGER` is forced to `thread`): it counts against
-`AGENT_REVIEW_AUTO_BUDGET_USD` ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)).
+`threads` is an automatic run (`WACHIMAN_TRIGGER` is forced to `thread`): it counts against
+`WACHIMAN_AUTO_BUDGET_USD` ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)).
 The checks run in this order, and each "exits 0" ends the run without a model call:
 
-1. An empty or placeholder `AGENT_REVIEW_OPERATOR` is an error (exit 1).
-2. If `AGENT_REVIEW_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
+1. An empty or placeholder `WACHIMAN_OPERATOR` is an error (exit 1).
+2. If `WACHIMAN_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
    notice and exits 0.
 3. If the last reviewed commit (the signed marker) is not the head, it exits 0: the review of that
    push reads the same replies and answers them. The same when no review exists.
@@ -184,7 +184,7 @@ The checks run in this order, and each "exits 0" ends the run without a model ca
    `COLLABORATOR` and where Wachiman has written fewer than two replies. None: exit 0.
 5. If the pull request's automatic spend has reached the ceiling, it posts the one notice for that
    ceiling (never twice) and exits 0.
-6. One provider call, capped by the smaller of `AGENT_REVIEW_THREADS_BUDGET_USD` and what is left
+6. One provider call, capped by the smaller of `WACHIMAN_THREADS_BUDGET_USD` and what is left
    under the ceiling, sees each thread's finding, its replies and the head's lines at the finding.
    Each answer is "appears addressed in `path:line`" or "still applies because …"; every cited
    `path:line` must exist in the head, and a reply whose citation does not is dropped. The engine
@@ -214,10 +214,10 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
 | `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
 | `--profile <name>` | see "Which account" below | `default` is your own `claude`; a name is a registered profile (managed or external); `isolated` and `isolated:<name>` name the managed profile `~/.wachiman/claude-<name>` (which must exist and hold nothing but a sign-in) |
-| `--verify` | off (follows `AGENT_REVIEW_VERIFY`); `--verify` forces it on | After the batches, one more call on `AGENT_REVIEW_VERIFIER_MODEL` (default Opus 5.5) tries to refute each finding above `info`. A finding is dropped only when the verifier shows a checked disproof; one it cannot settle stays, marked `inconclusive`; a true bug that predates the change is `supported` with origin `pre-existing`. The verifier can read the base commit as well as the head. The record is `verification` in `--format json --result-version 2` ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md), [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)) |
-| `--no-verify` | — | Turn verification off for this run, even when `AGENT_REVIEW_VERIFY` is on. With `--verify` it is a usage error |
+| `--verify` | off (follows `WACHIMAN_VERIFY`); `--verify` forces it on | After the batches, one more call on `WACHIMAN_VERIFIER_MODEL` (default Opus 5.5) tries to refute each finding above `info`. A finding is dropped only when the verifier shows a checked disproof; one it cannot settle stays, marked `inconclusive`; a true bug that predates the change is `supported` with origin `pre-existing`. The verifier can read the base commit as well as the head. The record is `verification` in `--format json --result-version 2` ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md), [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)) |
+| `--no-verify` | — | Turn verification off for this run, even when `WACHIMAN_VERIFY` is on. With `--verify` it is a usage error |
 | `--result-version 1\|2` | `1` for committed; `2` for working-tree | With `--format json` only (any other use exits 2): which result version to write. `1` is the committed form (`toResultV1`): no `verification` block, and one line in `execution.notices` saying how verification went. `2` is the full result, with each finding's `origin`, `verification` and `tier` |
-| `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
+| `--history` | off (or `WACHIMAN_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
 merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 250)`, `head: feat/x (…)`); with `--commit` or
@@ -227,13 +227,13 @@ prints, never posts:** the report goes to stdout (or `--output`), so `--format j
 the result alone.
 
 Size never blocks a run. When the estimated cost of the whole review is above the larger of
-`AGENT_REVIEW_SIZE_GATE_USD` and `AGENT_REVIEW_BUDGET_USD`, `local` prints one warning on stderr
-before the first model call and continues. The run is capped by `AGENT_REVIEW_BUDGET_USD` (default $3)
-and each call by `AGENT_REVIEW_BATCH_BUDGET_USD` (passed to Claude Code as `--max-budget-usd`, soft);
-there is no `AGENT_REVIEW_AUTO_BUDGET_USD` ceiling locally. See [the size gate](costs.md#the-size-gate)
+`WACHIMAN_SIZE_GATE_USD` and `WACHIMAN_BUDGET_USD`, `local` prints one warning on stderr
+before the first model call and continues. The run is capped by `WACHIMAN_BUDGET_USD` (default $3)
+and each call by `WACHIMAN_BATCH_BUDGET_USD` (passed to Claude Code as `--max-budget-usd`, soft);
+there is no `WACHIMAN_AUTO_BUDGET_USD` ceiling locally. See [the size gate](costs.md#the-size-gate)
 and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
 
-It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `AGENT_REVIEW_PROVIDER`
+It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `WACHIMAN_PROVIDER`
 is not `claude-code`, for a detached or unborn `HEAD`, a `HEAD` on the base branch without `--base`, a range deeper than `--max-depth`, a base with no merge-base, `--base`, `--from` and `--commit` used together, a `--from` that is not an ancestor of `HEAD`, a `--commit` or `--from` that is not a commit, a refused
 isolated profile, or an `--input` whose format is not `/1` or whose head is not in the clone.
 Each `claude` call runs in subscription mode: no key, `USER` and the no-telemetry switches in its
@@ -517,11 +517,11 @@ where the spend goes. It reads the history files under `~/.wachiman/history` and
 repository's key. It runs no `claude`, calls no GitHub and sends nothing. Damaged history files
 are moved aside with an `.unreadable-<timestamp>` suffix and a warning on stderr.
 
-**What it covers.** Only runs saved by `wachiman local --history` (or `AGENT_REVIEW_HISTORY=1`).
+**What it covers.** Only runs saved by `wachiman local --history` (or `WACHIMAN_HISTORY=1`).
 Runs made by the GitHub Actions workflow are not in those files and are not counted, so the total is
 the local spend, not Wachiman's whole spend. The cost is Claude Code's `total_cost_usd`: an
 API-equivalent estimate, not a bill. A new `--history` run deletes runs older than 30 days
-(`AGENT_REVIEW_HISTORY_DAYS`, `0` keeps them all), so the total reaches back at most that far.
+(`WACHIMAN_HISTORY_DAYS`, `0` keeps them all), so the total reaches back at most that far.
 
 | Option | What it does |
 | --- | --- |
@@ -576,7 +576,7 @@ the page could not be written; 2 usage error.
   (at most three places a person must decide) and the files to read first. On a review of one
   push, the level line starts with "This push only."; a change with no facts gets the two-line
   form without a heading.
-- A complete, unscoped review also ends with `<!-- agent-review sha=<head> -->`; the next
+- A complete, unscoped review also ends with `<!-- wachiman sha=<head> -->`; the next
   unscoped review starts from that commit. The older `<!-- claude-review sha=… -->` marker is still
   read, never written (see "Incremental reviews" for the cutoff).
 - `review` when nothing is to be done: a short review body. `Already reviewed at <sha>` when the
@@ -604,7 +604,7 @@ the page could not be written; 2 usage error.
   is not there, or to a line past its end, is removed, and the comment says how many. The others link
   to that line at the head commit. Without an earlier review the answer says so in its first
   section.
-- With `AGENT_REVIEW_DRY_RUN=1` it reads GitHub but prints instead of posting. It still calls the
+- With `WACHIMAN_DRY_RUN=1` it reads GitHub but prints instead of posting. It still calls the
   agent, so it still costs money.
 
 Before posting, the engine refuses to post anything that contains something shaped like a provider
@@ -621,11 +621,11 @@ Required for `review`, `comment` and `threads`:
 | `GH_TOKEN` | Token for `gh`. It is never given to the agent. Not read by `local`, `setup`, `doctor`, `profile` or `project`. |
 | `GITHUB_REPOSITORY` | `owner/name` of the repository. Not read by `local`, `setup`, `doctor`, `profile` or `project`. |
 | `REQUEST` | `comment` only: the comment text. Pass it through the environment, never interpolated into a shell command. |
-| `AGENT_REVIEW_COMMENT_ID` | Optional, for `comment` and `threads` on a review comment: that comment's id. With it, a question is answered in the comment's thread. |
-| `AGENT_REVIEW_COMMENT_IN_REPLY_TO` | Optional: the id of the comment this one replies to. The answer is posted as a reply under the thread's first comment. |
-| `AGENT_REVIEW_COMMENT_PATH`, `AGENT_REVIEW_COMMENT_LINE` | Optional: the file and the line the review comment is on (`line`, or `original_line` when the line moved). The question is about that line first. |
-| `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs unless `AGENT_REVIEW_ASKERS=write` (see [Questions from collaborators](#questions-from-collaborators)). |
-| Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token from `claude setup-token`; it wins when both are set, and `local` and `ask` never read it). For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
+| `WACHIMAN_COMMENT_ID` | Optional, for `comment` and `threads` on a review comment: that comment's id. With it, a question is answered in the comment's thread. |
+| `WACHIMAN_COMMENT_IN_REPLY_TO` | Optional: the id of the comment this one replies to. The answer is posted as a reply under the thread's first comment. |
+| `WACHIMAN_COMMENT_PATH`, `WACHIMAN_COMMENT_LINE` | Optional: the file and the line the review comment is on (`line`, or `original_line` when the line moved). The question is about that line first. |
+| `WACHIMAN_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs unless `WACHIMAN_ASKERS=write` (see [Questions from collaborators](#questions-from-collaborators)). |
+| Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token from `claude setup-token`; it wins when both are set, and `local` and `ask` never read it). For `codex`: `OPENAI_API_KEY`. Neither is needed with `WACHIMAN_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
 
 The `gh` CLI and the provider's binary (`claude` for `claude-code`, `codex` for `codex`) must be on
 the `PATH`.
@@ -637,22 +637,22 @@ Read by the account commands and `local`:
 | `WACHIMAN_HOME` | The Wachiman home, an absolute path. Default `~/.wachiman` |
 | `WACHIMAN_PROFILE` | The profile `local` uses when there is no `--profile` and no project binding |
 
-All optional settings (`AGENT_REVIEW_BUDGET_USD`, `AGENT_REVIEW_MODEL`, `AGENT_REVIEW_PROVIDER`,
-`AGENT_REVIEW_DRY_RUN`, `AGENT_REVIEW_EXCLUDE`, `AGENT_REVIEW_COMMENT_AUTHOR` and the rest) are in
+All optional settings (`WACHIMAN_BUDGET_USD`, `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER`,
+`WACHIMAN_DRY_RUN`, `WACHIMAN_EXCLUDE`, `WACHIMAN_COMMENT_AUTHOR` and the rest) are in
 [configuration.md](configuration.md#engine-settings), with their types, defaults, valid values and
 which provider they apply to. Two things hold for every one of them: budgets and sizes must be
 positive numbers (lines and chars, whole numbers), and anything else is a usage error.
 
 ### Deprecated names
 
-`AGENT_REVIEW_X` settings fall back to the old `CLAUDE_REVIEW_X` names, with a notice on stderr.
+`WACHIMAN_X` settings fall back to the old `CLAUDE_REVIEW_X` names, with a notice on stderr.
 Installed copies can migrate one variable at a time; the new name wins when both are set. The
 fallback covers the engine settings only: [configuration.md](configuration.md#deprecated-names).
 
 ### Repository files
 
-The engine reads `.github/wachiman.md` (the review focus), the old `.github/agent-review.md` and
-`.github/claude-review.md` names, `CLAUDE.md` and `AGENTS.md` from the pull request's base commit, so a pull request cannot
+The engine reads `.github/wachiman.md` (the review focus), the old
+`.github/claude-review.md` name, `CLAUDE.md` and `AGENTS.md` from the pull request's base commit, so a pull request cannot
 change the rules it is reviewed under. Details, size limits and what these files cannot do:
 [configuration.md](configuration.md#repository-files). A YAML configuration file is not
 implemented.
@@ -753,14 +753,14 @@ shrunk to what fits, or dropped, before the coverage table and the summary are t
 | --- | --- |
 | `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help` and `--version` also exit 0. |
 | `1` | Engine error. **Not the same as "nothing was posted"**: see below. |
-| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `AGENT_REVIEW_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
+| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `WACHIMAN_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
 | `3` | The spend ledger stopped the run before any model call: a limit with `limit_mode: fail`, a repository the ledger does not know, a rejected identity token, no OIDC token while `ledger_url` is set, or an unreachable ledger with `ledger_unavailable: stop`. With `limit_mode: notice` a limit exits 0. Only with `ledger_url`; see [costs.md](costs.md#the-spend-limit). |
 
 Exit 1 covers:
 
 - Before any call is paid for: a missing provider binary, settings file or credential, a Codex model
   with no known price, an empty or placeholder operator in `comment`, and a malformed
-  `AGENT_REVIEW_PRICE_PER_MTOK`. The malformed price is raised as an ordinary error, so it exits 1
+  `WACHIMAN_PRICE_PER_MTOK`. The malformed price is raised as an ordinary error, so it exits 1
   although it is a bad setting. Nothing has been posted.
 - During a review: a failed `gh` call, no batch returning a review (when no call hit its cap),
   output refused because it looked like a credential, and an answer the agent did not give.

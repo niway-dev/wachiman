@@ -185,7 +185,7 @@ This is not a sandbox. What is enforced, what the tests show and what is still u
 The current release is on [npm](https://www.npmjs.com/package/wachiman) and in
 [CHANGELOG.md](CHANGELOG.md). The command-line contract ([docs/cli.md](docs/cli.md)) and the
 provider adapter boundary are in place. The older `CLAUDE_REVIEW_*` variables,
-`.github/agent-review.md`, `.github/claude-review.md`, `/wachi` and the `@claude` mention are still
+`.github/claude-review.md`, `/wachi` and the `@claude` mention are still
 read with a notice; see [docs/upgrading.md](docs/upgrading.md).
 
 - **Claude Code** (`claude -p`) is the provider the reusable workflow installs and runs, with

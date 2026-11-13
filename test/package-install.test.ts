@@ -25,7 +25,7 @@ describe.skipIf(!tools || process.platform === "win32")("scripts/verify-package.
     const r = run([]);
     expect(r.stderr).not.toContain("FAIL");
     expect(r.code).toBe(0);
-    for (const line of ["wachiman --version ->", "agent-review --version -> ", "bundled Bun is a stub, so the Bun on PATH ran", "npm exec -- wachiman --version from the installed copy", "wachiman doctor --json against fixture dependencies", "did not reach the engine"]) {
+    for (const line of ["wachiman --version ->", "bundled Bun is a stub, so the Bun on PATH ran", "npm exec -- wachiman --version from the installed copy", "wachiman doctor --json against fixture dependencies", "did not reach the engine"]) {
       expect(r.stdout).toContain(line);
     }
   }, 180_000);

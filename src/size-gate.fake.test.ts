@@ -92,7 +92,7 @@ function run(w: ReturnType<typeof world>, env: Record<string, string> = {}, word
   const deps: Deps = {
     gh: w.gh,
     provider,
-    config: loadConfig({ AGENT_REVIEW_VERIFY: "0", AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_MODEL: "claude-sonnet-5-5", ...env }),
+    config: loadConfig({ WACHIMAN_VERIFY: "0", WACHIMAN_TRIGGER: "synchronize", WACHIMAN_MODEL: "claude-sonnet-5-5", ...env }),
     repoDir: mkdtempSync(join(tmpdir(), "size-gate-head-")),
     log: (l) => void logs.push(l),
     warn: () => {},
@@ -117,7 +117,7 @@ describe("a pull request above the size gate is skipped with one comment", () =>
     expect(comment.kind).toBe("comment");
     expect(comment.body).toContain(SIZE_GATE_MARKER);
     expect(comment.body).toContain("Not reviewed: this pull request is above the size gate.");
-    expect(comment.body).not.toContain("agent-review sha=");
+    expect(comment.body).not.toContain("wachiman sha=");
     expect(w.posted.some((p) => p.kind === "review")).toBe(false);
     expect(logs).toContain("size gate");
   });
@@ -165,7 +165,7 @@ describe("a pull request above the size gate is skipped with one comment", () =>
 
   test("a dry run logs the comment and calls no write", () => {
     const w = world(LARGE);
-    const { logs } = run(w, { AGENT_REVIEW_DRY_RUN: "1" });
+    const { logs } = run(w, { WACHIMAN_DRY_RUN: "1" });
     expect(logs).toContain("--- size gate comment ---");
     expect(w.posted).toHaveLength(0);
     expect(w.calls.some((c) => c.includes("/issues/7/comments"))).toBe(false);
@@ -173,25 +173,25 @@ describe("a pull request above the size gate is skipped with one comment", () =>
 
   test("a scoped run is estimated on the scoped files only", () => {
     const w = world(LARGE);
-    const { provider } = run(w, { AGENT_REVIEW_TRIGGER: "comment" }, ["pkg0/mod.ts"]);
+    const { provider } = run(w, { WACHIMAN_TRIGGER: "comment" }, ["pkg0/mod.ts"]);
     expect(provider.requests.length).toBeGreaterThan(0);
     expect(w.posted.some((p) => p.body.includes(SIZE_GATE_MARKER))).toBe(false);
   });
 });
 
 describe("the gate lifts", () => {
-  test("a raised AGENT_REVIEW_SIZE_GATE_USD reviews the pull request", () => {
+  test("a raised WACHIMAN_SIZE_GATE_USD reviews the pull request", () => {
     const w = world(LARGE);
-    const { provider } = run(w, { AGENT_REVIEW_SIZE_GATE_USD: "10" });
+    const { provider } = run(w, { WACHIMAN_SIZE_GATE_USD: "10" });
     expect(provider.requests.length).toBeGreaterThan(0);
     expect(w.posted.some((p) => p.kind === "review")).toBe(true);
     expect(w.posted.some((p) => p.body.includes(SIZE_GATE_MARKER))).toBe(false);
   });
 
   test("budget_usd alone lifts the gate for /wachiman review, but not for an automatic run", () => {
-    const env = { AGENT_REVIEW_BUDGET_USD: "12" };
+    const env = { WACHIMAN_BUDGET_USD: "12" };
     const operator = world(LARGE);
-    const a = run(operator, { ...env, AGENT_REVIEW_TRIGGER: "comment" });
+    const a = run(operator, { ...env, WACHIMAN_TRIGGER: "comment" });
     expect(a.provider.requests.length).toBeGreaterThan(0);
     expect(operator.posted.some((p) => p.body.includes(SIZE_GATE_MARKER))).toBe(false);
 
@@ -201,7 +201,7 @@ describe("the gate lifts", () => {
     expect(automatic.posted.map((p) => p.kind)).toEqual(["comment"]);
 
     const both = world(LARGE);
-    const c = run(both, { ...env, AGENT_REVIEW_AUTO_BUDGET_USD: "12" });
+    const c = run(both, { ...env, WACHIMAN_AUTO_BUDGET_USD: "12" });
     expect(c.provider.requests.length).toBeGreaterThan(0);
   });
 });
