@@ -89,7 +89,7 @@ now read "none beyond this table".
 | --- | --- | --- | --- |
 | `bun` | 1.3.4 | The runtime, installed by npm so `npm i -g wachiman` works ([ADR 0028](0028-the-npm-package-installs-bun-itself-behind-a-node-launcher-and-no-windows-executable.md)) | Nowhere: `bin/wachiman.js` runs it, no source file imports it |
 | `chalk` | 5.6.2 | Colors for the interactive and help screens, in place of hand-written escape codes | Files under `src/wizard/` only (`style.ts`) |
-| `@clack/prompts` | 1.9.0 | The prompt screens (intro, select, text, confirm, spinner, note) of the launcher, `init` and `setup`, in place of hand-rolled arrow-key rendering. Its own packages (`@clack/core`, `sisteransi`, `fast-string-width`, `fast-string-truncated-width`, `fast-wrap-ansi`) are locked in `bun.lock` | Files under `src/wizard/` only (`ui.ts`, through a dynamic `import()`) |
+| `@clack/prompts` | 1.9.0 | The prompt screens (intro, select, text, confirm, spinner, note) of the launcher, `init` and `setup`, in place of hand-rolled arrow-key rendering. Its own packages (`@clack/core`, `sisteransi`, `fast-string-width`, `fast-string-truncated-width`, `fast-wrap-ansi`) resolve at install time within its own version ranges; `bun.lock` is not committed | Files under `src/wizard/` only (`ui.ts`, through a dynamic `import()`) |
 
 The dependency stays out of the code that sees the key, and out of GitHub Actions:
 
