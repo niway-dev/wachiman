@@ -54,5 +54,8 @@ jobs:
         run: scripts/verify-package.sh --bundled-bun
       - name: Install Bun
         run: npm install --global bun@1.3.4
+      # The default check copies chalk and Clack from this checkout's node_modules.
+      - name: Install the terminal-screen packages
+        run: bun install --ignore-scripts
       - name: With Bun
         run: scripts/verify-package.sh

@@ -53,14 +53,17 @@ import { parseSkillsArgs, runSkills } from "./skills/install";
 import { parseDoctorArgs, runDoctor } from "./doctor/run";
 import { parseInitFlags } from "./init/args";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
-import { runInitCommand } from "./init/run";
 import { projectCommands } from "./wizard/command";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
+import { runInitCommand } from "./init/run";
 import { runSetupCommand } from "./setup/run";
-import { commandHelp, helpFor, isCommand, paintFor, rootHelp } from "./help";
+import { commandHelp, helpFor, isCommand, rootHelp } from "./help";
+import { shouldLaunch } from "./wizard/interactive";
+import { isMissingPackage } from "./wizard/load";
+import { plain, type Paint } from "./wizard/tone";
 
 /** package.json sits one level above src/; in a copied layout it may belong to someone else. */
 export function readVersion(dir = import.meta.dir) {
@@ -167,6 +170,20 @@ function runAccountCommand(mode: "doctor" | "profile" | "project", args: string[
   return runDoctor(parsed, env, io, deps.doctor);
 }
 
+/** The colors for help: loaded only when stdout is a terminal, so a run with piped output never loads chalk. */
+async function paintFor(output: { isTTY?: boolean }, env: Record<string, string | undefined>): Promise<Paint> {
+  if (output.isTTY !== true) return plain;
+  // A clone that never ran `bun install` has no chalk: its help is plain text. Any other failure is a bug and shows.
+  const style = await import("./wizard/style").catch(plainWhenMissing);
+  return style?.terminalStyle(output, env) ?? plain;
+}
+
+/** `undefined` for a package that is not installed, the error itself for anything else. */
+function plainWhenMissing(error: unknown): undefined {
+  if (isMissingPackage(error)) return undefined;
+  throw error;
+}
+
 /** `setup` and `init`: asked on a terminal, flags and exit code 2 otherwise. A cancellation is exit 130. */
 async function runWizard(mode: "setup" | "init", args: string[], repoDir: string, env: Record<string, string | undefined>): Promise<number> {
   const io = { stdout: (text: string) => writeAll(1, text), stderr: (line: string) => console.error(line) };
@@ -217,16 +234,26 @@ export function runResetConfidence(args: string[], env: Record<string, string | 
   return 0;
 }
 
-function printRootHelp(env: Record<string, string | undefined>): number {
-  writeAll(1, rootHelp(paintFor(process.stdout, env)));
+async function printRootHelp(env: Record<string, string | undefined>): Promise<number> {
+  writeAll(1, rootHelp(await paintFor(process.stdout, env)));
   return 0;
 }
 
 /**
- * Bare `wachiman`, with no arguments. It prints the root help. This is the one place that decides what
- * a bare invocation does, so an interactive menu on a terminal can replace the call below.
+ * Bare `wachiman`, with no arguments. On a terminal (stdin, stdout and stderr, no CI) it opens the
+ * interactive launcher; anywhere else it prints the root help, as it always did. This is the one
+ * place that decides what a bare invocation does. A command chosen in the launcher runs through
+ * `main` again, with WACHIMAN_INTRO_DONE set so it does not play the intro a second time.
  */
-function runNoArgs(env: Record<string, string | undefined>): number {
+async function runNoArgs(env: Record<string, string | undefined>): Promise<number> {
+  const streams = { stdin: process.stdin, stdout: process.stdout, stderr: process.stderr };
+  // The same test the launcher applies, so a bare `wachiman` outside a terminal never loads the terminal UI.
+  if (shouldLaunch(env, streams)) {
+    // Without the packages (a clone that never ran `bun install`) the launcher does not open: the help is printed.
+    const launcher = await import("./wizard/launcher").catch(plainWhenMissing);
+    const launched = await launcher?.maybeLaunch({ env, version: readVersion(), dispatch: (args) => main(args, { ...env, WACHIMAN_INTRO_DONE: "1" }) });
+    if (launched !== undefined) return launched;
+  }
   return printRootHelp(env);
 }
 
@@ -250,12 +277,21 @@ async function refreshLedger(env: Record<string, string | undefined>) {
 
 export async function main(argv: string[], env: Record<string, string | undefined>): Promise<number> {
   const mode = argv[0];
-  if (argv.length === 0) return runNoArgs(env);
-  if (mode === "--help" || mode === "-h") return printRootHelp(env);
+  if (argv.length === 0) {
+    // A command picked in the launcher goes through `main` again and handles its own errors; this
+    // catches the launcher's (reading the repository, the config, the terminal) the same way.
+    try {
+      return await runNoArgs(env);
+    } catch (error) {
+      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
+      return 1;
+    }
+  }
+  if (mode === "--help" || mode === "-h") return await printRootHelp(env);
   // Before extractRepoDir, the configuration, git, authentication and any model: help reads nothing. The
   // `help` branches of the parsers below only serve direct callers of `parse*`; `helpFor` catches every
   // `--help` and `-h` first.
-  const help = helpFor(argv, paintFor(process.stdout, env));
+  const help = helpFor(argv, await paintFor(process.stdout, env));
   if (help !== undefined) {
     if ("error" in help) return usageError(help.error, "help");
     writeAll(1, help.text);

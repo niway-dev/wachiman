@@ -35,11 +35,11 @@ profile create --help`). The four commands that only a GitHub Actions run uses (
 variables and exit codes. `--setup-profile` still works and is also left out of the root help. This
 page remains the full reference for the environment variables and exit codes.
 
-A bare `wachiman` with no arguments prints the root help and exits 0.
+A bare `wachiman` with no arguments opens the [launcher](#interactive-launcher-and-intro) on a terminal and prints the root help and exits 0 anywhere else.
 
 `package.json` installs `wachiman` through the Node launcher
 `bin/wachiman.js`. Node 20 or later must be on `PATH`. The package installs Bun as
-its dependency; the launcher uses that binary when usable, otherwise a compatible
+its dependency, with `chalk` and `@clack/prompts` for the terminal screens; the launcher uses that binary when usable, otherwise a compatible
 Bun on `PATH`. Source contributors can still run `bun src/cli.ts`. Git and the
 provider binary are needed for local reviews; GitHub commands also need `gh`.
 
@@ -396,7 +396,7 @@ closing `doctor` summary failed (the binding is already written); `profile` and 
 (including a "no" answer), 2 usage error, 130 cancelled.
 
 **The `setup` wizard** (a terminal, no `--yes`, `CI` neither `true` nor `1`) asks one question at a time, each
-showing its default (numbered lists mark `(default)`, text shows `[value]`, Enter takes it):
+showing its default (on a terminal the highlighted entry and the placeholder; without one, numbered lists mark `(default)`, text shows `[value]`, and Enter takes it):
 
 1. `Set up this repository?` after printing the repository and its current binding.
 2. Which profile: your current Claude session, the registered/discovered profiles (name, kind,
@@ -468,6 +468,43 @@ command that binds the repository later.
 `.github`, `workflows` or target that is a symbolic link is refused. On a terminal the file is
 previewed on stderr and `Write it?` is asked first; Escape, Ctrl-C or Ctrl-D exit 130 and write
 nothing.
+
+### Interactive launcher and intro
+
+`wachiman` with no arguments opens a menu when stdin, stdout and stderr are all terminals and `CI`
+is unset. Otherwise it prints the usage as before. The menu offers: Review changes, Ask about
+changes, Review loop, Findings & usage, Configure and Exit. Review and Ask first ask for a scope
+(this branch against the base, one commit, staged changes, or the whole working tree).
+
+Before anything that spends your subscription, the launcher shows the repository, the scope, the
+profile and the exact command it will run, then asks `Run it?`. Declining runs nothing and returns
+to the menu; Escape or Ctrl-C exits 130 with nothing run. The launcher closes its prompt and then
+runs the same command handler you would get by typing the command.
+
+On a terminal the menus are drawn with [Clack](https://bomb.sh/docs/clack/packages/prompts/) (the
+screens of `npm create astro`): arrow keys move the highlight, Enter confirms, Escape or Ctrl-C
+cancels, and the lists of branches and profiles are filterable (type to narrow the list; the last
+entry of the branch list lets you type any other branch or commit). The session is one frame:
+a title line, the questions and their answers, status lines, a "Next steps" note, and a closing line.
+A slow check (the account probe of `setup`) runs behind a spinner and never freezes it. Without a
+terminal the menus are numbered lists and the prompts read lines, exactly as before.
+
+On a terminal, `init`, `setup` and the launcher open with Wachi, the guard: a ` wachiman ` chip with
+"On watch." and the version, a small rounded face under a peaked cap, and a line typed next to it
+(for example `Wachi: Shift started. Let's watch this repo.`). The typing takes under a second and any
+key skips it; Ctrl-C ends the session. The same scene is printed at once, with nothing typed, when
+stdin or stderr is not a terminal, `NO_COLOR` is non-empty, `CI` is set, `TERM=dumb`, the terminal
+is narrower than 40 columns, or `WACHIMAN_NO_ANIMATION` is set. With `NO_COLOR` or `TERM=dumb` the
+scene has no color (and no non-ASCII character on `TERM=dumb`). The cursor is restored on every exit
+path, including Ctrl-C. A command that the launcher starts does not repeat the intro.
+
+Nothing here changes what a command does: the same defaults, files, `--yes`, `--json`, `--dry-run`
+and exit codes apply, prompts and status stay on stderr, and no prompt or animation appears outside
+a terminal. `CI` set (to anything) also keeps the launcher and the animation off, and `init` and `setup` do not ask when `CI` is `true` or `1`. The terminal screens use the packages `chalk` and `@clack/prompts`
+([ADR 0002](adr/0002-typescript-on-bun-zero-dependencies.md), amendment 2026-11-13); the review
+engine and the GitHub Actions path never load them. A clone that never ran `bun install` runs every
+command; only a terminal screen stops, with a message that names `bun install`, and `--yes` or flags
+skip it.
 
 ### `skills`
 
@@ -706,6 +743,10 @@ Read by the account commands and `local`:
 | --- | --- |
 | `WACHIMAN_HOME` | The Wachiman home, an absolute path. Default `~/.wachiman` |
 | `WACHIMAN_PROFILE` | The profile `local` uses when there is no `--profile` and no project binding |
+
+`WACHIMAN_NO_ANIMATION` (any non-empty value) is read only by the intro of `init`, `setup` and the launcher: it
+turns the typing off and prints Wachi's scene at once. `NO_COLOR` (non-empty) turns every color off in the help,
+the menus and the intro, and `TERM=dumb` also switches to ASCII symbols.
 
 All optional settings (`WACHIMAN_BUDGET_USD`, `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER`,
 `WACHIMAN_DRY_RUN`, `WACHIMAN_EXCLUDE`, `WACHIMAN_COMMENT_AUTHOR` and the rest) are in

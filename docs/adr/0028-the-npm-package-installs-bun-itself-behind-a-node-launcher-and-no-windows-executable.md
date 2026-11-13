@@ -11,12 +11,12 @@
   [ADR 0026 in PR #135](https://github.com/niway-dev/wachiman/pull/135) (PR #135, unmerged): keeps its
   decisions 1 (package `wachiman`, trusted publishing) and 3 (`skills install`); **replaces** its
   decision 2 (`npx` unsupported), decision 4 (the source installer goes after one release) and
-  decision 5 (zero dependencies: the package now has one, the runtime). Whichever of #135 and
+  decision 5 (zero dependencies: the package now has the runtime, and since 2026-11-13 the approved terminal packages of ADR 0002). Whichever of #135 and
   this record merges first, the other's rebase adds the cross-reference in the Status line.
   Amends [ADR 0001](0001-distribution-and-trust.md) as draft 0026 already does (npm taken up with
   provenance); **amends** [ADR 0002](0002-typescript-on-bun-zero-dependencies.md) (its "no
-  runtime dependencies" now allows exactly one, the pinned `bun` package; Bun stays the runtime and
-  the engine has no dependency of its own); consistent with
+  runtime dependencies" now allows the pinned `bun` package, and, by the amendment of 2026-11-13, the
+  libraries the owner approves one by one; Bun stays the runtime and the engine has no dependency of its own); consistent with
   [ADR 0023](0023-one-name-for-every-surface-people-type.md). Supersedes
   decision 3 of the [design spec](../specs/2026-11-09-cli-and-verified-reviews-design.md), which
   proposed a Windows executable.

@@ -4,7 +4,7 @@ This document describes the engine as released in v1.3.0 (when it was written, `
 workflows on `main` matched that release): the engine runs from a sibling `engine/` checkout, the reviewed head
 is passed as `--repo-dir`, and the agent gets an allowlisted environment. Decisions and their
 reasons are in the ADRs ([0001](adr/0001-distribution-and-trust.md),
-[0002](adr/0002-typescript-on-bun-zero-dependencies.md)); this page is how the system works and
+[0002](adr/0002-typescript-on-bun-zero-dependencies.md), which also lists the few approved dependencies and where they may be imported); this page is how the system works and
 what a change has to keep true. For what to do when something goes wrong, see
 [troubleshooting](troubleshooting.md); for spend, see [costs](costs.md); for how to ask for a
 review, see [reviews](reviews.md).

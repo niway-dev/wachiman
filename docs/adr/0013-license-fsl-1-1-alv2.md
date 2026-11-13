@@ -22,6 +22,11 @@ What was true when this was decided:
 - Every release up to v1.3.0 shipped a `LICENSE` that said "version 3 … or any later version",
   while `package.json` said `AGPL-3.0-only`.
 
+Since 2026-11-13 the package also depends on `chalk` and `@clack/prompts` (ADR 0002, amendment
+2026-11-13), which only the terminal screens load. They and the packages they pull in
+(`@clack/core`, `sisteransi`, `fast-string-width`, `fast-string-truncated-width`, `fast-wrap-ansi`)
+are MIT-licensed, per each package's `package.json`, so the license choice still holds.
+
 ## Decision
 
 1. **New versions are licensed under the Functional Source License, Version 1.1, ALv2 Future

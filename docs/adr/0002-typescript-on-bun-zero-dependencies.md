@@ -71,3 +71,44 @@ The npm package `wachiman` declares exactly one runtime dependency: the official
 pinned to one version, so that npm installs the runtime ([ADR 0028](0028-the-npm-package-installs-bun-itself-behind-a-node-launcher-and-no-windows-executable.md)).
 Everything else stays as decided: the engine has no dependency of its own, and the statements above
 that `package.json` declares none now read "none besides `bun`".
+
+## Amendment 2026-11-13
+
+The owner changed the rule for libraries. Where the 2026-10-31 amendment let a dependency in after a
+measured experiment, the rule is now: **no libraries unless the owner explicitly asks for one.** An
+agent never adds a dependency on its own judgment, however small, and a request in a session is
+recorded here before the code that uses it merges. Vendored artefacts keep the hash-and-manifest
+condition of the 2026-10-31 amendment.
+
+Each approval is a line in the table below: the package, one exact version (no range), why the
+owner asked for it, and where it may be imported. A future approval adds a line; nothing else
+grants a dependency. Statements above that `package.json` declares "none" or "none besides `bun`"
+now read "none beyond this table".
+
+| Package | Version | Why | Where it may be imported |
+| --- | --- | --- | --- |
+| `bun` | 1.3.4 | The runtime, installed by npm so `npm i -g wachiman` works ([ADR 0028](0028-the-npm-package-installs-bun-itself-behind-a-node-launcher-and-no-windows-executable.md)) | Nowhere: `bin/wachiman.js` runs it, no source file imports it |
+| `chalk` | 5.6.2 | Colors for the interactive and help screens, in place of hand-written escape codes | Files under `src/wizard/` only (`style.ts`) |
+| `@clack/prompts` | 1.9.0 | The prompt screens (intro, select, text, confirm, spinner, note) of the launcher, `init` and `setup`, in place of hand-rolled arrow-key rendering. Its own packages (`@clack/core`, `sisteransi`, `fast-string-width`, `fast-string-truncated-width`, `fast-wrap-ansi`) resolve at install time within its own version ranges; `bun.lock` is not committed | Files under `src/wizard/` only (`ui.ts`, through a dynamic `import()`) |
+
+The dependency stays out of the code that sees the key, and out of GitHub Actions:
+
+- The review engine, the providers and every other module outside `src/wizard/` never import
+  `chalk` or `@clack/*`, directly or through another module. `test/dependencies.test.ts` fails
+  when they do, and when anything reachable by static imports from `src/cli.ts` does.
+- `src/help.ts`, `src/init/` and `src/setup/` reach the packages only through `src/wizard/`, and
+  `src/cli.ts` loads that code with a dynamic `import()` after it knows a terminal is attached.
+  Actions run `bun src/cli.ts review ...` with no `node_modules` and consumer repositories copy
+  the engine, so `review`, `comment`, `threads` and `reset-confidence` must keep working in a
+  checkout where neither package is installed. A clone that never ran `bun install` still runs
+  every command; only a terminal screen reports that the packages are missing, and `--yes` or flags
+  skip it.
+- `scripts/verify-package.sh` installs the packed tarball and loads the real packages from it.
+
+`chalk` does not read `NO_COLOR` on its own (checked on 5.6.2 and 6.0.1). `src/wizard/style.ts`
+decides the color level (terminal, `NO_COLOR` non-empty, `TERM=dumb`) and hands chalk that level, so
+the packages never decide whether color is allowed.
+
+**Reopen if** a listed package has a vulnerability or a malicious release (remove or pin past it),
+if its license stops fitting the FSL terms of [ADR 0013](0013-license-fsl-1-1-alv2.md), or if the
+terminal screens are no longer worth carrying a dependency tree.

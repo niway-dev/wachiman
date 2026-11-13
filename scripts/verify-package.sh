@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Install the packed tarball the way a user would and check that it runs. No model call and no
-# registry write. The package depends on the npm package `bun`, so the default and `--without-bun`
-# checks install a copy of the tarball with that one `dependencies` entry removed (npm cannot omit a
-# regular dependency), offline, from an empty cache, with the registry on a closed port and with
-# --ignore-scripts: that is what an `--ignore-scripts` install leaves, a stub where Bun should be,
-# and the stub is created here. Only `--bundled-bun` reads the registry, for the real dependency.
+# registry write. The package depends on the npm package `bun` (ADR 0028) and on `chalk` and
+# `@clack/prompts` (ADR 0002, amendment 2026-11-13), so the default and `--without-bun` checks install
+# a copy of the tarball with its `dependencies` removed (npm cannot omit a regular dependency),
+# offline, from an empty cache, with the registry on a closed port and with --ignore-scripts: that is
+# what an `--ignore-scripts` install leaves, a stub where Bun should be, and the stub is created here.
+# The terminal-screen packages are copied in from this checkout's node_modules (run `bun install`
+# first), exactly the files npm would have placed. Only `--bundled-bun` reads the registry, for the
+# real dependencies.
 #
 #   scripts/verify-package.sh [--tarball FILE]   with Bun on PATH: stub bundled Bun falls back to it; version, npm exec, doctor, isolation
 #   scripts/verify-package.sh --without-bun      no Bun on PATH, bundled Bun missing or a stub: the launcher exits 2 with the Bun message
 #   scripts/verify-package.sh --bundled-bun      needs network: `npm install -g <tarball>` with its real dependencies, only node on PATH:
 #                                                the launcher runs the Bun that npm installed
 #
-# Needs bash, node, npm and tar. Run it from a checkout (it packs the checkout unless --tarball is given).
+# Needs bash, node, npm and tar. Run it from a checkout with `bun install` done (it packs the checkout
+# unless --tarball is given).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -52,15 +56,53 @@ mkdir "$nobun"
 ln -s "$(command -v node)" "$nobun/node"
 BUN_LINE="wachiman needs Bun 1.3 or later: https://bun.sh"
 
+# The packages of the terminal screens, with what they need (the closure of the two dependencies).
+UI_PACKAGES=("@clack/core" "@clack/prompts" chalk fast-string-truncated-width fast-string-width fast-wrap-ansi sisteransi)
+# Copies them from this checkout into <dest>/node_modules, the way npm would have laid them out.
+copy_ui_packages() {
+  local dest="$1" pkg
+  for pkg in "${UI_PACKAGES[@]}"; do
+    [[ -f "$root/node_modules/$pkg/package.json" ]] || fail "$pkg is not installed in $root/node_modules: run \`bun install\` first"
+    mkdir -p "$dest/node_modules/$(dirname "$pkg")"
+    cp -R "$root/node_modules/$pkg" "$dest/node_modules/$pkg"
+  done
+}
+# Loads the real chalk and Clack through the installed copy, with the given Bun, and checks that
+# color follows NO_COLOR and that Clack draws into a stream. No terminal is needed.
+ui_check() {
+  cat >"$work/ui-check.ts" <<'CHECK'
+import { PassThrough } from "node:stream";
+const installed = process.argv[2];
+const { loadUi } = await import(`${installed}/src/wizard/ui.ts`);
+const { terminalStyle } = await import(`${installed}/src/wizard/style.ts`);
+const out = new PassThrough();
+let text = "";
+out.on("data", (chunk) => (text += String(chunk)));
+const ui = await loadUi({ input: new PassThrough(), output: out });
+ui.intro("wachiman");
+ui.note("body", "Title");
+ui.outro("bye");
+if (!text.includes("wachiman") || !text.includes("Title") || !text.includes("bye")) throw new Error(`Clack drew nothing usable: ${JSON.stringify(text)}`);
+const colored = terminalStyle({ isTTY: true }, { TERM: "xterm" })("x", "brand");
+const quiet = terminalStyle({ isTTY: true }, { TERM: "xterm", NO_COLOR: "1" })("x", "brand");
+if (!colored.includes("\x1b[") || quiet !== "x") throw new Error(`color: ${JSON.stringify({ colored, quiet })}`);
+console.log("ui-ok");
+CHECK
+  local got
+  got="$(cd "$work" && "$1" --no-env-file "$work/ui-check.ts" "$installed")" || fail "the terminal screens did not load from the installed copy"
+  [[ "$got" == "ui-ok" ]] || fail "the terminal screens check printed '$got'"
+  ok "terminal screens: chalk and @clack/prompts load from the installed copy and NO_COLOR is honored"
+}
+
 prefix="$work/prefix"
 if [[ "$bundled_bun" == 1 ]]; then
   # The real thing: the dependency and its postinstall come from the registry (network needed).
   npm install --global --prefix "$prefix" --no-audit --no-fund "$tarball" >/dev/null
 else
-  # The tarball without its one dependency: unpack, drop `dependencies`, repack.
+  # The tarball without its dependencies: unpack, drop `dependencies`, repack.
   mkdir "$work/unpacked"
   tar -xzf "$tarball" -C "$work/unpacked"
-  node -e 'const fs=require("fs"),f=process.argv[1]+"/package/package.json",p=JSON.parse(fs.readFileSync(f,"utf8"));if(!p.dependencies||Object.keys(p.dependencies).join()!=="bun")throw new Error("expected exactly the bun dependency, found "+JSON.stringify(p.dependencies));delete p.dependencies;fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n")' "$work/unpacked"
+  node -e 'const fs=require("fs"),f=process.argv[1]+"/package/package.json",p=JSON.parse(fs.readFileSync(f,"utf8"));if(!p.dependencies||Object.keys(p.dependencies).sort().join()!=="@clack/prompts,bun,chalk")throw new Error("expected exactly @clack/prompts, bun and chalk as dependencies, found "+JSON.stringify(p.dependencies));delete p.dependencies;fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n")' "$work/unpacked"
   tar -czf "$work/wachiman-nodeps.tgz" -C "$work/unpacked" package
   npm install --global --prefix "$prefix" --offline --registry "$dead_registry" --ignore-scripts --no-audit --no-fund "$work/wachiman-nodeps.tgz" >/dev/null
 fi
@@ -70,7 +112,7 @@ version="$(node -p 'require(process.argv[1]).version' "$installed/package.json")
 if [[ "$bundled_bun" == 1 ]]; then
   ok "npm i -g of the tarball installed wachiman $version and its dependencies"
 else
-  ok "npm i -g of the tarball (without its bun dependency) installed wachiman $version without a registry"
+  ok "npm i -g of the tarball (without its dependencies) installed wachiman $version without a registry"
 fi
 
 bin="$prefix/bin"
@@ -81,6 +123,7 @@ if [[ "$bundled_bun" == 1 ]]; then
   [[ -n "$bundled" ]] || fail "the bun dependency was not installed under $prefix"
   bundled_version="$("$bundled" --version)" || fail "the bundled bun.exe did not run: its postinstall may not have run"
   ok "the bundled Bun runs: $bundled_version"
+  ui_check "$bundled"
   got="$(PATH="$nobun" "$bin/wachiman" --version)" || fail "wachiman did not run with only node on PATH"
   [[ "$got" == "$version" ]] || fail "wachiman --version printed '$got', expected '$version'"
   ok "only node on PATH: wachiman --version -> $got, through the bundled Bun"
@@ -114,6 +157,7 @@ if [[ "$without_bun" == 1 ]]; then
 fi
 
 command -v bun >/dev/null || fail "bun is not on PATH (use --without-bun to check that case)"
+copy_ui_packages "$installed"
 
 # The bundled Bun is a stub here (--ignore-scripts), so every run below also proves the fallback to PATH.
 stub_bun
@@ -121,6 +165,7 @@ stub_bun
 got="$("$bin/wachiman" --version)"
 [[ "$got" == "$version" ]] || fail "wachiman --version printed '$got', expected '$version'"
 ok "wachiman --version -> $got (bundled Bun is a stub, so the Bun on PATH ran)"
+ui_check bun
 
 # An npm exec run that can only succeed from an installed copy: the tarball goes into a project's
 # node_modules, the registry is a closed port and the cache is empty, so a registry download
@@ -131,6 +176,7 @@ mkdir "$project"
   cd "$project"
   npm init -y >/dev/null
   npm install --offline --registry "$dead_registry" --ignore-scripts --no-audit --no-fund "$work/wachiman-nodeps.tgz" >/dev/null
+  copy_ui_packages "$project"
   got="$(npm exec --offline --registry "$dead_registry" -- wachiman --version)"
   [[ "$got" == "$version" ]] || { echo "FAIL  npm exec wachiman --version printed '$got'" >&2; exit 1; }
 )

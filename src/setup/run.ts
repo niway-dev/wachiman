@@ -22,15 +22,15 @@ import {
   type InteractiveSpawn,
 } from "../accounts/commands";
 import { updateConfig, wachimanHome, type ProfileEntry, type ProjectBinding, type WachimanConfigV1 } from "../accounts/config";
-import { confirmProfile } from "../accounts/confirm";
+import { confirmProfile, confirmProfileAsync, type AsyncSpawnFn } from "../accounts/confirm";
 import { managedDir } from "../accounts/profile-list";
 import { lookupProfileRef, profileLine } from "../accounts/resolve";
 import { UsageError } from "../config";
 import { repositoryKey } from "../history/store";
 import { claimManagedProfile, setupProfile } from "../profiles";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
-import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
-import { wizardIo } from "../wizard/style";
+import { loadTerminalUi } from "../wizard/load";
+import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
 import { resolveSetupOptions, type RawSetupFlags } from "./options";
 import { promptForSetup, type PendingProfile } from "./prompt";
 
@@ -43,6 +43,8 @@ export interface SetupDeps extends AccountDeps {
   unboundHints?: readonly string[];
   streams?: TerminalStreams;
   promptIO?: PromptIO;
+  /** The asynchronous probe of the account, for a test; the default runs `claude` without blocking the terminal. */
+  spawnAsync?: AsyncSpawnFn;
   /** An open prompt session (shared with `init`); the caller closes it. */
   prompter?: Prompter;
 }
@@ -59,7 +61,6 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   }
 
   const repoDir = flags.repoDir ?? ".";
-  io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env);
   const home = wachimanHome(env);
   const userHome = deps.userHome ?? homedir();
   const now = deps.now ?? (() => new Date().toISOString());
@@ -73,8 +74,11 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (!found.ok) throw new UsageError(found.problem);
   }
 
-  const prompter = deps.prompter ?? createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env);
+  // The terminal UI (chalk and Clack) is loaded only when questions are asked.
+  const ui = await loadTerminalUi();
+  const prompter = deps.prompter ?? (await ui.openPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env));
   const ownsPrompter = deps.prompter === undefined;
+  io = ui.wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env, prompter);
   /** What already happened on disk or in Claude and cannot be rolled back; reported whenever the run ends early. */
   const effects: string[] = [];
   const reportEffects = () => {
@@ -108,7 +112,12 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     }
   };
 
+  let outcome: Outcome = "failed";
+  let closing: string | undefined;
   try {
+    // Only the command that opened the session plays the intro; `init` already did when it hands over,
+    // and so did the launcher (it marks WACHIMAN_INTRO_DONE, which `prompter.intro` honors).
+    if (ownsPrompter) await prompter.intro(deps.doctor?.version ?? "unknown", "Let's choose which Claude account stands guard.");
     let answers;
     try {
       answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged, fromInit: deps.fromInit, initMode: deps.initMode }, prompter);
@@ -121,12 +130,15 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
       io.stderr("cancelled: no configuration changes saved.");
       reportEffects();
       for (const hint of deps.unboundHints ?? []) io.stderr(`Next, on this machine: ${hint}   (binds this repository to a Claude account)`);
+      outcome = "cancelled";
       return 130;
     }
     if (answers.kind === "declined") {
       io.stderr("nothing saved: the configuration is unchanged.");
       reportEffects();
       for (const hint of deps.unboundHints ?? []) io.stderr(`Next, on this machine: ${hint}   (binds this repository to a Claude account)`);
+      outcome = "done";
+      closing = "Nothing was saved.";
       return 0;
     }
     const resolved = resolveSetupOptions(answers.flags, { interactive: true });
@@ -147,10 +159,12 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (!found.ok) throw new UsageError(found.problem);
     const resolvedProfile = { profile: found.profile, rung: "binding" as const, overridden: [] };
     io.stderr(profileLine(resolvedProfile));
-    const probe = () => confirmProfile(resolvedProfile, env, deps.spawn, deps.doctor?.confirmIo);
-    // The probes block while claude runs; an Enter typed meanwhile must not reach "Sign in now?" through a live readline.
+    // The real probe is asynchronous, so the spinner turns while `claude` runs; a test's fake `spawn` is synchronous and is called as it always was.
+    const probe = () =>
+      deps.spawn ? confirmProfile(resolvedProfile, env, deps.spawn, deps.doctor?.confirmIo) : confirmProfileAsync(resolvedProfile, env, deps.spawnAsync, deps.doctor?.confirmIo);
+    // An Enter typed meanwhile must not reach "Sign in now?" through a live readline.
     prompter.suspend();
-    let status = probe();
+    let status = await prompter.task("Checking your Claude account", probe, (s) => s.ok);
     const signedOut = !status.ok && status.stage === "auth" && status.auth !== undefined && status.auth.exitCode !== 0;
     // True once the user was told the account state in its own words, so the generic warning would repeat it.
     let explained = false;
@@ -159,6 +173,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
       const answer = await prompter.confirm("Sign in now?", true);
       if (answer === null) {
         io.stderr(`cancelled: the binding of ${repo.name} to ${name} was saved and stays; you are not signed in (run \`wachiman profile login ${name}\`).`);
+        outcome = "cancelled";
         return 130;
       }
       if (answer) {
@@ -166,9 +181,10 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
         const code = runProfile({ kind: "login", profile: name }, env, io, { ...deps, interactive: true, interactiveSpawn: deps.interactiveSpawn });
         if (code === 130) {
           io.stderr(`cancelled: the binding of ${repo.name} to ${name} was saved and stays.`);
+          outcome = "cancelled";
           return 130;
         }
-        status = probe();
+        status = await prompter.task("Checking your Claude account", probe, (s) => s.ok);
       } else {
         io.stderr(`not signed in: run \`wachiman profile login ${name}\` before \`wachiman local\`.`);
         explained = true;
@@ -181,9 +197,10 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     prompter.step("Checks and next actions", total, total);
     const code = closeSetup(repoDir, env, io, deps);
     if (flags.json) io.stdout(`${JSON.stringify(projectShow(repoDir, env, deps), null, 2)}\n`);
+    outcome = code === 0 ? "done" : code === 130 ? "cancelled" : "failed";
     return code;
   } finally {
-    if (ownsPrompter) prompter.close();
+    if (ownsPrompter) prompter.close(outcome, closing);
   }
 }
 

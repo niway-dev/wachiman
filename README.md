@@ -120,7 +120,7 @@ same material, in this repository:
 
 Design decisions are recorded as ADRs in [docs/adr/](docs/adr/), starting with
 [ADR 0001: distribution and trust](docs/adr/0001-distribution-and-trust.md) and
-[ADR 0002: TypeScript on Bun, no runtime dependencies besides Bun itself](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
+[ADR 0002: TypeScript on Bun, no libraries unless the owner asks for one](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
 
 ## What a pull request review looks like
 

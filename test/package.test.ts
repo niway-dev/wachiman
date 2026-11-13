@@ -31,9 +31,9 @@ describe("package.json", () => {
     expect(pkg.engines).toEqual({ bun: ">=1.3", node: ">=20" });
   });
 
-  test("depends on the official npm package bun at one exact version, and on nothing else (ADR 0028)", () => {
-    expect(Object.keys(pkg.dependencies)).toEqual(["bun"]);
-    expect(pkg.dependencies.bun).toMatch(/^\d+\.\d+\.\d+$/);
+  test("depends on bun (ADR 0028), chalk and @clack/prompts (ADR 0002, amendment 2026-11-13), each at one exact version, and on nothing else", () => {
+    expect(Object.keys(pkg.dependencies).sort()).toEqual(["@clack/prompts", "bun", "chalk"]);
+    for (const version of Object.values<string>(pkg.dependencies)) expect(version).toMatch(/^\d+\.\d+\.\d+$/);
     for (const key of ["optionalDependencies", "peerDependencies", "bundledDependencies", "bundleDependencies"]) expect(pkg[key]).toBeUndefined();
   });
 

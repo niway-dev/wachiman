@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { buildChildEnv } from "../providers/claude-code";
-import { confirmProfile, type ConfirmIo, type SpawnFn } from "./confirm";
+import { confirmProfile, confirmProfileAsync, defaultAsyncSpawn, type ConfirmIo, type SpawnFn } from "./confirm";
 import type { ResolvedProfile } from "./resolve";
 
 const DIR = "/Users/me/.claude-work-a";
@@ -215,5 +215,66 @@ describe("confirmProfile", () => {
     const result = confirmProfile(managed, ENV, f.spawn, io().impl);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.auth?.networkObserved).toBe("unknown");
+  });
+});
+
+describe("confirmProfileAsync", () => {
+  test("gives the same answer and runs the same processes as confirmProfile, without blocking", async () => {
+    for (const auth of [{ stdout: signedIn() }, { status: 1, stdout: "{}" }, { stdout: signedIn({ authMethod: "api_key" }) }]) {
+      const sync = fake({ auth });
+      const expected = confirmProfile(external({ binary: BIN }), ENV, sync.spawn, io().impl);
+      const syncCalls = sync.calls.map((c) => c.args); // what the blocking version ran, before the async one reuses the fake
+      const calls: string[][] = [];
+      const asyncSpawn = async (...args: Parameters<SpawnFn>) => {
+        await new Promise((r) => setTimeout(r, 1)); // the event loop turns while `claude` runs
+        calls.push(args[1]);
+        return sync.spawn(...args);
+      };
+      const result = await confirmProfileAsync(external({ binary: BIN }), ENV, asyncSpawn, io().impl);
+      expect(result).toEqual(expected);
+      expect(calls).toEqual(syncCalls);
+    }
+  });
+
+  test("stops at the same stage when the binary is missing", async () => {
+    const nope = io({ isExecutableFile: () => false });
+    const f = fake();
+    const result = await confirmProfileAsync(external({ binary: BIN }), ENV, async (...a) => f.spawn(...a), nope.impl);
+    expect(result).toMatchObject({ ok: false, stage: "binary" });
+    expect(f.calls.length).toBe(0);
+  });
+});
+
+describe("defaultAsyncSpawn", () => {
+  const options = (over: Partial<Parameters<SpawnFn>[2]> = {}): Parameters<SpawnFn>[2] => ({
+    cwd: process.cwd(),
+    env: { PATH: process.env.PATH ?? "" },
+    timeout: 10_000,
+    maxBuffer: 1_000_000,
+    shell: false,
+    encoding: "utf8",
+    ...over,
+  });
+
+  test("collects stdout, stderr and the exit status", async () => {
+    const r = await defaultAsyncSpawn(process.execPath, ["-e", "console.log('out'); console.error('err'); process.exit(3)"], options());
+    expect(r).toMatchObject({ status: 3, stdout: "out\n", stderr: "err\n" });
+    expect(r.error).toBeUndefined();
+  });
+
+  test("a process that outlives the timeout is killed and reports ETIMEDOUT", async () => {
+    const r = await defaultAsyncSpawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], options({ timeout: 100 }));
+    expect((r.error as NodeJS.ErrnoException | undefined)?.code).toBe("ETIMEDOUT");
+  });
+
+  test("output past maxBuffer reports ENOBUFS", async () => {
+    const r = await defaultAsyncSpawn(process.execPath, ["-e", "process.stdout.write('x'.repeat(5000)); setTimeout(() => {}, 30000)"], options({ maxBuffer: 100 }));
+    expect((r.error as NodeJS.ErrnoException | undefined)?.code).toBe("ENOBUFS");
+  });
+
+  test("a binary that does not exist reports the spawn error, not a crash", async () => {
+    const r = await defaultAsyncSpawn("/nonexistent/claude", [], options());
+    expect(r.status).toBeNull();
+    expect((r.error as NodeJS.ErrnoException | undefined)?.code).toBe("ENOENT");
   });
 });

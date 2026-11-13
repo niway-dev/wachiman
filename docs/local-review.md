@@ -57,7 +57,9 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 - Claude Code (`claude` on your `PATH`), signed in. The local mode was exercised with Claude Code
   2.1.311 (see section 7).
 - The engine: the npm package `wachiman` (Node 20 or later runs its launcher) or a clone of this
-  repository. A clone needs no `bun install`: the engine has no dependencies of its own.
+  repository. The engine itself has no dependencies, so every command runs in a clone without `bun install`; only
+  the interactive screens (the launcher menu, `init` and `setup` prompts, colored help) need the packages in
+  `package.json` (`chalk`, `@clack/prompts`), and a clone without them says so and still takes flags.
 
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
 local mode refuses to start: with a key present `claude -p` would bill the key.
@@ -72,7 +74,9 @@ npm i -g wachiman          # or: bun add -g wachiman; or, without installing: np
 wachiman --version
 ```
 
-The package contains the TypeScript source, the skills and the templates, and one dependency: the
+The package contains the TypeScript source, the skills and the templates, and three dependencies, each pinned to an exact version
+([ADR 0002](adr/0002-typescript-on-bun-zero-dependencies.md), amendment 2026-11-13): `chalk` and `@clack/prompts` for the
+interactive screens (a few small packages, loaded only when a terminal screen opens), and the
 official npm package [`bun`](https://www.npmjs.com/package/bun) (published by oven-sh, maintainers
 jarred and robobun, source [oven-sh/bun](https://github.com/oven-sh/bun)), pinned to an exact
 version. Installing `wachiman` therefore downloads Bun: measured for Bun 1.3.4, 23 MB (macOS arm64)
@@ -184,7 +188,7 @@ GitHub or both. GitHub setup leaves secret creation and workflow submission as m
 
 Escape, Ctrl-C or EOF cancels with exit 130. A confirmed directory creation, login, workflow
 write or binding is reported accurately if a later stage is cancelled. Re-running keeps the
-existing binding selected. Use `NO_COLOR=1` for plain output; Windows suggestions name their
+existing binding selected. Use `NO_COLOR=1` for plain output (it also turns off the colors of the interactive screens, and `WACHIMAN_NO_ANIMATION=1` stops the typed line of the intro); Windows suggestions name their
 shell. In scripts use `wachiman setup --profile default --yes` (or a registered profile): no
 prompt is shown, and `--profile` is required.
 

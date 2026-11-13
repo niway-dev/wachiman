@@ -146,30 +146,4 @@ describe("a terminal", () => {
       p.close();
     }
   });
-
-  test("Backspace redraws the line with the question still in front of it", async () => {
-    // readline intentionally disables ANSI editing under TERM=dumb. This fixture
-    // models a capable terminal, independently of the shell running the suite.
-    const previousTerm = process.env.TERM;
-    process.env.TERM = "xterm-256color";
-    const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: () => input });
-    const output = Object.assign(new PassThrough(), { isTTY: true, columns: 80 });
-    let written = "";
-    output.on("data", (d) => (written += d.toString()));
-    const p = createPrompter({ input, output } as never);
-    try {
-      const answer = p.text("Name", undefined);
-      input.write("abc");
-      input.write("\x7f");
-      await new Promise((r) => setTimeout(r, 20));
-      const afterClear = written.slice(written.lastIndexOf("\x1b[0J"));
-      expect(afterClear).toContain("Name: ab");
-      input.write("\r");
-      expect(await answer).toBe("ab");
-    } finally {
-      p.close();
-      if (previousTerm === undefined) delete process.env.TERM;
-      else process.env.TERM = previousTerm;
-    }
-  });
 });
