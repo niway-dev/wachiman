@@ -142,7 +142,8 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
       const claudePrefixProblem = (v: string) => {
         if (!v.startsWith("claude-")) return undefined;
         const bare = v.slice("claude-".length);
-        const usable = bare !== "default" && !registered(bare) && problemOf(() => checkProfileName(bare)) === undefined;
+        if (registered(bare)) return `The directory is already named claude-<name>, and "${bare}" is registered: pick it from the list instead.`;
+        const usable = bare !== "default" && problemOf(() => checkProfileName(bare)) === undefined;
         return usable
           ? `The directory is already named claude-<name>: type "${bare}" for ${managedDir(home, bare)}.`
           : "The directory is already named claude-<name>: type the name without claude-.";
