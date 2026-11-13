@@ -1,11 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { generateKeyPairSync, sign } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { everythingIn, readCurlConfig } from "./fixtures/curl-config";
 import {
   LedgerNotPermitted,
   LedgerRefused,
   LedgerBadAnswer,
   LedgerUnavailable,
   canonicalReceipt,
+  curlConfig,
+  defaultCurl,
   readReceipt,
   receiptFooter,
   record,
@@ -20,26 +26,28 @@ import {
 /** A scripted curl: records every call and answers with a body and an HTTP status. */
 function fakeCurl(status: number, body: string, exit = 0) {
   const calls: string[][] = [];
-  const curl: CurlFn = (args) => {
+  const stdins: (string | undefined)[] = [];
+  const curl: CurlFn = (args, stdin) => {
     calls.push(args);
+    stdins.push(stdin);
     return { status: exit, stdout: exit === 0 ? `${body}\n${status}` : "", stderr: exit === 0 ? "" : "curl: (7) Failed to connect" };
   };
-  return { curl, calls };
+  return { curl, calls, stdins };
 }
 
-const header = (args: string[], name: string) => args.find((a, i) => args[i - 1] === "-H" && a.startsWith(`${name}:`));
+const header = (stdin: string | undefined, name: string) => readCurlConfig(stdin).headers.find((h) => h.startsWith(`${name}:`));
 const urlOf = (args: string[]) => args[args.length - 1]!;
-const bodyOf = (args: string[]) => args[args.indexOf("--data") + 1]!;
+const bodyOf = (stdin: string | undefined) => readCurlConfig(stdin).data!;
 
 const receipt: Receipt = { account: "acct", repository: "o/r", run_id: "42", usd: 1.25, day: "2026-11-06" };
 
 describe("requestIdToken", () => {
   test("sends the bearer and the audience, returns the token value", () => {
-    const { curl, calls } = fakeCurl(200, JSON.stringify({ value: "jwt.token.here" }));
+    const { curl, calls, stdins } = fakeCurl(200, JSON.stringify({ value: "jwt.token.here" }));
     const env = { ACTIONS_ID_TOKEN_REQUEST_URL: "https://actions.example/token?api=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "req-secret" };
     expect(requestIdToken(env, "https://ledger.example/", curl)).toBe("jwt.token.here");
     expect(urlOf(calls[0]!)).toBe("https://actions.example/token?api=1&audience=https%3A%2F%2Fledger.example%2F");
-    expect(header(calls[0]!, "Authorization")).toBe("Authorization: Bearer req-secret");
+    expect(header(stdins[0], "Authorization")).toBe("Authorization: Bearer req-secret");
   });
 
   test("without id-token: write it throws LedgerNotPermitted (not an outage) naming the permission", () => {
@@ -75,11 +83,11 @@ describe("reserve", () => {
   const ok = { reservationId: "r1", grantedUsd: 2, accountLeftUsd: 4, repositoryLeftUsd: null, day: "2026-11-06", week: "2026-11-02", weekLeftUsd: null };
 
   test("posts the JSON body to one-slash /v1/reserve with the bearer; a 200 maps to Reservation", () => {
-    const { curl, calls } = fakeCurl(200, JSON.stringify(ok));
+    const { curl, calls, stdins } = fakeCurl(200, JSON.stringify(ok));
     expect(reserve("https://ledger.example", "tok", req, curl)).toEqual(ok);
     expect(urlOf(calls[0]!)).toBe("https://ledger.example/v1/reserve");
-    expect(header(calls[0]!, "Authorization")).toBe("Authorization: Bearer tok");
-    expect(JSON.parse(bodyOf(calls[0]!))).toEqual({
+    expect(header(stdins[0], "Authorization")).toBe("Authorization: Bearer tok");
+    expect(JSON.parse(bodyOf(stdins[0]))).toEqual({
       wantedUsd: 3,
       callerLimitUsd: 2,
       callerWeeklyLimitUsd: 9,
@@ -98,9 +106,9 @@ describe("reserve", () => {
   });
 
   test("omits the caller limits and the pull request when unset", () => {
-    const { curl, calls } = fakeCurl(200, JSON.stringify(ok));
+    const { curl, stdins } = fakeCurl(200, JSON.stringify(ok));
     reserve("https://ledger.example", "tok", { wantedUsd: 3, trigger: "cli", forced: true }, curl);
-    expect(JSON.parse(bodyOf(calls[0]!))).toEqual({ wantedUsd: 3, trigger: "cli", forced: true });
+    expect(JSON.parse(bodyOf(stdins[0]))).toEqual({ wantedUsd: 3, trigger: "cli", forced: true });
   });
 
   test("a refusal throws LedgerRefused with the documented fields", () => {
@@ -200,10 +208,10 @@ const CALL = {
 
 describe("settle", () => {
   test("returns the receipt and the signature; the body is the reservation, the amount and the calls", () => {
-    const { curl, calls } = fakeCurl(200, JSON.stringify({ receipt, signature: "c2ln" }));
+    const { curl, calls, stdins } = fakeCurl(200, JSON.stringify({ receipt, signature: "c2ln" }));
     expect(settle("https://ledger.example/", "tok", "r1", 1.25, [CALL], curl)).toEqual({ receipt, signature: "c2ln" });
     expect(urlOf(calls[0]!)).toBe("https://ledger.example/v1/settle");
-    expect(JSON.parse(bodyOf(calls[0]!))).toEqual({ reservationId: "r1", spentUsd: 1.25, calls: [CALL] });
+    expect(JSON.parse(bodyOf(stdins[0]))).toEqual({ reservationId: "r1", spentUsd: 1.25, calls: [CALL] });
   });
 
   test("a 404 is a bad answer, a 503 an outage", () => {
@@ -214,10 +222,10 @@ describe("settle", () => {
 
 describe("record", () => {
   test("posts the unreserved run to /v1/record", () => {
-    const { curl, calls } = fakeCurl(200, JSON.stringify({ id: "x", day: "2026-11-06", week: "2026-11-02" }));
+    const { curl, calls, stdins } = fakeCurl(200, JSON.stringify({ id: "x", day: "2026-11-06", week: "2026-11-02" }));
     record("https://ledger.example", "tok", { spentUsd: 0.5, calls: [CALL], trigger: "opened", pr: 7 }, curl);
     expect(urlOf(calls[0]!)).toBe("https://ledger.example/v1/record");
-    expect(JSON.parse(bodyOf(calls[0]!))).toEqual({ spentUsd: 0.5, calls: [CALL], trigger: "opened", pr: 7, reason: "unreserved" });
+    expect(JSON.parse(bodyOf(stdins[0]))).toEqual({ spentUsd: 0.5, calls: [CALL], trigger: "opened", pr: 7, reason: "unreserved" });
   });
 
   test("anything but a 200 throws: a 5xx or a failed connection LedgerUnavailable, a 404 a bad answer", () => {
@@ -277,5 +285,79 @@ describe("a receipt signed by the ledger", () => {
     const { receipt, signature, pem } = LEDGER_SIGNED;
     expect(verifyReceipt(receipt, signature, pem)).toBe(true);
     expect(verifyReceipt({ ...receipt, usd: 0.43 }, signature, pem)).toBe(false);
+  });
+});
+
+describe("secrets and payloads stay out of the argument list", () => {
+  const TOKEN_ENV = { ACTIONS_ID_TOKEN_REQUEST_URL: "https://actions.example/token?api=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "REQUEST-SECRET" };
+  const ID_TOKEN = "ID-TOKEN-SECRET";
+  const reserveBody = { wantedUsd: 3, trigger: "opened", forced: false, pr: 7 };
+
+  test("the request token, the id token and every body reach curl on stdin only, on all four calls", () => {
+    const token = fakeCurl(200, JSON.stringify({ value: ID_TOKEN }));
+    requestIdToken(TOKEN_ENV, "https://ledger.example", token.curl);
+    const reserved = fakeCurl(200, JSON.stringify({ reservationId: "r1", grantedUsd: 2, accountLeftUsd: 4, day: "d", week: "w" }));
+    reserve("https://ledger.example", ID_TOKEN, reserveBody, reserved.curl);
+    const settled = fakeCurl(200, JSON.stringify({ receipt, signature: "c2ln" }));
+    settle("https://ledger.example", ID_TOKEN, "r1", 1.25, [CALL], settled.curl);
+    const recorded = fakeCurl(200, "{}");
+    record("https://ledger.example", ID_TOKEN, { spentUsd: 0.5, calls: [CALL], trigger: "opened", pr: 7 }, recorded.curl);
+
+    for (const { calls, stdins } of [token, reserved, settled, recorded]) {
+      expect(calls).toHaveLength(1);
+      const argv = calls[0]!.join("\n");
+      for (const secret of ["REQUEST-SECRET", ID_TOKEN, "Bearer", "wantedUsd", "reservationId", "spentUsd", CALL.label]) expect(argv).not.toContain(secret);
+      expect(argv).toContain("--config\n-");
+      expect(stdins[0]).toBeDefined();
+      expect(everythingIn(calls[0]!, stdins[0])).toContain("Authorization: Bearer");
+    }
+    // The same bytes still reach the request.
+    expect(header(token.stdins[0], "Authorization")).toBe("Authorization: Bearer REQUEST-SECRET");
+    expect(header(reserved.stdins[0], "Authorization")).toBe(`Authorization: Bearer ${ID_TOKEN}`);
+    expect(readCurlConfig(reserved.stdins[0]).headers).toContain("Content-Type: application/json");
+    expect(bodyOf(reserved.stdins[0])).toBe(JSON.stringify(reserveBody));
+    expect(bodyOf(settled.stdins[0])).toBe(JSON.stringify({ reservationId: "r1", spentUsd: 1.25, calls: [CALL] }));
+    expect(bodyOf(recorded.stdins[0])).toBe(JSON.stringify({ spentUsd: 0.5, calls: [CALL], trigger: "opened", pr: 7, reason: "unreserved" }));
+  });
+
+  test("the configuration escapes what curl would read as syntax, and reads back byte for byte", () => {
+    const nasty = JSON.stringify({ text: 'a "quoted" \\ back\nslash\tand\r\v end', unicode: "ñ 😀 é", at: "@file", hash: "# not a comment" });
+    expect(readCurlConfig(curlConfig([["data", nasty]])).data).toBe(nasty);
+    expect(curlConfig([["header", "A: b"]])).toBe('header = "A: b"\n');
+    expect(curlConfig([["data", 'a"b']]).split("\n")).toHaveLength(2);
+  });
+
+  // The real curl against a real server in another process (this process blocks while curl runs).
+  test("real curl: the server receives the bearer, the content type and a body larger than one argument may be, unchanged", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "ledger-curl-"));
+    const server = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        `const fs = require("node:fs");
+         const s = Bun.serve({ port: 0, hostname: "127.0.0.1", async fetch(req) {
+           const url = new URL(req.url);
+           fs.writeFileSync(${JSON.stringify(dir)} + "/seen.json", JSON.stringify({ path: url.pathname, auth: req.headers.get("authorization"), type: req.headers.get("content-type"), body: await req.text() }));
+           return Response.json({ receipt: ${JSON.stringify(receipt)}, signature: "c2ln" });
+         } });
+         console.log(s.port);`,
+      ],
+      { stdout: "pipe", stderr: "ignore" },
+    );
+    try {
+      const reader = server.stdout.getReader();
+      const port = Number(new TextDecoder().decode((await reader.read()).value).trim());
+      expect(port).toBeGreaterThan(0);
+      const many = Array.from({ length: 700 }, (_, i) => ({ ...CALL, label: `call-${i}-${"x".repeat(200)}` }));
+      const sent = JSON.stringify({ reservationId: "r1", spentUsd: 1.25, calls: many });
+      expect(sent.length).toBeGreaterThan(128 * 1024);
+      const out = settle(`http://127.0.0.1:${port}/`, ID_TOKEN, "r1", 1.25, many, defaultCurl);
+      expect(out.receipt).toEqual(receipt);
+      const seen = JSON.parse(readFileSync(join(dir, "seen.json"), "utf8"));
+      expect(seen).toEqual({ path: "/v1/settle", auth: `Bearer ${ID_TOKEN}`, type: "application/json", body: sent });
+    } finally {
+      server.kill();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
