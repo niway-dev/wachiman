@@ -59,7 +59,7 @@ The bracketed labels are the two seams of [the review core](#the-review-core-and
 All names are in `src/engine.ts` unless a file is given.
 
 1. **Filter.** `listFiles` reads the changed files from GitHub. `lastReviewedSha` finds the last
-   `<!-- agent-review sha=... -->` marker (the old `claude-review` marker is still read) in the
+   `<!-- wachiman sha=... -->` marker (the old `claude-review` marker is still read) in the
    tool's own reviews. A review is the tool's only if `github-actions[bot]` wrote it and it
    carries the `<!-- wachi:review -->` signature, because every workflow of the repository posts
    as that same account. The marker counts only as the last line of the body, right after the
@@ -76,7 +76,7 @@ All names are in `src/engine.ts` unless a file is given.
    ignored with a log line. If every word misses, the scope is empty and the request runs as an
    unscoped review (or, when the head was already reviewed, answers "Already reviewed").
    `filterFiles` then drops `DEFAULT_EXCLUDE` (lockfiles, build output, snapshots, source maps,
-   generated files) plus `AGENT_REVIEW_EXCLUDE`. *Why:* paying a model to read a lockfile buys
+   generated files) plus `WACHIMAN_EXCLUDE`. *Why:* paying a model to read a lockfile buys
    nothing, and re-reading commits it already saw buys less. Binary and very large files are not
    dropped here: GitHub sends no patch for them, and the prompt tells the model to read the file
    itself or record a closed skip reason (`SKIP_REASONS`). The list of changed files comes from
@@ -96,7 +96,7 @@ All names are in `src/engine.ts` unless a file is given.
 
 3. **Batching.** `planBatches` groups files by `moduleKey` so a module's code, tests and docs share
    a call, orders modules by their riskiest file, and packs them into batches of at most
-   `AGENT_REVIEW_BATCH_LINES` changed lines and `AGENT_REVIEW_BATCH_CHARS` characters of diff. A
+   `WACHIMAN_BATCH_LINES` changed lines and `WACHIMAN_BATCH_CHARS` characters of diff. A
    file over either limit gets a batch of its own. Inside a batch, code comes before tests before
    docs. The limits count changed lines and diff characters, not what fits in a model's context, and
    an oversized file is still sent whole. *Why:* a smaller batch is meant to keep the model from
@@ -184,7 +184,7 @@ All names are in `src/engine.ts` unless a file is given.
    asks again once and then reports honestly what the model did and did not claim.
 
 7. **Budget arithmetic.** `review` tracks `spent` across one invocation, adding up the first
-   calls and retries of every batch. Each call is capped at `min(AGENT_REVIEW_BATCH_BUDGET_USD,
+   calls and retries of every batch. Each call is capped at `min(WACHIMAN_BATCH_BUDGET_USD,
    remaining)`. A batch is not started when less than `MIN_BATCH_USD` (0.05) remains; its files are
    listed as "not reached: the pull request's budget was spent". `attempt` catches a call that
    died without a result and counts it at its cap, because what it spent is unknown. The budget is
@@ -208,7 +208,7 @@ All names are in `src/engine.ts` unless a file is given.
    `⚪🏛️ Info · adr` finding for every reviewed file under a `docs/adr/` directory, deduplicated with
    the model's findings the same way.
 
-   **Verification (off by default; on with `AGENT_REVIEW_VERIFY=1`, `verify: true` or `local --verify`).** When on,
+   **Verification (off by default; on with `WACHIMAN_VERIFY=1`, `verify: true` or `local --verify`).** When on,
    `verifyFindings` makes one more call after dedupe ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)).
    `selectCandidates` takes every finding above `info`; `buildVerifyPrompt` (`src/verify.ts`)
    gives each one 15 head lines on each side of its cited line, plus the hunks of the cited files
@@ -271,11 +271,11 @@ All names are in `src/engine.ts` unless a file is given.
 
 9. **The conversation path.** `comment` (called by `src/cli.ts comment`) first runs
    `operatorProblem` (an empty or template-placeholder operator is an error), then ignores a
-   comment whose author is not `AGENT_REVIEW_OPERATOR`, then `parseCommand` looks in the first
+   comment whose author is not `WACHIMAN_OPERATOR`, then `parseCommand` looks in the first
    matching line for the mention (the configured one, `/wachiman` by default, or one of
-   `MENTION_ALIASES`: `/wachiman`, `@agent-review`, `@claude`; the keyword must start a word).
+   `MENTION_ALIASES`: `/wachiman`, `/wachi`, `@claude`; the keyword must start a word).
    `review [paths]` runs the pipeline above; anything else goes to `answer`: one provider call
-   with `AGENT_REVIEW_ANSWER_BUDGET_USD`, free-text output, the pull request metadata, file list
+   with `WACHIMAN_ANSWER_BUDGET_USD`, free-text output, the pull request metadata, file list
    and full diff in a scratch directory, the same leak check, posted as a pull request comment. It
    has no batching, no coverage check and no thread handling.
    *Thread replies.* Two paths, both under ADR 0008 (the model reports, the engine never resolves).
@@ -296,7 +296,7 @@ All names are in `src/engine.ts` unless a file is given.
    run's cost line and the automatic flag. *Why:* the operator gate is enforced twice (workflow and
    CLI) because only one of them can fail loudly.
 
-   *The ceiling.* An automatic run (`AGENT_REVIEW_TRIGGER` other than `comment`) calls `ceilingRoom`
+   *The ceiling.* An automatic run (`WACHIMAN_TRIGGER` other than `comment`) calls `ceilingRoom`
    after the rebase exits and before any batch: `automaticSpend` lists the pull request's reviews and
    inline replies and sums `readAutoCost` over the engine's signed footers, `<sub>…$cost</sub>` then
    `<!-- wachi:auto -->` then the review or reply signature, anchored at the end of the body. Model
@@ -476,7 +476,7 @@ own, which a pull request cannot change. It reads excerpts only from regular fil
 | --- | --- | --- |
 | `review` | `pull_request` (opened, ready for review, and each push when the caller lists `synchronize` and `review_on_push` is not `false`), not a draft, head repository equals the calling repository, actor is not Dependabot | For a push, waits `push_debounce_seconds` first (so a newer push cancels it unspent); checks the operator input, skips branches with a prefix in `skip_branch_prefixes`, then runs `cli.ts review` |
 | `threads` | `pull_request_review_comment` that is a reply (`in_reply_to_id`), author login equals `operator` and is not a bot, head repository equals the calling repository | Checks the operator input, then runs `cli.ts threads` (answers pending Wachiman threads, only on an already reviewed head, counted against `auto_budget_usd`) |
-| `on-demand` | `issue_comment` on a pull request, commenter login equals `operator`, body contains the mention input, `@agent-review` or `@claude` | Checks the operator input, refuses a pull request whose head repository is not the calling repository, then runs `cli.ts comment` |
+| `on-demand` | `issue_comment` on a pull request, commenter login equals `operator`, body contains the mention input, `/wachi` or `@claude` | Checks the operator input, refuses a pull request whose head repository is not the calling repository, then runs `cli.ts comment` |
 
 All have a 30-minute timeout and their own concurrency group per pull request. `review` and
 `on-demand` use `cancel-in-progress: true`; `threads` uses `false`, so a reply never cancels the
@@ -494,7 +494,7 @@ reviews, and one that does not list `pull_request_review_comment` gets no thread
 pinned release is.
 
 **The command gate.** The workflow's `if:` tests that the comment body contains the `mention`
-input, `/wachi` (which also matches `/wachiman`), `@agent-review` or `@claude`, and the parser
+input, `/wachi` (which also matches `/wachiman`), or `@claude`, and the parser
 accepts the same words. The configured mention adds a word; it never removes the others.
 
 **Sibling checkout layout.** The head goes into `head/` with `persist-credentials: false`. The
@@ -513,7 +513,7 @@ working directory, `--no-env-file` and `--config=` (the engine's own minimal `bu
 it with the equals sign, `-c <path>` did not replace the working directory's config in Bun 1.3.4),
 nothing from the head is loaded. `test/bun-isolation.test.ts` checks this with a hostile fixture.
 
-**Environment.** The workflow passes inputs to the engine as `AGENT_REVIEW_*` variables and the
+**Environment.** The workflow passes inputs to the engine as `WACHIMAN_*` variables and the
 comment text as `REQUEST`; untrusted text is never interpolated into a `run:` script. The Claude
 Code adapter builds the agent's environment from `CHILD_ENV_ALLOWLIST` (`PATH`, `HOME`, `TMPDIR`,
 `TERM`, `LANG`, `LC_*`, `ANTHROPIC_API_KEY`, `CLAUDE_CONFIG_DIR`, `CI`, `GITHUB_ACTIONS`; in the
@@ -536,7 +536,7 @@ against a SHA-256. Third-party actions are pinned by commit SHA.
 
 **Review instructions come from the base commit.** Before the first batch, `review` (and
 `answer`) reads the pull request's `base.sha` and fetches `.github/wachiman.md` (or the old
-`.github/agent-review.md` or `.github/claude-review.md`), `CLAUDE.md` and `AGENTS.md` at that commit through
+or the old `.github/claude-review.md`), `CLAUDE.md` and `AGENTS.md` at that commit through
 `gh api repos/{repo}/contents/{path}?ref={base_sha}` (`readBaseInstructions`). A 404 means the file
 is absent, any other error stops the run, and each file is cut at 64 KB with a notice in the
 prompt. The text goes into the prompt under "Repository instructions (from the base commit
@@ -571,7 +571,7 @@ and the assumption that everyone who can push is trusted is what holds it togeth
 
 | Member | Contract |
 | --- | --- |
-| `name` | The value of `AGENT_REVIEW_PROVIDER` that selects it |
+| `name` | The value of `WACHIMAN_PROVIDER` that selects it |
 | `preflight()` | Throws before any call is paid for when the binary, settings or credential is missing |
 | `modelLabel()` | Text for the review footer |
 | `leaksSecret(texts)` | True when any text holds a credential of this provider; the engine throws and posts nothing |
@@ -596,7 +596,7 @@ the second adapter does not fit.
 
 ## Configuration
 
-Settings are read once by `loadConfig` in `src/config.ts`; each `AGENT_REVIEW_X` falls back to the
+Settings are read once by `loadConfig` in `src/config.ts`; each `WACHIMAN_X` falls back to the
 deprecated `CLAUDE_REVIEW_X` with a notice. The variables, their defaults and the workflow inputs
 that set them are listed in [configuration.md](configuration.md), the one home for defaults, and
 [cli.md](cli.md) describes the command line. This page does not repeat them.
@@ -623,7 +623,7 @@ the agent. With `ledger_url` empty none of this runs. The policy for refusals an
 ## Invariants a change must keep
 
 - The history under `~/.wachiman/history` is written only with `--history` or
-  `AGENT_REVIEW_HISTORY=1`, only by `local` and `history`, never by GitHub mode, and never leaves
+  `WACHIMAN_HISTORY=1`, only by `local` and `history`, never by GitHub mode, and never leaves
   the machine.
 - No `pull_request_target` trigger, anywhere, and no caller template that adds one.
 - No `secrets: inherit`: the caller passes `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` explicitly.

@@ -520,7 +520,7 @@ describe("page polish and the two ledger clients", () => {
     expect(USAGE).toMatch(/not the\s+workflow's `ledger_url`/);
     const doc = readFileSync(join(import.meta.dir, "..", "..", "docs", "cli.md"), "utf8");
     const section = doc.slice(doc.indexOf("### `ledger`"));
-    expect(section).toContain("AGENT_REVIEW_LEDGER_URL");
+    expect(section).toContain("WACHIMAN_LEDGER_URL");
     expect(section).toContain("read token");
   });
 });

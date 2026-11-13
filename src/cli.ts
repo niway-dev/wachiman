@@ -66,7 +66,7 @@ export const USAGE = `Usage:
   wachiman comment <pr> [--repo-dir <dir>]           Handle the comment in $REQUEST (a review or an answer)
   wachiman threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
   wachiman reset-confidence <pr> [--commit <sha>]    Write "cannot say" into the PR Confidence block (no model call;
-                                                     the first step of a review run, with AGENT_REVIEW_CONFIDENCE=1)
+                                                     the first step of a review run, with WACHIMAN_CONFIDENCE=1)
   ${localUsage}
                                                      Review the committed branch of a clone on your
                                                      signed-in claude, and print it; nothing is posted.
@@ -150,8 +150,8 @@ Environment:
   CLAUDE_CODE_OAUTH_TOKEN            a Claude subscription token (\`claude setup-token\`); if set, it is
                                      used and ANTHROPIC_API_KEY never reaches the agent
   REQUEST                            the comment text, for \`comment\`
-  AGENT_REVIEW_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
-  AGENT_REVIEW_*                     optional settings; see docs/cli.md
+  WACHIMAN_COMMENT_AUTHOR            the login of the comment's author, for \`comment\` and \`threads\`
+  WACHIMAN_*                         optional settings; see docs/cli.md
 
 Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error, 3 the spend ledger stopped the run
 (a limit with \`limit_mode: fail\`, an unlinked repository, no OIDC token, or an unreachable ledger with
@@ -173,7 +173,7 @@ export function readVersion(dir = import.meta.dir) {
     const path = join(dir, "..", "package.json");
     if (!existsSync(path)) return "unknown";
     const pkg = JSON.parse(readFileSync(path, "utf8"));
-    return pkg.name === "wachiman" || pkg.name === "agent-review" ? String(pkg.version) : "unknown";
+    return pkg.name === "wachiman" ? String(pkg.version) : "unknown";
   } catch {
     return "unknown";
   }
@@ -238,7 +238,7 @@ export function routeMode(mode: string, commentLine: ReviewLineComment | undefin
  * comment's text is `REQUEST`.
  */
 export function readCommentLine(env: Record<string, string | undefined>): ReviewLineComment | undefined {
-  const id = env.AGENT_REVIEW_COMMENT_ID ?? "";
+  const id = env.WACHIMAN_COMMENT_ID ?? "";
   if (id === "") return undefined;
   const number = (name: string) => {
     const raw = env[name] ?? "";
@@ -246,12 +246,12 @@ export function readCommentLine(env: Record<string, string | undefined>): Review
     if (!/^\d+$/.test(raw)) throw new UsageError(`${name} must be a comment id or a line number, got "${raw}".`);
     return Number(raw);
   };
-  if (!/^\d+$/.test(id)) throw new UsageError(`AGENT_REVIEW_COMMENT_ID must be a comment id, got "${id}".`);
+  if (!/^\d+$/.test(id)) throw new UsageError(`WACHIMAN_COMMENT_ID must be a comment id, got "${id}".`);
   return {
     id: Number(id),
-    replyTo: number("AGENT_REVIEW_COMMENT_IN_REPLY_TO"),
-    path: env.AGENT_REVIEW_COMMENT_PATH || null,
-    line: number("AGENT_REVIEW_COMMENT_LINE"),
+    replyTo: number("WACHIMAN_COMMENT_IN_REPLY_TO"),
+    path: env.WACHIMAN_COMMENT_PATH || null,
+    line: number("WACHIMAN_COMMENT_LINE"),
   };
 }
 
@@ -297,7 +297,7 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
  * before the push wait, so a run cancelled during it leaves no letter from an older commit. No
  * model, no provider. A failure inside the reset itself (reading or writing the description) is a
  * warning and the exit code stays 0. A usage or configuration error is not: a bad pull request
- * number or flag, an invalid `AGENT_REVIEW_*` value, or a missing `GH_TOKEN` or
+ * number or flag, an invalid `WACHIMAN_*` value, or a missing `GH_TOKEN` or
  * `GITHUB_REPOSITORY` exits non-zero. The workflow steps run it with `continue-on-error`.
  */
 export function runResetConfidence(args: string[], env: Record<string, string | undefined>, gh: GhFn = defaultGh): number {
@@ -457,8 +457,8 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     try {
       if (effective === "review") review(deps, repo, pr, rest);
-      else if (effective === "threads") threadReplies(deps, repo, pr, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
-      else comment(deps, repo, pr, request, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined, commentLine);
+      else if (effective === "threads") threadReplies(deps, repo, pr, env.WACHIMAN_COMMENT_AUTHOR || undefined);
+      else comment(deps, repo, pr, request, env.WACHIMAN_COMMENT_AUTHOR || undefined, commentLine);
     } finally {
       // Also after a failed run: the calls it made were paid for.
       writeStepSummary(costs, env, undefined, ledgerNotes);

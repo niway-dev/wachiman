@@ -83,7 +83,7 @@ function deps(provider: FakeProvider, verifier?: FakeProvider, base?: CoreDeps["
 }
 
 const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({
-  ...reviewOptionsOf(loadConfig({ AGENT_REVIEW_VERIFY: "1" }), 5),
+  ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5),
   ...over,
 });
 
@@ -419,7 +419,7 @@ describe("the verifier through the review core", () => {
     // $1 in total: the reserve is half, so the batch gets $0.50 instead of its usual $0.75.
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
-    const result = reviewChange(branchInput(), reviewOptionsOf(loadConfig({ AGENT_REVIEW_VERIFY: "1" }), 1), d);
+    const result = reviewChange(branchInput(), reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 1), d);
     expect(provider.requests[0].maxBudgetUsd).toBeCloseTo(0.5);
     expect(result.verification).toBeDefined();
   });

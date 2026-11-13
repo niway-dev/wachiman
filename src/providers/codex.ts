@@ -81,7 +81,7 @@ export const CACHE_WRITE_MULTIPLIER = 2.5
 
 /**
  * List prices of the models this adapter has been set up for. A model not listed here needs
- * `AGENT_REVIEW_PRICE_PER_MTOK`: the engine's budgets are in dollars, and Codex reports tokens.
+ * `WACHIMAN_PRICE_PER_MTOK`: the engine's budgets are in dollars, and Codex reports tokens.
  */
 export const PRICES: Record<string, Price> = {
   "gpt-6.1-sol": { input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 },
@@ -93,7 +93,7 @@ export function parsePrice(raw: string): Price {
   const parts = raw.split(",").map((p) => Number(p.trim()));
   if (parts.length < 3 || parts.length > 4 || parts.some((n) => !Number.isFinite(n) || n < 0)) {
     throw new Error(
-      `AGENT_REVIEW_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "${raw}".`,
+      `WACHIMAN_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "${raw}".`,
     );
   }
   return { input: parts[0], cachedInput: parts[1], output: parts[2], ...(parts.length === 4 ? { cacheWrite: parts[3] } : {}) };
@@ -270,7 +270,7 @@ export class CodexProvider implements ProviderAdapter {
     private readonly opts: {
       model: string;
       requireApiKey: boolean;
-      /** `AGENT_REVIEW_PRICE_PER_MTOK`, for a model not in `PRICES`. */
+      /** `WACHIMAN_PRICE_PER_MTOK`, for a model not in `PRICES`. */
       priceOverride?: string;
       reasoningEffort?: string;
       /**
@@ -292,7 +292,7 @@ export class CodexProvider implements ProviderAdapter {
   preflight() {
     if (!this.price) {
       throw new Error(
-        `No price is known for model "${this.opts.model}". Set AGENT_REVIEW_PRICE_PER_MTOK="input,cached_input,output[,cache_write]" (USD per million tokens).`,
+        `No price is known for model "${this.opts.model}". Set WACHIMAN_PRICE_PER_MTOK="input,cached_input,output[,cache_write]" (USD per million tokens).`,
       );
     }
     const probe = spawnSync(this.binary, ["--version"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "" } });
@@ -314,7 +314,7 @@ export class CodexProvider implements ProviderAdapter {
   run(request: ProviderRequest): ProviderResult {
     const unknown = request.allowedTools.filter((t) => !READ_TOOLS.includes(t));
     if (unknown.length > 0) throw new Error(`The Codex adapter only grants reads; asked for ${unknown.join(", ")}.`);
-    const scratch = mkdtempSync(join(tmpdir(), "agent-review-codex-"));
+    const scratch = mkdtempSync(join(tmpdir(), "wachiman-review-codex-"));
     try {
       const workDir = join(scratch, "work");
       const home = join(scratch, "home");

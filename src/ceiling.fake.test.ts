@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { loadConfig as loadConfigWithDefaults } from "./config";
 
 /** These tests script the batches only; the opt-in verifier has its own tests. */
-const loadConfig = (env: Record<string, string | undefined>) => loadConfigWithDefaults({ AGENT_REVIEW_VERIFY: "0", ...env });
+const loadConfig = (env: Record<string, string | undefined>) => loadConfigWithDefaults({ WACHIMAN_VERIFY: "0", ...env });
 import {
   GhError,
   SIGNATURE,
@@ -280,7 +280,7 @@ describe("review() under the ceiling", () => {
   }
 
   test("an automatic run records its cost and the flag in the footer", () => {
-    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened" } });
+    const t = setup({ env: { WACHIMAN_TRIGGER: "opened" } });
     review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(readAutoCost(t.posted[0])).toBeCloseTo(0.1, 10);
@@ -290,7 +290,7 @@ describe("review() under the ceiling", () => {
 
   test("a first review reports its operation, tokens and cost in the footer, the log and the recorded calls", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      env: { WACHIMAN_TRIGGER: "opened" },
       script: [() => ({ costUsd: 0.1, model: "claude-sonnet-5-5", usage: USAGE, structuredOutput: out({}) })],
     });
     const logs: string[] = [];
@@ -328,7 +328,7 @@ describe("review() under the ceiling", () => {
 
   test("a push after a reviewed commit is a re-review, and the retry call is tagged in the recorded calls", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize" },
+      env: { WACHIMAN_TRIGGER: "synchronize" },
       reviews: [spentBody(0.2, { marker: "aaa1111" })],
       compare: { status: "ahead", files: [{ filename: "a.ts", patch: FILE.patch }] },
       // The first call leaves a.ts unaccounted for, so the engine retries it once.
@@ -351,7 +351,7 @@ describe("review() under the ceiling", () => {
   });
 
   test("a provider that reports no tokens or model still yields a footer, a record and a log line", () => {
-    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened" } });
+    const t = setup({ env: { WACHIMAN_TRIGGER: "opened" } });
     t.deps.costs = [];
     review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain("<sub>Fake Model · effort high · review · PR so far $0.10 over 1 automatic run · $0.10</sub>");
@@ -360,7 +360,7 @@ describe("review() under the ceiling", () => {
 
   test("a call that dies without a result is recorded and logged as an unknown cost, counted at its cap", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      env: { WACHIMAN_TRIGGER: "opened" },
       script: [
         () => {
           throw new Error("claude exited with signal SIGKILL");
@@ -390,7 +390,7 @@ describe("review() under the ceiling", () => {
 
   test("a result flagged costKnown false is counted at the request's cap in the footer and the ceiling", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      env: { WACHIMAN_TRIGGER: "opened" },
       script: [() => ({ costUsd: 0, costKnown: false, structuredOutput: out({}) })],
     });
     t.deps.costs = [];
@@ -410,7 +410,7 @@ describe("review() under the ceiling", () => {
 
   for (const kind of ["claude", "codex"] as const) {
     test(`a ${kind} call killed at the time limit is an unknown cost counted at the batch cap, with its reason kept`, () => {
-      const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened", AGENT_REVIEW_CALL_TIMEOUT_S: "1" } });
+      const t = setup({ env: { WACHIMAN_TRIGGER: "opened", WACHIMAN_CALL_TIMEOUT_S: "1" } });
       const binary = hangingBinary(kind);
       t.deps.provider =
         kind === "claude"
@@ -438,7 +438,7 @@ describe("review() under the ceiling", () => {
 
   test("at the ceiling the next push posts one notice, starts no batch, and a later push posts nothing", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.5" },
       reviews: [spentBody(0.5)],
     });
     review(t.deps, "o/r", 7, []);
@@ -455,16 +455,16 @@ describe("review() under the ceiling", () => {
   });
 
   test("raising the ceiling above the spend lets the next push run; a still-lower ceiling gets its own notice", () => {
-    const base = { AGENT_REVIEW_TRIGGER: "synchronize" };
-    const paused = setup({ env: { ...base, AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" }, reviews: [spentBody(0.5)] });
+    const base = { WACHIMAN_TRIGGER: "synchronize" };
+    const paused = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.5" }, reviews: [spentBody(0.5)] });
     review(paused.deps, "o/r", 7, []);
     expect(paused.posted).toHaveLength(1);
     // The same pull request, now with a ceiling of $0.60 and the old $0.50 notice: $0.10 is left, so it runs.
-    const raised = setup({ env: { ...base, AGENT_REVIEW_AUTO_BUDGET_USD: "0.6" }, reviews: paused.reviews });
+    const raised = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.6" }, reviews: paused.reviews });
     review(raised.deps, "o/r", 7, []);
     expect(raised.provider.requests).toHaveLength(1);
     // A $0.55 ceiling with $0.60 spent: a notice for that ceiling, not skipped because of the old $0.50 one.
-    const again = setup({ env: { ...base, AGENT_REVIEW_AUTO_BUDGET_USD: "0.55" }, reviews: [...paused.reviews, spentBody(0.1)] });
+    const again = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.55" }, reviews: [...paused.reviews, spentBody(0.1)] });
     review(again.deps, "o/r", 7, []);
     expect(again.provider.requests).toHaveLength(0);
     expect(again.posted).toHaveLength(1);
@@ -473,7 +473,7 @@ describe("review() under the ceiling", () => {
 
   test("a run starts with at most what is left under the ceiling", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "2" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "2" },
       reviews: [spentBody(1.2, { marker: "aaa1111" }), spentBody(0.5)],
       comments: [replyBody(0)],
       compare: { status: "ahead", files: [{ filename: "a.ts", patch: FILE.patch }] },
@@ -485,7 +485,7 @@ describe("review() under the ceiling", () => {
 
   test("less than a batch's minimum left counts as the ceiling", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "2" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "2" },
       reviews: [spentBody(1.97)],
     });
     review(t.deps, "o/r", 7, []);
@@ -496,7 +496,7 @@ describe("review() under the ceiling", () => {
   test("the operator's /wachiman review is not limited, and does not even read the spend", () => {
     for (const trigger of [undefined, "comment"]) {
       const t = setup({
-        env: { AGENT_REVIEW_AUTO_BUDGET_USD: "0.5", ...(trigger ? { AGENT_REVIEW_TRIGGER: trigger } : {}) },
+        env: { WACHIMAN_AUTO_BUDGET_USD: "0.5", ...(trigger ? { WACHIMAN_TRIGGER: trigger } : {}) },
         reviews: [spentBody(5)],
       });
       const before = t.calls.length;
@@ -512,7 +512,7 @@ describe("review() under the ceiling", () => {
 
   test("a push that is only a rebase still moves the marker at the ceiling, and posts no notice", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.5" },
       reviews: [spentBody(0.5, { marker: "old1111111" })],
       compare: { status: "ahead", files: [] },
     });
@@ -526,7 +526,7 @@ describe("review() under the ceiling", () => {
 
   test("an automatic run that ends without a review still records what it spent", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize" },
+      env: { WACHIMAN_TRIGGER: "synchronize" },
       script: [
         () => ({ costUsd: 0.6, terminalReason: "budget", isError: true }),
         () => ({ costUsd: 0.4, terminalReason: "budget", isError: true }),
@@ -545,14 +545,14 @@ describe("review() under the ceiling", () => {
 
   test("a marker-less partial review's spend still counts toward the next automatic run", () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.3" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.3" },
       script: [() => ({ costUsd: 0.25, structuredOutput: out({ files_reviewed: [] }) }), () => ({ costUsd: 0, structuredOutput: out({ files_reviewed: [] }) })],
     });
     review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain("Partial review");
-    expect(t.posted[0]).not.toContain("<!-- agent-review sha=");
+    expect(t.posted[0]).not.toContain("<!-- wachiman sha=");
     // The partial review's cost is in its footer: $0.05 is left of $0.30, i.e. a batch can still start.
-    const next = setup({ env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.3" }, reviews: t.reviews });
+    const next = setup({ env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.3" }, reviews: t.reviews });
     expect(automaticSpend(next.deps.gh, "o/r", 7).spent).toBeCloseTo(0.25, 10);
   });
 });
@@ -588,7 +588,7 @@ describe("a run on a Claude subscription token", () => {
     const provider = new FakeProvider([() => ({ costUsd: 0.1, structuredOutput: out({}) })]);
     provider.auth = auth;
     provider.record = false;
-    const deps: Deps = { gh, provider, config: loadConfig({ AGENT_REVIEW_TRIGGER: "opened", ...opts.env }), log: (l) => void logs.push(l), warn: () => {}, sleep: () => {} };
+    const deps: Deps = { gh, provider, config: loadConfig({ WACHIMAN_TRIGGER: "opened", ...opts.env }), log: (l) => void logs.push(l), warn: () => {}, sleep: () => {} };
     return { deps, posted, logs };
   }
 
@@ -630,7 +630,7 @@ describe("a run on a Claude subscription token", () => {
   });
 
   test("the paused notice says its dollars are estimates only on a subscription", () => {
-    const env = { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" };
+    const env = { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.5" };
     const token = setup("oauth-token", { env, reviews: [spentBody(0.5)] });
     review(token.deps, "o/r", 7, []);
     expect(token.posted[0]).toContain("Automatic reviews paused: $0.50 of $0.50 spent on this pull request.");

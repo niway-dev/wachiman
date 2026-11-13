@@ -156,11 +156,11 @@ function run(world: World, provider: Provider, env: Record<string, string> = {},
     gh: world.gh,
     provider,
     config: loadConfig({
-      AGENT_REVIEW_VERIFY: "0",
-      AGENT_REVIEW_TRIGGER: "synchronize",
-      AGENT_REVIEW_BATCH_LINES: "20",
-      AGENT_REVIEW_BUDGET_USD: "3",
-      AGENT_REVIEW_AUTO_BUDGET_USD: "6",
+      WACHIMAN_VERIFY: "0",
+      WACHIMAN_TRIGGER: "synchronize",
+      WACHIMAN_BATCH_LINES: "20",
+      WACHIMAN_BUDGET_USD: "3",
+      WACHIMAN_AUTO_BUDGET_USD: "6",
       ...env,
     }),
     repoDir: mkdtempSync(join(tmpdir(), "resume-head-")),
@@ -179,7 +179,7 @@ const stopsInBatchSeven = () =>
   new Provider((_files, call) => (call < 7 ? { cost: 0.45 } : { cost: 0.3, budget: true }));
 const reviewsEverything = (cost = 0.2) => new Provider(() => ({ cost }));
 
-const COMPLETE_MARKER = (sha: string) => `<!-- agent-review sha=${sha} -->`;
+const COMPLETE_MARKER = (sha: string) => `<!-- wachiman sha=${sha} -->`;
 
 /** A world where the first review is the 591 partial one, at commit `aaaa0001`. */
 function afterPartialReview() {
@@ -240,7 +240,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     world.push("aaaa0002", allFiles({ [F01]: 1 }));
     // Five files are due. The first part is reviewed; the second stops on its budget, the third is not started.
     const second = new Provider((_files, call) => (call === 1 ? { cost: 0.4 } : { cost: 0.5, budget: true }));
-    const r2 = run(world, second, { AGENT_REVIEW_BUDGET_USD: "0.9" });
+    const r2 = run(world, second, { WACHIMAN_BUDGET_USD: "0.9" });
     expect(second.requests).toHaveLength(2);
     expect(r2.posted[0]).toContain("⚠️ **Partial review**");
     expect(r2.posted[0]).toContain("reviewed 2 of 5 files");
@@ -257,7 +257,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     for (const trigger of ["comment", "ready_for_review"]) {
       const { world } = afterPartialReview();
       const again = reviewsEverything();
-      const r = run(world, again, { AGENT_REVIEW_TRIGGER: trigger }, []);
+      const r = run(world, again, { WACHIMAN_TRIGGER: trigger }, []);
       expect(sentFiles(again).sort()).toEqual([F13, F14, F15, F16].sort());
       expect(r.logs).not.toContain("Already reviewed");
       expect(r.posted[0]).toContain("the 4 files");
@@ -265,7 +265,7 @@ describe("a push after a partial review resumes with the files it did not reach"
       expect(r.posted[0]).toContain(COMPLETE_MARKER("aaaa0001"));
       // Now the head is reviewed for good.
       const last = reviewsEverything();
-      const r2 = run(world, last, { AGENT_REVIEW_TRIGGER: trigger }, []);
+      const r2 = run(world, last, { WACHIMAN_TRIGGER: trigger }, []);
       expect(last.requests).toHaveLength(0);
       expect(r2.posted[0]).toContain("Already reviewed");
     }
@@ -298,7 +298,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     const { world } = afterPartialReview();
     world.push("aaaa0002", allFiles({ [F01]: 1 }).filter((f) => f.filename !== F14));
     const second = reviewsEverything();
-    const r = run(world, second, { AGENT_REVIEW_EXCLUDE: F15 });
+    const r = run(world, second, { WACHIMAN_EXCLUDE: F15 });
     expect(sentFiles(second).sort()).toEqual([F01, F13, F16].sort());
     expect(r.posted[0]).toContain("all 3 files reviewed");
     expect(r.posted[0]).not.toContain(F14);
@@ -319,12 +319,12 @@ describe("a push after a partial review resumes with the files it did not reach"
   test("a scoped review writes no marker and leaves the unread files for the next unscoped run", () => {
     const { world } = afterPartialReview();
     const scoped = reviewsEverything();
-    const r = run(world, scoped, { AGENT_REVIEW_TRIGGER: "comment" }, [F01]);
+    const r = run(world, scoped, { WACHIMAN_TRIGGER: "comment" }, [F01]);
     expect(sentFiles(scoped)).toEqual([F01]);
-    expect(r.posted[0]).not.toContain("agent-review sha=");
+    expect(r.posted[0]).not.toContain("wachiman sha=");
     expect(r.posted[0]).not.toContain("wachi:partial");
     const next = reviewsEverything();
-    run(world, next, { AGENT_REVIEW_TRIGGER: "comment" }, []);
+    run(world, next, { WACHIMAN_TRIGGER: "comment" }, []);
     expect(sentFiles(next).sort()).toEqual([F13, F14, F15, F16].sort());
   });
 
@@ -362,7 +362,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     for (const sha of ["aaaa0002", "aaaa0003"]) {
       world.push(sha, allFiles({ [F01]: sha === "aaaa0002" ? 1 : 2 }));
       const next = new Provider((_files, call) => (call === 1 ? { cost: 0.4 } : { cost: 0.5, budget: true }));
-      const r = run(world, next, { AGENT_REVIEW_BUDGET_USD: "0.9" });
+      const r = run(world, next, { WACHIMAN_BUDGET_USD: "0.9" });
       expect(r.posted[0]).not.toContain("after two tries");
     }
     world.push("aaaa0004", allFiles({ [F01]: 2 }));

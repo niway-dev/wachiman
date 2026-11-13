@@ -310,7 +310,7 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
     lines.push(`  ${pad(args.by, w)}  runs  cost`);
     for (const g of legacyGroups) lines.push(`  ${pad(g.key, w)}  ${pad(String(g.runs), 4)}  ${usd(g.costUsdEstimate)}`);
   }
-  lines.push("", retentionDays === 0 ? "New `--history` runs keep all runs (AGENT_REVIEW_HISTORY_DAYS=0). `--json` lists every run with its attributes." : `A new \`--history\` run deletes runs older than ${retentionDays} days (AGENT_REVIEW_HISTORY_DAYS changes that). \`--json\` lists every run with its attributes.`);
+  lines.push("", retentionDays === 0 ? "New `--history` runs keep all runs (WACHIMAN_HISTORY_DAYS=0). `--json` lists every run with its attributes." : `A new \`--history\` run deletes runs older than ${retentionDays} days (WACHIMAN_HISTORY_DAYS changes that). \`--json\` lists every run with its attributes.`);
   io.stdout(`${lines.join("\n")}\n`);
   return 0;
 }

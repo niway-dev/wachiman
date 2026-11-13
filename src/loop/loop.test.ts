@@ -69,7 +69,7 @@ echo 'no answer scripted'; exit 3
   );
   chmodSync(join(bin, "gh"), 0o755);
   chmodSync(join(bin, "claude"), 0o755);
-  const env: Record<string, string> = { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, USER: "dev", AGENT_REVIEW_VERIFY: "0" };
+  const env: Record<string, string> = { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, USER: "dev", WACHIMAN_VERIFY: "0" };
   const run = (args: string[]) => {
     const out = Bun.spawnSync([process.execPath, cli, ...args, ...(args[0] === "history" || args[0] === "loop" ? ["--repo-dir", repo.dir] : [])], { env, stdin: "ignore" });
     return { code: out.exitCode, stdout: out.stdout.toString(), stderr: out.stderr.toString() };

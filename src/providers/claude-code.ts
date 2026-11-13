@@ -355,7 +355,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     // The session starts in an empty scratch directory, never in the head: Claude Code discovers
     // `CLAUDE.md` (and `.claude/`) from its working directory and its parents, and a pull request
     // must not supply instructions. The head is only an `--add-dir`, which does not load them.
-    const workDir = mkdtempSync(join(tmpdir(), "agent-review-claude-"));
+    const workDir = mkdtempSync(join(tmpdir(), "wachiman-review-claude-"));
     const prompt = locatePrompt(request.prompt, request.cwd, request.addDirs, { shell: false });
     const args = buildClaudeArgs({
       addDirs: [request.cwd, ...request.addDirs],

@@ -10,8 +10,7 @@
     "url": "git+https://github.com/niway-dev/wachiman.git"
   },
   "bin": {
-    "wachiman": "bin/wachiman.js",
-    "agent-review": "bin/wachiman.js"
+    "wachiman": "bin/wachiman.js"
   },
   "files": [
     "bin/wachiman.js",

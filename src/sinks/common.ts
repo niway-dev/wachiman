@@ -128,9 +128,9 @@ export function costSentence(e: { costUsdEstimate: number; calls: number; turns:
 
 const STOP_REASONS: Record<Exclude<ReviewResult["execution"]["stop"], "complete">, string> = {
   quota: "the account's usage limit ended the run",
-  budget: "the run's estimate guard (AGENT_REVIEW_BUDGET_USD) was spent",
-  turns: "the calls hit the turn limit (AGENT_REVIEW_MAX_TURNS)",
-  timeout: "the calls hit the time limit (AGENT_REVIEW_CALL_TIMEOUT_S)",
+  budget: "the run's estimate guard (WACHIMAN_BUDGET_USD) was spent",
+  turns: "the calls hit the turn limit (WACHIMAN_MAX_TURNS)",
+  timeout: "the calls hit the time limit (WACHIMAN_CALL_TIMEOUT_S)",
   error: "no call returned a review",
 };
 

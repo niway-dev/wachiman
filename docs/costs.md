@@ -26,7 +26,7 @@ or blocks a merge, and neither does running out of budget.
 | Model calls | The provider that owns the key: Anthropic for the reusable workflow | The engine's own estimate, in the review footer (see below) |
 | Runner minutes | GitHub, under your plan | Each job has a 30 minute timeout (`timeout-minutes: 30` in `review.yml`) |
 
-A dry run (`AGENT_REVIEW_DRY_RUN=1`) is not free: it only skips posting to GitHub. It still calls
+A dry run (`WACHIMAN_DRY_RUN=1`) is not free: it only skips posting to GitHub. It still calls
 the agent. See [Dry runs](#dry-runs).
 
 ## The ceiling per pull request
@@ -92,7 +92,7 @@ replies are not in the estimate; they are small and have their own budgets.
 
 ### The gate
 
-`size_gate_usd` (`AGENT_REVIEW_SIZE_GATE_USD`) is a finite number greater than 0, default **$6**.
+`size_gate_usd` (`WACHIMAN_SIZE_GATE_USD`) is a finite number greater than 0, default **$6**.
 There is no value for "unlimited": a typo cannot remove the bound, and the most a run can spend is
 still `budget_usd`. The gate that applies to a run is never below what the run may spend:
 
@@ -153,10 +153,10 @@ only to move the gate without raising a run budget.
 carries on. For example (the estimate this code computes from the diff of [pingdotgg/t3code#28845](https://github.com/pingdotgg/t3code/pull/28845)):
 
 ```text
-warning: reviewing all of this would cost about $20.80 at API prices (65 batches × $0.32 for claude-sonnet-5-5), above the $6.00 size gate. Local runs are never refused; this one continues and stops at its budget, $3.00 (AGENT_REVIEW_BUDGET_USD).
+warning: reviewing all of this would cost about $20.80 at API prices (65 batches × $0.32 for claude-sonnet-5-5), above the $6.00 size gate. Local runs are never refused; this one continues and stops at its budget, $3.00 (WACHIMAN_BUDGET_USD).
 ```
 
-The money caps of a local run are `budget_usd` for the run (`AGENT_REVIEW_BUDGET_USD`, default $3) and
+The money caps of a local run are `budget_usd` for the run (`WACHIMAN_BUDGET_USD`, default $3) and
 `batch_budget_usd` for each call, passed to Claude Code as `--max-budget-usd` (a soft cap, like in
 GitHub mode). There is no `auto_budget_usd` ceiling locally. On a subscription the cost shown is
 Claude Code's API-equivalent figure, not a bill.
@@ -168,11 +168,11 @@ There are three settings, all in USD. Their defaults and names are in
 
 | Setting | Default | What it bounds |
 | --- | --- | --- |
-| `budget_usd` / `AGENT_REVIEW_BUDGET_USD` | `3` | The total the engine allows itself across every batch and retry of one `review` run |
-| `batch_budget_usd` / `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap passed to **each provider call** |
-| `answer_budget_usd` / `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | The cap for the one call that answers a question |
+| `budget_usd` / `WACHIMAN_BUDGET_USD` | `3` | The total the engine allows itself across every batch and retry of one `review` run |
+| `batch_budget_usd` / `WACHIMAN_BATCH_BUDGET_USD` | `0.75` | The cap passed to **each provider call** |
+| `answer_budget_usd` / `WACHIMAN_ANSWER_BUDGET_USD` | `1` | The cap for the one call that answers a question |
 
-`size_gate_usd` / `AGENT_REVIEW_SIZE_GATE_USD` (default `6`, new in the next release) is not a budget. It
+`size_gate_usd` / `WACHIMAN_SIZE_GATE_USD` (default `6`, new in the next release) is not a budget. It
 spends nothing and bounds nothing a run pays. It decides whether a run starts at all, by comparing
 the cost estimate of the whole review with a number. See [The size gate](#the-size-gate).
 
@@ -229,7 +229,7 @@ What this means in practice:
 - With Codex, only the engine's running total and the call timeout (15 minutes by default) limit spend. A single call can
   cost more than `batch_budget_usd`. Tokens are priced from a table in `src/providers/codex.ts`
   (`gpt-6.1-sol` and `gpt-6-sol`, both $2 input, $0.10 cached input, $10 output and $5 cache write per million tokens),
-  and any other model needs `AGENT_REVIEW_PRICE_PER_MTOK`. Cache writes are billed at their own rate instead of the input rate. OpenAI lists a 30-minute write at $2.50 and a 12-hour write at $5 for GPT-6.1 Sol. Codex's request structures set no cache lifetime, so it most likely gets the API default of 30 minutes and $2.50; the table still holds the higher $5 on purpose, because the figure is a budget ceiling and counting too much is safer. A custom price with only three fields uses 2.5 times its input rate for writes (the same ratio) instead of marking the cost unknown, for the same reason; add a fourth field to set it. Those figures are what the code holds, not
+  and any other model needs `WACHIMAN_PRICE_PER_MTOK`. Cache writes are billed at their own rate instead of the input rate. OpenAI lists a 30-minute write at $2.50 and a 12-hour write at $5 for GPT-6.1 Sol. Codex's request structures set no cache lifetime, so it most likely gets the API default of 30 minutes and $2.50; the table still holds the higher $5 on purpose, because the figure is a budget ceiling and counting too much is safer. A custom price with only three fields uses 2.5 times its input rate for writes (the same ratio) instead of marking the cost unknown, for the same reason; add a fourth field to set it. Those figures are what the code holds, not
   a current price quote: check them against OpenAI's pricing page. Only completed turns are counted,
   so a call killed by the timeout can have spent more than it reports.
 - Codex is CLI-only today. You can run it from a checkout with the `bun` command in
@@ -305,8 +305,8 @@ for one budget is finished over several pushes, not paid for again from batch 1.
   call capped at `threads_budget_usd` (default $0.25), once the head is reviewed. It counts against
   `auto_budget_usd`. A reply by anyone else, or on an unreviewed head, starts no model call.
 - **Overlapping jobs.** The automatic job, the thread-reply job and the on-demand job use separate
-  concurrency groups (`agent-review-<pr>`, `agent-review-threads-<pr>` and
-  `agent-review-on-demand-<pr>`), so one cannot cancel the other. If both are
+  concurrency groups (`wachiman-review-<pr>`, `wachiman-review-threads-<pr>` and
+  `wachiman-review-on-demand-<pr>`), so one cannot cancel the other. If both are
   running, both spend. Within one job a newer run cancels the older one (`cancel-in-progress`). Cancellation
   before posting leaves no review; cancellation after posting may leave the review and some replies.
   Check the pull request before rerunning. Whether the provider bills the calls that were in flight
@@ -318,7 +318,7 @@ for one budget is finished over several pushes, not paid for again from batch 1.
 
 ## Dry runs
 
-`AGENT_REVIEW_DRY_RUN=1` reads GitHub and prints the review instead of posting it. It still calls the
+`WACHIMAN_DRY_RUN=1` reads GitHub and prints the review instead of posting it. It still calls the
 agent, and the budgets above apply. It does not require the provider key: the Claude adapter uses
 whatever login the machine has, and the Codex adapter uses the machine's own Codex login. Whether that
 login bills an API account or a subscription depends on that login, not on Wachiman. The reusable
@@ -535,7 +535,7 @@ checked only to make sure no file with a diff was left unaccounted for. Nothing 
 line by line.
 
 N counts only the files the engine selected. Lockfiles, build output, generated files and anything
-in `AGENT_REVIEW_EXCLUDE` are filtered out first and are not part of that count. So are binary files
+in `WACHIMAN_EXCLUDE` are filtered out first and are not part of that count. So are binary files
 (a PNG, say): the engine, not the model, sets aside a file GitHub sent no diff for whose first 8000
 bytes at the head hold a NUL byte. The headline names them (`all 3 files reviewed, not reviewable:
 \`mock.png\` (binary)`), and they never make a review partial or keep it from moving the

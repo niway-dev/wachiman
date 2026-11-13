@@ -88,7 +88,7 @@ function run(env: Record<string, string>, opts: { failPatch?: boolean; words?: s
   const deps: Deps = {
     gh: fakeGh(world, opts),
     provider,
-    config: loadConfig({ AGENT_REVIEW_VERIFY: "0", ...env }, () => {}),
+    config: loadConfig({ WACHIMAN_VERIFY: "0", ...env }, () => {}),
     repoDir: head,
     log: (l) => logs.push(l),
     warn: (w) => warnings.push(w),
@@ -101,7 +101,7 @@ function run(env: Record<string, string>, opts: { failPatch?: boolean; words?: s
 
 describe("the description block after a review", () => {
   test("is written after the review, keeps the author's text, and links the review", () => {
-    const r = run({ AGENT_REVIEW_CONFIDENCE: "1" });
+    const r = run({ WACHIMAN_CONFIDENCE: "1" });
     expect(r.world.reviews).toHaveLength(1);
     expect(r.world.patches).toHaveLength(1);
     const body = r.world.body;
@@ -116,28 +116,28 @@ describe("the description block after a review", () => {
   });
 
   test("the review comment carries a short PR Confidence line", () => {
-    const r = run({ AGENT_REVIEW_CONFIDENCE: "1" });
+    const r = run({ WACHIMAN_CONFIDENCE: "1" });
     const posted = r.world.reviews[0] as { body: string };
     expect(posted.body).toContain("PR Confidence: A");
   });
 
   test("a second review replaces the block and leaves the text outside it byte for byte", () => {
-    const first = run({ AGENT_REVIEW_CONFIDENCE: "1" }).world.body;
-    const second = run({ AGENT_REVIEW_CONFIDENCE: "1", AGENT_REVIEW_DRY_RUN: "0" }, { body: first }).world.body;
+    const first = run({ WACHIMAN_CONFIDENCE: "1" }).world.body;
+    const second = run({ WACHIMAN_CONFIDENCE: "1", WACHIMAN_DRY_RUN: "0" }, { body: first }).world.body;
     expect(second.split(BLOCK_START)).toHaveLength(2);
     expect(second.endsWith(`\n\n${AUTHOR_BODY}`)).toBe(true);
     expect(second.slice(second.indexOf(BLOCK_END))).toBe(first.slice(first.indexOf(BLOCK_END)));
   });
 
   test("a failed write is a warning: the review is still posted and nothing throws", () => {
-    const r = run({ AGENT_REVIEW_CONFIDENCE: "1" }, { failPatch: true });
+    const r = run({ WACHIMAN_CONFIDENCE: "1" }, { failPatch: true });
     expect(r.world.reviews).toHaveLength(1);
     expect(r.world.patches).toHaveLength(0);
     expect(r.warnings.join("\n")).toContain("PR Confidence");
   });
 
   test("a dry run posts nothing and writes nothing", () => {
-    const r = run({ AGENT_REVIEW_CONFIDENCE: "1", AGENT_REVIEW_DRY_RUN: "1" });
+    const r = run({ WACHIMAN_CONFIDENCE: "1", WACHIMAN_DRY_RUN: "1" });
     expect(r.world.reviews).toHaveLength(0);
     expect(r.world.patches).toHaveLength(0);
   });
@@ -151,7 +151,7 @@ describe("the description block after a review", () => {
   });
 
   test("a scoped review does not grade: no claims call, and the block says cannot say", () => {
-    const r = run({ AGENT_REVIEW_CONFIDENCE: "1" }, { words: ["src/a.ts"] });
+    const r = run({ WACHIMAN_CONFIDENCE: "1" }, { words: ["src/a.ts"] });
     expect(r.provider.requests.every((q) => q.outputSchema !== CLAIMS_SCHEMA)).toBe(true);
     expect(r.world.body).toContain("cannot say");
     expect(r.world.body).not.toMatch(/\bA \(trial\)/);

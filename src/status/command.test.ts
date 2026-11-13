@@ -137,7 +137,7 @@ describe("status review regressions", () => {
   test.each([0, 7, 30])("retention follows the configured %s days", days => {
     const seed = seeded();
     const {out, io} = capture();
-    runStatus(args({json: true}), seed.repo, {...seed.env, AGENT_REVIEW_HISTORY_DAYS: String(days)}, io);
+    runStatus(args({json: true}), seed.repo, {...seed.env, WACHIMAN_HISTORY_DAYS: String(days)}, io);
     expect(JSON.parse(out.join("")).retentionDays).toBe(days);
   });
   test("repository scopes keep identical names separate and reject ambiguous names", () => {

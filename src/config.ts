@@ -1,4 +1,4 @@
-/** The `AGENT_REVIEW_*` settings, read once, with the old `CLAUDE_REVIEW_*` names as a fallback. */
+/** The `WACHIMAN_*` settings, read once, with the old `CLAUDE_REVIEW_*` names as a fallback. */
 import { DEFAULT_MODELS } from "./providers";
 import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, DEFAULT_MAX_TURNS, EFFORTS, type Effort } from "./providers/types";
 
@@ -21,36 +21,36 @@ export interface EngineConfig {
   /** Total per review invocation, USD. */
   budgetUsd: number;
   /**
-   * `AGENT_REVIEW_AUTO_BUDGET_USD`: the most all automatic runs on one pull request may spend
+   * `WACHIMAN_AUTO_BUDGET_USD`: the most all automatic runs on one pull request may spend
    * together (the first review, push reviews, thread runs), summed from the engine's own signed
    * footers. The operator's `comment` is not limited by it.
    */
   autoBudgetUsd: number;
   /**
-   * `AGENT_REVIEW_SIZE_GATE_USD`: the most a review's estimate may be before a GitHub run skips it
+   * `WACHIMAN_SIZE_GATE_USD`: the most a review's estimate may be before a GitHub run skips it
    * and posts one comment instead. The effective gate is never below what the run may spend
    * (`sizeGate` in estimate.ts), so raising the budgets lifts it. Local runs only warn.
    */
   sizeGateUsd: number;
   /**
-   * `AGENT_REVIEW_LEDGER_URL`: the spend ledger service, trimmed, without a trailing slash. Unset
+   * `WACHIMAN_LEDGER_URL`: the spend ledger service, trimmed, without a trailing slash. Unset
    * means no ledger call of any kind. It is also the OIDC audience, as configured.
    */
   ledgerUrl?: string;
-  /** `AGENT_REVIEW_DAILY_BUDGET_USD`: a stricter daily number for this repository; it never raises the account's limit. */
+  /** `WACHIMAN_DAILY_BUDGET_USD`: a stricter daily number for this repository; it never raises the account's limit. */
   dailyBudgetUsd?: number;
-  /** `AGENT_REVIEW_WEEKLY_BUDGET_USD`: the same, per week. */
+  /** `WACHIMAN_WEEKLY_BUDGET_USD`: the same, per week. */
   weeklyBudgetUsd?: number;
-  /** `AGENT_REVIEW_LIMIT_MODE`: when a limit refuses a run, `fail` exits 3 (red job); `notice` posts the comment and passes. */
+  /** `WACHIMAN_LIMIT_MODE`: when a limit refuses a run, `fail` exits 3 (red job); `notice` posts the comment and passes. */
   limitMode: LimitMode;
-  /** `AGENT_REVIEW_LIMIT_BYPASS`: `1` or `true` skips the ledger for this run. */
+  /** `WACHIMAN_LIMIT_BYPASS`: `1` or `true` skips the ledger for this run. */
   limitBypass: boolean;
-  /** `AGENT_REVIEW_LEDGER_UNAVAILABLE`: with an unreachable ledger, `run` reviews anyway (and says so); `stop` exits 3 before any model call. */
+  /** `WACHIMAN_LEDGER_UNAVAILABLE`: with an unreachable ledger, `run` reviews anyway (and says so); `stop` exits 3 before any model call. */
   ledgerUnavailable: LedgerUnavailableMode;
-  /** `AGENT_REVIEW_THREADS_BUDGET_USD`: the one provider call of a thread-only run. */
+  /** `WACHIMAN_THREADS_BUDGET_USD`: the one provider call of a thread-only run. */
   threadsBudgetUsd: number;
   /**
-   * `AGENT_REVIEW_TRIGGER`: why this run started (see `Trigger`). Unset means a person ran the
+   * `WACHIMAN_TRIGGER`: why this run started (see `Trigger`). Unset means a person ran the
    * CLI by hand: not automatic, so the ceiling does not apply. `comment` mode ignores it.
    */
   trigger?: Trigger;
@@ -60,32 +60,32 @@ export interface EngineConfig {
   batchChars: number;
   dryRun: boolean;
   /**
-   * `AGENT_REVIEW_FULL_REVIEW`: a dry run reviews the whole pull request, as if it had never been
+   * `WACHIMAN_FULL_REVIEW`: a dry run reviews the whole pull request, as if it had never been
    * reviewed, without reading the previous-review marker. Only together with `dryRun`.
    */
   fullReview: boolean;
   /** The provider's default (`DEFAULT_MODELS`) when unset. */
   model: string;
   provider: string;
-  /** `AGENT_REVIEW_PRICE_PER_MTOK`: "input,cached_input,output" USD per million tokens, for a Codex model without a built-in price. */
+  /** `WACHIMAN_PRICE_PER_MTOK`: "input,cached_input,output" USD per million tokens, for a Codex model without a built-in price. */
   pricePerMTok?: string;
   /**
-   * `AGENT_REVIEW_EFFORT`: the reasoning effort, always explicit so a CLI default change cannot
+   * `WACHIMAN_EFFORT`: the reasoning effort, always explicit so a CLI default change cannot
    * alter reviews. Passed as `--effort` (Claude Code) or `model_reasoning_effort` (Codex).
    */
   effort: Effort;
   /**
-   * `AGENT_REVIEW_MAX_TURNS`: the most agent turns one provider call may take. Passed as
+   * `WACHIMAN_MAX_TURNS`: the most agent turns one provider call may take. Passed as
    * `--max-turns` (Claude Code); Codex has no equivalent and ignores it.
    */
   maxTurns: number;
   /**
-   * `AGENT_REVIEW_CALL_TIMEOUT_S`: wall-clock limit on one provider call, in seconds. The call is
+   * `WACHIMAN_CALL_TIMEOUT_S`: wall-clock limit on one provider call, in seconds. The call is
    * killed when it passes and ends as `timeout`.
    */
   callTimeoutS: number;
   /**
-   * `AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE`: what a run does when the provider rejects every call
+   * `WACHIMAN_ON_PROVIDER_UNAVAILABLE`: what a run does when the provider rejects every call
    * because the reviewer's own account cannot pay or authenticate (or stays rate-limited). `warn`
    * posts a notice and finishes green; `fail` posts it and fails the job.
    */
@@ -94,29 +94,29 @@ export interface EngineConfig {
   /** Login allowed to command the tool. `comment` refuses to run when it is empty or a placeholder. */
   operator: string;
   /**
-   * `AGENT_REVIEW_ASKERS`: who may ask a question (ADR 0032 decision 5). `operator` (default): only
+   * `WACHIMAN_ASKERS`: who may ask a question (ADR 0032 decision 5). `operator` (default): only
    * the operator. `write`: also a collaborator whose permission on the repository is admin,
    * maintain or write, checked by the engine on each question. Reviews stay operator-only.
    */
   askers: "operator" | "write";
   /**
-   * `AGENT_REVIEW_ASK_CEILING_USD`: the most the questions of everyone but the operator may spend
+   * `WACHIMAN_ASK_CEILING_USD`: the most the questions of everyone but the operator may spend
    * on one pull request, summed from the engine's own footers. The operator's questions are not limited.
    */
   askCeilingUsd: number;
   /** Extra exclude globs on top of the built-in ones. */
   exclude: string[];
   /**
-   * `AGENT_REVIEW_VERIFY`: after the batches, one more call tries to refute every finding above
+   * `WACHIMAN_VERIFY`: after the batches, one more call tries to refute every finding above
    * `info` before it is posted (ADR 0027). Off by default; enabled only by `1` or `true`.
    */
   verify: boolean;
-  /** `AGENT_REVIEW_VERIFY_BUDGET_USD`: the verifier's reserve, taken out of `budgetUsd` (at most half of it). */
+  /** `WACHIMAN_VERIFY_BUDGET_USD`: the verifier's reserve, taken out of `budgetUsd` (at most half of it). */
   verifyBudgetUsd: number;
-  /** `AGENT_REVIEW_VERIFIER_MODEL`: the verifier's model; it always runs at effort `high`. */
+  /** `WACHIMAN_VERIFIER_MODEL`: the verifier's model; it always runs at effort `high`. */
   verifierModel: string;
   /**
-   * `AGENT_REVIEW_CONFIDENCE`: PR Confidence (ADR 0033). A full review of a pull request lists the
+   * `WACHIMAN_CONFIDENCE`: PR Confidence (ADR 0033). A full review of a pull request lists the
    * claims in its title and body with one more small call, grades the change against them and
    * writes the grade into the description. Off by default; enabled only by `1` or `true`. Read by
    * the pull request review only: `wachiman local` never grades.
@@ -124,41 +124,41 @@ export interface EngineConfig {
   confidence: boolean;
 }
 
-/** The verifier's model when `AGENT_REVIEW_VERIFIER_MODEL` is unset (Claude Code only). */
+/** The verifier's model when `WACHIMAN_VERIFIER_MODEL` is unset (Claude Code only). */
 export const DEFAULT_VERIFIER_MODEL = "claude-opus-5-5";
 
 type Env = Record<string, string | undefined>;
 
 /**
- * `AGENT_REVIEW_<name>`, else the deprecated `CLAUDE_REVIEW_<name>` (with a one-line notice on
+ * `WACHIMAN_<name>`, else the deprecated `CLAUDE_REVIEW_<name>` (with a one-line notice on
  * stderr), else undefined. An empty value counts as unset.
  */
 export function readSetting(env: Env, name: string, warn: (line: string) => void) {
-  const current = env[`AGENT_REVIEW_${name}`];
+  const current = env[`WACHIMAN_${name}`];
   if (current !== undefined && current !== "") return current;
   const old = env[`CLAUDE_REVIEW_${name}`];
   if (old !== undefined && old !== "") {
-    warn(`CLAUDE_REVIEW_${name} is deprecated; use AGENT_REVIEW_${name}.`);
+    warn(`CLAUDE_REVIEW_${name} is deprecated; use WACHIMAN_${name}.`);
     return old;
   }
   return undefined;
 }
 
 /**
- * `AGENT_REVIEW_EFFORT`, else the deprecated `AGENT_REVIEW_REASONING_EFFORT` (Codex only before),
+ * `WACHIMAN_EFFORT`, else the deprecated `WACHIMAN_REASONING_EFFORT` (Codex only before),
  * else the default. An unknown value is a configuration error: a silent fallback would run the
  * review at an effort nobody chose.
  */
 function readEffort(env: Env, warn: (line: string) => void): Effort {
   const current = readSetting(env, "EFFORT", warn);
   const old = readSetting(env, "REASONING_EFFORT", () => {});
-  let name = "AGENT_REVIEW_EFFORT";
+  let name = "WACHIMAN_EFFORT";
   let raw = current;
   if (old !== undefined) {
-    warn("AGENT_REVIEW_REASONING_EFFORT is deprecated; use AGENT_REVIEW_EFFORT.");
+    warn("WACHIMAN_REASONING_EFFORT is deprecated; use WACHIMAN_EFFORT.");
     if (raw === undefined) {
       raw = old;
-      name = "AGENT_REVIEW_REASONING_EFFORT";
+      name = "WACHIMAN_REASONING_EFFORT";
     }
   }
   if (raw === undefined) return DEFAULT_EFFORT;
@@ -175,59 +175,59 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     if (raw === undefined) return fallback;
     const value = Number(raw);
     if (!Number.isFinite(value) || value <= 0 || (integer && !Number.isInteger(value))) {
-      throw new UsageError(`AGENT_REVIEW_${name} must be a positive ${integer ? "integer" : "number"}, got "${raw}".`);
+      throw new UsageError(`WACHIMAN_${name} must be a positive ${integer ? "integer" : "number"}, got "${raw}".`);
     }
     return value;
   };
   const effort = readEffort(env, warn);
   const onProviderUnavailable = get("ON_PROVIDER_UNAVAILABLE") ?? "warn";
   if (onProviderUnavailable !== "warn" && onProviderUnavailable !== "fail") {
-    throw new UsageError(`AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE must be warn or fail, got "${onProviderUnavailable}".`);
+    throw new UsageError(`WACHIMAN_ON_PROVIDER_UNAVAILABLE must be warn or fail, got "${onProviderUnavailable}".`);
   }
   const provider = get("PROVIDER") ?? "claude-code";
   const dryRun = get("DRY_RUN") === "1";
   const fullReview = get("FULL_REVIEW") === "1";
   if (fullReview && !dryRun) {
     throw new UsageError(
-      "AGENT_REVIEW_FULL_REVIEW=1 works only with AGENT_REVIEW_DRY_RUN=1: a full review ignores the previous-review marker, so it is printed, never posted.",
+      "WACHIMAN_FULL_REVIEW=1 works only with WACHIMAN_DRY_RUN=1: a full review ignores the previous-review marker, so it is printed, never posted.",
     );
   }
   const verifyRaw = get("VERIFY");
   if (verifyRaw !== undefined && verifyRaw !== "0" && verifyRaw !== "1" && verifyRaw !== "true" && verifyRaw !== "false") {
-    throw new UsageError(`AGENT_REVIEW_VERIFY must be 1, true, 0 or false (unset means off), got "${verifyRaw}".`);
+    throw new UsageError(`WACHIMAN_VERIFY must be 1, true, 0 or false (unset means off), got "${verifyRaw}".`);
   }
   const verifierModel = get("VERIFIER_MODEL") ?? (provider === "claude-code" ? DEFAULT_VERIFIER_MODEL : undefined);
   // Verification is opt-in, including when a verifier model is configured.
   const verify = verifyRaw === "1" || verifyRaw === "true";
   if (verify && verifierModel === undefined) {
-    throw new UsageError(`AGENT_REVIEW_VERIFY needs AGENT_REVIEW_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`);
+    throw new UsageError(`WACHIMAN_VERIFY needs WACHIMAN_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`);
   }
   const confidenceRaw = get("CONFIDENCE");
   if (confidenceRaw !== undefined && !["0", "1", "true", "false"].includes(confidenceRaw)) {
-    throw new UsageError(`AGENT_REVIEW_CONFIDENCE must be 1, true, 0 or false (unset means off), got "${confidenceRaw}".`);
+    throw new UsageError(`WACHIMAN_CONFIDENCE must be 1, true, 0 or false (unset means off), got "${confidenceRaw}".`);
   }
   const askers = get("ASKERS") ?? "operator";
   if (askers !== "operator" && askers !== "write") {
-    throw new UsageError(`AGENT_REVIEW_ASKERS must be operator or write, got "${askers}".`);
+    throw new UsageError(`WACHIMAN_ASKERS must be operator or write, got "${askers}".`);
   }
   const trigger = get("TRIGGER")?.trim();
   if (trigger !== undefined && !/^[a-z_]+$/.test(trigger)) {
-    throw new UsageError(`AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "${trigger}".`);
+    throw new UsageError(`WACHIMAN_TRIGGER must be a lowercase event action such as synchronize, got "${trigger}".`);
   }
   const limitMode = get("LIMIT_MODE") ?? "fail";
   if (limitMode !== "fail" && limitMode !== "notice") {
-    throw new UsageError(`AGENT_REVIEW_LIMIT_MODE must be fail or notice, got "${limitMode}".`);
+    throw new UsageError(`WACHIMAN_LIMIT_MODE must be fail or notice, got "${limitMode}".`);
   }
   const ledgerUnavailable = get("LEDGER_UNAVAILABLE") ?? "run";
   if (ledgerUnavailable !== "run" && ledgerUnavailable !== "stop") {
-    throw new UsageError(`AGENT_REVIEW_LEDGER_UNAVAILABLE must be run or stop, got "${ledgerUnavailable}".`);
+    throw new UsageError(`WACHIMAN_LEDGER_UNAVAILABLE must be run or stop, got "${ledgerUnavailable}".`);
   }
   const bypass = get("LIMIT_BYPASS")?.trim();
   const ledgerUrl = get("LEDGER_URL")?.trim().replace(/\/+$/, "") || undefined;
   // The job's OIDC token is sent to this address: never over cleartext, except to the local machine for tests.
   if (ledgerUrl !== undefined && !/^https:\/\/\S/i.test(ledgerUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(?=[:/]|$)/i.test(ledgerUrl)) {
     throw new UsageError(
-      `AGENT_REVIEW_LEDGER_URL must start with https:// (http://localhost and http://127.0.0.1 are allowed for tests), got "${ledgerUrl}".`,
+      `WACHIMAN_LEDGER_URL must start with https:// (http://localhost and http://127.0.0.1 are allowed for tests), got "${ledgerUrl}".`,
     );
   }
   // With a ledger, `review-platform.yml` grants `id-token: write`, so the request token is in the
@@ -235,7 +235,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   // Without `ledger_url` nothing uses the token and the guard does not apply.
   if (ledgerUrl !== undefined && provider !== "claude-code" && env.ACTIONS_ID_TOKEN_REQUEST_TOKEN !== undefined) {
     throw new UsageError(
-      `AGENT_REVIEW_PROVIDER ${provider} cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of review-platform.yml.`,
+      `WACHIMAN_PROVIDER ${provider} cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of review-platform.yml.`,
     );
   }
   return {
@@ -285,10 +285,10 @@ const PLACEHOLDER_OPERATORS = ["your-github-login"];
  */
 export function operatorProblem(operator: string | undefined): string | undefined {
   const login = (operator ?? "").trim();
-  if (login === "") return "The operator login is empty. Set `operator` (AGENT_REVIEW_OPERATOR) to your GitHub login.";
+  if (login === "") return "The operator login is empty. Set `operator` (WACHIMAN_OPERATOR) to your GitHub login.";
   const lower = login.toLowerCase();
   if (lower.startsWith("edit") || PLACEHOLDER_OPERATORS.includes(lower)) {
-    return `The operator login is still the template placeholder "${login}". Set \`operator\` (AGENT_REVIEW_OPERATOR) to your GitHub login.`;
+    return `The operator login is still the template placeholder "${login}". Set \`operator\` (WACHIMAN_OPERATOR) to your GitHub login.`;
   }
   return undefined;
 }
