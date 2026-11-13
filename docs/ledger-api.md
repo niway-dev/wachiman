@@ -380,6 +380,10 @@ footer of its pull request comment. Anyone can verify it with the key from `GET 
 This part is what makes a ledger "look like" a ledger to the engine. The client runs `curl` with a
 20 second limit. What a run does depends on the route.
 
+Only a GitHub Actions job calls the write routes. Outside GitHub Actions (`GITHUB_ACTIONS` is not
+`true`, as on a laptop) the engine skips reserve, settle and record even with `ledger_url` set, and
+the review runs: a laptop run is not counted against the limit.
+
 **On reserve**, before any model call:
 
 | What happened | The client's reading | What the run does |
