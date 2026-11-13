@@ -101,5 +101,6 @@ export async function runLedger(args: LedgerArgs, env: Record<string, string | u
   }
   const result = await pullLedger(home, env, args.sinceDays, io.pull ?? realPullDeps);
   io.stdout(`Pulled ${result.entries} entr${result.entries === 1 ? "y" : "ies"} for ${result.from} to ${result.to} from account ${result.account} (${result.daysWritten} day file${result.daysWritten === 1 ? "" : "s"} written).\n`);
+  if (result.daysRemoved > 0) io.stdout(`${result.daysRemoved} day file${result.daysRemoved === 1 ? "" : "s"} deleted: the ledger no longer returns entries for ${result.daysRemoved === 1 ? "that day" : "those days"} (days outside this pull are kept).\n`);
   return 0;
 }

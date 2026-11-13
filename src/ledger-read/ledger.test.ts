@@ -10,6 +10,10 @@ import { runDashboard, type DashboardArgs } from "../store/command";
 import { parseLedgerArgs, runLedger } from "./command";
 import { credentialsPath, deleteCredentials, resolveCredentials, writeCredentials } from "./credentials";
 import { listLedgerAccounts } from "./files";
+import { readLedgerFromFiles } from "./rows";
+import { parseEntriesResponse } from "./types";
+import { runStatus, parseStatusArgs } from "../status/command";
+import { utimesSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
 import { pullLedger, type PullDeps } from "./pull";
 
 const temps: string[] = [];
@@ -166,12 +170,26 @@ describe("index", () => {
     refreshIndex(home, () => {}, { force: true });
     expect(readSpendRows(index)).toEqual(first);
   });
-  test("a second pull changes the index signature only when the files change", async () => {
-    const { wachiman: home } = fixtureHome();
+  test("the index is rebuilt after a pull that changes the entries, and not when nothing changed", async () => {
+    const { wachiman: home, index } = fixtureHome();
     writeCredentials(home, { url: URL_, token: TOKEN });
     await pullLedger(home, {}, undefined, deps(fakeFetch()));
     expect(refreshIndex(home, () => {}).rebuilt).toBe(true);
     expect(refreshIndex(home, () => {}).rebuilt).toBe(false);
+    await pullLedger(home, {}, undefined, deps(fakeFetch({ ...RESPONSE, entries: ENTRIES.filter((e) => e.id !== "e2") })));
+    expect(refreshIndex(home, () => {}).rebuilt).toBe(true);
+    expect(readSpendRows(index).rows.filter((r) => r.source === "actions")).toHaveLength(4);
+  });
+  test("the rows in the index equal the rows read from the day files", async () => {
+    const { wachiman: home, index } = fixtureHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    refreshIndex(home, () => {});
+    const byRun = (a: { runId: string }, b: { runId: string }) => a.runId.localeCompare(b.runId);
+    const fromIndex = readSpendRows(index).rows.filter((r) => r.source === "actions").sort(byRun);
+    const fromFiles = readLedgerFromFiles(home, () => {}).rows.sort(byRun);
+    expect(fromFiles).toEqual(fromIndex);
+    expect(readLedgerFromFiles(home, () => {}).ranges).toEqual(readSpendRows(index).actions);
   });
 });
 
@@ -307,5 +325,160 @@ describe("end to end through the real command line", () => {
     } finally {
       server.stop(true);
     }
+  });
+});
+
+describe("review fixes", () => {
+  const status = (home: string, argv: string[]) => {
+    const out: string[] = [];
+    const err: string[] = [];
+    runStatus(parseStatusArgs(argv) as never, home, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: (l) => err.push(l), version: "0", now: () => NOW });
+    return { out: out.join(""), err };
+  };
+
+  test("run_attempt may be a number or a numeric string", () => {
+    const parse = (v: unknown) => parseEntriesResponse({ account: "a", limits: { dailyUsd: null, weeklyUsd: null }, entries: [entry("x", "2026-11-01", "2026-10-26", "reserved", { run_attempt: v })] }).entries[0].run_attempt;
+    expect(parse(2)).toBe(2);
+    expect(parse("2")).toBe(2);
+    expect(parse("two")).toBeNull();
+  });
+
+  test("a redirect is refused and named; the request asks fetch not to follow redirects", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    let init: RequestInit | undefined;
+    const redirecting: PullDeps = { now: () => NOW, fetch: (async (_u: unknown, i?: RequestInit) => { init = i; throw new TypeError("fetch failed: redirect mode is set to error"); }) as unknown as typeof fetch };
+    const error = (await pullLedger(home, {}, undefined, redirecting).catch((e) => e)) as Error;
+    expect(init?.redirect).toBe("error");
+    expect(error.message).toMatch(/redirected/);
+    expect(error.message).not.toContain(TOKEN);
+    const f3xx: PullDeps = { now: () => NOW, fetch: (async () => new Response(null, { status: 302, headers: { location: "https://elsewhere.test" } })) as unknown as typeof fetch };
+    expect(((await pullLedger(home, {}, undefined, f3xx).catch((e) => e)) as Error).message).toMatch(/redirected/);
+  });
+
+  test("a wider pull and then a plain pull keep the older days, and coverage is the union", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    const old = entry("old", "2026-09-01", "2026-08-31", "settled", { settledUsd: 0.5, calls: [call("claude-opus-5-5", "api-key", 0.5)] });
+    await pullLedger(home, {}, 90, deps(fakeFetch({ ...RESPONSE, entries: [old, ...ENTRIES] })));
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const dir = join(home, "ledger", "acct-1");
+    expect(existsSync(join(dir, "2026-09-01.json"))).toBe(true);
+    const l = readLedgerFromFiles(home, () => {});
+    expect(l.ranges).toEqual([{ from: "2026-08-15", to: "2026-11-12" }]);
+    expect(l.rows.map((r) => r.runId)).toContain("old");
+  });
+
+  test("pulls that do not touch stay two ranges; overlapping or adjacent ones merge", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, 5, { fetch: fakeFetch({ ...RESPONSE, entries: [] }).fn, now: () => new Date("2026-08-05T12:00:00Z") });
+    await pullLedger(home, {}, 5, { fetch: fakeFetch({ ...RESPONSE, entries: [] }).fn, now: () => NOW });
+    expect(readLedgerFromFiles(home, () => {}).ranges).toEqual([{ from: "2026-08-01", to: "2026-08-05" }, { from: "2026-11-08", to: "2026-11-12" }]);
+    await pullLedger(home, {}, 5, { fetch: fakeFetch({ ...RESPONSE, entries: [] }).fn, now: () => new Date("2026-08-10T12:00:00Z") });
+    expect(readLedgerFromFiles(home, () => {}).ranges[0]).toEqual({ from: "2026-08-01", to: "2026-08-10" });
+  });
+
+  test("the command says how many day files were deleted", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const out: string[] = [];
+    const io = { stdout: (t: string) => out.push(t), stderr: () => {}, pull: deps(fakeFetch({ ...RESPONSE, entries: ENTRIES.filter((e) => e.id !== "e1") })) };
+    expect(await runLedger({ action: "pull" }, { WACHIMAN_HOME: home }, io)).toBe(0);
+    expect(out.join("")).toMatch(/1 day file deleted/);
+  });
+
+  test("a plain dashboard ignores a malformed credentials file and a bad URL in the environment", async () => {
+    const { wachiman: home } = fixtureHome();
+    mkdirSync(join(home, "ledger"), { recursive: true });
+    writeFileSync(credentialsPath(home), "{ not json");
+    const out = join(home, "p.html");
+    const run = () => runDashboard({ json: false, out }, { WACHIMAN_HOME: home, WACHIMAN_LEDGER_URL: "ftp://bad", WACHIMAN_LEDGER_TOKEN: "x" }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
+    expect(run).not.toThrow();
+    expect(readFileSync(out, "utf8")).toContain("has not been pulled yet");
+  });
+
+  test("status reads the day files and never touches the index, even on a read-only home", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const before = files(home).sort();
+    chmodSync(home, 0o500);
+    try {
+      const { out } = status(home, ["--all-repos"]);
+      expect(out).toContain("$");
+      expect(out).toContain("counted against the ledger limit");
+    } finally {
+      chmodSync(home, 0o700);
+    }
+    expect(files(home).sort()).toEqual(before);
+  });
+
+  test("the limit figures ignore --repo, --model, --since and --profile", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const used = (argv: string[]) => JSON.parse(status(home, [...argv, "--json"]).out).limitUse;
+    const base = used(["--all-repos"]);
+    expect(base.day.usedUsd).toBeGreaterThan(0);
+    for (const argv of [["--all-repos", "--model", "nothing-matches"], ["--repo", "other"], ["--all-repos", "--since", "1d"], ["--all-repos", "--profile", "p"]]) {
+      expect(used(argv)).toEqual(base);
+    }
+    expect(status(home, ["--all-repos", "--model", "nothing-matches"]).out).toContain(`of $5.00`);
+  });
+
+  test("--source actions with no pulled ledger says what to do", () => {
+    const home = tempHome();
+    expect(() => status(home, ["--all-repos", "--source", "actions"])).toThrow(/ledger connect/);
+  });
+
+  test("a pull removes stale temporary files and keeps fresh ones", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const dir = join(home, "ledger", "acct-1");
+    const stale = join(dir, "2026-11-02.json.tmp-99999");
+    const fresh = join(dir, "2026-11-10.json.tmp-99998");
+    writeFileSync(stale, "x");
+    writeFileSync(fresh, "x");
+    const long = new Date(Date.now() - 3 * 3_600_000);
+    utimesSync(stale, long, long);
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    expect(existsSync(stale)).toBe(false);
+    expect(existsSync(fresh)).toBe(true);
+  });
+
+  test("repository and model names are escaped in the page, in HTML and in SVG text", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    const evil = `o/<script>alert("x")</script>&'`;
+    const hostile = entry("h1", "2026-11-10", "2026-11-09", "settled", { repository: evil, settledUsd: 0.5, calls: [call(`m<script>"&`, "api-key", 0.5)] });
+    await pullLedger(home, {}, undefined, deps(fakeFetch({ ...RESPONSE, entries: [hostile] })));
+    const out = join(home, "p.html");
+    runDashboard({ json: false, out }, { WACHIMAN_HOME: home }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
+    const html = readFileSync(out, "utf8");
+    expect(html).not.toMatch(/<script/i);
+    expect(html).not.toContain(evil);
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&amp;");
+    expect(html).not.toMatch(/<img|onerror=/i);
+  });
+
+  test("the limit line is drawn only on the chart of what the ledger counts", async () => {
+    const home = tempHome();
+    writeCredentials(home, { url: URL_, token: TOKEN });
+    await pullLedger(home, {}, undefined, deps(fakeFetch()));
+    const out = join(home, "p.html");
+    runDashboard({ json: false, out }, { WACHIMAN_HOME: home }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
+    const html = readFileSync(out, "utf8");
+    for (const title of ["Counted against the limit, per day (GitHub Actions runs)", "Spend per day, by source", "Counted against the limit, per week (GitHub Actions runs)", "Spend per week, by source"]) expect(html).toContain(title);
+    const svgs = html.split("<svg").slice(1).map((x) => x.split("</svg>")[0]);
+    const counted = svgs.filter((x) => /counted against the ledger limit/.test(x));
+    const bySource = svgs.filter((x) => /by source/.test(x));
+    expect(counted).toHaveLength(2);
+    expect(bySource).toHaveLength(2);
+    for (const x of counted) expect(x).toContain('class="limit"');
+    for (const x of bySource) expect(x).not.toContain('class="limit"');
   });
 });

@@ -242,41 +242,58 @@ export interface ReportInput {
   rows: SpendRow[];
   /** Which sources the caller asked for; the others are `known: false`. */
   sources?: Source[];
-  /** The days each source's data covers: the pull for Actions, first kept run to today for the laptop. Null: no data. */
-  coverage: Record<Source, Range | null>;
+  /** The days each source's data covers, as separate ranges: the pulls for Actions, first kept run to today for the laptop. Empty: no data. */
+  coverage: Record<Source, Range[]>;
   limits?: Limits | null;
   pulledAt?: string | null;
   now: Date;
 }
 
 /** The laptop covers from its first kept run to today, whatever the filters; Actions covers what the last pull asked for. */
-export function deriveCoverage(allRows: SpendRow[], actions: Range | null, now: Date): Record<Source, Range | null> {
+export function deriveCoverage(allRows: SpendRow[], actions: Range[], now: Date): Record<Source, Range[]> {
   const days = allRows.filter((r) => r.source === "laptop").map((r) => r.day).sort();
-  return { laptop: days.length ? { from: days[0], to: now.toISOString().slice(0, 10) } : null, actions };
+  return { laptop: days.length ? [{ from: days[0], to: now.toISOString().slice(0, 10) }] : [], actions: mergeRanges(actions) };
 }
+
+/** Sorted ranges where those that overlap or touch (the next starts the day after the previous ends) become one. */
+export function mergeRanges(ranges: Range[]): Range[] {
+  const out: Range[] = [];
+  for (const r of [...ranges].sort((a, b) => a.from.localeCompare(b.from))) {
+    const last = out.at(-1);
+    if (last && r.from <= addDays(last.to, 1)) last.to = r.to > last.to ? r.to : last.to;
+    else out.push({ ...r });
+  }
+  return out;
+}
+
+const hull = (ranges: Range[]): Range | null => (ranges.length ? { from: ranges[0].from, to: ranges.at(-1)!.to } : null);
 
 const MAX_BUCKETS = 120;
 
 function buckets(input: ReportInput, kind: "day" | "week", sources: Source[]): Bucket[] {
   const today = input.now.toISOString().slice(0, 10);
-  const ranges = sources.flatMap((s) => (input.coverage[s] ? [input.coverage[s]!] : []));
+  const ranges = sources.flatMap((s) => input.coverage[s]);
   if (ranges.length === 0) return [];
   const first = ranges.map((r) => r.from).sort()[0];
   const last = [today, ...ranges.map((r) => r.to)].sort().at(-1)!;
   const step = kind === "day" ? 1 : 7;
-  const startKey = kind === "day" ? first : weekStart(first);
+  // The newest periods are kept: with a long history it is the old ones that fall off the chart.
+  const lastKey = kind === "day" ? last : weekStart(last);
+  const oldest = addDays(lastKey, -(MAX_BUCKETS - 1) * step);
+  const firstKey = kind === "day" ? first : weekStart(first);
   const keys: string[] = [];
-  for (let k = startKey; k <= last && keys.length < MAX_BUCKETS; k = addDays(k, step)) keys.push(k);
+  for (let k = firstKey > oldest ? firstKey : oldest; k <= lastKey; k = addDays(k, step)) keys.push(k);
   const rows = input.rows.filter((r) => sources.includes(r.source));
   return keys.map((key): Bucket => {
     const end = kind === "day" ? key : addDays(key, 6);
     const known = { laptop: false, actions: false } as Record<Source, boolean>;
     let partial = false;
+    const wanted = end > today ? today : end;
     for (const s of sources) {
-      const r = input.coverage[s];
-      if (!r || r.to < key || r.from > end) continue;
+      const ranges = input.coverage[s];
+      if (!ranges.some((r) => r.to >= key && r.from <= end)) continue;
       known[s] = true;
-      if (r.from > key || r.to < (end > today ? today : end)) partial = true;
+      if (!ranges.some((r) => r.from <= key && r.to >= wanted)) partial = true;
     }
     const spend = emptySplit();
     const aside = emptyAside();
@@ -289,6 +306,21 @@ function buckets(input: ReportInput, kind: "day" | "week", sources: Source[]): B
     }
     return { key, known, partial, spend: roundSplit(spend), aside: roundAside(aside), countedAgainstLimitUsd: known.actions ? roundUsd(limitUse) : null };
   });
+}
+
+export interface LimitUse {
+  key: string;
+  /** Dollars the ledger counts in this period; null when the downloaded days do not cover it. */
+  usedUsd: number | null;
+  limitUsd: number;
+}
+
+/** Today's and this week's figure against the ledger limits. Give it a report built from every Actions row of the account, unfiltered. */
+export function limitUse(report: Report, now: Date): { day: LimitUse | null; week: LimitUse | null } {
+  const today = now.toISOString().slice(0, 10);
+  const one = (buckets: Bucket[], key: string, limit: number | null): LimitUse | null =>
+    report.limits === null || limit === null ? null : { key, usedUsd: buckets.find((b) => b.key === key)?.countedAgainstLimitUsd ?? null, limitUsd: limit };
+  return { day: one(report.days, today, report.limits?.dailyUsd ?? null), week: one(report.weeks, weekStart(today), report.limits?.weeklyUsd ?? null) };
 }
 
 export function buildReport(input: ReportInput): Report {
@@ -304,7 +336,7 @@ export function buildReport(input: ReportInput): Report {
   }
   return {
     filters: { sources },
-    coverage: { laptop: sources.includes("laptop") ? input.coverage.laptop : null, actions: sources.includes("actions") ? input.coverage.actions : null },
+    coverage: { laptop: sources.includes("laptop") ? hull(input.coverage.laptop) : null, actions: sources.includes("actions") ? hull(input.coverage.actions) : null },
     pulledAt: input.pulledAt ?? null,
     limits: input.limits ?? null,
     totals: roundSplit(totals),

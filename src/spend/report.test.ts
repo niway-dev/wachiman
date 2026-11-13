@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildReport, credentialOf, deriveCoverage, group, weekStart, type SpendRow } from "./report";
+import { buildReport, credentialOf, deriveCoverage, group, mergeRanges, weekStart, type SpendRow } from "./report";
 
 const NOW = new Date("2026-11-12T12:00:00Z");
 
@@ -27,7 +27,7 @@ describe("weeks", () => {
     expect(weekStart("2026-11-01")).toBe("2026-10-26");
     expect(weekStart("2026-11-02")).toBe("2026-11-02");
     const rows = [row({ day: "2026-10-29" }), row({ day: "2026-11-01" })];
-    const report = buildReport({ rows, coverage: { actions: { from: "2026-10-26", to: "2026-11-12" }, laptop: null }, now: NOW });
+    const report = buildReport({ rows, coverage: { actions: [{ from: "2026-10-26", to: "2026-11-12" }], laptop: [] }, now: NOW });
     const week = report.weeks.find((w) => w.key === "2026-10-26")!;
     expect(week.spend.total).toEqual({ runs: 2, calls: 2, usd: 2 });
     expect(report.weeks.filter((w) => w.spend.total.runs > 0)).toHaveLength(1);
@@ -38,7 +38,7 @@ describe("no data versus zero", () => {
   test("a day outside the downloaded range is unknown, a covered day without runs is zero", () => {
     const report = buildReport({
       rows: [row({ day: "2026-11-06" })],
-      coverage: { actions: { from: "2026-11-05", to: "2026-11-10" }, laptop: null },
+      coverage: { actions: [{ from: "2026-11-05", to: "2026-11-10" }], laptop: [] },
       now: NOW,
     });
     const day = (k: string) => report.days.find((d) => d.key === k)!;
@@ -49,13 +49,13 @@ describe("no data versus zero", () => {
     expect(day("2026-11-07").countedAgainstLimitUsd).toBe(0);
   });
   test("with nothing pulled and no laptop run there is no period at all", () => {
-    const report = buildReport({ rows: [], coverage: deriveCoverage([], null, NOW), now: NOW });
+    const report = buildReport({ rows: [], coverage: deriveCoverage([], [], NOW), now: NOW });
     expect(report.days).toEqual([]);
     expect(report.coverage).toEqual({ laptop: null, actions: null });
   });
   test("the laptop is known from its first run to today", () => {
     const rows = [row({ source: "laptop", day: "2026-11-03", repository: "alpha", repositoryKey: "alpha-1" })];
-    expect(deriveCoverage(rows, null, NOW).laptop).toEqual({ from: "2026-11-03", to: "2026-11-12" });
+    expect(deriveCoverage(rows, [], NOW).laptop).toEqual([{ from: "2026-11-03", to: "2026-11-12" }]);
   });
 });
 
@@ -67,7 +67,7 @@ describe("the four entry states", () => {
       row({ day: "2026-11-10", state: "unsettled", costUsd: 0, reservedUsd: 2, calls: [] }),
       row({ day: "2026-11-10", state: "unreserved", costUsd: 0.25, calls: [{ model: "m", auth: "api-key", costUsd: 0.25, costKnown: true }] }),
     ];
-    const report = buildReport({ rows, coverage: { actions: { from: "2026-11-01", to: "2026-11-12" }, laptop: null }, now: NOW });
+    const report = buildReport({ rows, coverage: { actions: [{ from: "2026-11-01", to: "2026-11-12" }], laptop: [] }, now: NOW });
     expect(report.totals.total).toEqual({ runs: 1, calls: 1, usd: 0.6 });
     expect(report.aside.reserved).toEqual({ runs: 1, usd: 0, reservedUsd: 1 });
     expect(report.aside.unsettled).toEqual({ runs: 1, usd: 0, reservedUsd: 2 });
@@ -84,7 +84,7 @@ describe("splits", () => {
       row({ day: "2026-11-10", costUsd: 0.5, calls: [{ model: "a", auth: "api-key", costUsd: 0.5, costKnown: true }] }),
       row({ day: "2026-11-10", source: "laptop", repository: "alpha", repositoryKey: "alpha-1", pr: null, costUsd: 0.25, calls: [{ model: "a", auth: "subscription", costUsd: 0.25, costKnown: true }] }),
     ];
-    const report = buildReport({ rows, coverage: deriveCoverage(rows, { from: "2026-11-01", to: "2026-11-12" }, NOW), now: NOW });
+    const report = buildReport({ rows, coverage: deriveCoverage(rows, [{ from: "2026-11-01", to: "2026-11-12" }], NOW), now: NOW });
     expect(report.totals.byCredential.billed.usd).toBe(0.5);
     expect(report.totals.byCredential.estimated.usd).toBe(0.25);
     expect(report.totals.bySource.actions.usd).toBe(0.5);
@@ -94,12 +94,28 @@ describe("splits", () => {
   });
   test("dollars no call accounts for are not hidden", () => {
     const rows = [row({ day: "2026-11-10", costUsd: 1, calls: [{ model: "a", auth: "api-key", costUsd: 0.4, costKnown: true }] })];
-    const report = buildReport({ rows, coverage: { actions: { from: "2026-11-01", to: "2026-11-12" }, laptop: null }, now: NOW });
+    const report = buildReport({ rows, coverage: { actions: [{ from: "2026-11-01", to: "2026-11-12" }], laptop: [] }, now: NOW });
     expect(report.totals.byCredential.unknown.usd).toBeCloseTo(0.6, 6);
     expect(report.groups.model.map((g) => g.key).sort()).toEqual(["(not itemised)", "a"]);
   });
   test("pull requests and local branches are grouped apart", () => {
     const rows = [row({ day: "2026-11-10", pr: 7 }), row({ day: "2026-11-10", pr: null }), row({ day: "2026-11-10", source: "laptop", pr: null, repository: "alpha", repositoryKey: "alpha-1" })];
     expect(group(rows, "pr").map((g) => g.label).sort()).toEqual(["alpha (local branch)", "o/alpha #7", "o/alpha (no pull request)"]);
+  });
+});
+
+describe("how many periods are kept", () => {
+  test("a run from the start of the year still leaves the newest 120 days, ending today", () => {
+    const rows = [row({ day: "2026-01-01" }), row({ day: "2026-11-12" })];
+    const report = buildReport({ rows, coverage: { actions: [{ from: "2026-01-01", to: "2026-11-12" }], laptop: [] }, now: NOW });
+    expect(report.days).toHaveLength(120);
+    expect(report.days.at(-1)!.key).toBe("2026-11-12");
+    expect(report.days[0].key).toBe("2026-07-16");
+  });
+  test("ranges that touch or overlap merge; others stay apart", () => {
+    expect(mergeRanges([{ from: "2026-11-01", to: "2026-11-05" }, { from: "2026-11-06", to: "2026-11-08" }, { from: "2026-11-03", to: "2026-11-04" }, { from: "2026-11-20", to: "2026-11-22" }])).toEqual([
+      { from: "2026-11-01", to: "2026-11-08" },
+      { from: "2026-11-20", to: "2026-11-22" },
+    ]);
   });
 });

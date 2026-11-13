@@ -3,7 +3,8 @@
 `wachiman dashboard` shows, on your laptop, what your local reviews cost, how many findings they
 captured and what you thought of them, and how your review loops went. It writes one HTML file you
 open from disk, or prints the same figures as JSON. It runs no `claude`, calls no GitHub, starts no
-server, makes no network request and never opens a browser.
+server and never opens a browser. It makes no network request unless you pass `--refresh` with a
+connected spend ledger (see below).
 
 ```sh
 wachiman dashboard                       # writes ~/.wachiman/dashboard.html and prints its path
@@ -13,7 +14,7 @@ wachiman dashboard --json                # wachiman.dashboard/1 on stdout
 
 ## What it covers
 
-Only what the local history kept: runs saved by `wachiman local --history` and by `wachiman loop`
+What the local history kept, plus the downloaded ledger entries when you connected one: runs saved by `wachiman local --history` and by `wachiman loop`
 (which keeps a history), the verdicts you gave with `wachiman history --verdict`, and the loop state
 files. It covers every repository in `~/.wachiman/history`, not only the one you are standing in
 (`--repo-dir` is accepted like on every command and is not used).
@@ -22,7 +23,9 @@ Runs made by the GitHub Actions workflow never write the local history, so by de
 here. If you connect the spend ledger (`wachiman ledger connect <url>`, then `wachiman ledger pull`
 or `wachiman dashboard --refresh`), the page adds them from the downloaded entries, next to the laptop
 runs and always split by source (Actions, laptop) and by credential (billed API key, estimated
-subscription). Laptop runs are never counted against the ledger limit. See
+subscription). The page draws the limit only on the chart of what the ledger counts (Actions runs,
+whole account); a second chart shows spend by source with no limit line. Laptop runs are never
+counted against the ledger limit. See
 [ADR 0039](adr/0039-the-laptop-reads-the-ledger-and-one-report-covers-laptop-and-actions-runs.md) and
 [`ledger`](cli.md#ledger). Reservations that never settled and runs that were not reserved are shown
 as their own lines, not as spend, and a period the downloaded days do not cover says "no data".
@@ -56,8 +59,9 @@ files, using Bun's built-in SQLite ([ADR 0035](adr/0035-a-rebuildable-sqlite-ind
 
 - **The run files stay the record.** The index holds nothing that cannot be rebuilt from them.
   Deleting it loses nothing.
-- **Nothing else reads it.** `wachiman history`, `status`, `local` and `loop` replay the files exactly
-  as before; their output is the same with the index present, deleted or corrupt.
+- **Nothing else reads it.** `wachiman history`, `local` and `loop` replay the files exactly as
+  before, and `status` reads the downloaded ledger day files directly; their output is the same with
+  the index present, deleted or corrupt.
 - **It is rebuilt, never repaired.** A missing index, a corrupt one, one written by another version of
   the schema, or one older than the files it was built from (a new run, a new verdict, a loop round)
   is deleted and built again. The new file is written under a temporary name and renamed into place,

@@ -1,16 +1,17 @@
 /**
  * `wachiman status`: what this laptop knows about its own local runs, and what they cost. It reads
  * the history files (`local --history`) and local git metadata only: no `claude`, no GitHub, no
- * network. Damaged history files are moved aside with a warning. Runs made by the GitHub Actions workflow are not in these files and are not counted.
+ * network. Damaged history files are moved aside with a warning. Runs made by the GitHub Actions workflow
+ * are not in these files and are not counted, unless the user connected a ledger and pulled it (ADR 0039):
+ * then the pulled day files are read directly (never the index, so `status` answers even when the index
+ * cannot be written) and one report covers both sources.
  */
 import { UsageError } from "../config";
 import { wachimanHome } from "../accounts/config";
 import { historySettings, historyRoot, listKeys, readRuns, repositoryKey } from "../history/store";
 import type { HistoryRun } from "../history/types";
-import { listLedgerAccounts } from "../ledger-read/files";
-import { refreshIndex } from "../store/index";
-import { readSpendRows } from "../store/rows";
-import { buildReport, deriveCoverage, group as groupRows, SOURCES, weekStart, type GroupBy, type Report, type Source, type SpendRow } from "../spend/report";
+import { readLedgerFromFiles } from "../ledger-read/rows";
+import { buildReport, deriveCoverage, group as groupRows, limitUse, SOURCES, weekStart, type GroupBy, type LimitUse, type Report, type Source, type SpendRow } from "../spend/report";
 
 export const STATUS_FORMAT = "wachiman.status/1";
 
@@ -195,19 +196,12 @@ function creditLine(report: Report): string {
   return parts.join(" + ");
 }
 
-function limitLines(report: Report, now: Date): string[] {
-  if (!report.limits) return [];
+/** The ledger limit is per account across every repository, so these figures never see `--repo`, `--model`, `--since` or `--profile`. */
+function limitLines(use: { day: LimitUse | null; week: LimitUse | null }, now: Date): string[] {
   const today = now.toISOString().slice(0, 10);
-  const lines: string[] = [];
-  const one = (label: string, buckets: Report["days"], key: string, limit: number | null) => {
-    if (limit === null) return;
-    const b = buckets.find((x) => x.key === key);
-    const used = b?.countedAgainstLimitUsd;
-    lines.push(`${label}: ${used === null || used === undefined ? "no data" : `${usd(used)} of ${usd(limit)}`} counted against the ledger limit (Actions runs only, best-effort)`);
-  };
-  one(`Today (${today} UTC)`, report.days, today, report.limits.dailyUsd);
-  one(`This week (Monday ${weekStart(today)} UTC)`, report.weeks, weekStart(today), report.limits.weeklyUsd);
-  return lines;
+  const one = (label: string, u: LimitUse | null) =>
+    u ? [`${label}: ${u.usedUsd === null ? "no data" : `${usd(u.usedUsd)} of ${usd(u.limitUsd)}`} counted against the ledger limit (Actions runs only, whole account, all repositories, best-effort)`] : [];
+  return [...one(`Today (${today} UTC)`, use.day), ...one(`This week (Monday ${weekStart(today)} UTC)`, use.week)];
 }
 
 function asideLine(report: Report): string[] {
@@ -236,20 +230,24 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
   const laptopRuns = filterRuns(scoped, effectiveArgs, now).sort((a, b) => a.at.localeCompare(b.at));
 
   // The ledger is read only from files the user pulled; with none, everything below is the local-only status.
-  const hasLedger = listLedgerAccounts(home).length > 0;
-  const ledger = hasLedger ? readSpendRows(refreshIndex(home, io.stderr).path) : undefined;
-  const actionsRows = ledger ? filterLedgerRows(ledger.rows, args, now, remoteSlug(repo?.remote), all) : [];
+  const ledger = readLedgerFromFiles(home, io.stderr);
+  const hasLedger = ledger.pulledAt !== null;
+  if (!hasLedger && args.source === "actions") throw new UsageError("--source actions needs a pulled ledger: run `wachiman ledger connect`, then `wachiman ledger pull`.");
+  const actionsRows = hasLedger ? filterLedgerRows(ledger.rows, args, now, remoteSlug(repo?.remote), all) : [];
   const sources: Source[] = args.source === "all" ? [...SOURCES] : [args.source];
   const useLaptop = sources.includes("laptop");
   const rows = [...(useLaptop ? laptopRuns.map(toRow) : []), ...(sources.includes("actions") ? actionsRows : [])];
   const report = buildReport({
     rows,
     sources: hasLedger ? sources : ["laptop"],
-    coverage: deriveCoverage(scoped.map(toRow), ledger?.actions ?? null, now),
-    limits: ledger?.limits ?? null,
-    pulledAt: ledger?.pulledAt ?? null,
+    coverage: deriveCoverage(scoped.map(toRow), ledger.ranges, now),
+    limits: ledger.limits,
+    pulledAt: ledger.pulledAt,
     now,
   });
+  // The limit figures come from every ledger row of the account, whatever the filters say.
+  const limitReport = buildReport({ rows: ledger.rows, sources: ["actions"], coverage: { laptop: [], actions: ledger.ranges }, limits: ledger.limits, pulledAt: ledger.pulledAt, now });
+  const limits = limitUse(limitReport, now);
   const groups = groupRows(rows, args.by as GroupBy);
   const settled = rows.filter((r) => r.state === "settled");
   const total = report.totals.total.usd;
@@ -275,7 +273,7 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
       totals: { runs: settled.length, costUsdEstimate: total },
       groups: hasLedger ? groups.map((g, i) => ({ ...legacyGroups[i], label: g.label, split: g.split })) : legacyGroups,
       runs: useLaptop ? laptopRuns : [],
-      ...(hasLedger ? { report } : {}),
+      ...(hasLedger ? { report, limitUse: limits } : {}),
     };
     io.stdout(`${JSON.stringify(doc, null, 2)}\n`);
     return 0;
@@ -289,7 +287,7 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
   }
   if (settled.length === 0) {
     lines.push(all.length === 0 && actionsRows.length === 0 ? "No run to show: no local run is kept and no ledger entry matches. Run `wachiman ledger pull` to refresh the ledger." : "No run matches the filters.");
-    lines.push(...asideLine(report), ...limitLines(report, now));
+    lines.push(...asideLine(report), ...limitLines(limits, now));
     io.stdout(`${lines.join("\n")}\n`);
     return 0;
   }
@@ -297,7 +295,7 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
   const days = settled.map((r) => r.day).sort();
   if (hasLedger) {
     lines.push(`${settled.length} run${settled.length === 1 ? "" : "s"}, ${creditLine(report)}, ${days[0]} → ${days.at(-1)}`);
-    lines.push(...limitLines(report, now), ...asideLine(report), "");
+    lines.push(...limitLines(limits, now), ...asideLine(report), "");
     lines.push(`  ${pad(args.by, w)}  runs  calls  billed  estimated`);
     for (const g of groups) lines.push(`  ${pad(g.key, w)}  ${pad(String(g.split.total.runs), 4)}  ${pad(String(g.split.total.calls), 5)}  ${pad(usd(g.split.byCredential.billed.usd), 6)}  ${usd(g.split.byCredential.estimated.usd + g.split.byCredential.unknown.usd)}`);
   } else {

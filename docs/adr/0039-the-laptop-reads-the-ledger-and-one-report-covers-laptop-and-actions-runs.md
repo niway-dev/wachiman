@@ -31,13 +31,16 @@ the user connected is not sending, but it must stay explicit and opt-in.
 2. **Download.** `wachiman ledger pull [--since <n>d]` (default 35 days, at most 92) calls
    `GET /v1/entries` and writes one file per UTC day under `<home>/ledger/<account>/<day>.json`,
    replacing a day's file as a whole, so a second pull never stores an entry twice. `pull.json`
-   beside them keeps when the pull happened, the days it covered and the limits the ledger
-   reported. This is the only request the laptop makes to the ledger, made only by that command
+   beside them keeps when the pull happened, the ranges of days pulled so far (merged when they
+   touch or overlap) and the limits the ledger reported. Day files outside a later, narrower pull
+   are kept. A day inside the pulled range for which the ledger returns nothing has its file
+   deleted, because a pull replaces the range as a whole; the command prints how many. Stale
+   `*.tmp-<pid>` files are removed at the start of a pull. This is the only request the laptop makes to the ledger, made only by that command
    and by `--refresh` on `status` and `dashboard`. Without them no request is made.
 3. **Index.** The SQLite index of ADR 0035 gains the ledger's entries and calls, rebuilt from the
    day files like the rest. The index still holds nothing that cannot be rebuilt from files.
-   `status` now reads the index for ledger entries (it did not before); with no pulled file it
-   behaves exactly as it did.
+   `status` does not read the index: it reads the pulled day files directly, so it still answers
+   when the index cannot be written; with no pulled file it behaves exactly as it did.
 4. **One report.** A pure module, `src/spend/report.ts` (rows in, report out; no file, network or
    Bun-only API), turns laptop runs and ledger entries into one row shape with
    `source: "laptop" | "actions"` and builds every figure. `wachiman status` and
@@ -59,11 +62,15 @@ the user connected is not sending, but it must stay explicit and opt-in.
 
 ## Consequences
 
-- ADR 0035 decision 3 ("no command that exists today depends on the index") no longer holds for
-  `status`, which reads ledger entries from the index. `history` and the other commands still do not.
-  The index schema version is 2: an older index is rebuilt.
+- ADR 0035 decision 3 ("no command that exists today depends on the index") still holds: `status`
+  reads the day files and only `dashboard` reads the index. The index schema version is 3: an older
+  index is rebuilt.
 - The read token sits in a 0600 file under the home, like other local state. Anyone who can read
   the home can read the ledger's entries; the token can call only `GET /v1/entries`.
+- The limit lines of `status` and the limit line of the dashboard are the whole account's figure,
+  computed from every pulled ledger row whatever the filters say; they count Actions runs only.
+- The same repository can appear under different identities in the two sources (a ledger
+  `owner/name` against a local clone's key); unifying them is left to the owner and is not decided here.
 - A laptop that never connects a ledger sees no change, apart from one line on the page saying how
   to connect.
 - The laptop's figure and Actions' figure are different kinds of data: a local run's dollars are an

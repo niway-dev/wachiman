@@ -515,7 +515,7 @@ error, including a `--verdict` id that matches no finding.
 `wachiman status` shows what this laptop kept of its local runs and what they cost, so you can see
 where the spend goes. It reads the history files under `~/.wachiman/history` and, without
 `--all-repos` or `--repo`, runs `git rev-parse` and `git remote get-url` in `--repo-dir` to find the
-repository's key. It runs no `claude`, calls no GitHub and sends nothing. Damaged history files
+repository's key. It runs no `claude`, calls no GitHub and sends nothing; the only request it can make is the explicit `--refresh`, which downloads the spend ledger. Damaged history files
 are moved aside with an `.unreadable-<timestamp>` suffix and a warning on stderr.
 
 **What it covers.** Runs saved by `wachiman local --history` (or `AGENT_REVIEW_HISTORY=1`) and, once
@@ -534,7 +534,7 @@ API-equivalent estimate, not a bill. A new `--history` run deletes runs older th
 | `--profile <name>` | Only runs made with that named account; older records without an account use the execution profile (`default`, `isolated` or `ci`) |
 | `--by day\|week\|repo\|pr\|model\|profile\|source` | How the table groups runs (default `day`); repositories are grouped by their unique key; weeks start on Monday, UTC; `pr` groups ledger runs by pull request and laptop runs by "local branch" |
 | `--source laptop\|actions\|all` | Only laptop runs, only GitHub Actions runs from the pulled ledger, or both (default `all`). `--profile` leaves out Actions runs, which have no profile |
-| `--refresh` | Run [`ledger pull`](#ledger) first (the only request `status` can make); without it no request is made. A failed download warns and keeps the entries already on disk |
+| `--refresh` | Run [`ledger pull`](#ledger) first (the only request `status` can make); without it no request is made. A failed download warns and keeps the entries already on disk. With no ledger connected it exits 2 |
 | `--json` | `wachiman.status/1`: the filters, totals, groups and every run with its attributes; with a pulled ledger also `report`, the one spend report with every figure split by source and credential |
 
 Each run in the JSON carries `at`, `repositoryKey`, `repository`, `change`, `head`, `model`,
@@ -544,10 +544,13 @@ branch or a commit.
 
 With a pulled ledger the totals line separates billed dollars (API key) from estimated dollars
 (subscription, API-equivalent, not a bill), shows the day's and the week's spend against the ledger
-limits when the ledger reported them (the limit is best-effort and counts Actions runs only), and
-adds a "Not counted as spend" line for reservations that never settled and runs that were not
-reserved. A limit period outside the downloaded days says "no data", not zero. Without a pulled
-ledger the output is the same as before.
+limits when the ledger reported them, and adds a "Not counted as spend" line for reservations that never settled and runs that were not
+reserved. The limit lines are the whole account's figure (Actions runs only, best-effort, counting
+settled runs, runs recorded without a reservation and dollars still held by reservations) over every
+repository: `--repo`, `--all-repos`, `--model`, `--since`, `--profile` and `--source` never change them.
+A limit period outside the downloaded days says "no data", not zero. `status` reads the downloaded day
+files directly, not the index, so it answers on a read-only home. `--source actions` with no pulled
+ledger exits 2 and says to connect one. Without a pulled ledger the output is the same as before.
 
 Exit codes: 0 printed (with no run kept it prints one line saying how to start, and exits 0); 2
 usage error.
@@ -557,7 +560,7 @@ usage error.
 `wachiman dashboard` shows what this laptop's local runs cost, how many findings they captured and how
 the review loops went, for every repository in `~/.wachiman/history`. It first brings the index at
 `~/.wachiman/index.sqlite` up to date by replaying the history files (a missing, corrupt, old-schema
-or stale index is deleted and rebuilt; no other command reads it), then writes one static HTML file or
+or stale index is deleted and rebuilt; `status` reads the downloaded ledger files, not the index, and no other command reads it), then writes one static HTML file or
 prints JSON. It runs no `claude`, calls no GitHub, starts no server and never opens a browser.
 `--repo-dir` is accepted and not used. What it covers and cannot show: [the guide](local-dashboard.md).
 
@@ -565,11 +568,12 @@ prints JSON. It runs no `claude`, calls no GitHub, starts no server and never op
 | --- | --- |
 | `--json` | Print `wachiman.dashboard/1` on stdout ([schema](formats/dashboard.v1.schema.json)) instead of writing the page |
 | `--out <file>` | Where to write the HTML page; default `~/.wachiman/dashboard.html`. Missing directories are created; the file is `0600`. The path is printed. Not allowed with `--json` |
-| `--refresh` | Run [`ledger pull`](#ledger) first (the only request `dashboard` can make). Without it no request is made. A failed download warns and keeps the entries already on disk |
+| `--refresh` | Run [`ledger pull`](#ledger) first (the only request `dashboard` can make). Without it no request is made, and the credentials file is not even read. A failed download warns and keeps the entries already on disk. With no ledger connected it exits 2 |
 
 With a ledger connected or pulled, the page replaces its spend sections with one view of laptop and
-GitHub Actions runs: dollars per day (with the daily limit drawn as a line) and per week (Monday,
-UTC; with the weekly limit), tables per repository, pull request and model with runs, calls and
+GitHub Actions runs: a chart of what the ledger counts against its limit per day and per week
+(GitHub Actions runs only, with the limit drawn as a line), a separate chart of spend by source with
+no limit line, tables per repository, pull request and model with runs, calls and
 dollars, every figure split by source and by credential (billed API key, estimated subscription),
 reservations that never settled and runs that were not reserved as their own lines, "no data" for any
 period the downloaded days do not cover, and when the ledger was last pulled. With no ledger the
@@ -588,14 +592,14 @@ still sends nothing and makes no GitHub request.
 
 | Command | What it does |
 | --- | --- |
-| `ledger connect <url>` | Asks for the read token on standard input without echoing it, and writes `~/.wachiman/ledger/credentials.json` (`{url, token}`) at mode `0600`. The URL must be https (http only for `localhost`) |
+| `ledger connect <url>` | Asks for the read token on standard input without echoing it, and writes `~/.wachiman/ledger/credentials.json` (`{url, token}`) at mode `0600`. The URL must be https (http only for loopback: `localhost`, `127.0.0.1` or `[::1]`) |
 | `ledger disconnect` | Deletes that file. Entries already downloaded stay on disk |
-| `ledger pull [--since <n>d]` | Calls `GET /v1/entries` for the last `n` days (default 35, at most 92) and writes one file per UTC day under `~/.wachiman/ledger/<account>/<day>.json`, replacing each day as a whole, so a second pull never stores an entry twice. It also stores the limits the ledger reported. This and `--refresh` are the only requests |
+| `ledger pull [--since <n>d]` | Calls `GET /v1/entries` for the last `n` days (default 35, at most 92) and writes one file per UTC day under `~/.wachiman/ledger/<account>/<day>.json`, replacing each day as a whole, so a second pull never stores an entry twice. It also stores the limits the ledger reported. Day files outside the pulled range are kept, and the covered days are the union of all pulls that touch or overlap; a day inside the range for which the ledger returns nothing has its file deleted, and the command prints how many. Stale `*.tmp-<pid>` files left by a crash are removed at the start. This and `--refresh` are the only requests |
 
 `WACHIMAN_LEDGER_URL` and `WACHIMAN_LEDGER_TOKEN` override the file. The token is never printed,
 logged, or written anywhere but the credentials file; it is not in the index or the dashboard page.
-The index (`~/.wachiman/index.sqlite`) is rebuilt from the day files like the rest and holds
-nothing the files do not.
+The dashboard's index (`~/.wachiman/index.sqlite`) is rebuilt from the day files like the rest and
+holds nothing the files do not; `status` does not use it.
 
 Exit codes: 0 done; 1 the ledger could not be reached, refused the token or answered something
 unexpected; 2 usage error, or `pull` with no ledger connected.

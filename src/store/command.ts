@@ -4,13 +4,13 @@
  * only the index and, without `--json`, the page; like `wachiman history`, it moves a damaged run
  * file aside. No `claude`, no GitHub, no network, no server, and it never opens a browser.
  */
-import { chmodSync, closeSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { existsSync, chmodSync, closeSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { wachimanHome } from "../accounts/config";
 import { UsageError } from "../config";
 import { readFigures, type Figures } from "./figures";
 import { renderHtml, type DashboardDocument } from "./html";
-import { resolveCredentials } from "../ledger-read/credentials";
+import { credentialsPath } from "../ledger-read/credentials";
 import { listLedgerAccounts } from "../ledger-read/files";
 import { buildReport, deriveCoverage } from "../spend/report";
 import { readSpendRows } from "./rows";
@@ -108,8 +108,8 @@ export function runDashboard(args: DashboardArgs, env: Record<string, string | u
     scope: LOCAL_ONLY,
     ...loadFigures(home, io.stderr),
   };
-  // A ledger is "connected" when credentials exist or a pull left files; otherwise the page is as before (ADR 0039).
-  if (resolveCredentials(home, env) !== undefined || listLedgerAccounts(home).length > 0) {
+  // A ledger is "connected" when a credentials file exists or a pull left files (nothing is parsed or resolved here: only `--refresh` makes a request, and the CLI does that first); otherwise the page is as before (ADR 0039).
+  if (existsSync(credentialsPath(home)) || listLedgerAccounts(home).length > 0) {
     const spend = readSpendRows(refreshIndex(home, io.stderr).path);
     const report = buildReport({ rows: spend.rows, coverage: deriveCoverage(spend.rows, spend.actions, now), limits: spend.limits, pulledAt: spend.pulledAt, now });
     doc.usage = { report, pulled: spend.pulledAt !== null };

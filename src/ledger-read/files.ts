@@ -4,9 +4,10 @@
  * happened, the days it covered and the limits the ledger reported. These files are the record; the
  * SQLite index is rebuilt from them. No token is ever written here.
  */
-import { existsSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { ledgerDir, writePrivateFile } from "./credentials";
+import { mergeRanges, type Range } from "../spend/report";
 import { ACCOUNT_PATTERN, DAY_PATTERN, parseEntriesResponse, type EntriesResponse, type LedgerEntry, type LedgerLimits } from "./types";
 
 export const PULL_FILE = "pull.json";
@@ -15,10 +16,26 @@ export const DAY_FORMAT = "wachiman.ledger-day/1";
 
 export interface PullMeta {
   account: string;
+  /** When the latest pull happened. */
   pulledAt: string;
-  from: string;
-  to: string;
+  /** The days the pulls covered; ranges that overlap or touch are one. Day files outside the latest pull are kept. */
+  ranges: Range[];
   limits: LedgerLimits;
+}
+
+const STALE_TMP_MS = 3_600_000;
+
+/** Removes `*.tmp-<pid>` files a crashed write left in `dir`, when they are over an hour old. */
+export function sweepStaleTemporaries(dir: string) {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    if (!/\.tmp-\d+$/.test(name)) continue;
+    try {
+      if (Date.now() - statSync(join(dir, name)).mtimeMs > STALE_TMP_MS) unlinkSync(join(dir, name));
+    } catch {
+      // Gone already.
+    }
+  }
 }
 
 export const accountDir = (home: string, account: string) => join(ledgerDir(home), account);
@@ -30,22 +47,48 @@ export function daysBetween(from: string, to: string): string[] {
   return days;
 }
 
-/** Stores one pull: each day in the range is replaced by the entries received for it, or removed when none came. */
-export function storePull(home: string, response: EntriesResponse, from: string, to: string, pulledAt: string): { daysWritten: number; entries: number } {
+/** Stores one pull: each day in the range is replaced by the entries received for it, or removed when none came. Days outside the range stay. */
+export function storePull(home: string, response: EntriesResponse, from: string, to: string, pulledAt: string): { daysWritten: number; daysRemoved: number; entries: number } {
   const dir = accountDir(home, response.account);
+  sweepStaleTemporaries(ledgerDir(home));
+  sweepStaleTemporaries(dir);
   const byDay = new Map<string, LedgerEntry[]>();
   for (const e of response.entries) {
     if (e.day < from || e.day > to) continue;
     byDay.set(e.day, [...(byDay.get(e.day) ?? []), e]);
   }
+  let daysRemoved = 0;
   for (const day of daysBetween(from, to)) {
     const entries = byDay.get(day);
     if (entries) writePrivateFile(join(dir, `${day}.json`), `${JSON.stringify({ format: DAY_FORMAT, account: response.account, day, entries }, null, 2)}\n`);
-    else if (existsSync(join(dir, `${day}.json`))) unlinkSync(join(dir, `${day}.json`));
+    else if (existsSync(join(dir, `${day}.json`))) {
+      unlinkSync(join(dir, `${day}.json`));
+      daysRemoved++;
+    }
   }
-  const meta: PullMeta & { format: string } = { format: PULL_FORMAT, account: response.account, pulledAt, from, to, limits: response.limits };
+  const earlier = readPullMeta(dir, response.account)?.ranges ?? [];
+  const meta = { format: PULL_FORMAT, account: response.account, pulledAt, ranges: mergeRanges([...earlier, { from, to }]), limits: response.limits };
   writePrivateFile(join(dir, PULL_FILE), `${JSON.stringify(meta, null, 2)}\n`);
-  return { daysWritten: byDay.size, entries: [...byDay.values()].reduce((n, e) => n + e.length, 0) };
+  return { daysWritten: byDay.size, daysRemoved, entries: [...byDay.values()].reduce((n, e) => n + e.length, 0) };
+}
+
+/** `pull.json` of an account directory, or undefined when it is missing or damaged. Older files with `from`/`to` read as one range. */
+export function readPullMeta(dir: string, account: string): PullMeta | undefined {
+  try {
+    const m = JSON.parse(readFileSync(join(dir, PULL_FILE), "utf8"));
+    if (!m || typeof m.pulledAt !== "string") return undefined;
+    const raw: unknown[] = Array.isArray(m.ranges) ? m.ranges : [{ from: m.from, to: m.to }];
+    const ranges = raw.filter((r): r is Range => !!r && typeof (r as Range).from === "string" && typeof (r as Range).to === "string" && DAY_PATTERN.test((r as Range).from) && DAY_PATTERN.test((r as Range).to));
+    if (ranges.length === 0) return undefined;
+    return {
+      account,
+      pulledAt: m.pulledAt,
+      ranges: mergeRanges(ranges),
+      limits: { dailyUsd: typeof m.limits?.dailyUsd === "number" ? m.limits.dailyUsd : null, weeklyUsd: typeof m.limits?.weeklyUsd === "number" ? m.limits.weeklyUsd : null },
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 export interface LedgerAccountFiles {
@@ -65,24 +108,7 @@ export function listLedgerAccounts(home: string): LedgerAccountFiles[] {
     if (!ACCOUNT_PATTERN.test(account)) continue;
     const dir = join(root, account);
     const pullFile = join(dir, PULL_FILE);
-    let meta: PullMeta | undefined;
-    try {
-      const m = JSON.parse(readFileSync(pullFile, "utf8"));
-      if (m && typeof m.pulledAt === "string" && DAY_PATTERN.test(m.from) && DAY_PATTERN.test(m.to)) {
-        meta = {
-          account,
-          pulledAt: m.pulledAt,
-          from: m.from,
-          to: m.to,
-          limits: {
-            dailyUsd: typeof m.limits?.dailyUsd === "number" ? m.limits.dailyUsd : null,
-            weeklyUsd: typeof m.limits?.weeklyUsd === "number" ? m.limits.weeklyUsd : null,
-          },
-        };
-      }
-    } catch {
-      // Missing or damaged: the account has no usable pull.
-    }
+    const meta = readPullMeta(dir, account);
     if (!meta) continue;
     const dayFiles = readdirSync(dir)
       .filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n))

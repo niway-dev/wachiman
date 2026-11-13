@@ -3,12 +3,12 @@
  * of `src/spend/report.ts` (ADR 0039). A plain reader; the report itself is a pure function.
  */
 import { Database } from "bun:sqlite";
-import { weekStart, type Limits, type Range, type SpendCall, type SpendRow } from "../spend/report";
+import { mergeRanges, weekStart, type Limits, type Range, type SpendCall, type SpendRow } from "../spend/report";
 
 export interface IndexedSpend {
   rows: SpendRow[];
-  /** The days the last pull covered, merged over accounts; null when nothing was ever pulled. */
-  actions: Range | null;
+  /** The days the pulls covered, merged over accounts; empty when nothing was ever pulled. */
+  actions: Range[];
   limits: Limits | null;
   pulledAt: string | null;
 }
@@ -82,17 +82,17 @@ export function readSpendRows(indexPath: string): IndexedSpend {
       });
     }
 
-    const pulls = db.query("SELECT pulled_at, from_day, to_day, daily_limit_usd, weekly_limit_usd FROM ledger_pulls ORDER BY account").all() as {
+    const pulls = db.query("SELECT account, pulled_at, daily_limit_usd, weekly_limit_usd FROM ledger_pulls ORDER BY account").all() as {
+      account: string;
       pulled_at: string;
-      from_day: string;
-      to_day: string;
       daily_limit_usd: number | null;
       weekly_limit_usd: number | null;
     }[];
-    if (pulls.length === 0) return { rows, actions: null, limits: null, pulledAt: null };
+    if (pulls.length === 0) return { rows, actions: [], limits: null, pulledAt: null };
+    const ranges = (db.query("SELECT from_day, to_day FROM ledger_ranges").all() as { from_day: string; to_day: string }[]).map((r) => ({ from: r.from_day, to: r.to_day }));
     return {
       rows,
-      actions: { from: pulls.map((p) => p.from_day).sort()[0], to: pulls.map((p) => p.to_day).sort().at(-1)! },
+      actions: mergeRanges(ranges),
       // One account is the normal case; with several, the first one's limits are shown.
       limits: { dailyUsd: pulls[0].daily_limit_usd, weeklyUsd: pulls[0].weekly_limit_usd },
       pulledAt: pulls.map((p) => p.pulled_at).sort().at(-1)!,

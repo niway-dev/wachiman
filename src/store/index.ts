@@ -1,7 +1,8 @@
 /**
  * The local index (ADR 0035): one SQLite file under the Wachiman home, filled by replaying the history
- * run files, `verdicts.jsonl` and the loop state files. It holds nothing that cannot be rebuilt from
- * them, and no other command reads it: `wachiman dashboard` is the only reader. A missing, outdated or
+ * run files, `verdicts.jsonl`, the loop state files and the pulled ledger day files (ADR 0039). It holds
+ * nothing that cannot be rebuilt from them, and no other command reads it: `wachiman dashboard` is the
+ * only reader (`status` reads the same files directly). A missing, outdated or
  * unreadable index is deleted and built again, never repaired; it is written to a temporary file and
  * renamed, so a reader sees all of it or none, at 0600. Bun's built-in `bun:sqlite`: no dependency.
  */
@@ -15,7 +16,7 @@ import { replay } from "../history/match";
 import { listLedgerAccounts, readDayFile } from "../ledger-read/files";
 
 /** Bump when a table or a column changes: an index of another version is rebuilt, never read. */
-export const INDEX_SCHEMA_VERSION = 2;
+export const INDEX_SCHEMA_VERSION = 3;
 
 export const INDEX_FILE = "index.sqlite";
 export const indexPath = (wachimanHome: string) => join(wachimanHome, INDEX_FILE);
@@ -55,7 +56,8 @@ CREATE TABLE loops (
   last_round_at TEXT
 );
 CREATE TABLE loop_ledger (repo_key TEXT NOT NULL, branch TEXT NOT NULL, status TEXT NOT NULL, count INTEGER NOT NULL);
-CREATE TABLE ledger_pulls (account TEXT PRIMARY KEY, pulled_at TEXT NOT NULL, from_day TEXT NOT NULL, to_day TEXT NOT NULL, daily_limit_usd REAL, weekly_limit_usd REAL);
+CREATE TABLE ledger_pulls (account TEXT PRIMARY KEY, pulled_at TEXT NOT NULL, daily_limit_usd REAL, weekly_limit_usd REAL);
+CREATE TABLE ledger_ranges (account TEXT NOT NULL, from_day TEXT NOT NULL, to_day TEXT NOT NULL);
 CREATE TABLE ledger_entries (
   account TEXT NOT NULL,
   id TEXT NOT NULL,
@@ -124,7 +126,8 @@ const PROBES = [
   "SELECT repo_key, first_id, at, verdict FROM verdicts LIMIT 0",
   "SELECT repo_key, branch, base, outcome, rounds, first_round_at, last_round_at FROM loops LIMIT 0",
   "SELECT repo_key, branch, status, count FROM loop_ledger LIMIT 0",
-  "SELECT account, pulled_at, from_day, to_day, daily_limit_usd, weekly_limit_usd FROM ledger_pulls LIMIT 0",
+  "SELECT account, pulled_at, daily_limit_usd, weekly_limit_usd FROM ledger_pulls LIMIT 0",
+  "SELECT account, from_day, to_day FROM ledger_ranges LIMIT 0",
   "SELECT account, id, day, week, repository, pr, run_id, run_attempt, trigger, state, reserved_usd, settled_usd FROM ledger_entries LIMIT 0",
   "SELECT account, entry_id, model, auth, cost_usd, cost_known FROM ledger_calls LIMIT 0",
 ];
@@ -238,13 +241,15 @@ function fill(db: Database, root: string, warn: (line: string) => void): number 
 
 /** The downloaded ledger entries (ADR 0039): one row per entry and per call, from the day files. */
 function fillLedger(db: Database, root: string, warn: (line: string) => void) {
-  const pull = db.prepare("INSERT INTO ledger_pulls (account, pulled_at, from_day, to_day, daily_limit_usd, weekly_limit_usd) VALUES (?, ?, ?, ?, ?, ?)");
+  const pull = db.prepare("INSERT INTO ledger_pulls (account, pulled_at, daily_limit_usd, weekly_limit_usd) VALUES (?, ?, ?, ?)");
+  const range = db.prepare("INSERT INTO ledger_ranges (account, from_day, to_day) VALUES (?, ?, ?)");
   const entry = db.prepare(
     "INSERT INTO ledger_entries (account, id, day, week, repository, pr, run_id, run_attempt, trigger, state, reserved_usd, settled_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const call = db.prepare("INSERT INTO ledger_calls (account, entry_id, model, auth, cost_usd, cost_known) VALUES (?, ?, ?, ?, ?, ?)");
   for (const a of listLedgerAccounts(dirname(root))) {
-    pull.run(a.account, a.meta.pulledAt, a.meta.from, a.meta.to, a.meta.limits.dailyUsd, a.meta.limits.weeklyUsd);
+    pull.run(a.account, a.meta.pulledAt, a.meta.limits.dailyUsd, a.meta.limits.weeklyUsd);
+    for (const r of a.meta.ranges) range.run(a.account, r.from, r.to);
     const seen = new Set<string>();
     for (const path of a.dayFiles) {
       const entries = readDayFile(path);

@@ -59,6 +59,12 @@ export const ACCOUNT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : fallback);
+/** A number, or a string that is one (the service sends `run_attempt` as a string). */
+const numOrNumericString = (v: unknown) => {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && /^\d+$/.test(v.trim())) return Number.parseInt(v, 10);
+  return null;
+};
 const nullableNum = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 function parseCall(raw: unknown): LedgerCall {
@@ -96,7 +102,7 @@ function parseEntry(raw: unknown): LedgerEntry {
     repository_id: typeof raw.repository_id === "number" || typeof raw.repository_id === "string" ? raw.repository_id : "",
     pr: typeof raw.pr === "number" && Number.isInteger(raw.pr) ? raw.pr : null,
     run_id: typeof raw.run_id === "number" || typeof raw.run_id === "string" ? raw.run_id : null,
-    run_attempt: nullableNum(raw.run_attempt),
+    run_attempt: numOrNumericString(raw.run_attempt),
     trigger: str(raw.trigger),
     forced: raw.forced === true,
     state: state as EntryState,

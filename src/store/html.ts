@@ -61,7 +61,7 @@ function bucketLabel(b: Bucket, kind: "day" | "week") {
 }
 
 /** Consecutive periods with no data in any source are one row, so a long gap does not read as zeros. */
-function bucketTable(buckets: Bucket[], kind: "day" | "week", coverage: Report["coverage"]): string {
+function bucketTable(buckets: Bucket[], kind: "day" | "week"): string {
   const rows: string[][] = [];
   let gap: Bucket[] = [];
   const flush = () => {
@@ -87,12 +87,15 @@ function bucketTable(buckets: Bucket[], kind: "day" | "week", coverage: Report["
     ]);
   }
   flush();
-  void coverage;
   return table([kind === "day" ? "Day (UTC)" : "Week (Monday, UTC)", "Runs", "Calls", "Total", "GitHub Actions", "Laptop", "Billed / estimated"], rows, [1, 2, 3, 4, 5, 6]);
 }
 
-/** Stacked inline-SVG bars: GitHub Actions below, laptop above; a grey dash where there is no data; a line at the limit. */
-function chart(buckets: Bucket[], limit: number | null, what: string, limitWord: string): string {
+/**
+ * Inline-SVG bars, one kind per chart so a line is never drawn over bars that do not mean the same thing:
+ * "counted" is what the ledger counts against its limit (GitHub Actions only) with the limit line;
+ * "source" is settled dollars by source (GitHub Actions below, laptop above) and has no limit line.
+ */
+function chart(buckets: Bucket[], kind: "counted" | "source", limit: number | null, what: string, limitWord: string): string {
   const W = 640;
   const H = 170;
   const left = 46;
@@ -101,15 +104,21 @@ function chart(buckets: Bucket[], limit: number | null, what: string, limitWord:
   const plotW = W - left - 8;
   const plotH = H - top - bottom;
   if (buckets.length === 0) return "";
-  const totals = buckets.map((b) => b.spend.total.usd);
-  const max = Math.max(limit ?? 0, ...totals, 0.01);
+  const counted = (b: Bucket) => b.countedAgainstLimitUsd;
+  const totals = buckets.map((b) => (kind === "counted" ? (counted(b) ?? 0) : b.spend.total.usd));
+  const max = Math.max(kind === "counted" ? (limit ?? 0) : 0, ...totals, 0.01);
   const y = (v: number) => top + plotH - (v / max) * plotH;
   const slot = plotW / buckets.length;
   const barW = Math.max(1, slot * 0.7);
   const parts = buckets.map((b, i) => {
     const x = left + i * slot + (slot - barW) / 2;
-    if (!b.known.laptop && !b.known.actions) {
+    const noData = kind === "counted" ? counted(b) === null : !b.known.laptop && !b.known.actions;
+    if (noData) {
       return `<rect class="nodata" x="${x.toFixed(1)}" y="${(top + plotH - 2).toFixed(1)}" width="${barW.toFixed(1)}" height="2"><title>${esc(b.key)}: ${NO_DATA}</title></rect>`;
+    }
+    if (kind === "counted") {
+      const v = counted(b) ?? 0;
+      return `<g><title>${esc(`${b.key}: ${usd(v)} counted against the limit`)}</title><rect class="fill" x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${barW.toFixed(1)}" height="${(top + plotH - y(v)).toFixed(1)}"/></g>`;
     }
     const a = b.known.actions ? b.spend.bySource.actions.usd : 0;
     const l = b.known.laptop ? b.spend.bySource.laptop.usd : 0;
@@ -117,7 +126,7 @@ function chart(buckets: Bucket[], limit: number | null, what: string, limitWord:
     return `<g><title>${esc(label)}</title><rect class="fill" x="${x.toFixed(1)}" y="${y(a).toFixed(1)}" width="${barW.toFixed(1)}" height="${(top + plotH - y(a)).toFixed(1)}"/><rect class="fill2" x="${x.toFixed(1)}" y="${y(a + l).toFixed(1)}" width="${barW.toFixed(1)}" height="${(y(a) - y(a + l)).toFixed(1)}"/></g>`;
   });
   const limitLine =
-    limit === null
+    kind !== "counted" || limit === null
       ? ""
       : `<line class="limit" x1="${left}" x2="${W - 8}" y1="${y(limit).toFixed(1)}" y2="${y(limit).toFixed(1)}"/><text class="axis" x="${W - 10}" y="${(y(limit) - 3).toFixed(1)}" text-anchor="end">${esc(limitWord)} ${esc(usd(limit))}</text>`;
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(what)}"><title>${esc(what)}</title><line class="axisline" x1="${left}" x2="${W - 8}" y1="${top + plotH}" y2="${top + plotH}"/><text class="axis" x="${left - 4}" y="${top + plotH}" text-anchor="end">$0</text><text class="axis" x="${left - 4}" y="${top + 8}" text-anchor="end">${esc(usd(max))}</text><text class="axis" x="${left}" y="${H - 6}">${esc(buckets[0].key)}</text><text class="axis" x="${W - 8}" y="${H - 6}" text-anchor="end">${esc(buckets.at(-1)!.key)}</text>${parts.join("")}${limitLine}</svg>`;
@@ -177,14 +186,20 @@ ${tile(usd(t.byCredential.estimated.usd + t.byCredential.unknown.usd), "estimate
 ${tile(r.coverage.actions ? usd(t.bySource.actions.usd) : NO_DATA, SOURCE_WORD.actions)}
 ${tile(r.coverage.laptop ? usd(t.bySource.laptop.usd) : NO_DATA, SOURCE_WORD.laptop)}
 </div>
-<h2>Dollars per day</h2>
-<p class="muted">Each bar is the dollars of finished runs on one UTC day: GitHub Actions in the lower colour, this laptop in the upper colour. A grey dash means no data for that day. ${limits?.dailyUsd != null ? "The dashed line is the daily limit." : ""}</p>
-${chart(r.days, limits?.dailyUsd ?? null, "Dollars of finished runs per UTC day, GitHub Actions and laptop", "daily limit")}
-${bucketTable(r.days, "day", r.coverage)}
-<h2>Dollars per week</h2>
-<p class="muted">Each bar is the dollars of finished runs in one week that starts on Monday, UTC. ${limits?.weeklyUsd != null ? "The dashed line is the weekly limit." : ""}</p>
-${chart(r.weeks, limits?.weeklyUsd ?? null, "Dollars of finished runs per week starting Monday UTC, GitHub Actions and laptop", "weekly limit")}
-${bucketTable(r.weeks, "week", r.coverage)}
+<h2>Counted against the limit, per day (GitHub Actions runs)</h2>
+<p class="muted">Each bar is what the ledger counts against its limit on one UTC day: settled runs, runs recorded without a reservation, and dollars still held by reservations. GitHub Actions only, for the whole account. A grey dash means no data for that day. ${limits?.dailyUsd != null ? "The dashed line is the daily limit." : "No daily limit is set."}</p>
+${chart(r.days, "counted", limits?.dailyUsd ?? null, "Dollars counted against the ledger limit per UTC day, GitHub Actions runs", "daily limit")}
+<h2>Spend per day, by source</h2>
+<p class="muted">Each bar is the dollars of finished runs on one UTC day: GitHub Actions in the lower colour, this laptop in the upper colour. A grey dash means no data for that day. There is no limit line here because the limit does not count laptop runs.</p>
+${chart(r.days, "source", null, "Dollars of finished runs per UTC day, by source", "")}
+${bucketTable(r.days, "day")}
+<h2>Counted against the limit, per week (GitHub Actions runs)</h2>
+<p class="muted">The same counting per week, which starts on Monday, UTC. ${limits?.weeklyUsd != null ? "The dashed line is the weekly limit." : "No weekly limit is set."}</p>
+${chart(r.weeks, "counted", limits?.weeklyUsd ?? null, "Dollars counted against the ledger limit per week starting Monday UTC, GitHub Actions runs", "weekly limit")}
+<h2>Spend per week, by source</h2>
+<p class="muted">Each bar is the dollars of finished runs in one week that starts on Monday, UTC, with no limit line.</p>
+${chart(r.weeks, "source", null, "Dollars of finished runs per week starting Monday UTC, by source", "")}
+${bucketTable(r.weeks, "week")}
 <h2>Per repository</h2>
 ${groupTable("Repository", r.groups.repository, r.coverage, "No finished run yet.")}
 <h2>Per pull request</h2>

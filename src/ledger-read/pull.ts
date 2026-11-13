@@ -11,6 +11,7 @@ import { parseEntriesResponse } from "./types";
 export const DEFAULT_PULL_DAYS = 35;
 export const MAX_PULL_DAYS = 92;
 const TIMEOUT_MS = 30_000;
+const REDIRECT_MESSAGE = (url: string) => `the ledger URL ${url} redirected; the token is not sent to another address. Connect again with the final URL.`;
 
 export interface PullDeps {
   fetch: typeof fetch;
@@ -24,6 +25,8 @@ export interface PullResult {
   to: string;
   entries: number;
   daysWritten: number;
+  /** Days inside the pulled range whose local file was deleted because the ledger returned no entries for them. */
+  daysRemoved: number;
   url: string;
 }
 
@@ -40,10 +43,12 @@ export async function pullLedger(home: string, env: Record<string, string | unde
   const url = `${credentials.url}/v1/entries?from=${from}&to=${to}`;
   let res: Response;
   try {
-    res = await deps.fetch(url, { headers: { authorization: `Bearer ${credentials.token}`, accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    res = await deps.fetch(url, { headers: { authorization: `Bearer ${credentials.token}`, accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS), redirect: "error" });
   } catch (error) {
+    if (error instanceof Error && /redirect/i.test(error.message)) throw new Error(REDIRECT_MESSAGE(credentials.url));
     throw new Error(`could not reach the ledger at ${credentials.url}: ${error instanceof Error ? error.name : "network error"}`);
   }
+  if (res.status >= 300 && res.status < 400) throw new Error(REDIRECT_MESSAGE(credentials.url));
   if (res.status === 401) throw new Error("the ledger refused the read token (401); run `wachiman ledger connect <url>` with a valid one.");
   if (!res.ok) throw new Error(`the ledger answered HTTP ${res.status}.`);
   let body: unknown;
@@ -60,5 +65,5 @@ export async function pullLedger(home: string, env: Record<string, string | unde
     }
   })();
   const stored = storePull(home, response, from, to, now.toISOString());
-  return { account: response.account, from, to, entries: stored.entries, daysWritten: stored.daysWritten, url: credentials.url };
+  return { account: response.account, from, to, entries: stored.entries, daysWritten: stored.daysWritten, daysRemoved: stored.daysRemoved, url: credentials.url };
 }
