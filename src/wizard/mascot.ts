@@ -1,23 +1,20 @@
 /**
  * The intro of the interactive commands: a colored `wachiman` chip with "On watch." and the
- * version, then Wachi, the guard: a wide rounded face with a W badge, round ◉ eyes and a small ‿ smile,
- * with a short line typed out next to the eyes. While it types, Wachi blinks once, and it winks
- * (one eye) when the line is done.
+ * version, then Wachi, the guard: a small face with a W badge on its cap, round ◉ eyes and a ‿
+ * smile. Its name sits beside the top row and the line is typed beside the eyes. While it types,
+ * Wachi blinks once, and it winks (one eye) when the line is done.
  *
- *    ┌  wachiman  On watch. v1.14.0
+ *    ┌  wachiman  On watch. v1.15.0
  *    │
- *    │  ╭─────────────╮
- *    │  │      W      │
- *    │  │   ◉     ◉   │   Wachi: Shift started. Let's watch this repo.
- *    │  │      ‿      │
- *    │  ╰─────────────╯
+ *    │  ╭───W───╮  Wachi:
+ *    │  │ ◉ ‿ ◉ │  Shift started. Let's watch this repo.
+ *    │  ╰───────╯
  *
- * Five rows tall. The whole face is drawn first and the line is then typed on the eyes row, so
- * the box is never seen half drawn.
- *
- * Every row of the face is 15 columns wide (13 inside: the eyes row is 3 + 1 + 5 + 1 + 3): a new row or variant must keep that sum,
- * or the right border shifts. The art is original and lives here as data. `mascotScene` and
- * `chipTitle` are pure, so tests read them; `playIntro` does the typing.
+ * Three rows tall. The whole face is drawn first and the line is then typed on the eyes row, so
+ * the box is never seen half drawn. Every row of the face is 9 columns wide (7 inside: the eyes
+ * row is 1 + 1 + 1 + 1 + 1 + 1 + 1): a new row or variant must keep that sum, or the right border
+ * shifts. The art is original and lives here as data. `mascotScene` and `chipTitle` are pure, so
+ * tests read them; `playIntro` does the typing.
  *
  * Rules the player keeps:
  * - The typing runs only on a real terminal with color, outside CI, and without
@@ -33,7 +30,7 @@ export const NAME = "Wachi";
 export const DEFAULT_LINE = "Shift started. Let's watch this repo.";
 
 /** Inside width of the face; every row pads to it. */
-export const FACE_INSIDE = 13;
+export const FACE_INSIDE = 7;
 
 export interface MascotOptions {
   paint: Paint;
@@ -64,46 +61,41 @@ export interface MascotScene {
   bottom: string[];
 }
 
-/** Narrower than this, the line goes under the face instead of beside it. */
-export const SIDE_BY_SIDE_COLUMNS = 66;
+/** The gap between the face and the text beside it. */
+const GAP = "  ";
+
+/** Narrower than this, the default line goes under the face instead of beside it. */
+export const SIDE_BY_SIDE_COLUMNS = 3 + FACE_INSIDE + 2 + GAP.length + [...DEFAULT_LINE].length;
 
 export function mascotScene({ paint, ascii, columns, message }: MascotOptions): MascotScene {
   const edge = (text: string) => paint(text, "muted");
   const g = ascii
     ? { tl: "+", tr: "+", bl: "+", br: "+", h: "-", v: "|", eye: "o", shut: "-", mark: "u" }
     : { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│", eye: "◉", shut: "─", mark: "‿" };
-  const border = (l: string, r: string) => edge(`${l}${g.h.repeat(FACE_INSIDE)}${r}`);
-  const center = (text: string) => {
-    const pad = (FACE_INSIDE - text.length) / 2;
-    return [" ".repeat(Math.floor(pad)), " ".repeat(Math.ceil(pad))] as const;
-  };
-  const centered = (text: string, tone: Parameters<Paint>[1]) => {
-    const [l, r] = center(text);
-    return `${edge(g.v)}${l}${paint(text, tone)}${r}${edge(g.v)}`;
-  };
-  const badge = centered("W", "warning");
+  const side = (FACE_INSIDE - 1) / 2;
+  // The cap: the top border with the W badge in its middle.
+  const cap = `${edge(`${g.tl}${g.h.repeat(side)}`)}${paint("W", "warning")}${edge(`${g.h.repeat(side)}${g.tr}`)}`;
+  const chin = edge(`${g.bl}${g.h.repeat(FACE_INSIDE)}${g.br}`);
   const open = paint(g.eye, "strong");
   const shut = paint(g.shut, "strong");
-  const eyesRow = (left: string, right: string) => `${edge(g.v)}   ${left}     ${right}   ${edge(g.v)}`;
+  const mouth = paint(g.mark, "brand");
+  const eyesRow = (left: string, right: string) => `${edge(g.v)} ${left} ${mouth} ${right} ${edge(g.v)}`;
   const eyes = eyesRow(open, open);
-  const mark = centered(g.mark, "brand");
-  const name = `${paint(`${NAME}:`, "brand")} `;
-  const top = [border(g.tl, g.tr), badge];
-  const bottom = [mark, border(g.bl, g.br)];
+  const name = paint(`${NAME}:`, "brand");
   // Beside the eyes only when the whole line fits on one row: the typing goes back to the eyes row
   // and redraws it from its start, which a wrapped line would break (it would also overwrite the
-  // rows under it). The 3-column row prefix, the face, the gap, the name, the text.
-  const width = ROW_PREFIX + FACE_INSIDE + 2 + 3 + NAME.length + 2 + [...message].length;
-  if (columns >= SIDE_BY_SIDE_COLUMNS && width <= columns) {
+  // row under it). The 3-column row prefix, the face, the gap, the text.
+  const width = ROW_PREFIX + FACE_INSIDE + 2 + GAP.length + [...message].length;
+  if (width <= columns) {
     const leads: Record<Eyes, string> = {
-      open: `${eyes}   ${name}`,
-      blink: `${eyesRow(shut, shut)}   ${name}`,
-      wink: `${eyesRow(open, shut)}   ${name}`,
+      open: `${eyes}${GAP}`,
+      blink: `${eyesRow(shut, shut)}${GAP}`,
+      wink: `${eyesRow(open, shut)}${GAP}`,
     };
-    return { top, lead: leads.open, leads, message, bottom };
+    return { top: [`${cap}${GAP}${name}`], lead: leads.open, leads, message, bottom: [chin] };
   }
   // A narrow terminal, or a line too long to sit beside the face: the face first, then the line on its own row.
-  return { top: [...top, eyes, ...bottom], lead: name, message, bottom: [] };
+  return { top: [cap, eyes, chin], lead: `${name} `, message, bottom: [] };
 }
 
 /** The first line of the session: the chip, "On watch." and the version. */

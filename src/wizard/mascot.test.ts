@@ -23,24 +23,24 @@ function term(over: { isTTY?: boolean; columns?: number; inputTTY?: boolean } = 
 describe("the scene", () => {
   test("side by side on a wide terminal: the line is on the eyes row; a narrow one puts it below", () => {
     const wide = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS, message: DEFAULT_LINE });
-    expect(wide.top).toEqual(["╭─────────────╮", "│      W      │"]);
-    expect(wide.lead).toBe(`│   ◉     ◉   │   ${NAME}: `);
-    expect(wide.bottom).toEqual(["│      ‿      │", "╰─────────────╯"]);
+    expect(wide.top).toEqual([`╭───W───╮  ${NAME}:`]);
+    expect(wide.lead).toBe("│ ◉ ‿ ◉ │  ");
+    expect(wide.bottom).toEqual(["╰───────╯"]);
     const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
-    expect(narrow.top).toEqual(["╭─────────────╮", "│      W      │", "│   ◉     ◉   │", "│      ‿      │", "╰─────────────╯"]);
+    expect(narrow.top).toEqual(["╭───W───╮", "│ ◉ ‿ ◉ │", "╰───────╯"]);
     expect(narrow.lead).toBe(`${NAME}: `);
     expect(narrow.bottom).toEqual([]);
   });
 
   test("blink closes both eyes and wink closes only the right one, at the same width", () => {
     const s = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS, message: DEFAULT_LINE });
-    expect(s.leads?.open).toBe(`│   ◉     ◉   │   ${NAME}: `);
-    expect(s.leads?.blink).toBe(`│   ─     ─   │   ${NAME}: `);
-    expect(s.leads?.wink).toBe(`│   ◉     ─   │   ${NAME}: `);
+    expect(s.leads?.open).toBe("│ ◉ ‿ ◉ │  ");
+    expect(s.leads?.blink).toBe("│ ─ ‿ ─ │  ");
+    expect(s.leads?.wink).toBe("│ ◉ ‿ ─ │  ");
     const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
     expect(narrow.leads).toBeUndefined();
     // Wide enough for the face, but the line would wrap beside it: the line goes under the face.
-    const line = "x".repeat(47);
+    const line = "x".repeat(61);
     const wraps = mascotScene({ paint: plain, ascii: false, columns: 74, message: line });
     expect(wraps.lead).toBe(`${NAME}: `);
     expect(wraps.bottom).toEqual([]);
@@ -90,7 +90,8 @@ describe("playIntro", () => {
     const result = await playIntro({ ui, term: t, env: { NO_COLOR: "1" }, version: "1.2.3" });
     expect(result).toBe("static");
     expect(ui.of("intro")[0].title).toBe("wachiman  On watch. v1.2.3");
-    expect(t.written()).toContain(`${NAME}: ${DEFAULT_LINE}`);
+    expect(t.written()).toContain(`${NAME}:`);
+    expect(t.written()).toContain(`│  ${DEFAULT_LINE}`);
     expect(t.written()).not.toContain("\x1b[?25");
     expect(t.input.modes).toEqual([]);
   });
@@ -114,11 +115,11 @@ describe("playIntro", () => {
     let firstSleep = -1;
     await playIntro({ ui, term: t, env: { TERM: "xterm" }, version: "1.2.3", line: "Hi!", sleep: async () => void (firstSleep < 0 && (firstSleep = t.written().length)) });
     const before = stripAnsi(t.written().slice(0, firstSleep));
-    expect(before).toContain("╰─────────────╯");
+    expect(before).toContain("╰───────╯");
     expect(before).not.toContain("Hi!");
     // Up from under the bottom rows to the eyes row, and down past them at the end.
-    expect(t.written()).toContain("\x1b[3A");
-    expect(t.written()).toContain("\x1b[2B\n");
+    expect(t.written()).toContain("\x1b[2A");
+    expect(t.written()).toContain("\x1b[1B\n");
   });
 
   test("a key skips the typing and the whole line still appears; Ctrl-C reports interrupted", async () => {
