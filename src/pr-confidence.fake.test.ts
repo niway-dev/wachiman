@@ -92,7 +92,7 @@ const deps = (provider: FakeProvider): CoreDeps => ({
   engineVersion: undefined,
 });
 
-const base = (budget = 5): ReviewOptions => reviewOptionsOf(loadConfig({ AGENT_REVIEW_VERIFY: "0" }), budget);
+const base = (budget = 5): ReviewOptions => reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "0" }), budget);
 const graded = (budget = 5): ReviewOptions => ({ ...base(budget), confidence: { budgetUsd: CLAIMS_BUDGET_USD } });
 
 const claimsAnswer = (...claims: { text: string; vague?: boolean }[]) => () => ({

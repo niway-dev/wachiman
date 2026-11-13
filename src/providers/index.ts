@@ -7,7 +7,7 @@ export type { NeutralTool, ProviderAdapter, ProviderRequest, ProviderResult } fr
 export const PROVIDER_NAMES = ["claude-code", "codex"] as const;
 export const DEFAULT_PROVIDER = "claude-code";
 
-/** The model each provider uses when `AGENT_REVIEW_MODEL` is not set. */
+/** The model each provider uses when `WACHIMAN_MODEL` is not set. */
 export const DEFAULT_MODELS: Record<(typeof PROVIDER_NAMES)[number], string> = {
   "claude-code": "claude-sonnet-5-5",
   codex: "gpt-6.1-sol",

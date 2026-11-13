@@ -197,7 +197,7 @@ describe("threadReplies (cli.ts threads)", () => {
     const deps: Deps = {
       gh,
       provider,
-      config: { ...loadConfig({ AGENT_REVIEW_OPERATOR: opts.operator ?? "owner", ...opts.env }), trigger: "thread" },
+      config: { ...loadConfig({ WACHIMAN_OPERATOR: opts.operator ?? "owner", ...opts.env }), trigger: "thread" },
       repoDir: dir,
       log: () => {},
       warn: () => void warnings.push("w"),
@@ -450,7 +450,7 @@ describe("threadReplies (cli.ts threads)", () => {
     const t = setup({ spent: 5.9 });
     threadReplies(t.deps, "o/r", 7);
     expect(t.provider.requests[0].maxBudgetUsd).toBeCloseTo(0.1, 10);
-    const roomy = setup({ spent: 0.2, env: { AGENT_REVIEW_THREADS_BUDGET_USD: "0.4" } });
+    const roomy = setup({ spent: 0.2, env: { WACHIMAN_THREADS_BUDGET_USD: "0.4" } });
     threadReplies(roomy.deps, "o/r", 7);
     expect(roomy.provider.requests[0].maxBudgetUsd).toBe(0.4);
   });
@@ -474,7 +474,7 @@ describe("threadReplies (cli.ts threads)", () => {
   });
 
   test("a dry run logs the reply and posts nothing", () => {
-    const t = setup({ env: { AGENT_REVIEW_DRY_RUN: "1" } });
+    const t = setup({ env: { WACHIMAN_DRY_RUN: "1" } });
     const logs: string[] = [];
     threadReplies({ ...t.deps, log: (l) => void logs.push(l) }, "o/r", 7);
     expect(t.replies).toEqual([]);

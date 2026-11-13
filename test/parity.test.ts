@@ -81,7 +81,7 @@ class AllReviewed implements ProviderAdapter {
 /** The prompts of one core run, with the per-batch run directory as a placeholder. */
 function prompts(input: ReviewInput, verify = false, baseSnapshot?: () => { dir: string; release(): void }) {
   const provider = new AllReviewed(input.files.map((f) => f.filename), verify);
-  const options = reviewOptionsOf(loadConfig(verify ? { AGENT_REVIEW_VERIFY: "1" } : {}, () => {}), 3);
+  const options = reviewOptionsOf(loadConfig(verify ? { WACHIMAN_VERIFY: "1" } : {}, () => {}), 3);
   reviewChange(input, options, { provider, ...(baseSnapshot ? { baseSnapshot } : {}), log: () => {}, warn: () => {}, sleep: () => {}, rateLimitBackoffMs: 0 });
   return provider.requests.map((r) => r.prompt.replaceAll(r.addDirs[0], "<RUN_DIR>"));
 }

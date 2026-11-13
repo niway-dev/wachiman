@@ -68,7 +68,7 @@ the floating `v1` tag ([releasing.md](releasing.md)). So:
    in the workflow and the template. In a clone of this repository:
 
    ```sh
-   git diff v1.4.0 v1.5.0 -- .github/workflows/review.yml templates/agent-review-caller.yml
+   git diff v1.4.0 v1.5.0 -- .github/workflows/review.yml templates/wachiman-review-caller.yml
    ```
 
    Or open `https://github.com/niway-dev/wachiman/compare/v1.4.0...v1.5.0`. Engine defaults are in
@@ -198,12 +198,11 @@ Check these as well:
 
 | Before | Now | Status |
 | --- | --- | --- |
-| `CLAUDE_REVIEW_<NAME>` environment variables | `AGENT_REVIEW_<NAME>` | Both read. The old one prints `CLAUDE_REVIEW_<NAME> is deprecated; use AGENT_REVIEW_<NAME>.` and loses to the new one. `AGENT_REVIEW_COMMENT_AUTHOR` has no old name. The reusable workflow sets only the new names, so this matters for copy installs and direct CLI use. |
-| `.github/agent-review.md` (before the naming release) and the older `.github/claude-review.md` | `.github/wachiman.md` | Each old file is read only when the new one is missing, with a warning in the job log. Rename it with `git mv`. |
-| `<!-- claude-review sha=… -->` marker | `<!-- agent-review sha=… -->` | Both are read, so pull requests reviewed under the old name keep their incremental state. The marker keeps its name on purpose: renaming it would orphan every open review. |
-| Default `mention` `@agent-review` (v1.0.0 and v1.1.0), then `/wachi` (v1.2.0 to the naming release) | `/wachiman` | `/wachi`, `@agent-review` and `@claude` still start a run and are still read, whatever `mention` is. If you set `mention` yourself, your value stays and `/wachiman` works next to it. |
-| `.github/workflows/agent-review.yml` and `templates/agent-review-caller.yml` | `.github/workflows/wachiman-review.yml` and `templates/wachiman-review-caller.yml` | Cosmetic: a workflow runs under any file name. `git mv` the file instead of adding a second one, or both answer every pull request and you pay twice. The check names change with the workflow names (`Agent review` becomes `Wachiman review`, and likewise for the thread and on-demand jobs), so a required-status-check rule on the old name stops matching: advisory use is unaffected. |
-| The CLI `agent-review` | `wachiman` | `package.json` declares both bins; `agent-review` keeps working. The `AGENT_REVIEW_*` variables and the hidden `wachi:` signatures keep their names ([ADR 0023](adr/0023-one-name-for-every-surface-people-type.md)). |
+| `CLAUDE_REVIEW_<NAME>` environment variables | `WACHIMAN_<NAME>` | Both read. The old one prints `CLAUDE_REVIEW_<NAME> is deprecated; use WACHIMAN_<NAME>.` and loses to the new one. `WACHIMAN_COMMENT_AUTHOR` has no old name. The reusable workflow sets only the new names, so this matters for copy installs and direct CLI use. |
+| `.github/claude-review.md` | `.github/wachiman.md` | The old file is read only when the new one is missing, with a warning in the job log. Rename it with `git mv`. |
+| `<!-- claude-review sha=… -->` marker | `<!-- wachiman sha=… -->` | Both are read, so pull requests reviewed under the old name keep their incremental state. A marker written by an earlier release under another name is no longer read: such a thread loses its link, and the next review of that pull request starts from the whole diff. |
+| Default `mention` `/wachi` (v1.2.0 to the naming release) | `/wachiman` | `/wachi` and `@claude` still start a run and are still read, whatever `mention` is. If you set `mention` yourself, your value stays and `/wachiman` works next to it. |
+| The environment variables, the `@` mention, the focus file and the command name of the first releases, and the review marker of those releases | `WACHIMAN_*`, `/wachiman`, `.github/wachiman.md`, `wachiman`, `<!-- wachiman sha=… -->` | Removed with no fallback: nothing reads the old names. ADR 0038 lists each old name and its replacement. Change them in one pull request before you move to this release. |
 | Comments with no brand line | Every posted comment opens with `👮 **Wachiman**` (v1.3.0) | The engine recognises its own comments by hidden signatures and not by this text, so older comments stay valid. |
 | A caller that names an earlier repository path in `uses:` | `niway-dev/wachiman/.github/workflows/review.yml` | The project was renamed along the way. The links in [CHANGELOG.md](../CHANGELOG.md) show the earlier names. Whether GitHub redirects an old path in `uses:` was not checked for this page. Name the current one. |
 

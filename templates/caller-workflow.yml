@@ -9,13 +9,13 @@ name: Wachiman review
 # gate. What to look for beyond the defaults is in `.github/wachiman.md`.
 #
 # The "copy the files" workflow template. Copy it with the `src/` folder of niway-dev/wachiman
-# (as `scripts/agent-review/`, see docs/setup-copy.md), record the decision in the repository's ADRs, and edit the
+# (as `scripts/wachiman/`, see docs/setup-copy.md), record the decision in the repository's ADRs, and edit the
 # trust paragraph below to say who can push. It runs narrowly:
 #   - `review`: when a pull request opens ready for review or leaves draft, and on every later
 #     push (`synchronize`), which reviews only the commits that are new since the last review.
 #     A rebase with no change in content posts a one-line marker and calls no model. Each push
-#     can spend up to AGENT_REVIEW_BUDGET_USD, and all automatic runs on one pull request
-#     together up to AGENT_REVIEW_AUTO_BUDGET_USD (`/wachiman review` is not limited by it); to
+#     can spend up to WACHIMAN_BUDGET_USD, and all automatic runs on one pull request
+#     together up to WACHIMAN_AUTO_BUDGET_USD (`/wachiman review` is not limited by it); to
 #     review only on open and on `/wachiman review`, remove `synchronize` from the `pull_request`
 #     types below.
 #   - `threads`: when the repository owner replies in a review thread (a
@@ -35,10 +35,10 @@ name: Wachiman review
 # own copy, and the checkout is the process's working directory). The reusable workflow
 # (templates/wachiman-review-caller.yml) checks them out as siblings and is preferred; to move
 # an existing copy there, see docs/setup-copy.md. This copy
-# still runs `bun --no-env-file --config=scripts/agent-review/bunfig.toml ... --repo-dir .`, so
+# still runs `bun --no-env-file --config=scripts/wachiman/bunfig.toml ... --repo-dir .`, so
 # Bun reads no `bunfig.toml` or `.env` from the head; copy `bunfig.toml` next to `cli.ts`.
 #
-# Before the agent is called, `scripts/agent-review/cli.ts` drops lockfiles, build output and
+# Before the agent is called, `scripts/wachiman/cli.ts` drops lockfiles, build output and
 # generated files, then packs the rest into batches of about 1,000 changed lines, riskiest
 # first, one agent call each with its diff inside the prompt. A batch that leaves files
 # unaccounted for is re-run once with only those files. A pull request whose estimate is above
@@ -50,7 +50,7 @@ name: Wachiman review
 # Comments come from `github-actions[bot]` through the workflow token, so no GitHub
 # App needs to be installed.
 #
-# Both jobs run `scripts/agent-review/cli.ts`: the agent only reads (files, the PR, its diff),
+# Both jobs run `scripts/wachiman/cli.ts`: the agent only reads (files, the PR, its diff),
 # and the CLI posts the review, within the budgets below. That is enough
 # here because only the owner pushes (EDIT THIS: say who can open pull requests in this
 # repository), so everything the agent reads is trusted. A public repository needs more
@@ -95,39 +95,39 @@ env:
   # batches are listed as not reviewed.
   # A pull request edits these for its own `review` run, which the trust assumption above
   # accepts.
-  AGENT_REVIEW_BATCH_LINES: 1000
-  AGENT_REVIEW_BATCH_BUDGET_USD: 0.75
-  AGENT_REVIEW_BUDGET_USD: 3
+  WACHIMAN_BATCH_LINES: 1000
+  WACHIMAN_BATCH_BUDGET_USD: 0.75
+  WACHIMAN_BUDGET_USD: 3
   # The most all automatic runs on one pull request (first review, push reviews, thread replies)
   # may spend together; the engine sums it from its own signed review footers. `/wachiman review`
   # is not limited by it. A thread-reply run has its own cap, inside this one.
-  AGENT_REVIEW_AUTO_BUDGET_USD: 2
+  WACHIMAN_AUTO_BUDGET_USD: 2
   # A review whose estimate (from the diff size, before any model call) is above this is skipped
   # with one comment. It is never below what the run may spend, so raising the budgets lifts it.
-  AGENT_REVIEW_SIZE_GATE_USD: 6
-  AGENT_REVIEW_THREADS_BUDGET_USD: 0.25
-  AGENT_REVIEW_ANSWER_BUDGET_USD: 1
+  WACHIMAN_SIZE_GATE_USD: 6
+  WACHIMAN_THREADS_BUDGET_USD: 0.25
+  WACHIMAN_ANSWER_BUDGET_USD: 1
   # Who may ask a question by comment: `operator` (only the operator) or `write` (also a collaborator
   # with admin, maintain or write permission). Set it to `write` together with the literal
   # `'operator' == 'write'` in the `threads` and `on-demand` `if:` below (EDIT THIS), since a job
   # `if:` cannot read this variable.
-  AGENT_REVIEW_ASKERS: operator
+  WACHIMAN_ASKERS: operator
   # The most all questions from people other than the operator may spend on one pull request.
-  AGENT_REVIEW_ASK_CEILING_USD: 3
+  WACHIMAN_ASK_CEILING_USD: 3
   # The login allowed to command the tool (EDIT THIS). The `on-demand` job `if:` checks the same
   # login, and the CLI checks it again against the comment's author.
-  AGENT_REVIEW_OPERATOR: your-github-login
+  WACHIMAN_OPERATOR: your-github-login
   # Seconds a push (`synchronize`) waits before any model call. A newer push cancels this run
   # while it sleeps (the `review` job's concurrency group), so it spends nothing. Only pushes
   # wait; `opened` and `ready_for_review` start at once. `0` disables the wait. The wait counts
   # toward the job's 30 minute limit.
-  AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180
+  WACHIMAN_PUSH_DEBOUNCE_SECONDS: 180
   # Trial. PR Confidence: after a full review of a pull request, one more small model call grades
   # whether the diff does what the title and body say, and writes it into the pull request
   # description. Each push first resets it to "cannot say", and a push after the first review is
   # reviewed incrementally, which is not graded, so it stays "cannot say" until a review of the whole
   # pull request runs. Not an approval or a check. `1` turns it on. See docs/pr-confidence.md
-  AGENT_REVIEW_CONFIDENCE: 0
+  WACHIMAN_CONFIDENCE: 0
 
 jobs:
   review:
@@ -144,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30 # batches run one after another
     concurrency:
-      group: agent-review-${{ github.event.pull_request.number }}
+      group: wachiman-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -164,7 +164,7 @@ jobs:
 
       # PR Confidence: before the push wait and with no model call, the description block becomes
       # "cannot say" for the commit under review, so a run that a newer push cancels during the wait
-      # leaves no grade of an older commit. The command does nothing when AGENT_REVIEW_CONFIDENCE is
+      # leaves no grade of an older commit. The command does nothing when WACHIMAN_CONFIDENCE is
       # off, so no condition on it is needed here. Best-effort: it never stops the review.
       - name: Reset PR Confidence for this commit
         if: github.event.action == 'synchronize'
@@ -173,15 +173,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"
+        run: bun --no-env-file --config=scripts/wachiman/bunfig.toml scripts/wachiman/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"
 
       # Before any model call: a run cancelled here has spent nothing.
       - name: Wait for further pushes
         if: github.event.action == 'synchronize'
         run: |
-          seconds="${AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS//[[:space:]]/}"
+          seconds="${WACHIMAN_PUSH_DEBOUNCE_SECONDS//[[:space:]]/}"
           if ! [[ "$seconds" =~ ^[0-9]+$ ]]; then
-            echo "::warning title=AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS ignored::'$AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS' is not a whole number of seconds; not waiting."
+            echo "::warning title=WACHIMAN_PUSH_DEBOUNCE_SECONDS ignored::'$WACHIMAN_PUSH_DEBOUNCE_SECONDS' is not a whole number of seconds; not waiting."
             exit 0
           fi
           if [ "$seconds" -gt 0 ]; then
@@ -195,7 +195,7 @@ jobs:
           # Optional: pin the binary's SHA-256 yourself. Empty means the publisher's manifest.
           CLAUDE_CODE_SHA256: ""
         run: |
-          bash scripts/agent-review/install-claude-code.sh
+          bash scripts/wachiman/install-claude-code.sh
           echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
 
       - name: Review the pull request
@@ -206,15 +206,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           # `opened`, `ready_for_review` or `synchronize`: each counts against the automatic ceiling.
-          AGENT_REVIEW_TRIGGER: ${{ github.event.action }}
+          WACHIMAN_TRIGGER: ${{ github.event.action }}
         # `--config=<path>` needs the equals sign: `-c <path>` did not replace the head's config
         # in Bun 1.3.4. `--no-env-file` keeps the head's `.env` out of this process.
-        run: bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts review "$PR" --repo-dir .
+        run: bun --no-env-file --config=scripts/wachiman/bunfig.toml scripts/wachiman/cli.ts review "$PR" --repo-dir .
 
   threads:
     name: Wachiman thread replies
     # EDIT THIS: replace 'your-github-login' below with the operator's login, and keep it equal to
-    # AGENT_REVIEW_OPERATOR above. A comment in the review panel starts the job when the operator wrote
+    # WACHIMAN_OPERATOR above. A comment in the review panel starts the job when the operator wrote
     # it and it is a reply, or when it starts with the mention and the operator or (only when
     # `askers` is `write`, see above) an OWNER, MEMBER or COLLABORATOR wrote it, on a head in this
     # repository. The collaborator case is a cheap pre-filter: the engine checks the login again,
@@ -225,7 +225,6 @@ jobs:
       github.event.comment.user.type != 'Bot' &&
       ((github.event.comment.user.login == 'your-github-login' && github.event.comment.in_reply_to_id) ||
        ((startsWith(github.event.comment.body, '/wachi') ||
-         startsWith(github.event.comment.body, '@agent-review') ||
          startsWith(github.event.comment.body, '@claude')) &&
         (github.event.comment.user.login == 'your-github-login' ||
          ('operator' == 'write' &&
@@ -237,7 +236,7 @@ jobs:
     # seconds before. GitHub keeps one pending run per group, and a run handles every pending
     # thread, so a dropped pending run loses nothing.
     concurrency:
-      group: agent-review-threads-${{ github.event.pull_request.number }}
+      group: wachiman-review-threads-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -260,7 +259,7 @@ jobs:
           # Optional: pin the binary's SHA-256 yourself. Empty means the publisher's manifest.
           CLAUDE_CODE_SHA256: ""
         run: |
-          bash scripts/agent-review/install-claude-code.sh
+          bash scripts/wachiman/install-claude-code.sh
           echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
 
       - name: Answer the pending threads
@@ -270,24 +269,24 @@ jobs:
           # CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
-          AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          WACHIMAN_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           # The reply's text and place, for a question in a thread (environment only, never interpolated).
           REQUEST: ${{ github.event.comment.body }}
-          AGENT_REVIEW_COMMENT_ID: ${{ github.event.comment.id }}
-          AGENT_REVIEW_COMMENT_IN_REPLY_TO: ${{ github.event.comment.in_reply_to_id }}
-          AGENT_REVIEW_COMMENT_PATH: ${{ github.event.comment.path }}
-          AGENT_REVIEW_COMMENT_LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
-        run: bun --no-env-file --config=scripts/agent-review/bunfig.toml scripts/agent-review/cli.ts threads "$PR" --repo-dir .
+          WACHIMAN_COMMENT_ID: ${{ github.event.comment.id }}
+          WACHIMAN_COMMENT_IN_REPLY_TO: ${{ github.event.comment.in_reply_to_id }}
+          WACHIMAN_COMMENT_PATH: ${{ github.event.comment.path }}
+          WACHIMAN_COMMENT_LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
+        run: bun --no-env-file --config=scripts/wachiman/bunfig.toml scripts/wachiman/cli.ts threads "$PR" --repo-dir .
 
   on-demand:
     name: Wachiman on demand
     # EDIT THIS: replace 'your-github-login' below with the operator's login, and keep it equal
-    # to AGENT_REVIEW_OPERATOR above (a job `if:` cannot read `env`). Matching by login works
+    # to WACHIMAN_OPERATOR above (a job `if:` cannot read `env`). Matching by login works
     # for user-owned and organisation-owned repositories alike (`author_association` is `OWNER`
-    # in the first and `MEMBER` in the second). `@agent-review` and `@claude` are accepted as aliases
+    # in the first and `MEMBER` in the second). `@claude` is accepted as an alias
     # while installed copies migrate. A comment that starts with the mention from an OWNER, MEMBER
     # or COLLABORATOR also starts the job, but only when `askers` is `write` (the `'operator' == 'write'`
-    # literal in the threads job, changed with AGENT_REVIEW_ASKERS at the top), as a pre-filter only:
+    # literal in the threads job, changed with WACHIMAN_ASKERS at the top), as a pre-filter only:
     # the engine refuses it unless GitHub confirms write access.
     if: |
       github.event_name == 'issue_comment' &&
@@ -297,19 +296,17 @@ jobs:
         'operator' == 'write' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         (startsWith(github.event.comment.body, '/wachi') ||
-         startsWith(github.event.comment.body, '@agent-review') ||
          startsWith(github.event.comment.body, '@claude')))) &&
       (contains(github.event.comment.body, '/wachi') ||
-       contains(github.event.comment.body, '@agent-review') ||
        contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
     timeout-minutes: 30 # batches run one after another
     # The operator's runs keep their group and cancel one another. A collaborator's question has its
     # own group that never cancels, so it cannot cancel the operator's review of the pull request.
     # The login is a literal here because a concurrency block cannot read env: keep it equal to
-    # AGENT_REVIEW_OPERATOR.
+    # WACHIMAN_OPERATOR.
     concurrency:
-      group: agent-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != 'your-github-login' && '-ask' || '' }}
+      group: wachiman-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != 'your-github-login' && '-ask' || '' }}
       cancel-in-progress: ${{ github.event.comment.user.login == 'your-github-login' }}
     permissions:
       contents: read
@@ -342,7 +339,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           path: .ci-main
-          sparse-checkout: scripts/agent-review
+          sparse-checkout: scripts/wachiman
           fetch-depth: 1
 
       - name: Setup Bun
@@ -356,7 +353,7 @@ jobs:
           # Optional: pin the binary's SHA-256 yourself. Empty means the publisher's manifest.
           CLAUDE_CODE_SHA256: ""
         run: |
-          bash .ci-main/scripts/agent-review/install-claude-code.sh
+          bash .ci-main/scripts/wachiman/install-claude-code.sh
           echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
 
       # The comment reaches the CLI through the environment, never interpolated
@@ -369,5 +366,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.issue.number }}
           REQUEST: ${{ github.event.comment.body }}
-          AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
-        run: bun --no-env-file --config=.ci-main/scripts/agent-review/bunfig.toml .ci-main/scripts/agent-review/cli.ts comment "$PR" --repo-dir .
+          WACHIMAN_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+        run: bun --no-env-file --config=.ci-main/scripts/wachiman/bunfig.toml .ci-main/scripts/wachiman/cli.ts comment "$PR" --repo-dir .

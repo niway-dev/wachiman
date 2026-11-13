@@ -200,8 +200,8 @@ Caller inputs (reusable workflow `with:`, all optional):
 | `limit_mode` | `fail` | `fail`: exit 3 and a red job at the limit; `notice`: comment and exit 0 |
 | `limit_bypass` | `false` | Skip the ledger entirely; the footer says so |
 
-Engine environment: `AGENT_REVIEW_LEDGER_URL`, `AGENT_REVIEW_DAILY_BUDGET_USD`,
-`AGENT_REVIEW_LIMIT_MODE`, `AGENT_REVIEW_LIMIT_BYPASS`, plus the GitHub-provided
+Engine environment: `WACHIMAN_LEDGER_URL`, `WACHIMAN_DAILY_BUDGET_USD`,
+`WACHIMAN_LIMIT_MODE`, `WACHIMAN_LIMIT_BYPASS`, plus the GitHub-provided
 `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`.
 
 Exit codes: 0 and 1 and 2 as in `docs/cli.md`; **3**: the daily limit refused the run, or the

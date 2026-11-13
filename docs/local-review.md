@@ -109,8 +109,7 @@ Supply chain: Bun's own `postinstall` runs when `bun` is installed and copies th
 from `@oven/bun-<platform>` into place. Wachiman's provenance statement covers Wachiman's files,
 not that binary download. If your policy does not allow it, install with `--ignore-scripts` and use
 a Bun you installed from a source you trust. The package is published by the release workflow
-(see [releasing](releasing.md#publishing-to-npm)). `agent-review` is installed as a second name for
-the same command. Install the optional agent skills separately with `wachiman skills install`; it preserves unmarked or edited copies. See [`skills`](cli.md#skills).
+(see [releasing](releasing.md#publishing-to-npm)). Install the optional agent skills separately with `wachiman skills install`; it preserves unmarked or edited copies. See [`skills`](cli.md#skills).
 
 ### From a clone (unreleased source, and the agent skills)
 
@@ -327,7 +326,7 @@ entry.
 ### Keep a history of your runs (optional)
 
 Off by default: without the switch, `local` neither reads nor creates `~/.wachiman/history`. Turn it
-on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
+on for one run with `--history`, or for every run with `WACHIMAN_HISTORY=1`.
 
 - **What is saved.** One file per run, `~/.wachiman/history/<name>-<hash>/runs/<time>-<sha7>.json`,
   holding the whole result, including the finding text, which quotes your code. It is as sensitive
@@ -352,7 +351,7 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
   later reports. It does not change a review: a finding you called wrong is still reported if the
   reviewer repeats it, which is how you see a persistent false positive.
 - **Retention.** 30 days, per repository, pruned when that repository is saved
-  (`AGENT_REVIEW_HISTORY_DAYS=<n>`, `0` keeps everything). A repository you stop reviewing keeps
+  (`WACHIMAN_HISTORY_DAYS=<n>`, `0` keeps everything). A repository you stop reviewing keeps
   its files until you forget them.
 - **Forget.** `wachiman history --forget [--repo-dir <dir>]` deletes one repository's history;
   `--forget --all` deletes `~/.wachiman/history`. Neither touches `~/.wachiman/claude-*`.
@@ -380,13 +379,13 @@ export WACHIMAN_DIR="$PWD"   # in your shell profile
 
 ## 6. Limits
 
-- **Work limits, and the estimate guard.** Each call is bounded by `AGENT_REVIEW_MAX_TURNS` and
-  `AGENT_REVIEW_CALL_TIMEOUT_S`; the run by `AGENT_REVIEW_BUDGET_USD` (default $3), counted in the
+- **Work limits, and the estimate guard.** Each call is bounded by `WACHIMAN_MAX_TURNS` and
+  `WACHIMAN_CALL_TIMEOUT_S`; the run by `WACHIMAN_BUDGET_USD` (default $3), counted in the
   API-equivalent estimate. See [configuration](configuration.md#local-mode).
 - **Size warning, never a refusal.** Before the first call, `local` estimates what reviewing all of
-  the change would cost. When that is above `AGENT_REVIEW_SIZE_GATE_USD` (default $6) and above your
+  the change would cost. When that is above `WACHIMAN_SIZE_GATE_USD` (default $6) and above your
   budget, it prints one warning line on stderr and carries on. The money caps are
-  `AGENT_REVIEW_BUDGET_USD` for the run (default $3) and `AGENT_REVIEW_BATCH_BUDGET_USD` for each
+  `WACHIMAN_BUDGET_USD` for the run (default $3) and `WACHIMAN_BATCH_BUDGET_USD` for each
   call (passed to Claude Code as `--max-budget-usd`, a soft cap); there is no per-pull-request
   ceiling. On a subscription the cost is Claude Code's API-equivalent figure, not a bill. See
   [the size gate](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).

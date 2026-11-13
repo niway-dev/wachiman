@@ -146,7 +146,7 @@ function local(variant: Variant, args: string[] = [], extraEnv: Record<string, s
     PATH: `${s.bin}:${process.env.PATH ?? ""}`,
     HOME: home,
     USER: "dev",
-    AGENT_REVIEW_VERIFY: "0",
+    WACHIMAN_VERIFY: "0",
     ...extraEnv,
   };
   for (const [k, v] of Object.entries(env)) if (v === "<unset>") delete env[k];
@@ -229,7 +229,6 @@ describe("readInputFile", () => {
 describe("wachiman local", () => {
   test("reviews the branch, prints progress on stderr and the report on stdout, and never calls gh", () => {
     const r = local("ok");
-    expect(r.stderr).not.toContain("agent-review:");
     expect(r.code).toBe(0);
     const { repo } = r;
     const progress = [
@@ -331,7 +330,7 @@ describe("wachiman local", () => {
   }, 30_000);
 
   test("a usage-limit rejection ends with stop: quota, exit 0, and lists what was not reviewed", () => {
-    const r = local("quota", [], { AGENT_REVIEW_BATCH_LINES: "1" });
+    const r = local("quota", [], { WACHIMAN_BATCH_LINES: "1" });
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("batches: 1\n");
     expect(r.stdout).toContain("stop: quota — the account's usage limit ended the run; 4 file(s) not reviewed:");
@@ -342,7 +341,7 @@ describe("wachiman local", () => {
   }, 30_000);
 
   test("Ctrl-C stops the review after the call it interrupted, removes the snapshot and exits 130", () => {
-    const r = local("interrupt", [], { AGENT_REVIEW_BATCH_LINES: "1" });
+    const r = local("interrupt", [], { WACHIMAN_BATCH_LINES: "1" });
     expect(r.code).toBe(130);
     expect(r.stderr).toContain("Interrupted");
     expect(r.calls()).toHaveLength(1);
@@ -363,11 +362,11 @@ describe("wachiman local", () => {
 
     test("a large input prints one warning and still calls the model", () => {
       const repo = branchRepo();
-      const r = local("ok", ["--input", sizedInput(repo, 30)], { AGENT_REVIEW_MODEL: "claude-sonnet-5-5" }, repo);
+      const r = local("ok", ["--input", sizedInput(repo, 30)], { WACHIMAN_MODEL: "claude-sonnet-5-5" }, repo);
       expect(r.code).toBe(0);
       expect(r.stderr.match(/^warning: reviewing all of this/gm)).toHaveLength(1);
       expect(r.stderr).toMatch(WARNING);
-      expect(r.stderr).toContain("stops at its budget, $3.00 (AGENT_REVIEW_BUDGET_USD).");
+      expect(r.stderr).toContain("stops at its budget, $3.00 (WACHIMAN_BUDGET_USD).");
       expect(r.calls().length).toBeGreaterThan(0);
     }, 30_000);
 
@@ -381,7 +380,7 @@ describe("wachiman local", () => {
     test("the warning text names the estimate, the batches, the model, the gate and the budget", () => {
       const estimate = { files: 606, lines: 58706, batches: 68, perBatchUsd: 0.32, usd: 21.76 };
       expect(sizeWarning(estimate, 6, 3, "claude-sonnet-5-5")).toBe(
-        "warning: reviewing all of this would cost about $21.76 at API prices (68 batches × $0.32 for claude-sonnet-5-5), above the $6.00 size gate. Local runs are never refused; this one continues and stops at its budget, $3.00 (AGENT_REVIEW_BUDGET_USD).",
+        "warning: reviewing all of this would cost about $21.76 at API prices (68 batches × $0.32 for claude-sonnet-5-5), above the $6.00 size gate. Local runs are never refused; this one continues and stops at its budget, $3.00 (WACHIMAN_BUDGET_USD).",
       );
       expect(sizeWarning({ ...estimate, usd: 6 }, 6, 3, "m")).toBeNull();
     });
@@ -464,7 +463,7 @@ describe("wachiman local", () => {
   }, 30_000);
 
   test("codex is refused in local mode", () => {
-    const r = local("ok", [], { AGENT_REVIEW_PROVIDER: "codex" });
+    const r = local("ok", [], { WACHIMAN_PROVIDER: "codex" });
     expect(r.code).toBe(2);
     expect(r.stderr).toContain("only on Claude Code");
     expect(r.read("calls")).toBeUndefined();
@@ -652,8 +651,8 @@ describe("--history", () => {
     expect(saved.tracking[0].status).toBe("new");
   }, 30_000);
 
-  test("AGENT_REVIEW_HISTORY=1 is the same switch", () => {
-    const r = local("ok", [], { AGENT_REVIEW_HISTORY: "1" });
+  test("WACHIMAN_HISTORY=1 is the same switch", () => {
+    const r = local("ok", [], { WACHIMAN_HISTORY: "1" });
     expect(r.code).toBe(0);
     expect(runFiles(r.home)).toHaveLength(1);
     expect(r.stdout).toContain("· id ");
@@ -665,7 +664,7 @@ describe("--history", () => {
     const withHistory = local("ok", ["--history"], {}, repo);
     expect(without.read("prompt")).toBeDefined();
     // Each run's scratch directory has a random name; nothing else may differ.
-    const scrub = (text: string) => text.replace(/(agent-review|wachiman-snapshot)-[A-Za-z0-9]+/g, "$1-X");
+    const scrub = (text: string) => text.replace(/(wachiman-review|wachiman-snapshot)-[A-Za-z0-9]+/g, "$1-X");
     expect(scrub(withHistory.read("prompt") as string)).toBe(scrub(without.read("prompt") as string));
     expect(withHistory.read("args")?.split("\n").filter((a) => !a.startsWith("/"))).toEqual(
       without.read("args")?.split("\n").filter((a) => !a.startsWith("/")),
@@ -780,7 +779,7 @@ describe("--history", () => {
     expect(quota.stdout).not.toContain("probably fixed");
   }, 30_000);
 
-  test("AGENT_REVIEW_HISTORY_DAYS prunes old runs at save time, and a bad value exits 2 before any call", () => {
+  test("WACHIMAN_HISTORY_DAYS prunes old runs at save time, and a bad value exits 2 before any call", () => {
     const home = temp("wachiman-home-");
     const repo = branchRepo();
     const first = local("ok", ["--history"], { HOME: home }, repo);
@@ -795,15 +794,15 @@ describe("--history", () => {
     expect(files[0]).not.toBe(file);
     expect(first.code).toBe(0);
 
-    const bad = local("ok", ["--history"], { HOME: home, AGENT_REVIEW_HISTORY_DAYS: "x" }, repo);
+    const bad = local("ok", ["--history"], { HOME: home, WACHIMAN_HISTORY_DAYS: "x" }, repo);
     expect(bad.code).toBe(2);
-    expect(bad.stderr).toContain("AGENT_REVIEW_HISTORY_DAYS");
+    expect(bad.stderr).toContain("WACHIMAN_HISTORY_DAYS");
     expect(bad.calls()).toEqual([]);
     expect(runFiles(home)).toHaveLength(1);
   }, 30_000);
 
   test("Ctrl-C saves nothing", () => {
-    const r = local("interrupt", ["--history"], { AGENT_REVIEW_BATCH_LINES: "1" });
+    const r = local("interrupt", ["--history"], { WACHIMAN_BATCH_LINES: "1" });
     expect(r.code).toBe(130);
     expect(runFiles(r.home)).toEqual([]);
   }, 30_000);
@@ -1204,7 +1203,7 @@ describe("verification flags", () => {
     expect(validate(schema("review-result.v2.schema.json"), JSON.parse(two.stdout))).toEqual([]);
   });
 
-  test("the verify line follows batches: off with AGENT_REVIEW_VERIFY=0 (the helper sets it), on with --verify, the model and the reserve", () => {
+  test("the verify line follows batches: off with WACHIMAN_VERIFY=0 (the helper sets it), on with --verify, the model and the reserve", () => {
     const off = local("ok");
     const lines = off.stderr.split("\n");
     expect(lines[lines.indexOf("batches: 1") + 1]).toBe("verify: off");
@@ -1217,20 +1216,20 @@ describe("verification flags", () => {
     expect(on.calls()).toHaveLength(2);
   });
 
-  test("with AGENT_REVIEW_VERIFY unset verification is off, and --verify turns it on", () => {
-    const on = local("ok", ["--verify"], { AGENT_REVIEW_VERIFY: "<unset>" });
+  test("with WACHIMAN_VERIFY unset verification is off, and --verify turns it on", () => {
+    const on = local("ok", ["--verify"], { WACHIMAN_VERIFY: "<unset>" });
     expect(on.stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
     expect(on.calls()).toHaveLength(2);
-    const off = local("ok", [], { AGENT_REVIEW_VERIFY: "<unset>" });
+    const off = local("ok", [], { WACHIMAN_VERIFY: "<unset>" });
     expect(off.stderr.split("\n")).toContain("verify: off");
     expect(off.calls()).toHaveLength(1);
   });
 
-  test("--no-verify wins over AGENT_REVIEW_VERIFY=1", () => {
-    const r = local("ok", ["--no-verify"], { AGENT_REVIEW_VERIFY: "1" });
+  test("--no-verify wins over WACHIMAN_VERIFY=1", () => {
+    const r = local("ok", ["--no-verify"], { WACHIMAN_VERIFY: "1" });
     expect(r.stderr.split("\n")).toContain("verify: off");
     expect(r.calls()).toHaveLength(1);
-    expect(local("ok", [], { AGENT_REVIEW_VERIFY: "1" }).stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
+    expect(local("ok", [], { WACHIMAN_VERIFY: "1" }).stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
   });
 
   test("the verifier can read the base commit, and the base snapshot is gone afterwards", () => {

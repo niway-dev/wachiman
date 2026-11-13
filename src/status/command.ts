@@ -196,7 +196,7 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
   lines.push(`${runs.length} run${runs.length === 1 ? "" : "s"}, ${usd(total)} estimated (API-equivalent, not a bill), ${runs[0].at.slice(0, 10)} → ${runs.at(-1)!.at.slice(0, 10)}`, "");
   lines.push(`  ${pad(args.by, w)}  runs  cost`);
   for (const g of groups) lines.push(`  ${pad(g.key, w)}  ${pad(String(g.runs), 4)}  ${usd(g.costUsdEstimate)}`);
-  lines.push("", retentionDays === 0 ? "New `--history` runs keep all runs (AGENT_REVIEW_HISTORY_DAYS=0). `--json` lists every run with its attributes." : `A new \`--history\` run deletes runs older than ${retentionDays} days (AGENT_REVIEW_HISTORY_DAYS changes that). \`--json\` lists every run with its attributes.`);
+  lines.push("", retentionDays === 0 ? "New `--history` runs keep all runs (WACHIMAN_HISTORY_DAYS=0). `--json` lists every run with its attributes." : `A new \`--history\` run deletes runs older than ${retentionDays} days (WACHIMAN_HISTORY_DAYS changes that). \`--json\` lists every run with its attributes.`);
   io.stdout(`${lines.join("\n")}\n`);
   return 0;
 }

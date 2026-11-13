@@ -57,7 +57,7 @@ export interface LocalArgs {
   profile?: string;
   agentPrompt: boolean;
   history: boolean;
-  /** `--verify` forces the verifier on, `--no-verify` off; unset follows `AGENT_REVIEW_VERIFY` (off by default, ADR 0027). */
+  /** `--verify` forces the verifier on, `--no-verify` off; unset follows `WACHIMAN_VERIFY` (off by default, ADR 0027). */
   verify: boolean | undefined;
   /** `--result-version`: with `--format json`, which result version to write (default 1 for a committed change). */
   resultVersion?: 1 | 2;
@@ -297,7 +297,7 @@ export function openLocalSession(p: {
   const { env, repoDir, deps } = p;
   const loaded = loadConfig(env, p.stderr);
   if (loaded.provider !== "claude-code") {
-    throw new UsageError(`AGENT_REVIEW_PROVIDER=${loaded.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`);
+    throw new UsageError(`WACHIMAN_PROVIDER=${loaded.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`);
   }
   // A person ran it: no automatic ceiling (decision 14).
   const config = {
@@ -441,7 +441,7 @@ export function localScopeInput(p: {
  */
 export function sizeWarning(estimate: ReviewEstimate, gate: number, budgetUsd: number, model: string): string | null {
   if (estimate.usd <= gate) return null;
-  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), above the $${gate.toFixed(2)} size gate. Local runs are never refused; this one continues and stops at its budget, $${budgetUsd.toFixed(2)} (AGENT_REVIEW_BUDGET_USD).`;
+  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), above the $${gate.toFixed(2)} size gate. Local runs are never refused; this one continues and stops at its budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD).`;
 }
 
 export function runLocal(
@@ -460,7 +460,7 @@ export function runLocal(
     throw new UsageError("Working-tree reviews require --result-version 2; a tree is not a commit.");
   }
   // Off unless asked for (ADR 0020): without this, nothing below touches ~/.wachiman/history.
-  // A bad AGENT_REVIEW_HISTORY_DAYS stops here, before any call is paid for.
+  // A bad WACHIMAN_HISTORY_DAYS stops here, before any call is paid for.
   const history = historySettings(env, args.history);
   const home = wachimanHome(env);
   const { config, profile, profileNote, provider, verifier, state } = openLocalSession({

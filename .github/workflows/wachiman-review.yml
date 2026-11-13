@@ -1,4 +1,4 @@
-name: Agent review
+name: Wachiman review
 # Wachiman reviews its own pull requests with the last released engine, pinned like every other
 # consumer (ADR 0001): a release reviews the pull requests after it, never itself.
 # The review runs once, when a pull request opens ready for review or leaves draft, and on

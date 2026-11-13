@@ -6,7 +6,7 @@ import { loadConfig } from "./config";
 import { GhError, marker, review, SIGNATURE, type Deps, type GhFn, type ReviewOutput } from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
-// Plan decision 13: AGENT_REVIEW_FULL_REVIEW=1 in a dry run ignores the previous-review marker.
+// Plan decision 13: WACHIMAN_FULL_REVIEW=1 in a dry run ignores the previous-review marker.
 // In its own file: the golden prompts of engine.fake must not gain a prompt.
 
 class FakeProvider implements ProviderAdapter {
@@ -74,13 +74,13 @@ function run(env: Record<string, string>) {
 
 describe("a dry run that ignores the previous-review marker", () => {
   test("without the flag, a reviewed head is not reviewed again", () => {
-    const r = run({ AGENT_REVIEW_DRY_RUN: "1" });
+    const r = run({ WACHIMAN_DRY_RUN: "1" });
     expect(r.provider.requests).toHaveLength(0);
     expect(r.logs).toContain("Already reviewed");
   });
 
-  test("with AGENT_REVIEW_FULL_REVIEW=1 the head is reviewed in full, printed and not posted", () => {
-    const r = run({ AGENT_REVIEW_DRY_RUN: "1", AGENT_REVIEW_FULL_REVIEW: "1" });
+  test("with WACHIMAN_FULL_REVIEW=1 the head is reviewed in full, printed and not posted", () => {
+    const r = run({ WACHIMAN_DRY_RUN: "1", WACHIMAN_FULL_REVIEW: "1" });
     expect(r.provider.requests).toHaveLength(1);
     expect(r.logs).not.toContain("Already reviewed");
     expect(r.logs).toContain(`--- review at ${HEAD.slice(0, 7)} ---`);

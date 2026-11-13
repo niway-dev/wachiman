@@ -23,7 +23,7 @@ describe("package.json", () => {
   test("is the public package wachiman whose bins are the Node launcher", () => {
     expect(pkg.name).toBe("wachiman");
     expect(pkg.private).toBe(false);
-    expect(pkg.bin).toEqual({ wachiman: "bin/wachiman.js", "agent-review": "bin/wachiman.js" });
+    expect(pkg.bin).toEqual({ wachiman: "bin/wachiman.js" });
     expect(pkg.type).toBe("module");
   });
 

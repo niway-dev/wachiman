@@ -24,12 +24,12 @@ const inputsOf = (text: string) => {
 };
 
 const LEDGER_ENV = [
-  "AGENT_REVIEW_LEDGER_URL",
-  "AGENT_REVIEW_DAILY_BUDGET_USD",
-  "AGENT_REVIEW_WEEKLY_BUDGET_USD",
-  "AGENT_REVIEW_LIMIT_MODE",
-  "AGENT_REVIEW_LIMIT_BYPASS",
-  "AGENT_REVIEW_LEDGER_UNAVAILABLE",
+  "WACHIMAN_LEDGER_URL",
+  "WACHIMAN_DAILY_BUDGET_USD",
+  "WACHIMAN_WEEKLY_BUDGET_USD",
+  "WACHIMAN_LIMIT_MODE",
+  "WACHIMAN_LIMIT_BYPASS",
+  "WACHIMAN_LEDGER_UNAVAILABLE",
 ];
 
 describe("review-platform.yml", () => {
@@ -67,14 +67,14 @@ describe("review-platform.yml", () => {
   test("the three engine steps of both workflows pass the ledger settings to the engine", () => {
     for (const text of [review, platform]) {
       const steps = Object.values(parse(text).jobs).flatMap((job) => job.steps ?? []);
-      const engine = steps.filter((step) => step.env && "AGENT_REVIEW_OPERATOR" in step.env);
+      const engine = steps.filter((step) => step.env && "WACHIMAN_OPERATOR" in step.env);
       expect(engine).toHaveLength(3);
       for (const step of engine) {
         for (const name of LEDGER_ENV) expect(step.env).toHaveProperty(name);
-        expect(step.env!.AGENT_REVIEW_LEDGER_URL).toBe("${{ inputs.ledger_url }}");
+        expect(step.env!.WACHIMAN_LEDGER_URL).toBe("${{ inputs.ledger_url }}");
         // 0 means unset: the engine gets an empty string, never a limit of zero dollars.
-        expect(step.env!.AGENT_REVIEW_DAILY_BUDGET_USD).toBe("${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}");
-        expect(step.env!.AGENT_REVIEW_WEEKLY_BUDGET_USD).toBe("${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}");
+        expect(step.env!.WACHIMAN_DAILY_BUDGET_USD).toBe("${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}");
+        expect(step.env!.WACHIMAN_WEEKLY_BUDGET_USD).toBe("${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}");
       }
     }
   });
