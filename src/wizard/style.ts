@@ -1,7 +1,7 @@
 /** Terminal colors are an enhancement: labels carry the meaning in plain output. */
-export type Tone = "accent" | "muted" | "success" | "warning" | "error";
+export type Tone = "accent" | "muted" | "success" | "warning" | "error" | "strong";
 
-const CODES: Record<Tone, number> = { accent: 36, muted: 2, success: 32, warning: 33, error: 31 };
+const CODES: Record<Tone, number> = { accent: 36, muted: 2, success: 32, warning: 33, error: 31, strong: 1 };
 
 export function terminalStyle(output: { isTTY?: boolean }, env: Record<string, string | undefined>) {
   const color = output.isTTY === true && !env.NO_COLOR && env.TERM !== "dumb";

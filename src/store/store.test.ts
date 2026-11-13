@@ -335,14 +335,18 @@ describe("the local index", () => {
 
 describe("nothing existing depends on the index", () => {
   // ADR 0039: `status` reads the downloaded day files directly; no existing command reads the index.
-  test("only the store and the command table import the store module", () => {
+  test("only the store and the command table import the store module (the help text only its usage string)", () => {
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name);
         if (entry.isDirectory()) walk(path);
         else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts") && !path.includes(`${join("src", "store")}`) && path !== join(import.meta.dir, "..", "cli.ts")) {
-          if (/from "\.\.?\/(\.\.\/)?store\//.test(readFileSync(path, "utf8"))) offenders.push(path);
+          // The help text may take the dashboard's usage string and nothing else from the store.
+          const text = path === join(import.meta.dir, "..", "help.ts")
+            ? readFileSync(path, "utf8").replace(/import\s*\{\s*dashboardUsage\s*\}\s*from\s*"\.\/store\/command";?/, "")
+            : readFileSync(path, "utf8");
+          if (/from "\.\.?\/(\.\.\/)?store\//.test(text)) offenders.push(path);
         }
       }
     };

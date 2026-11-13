@@ -477,10 +477,11 @@ describe("wachiman local", () => {
     expect(r.read("calls")).toBeUndefined();
   }, 30_000);
 
-  test("--help lists local and --setup-profile; GH_TOKEN is not required for them", () => {
-    const help = runCli(["--help"], { PATH: process.env.PATH ?? "" });
+  test("local has its own help and --setup-profile stays out of the root help; GH_TOKEN is not required for them", () => {
+    const help = runCli(["local", "--help"], { PATH: process.env.PATH ?? "" });
     expect(help.stdout).toContain("wachiman local [paths…]");
-    expect(help.stdout).toContain("wachiman --setup-profile [<name>]");
+    expect(runCli(["--help"], { PATH: process.env.PATH ?? "" }).stdout).not.toContain("--setup-profile");
+    expect(runCli(["--setup-profile", "--help"], { PATH: process.env.PATH ?? "" }).stdout).toContain("wachiman profile create [<name>]");
     // The first test ran without GH_TOKEN and GITHUB_REPOSITORY; a usage error here would name them.
     const r = local("ok");
     expect(r.code).toBe(0);

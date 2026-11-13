@@ -20,9 +20,22 @@ bun src/cli.ts doctor [--json] [--profile <name> | --all-profiles] [--repo-dir <
 bun src/cli.ts profile list|create|add|login|remove|default ...
 bun src/cli.ts project show|unbind ...
 bun src/cli.ts --setup-profile [<name>]          # alias of `profile create`
-bun src/cli.ts --help
+bun src/cli.ts --help                            # a short index of the commands (about 25 lines)
+bun src/cli.ts <command> --help                  # or: help <command>; that command's own page
+bun src/cli.ts help ci                           # review, comment, threads, reset-confidence
 bun src/cli.ts --version
 ```
+
+Help is printed from the arguments alone: it loads no configuration and makes no git, GitHub or model
+call, so `wachiman <command> --help` works anywhere. Every command's page has its usage, a
+description, the flags with their defaults, the environment variables that command reads, its exit
+codes and examples; `profile`, `project`, `skills` and `ledger` also have a page per subcommand (`wachiman
+profile create --help`). The four commands that only a GitHub Actions run uses (`review`, `comment`,
+`threads`, `reset-confidence`) are not in the root help; `wachiman help ci` lists them with the GitHub
+variables and exit codes. `--setup-profile` still works and is also left out of the root help. This
+page remains the full reference for the environment variables and exit codes.
+
+A bare `wachiman` with no arguments prints the root help and exits 0.
 
 `package.json` installs `wachiman` through the Node launcher
 `bin/wachiman.js`. Node 20 or later must be on `PATH`. The package installs Bun as
@@ -32,8 +45,8 @@ provider binary are needed for local reviews; GitHub commands also need `gh`.
 
 Argument rules, as implemented:
 
-- The command (`review`, `comment`, `threads`, `local`, `history`, `dashboard`, `setup`, `doctor`, `profile` or `project`) must be the first argument. `--help`/`-h`,
-  `--version`/`-v` and `--setup-profile` are recognised only as the first argument too.
+- The command (`review`, `comment`, `threads`, `reset-confidence`, `local`, `loop`, `ask`, `history`, `status`, `dashboard`, `ledger`, `setup`, `init`, `doctor`, `profile`, `project` or `skills`) must be the first argument. `--help`/`-h`,
+  `--version`/`-v`, `help` and `--setup-profile` are recognised only as the first argument too. `--help` or `-h` after a command prints that command's help and exits 0, before any other argument is checked. It is not a request where it is text or a value: after a `--`, as the value of `--reason`, or anywhere but the first argument of `ask`, whose other words are the question.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
   rest are read, so it is never taken for a path.
@@ -808,9 +821,9 @@ shrunk to what fits, or dropped, before the coverage table and the summary are t
 
 | Code | Meaning |
 | --- | --- |
-| `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help` and `--version` also exit 0. |
+| `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help`, `help` and `--version` also exit 0, and so does a bare `wachiman`. |
 | `1` | Engine error. **Not the same as "nothing was posted"**: see below. |
-| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `WACHIMAN_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
+| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `WACHIMAN_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message is one line on stderr, followed by `Run 'wachiman <command> --help'.` |
 | `3` | The spend ledger stopped the run before any model call: a limit with `limit_mode: fail`, a repository the ledger does not know, a rejected identity token, no OIDC token while `ledger_url` is set, or an unreachable ledger with `ledger_unavailable: stop`. With `limit_mode: notice` a limit exits 0. Only with `ledger_url`; see [costs.md](costs.md#the-spend-limit). |
 
 Exit 1 covers:

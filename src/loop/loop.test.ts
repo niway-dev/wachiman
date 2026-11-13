@@ -640,9 +640,11 @@ describe("parseLoopArgs", () => {
 
 describe("help", () => {
   test("--help lists loop and its exit codes", () => {
-    const out = Bun.spawnSync([process.execPath, cli, "--help"], { env: { PATH: process.env.PATH ?? "", HOME: temp("h-") }, stdin: "ignore" });
+    const out = Bun.spawnSync([process.execPath, cli, "loop", "--help"], { env: { PATH: process.env.PATH ?? "", HOME: temp("h-") }, stdin: "ignore" });
     const text = out.stdout.toString();
     expect(text).toContain("wachiman loop [--base <ref>] [--max-rounds <n>]");
-    expect(text).toContain("`loop`: 0 converged, 10 findings still open, 11 stopped without converging");
+    expect(text).toMatch(/\n\s+0\s+Converged/);
+    expect(text).toMatch(/\n\s+10\s+Findings are still open/);
+    expect(text).toMatch(/\n\s+11\s+Stopped without converging/);
   });
 });
