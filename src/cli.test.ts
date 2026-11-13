@@ -130,6 +130,7 @@ describe("exit code 3: the spend ledger stopped the run", () => {
       WACHIMAN_DRY_RUN: "1",
       WACHIMAN_TRIGGER: "opened",
       WACHIMAN_LEDGER_URL: "https://ledger.test",
+      GITHUB_ACTIONS: "true",
       ACTIONS_ID_TOKEN_REQUEST_URL: "https://tokens.test/token?api=1",
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer",
       ...extra,
@@ -203,6 +204,18 @@ describe("exit code 3: the spend ledger stopped the run", () => {
         expect(bare.stderr).toContain("review-platform.yml");
       }
       expect(w.modelCalled()).toBe(false);
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("a laptop with the URL set (no GITHUB_ACTIONS, no OIDC variables) reaches the model and is not stopped by the ledger (exit is not 3; the fake claude returns no review)", () => {
+    const w = world();
+    try {
+      const laptop = run(["review", "1"], w.env({ GITHUB_ACTIONS: "", ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", LEDGER_STATUS: "402", LEDGER_BODY: LIMIT }));
+      expect(laptop.code).not.toBe(3);
+      expect(laptop.stderr.match(/not a GitHub Actions run/g)).toHaveLength(1);
+      expect(w.modelCalled()).toBe(true);
     } finally {
       rmSync(w.bin, { recursive: true, force: true });
     }

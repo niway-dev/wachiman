@@ -1,7 +1,8 @@
 /**
  * The local index (ADR 0035): one SQLite file under the Wachiman home, filled by replaying the history
- * run files, `verdicts.jsonl` and the loop state files. It holds nothing that cannot be rebuilt from
- * them, and no other command reads it: `wachiman dashboard` is the only reader. A missing, outdated or
+ * run files, `verdicts.jsonl`, the loop state files and the pulled ledger day files (ADR 0039). It holds
+ * nothing that cannot be rebuilt from them, and no other command reads it: `wachiman dashboard` is the
+ * only reader (`status` reads the same files directly). A missing, outdated or
  * unreadable index is deleted and built again, never repaired; it is written to a temporary file and
  * renamed, so a reader sees all of it or none, at 0600. Bun's built-in `bun:sqlite`: no dependency.
  */
@@ -12,9 +13,10 @@ import { basename, dirname, join } from "node:path";
 import { GRADES } from "../fidelity/types";
 import { historyRoot, listKeys, loopFiles, readRuns, readVerdicts, runFiles } from "../history/store";
 import { replay } from "../history/match";
+import { listLedgerAccounts, readDayFile } from "../ledger-read/files";
 
 /** Bump when a table or a column changes: an index of another version is rebuilt, never read. */
-export const INDEX_SCHEMA_VERSION = 1;
+export const INDEX_SCHEMA_VERSION = 3;
 
 export const INDEX_FILE = "index.sqlite";
 export const indexPath = (wachimanHome: string) => join(wachimanHome, INDEX_FILE);
@@ -28,6 +30,8 @@ CREATE TABLE runs (
   day TEXT NOT NULL,
   head_sha TEXT NOT NULL,
   model TEXT NOT NULL,
+  effort TEXT NOT NULL DEFAULT '',
+  profile TEXT NOT NULL DEFAULT '',
   cost_usd REAL NOT NULL,
   findings INTEGER NOT NULL,
   grade TEXT
@@ -52,6 +56,23 @@ CREATE TABLE loops (
   last_round_at TEXT
 );
 CREATE TABLE loop_ledger (repo_key TEXT NOT NULL, branch TEXT NOT NULL, status TEXT NOT NULL, count INTEGER NOT NULL);
+CREATE TABLE ledger_pulls (account TEXT PRIMARY KEY, pulled_at TEXT NOT NULL, daily_limit_usd REAL, weekly_limit_usd REAL);
+CREATE TABLE ledger_ranges (account TEXT NOT NULL, from_day TEXT NOT NULL, to_day TEXT NOT NULL);
+CREATE TABLE ledger_entries (
+  account TEXT NOT NULL,
+  id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  week TEXT NOT NULL,
+  repository TEXT NOT NULL,
+  pr INTEGER,
+  run_id TEXT,
+  run_attempt INTEGER,
+  trigger TEXT NOT NULL,
+  state TEXT NOT NULL,
+  reserved_usd REAL NOT NULL,
+  settled_usd REAL
+);
+CREATE TABLE ledger_calls (account TEXT NOT NULL, entry_id TEXT NOT NULL, model TEXT NOT NULL, auth TEXT NOT NULL, cost_usd REAL NOT NULL, cost_known INTEGER NOT NULL);
 `;
 
 const vanished = (error: unknown) => (error as NodeJS.ErrnoException)?.code === "ENOENT";
@@ -80,6 +101,9 @@ function sourceSignature(root: string, afterListing?: () => void): string {
     const verdicts = join(root, key, "verdicts.jsonl");
     if (existsSync(verdicts)) listed.push({ name: `${key}/verdicts.jsonl`, path: verdicts });
   }
+  for (const account of listLedgerAccounts(dirname(root))) {
+    for (const path of [account.pullFile, ...account.dayFiles]) listed.push({ name: `ledger/${account.account}/${basename(path)}`, path });
+  }
   afterListing?.();
   const lines: string[] = [];
   for (const { name, path } of listed) {
@@ -97,11 +121,15 @@ function sourceSignature(root: string, afterListing?: () => void): string {
 const PROBES = [
   "SELECT key, value FROM meta LIMIT 0",
   "SELECT key, name FROM repositories LIMIT 0",
-  "SELECT repo_key, saved_at, day, head_sha, model, cost_usd, findings, grade FROM runs LIMIT 0",
+  "SELECT repo_key, saved_at, day, head_sha, model, effort, profile, cost_usd, findings, grade FROM runs LIMIT 0",
   "SELECT repo_key, first_id, severity, topic, status, verdict, last_seen_at FROM findings LIMIT 0",
   "SELECT repo_key, first_id, at, verdict FROM verdicts LIMIT 0",
   "SELECT repo_key, branch, base, outcome, rounds, first_round_at, last_round_at FROM loops LIMIT 0",
   "SELECT repo_key, branch, status, count FROM loop_ledger LIMIT 0",
+  "SELECT account, pulled_at, daily_limit_usd, weekly_limit_usd FROM ledger_pulls LIMIT 0",
+  "SELECT account, from_day, to_day FROM ledger_ranges LIMIT 0",
+  "SELECT account, id, day, week, repository, pr, run_id, run_attempt, trigger, state, reserved_usd, settled_usd FROM ledger_entries LIMIT 0",
+  "SELECT account, entry_id, model, auth, cost_usd, cost_known FROM ledger_calls LIMIT 0",
 ];
 
 /** Whether the file at `path` is a readable index of this schema version built from sources that look like `signature`. */
@@ -161,7 +189,7 @@ function readLoopRecord(path: string): LoopRecord | undefined | null {
 function fill(db: Database, root: string, warn: (line: string) => void): number {
   let skipped = 0;
   const repo = db.prepare("INSERT INTO repositories (key, name) VALUES (?, ?)");
-  const run = db.prepare("INSERT INTO runs (repo_key, saved_at, day, head_sha, model, cost_usd, findings, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+  const run = db.prepare("INSERT INTO runs (repo_key, saved_at, day, head_sha, model, effort, profile, cost_usd, findings, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
   const finding = db.prepare("INSERT INTO findings (repo_key, first_id, severity, topic, status, verdict, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const verdict = db.prepare("INSERT INTO verdicts (repo_key, first_id, at, verdict) VALUES (?, ?, ?, ?)");
   const loop = db.prepare("INSERT INTO loops (repo_key, branch, base, outcome, rounds, first_round_at, last_round_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -189,6 +217,8 @@ function fill(db: Database, root: string, warn: (line: string) => void): number 
         r.savedAt.slice(0, 10),
         r.result.change.head.sha,
         r.result.provider?.model ?? "",
+        r.result.provider?.effort ?? "",
+        (r.result.format === "wachiman.review-result/2" ? r.result.provider.account?.name : undefined) ?? r.result.provider?.profile ?? "",
         typeof cost === "number" && Number.isFinite(cost) ? cost : 0,
         r.result.findings.length,
         typeof grade === "string" && (GRADES as readonly string[]).includes(grade) ? grade : null,
@@ -205,7 +235,36 @@ function fill(db: Database, root: string, warn: (line: string) => void): number 
       for (const [status, count] of counts) ledger.run(key, l.branch, status, count);
     }
   }
+  fillLedger(db, root, warn);
   return skipped;
+}
+
+/** The downloaded ledger entries (ADR 0039): one row per entry and per call, from the day files. */
+function fillLedger(db: Database, root: string, warn: (line: string) => void) {
+  const pull = db.prepare("INSERT INTO ledger_pulls (account, pulled_at, daily_limit_usd, weekly_limit_usd) VALUES (?, ?, ?, ?)");
+  const range = db.prepare("INSERT INTO ledger_ranges (account, from_day, to_day) VALUES (?, ?, ?)");
+  const entry = db.prepare(
+    "INSERT INTO ledger_entries (account, id, day, week, repository, pr, run_id, run_attempt, trigger, state, reserved_usd, settled_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const call = db.prepare("INSERT INTO ledger_calls (account, entry_id, model, auth, cost_usd, cost_known) VALUES (?, ?, ?, ?, ?, ?)");
+  for (const a of listLedgerAccounts(dirname(root))) {
+    pull.run(a.account, a.meta.pulledAt, a.meta.limits.dailyUsd, a.meta.limits.weeklyUsd);
+    for (const r of a.meta.ranges) range.run(a.account, r.from, r.to);
+    const seen = new Set<string>();
+    for (const path of a.dayFiles) {
+      const entries = readDayFile(path);
+      if (!entries) {
+        warn(`dashboard: ${path} is not a ledger day file; skipped`);
+        continue;
+      }
+      for (const e of entries) {
+        if (seen.has(e.id)) continue;
+        seen.add(e.id);
+        entry.run(a.account, e.id, e.day, e.week, e.repository, e.pr, e.run_id === null ? null : String(e.run_id), e.run_attempt, e.trigger, e.state, e.reservedUsd, e.settledUsd);
+        for (const c of e.calls) call.run(a.account, e.id, c.model, c.auth, c.cost_usd ?? 0, c.costKnown ? 1 : 0);
+      }
+    }
+  }
 }
 
 const unlinkQuiet = (path: string) => {

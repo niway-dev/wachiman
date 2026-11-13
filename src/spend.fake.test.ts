@@ -141,7 +141,7 @@ function fakeLedger(events: string[], opts: LedgerOpts = {}) {
   return { curl, reserves, settles, records, urls };
 }
 
-const TOKEN_ENV = { ACTIONS_ID_TOKEN_REQUEST_URL: "https://tokens.test/token?api=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer" };
+const TOKEN_ENV = { GITHUB_ACTIONS: "true", ACTIONS_ID_TOKEN_REQUEST_URL: "https://tokens.test/token?api=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer" };
 
 interface Opts {
   env?: Record<string, string>;
@@ -278,6 +278,53 @@ describe("review() with no ledger_url", () => {
     answer(asked.deps, "o/r", 7, "why?");
     expect(asked.urls).toEqual([]);
     expect(asked.events).toEqual(["model"]);
+  });
+});
+
+describe("a laptop with WACHIMAN_LEDGER_URL set (not GitHub Actions)", () => {
+  /** The laptop reads its spend with this variable (docs/cli.md, `ledger`); the engine must not take it as a request to reserve. */
+  const laptop = (opts: Parameters<typeof setup>[0]) => {
+    const t = setup(opts);
+    t.deps.ledgerEnv = {};
+    const lines: string[] = [];
+    t.deps.warn = (line) => void lines.push(line);
+    return { t, lines };
+  };
+
+  test("a review runs, makes no ledger or token request, records nothing and says once that the ledger is skipped", () => {
+    const { t, lines } = laptop({ env: WITH_LEDGER });
+    review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(1);
+    expect(t.events).toEqual(["model"]);
+    expect(t.urls).toEqual([]);
+    expect(readReceipt(t.posted[0]!)).toBeNull();
+    expect(t.notes).toEqual([]);
+    expect(lines.filter((l) => /not a GitHub Actions run/.test(l))).toHaveLength(1);
+  });
+
+  test("an answer and thread replies run the same way", () => {
+    const asked = laptop({ env: { ...COMMENT }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
+    answer(asked.t.deps, "o/r", 7, "why?");
+    expect(asked.t.events).toEqual(["model"]);
+    expect(asked.t.urls).toEqual([]);
+    const thread = laptop({ env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })] });
+    threadReplies(thread.t.deps, "o/r", 7, "owner");
+    expect(thread.t.events).toEqual(["model"]);
+    expect(thread.t.urls).toEqual([]);
+  });
+
+  test("limit_bypass changes nothing outside Actions: still skipped, no 'bypassed' note", () => {
+    const { t } = laptop({ env: { ...WITH_LEDGER, WACHIMAN_LIMIT_BYPASS: "1" } });
+    review(t.deps, "o/r", 7, []);
+    expect(t.urls).toEqual([]);
+    expect(t.notes).toEqual([]);
+  });
+
+  test("inside GitHub Actions with no OIDC variables the run still stops and names id-token: write", () => {
+    const t = setup({ env: WITH_LEDGER });
+    t.deps.ledgerEnv = { GITHUB_ACTIONS: "true" };
+    expect(() => review(t.deps, "o/r", 7, [])).toThrow(/id-token: write/);
+    expect(t.provider.requests).toHaveLength(0);
   });
 });
 
@@ -480,7 +527,7 @@ describe("configuration errors are not outages", () => {
       expect(refused.provider.requests).toHaveLength(0);
 
       const noPermission = setup({ env });
-      noPermission.deps.ledgerEnv = {};
+      noPermission.deps.ledgerEnv = { GITHUB_ACTIONS: "true" };
       expect(() => review(noPermission.deps, "o/r", 7, [])).toThrow(/review-platform\.yml.*id-token: write/);
       expect(noPermission.provider.requests).toHaveLength(0);
       expect(noPermission.urls).toEqual([]);
