@@ -618,7 +618,8 @@ logs as `wachiman-cost` lines (`ledgerCall` in `src/cost.ts`) and returns a sign
 hidden footer. The engine authenticates with a GitHub OIDC token, which only `review-platform.yml`
 (generated from `review.yml`) can request; the provider adapter never forwards the token variables to
 the agent. With `ledger_url` empty none of this runs. The policy for refusals and outages is in
-[costs.md](costs.md#the-spend-limit).
+[costs.md](costs.md#the-spend-limit). The service is outside this repository; the routes, bodies and
+answers the client relies on are written down in [ledger-api.md](ledger-api.md).
 
 ## Invariants a change must keep
 
