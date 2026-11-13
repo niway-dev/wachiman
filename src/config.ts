@@ -230,12 +230,12 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
       `AGENT_REVIEW_LEDGER_URL must start with https:// (http://localhost and http://127.0.0.1 are allowed for tests), got "${ledgerUrl}".`,
     );
   }
-  // With a ledger, `review-platform.yml` grants `id-token: write`, so the request token is in the
+  // With a ledger, `wachiman-platform.yml` grants `id-token: write`, so the request token is in the
   // engine's environment; a Codex sandbox could read it from /proc and mint tokens as this job.
   // Without `ledger_url` nothing uses the token and the guard does not apply.
   if (ledgerUrl !== undefined && provider !== "claude-code" && env.ACTIONS_ID_TOKEN_REQUEST_TOKEN !== undefined) {
     throw new UsageError(
-      `AGENT_REVIEW_PROVIDER ${provider} cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of review-platform.yml.`,
+      `AGENT_REVIEW_PROVIDER ${provider} cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of wachiman-platform.yml.`,
     );
   }
   return {

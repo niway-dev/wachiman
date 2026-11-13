@@ -200,7 +200,7 @@ describe("exit code 3: the spend ledger stopped the run", () => {
         expect(unlinked.stderr).toContain("not linked");
         const bare = run(["review", "1"], w.env({ ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable }));
         expect(bare.code).toBe(3);
-        expect(bare.stderr).toContain("review-platform.yml");
+        expect(bare.stderr).toContain("wachiman-platform.yml");
       }
       expect(w.modelCalled()).toBe(false);
     } finally {

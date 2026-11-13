@@ -290,7 +290,7 @@ Enrolling is optional. A repository that does not set `ledger_url` changes nothi
 permission.
 
 A spend ledger keeps a daily and a weekly limit across repositories ([costs.md](costs.md#the-spend-limit)).
-To use one, call `review-platform.yml` instead of `review.yml` and grant `id-token: write` in the
+To use one, call `wachiman-platform.yml` instead of `review.yml` and grant `id-token: write` in the
 caller's job. A called workflow cannot hold a permission its caller did not grant, which is why
 `review.yml` itself never asks for it:
 
@@ -302,14 +302,14 @@ permissions:
   id-token: write      # lets the job ask the ledger for a GitHub OIDC token
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review-platform.yml@vX.Y.Z
+    uses: niway-dev/wachiman/.github/workflows/wachiman-platform.yml@vX.Y.Z
     with:
       operator: your-github-login
       ledger_url: https://your-ledger.example.com
       daily_budget_usd: 5   # optional, stricter than the account's limit
 ```
 
-`vX.Y.Z` is a placeholder. `review-platform.yml` exists only from the first release that contains it,
+`vX.Y.Z` is a placeholder. `wachiman-platform.yml` exists only from the first release that contains it,
 so pin that release or a later one: an earlier tag, such as the `v1.5.0` used elsewhere on this page,
 has no such file. The release tooling (release-please) only bumps the version in `src/init/options.ts`;
 it does not rewrite the tag in this example, in the caller template or in your caller file, and

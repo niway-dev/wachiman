@@ -358,7 +358,7 @@ the ledger trusts this repository. Exit code 3, before any model call.
 
 ### `ledger_url is set, but this job cannot request an OIDC token`
 
-The job holds no `id-token: write`. Call `.github/workflows/review-platform.yml` instead of
+The job holds no `id-token: write`. Call `.github/workflows/wachiman-platform.yml` instead of
 `review.yml`, and grant `id-token: write` in the caller's job ([install.md](install.md#optional-enroll-in-a-spend-ledger)).
 `review.yml` never holds that permission, so with `ledger_url` set it stops with this message, unless
 `limit_bypass` is set (a bypassed run asks the ledger for nothing).

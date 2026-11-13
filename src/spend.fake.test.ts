@@ -481,7 +481,7 @@ describe("configuration errors are not outages", () => {
 
       const noPermission = setup({ env });
       noPermission.deps.ledgerEnv = {};
-      expect(() => review(noPermission.deps, "o/r", 7, [])).toThrow(/review-platform\.yml.*id-token: write/);
+      expect(() => review(noPermission.deps, "o/r", 7, [])).toThrow(/wachiman-platform\.yml.*id-token: write/);
       expect(noPermission.provider.requests).toHaveLength(0);
       expect(noPermission.urls).toEqual([]);
       expect(noPermission.posted).toHaveLength(0);

@@ -615,7 +615,7 @@ When `ledger_url` is set, the engine asks a spend ledger before its first model 
 what it spent after the last one (`src/ledger.ts`, called from `spendReserve` and `spendSettle` in
 `src/engine.ts`). The grant caps the run budget; the settle carries the calls the engine already
 logs as `wachiman-cost` lines (`ledgerCall` in `src/cost.ts`) and returns a signed receipt for the
-hidden footer. The engine authenticates with a GitHub OIDC token, which only `review-platform.yml`
+hidden footer. The engine authenticates with a GitHub OIDC token, which only `wachiman-platform.yml`
 (generated from `review.yml`) can request; the provider adapter never forwards the token variables to
 the agent. With `ledger_url` empty none of this runs. The policy for refusals and outages is in
 [costs.md](costs.md#the-spend-limit).
