@@ -107,7 +107,7 @@ Request:
   "wantedUsd": 3,
   "callerLimitUsd": 5,
   "callerWeeklyLimitUsd": 20,
-  "trigger": "pull_request",
+  "trigger": "synchronize",
   "forced": false,
   "pr": 123
 }
@@ -118,7 +118,7 @@ Request:
 | `wantedUsd` | number, required | What the run asks for: its budget. |
 | `callerLimitUsd` | number, optional | A stricter daily number the repository set (`daily_budget_usd`). It can only lower the grant. |
 | `callerWeeklyLimitUsd` | number, optional | The same, per week (`weekly_budget_usd`). |
-| `trigger` | string, required | Why the run started, such as `pull_request` or `cli`. The engine sends a value matching `^[a-z_]+$`. |
+| `trigger` | string, required | Why the run started. The engine sends a lowercase string matching `^[a-z_]+$`: the event action that started it (`opened`, `synchronize`, `reopened`, …), `comment` for a command or question in a comment, `thread` for a thread reply, or `cli` when a person ran it. Treat it as an open string of at most 200 characters, not a fixed list. |
 | `forced` | boolean | The operator asked for this run past the limits (`/wachiman review --force`). |
 | `pr` | positive integer, optional | The pull request number. |
 
@@ -207,7 +207,7 @@ still reserved, so a failed settle leaves the reservation counted at the reserve
 Request:
 
 ```json
-{ "spentUsd": 0.9, "calls": [ … ], "trigger": "pull_request", "pr": 123, "reason": "unreserved" }
+{ "spentUsd": 0.9, "calls": [ … ], "trigger": "synchronize", "pr": 123, "reason": "unreserved" }
 ```
 
 `spentUsd`, `trigger` and `reason` (exactly `"unreserved"`) are required. The engine uses it for a
@@ -271,7 +271,7 @@ entry:
 {
   "id": "…", "day": "2026-11-12", "week": "2026-11-09",
   "repository": "acme/app", "repository_id": "1001", "pr": 123,
-  "run_id": "42", "run_attempt": "1", "trigger": "pull_request", "forced": false,
+  "run_id": "42", "run_attempt": "1", "trigger": "synchronize", "forced": false,
   "state": "settled", "reservedUsd": 3, "settledUsd": 1.42,
   "created_at": "2026-11-12T10:00:00.000Z", "settled_at": "2026-11-12T10:04:00.000Z",
   "calls": [ … ]
@@ -340,24 +340,38 @@ footer of its pull request comment. Anyone can verify it with the key from `GET 
 ## How the client treats an answer
 
 This part is what makes a ledger "look like" a ledger to the engine. The client runs `curl` with a
-20 second limit.
+20 second limit. What a run does depends on the route.
+
+**On reserve**, before any model call:
 
 | What happened | The client's reading | What the run does |
 | --- | --- | --- |
 | Network error, timeout, 5xx, 429 | The ledger is unreachable | `ledger_unavailable: run` reviews under the normal budgets and tries to record at the end; `stop` exits with code 3 before any model call |
-| Any 4xx whose body's `reason` is one of `limit`, `weekly_limit`, `repository_limit`, `not_linked` or `unauthorized`; or a 402, 401 or 403 with any other body | A refusal. The body's `reason` wins; without one, 402 reads as `limit`, 401 as `unauthorized`, 403 as `not_linked` | The run stops before any model call (exit code 3 with `limit_mode: fail`) |
-| Any other unexpected answer: a redirect, a 4xx that is not a refusal (such as 400, 404 or 405), a 200 whose body is not the documented JSON, a grant that is not a finite non-negative number | Not a ledger: `ledger_url` is wrong or the service is broken | The run stops before any model call with exit code 3, whatever `ledger_unavailable` says |
-| No OIDC request variables in the job | The job cannot ask for a token | Exit code 3 unless `limit_bypass` is set |
+| Any 4xx whose body's `reason` is one of `limit`, `weekly_limit`, `repository_limit`, `not_linked` or `unauthorized`; or a 402, 401 or 403 with any other body | A refusal. The body's `reason` wins; without one, 402 reads as `limit`, 401 as `unauthorized`, 403 as `not_linked` | No model call. A limit reason (`limit`, `weekly_limit`, `repository_limit`) posts the limit notice and exits 3 with `limit_mode: fail`, or 0 with `notice`. `not_linked` and `unauthorized` always exit 3 |
+| Any other unexpected answer: a redirect, a 4xx that is not a refusal (such as 400, 404 or 405), a 200 whose body is not the documented JSON, a grant that is not a finite non-negative number | Not a ledger: `ledger_url` is wrong or the service is broken | No model call, exit code 3, whatever `ledger_unavailable` says |
+| No OIDC request variables in the job | The job cannot ask for a token | No model call, exit code 3, unless `limit_bypass` is set |
 | `ledger_url` that does not start with `https://` (`http://localhost` and `http://127.0.0.1` are allowed for tests) | Usage error | Exit code 2 |
 
-Refusals are read only on reserve. On settle and record the client accepts a 200 and nothing else: a
-5xx or 429 is an outage (the review stands and the summary says the settlement or the record was
-not delivered), and any other status, 404 included, is read as "not a ledger".
+**On settle and record**, after the review has been made, the client accepts a 200 and nothing
+else. Any other answer, an outage or "not a ledger" alike, never stops or fails the run: the review
+stands, a failed settle leaves the reservation counted at the reserved amount, and the job summary
+says the settlement or the record was not delivered. Refusals are not read on these routes.
 
 Consequences for an implementer: answer a refusal with 402, 401 or 403 and the documented body,
-never with 400 or 404. A request the ledger rejects for a size or range reason (400) is read by the
-client as "this is not a ledger", so keep the `wantedUsd` ceiling above any `budget_usd` a user is
-likely to set.
+never with 400 or 404. A request the ledger rejects on reserve for a size or range reason (400) is
+read by the client as "this is not a ledger", so keep the `wantedUsd` ceiling above any `budget_usd`
+a user is likely to set.
+
+## Known differences
+
+Places where this contract, the client on `main` and the hosted Worker do not fully agree, and the
+side that is right. They are listed rather than hidden; none changes what an implementer must do.
+
+| Difference | Right side | What it means |
+| --- | --- | --- |
+| A request with an amount above the 1000 USD ceiling (a `wantedUsd` from a `budget_usd` above 1000) or more than 200 calls gets a 400 from the Worker. On reserve the client reads any 400 as "`ledger_url` does not look like the spend ledger". | The Worker. A 400 for an invalid request is correct. | The client's message is misleading for this case: the ledger is the right one and the address is fine. The client should read a 400 with `reason: "bad_request"` as a bad request and show `detail`. Until then, the contract's advice above stands. |
+| `terminal_reason` is typed `string` in the client and always sent as a string. The Worker also accepts `null` or an absent field. | Neither is wrong. | The contract says what the client sends and asks a ledger to accept both. |
+| The Worker signs the receipt after it has committed the settlement. A receipt key that cannot be loaded makes it answer 500 after the amount is already stored. | The contract. A ledger should sign before it commits, or answer 200 without a signature. | A defect in the Worker, not documented here as intended. The client treats the 500 as an outage and says the settlement was not delivered, although it was stored. A retry is idempotent and replaces the same entry. |
 
 ## Running your own ledger
 
