@@ -198,6 +198,22 @@
           "$ref": "#/$defs/PrConfidenceRecorded"
         }
       ]
+    },
+    "usage": {
+      "type": "object",
+      "description": "Present only when a ledger is connected or was pulled (ADR 0039): the one spend report for laptop and GitHub Actions runs (`src/spend/report.ts`). Dollars are split by source and by credential; reservations that never settled and runs that were not reserved are reported apart from spend; a period outside the downloaded data is marked `known: false`, never zero.",
+      "required": [
+        "report",
+        "pulled"
+      ],
+      "properties": {
+        "report": {
+          "type": "object"
+        },
+        "pulled": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "$defs": {

@@ -38,6 +38,8 @@ import { loadConfig, UsageError } from "./config";
 import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
 import { dashboardUsage, parseDashboardArgs, runDashboard } from "./store/command";
+import { ledgerUsage, parseLedgerArgs, runLedger } from "./ledger-read/command";
+import { pullLedger } from "./ledger-read/pull";
 import { comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { localUsage, parseLocalArgs, runLocal } from "./local";
 import { loopUsage, parseLoopArgs, runLoop } from "./loop/command";
@@ -87,7 +89,12 @@ export const USAGE = `Usage:
   ${statusUsage}
                                                      What this laptop kept of its local runs and their
                                                      estimated cost, filterable; uses local history. GitHub
-                                                     Actions runs are not counted
+                                                     Actions runs are included only after \`ledger pull\`
+                                                     (--refresh does it first); without a ledger they are not counted
+  ${ledgerUsage.replaceAll("\n", "\n  ")}
+                                                     Connect to the spend ledger with a read token and download
+                                                     its entries into ~/.wachiman/ledger. \`pull\` and \`--refresh\`
+                                                     are the only requests; nothing is ever sent from the laptop
   ${dashboardUsage}
                                                      Write one static HTML page (or print JSON) with the
                                                      spend per day and repository, the findings by severity
@@ -309,6 +316,17 @@ export function runResetConfidence(args: string[], env: Record<string, string | 
   return 0;
 }
 
+/** `--refresh`: download the ledger first. A failed download warns and leaves the files already on disk in use. */
+async function refreshLedger(env: Record<string, string | undefined>) {
+  try {
+    const r = await pullLedger(wachimanHome(env), env, undefined);
+    console.error(`wachiman: ledger refreshed (${r.entries} entries, ${r.from} to ${r.to}).`);
+  } catch (error) {
+    if (error instanceof UsageError) throw error;
+    console.error(`wachiman: ledger refresh failed: ${error instanceof Error ? error.message : error}. Showing the entries already downloaded.`);
+  }
+}
+
 export async function main(argv: string[], env: Record<string, string | undefined>): Promise<number> {
   const mode = argv[0];
   if (mode === "--help" || mode === "-h") {
@@ -333,6 +351,12 @@ export async function main(argv: string[], env: Record<string, string | undefine
       const parsed = parseSkillsArgs(argv.slice(1));
       if ("help" in parsed) return (writeAll(1, `${skillsUsage}\n`), 0);
       return runSkills(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
+    }
+    if (mode === "ledger") {
+      // Before extractRepoDir: no repository is read. The only command that contacts the ledger (ADR 0039).
+      const parsed = parseLedgerArgs(argv.slice(1));
+      if ("help" in parsed) return (writeAll(1, `${ledgerUsage}\n`), 0);
+      return await runLedger(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (text) => void process.stderr.write(text) });
     }
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {
@@ -366,11 +390,13 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "status") {
       const parsed = parseStatusArgs(args.slice(1));
       if ("help" in parsed) return (writeAll(1, `${statusUsage}\n`), 0);
+      if (parsed.refresh) await refreshLedger(env);
       return runStatus(parsed, repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line), version: readVersion() });
     }
     if (mode === "dashboard") {
       const parsed = parseDashboardArgs(args.slice(1));
       if ("help" in parsed) return (writeAll(1, `${dashboardUsage}\n`), 0);
+      if (parsed.refresh) await refreshLedger(env);
       return runDashboard(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "history") {

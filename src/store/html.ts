@@ -5,11 +5,20 @@
  */
 import { GRADES } from "../fidelity/types";
 import { SEVERITY_ORDER, type Figures } from "./figures";
+import type { Aside, Bucket, Group, Limits, Money, Report, Source, Split } from "../spend/report";
+
+/** The laptop-plus-ledger section (ADR 0039): present only when a ledger is connected or was pulled. */
+export interface UsageSection {
+  report: Report;
+  /** False when credentials exist but nothing was pulled yet. */
+  pulled: boolean;
+}
 
 export interface DashboardDocument extends Figures {
   format: string;
   generatedAt: string;
   scope: string;
+  usage?: UsageSection;
 }
 
 /** Text for an element or a quoted attribute. */
@@ -39,6 +48,154 @@ function table(head: string[], rows: string[][], numeric: number[] = []): string
 }
 
 const empty = (text: string) => `<p class="muted">${esc(text)}</p>`;
+
+
+const NO_DATA = "no data";
+const SOURCE_WORD: Record<Source, string> = { actions: "GitHub Actions", laptop: "laptop" };
+
+/** A figure of one source, or "no data" when the downloaded or kept data does not cover the period. */
+const sourceCell = (split: Split, source: Source, known: boolean) => (known ? usd(split.bySource[source].usd) : NO_DATA);
+
+function bucketLabel(b: Bucket, kind: "day" | "week") {
+  return kind === "week" ? `Week of ${b.key}${b.partial ? " (partial)" : ""}` : b.key;
+}
+
+/** Consecutive periods with no data in any source are one row, so a long gap does not read as zeros. */
+function bucketTable(buckets: Bucket[], kind: "day" | "week", coverage: Report["coverage"]): string {
+  const rows: string[][] = [];
+  let gap: Bucket[] = [];
+  const flush = () => {
+    if (gap.length === 0) return;
+    const range = gap.length === 1 ? gap[0].key : `${gap[0].key} to ${gap.at(-1)!.key}`;
+    rows.push([esc(kind === "week" ? `Weeks of ${range}` : range), esc(NO_DATA), "", "", "", "", ""]);
+    gap = [];
+  };
+  for (const b of [...buckets].reverse()) {
+    if (!b.known.laptop && !b.known.actions) {
+      gap.push(b);
+      continue;
+    }
+    flush();
+    rows.push([
+      esc(bucketLabel(b, kind)),
+      String(b.spend.total.runs),
+      String(b.spend.total.calls),
+      usd(b.spend.total.usd),
+      sourceCell(b.spend, "actions", b.known.actions),
+      sourceCell(b.spend, "laptop", b.known.laptop),
+      `${usd(b.spend.byCredential.billed.usd)} / ${usd(b.spend.byCredential.estimated.usd + b.spend.byCredential.unknown.usd)}`,
+    ]);
+  }
+  flush();
+  void coverage;
+  return table([kind === "day" ? "Day (UTC)" : "Week (Monday, UTC)", "Runs", "Calls", "Total", "GitHub Actions", "Laptop", "Billed / estimated"], rows, [1, 2, 3, 4, 5, 6]);
+}
+
+/** Stacked inline-SVG bars: GitHub Actions below, laptop above; a grey dash where there is no data; a line at the limit. */
+function chart(buckets: Bucket[], limit: number | null, what: string, limitWord: string): string {
+  const W = 640;
+  const H = 170;
+  const left = 46;
+  const top = 18;
+  const bottom = 22;
+  const plotW = W - left - 8;
+  const plotH = H - top - bottom;
+  if (buckets.length === 0) return "";
+  const totals = buckets.map((b) => b.spend.total.usd);
+  const max = Math.max(limit ?? 0, ...totals, 0.01);
+  const y = (v: number) => top + plotH - (v / max) * plotH;
+  const slot = plotW / buckets.length;
+  const barW = Math.max(1, slot * 0.7);
+  const parts = buckets.map((b, i) => {
+    const x = left + i * slot + (slot - barW) / 2;
+    if (!b.known.laptop && !b.known.actions) {
+      return `<rect class="nodata" x="${x.toFixed(1)}" y="${(top + plotH - 2).toFixed(1)}" width="${barW.toFixed(1)}" height="2"><title>${esc(b.key)}: ${NO_DATA}</title></rect>`;
+    }
+    const a = b.known.actions ? b.spend.bySource.actions.usd : 0;
+    const l = b.known.laptop ? b.spend.bySource.laptop.usd : 0;
+    const label = `${b.key}: ${usd(b.spend.total.usd)} (GitHub Actions ${b.known.actions ? usd(a) : NO_DATA}, laptop ${b.known.laptop ? usd(l) : NO_DATA})`;
+    return `<g><title>${esc(label)}</title><rect class="fill" x="${x.toFixed(1)}" y="${y(a).toFixed(1)}" width="${barW.toFixed(1)}" height="${(top + plotH - y(a)).toFixed(1)}"/><rect class="fill2" x="${x.toFixed(1)}" y="${y(a + l).toFixed(1)}" width="${barW.toFixed(1)}" height="${(y(a) - y(a + l)).toFixed(1)}"/></g>`;
+  });
+  const limitLine =
+    limit === null
+      ? ""
+      : `<line class="limit" x1="${left}" x2="${W - 8}" y1="${y(limit).toFixed(1)}" y2="${y(limit).toFixed(1)}"/><text class="axis" x="${W - 10}" y="${(y(limit) - 3).toFixed(1)}" text-anchor="end">${esc(limitWord)} ${esc(usd(limit))}</text>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(what)}"><title>${esc(what)}</title><line class="axisline" x1="${left}" x2="${W - 8}" y1="${top + plotH}" y2="${top + plotH}"/><text class="axis" x="${left - 4}" y="${top + plotH}" text-anchor="end">$0</text><text class="axis" x="${left - 4}" y="${top + 8}" text-anchor="end">${esc(usd(max))}</text><text class="axis" x="${left}" y="${H - 6}">${esc(buckets[0].key)}</text><text class="axis" x="${W - 8}" y="${H - 6}" text-anchor="end">${esc(buckets.at(-1)!.key)}</text>${parts.join("")}${limitLine}</svg>`;
+}
+
+const cell = (m: Money, known: boolean) => (known ? usd(m.usd) : NO_DATA);
+
+function groupTable(head: string, groups: Group[], coverage: Report["coverage"], empty_: string): string {
+  if (groups.length === 0) return empty(empty_);
+  const hasLaptop = coverage.laptop !== null;
+  const hasActions = coverage.actions !== null;
+  return table(
+    [head, "Runs", "Calls", "Total", "GitHub Actions", "Laptop", "Billed", "Estimated"],
+    groups.map((g) => [
+      esc(g.label),
+      String(g.split.total.runs),
+      String(g.split.total.calls),
+      usd(g.split.total.usd),
+      cell(g.split.bySource.actions, hasActions),
+      cell(g.split.bySource.laptop, hasLaptop),
+      usd(g.split.byCredential.billed.usd),
+      usd(g.split.byCredential.estimated.usd + g.split.byCredential.unknown.usd),
+    ]),
+    [1, 2, 3, 4, 5, 6, 7],
+  );
+}
+
+function asideTable(aside: Report["aside"]): string {
+  const row = (label: string, a: Aside, money: string) => [esc(label), String(a.runs), esc(money)];
+  return table(
+    ["Not counted as spend", "Runs", "Dollars"],
+    [
+      row("Runs that were not reserved (the ledger was unreachable; recorded afterwards)", aside.unreserved, `${usd(aside.unreserved.usd)} recorded`),
+      row("Reservations that never settled (the run was killed; the hold is not spend)", aside.unsettled, `${usd(aside.unsettled.reservedUsd)} held`),
+      row("Runs still reserved (under six hours old)", aside.reserved, `${usd(aside.reserved.reservedUsd)} held`),
+    ],
+    [1],
+  );
+}
+
+function renderUsage(u: UsageSection): string {
+  const r = u.report;
+  const t = r.totals;
+  const limits: Limits | null = r.limits;
+  const lastPull = r.pulledAt ? `The ledger was last pulled ${esc(r.pulledAt)}; GitHub Actions figures cover ${esc(r.coverage.actions?.from ?? "")} to ${esc(r.coverage.actions?.to ?? "")}.` : "The ledger has not been pulled yet: run <code>wachiman ledger pull</code>. GitHub Actions figures show no data until then.";
+  const limitText = limits && (limits.dailyUsd !== null || limits.weeklyUsd !== null)
+    ? `Ledger limits: ${limits.dailyUsd !== null ? `daily ${usd(limits.dailyUsd)}` : "no daily limit"}, ${limits.weeklyUsd !== null ? `weekly ${usd(limits.weeklyUsd)}` : "no weekly limit"}. The limit is best-effort and counts GitHub Actions runs only, never laptop runs.`
+    : "The ledger limit, when one is set, is best-effort and counts GitHub Actions runs only, never laptop runs.";
+  const tile = (value: string, label: string) => `<div class="tile"><b>${value}</b>${esc(label)}</div>`;
+  return `<h2>Spend, laptop and GitHub Actions</h2>
+<p class="muted">${lastPull}</p>
+<p class="muted">${esc(limitText)} Weeks start on Monday, UTC. Dollars are shown as billed (API key) and estimated (subscription, API-equivalent, not a bill); the two are never merged into one figure without both being shown.</p>
+<div class="tiles">
+${tile(String(t.total.runs), "finished runs")}
+${tile(usd(t.byCredential.billed.usd), "billed (API key)")}
+${tile(usd(t.byCredential.estimated.usd + t.byCredential.unknown.usd), "estimated (subscription)")}
+${tile(r.coverage.actions ? usd(t.bySource.actions.usd) : NO_DATA, SOURCE_WORD.actions)}
+${tile(r.coverage.laptop ? usd(t.bySource.laptop.usd) : NO_DATA, SOURCE_WORD.laptop)}
+</div>
+<h2>Dollars per day</h2>
+<p class="muted">Each bar is the dollars of finished runs on one UTC day: GitHub Actions in the lower colour, this laptop in the upper colour. A grey dash means no data for that day. ${limits?.dailyUsd != null ? "The dashed line is the daily limit." : ""}</p>
+${chart(r.days, limits?.dailyUsd ?? null, "Dollars of finished runs per UTC day, GitHub Actions and laptop", "daily limit")}
+${bucketTable(r.days, "day", r.coverage)}
+<h2>Dollars per week</h2>
+<p class="muted">Each bar is the dollars of finished runs in one week that starts on Monday, UTC. ${limits?.weeklyUsd != null ? "The dashed line is the weekly limit." : ""}</p>
+${chart(r.weeks, limits?.weeklyUsd ?? null, "Dollars of finished runs per week starting Monday UTC, GitHub Actions and laptop", "weekly limit")}
+${bucketTable(r.weeks, "week", r.coverage)}
+<h2>Per repository</h2>
+${groupTable("Repository", r.groups.repository, r.coverage, "No finished run yet.")}
+<h2>Per pull request</h2>
+${groupTable("Pull request", r.groups.pr, r.coverage, "No finished run yet.")}
+<h2>Per model</h2>
+<p class="muted">A run that used several models counts once in each, with only that model's calls and dollars.</p>
+${groupTable("Model", r.groups.model, r.coverage, "No finished run yet.")}
+<h2>Not counted as spend</h2>
+${asideTable(r.aside)}
+${r.unknownCostCalls > 0 ? `<p class="muted">${r.unknownCostCalls} call${r.unknownCostCalls === 1 ? "" : "s"} died without a result: their dollars are unknown and counted as $0.00 above.</p>` : ""}`;
+}
 
 export function renderHtml(doc: DashboardDocument): string {
   const { totals, spend, findings, loops, prConfidence } = doc;
@@ -87,8 +244,8 @@ export function renderHtml(doc: DashboardDocument): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wachiman dashboard</title>
 <style>
-:root { color-scheme: light dark; --bg: #fbfbf9; --fg: #1d1d1b; --muted: #6b6b66; --line: #dcdcd6; --fill: #2f6f9f; --track: #ecece6; }
-@media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecece8; --muted: #9a9a94; --line: #34342f; --fill: #6fa8d6; --track: #262623; } }
+:root { color-scheme: light dark; --bg: #fbfbf9; --fg: #1d1d1b; --muted: #6b6b66; --line: #dcdcd6; --fill: #2f6f9f; --fill2: #d98c2b; --track: #ecece6; }
+@media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecece8; --muted: #9a9a94; --line: #34342f; --fill: #6fa8d6; --fill2: #e0a458; --track: #262623; } }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
 main { max-width: 56rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
 h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
@@ -104,24 +261,32 @@ th { font-weight: 500; color: var(--muted); font-size: .85rem; }
 .bar { width: 100%; min-width: 6rem; height: .5rem; display: block; }
 .track { fill: var(--track); }
 .fill { fill: var(--fill); }
+.fill2 { fill: var(--fill2); }
+.nodata { fill: var(--muted); opacity: .5; }
+.chart { width: 100%; height: auto; display: block; margin: .5rem 0; }
+.axis { fill: var(--muted); font-size: 9px; }
+.axisline { stroke: var(--line); stroke-width: 1; }
+.limit { stroke: #c0392b; stroke-width: 1.5; stroke-dasharray: 5 3; }
+code { font: .9em ui-monospace, monospace; }
 </style>
 </head>
 <body>
 <main>
 <h1>Wachiman dashboard</h1>
 <p class="muted">${esc(doc.scope)}</p>
-<p class="muted">Generated ${esc(doc.generatedAt)} from the local history. Spend is an API-equivalent estimate, not a bill. Nothing on this page was sent anywhere.</p>
+<p class="muted">Generated ${esc(doc.generatedAt)} from ${doc.usage ? "the local history and the ledger entries downloaded earlier" : "the local history. Spend is an API-equivalent estimate, not a bill"}. Nothing on this page was sent anywhere.</p>
 <div class="tiles">
-<div class="tile"><b>${totals.runs}</b>runs</div>
-<div class="tile"><b>${usd(totals.costUsdEstimate)}</b>estimated spend</div>
+${doc.usage ? "" : `<div class="tile"><b>${totals.runs}</b>runs</div>
+<div class="tile"><b>${usd(totals.costUsdEstimate)}</b>estimated spend</div>`}
 <div class="tile"><b>${totals.repositories}</b>repositories</div>
 <div class="tile"><b>${findings.total}</b>findings</div>
 <div class="tile"><b>${loops.totals.rounds}</b>loop rounds</div>
 </div>
-<h2>Spend per day</h2>
+${doc.usage ? renderUsage(doc.usage) : `<h2>Spend per day</h2>
 ${spendDay}
 <h2>Spend per repository</h2>
 ${spendRepo}
+<p class="muted">To include GitHub Actions runs here, connect a ledger: <code>wachiman ledger connect &lt;url&gt;</code>.</p>`}
 <h2>Findings by severity</h2>
 ${bySeverity}
 <h2>Findings by your verdict</h2>

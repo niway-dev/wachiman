@@ -18,9 +18,14 @@ Only what the local history kept: runs saved by `wachiman local --history` and b
 files. It covers every repository in `~/.wachiman/history`, not only the one you are standing in
 (`--repo-dir` is accepted like on every command and is not used).
 
-Runs made by the GitHub Actions workflow never write the local history, so they are not here. The
-[usage dashboard spec](specs/2026-10-31-usage-dashboard-design.md) is proposed and not implemented;
-this page does not merge the two views.
+Runs made by the GitHub Actions workflow never write the local history, so by default they are not
+here. If you connect the spend ledger (`wachiman ledger connect <url>`, then `wachiman ledger pull`
+or `wachiman dashboard --refresh`), the page adds them from the downloaded entries, next to the laptop
+runs and always split by source (Actions, laptop) and by credential (billed API key, estimated
+subscription). Laptop runs are never counted against the ledger limit. See
+[ADR 0039](adr/0039-the-laptop-reads-the-ledger-and-one-report-covers-laptop-and-actions-runs.md) and
+[`ledger`](cli.md#ledger). Reservations that never settled and runs that were not reserved are shown
+as their own lines, not as spend, and a period the downloaded days do not cover says "no data".
 
 | Figure | Where it comes from |
 | --- | --- |
@@ -69,7 +74,7 @@ files, using Bun's built-in SQLite ([ADR 0035](adr/0035-a-rebuildable-sqlite-ind
 
 ## The HTML page
 
-One file, plain CSS and inline SVG bars, no script, no font, no image and no link. A content security
+One file, plain CSS and inline SVG charts and bars, no script, no font, no image and no link. A content security
 policy in the page (`default-src 'none'`) tells the browser to load nothing else, and every name taken
 from the history (repository, branch) is HTML-escaped. It shows the repository name and key, not its
 path or remote, so it is safer to share.
@@ -79,7 +84,8 @@ path or remote, so it is safer to share.
 `--json` prints [`wachiman.dashboard/1`](formats/dashboard.v1.schema.json): `totals`, `spend`
 (`byDay`, `byRepository`), `findings` (`bySeverity`, `byVerdict`), `loops` (`branches`, `totals`) and
 `prConfidence` (`{"status": "not recorded", ...}` or the count by grade). `generatedAt` is the only
-field that changes between two calls on the same history. `--json` cannot be combined with `--out`.
+field that changes between two calls on the same history. With a ledger connected or pulled there is
+also `usage` (the spend report). `--json` cannot be combined with `--out`.
 
 Exit codes: 0 written or printed (also with no run kept); 1 a loop file could not be read, or the
 index or the page could not be written; 2 usage error.
