@@ -9,6 +9,9 @@
   request" from the draft ADR 0014 (#80) and nothing else of it. Consistent with
   [ADR 0009](0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md): the
   verifier reads findings and code, not summaries.
+  **To be amended** by [ADR 0043](0043-sibling-references-carry-the-member-and-the-commit.md)
+  (proposed 2026-11-13, not implemented): with `--distributed-repo`, decision 1's inputs include the
+  run's sibling snapshots and decision 3 accepts a disproof in one of them, checked at its commit.
   **Amendment 2026-11-09:** The owner turned the verifier on by default and made Haiku 5.5 high the default reviewer before the Martian arm 2 gate ran; the gate is now a check on this default, not a condition for it. Off with `verify: false`, `AGENT_REVIEW_VERIFY=0` or `local --no-verify`.
 - **Spec:** [A verifier call that refutes findings before they are posted](../specs/2026-11-08-findings-verifier-design.md)
 - **Issue:** #137

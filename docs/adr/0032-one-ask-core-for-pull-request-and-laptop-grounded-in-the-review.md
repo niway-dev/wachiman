@@ -1,6 +1,6 @@
 # ADR 0032: One ask core for the pull request and the laptop, grounded in the review, with checked references
 
-- **Status:** proposed 2026-11-11. Implemented by the stack `feat/ask-core`, `feat/ask-line-comments-and-askers`, `feat/local-ask`; not yet run in a real workflow or against a real provider. Amends one non-goal of
+- **Status:** proposed 2026-11-11. Implemented by the stack `feat/ask-core`, `feat/ask-line-comments-and-askers`, `feat/local-ask`; not yet run in a real workflow or against a real provider. **Decision 3 and the non-goal "answering questions about code outside the change's repository" are to be superseded, for `wachiman ask` on a review made with `--distributed-repo` only,** by [ADR 0043](0043-sibling-references-carry-the-member-and-the-commit.md) (proposed 2026-11-13, not implemented); until then, and always without the flag, both hold. Amends one non-goal of
   [ADR 0008](0008-thread-follow-up-authority.md) ("Resolving or replying to human threads"): a
   human thread is answered when, and only when, its comment invokes the mention; resolving stays
   a non-goal. ADR 0008's reopen conditions (false-resolution rate, the two-reply cap) are not
