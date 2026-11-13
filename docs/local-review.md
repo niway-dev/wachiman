@@ -205,7 +205,7 @@ wachiman local --repo-dir . --from abc1234        # that commit and everything a
 | `--base <ref>` | What the branch is compared with. Default: `origin/HEAD` when it resolves (the remote's default branch), else `main`. No fetch is made: fetch first if your base is stale |
 | `--from <commit>` | Review from that commit forward, inclusive: `<commit>^ → HEAD`. It must be an ancestor of `HEAD`, which must be a branch |
 | `--commit <commit>` | Review exactly that commit: `<commit>^ → <commit>`. `HEAD` can be anywhere, even detached; your working tree is not touched |
-| `--max-depth <n>` | The most commits the review may span, from its start commit to `HEAD`. Default 50. Over it, the run stops with exit 2 before any call; raise it (or lower it) for one run. A positive integer; no environment variable |
+| `--max-depth <n>` | The most commits the review may span, from its start commit to `HEAD`. Default 250. The cap catches a wrong base, such as reviewing all of `main` by accident; it does not limit cost, the size gate does. Over it, the run stops with exit 2 before any call; raise it (or lower it) for one run. A positive integer; no environment variable |
 | `[paths…]` | Review only the changed files under these paths. A word that names no changed file is ignored, with a line on stderr |
 | `--input <file>` | Review a `wachiman.review-input/1` file ([formats](formats/README.md)) instead of computing the diff; its `change.head.sha` must exist in `--repo-dir` |
 | `--format terminal\|markdown\|json` | Default `terminal` (plain text). `markdown` holds every finding and ends with the prompt for your agent. `json` is the [`ReviewResult`](formats/README.md) |
@@ -220,8 +220,8 @@ of it. Which commits depend on the option:
 
 | You pass | Reviewed range | `HEAD` | Depth |
 | --- | --- | --- | --- |
-| nothing, or `--base <ref>` | `merge-base(base, HEAD) → HEAD` | a branch (not the base itself, unless `--base` names a commit) | at most `--max-depth` (50) |
-| `--from <commit>` | `<commit>^ → HEAD`: the commit and everything after it | a branch that contains `<commit>` | at most `--max-depth` (50) of `<commit>^..HEAD` |
+| nothing, or `--base <ref>` | `merge-base(base, HEAD) → HEAD` | a branch (not the base itself, unless `--base` names a commit) | at most `--max-depth` (250) |
+| `--from <commit>` | `<commit>^ → HEAD`: the commit and everything after it | a branch that contains `<commit>` | at most `--max-depth` (250) of `<commit>^..HEAD` |
 | `--commit <commit>` | `<commit>^ → <commit>`: that commit alone | anywhere: any branch, or detached | 1 |
 
 `--commit`, `--from` and `--base` exclude each other, and `--input` excludes all three. For a merge
@@ -232,7 +232,7 @@ that adds or edits `CLAUDE.md` is reviewed under the old rules. With `--history`
 commit never settles findings first seen at a newer head: they stay `unknown`.
 
 **The start commit and the depth.** The merge-base is the start commit of the review. A big range
-is fine, but not all of `main`: the range may span at most 50 commits (`--max-depth <n>` changes
+is fine, but not all of `main`: the range may span at most 250 commits (`--max-depth <n>` changes
 that for one run), however many files or lines they touch. Over the limit, the run stops with exit
 2 and no call is made; pass a closer `--base <commit>` or raise `--max-depth`. On the base branch
 itself there is no branch to review, so the run stops with exit 2 unless you pass `--base
@@ -245,7 +245,7 @@ Before any call, stderr shows what will be reviewed:
 ```text
 base: origin/main (1a2b3c4)
 merge-base: 9f8e7d6
-depth: 12 commits (max 50)
+depth: 12 commits (max 250)
 head: feat/export (5d6e7f8)
 files: 6 (0 excluded)
 batches: 1
@@ -253,7 +253,7 @@ batches: 1
 
 With `--commit abc1234` the first lines are `mode: one commit (abc1234)`, `start: 9f8e7d6`
 (the parent), `depth: 1 commit` and `head: abc1234`; with `--from abc1234` they are `mode: from abc1234
-to HEAD`, `start: …`, `depth: … (max 50)` and `head: feat/export (…)`. The report's headline names
+to HEAD`, `start: …`, `depth: … (max 250)` and `head: feat/export (…)`. The report's headline names
 the commit and its parent instead of a base branch. For `--commit`, `head.ref` in the JSON result is
 the branch when `HEAD` is on that commit, else the short sha.
 
@@ -426,7 +426,7 @@ of those rows is unconfirmed.
 | `` `main` and HEAD have no common ancestor `` (exit 2) | The base is unrelated history. Pass the right `--base` |
 | `No base branch found; pass --base <ref>` (exit 2) | No `origin/HEAD` and no `main`. Pass `--base`, or run `git remote set-head origin --auto` |
 | `HEAD is on main, which is the base: there is no branch to review. …` (exit 2) | You are on the base branch, or on a branch with no commit past it. Check out your branch, or pass `--base <commit>` to review from that commit |
-| `The range from 1a2b3c4 to 5d6e7f8 is 51 commits, more than the maximum depth of 50. …` (exit 2) | The range is deeper than the limit, and nothing was sent. Pass a closer `--base <commit>`, or raise the limit with `--max-depth <n>` |
+| `The range from 1a2b3c4 to 5d6e7f8 is 251 commits, more than the maximum depth of 250. …` (exit 2) | The range is deeper than the limit, and nothing was sent. Pass a closer `--base <commit>`, or raise the limit with `--max-depth <n>` |
 | `HEAD is detached; check out a branch, or pass --input` (exit 2) | Check out a branch (`git switch -c review-me`) |
 | `The snapshot lacks N file(s) that the head commit has …` | `export-ignore` or a submodule. The review goes on without those files; remove the attribute on a temporary branch if they matter |
 | `history: … cannot be read (…); moved to … .unreadable-<seconds>` | A history run file is not JSON or is structurally invalid. It was moved aside as `<name>.json.unreadable-<seconds>` (renamed, not deleted) and skipped; the run went on. Delete it when you no longer need it. A file written by another format version (say, after a downgrade) is skipped with a warning and left where it is |

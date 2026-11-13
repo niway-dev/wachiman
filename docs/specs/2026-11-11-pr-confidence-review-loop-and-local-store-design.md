@@ -283,8 +283,10 @@ needs about 299. The count restarts when the reviewer model or the prompt change
 ## 7. Weak points and what was done with each
 
 Two attacks by GPT-6.1 Sol at high effort, each given only the claim and the facts it had to hold
-against. Their text was working material and is not kept in the repository; this table is what
-was taken from them.
+against. Their briefs and replies are kept unchanged:
+[attack 1, the first grade design](2026-11-11-pr-confidence-weak-points-1-merge-readiness-grade.md)
+and [attack 2, the fidelity grade](2026-11-11-pr-confidence-weak-points-2-fidelity-grade.md).
+This table is what was taken from them.
 
 | Weak point | Answer |
 | --- | --- |

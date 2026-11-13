@@ -208,7 +208,7 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--from <commit>` | none | Review from that commit forward, inclusive: `<commit>^ → HEAD`. The commit must be an ancestor of `HEAD`, and `HEAD` a branch. A root commit starts from the empty tree. The depth limit applies to `<commit>^..HEAD`. Excludes `--base`, `--commit` and `--input` |
 | `--commit <commit>` | none | Review exactly that commit: `<commit>^ → <commit>` (the first parent for a merge commit; the empty tree for a root commit). Any commit of the clone, whatever `HEAD` is, even detached; nothing in the working tree is touched. Depth is 1. Excludes `--base`, `--from` and `--input` |
 | `--working-tree staged\|all` | none | Explicitly review tracked local changes against `HEAD`: the index (`staged`) or index plus unstaged tracked edits/deletions (`all`). Excludes all untracked and ignored files. Cannot combine with `--base`, `--from`, `--commit` or `--input`. Paths are allowed. |
-| `--max-depth <n>` | `50` | The most commits from the start commit (the merge-base, or `--from`'s parent) to `HEAD`. A deeper range exits 2 before any call; a positive integer, for this run only. Size (files, lines, batches) never blocks a run. With no `--base`, a `HEAD` on the base branch itself is refused; `--base <commit>` names the start instead. Not checked for `--input` |
+| `--max-depth <n>` | `250` | The most commits from the start commit (the merge-base, or `--from`'s parent) to `HEAD`. A deeper range exits 2 before any call; a positive integer, for this run only. Size (files, lines, batches) never blocks a run. With no `--base`, a `HEAD` on the base branch itself is refused; `--base <commit>` names the start instead. Not checked for `--input` |
 | `[paths…]` | the whole change | Only the changed files under these paths; a word that names no changed file is ignored with a line on stderr |
 | `--input <file>` | none | A `wachiman.review-input/1` or `/2` file ([formats](formats/README.md)) instead of the local diff; its `change.head.sha` is snapshotted from `--repo-dir`. Takes no `--base`, `--from`, `--commit` or paths |
 | `--format terminal\|markdown\|json` | `terminal` | Plain text; a Markdown report with every finding and the prompt for your agent; or the `ReviewResult` JSON |
@@ -221,7 +221,7 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
-merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 50)`, `head: feat/x (…)`); with `--commit` or
+merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 250)`, `head: feat/x (…)`); with `--commit` or
 `--from` it prints the mode and the start instead (`mode: one commit (abc1234)` or `mode: from abc1234 to HEAD`, then `start: …`, `depth: …`, `head: …`; `start: the empty tree (a root commit)` for a root commit). It also prints the file
 count and the number of batches on stderr, then `verify: off` or `verify: on (<model>, reserve $<n>)`; the provider's progress follows there too. **It
 prints, never posts:** the report goes to stdout (or `--output`), so `--format json` on stdout is
@@ -800,6 +800,7 @@ shrunk to what fits, or dropped, before the coverage table and the summary are t
 | `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help` and `--version` also exit 0. |
 | `1` | Engine error. **Not the same as "nothing was posted"**: see below. |
 | `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `AGENT_REVIEW_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
+| `3` | The spend ledger stopped the run before any model call: a limit with `limit_mode: fail`, a repository the ledger does not know, a rejected identity token, no OIDC token while `ledger_url` is set, or an unreachable ledger with `ledger_unavailable: stop`. With `limit_mode: notice` a limit exits 0. Only with `ledger_url`; see [costs.md](costs.md#the-spend-limit). |
 
 Exit 1 covers:
 

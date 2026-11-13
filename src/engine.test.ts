@@ -88,20 +88,21 @@ const output = (over: Partial<ReviewOutput> = {}): ReviewOutput => ({
 
 describe("parseCommand", () => {
   test("reads a review request, with or without paths", () => {
-    expect(parseCommand("/wachiman review")).toEqual({ kind: "review", paths: [] });
+    expect(parseCommand("/wachiman review")).toEqual({ kind: "review", paths: [], force: false });
     expect(parseCommand("/wachiman review apps/api/src/main docs/")).toEqual({
       kind: "review",
       paths: ["apps/api/src/main", "docs/"],
+      force: false,
     });
   });
 
   test("accepts /wachi, @agent-review and @claude as aliases for the configured keyword", () => {
-    expect(parseCommand("/wachi review")).toEqual({ kind: "review", paths: [] });
-    expect(parseCommand("/wachi review docs/")).toEqual({ kind: "review", paths: ["docs/"] });
-    expect(parseCommand("@agent-review review")).toEqual({ kind: "review", paths: [] });
-    expect(parseCommand("@agent-review review docs/")).toEqual({ kind: "review", paths: ["docs/"] });
-    expect(parseCommand("@claude review")).toEqual({ kind: "review", paths: [] });
-    expect(parseCommand("@claude review docs/")).toEqual({ kind: "review", paths: ["docs/"] });
+    expect(parseCommand("/wachi review")).toEqual({ kind: "review", paths: [], force: false });
+    expect(parseCommand("/wachi review docs/")).toEqual({ kind: "review", paths: ["docs/"], force: false });
+    expect(parseCommand("@agent-review review")).toEqual({ kind: "review", paths: [], force: false });
+    expect(parseCommand("@agent-review review docs/")).toEqual({ kind: "review", paths: ["docs/"], force: false });
+    expect(parseCommand("@claude review")).toEqual({ kind: "review", paths: [], force: false });
+    expect(parseCommand("@claude review docs/")).toEqual({ kind: "review", paths: ["docs/"], force: false });
     expect(parseCommand("@claude why is this async?")).toEqual({ kind: "answer" });
   });
 
@@ -109,14 +110,15 @@ describe("parseCommand", () => {
     expect(parseCommand("@reviewer review src/", "@reviewer")).toEqual({
       kind: "review",
       paths: ["src/"],
+      force: false,
     });
-    expect(parseCommand("@claude review", "@reviewer")).toEqual({ kind: "review", paths: [] });
-    expect(parseCommand("@agent-review review", "@reviewer")).toEqual({ kind: "review", paths: [] });
-    expect(parseCommand("/wachiman review", "@reviewer")).toEqual({ kind: "review", paths: [] });
-    expect(parseCommand("/wachi review", "@reviewer")).toEqual({ kind: "review", paths: [] });
+    expect(parseCommand("@claude review", "@reviewer")).toEqual({ kind: "review", paths: [], force: false });
+    expect(parseCommand("@agent-review review", "@reviewer")).toEqual({ kind: "review", paths: [], force: false });
+    expect(parseCommand("/wachiman review", "@reviewer")).toEqual({ kind: "review", paths: [], force: false });
+    expect(parseCommand("/wachi review", "@reviewer")).toEqual({ kind: "review", paths: [], force: false });
     expect(parseCommand("/reviewbot review", "@reviewer")).toBeNull();
     // Regex characters in a keyword are literal.
-    expect(parseCommand("@a.b review", "@a.b")).toEqual({ kind: "review", paths: [] });
+    expect(parseCommand("@a.b review", "@a.b")).toEqual({ kind: "review", paths: [], force: false });
     expect(parseCommand("@aXb review", "@a.b")).toBeNull();
   });
 
@@ -124,7 +126,14 @@ describe("parseCommand", () => {
     expect(parseCommand("/wachiman review again\n\nthanks")).toEqual({
       kind: "review",
       paths: ["again"],
+      force: false,
     });
+  });
+
+  test("--force anywhere after review sets force; parseCommand leaves it among the words, as before the ledger (comment drops it only with a ledger)", () => {
+    expect(parseCommand("/wachi review --force")).toEqual({ kind: "review", paths: ["--force"], force: true });
+    expect(parseCommand("/wachi review docs/ --force")).toEqual({ kind: "review", paths: ["docs/", "--force"], force: true });
+    expect(parseCommand("/wachi review --force docs/")).toEqual({ kind: "review", paths: ["--force", "docs/"], force: true });
   });
 
   test("treats any other mention as a question", () => {
@@ -141,7 +150,7 @@ describe("parseCommand", () => {
     expect(parseCommand("see docs/wachi review")).toBeNull();
     expect(parseCommand("see https://example.com/wachi review")).toBeNull();
     expect(parseCommand("mail me@claude review")).toBeNull();
-    expect(parseCommand("thanks!\n/wachiman review")).toEqual({ kind: "review", paths: [] });
+    expect(parseCommand("thanks!\n/wachiman review")).toEqual({ kind: "review", paths: [], force: false });
   });
 });
 

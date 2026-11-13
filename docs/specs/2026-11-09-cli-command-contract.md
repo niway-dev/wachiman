@@ -150,7 +150,7 @@ wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit> | 
 | `--commit <commit>` | none | implemented | `<commit>^ → <commit>`; first parent of a merge; empty tree for a root |
 | `--input <file>` | none | implemented | a `wachiman.review-input/1` or `/2` file; no range flags or paths; `/2` working-tree input requires an existing tree object in the selected clone |
 | `--working-tree staged\|all` | none | implemented (slice 6) | see 5.2.1; excludes every other range flag and paths are allowed |
-| `--max-depth <n>` | 50 | implemented | positive integer; range deeper than it is exit 2 before any call |
+| `--max-depth <n>` | 250 | implemented | positive integer; range deeper than it is exit 2 before any call |
 | `--format` | `terminal` | implemented | `terminal`, `markdown`, `json` |
 | `--result-version 1\|2` | `1` for committed changes; `2` for working-tree review | implemented | only with `--format json`; `1` runs `toResultV1()`; with another format it is a usage error |
 | `--output <file>` | stdout | implemented | path printed on stderr |
