@@ -99,6 +99,8 @@ export const USAGE = `Usage:
                                                      workflow's \`ledger_url\`) and download its entries
                                                      into ~/.wachiman/ledger. \`pull\` and \`--refresh\`
                                                      are the only requests; no run data is ever sent from the laptop
+                                                     Outside GitHub Actions the engine skips the ledger and
+                                                     the review runs, with one line saying so
   ${dashboardUsage}
                                                      Write one static HTML page (or print JSON) with the
                                                      spend per day and repository, the findings by severity

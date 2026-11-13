@@ -2544,6 +2544,9 @@ const short200 = (error: unknown) => (error instanceof Error ? error.message : S
 /** The dollars the calls since `grant` cost, for a run that ended before it could say what it spent. */
 export const spentSince = (deps: Deps, grant: SpendGrant) => (deps.costs ?? []).slice(grant.costsFrom).reduce((n, c) => n + c.costUsd, 0);
 
+/** Runs that already said the ledger is skipped, so the line appears once. */
+const skippedLedger = new WeakSet<Deps>();
+
 /**
  * Asks the ledger how much this run may spend, before any model call. With no `ledger_url` there is
  * nothing to ask and the room is unlimited; `limit_bypass` skips the ledger the same way, and the
@@ -2552,11 +2555,22 @@ export const spentSince = (deps: Deps, grant: SpendGrant) => (deps.costs ?? []).
  * accept and a job without an OIDC token are configuration errors: `LedgerStopped`, whatever
  * `ledger_unavailable` says. A ledger that cannot be reached lets the run go on under its normal
  * budgets (`unreached`), or stops it with `LedgerStopped` when `ledger_unavailable` is `stop`.
+ * Outside GitHub Actions (`GITHUB_ACTIONS` is not `true`) nothing is asked: the run goes on and a
+ * line says so.
  */
 export function spendReserve(deps: Deps, repo: string, pr: number, headSha: string, wantedUsd: number, forced: boolean): SpendGrant {
   const { config } = deps;
   const open = { reservationId: null, roomUsd: Number.POSITIVE_INFINITY, costsFrom: deps.costs?.length ?? 0, trigger: config.trigger ?? "cli", pr };
   if (!config.ledgerUrl) return { kind: "none", ...open };
+  // Laptop runs are not counted against the limit: `WACHIMAN_LEDGER_URL` there is the read side's
+  // setting (`wachiman ledger`), not a request to reserve. Only a GitHub Actions job reserves.
+  if ((deps.ledgerEnv ?? process.env).GITHUB_ACTIONS !== "true") {
+    if (!skippedLedger.has(deps)) {
+      skippedLedger.add(deps);
+      deps.warn("The spend ledger is skipped: this is not a GitHub Actions run, and laptop runs are not counted against the limit.");
+    }
+    return { kind: "none", ...open };
+  }
   if (config.limitBypass) {
     deps.log("ledger bypassed");
     ledgerNote(deps, "The spend limit was bypassed for this run (`limit_bypass`); nothing was reserved or recorded.");

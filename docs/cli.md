@@ -596,7 +596,7 @@ when the ledger stops a run ([configuration.md](configuration.md), `src/ledger.t
 keeps a different credential, a read token that can call only `GET /v1/entries`, in
 `credentials.json` or `WACHIMAN_LEDGER_TOKEN`. Both clients name the same service with
 `WACHIMAN_LEDGER_URL` (the workflow reads it in Actions, the laptop on a command), but the read token
-is never sent by the workflow and the workflow's identity is never used by the laptop.
+is never sent by the workflow and the workflow's identity is never used by the laptop. Outside GitHub Actions the engine ignores `WACHIMAN_LEDGER_URL`: it does not reserve, settle or record, and a review runs with one stderr line saying the ledger is skipped because this is not a GitHub Actions run.
 
 | Command | What it does |
 | --- | --- |
