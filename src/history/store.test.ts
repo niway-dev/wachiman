@@ -93,14 +93,16 @@ describe("repositoryKey", () => {
     const dir = emptyRepo();
     const runner = (url: string) => (args: string[], opts: { cwd: string; timeoutMs: number }) =>
       args[0] === "remote" ? { status: 0, stdout: `${url}\n`, stderr: "" } : spawnGit(args, opts);
+    // The secrets carry a hyphen: the temporary directory's random suffix is letters and digits
+    // only, so it can never contain one by chance (a short "pw" once matched "DmKzpw").
     for (const [url, secret] of [
-      ["user:pw@github.com:a/b.git", "pw"],
-      ["https://tok@host:99999/a/b.git", "tok"],
-      ["https://user:tok@/a/b", "tok"],
+      ["alice-x:pw-s3cret@github.com:a/b.git", "pw-s3cret"],
+      ["https://tok-s3cret@host:99999/a/b.git", "tok-s3cret"],
+      ["https://alice-x:tok-s3cret@/a/b", "tok-s3cret"],
     ]) {
       const k = repositoryKey(dir, runner(url) as any);
       expect(JSON.stringify(k)).not.toContain(secret);
-      expect(JSON.stringify(k)).not.toContain("user");
+      expect(JSON.stringify(k)).not.toContain("alice-x");
     }
     // Unparseable: the key still comes from the stripped text, and no remote is stored.
     expect(repositoryKey(dir, runner("https://tok@host:99999/a/b.git") as any).remote).toBeUndefined();
