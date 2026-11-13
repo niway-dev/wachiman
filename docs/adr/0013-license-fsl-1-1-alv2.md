@@ -16,11 +16,16 @@ modifications, and some organizations forbid AGPL code outright.
 What was true when this was decided:
 
 - One copyright author. The only other commits are two Dependabot bumps of a workflow action.
-- The package has three runtime dependencies, all approved by the owner and pinned: `bun`, `chalk` and `@clack/prompts` (ADR 0002, amendment 2026-11-13); the engine itself imports none of them. All three are MIT-licensed, so no third-party license limits
+- The engine has no runtime dependency besides the pinned `bun` package, and no dev dependencies (ADR 0002, amended), so no third-party license limits
   the choice.
 - No outside contributions, forks or stars.
 - Every release up to v1.3.0 shipped a `LICENSE` that said "version 3 … or any later version",
   while `package.json` said `AGPL-3.0-only`.
+
+Since 2026-11-13 the package also depends on `chalk` and `@clack/prompts` (ADR 0002, amendment
+2026-11-13), which only the terminal screens load. They and the packages they pull in
+(`@clack/core`, `sisteransi`, `fast-string-width`, `fast-string-truncated-width`, `fast-wrap-ansi`)
+are MIT-licensed, per each package's `package.json`, so the license choice still holds.
 
 ## Decision
 

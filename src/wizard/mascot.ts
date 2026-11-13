@@ -90,6 +90,10 @@ export function mascotScene({ paint, ascii, columns, message }: MascotOptions): 
   const top = [border(g.tl, g.tr), badge, blank];
   const bottom = [mark, blank, border(g.bl, g.br)];
   if (columns >= SIDE_BY_SIDE_COLUMNS) {
+    // The blink and wink redraw the line from its start with a carriage return, which only works
+    // when the line did not wrap: the 3-column row prefix, the face, the gap, the name, the text.
+    const width = ROW_PREFIX + FACE_INSIDE + 2 + 3 + NAME.length + 2 + [...message].length;
+    if (width > columns) return { top, lead: `${eyes}   ${name}`, message, bottom };
     const leads: Record<Eyes, string> = {
       open: `${eyes}   ${name}`,
       blink: `${eyesRow(shut, shut)}   ${name}`,
@@ -133,6 +137,8 @@ const HIDE = "\x1b[?25l";
 const SHOW = "\x1b[?25h";
 /** One character every 18 ms: the 37-character default line takes about 0.7 s. */
 export const TYPE_MS = 18;
+/** playIntro prints each row after the muted bar and two spaces. */
+const ROW_PREFIX = 3;
 /** A blink keeps both eyes shut this long. */
 export const BLINK_MS = 140;
 /** After the line is typed, Wachi waits this long, then winks for `WINK_MS`. */

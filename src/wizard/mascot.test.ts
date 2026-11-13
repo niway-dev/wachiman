@@ -39,6 +39,12 @@ describe("the scene", () => {
     expect(s.leads?.wink).toBe(`│   ◉     ─   │   ${NAME}: `);
     const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
     expect(narrow.leads).toBeUndefined();
+    // Side by side, but the line would wrap: no redraw, so no blink or wink.
+    const line = "x".repeat(47);
+    const wraps = mascotScene({ paint: plain, ascii: false, columns: 74, message: line });
+    expect(wraps.lead).toBe(`│   ◉     ◉   │   ${NAME}: `);
+    expect(wraps.leads).toBeUndefined();
+    expect(mascotScene({ paint: plain, ascii: false, columns: 75, message: line }).leads).toBeDefined();
   });
 
   test("every row of the face has the same width, so the right border never shifts", () => {
