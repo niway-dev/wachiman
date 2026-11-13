@@ -473,7 +473,10 @@ its last:
 reservations and settled spend of the period have reached the limit. It is best-effort, not a hard
 maximum. A call can exceed its cap (see [How each provider enforces its cap](#how-each-provider-enforces-its-cap)),
 two runs can reserve at the same moment, a run the ledger could not be asked about is not counted
-until it is recorded, and a failed settle leaves the reservation counted at the reserved amount.
+until it is recorded, and a failed settle leaves the reservation counted at the reserved amount. A run
+cancelled by a newer push is killed before it settles, so the reservation it held stays counted at the
+reserved amount too (up to `budget_usd`, $3 by default). How long the ledger keeps it is the service's rule,
+not this repository's; the run posts no footer, so the amount is in no receipt.
 
 **Estimates.** On a Claude subscription token the amounts are API-price estimates, not a bill (see
 below), so a limit in dollars bounds estimated usage, and the notice says so.

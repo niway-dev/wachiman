@@ -24,7 +24,7 @@ import {
   LEDGER_FORCED_FOOTER,
   LEDGER_NOT_COUNTED_NOTE,
 } from "./engine";
-import { costLogLine, type CallCost } from "./cost";
+import type { CallCost } from "./cost";
 import { readReceipt, type CurlFn } from "./ledger";
 import type { ProviderAdapter, ProviderAuth, ProviderRequest, ProviderResult } from "./providers/types";
 
@@ -492,7 +492,7 @@ describe("configuration errors are not outages", () => {
 describe("an unreachable ledger", () => {
   test("ledger_unavailable run (the default): the review runs under its normal budgets, says it was not counted, and records the run", () => {
     const t = setup({ env: WITH_LEDGER, ledger: { down: true } });
-    // The ledger comes back for the record at the end.
+    // The ledger is down for every call, the record at the end included: nothing reaches it.
     review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.provider.requests[0]!.maxBudgetUsd).toBeGreaterThan(0.5);
@@ -613,6 +613,9 @@ describe("the operator's --force, a bypass and a failed run", () => {
     comment(t.deps, "o/r", 7, "/wachiman review --force a.ts", "owner");
     expect(t.provider.requests).toHaveLength(1);
     expect(t.posted[0]).not.toContain(marker(HEAD));
+    // The flag is not a path: it is read as the force flag, and nothing is logged as an ignored word.
+    expect(t.reserves[0]).toMatchObject({ forced: true });
+    expect(t.logs.join("\n")).not.toContain("Not paths in this pull request");
   });
 
   test("bypass makes no ledger call, logs ledger bypassed, and the footer says so", () => {
@@ -777,6 +780,55 @@ describe("a reservation never outlives a step that fails after it", () => {
     expect(() => answer(t.deps, "o/r", 7, "why?")).toThrow(/502/);
     expect(t.reserves).toHaveLength(1);
     expect(t.settles).toHaveLength(1);
+  });
+});
+
+describe("a provider that dies after the reserve still settles, in the thread and answer paths too", () => {
+  const died = () => {
+    throw new Error("the model process died");
+  };
+
+  test("threadReplies settles once, with what its calls cost", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" },
+      reviewedAt: HEAD,
+      threads: [THREAD],
+      script: [died],
+    });
+    expect(() => threadReplies(t.deps, "o/r", 7, "owner")).toThrow();
+    expect(t.reserves).toHaveLength(1);
+    expect(t.settles).toHaveLength(1);
+  });
+
+  test("answer for the operator settles once and rethrows", () => {
+    const t = setup({ env: COMMENT, script: [died] });
+    expect(() => answer(t.deps, "o/r", 7, "why?")).toThrow(/died/);
+    expect(t.reserves).toHaveLength(1);
+    expect(t.settles).toHaveLength(1);
+  });
+
+  test("answer for another asker settles once at the cap and still answers", () => {
+    const t = setup({ env: COMMENT, script: [died] });
+    answer(t.deps, "o/r", 7, "why?", { asker: "someone" });
+    expect(t.reserves).toHaveLength(1);
+    expect(t.settles).toHaveLength(1);
+    expect(t.settles[0]!.spentUsd).toBe(1);
+    expect(t.comments[0]).toContain("It still counts toward the question budget.");
+  });
+
+  test("answer and threadReplies refused by the ledger run nothing and settle nothing; a stopped ledger does the same", () => {
+    const refuse = { reserve: () => ({ status: 402, body: { reason: "limit", accountSpentUsd: 6, accountLimitUsd: 6, day: DAY } }) };
+    const a = setup({ env: COMMENT, ledger: refuse });
+    expect(() => answer(a.deps, "o/r", 7, "why?")).toThrow(SpendLimitReached);
+    expect(a.provider.requests).toHaveLength(0);
+    expect(a.settles).toHaveLength(0);
+    const wrong = { reserve: () => ({ status: 404, body: "Not Found" }) };
+    const b = setup({ env: COMMENT, ledger: wrong });
+    expect(() => answer(b.deps, "o/r", 7, "why?")).toThrow(LedgerStopped);
+    const c = setup({ env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], ledger: wrong });
+    expect(() => threadReplies(c.deps, "o/r", 7, "owner")).toThrow(LedgerStopped);
+    expect(c.provider.requests).toHaveLength(0);
+    expect(c.settles).toHaveLength(0);
   });
 });
 

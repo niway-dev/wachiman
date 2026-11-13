@@ -83,9 +83,13 @@ describe("review-platform.yml", () => {
     const template = read("templates/wachiman-review-caller.yml");
     expect(template.match(/\/review\.yml@/g)).toHaveLength(1);
     expect(template.match(/operator: EDIT-THIS-github-login/g)).toHaveLength(1);
-    expect(template).toMatch(/^\s*#.*review-platform\.yml@/m);
-    expect(template).toMatch(/^\s*#.*id-token: write/m);
-    expect(template).toMatch(/^\s*#.*ledger_url/m);
+    // The enrolled form is words next to the `uses:` line it changes, not a pasteable block above `jobs:`
+    // that would leave two `with:` keys or drop `operator`.
+    const afterJobs = template.slice(template.indexOf("\njobs:\n"));
+    expect(afterJobs).toMatch(/^\s*#.*review-platform\.yml/m);
+    expect(afterJobs).toMatch(/^\s*#.*id-token: write/m);
+    expect(afterJobs).toMatch(/^\s*#.*ledger_url/m);
+    expect(template.slice(0, template.indexOf("\njobs:\n"))).not.toMatch(/review-platform\.yml/);
     // No uncommented line mentions the platform workflow.
     expect(template.split("\n").filter((line) => !/^\s*#/.test(line) && line.includes("review-platform.yml"))).toEqual([]);
   });

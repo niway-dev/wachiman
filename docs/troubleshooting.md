@@ -360,7 +360,8 @@ the ledger trusts this repository. Exit code 3, before any model call.
 
 The job holds no `id-token: write`. Call `.github/workflows/review-platform.yml` instead of
 `review.yml`, and grant `id-token: write` in the caller's job ([install.md](install.md#optional-enroll-in-a-spend-ledger)).
-`review.yml` never holds that permission, so with `ledger_url` set it always stops with this message.
+`review.yml` never holds that permission, so with `ledger_url` set it stops with this message, unless
+`limit_bypass` is set (a bypassed run asks the ledger for nothing).
 If the caller did grant it but GitHub still refuses the token (`GitHub did not issue an OIDC token for the
 ledger (HTTP 403)`), check the caller's `permissions:` and that the job runs from this repository,
 not from a fork. Exit code 3.

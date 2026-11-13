@@ -26,16 +26,13 @@ on:
   pull_request_review_comment: { types: [created] }
   issue_comment: { types: [created] }
 permissions: { contents: read, pull-requests: write, issues: read }
-# Optional, to enroll in a spend ledger that limits spend per day and per week across repositories
-# (docs/costs.md): use the `review-platform.yml` workflow of the same release instead, grant
-# `id-token: write`, and pass `ledger_url`. Leave all of this out and nothing about a run changes.
-# `vX.Y.Z` is a placeholder, not a tag: `wachiman init` and the release tooling do not rewrite it, and
-# `review-platform.yml` exists only from the first release that contains it; pin that release or later.
-#   permissions: { contents: read, pull-requests: write, issues: read, id-token: write }
-#   uses: niway-dev/wachiman/.github/workflows/review-platform.yml@vX.Y.Z
-#   with: { ledger_url: "https://ledger.example.com", daily_budget_usd: 5 }
 jobs:
   review:
+    # Optional, to enroll in a spend ledger that limits spend per day and per week across repositories
+    # (docs/costs.md): change `review.yml` below to `review-platform.yml`, add `id-token: write` to the
+    # `permissions:` line at the top, and add `ledger_url` (and optionally `daily_budget_usd`) to `with:`
+    # next to `operator`. `v1.5.0` is a placeholder: `review-platform.yml` exists only from the first
+    # release that contains it, so pin that release or later. Leave all of this out and nothing changes.
     uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0
     with:
       operator: EDIT-THIS-github-login

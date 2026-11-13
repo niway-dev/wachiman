@@ -32,7 +32,7 @@ const HEADER = `name: Wachiman review with the spend ledger (reusable)
 # job), because a called workflow cannot hold a permission its caller did not grant. Callers that do
 # not use a ledger call review.yml and change nothing. See docs/install.md and docs/costs.md.
 #
-# Everything below this block is review.yml, unchanged.
+# Everything below this block is review.yml, unchanged except the added \`id-token: write\` lines.
 `;
 
 /** One permissions block of a job: the key at four spaces, its entries at six. */
