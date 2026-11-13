@@ -1,22 +1,20 @@
 /**
  * The intro of the interactive commands: a colored `wachiman` chip with "On watch." and the
- * version, then Wachi, the guard: a wide rounded face with a W badge, round ◉ eyes and a small ‿ smile,
- * with a short line typed out next to the eyes. While it types, Wachi blinks once, and it winks
- * (one eye) when the line is done.
+ * version, then Wachi, the guard: a small face with a W badge on its cap, round ◉ eyes and a ‿
+ * smile. Its name sits beside the top row and the line is typed beside the eyes. While it types,
+ * Wachi blinks once, and it winks (one eye) when the line is done.
  *
- *    ┌  wachiman  On watch. v1.14.0
+ *    ┌  wachiman  On watch. v1.15.0
  *    │
- *    │  ╭─────────────╮
- *    │  │      W      │
- *    │  │             │
- *    │  │   ◉     ◉   │   Wachi: Shift started. Let's watch this repo.
- *    │  │      ‿      │
- *    │  │             │
- *    │  ╰─────────────╯
+ *    │  ╭───W───╮  Wachi:
+ *    │  │ ◉ ‿ ◉ │  Shift started. Let's watch this repo.
+ *    │  ╰───────╯
  *
- * Every row of the face is 15 columns wide (13 inside: the eyes row is 3 + 1 + 5 + 1 + 3): a new row or variant must keep that sum,
- * or the right border shifts. The art is original and lives here as data. `mascotScene` and
- * `chipTitle` are pure, so tests read them; `playIntro` does the typing.
+ * Three rows tall. The whole face is drawn first and the line is then typed on the eyes row, so
+ * the box is never seen half drawn. Every row of the face is 9 columns wide (7 inside: the eyes
+ * row is 1 + 1 + 1 + 1 + 1 + 1 + 1): a new row or variant must keep that sum, or the right border
+ * shifts. The art is original and lives here as data. `mascotScene` and `chipTitle` are pure, so
+ * tests read them; `playIntro` does the typing.
  *
  * Rules the player keeps:
  * - The typing runs only on a real terminal with color, outside CI, and without
@@ -32,7 +30,7 @@ export const NAME = "Wachi";
 export const DEFAULT_LINE = "Shift started. Let's watch this repo.";
 
 /** Inside width of the face; every row pads to it. */
-export const FACE_INSIDE = 13;
+export const FACE_INSIDE = 7;
 
 export interface MascotOptions {
   paint: Paint;
@@ -52,8 +50,9 @@ export interface MascotScene {
   /** The start of the typed line: the eyes row with Wachi's name. Printed without a newline. */
   lead: string;
   /**
-   * `lead` with the eyes closed or winking, for redrawing the typed line in place. Absent on a
-   * narrow terminal, where the eyes are not on the typed line and so cannot be redrawn.
+   * `lead` with the eyes closed or winking, for redrawing the typed line in place. Absent when the
+   * line goes under the face (a narrow terminal, or a line too long to fit beside it): the eyes
+   * are not on the typed line then, so they cannot be redrawn.
    */
   leads?: Record<Eyes, string>;
   /** The text typed after `lead`. */
@@ -62,47 +61,46 @@ export interface MascotScene {
   bottom: string[];
 }
 
-/** Narrower than this, the line goes under the face instead of beside it. */
-export const SIDE_BY_SIDE_COLUMNS = 66;
+/** The gap between the face and the text beside it. */
+const GAP = "  ";
+
+/** playIntro prints each row after the muted bar and two spaces. */
+const ROW_PREFIX = 3;
+
+/** The columns a line needs to sit beside the face: the row prefix, the face, the gap, the text. */
+const besideWidth = (message: string) => ROW_PREFIX + FACE_INSIDE + 2 + GAP.length + [...message].length;
+
+/** Narrower than this, the default line goes under the face instead of beside it. */
+export const SIDE_BY_SIDE_COLUMNS = besideWidth(DEFAULT_LINE);
 
 export function mascotScene({ paint, ascii, columns, message }: MascotOptions): MascotScene {
   const edge = (text: string) => paint(text, "muted");
   const g = ascii
     ? { tl: "+", tr: "+", bl: "+", br: "+", h: "-", v: "|", eye: "o", shut: "-", mark: "u" }
     : { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│", eye: "◉", shut: "─", mark: "‿" };
-  const border = (l: string, r: string) => edge(`${l}${g.h.repeat(FACE_INSIDE)}${r}`);
-  const center = (text: string) => {
-    const pad = (FACE_INSIDE - text.length) / 2;
-    return [" ".repeat(Math.floor(pad)), " ".repeat(Math.ceil(pad))] as const;
-  };
-  const centered = (text: string, tone: Parameters<Paint>[1]) => {
-    const [l, r] = center(text);
-    return `${edge(g.v)}${l}${paint(text, tone)}${r}${edge(g.v)}`;
-  };
-  const badge = centered("W", "warning");
+  const side = (FACE_INSIDE - 1) / 2;
+  // The cap: the top border with the W badge in its middle.
+  const cap = `${edge(`${g.tl}${g.h.repeat(side)}`)}${paint("W", "warning")}${edge(`${g.h.repeat(side)}${g.tr}`)}`;
+  const chin = edge(`${g.bl}${g.h.repeat(FACE_INSIDE)}${g.br}`);
   const open = paint(g.eye, "strong");
   const shut = paint(g.shut, "strong");
-  const eyesRow = (left: string, right: string) => `${edge(g.v)}   ${left}     ${right}   ${edge(g.v)}`;
+  const mouth = paint(g.mark, "brand");
+  const eyesRow = (left: string, right: string) => `${edge(g.v)} ${left} ${mouth} ${right} ${edge(g.v)}`;
   const eyes = eyesRow(open, open);
-  const blank = `${edge(g.v)}${" ".repeat(FACE_INSIDE)}${edge(g.v)}`;
-  const mark = centered(g.mark, "brand");
-  const name = `${paint(`${NAME}:`, "brand")} `;
-  const top = [border(g.tl, g.tr), badge, blank];
-  const bottom = [mark, blank, border(g.bl, g.br)];
-  if (columns >= SIDE_BY_SIDE_COLUMNS) {
-    // The blink and wink redraw the line from its start with a carriage return, which only works
-    // when the line did not wrap: the 3-column row prefix, the face, the gap, the name, the text.
-    const width = ROW_PREFIX + FACE_INSIDE + 2 + 3 + NAME.length + 2 + [...message].length;
-    if (width > columns) return { top, lead: `${eyes}   ${name}`, message, bottom };
+  const name = paint(`${NAME}:`, "brand");
+  // Beside the eyes only when the whole line fits on one row: the typing goes back to the eyes row
+  // and redraws it from its start, which a wrapped line would break (it would also overwrite the
+  // row under it).
+  if (besideWidth(message) <= columns) {
     const leads: Record<Eyes, string> = {
-      open: `${eyes}   ${name}`,
-      blink: `${eyesRow(shut, shut)}   ${name}`,
-      wink: `${eyesRow(open, shut)}   ${name}`,
+      open: `${eyes}${GAP}`,
+      blink: `${eyesRow(shut, shut)}${GAP}`,
+      wink: `${eyesRow(open, shut)}${GAP}`,
     };
-    return { top, lead: leads.open, leads, message, bottom };
+    return { top: [`${cap}${GAP}${name}`], lead: leads.open, leads, message, bottom: [chin] };
   }
-  // A narrow terminal: the whole face first, then the line on its own row.
-  return { top: [...top, eyes, ...bottom], lead: name, message, bottom: [] };
+  // A narrow terminal, or a line too long to sit beside the face: the face first, then the line on its own row.
+  return { top: [cap, eyes, chin], lead: `${name} `, message, bottom: [] };
 }
 
 /** The first line of the session: the chip, "On watch." and the version. */
@@ -137,8 +135,6 @@ const HIDE = "\x1b[?25l";
 const SHOW = "\x1b[?25h";
 /** One character every 18 ms: the 37-character default line takes about 0.7 s. */
 export const TYPE_MS = 18;
-/** playIntro prints each row after the muted bar and two spaces. */
-const ROW_PREFIX = 3;
 /** A blink keeps both eyes shut this long. */
 export const BLINK_MS = 140;
 /** After the line is typed, Wachi waits this long, then winks for `WINK_MS`. */
@@ -177,11 +173,20 @@ export async function playIntro({ ui, term, env, version, line = DEFAULT_LINE, s
   };
   const restoreCursor = () => void output.write(SHOW);
   process.once("exit", restoreCursor);
+  // Rows drawn under the typed line, which the cursor has to step over at the end.
+  let drawnBelow = 0;
   try {
     input.setRawMode!(true);
     input.on("data", onData);
     input.resume();
-    output.write(`${HIDE}${row(scene.lead)}`);
+    // The whole face first; then back up to the line that is typed (the bottom rows sit under it).
+    const below = scene.bottom.length;
+    output.write(HIDE);
+    if (below > 0) {
+      output.write(`${row(scene.lead)}\n${scene.bottom.map((r) => `${row(r)}\n`).join("")}\x1b[${below + 1}A`);
+      drawnBelow = below;
+    }
+    output.write(`\r${row(scene.lead)}`);
     await Promise.race([sleep(120), new Promise<void>((resolve) => (wake = resolve))]);
     const chars = [...scene.message];
     const pause = (ms: number) => Promise.race([sleep(ms), new Promise<void>((resolve) => (wake = resolve))]);
@@ -215,9 +220,9 @@ export async function playIntro({ ui, term, env, version, line = DEFAULT_LINE, s
     input.off("data", onData);
     input.setRawMode!(wasRaw);
     input.pause();
-    output.write(`\n${SHOW}`);
+    // Down past the bottom rows, already drawn, to a fresh line.
+    output.write(`${drawnBelow > 0 ? `\r\x1b[${drawnBelow}B` : ""}\n${SHOW}`);
     process.off("exit", restoreCursor);
   }
-  output.write(scene.bottom.map((r) => `${row(r)}\n`).join(""));
   return stop ?? "played";
 }

@@ -143,7 +143,8 @@ describe("the terminal session on a scripted Ui", () => {
     term.output.on("data", (chunk) => (drawn += String(chunk)));
     await createPrompter(term, { NO_COLOR: "1" }, ui).intro("1.2.3");
     expect(ui.of("intro")[0].title).toBe("wachiman  On watch. v1.2.3");
-    expect(drawn).toContain("Wachi: Shift started. Let's watch this repo.");
+    expect(drawn).toContain("Wachi:");
+    expect(drawn).toContain("│  Shift started. Let's watch this repo.");
   });
 });
 

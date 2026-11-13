@@ -138,19 +138,28 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
       pending = { kind: "external", name: chosen, configDir, ...(binary ? { binary } : {}) };
       name = chosen;
     } else if (picked === CREATE) {
+      // The directory is claude-<name>, so "claude-isolated" would make claude-claude-isolated.
+      const claudePrefixProblem = (v: string) => {
+        if (!v.startsWith("claude-")) return undefined;
+        const bare = v.slice("claude-".length);
+        if (registered(bare)) return `The directory is already named claude-<name>, and "${bare}" is registered: pick it from the list instead.`;
+        const usable = bare !== "default" && problemOf(() => checkProfileName(bare)) === undefined;
+        return usable
+          ? `The directory is already named claude-<name>: type "${bare}" for ${managedDir(home, bare)}.`
+          : "The directory is already named claude-<name>: type the name without claude-.";
+      };
       const chosen = await prompter.text("Profile name", ISOLATED_NAME, (v) =>
         registered(v)
           ? `"${v}" is already registered; pick it from the list instead.`
           : v === "default"
             ? `"default" is reserved (the built-in profile); choose another name.`
-            : problemOf(() => checkProfileName(v)),
+            : (problemOf(() => checkProfileName(v)) ?? claudePrefixProblem(v)),
       );
       if (chosen === null) return { kind: "cancelled" };
       const dir = managedDir(home, chosen);
-      const ok = await prompter.confirm(
-        `Create ${dir} (mode 0700) and open Claude there so you can sign in? Nothing is registered yet, and Wachiman cannot undo a sign-in.`,
-        true,
-      );
+      // The question stays one short line; the details go on the line above it.
+      say("Nothing is registered yet, and Wachiman cannot undo a sign-in.");
+      const ok = await prompter.confirm(`Create ${dir} (mode 0700) and open Claude there so you can sign in?`, true);
       if (ok === null) return { kind: "cancelled" };
       if (!ok) continue;
       ctx.createManaged(chosen);
