@@ -1,4 +1,5 @@
-<!-- PR description template. Headings and their order are fixed: pr_body.py check enforces them.
+<!-- PR description template. Headings and their order are fixed: `pr_body.py check` enforces them (the script lives in
+     niway-dev/cs-tack, skills/cs-write-handoff/scripts/).
      Anything that fits no section goes in Notes. Never add a new heading. -->
 
 - [ ] I said whether an AI tool wrote part of this change, and I ran it.
@@ -9,9 +10,7 @@
 |---|---|
 | **Type** | <!-- One of: Feature, Fix, Refactor, Docs, Chore, CI --> |
 | **Issue** | <!-- [NIW2-123: issue title](link), or None --> |
-| **Risk** | <!-- 🟢 Low, 🟡 Medium or 🔴 High, then the reason in a few words. Start from `pr_body.py risk`; raise it if you know more, never lower it.
-     Risk is what the change touches, not whether it is right: a small, correct change to
-     authentication is still High. Whether it is right is the reviewer's grade. --> |
+| **Risk** | <!-- 🟢 Low, 🟡 Medium or 🔴 High, then the reason in a few words. Start from `pr_body.py risk`; raise it if you know more, never lower it. Risk is what the change touches, not whether it is right: a small, correct change to authentication is still High; whether it is right is the reviewer's grade. --> |
 | **Rollout** | <!-- When this reaches users. One of: Direct on deploy (no flag) / New flag `NAME` (default OFF, production OFF) / Existing flag `NAME` (production ON) / Manual step: which / No production effect --> |
 | **Release** | <!-- What the release tool will do: No release, patch, minor. Major only if the owner asked for it --> |
 | **Evidence** | <!-- What kind exists: Screenshots, Video, Command output, or Not verified: reason. Detail in ## Evidence --> |
