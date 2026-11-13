@@ -226,6 +226,14 @@ describe("readInputFile", () => {
   });
 });
 
+describe("wachiman local with WACHIMAN_LEDGER_URL set (the laptop read side's setting)", () => {
+  test("runs normally: exit 0, no ledger request, no ledger or Actions line on stderr", () => {
+    const r = local("ok", [], { WACHIMAN_LEDGER_URL: "https://ledger.invalid", WACHIMAN_LEDGER_TOKEN: "t" });
+    expect(r.code).toBe(0);
+    expect(r.stderr).not.toMatch(/ledger|GitHub Actions run/i);
+  });
+});
+
 describe("wachiman local", () => {
   test("reviews the branch, prints progress on stderr and the report on stdout, and never calls gh", () => {
     const r = local("ok");
@@ -469,10 +477,11 @@ describe("wachiman local", () => {
     expect(r.read("calls")).toBeUndefined();
   }, 30_000);
 
-  test("--help lists local and --setup-profile; GH_TOKEN is not required for them", () => {
-    const help = runCli(["--help"], { PATH: process.env.PATH ?? "" });
+  test("local has its own help and --setup-profile stays out of the root help; GH_TOKEN is not required for them", () => {
+    const help = runCli(["local", "--help"], { PATH: process.env.PATH ?? "" });
     expect(help.stdout).toContain("wachiman local [paths…]");
-    expect(help.stdout).toContain("wachiman --setup-profile [<name>]");
+    expect(runCli(["--help"], { PATH: process.env.PATH ?? "" }).stdout).not.toContain("--setup-profile");
+    expect(runCli(["--setup-profile", "--help"], { PATH: process.env.PATH ?? "" }).stdout).toContain("wachiman profile create [<name>]");
     // The first test ran without GH_TOKEN and GITHUB_REPOSITORY; a usage error here would name them.
     const r = local("ok");
     expect(r.code).toBe(0);

@@ -323,6 +323,11 @@ in one place and without the slash in the other.
 `templates/wachiman-review-caller.yml` carries the same block as a comment. The token is used only
 to authenticate to the ledger; the agent that reads your code never sees it.
 
+The ledger itself is a service, not part of this repository: the hosted ledger's source is not
+published here. What the engine sends it and what it must answer is the contract in
+[ledger-api.md](ledger-api.md). To run a ledger of your own, implement that contract and point
+`ledger_url` at it.
+
 ## Optional: a focus file
 
 Add `.github/wachiman.md` to say what this repository's reviews should look at beyond the

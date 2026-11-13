@@ -457,7 +457,9 @@ dedicated to Wachiman makes its spend easy to read and the key easy to revoke.
 
 A repository may enroll in a spend ledger: a service that keeps one daily and one weekly limit for an
 account across all its repositories ([install.md](install.md#optional-enroll-in-a-spend-ledger)). It
-is off unless `ledger_url` is set; then nothing below applies and nothing changes.
+is off unless `ledger_url` is set; then nothing below applies and nothing changes. What the engine
+sends the ledger, and what the ledger stores per run and per model call, is written in
+[ledger-api.md](ledger-api.md).
 
 With a ledger, each run asks before its first model call and tells the ledger what it spent after
 its last:
@@ -477,6 +479,11 @@ until it is recorded, and a failed settle leaves the reservation counted at the 
 cancelled by a newer push is killed before it settles, so the reservation it held stays counted at the
 reserved amount too (up to `budget_usd`, $3 by default). How long the ledger keeps it is the service's rule,
 not this repository's; the run posts no footer, so the amount is in no receipt.
+
+**An outage lifts the limit, on purpose.** With the default `ledger_unavailable: run`, a review that cannot
+reach the ledger goes ahead uncounted, because on a Claude subscription an overshoot costs plan usage, not
+cash. On an API key the same uncounted run is billed, so set `ledger_unavailable: stop` there to stop
+those runs instead (below).
 
 **Estimates.** On a Claude subscription token the amounts are API-price estimates, not a bill (see
 below), so a limit in dollars bounds estimated usage, and the notice says so.
