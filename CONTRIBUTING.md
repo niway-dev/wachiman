@@ -44,14 +44,14 @@ report and is merged only after its author has accepted the agreement.
 
 ```sh
 scripts/dev-build.sh               # from any branch or worktree; run it again after each change
-wachiman-dev --version             # <version>-dev.<commit>, with .dirty when changes are uncommitted
+wachiman-dev --version             # <version>-dev-<commit>, with .dirty when changes are uncommitted
 wachiman-dev                       # the interactive launcher, as a user would get it
 scripts/dev-build.sh --uninstall   # removes wachiman-dev and its files
 ```
 
 It installs into `~/.local/share/wachiman-dev` and links `~/.local/bin/wachiman-dev`. It reads
 the same `~/.wachiman` profiles as `wachiman`, so a review it runs is a real review on your
-account.
+account, and `wachiman-dev skills install` replaces the skills you have installed.
 
 ## License of your contribution
 

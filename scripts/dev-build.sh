@@ -2,7 +2,7 @@
 # Build and install a development build of this checkout as `wachiman-dev`, next to the released
 # `wachiman`, without publishing anything. It packs the checkout the way a release does (same
 # `files` list, same Node launcher, the real dependencies from npm), with the version
-# `<package version>-dev.<commit>`, and installs that tarball into a prefix of its own.
+# `<package version>-dev-<commit>`, and installs that tarball into a prefix of its own.
 #
 #   scripts/dev-build.sh               build the current checkout (a branch, a worktree) and install it
 #   scripts/dev-build.sh --uninstall   remove wachiman-dev and its prefix
@@ -10,7 +10,7 @@
 # Then: `wachiman-dev --version`, `wachiman-dev` (the launcher), `wachiman-dev init`, and so on.
 # Run it again after each change you want to try; the newest build replaces the previous one.
 #
-# Uncommitted changes are included, and the version says so (`-dev.<commit>.dirty`).
+# Uncommitted changes are included, and the version says so (`-dev-<commit>.dirty`).
 # wachiman-dev reads the same ~/.wachiman configuration and profiles as `wachiman`: a review
 # run with it is a real review on your account. Needs bash, git, node and npm; the first build
 # downloads the dependencies from the npm registry.
@@ -24,6 +24,11 @@ link="$bindir/wachiman-dev"
 case "${1:-}" in
   "") ;;
   --uninstall)
+    # rm -rf only on a directory this script would have made.
+    case "$(basename "$state")" in
+      wachiman-dev*) ;;
+      *) echo "dev-build: refusing to remove $state (its name does not start with wachiman-dev)" >&2; exit 1 ;;
+    esac
     if [[ -L "$link" && "$(readlink "$link")" == "$state/"* ]]; then rm "$link"; echo "removed $link"; fi
     rm -rf "$state"
     echo "removed $state"
@@ -37,20 +42,25 @@ if [[ -e "$link" && ! -L "$link" ]] || { [[ -L "$link" ]] && [[ "$(readlink "$li
   exit 1
 fi
 
-commit="$(git -C "$root" rev-parse --short HEAD)"
-dirty=""
-[[ -n "$(git -C "$root" status --porcelain -- bin src skills templates package.json bunfig.toml)" ]] && dirty=".dirty"
-base="$(node -p "require('$root/package.json').version")"
-version="$base-dev.$commit$dirty"
-
 work="$(mktemp -d "${TMPDIR:-/tmp}/wachiman-dev.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
-# Pack a copy, so the checkout's package.json keeps its real version.
-mkdir "$work/src"
+# The files a release would pack, from npm itself.
 (cd "$root" && npm pack --dry-run --json --ignore-scripts 2>/dev/null) \
   | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const f of JSON.parse(s)[0].files)console.log(f.path)})' \
   > "$work/files"
+
+# "dev-<hash>" is one alphanumeric identifier, valid semver even when the hash is all digits.
+commit="$(git -C "$root" rev-parse --short HEAD)"
+dirty=""
+packed=()
+while IFS= read -r f; do packed+=("$f"); done < "$work/files"
+[[ -n "$(cd "$root" && git status --porcelain -- "${packed[@]}")" ]] && dirty=".dirty"
+base="$(node -p "require('$root/package.json').version")"
+version="$base-dev-$commit$dirty"
+
+# Pack a copy, so the checkout's package.json keeps its real version.
+mkdir "$work/src"
 while IFS= read -r f; do
   mkdir -p "$work/src/$(dirname "$f")"
   cp "$root/$f" "$work/src/$f"
@@ -63,7 +73,6 @@ tarball="$(cd "$work/src" && npm pack --pack-destination "$work" --ignore-script
 rm -rf "$state/prefix"
 mkdir -p "$state" "$bindir"
 npm install --global --prefix "$state/prefix" --no-audit --no-fund --loglevel=error "$work/$tarball"
-cp "$work/$tarball" "$state/wachiman-dev.tgz"
 ln -sfn "$state/prefix/bin/wachiman" "$link"
 
 echo "installed wachiman-dev $version from $root"
