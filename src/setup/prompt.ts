@@ -143,14 +143,15 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
           ? `"${v}" is already registered; pick it from the list instead.`
           : v === "default"
             ? `"default" is reserved (the built-in profile); choose another name.`
-            : problemOf(() => checkProfileName(v)),
+            : v.startsWith("claude-")
+              ? `The directory is already named claude-<name>: type "${v.slice("claude-".length)}" for ${managedDir(home, v.slice("claude-".length))}.`
+              : problemOf(() => checkProfileName(v)),
       );
       if (chosen === null) return { kind: "cancelled" };
       const dir = managedDir(home, chosen);
-      const ok = await prompter.confirm(
-        `Create ${dir} (mode 0700) and open Claude there so you can sign in? Nothing is registered yet, and Wachiman cannot undo a sign-in.`,
-        true,
-      );
+      // The question stays one short line; the details go on the line above it.
+      say("Nothing is registered yet, and Wachiman cannot undo a sign-in.");
+      const ok = await prompter.confirm(`Create ${dir} (mode 0700) and open Claude there so you can sign in?`, true);
       if (ok === null) return { kind: "cancelled" };
       if (!ok) continue;
       ctx.createManaged(chosen);

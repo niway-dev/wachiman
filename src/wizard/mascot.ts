@@ -8,11 +8,12 @@
  *    │
  *    │  ╭─────────────╮
  *    │  │      W      │
- *    │  │             │
  *    │  │   ◉     ◉   │   Wachi: Shift started. Let's watch this repo.
  *    │  │      ‿      │
- *    │  │             │
  *    │  ╰─────────────╯
+ *
+ * Five rows tall. The whole face is drawn first and the line is then typed on the eyes row, so
+ * the box is never seen half drawn.
  *
  * Every row of the face is 15 columns wide (13 inside: the eyes row is 3 + 1 + 5 + 1 + 3): a new row or variant must keep that sum,
  * or the right border shifts. The art is original and lives here as data. `mascotScene` and
@@ -84,16 +85,15 @@ export function mascotScene({ paint, ascii, columns, message }: MascotOptions): 
   const shut = paint(g.shut, "strong");
   const eyesRow = (left: string, right: string) => `${edge(g.v)}   ${left}     ${right}   ${edge(g.v)}`;
   const eyes = eyesRow(open, open);
-  const blank = `${edge(g.v)}${" ".repeat(FACE_INSIDE)}${edge(g.v)}`;
   const mark = centered(g.mark, "brand");
   const name = `${paint(`${NAME}:`, "brand")} `;
-  const top = [border(g.tl, g.tr), badge, blank];
-  const bottom = [mark, blank, border(g.bl, g.br)];
-  if (columns >= SIDE_BY_SIDE_COLUMNS) {
-    // The blink and wink redraw the line from its start with a carriage return, which only works
-    // when the line did not wrap: the 3-column row prefix, the face, the gap, the name, the text.
-    const width = ROW_PREFIX + FACE_INSIDE + 2 + 3 + NAME.length + 2 + [...message].length;
-    if (width > columns) return { top, lead: `${eyes}   ${name}`, message, bottom };
+  const top = [border(g.tl, g.tr), badge];
+  const bottom = [mark, border(g.bl, g.br)];
+  // Beside the eyes only when the whole line fits on one row: the typing goes back to the eyes row
+  // and redraws it from its start, which a wrapped line would break (it would also overwrite the
+  // rows under it). The 3-column row prefix, the face, the gap, the name, the text.
+  const width = ROW_PREFIX + FACE_INSIDE + 2 + 3 + NAME.length + 2 + [...message].length;
+  if (columns >= SIDE_BY_SIDE_COLUMNS && width <= columns) {
     const leads: Record<Eyes, string> = {
       open: `${eyes}   ${name}`,
       blink: `${eyesRow(shut, shut)}   ${name}`,
@@ -101,7 +101,7 @@ export function mascotScene({ paint, ascii, columns, message }: MascotOptions): 
     };
     return { top, lead: leads.open, leads, message, bottom };
   }
-  // A narrow terminal: the whole face first, then the line on its own row.
+  // A narrow terminal, or a line too long to sit beside the face: the face first, then the line on its own row.
   return { top: [...top, eyes, ...bottom], lead: name, message, bottom: [] };
 }
 
@@ -177,11 +177,20 @@ export async function playIntro({ ui, term, env, version, line = DEFAULT_LINE, s
   };
   const restoreCursor = () => void output.write(SHOW);
   process.once("exit", restoreCursor);
+  // Rows drawn under the typed line, which the cursor has to step over at the end.
+  let drawnBelow = 0;
   try {
     input.setRawMode!(true);
     input.on("data", onData);
     input.resume();
-    output.write(`${HIDE}${row(scene.lead)}`);
+    // The whole face first; then back up to the line that is typed (the bottom rows sit under it).
+    const below = scene.bottom.length;
+    output.write(HIDE);
+    if (below > 0) {
+      output.write(`${row(scene.lead)}\n${scene.bottom.map((r) => `${row(r)}\n`).join("")}\x1b[${below + 1}A`);
+      drawnBelow = below;
+    }
+    output.write(`\r${row(scene.lead)}`);
     await Promise.race([sleep(120), new Promise<void>((resolve) => (wake = resolve))]);
     const chars = [...scene.message];
     const pause = (ms: number) => Promise.race([sleep(ms), new Promise<void>((resolve) => (wake = resolve))]);
@@ -215,9 +224,9 @@ export async function playIntro({ ui, term, env, version, line = DEFAULT_LINE, s
     input.off("data", onData);
     input.setRawMode!(wasRaw);
     input.pause();
-    output.write(`\n${SHOW}`);
+    // Down past the bottom rows, already drawn, to a fresh line.
+    output.write(`${drawnBelow > 0 ? `\r\x1b[${drawnBelow}B` : ""}\n${SHOW}`);
     process.off("exit", restoreCursor);
   }
-  output.write(scene.bottom.map((r) => `${row(r)}\n`).join(""));
   return stop ?? "played";
 }

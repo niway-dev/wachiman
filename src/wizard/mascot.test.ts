@@ -23,11 +23,11 @@ function term(over: { isTTY?: boolean; columns?: number; inputTTY?: boolean } = 
 describe("the scene", () => {
   test("side by side on a wide terminal: the line is on the eyes row; a narrow one puts it below", () => {
     const wide = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS, message: DEFAULT_LINE });
-    expect(wide.top).toEqual(["╭─────────────╮", "│      W      │", "│             │"]);
+    expect(wide.top).toEqual(["╭─────────────╮", "│      W      │"]);
     expect(wide.lead).toBe(`│   ◉     ◉   │   ${NAME}: `);
-    expect(wide.bottom).toEqual(["│      ‿      │", "│             │", "╰─────────────╯"]);
+    expect(wide.bottom).toEqual(["│      ‿      │", "╰─────────────╯"]);
     const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
-    expect(narrow.top).toEqual(["╭─────────────╮", "│      W      │", "│             │", "│   ◉     ◉   │", "│      ‿      │", "│             │", "╰─────────────╯"]);
+    expect(narrow.top).toEqual(["╭─────────────╮", "│      W      │", "│   ◉     ◉   │", "│      ‿      │", "╰─────────────╯"]);
     expect(narrow.lead).toBe(`${NAME}: `);
     expect(narrow.bottom).toEqual([]);
   });
@@ -39,10 +39,11 @@ describe("the scene", () => {
     expect(s.leads?.wink).toBe(`│   ◉     ─   │   ${NAME}: `);
     const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
     expect(narrow.leads).toBeUndefined();
-    // Side by side, but the line would wrap: no redraw, so no blink or wink.
+    // Wide enough for the face, but the line would wrap beside it: the line goes under the face.
     const line = "x".repeat(47);
     const wraps = mascotScene({ paint: plain, ascii: false, columns: 74, message: line });
-    expect(wraps.lead).toBe(`│   ◉     ◉   │   ${NAME}: `);
+    expect(wraps.lead).toBe(`${NAME}: `);
+    expect(wraps.bottom).toEqual([]);
     expect(wraps.leads).toBeUndefined();
     expect(mascotScene({ paint: plain, ascii: false, columns: 75, message: line }).leads).toBeDefined();
   });
@@ -105,6 +106,19 @@ describe("playIntro", () => {
     expect(t.written()).toContain("\x1b[?25l");
     expect(t.written()).toContain("\x1b[?25h");
     expect(stripAnsi(t.written())).toContain("Hi!");
+  });
+
+  test("side by side, the whole face is drawn before the first letter, and the cursor ends under it", async () => {
+    const ui = fakeUi();
+    const t = term();
+    let firstSleep = -1;
+    await playIntro({ ui, term: t, env: { TERM: "xterm" }, version: "1.2.3", line: "Hi!", sleep: async () => void (firstSleep < 0 && (firstSleep = t.written().length)) });
+    const before = stripAnsi(t.written().slice(0, firstSleep));
+    expect(before).toContain("╰─────────────╯");
+    expect(before).not.toContain("Hi!");
+    // Up from under the bottom rows to the eyes row, and down past them at the end.
+    expect(t.written()).toContain("\x1b[3A");
+    expect(t.written()).toContain("\x1b[2B\n");
   });
 
   test("a key skips the typing and the whole line still appears; Ctrl-C reports interrupted", async () => {
