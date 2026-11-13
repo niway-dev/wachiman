@@ -129,6 +129,9 @@ It links `bin/wachiman` into `~/.local/bin` (put that on your `PATH`) and the sk
 `$CLAUDE_CONFIG_DIR`). It never touches `~/.wachiman`, replaces only its own symlinks, and moves
 any other file it finds to `~/.local/state/wachiman-install/backup/<timestamp>/`.
 
+To try a branch as the packaged CLI without replacing that command, `scripts/dev-build.sh`
+installs it as `wachiman-dev` (see CONTRIBUTING.md, "Try a change before it is released").
+
 That script is for contributors: the links point into your clone. Whoever runs Wachiman from a
 package runs `wachiman skills install` instead. From a clone, run `bun src/cli.ts skills install`,
 which is the same command. It copies the two skills into the same directories (it does not install
