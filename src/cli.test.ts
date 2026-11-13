@@ -105,6 +105,9 @@ describe("exit code 3: the spend ledger stopped the run", () => {
         `  "pr view"*) printf '%s\\n' '{"headRefOid":"head1234567","title":"t","body":"b","author":{"login":"u"}}';;`,
         `  *pulls/1/files*) printf '%s\\n' '{"filename":"a.ts","additions":1,"deletions":0,"patch":"@@ -0,0 +1 @@\\n+x"}';;`,
         "  *pulls/1/reviews*|*pulls/1/comments*) ;;",
+        // What the engine reads before it asks the ledger: the base commit and the repository's instructions (none: 404).
+        "  *contents*) echo 'gh: Not Found (HTTP 404)' >&2; exit 1;;",
+        `  "api repos/o/r/pulls/1 "*) printf '%s\\n' bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb;;`,
         "  *) exit 1;;",
         "esac",
       ].join("\n"),
@@ -165,6 +168,27 @@ describe("exit code 3: the spend ledger stopped the run", () => {
     } finally {
       rmSync(w.bin, { recursive: true, force: true });
     }
+  });
+
+  test("an address that is not the ledger (a 404) exits 3 whatever ledger_unavailable says, and names ledger_url", () => {
+    const w = world();
+    try {
+      for (const unavailable of ["run", "stop"]) {
+        const out = run(["review", "1"], w.env({ LEDGER_STATUS: "404", LEDGER_BODY: "Not Found", AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable }));
+        expect(out.code).toBe(3);
+        expect(out.stderr).toContain("`ledger_url` does not look like the spend ledger");
+        expect(out.stderr).toContain("HTTP 404");
+      }
+      expect(w.modelCalled()).toBe(false);
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("a cleartext ledger url is a usage error (exit 2)", () => {
+    const out = run(["review", "1"], { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r", AGENT_REVIEW_LEDGER_URL: "http://ledger.example" });
+    expect(out.code).toBe(2);
+    expect(out.stderr).toContain("AGENT_REVIEW_LEDGER_URL must start with https://");
   });
 
   test("an unlinked repository and a job without an OIDC token exit 3 whatever ledger_unavailable says", () => {

@@ -56,13 +56,16 @@ describe("loadConfig", () => {
     expect(load({ AGENT_REVIEW_DAILY_BUDGET_USD: "", AGENT_REVIEW_WEEKLY_BUDGET_USD: "" }).config.dailyBudgetUsd).toBeUndefined();
   });
 
-  test("a provider other than claude-code is refused wherever an OIDC request token is present", () => {
+  test("a provider other than claude-code is refused when a ledger url is set and an OIDC request token is present", () => {
     const message =
       "AGENT_REVIEW_PROVIDER codex cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of review-platform.yml.";
     const token = { ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer" };
     const ledger = { AGENT_REVIEW_LEDGER_URL: "https://ledger.example" };
-    expect(() => load({ ...token, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(message);
-    expect(() => load({ ...token, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(UsageError);
+    expect(() => load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(message);
+    expect(() => load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(UsageError);
+    // Without a ledger url nothing uses the token: a job that merely holds `id-token: write` behaves as before.
+    expect(load({ ...token, AGENT_REVIEW_PROVIDER: "codex" }).config.provider).toBe("codex");
+    expect(load({ ...token, AGENT_REVIEW_LEDGER_URL: "", AGENT_REVIEW_PROVIDER: "codex" }).config.provider).toBe("codex");
     expect(() => load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_LIMIT_BYPASS: "true" })).toThrow(message);
     expect(load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "claude-code" }).config.ledgerUrl).toBe("https://ledger.example");
     // No token in the environment: Codex is fine, with or without a ledger url (the CLI case).
@@ -88,6 +91,17 @@ describe("loadConfig", () => {
     expect(() => load({ AGENT_REVIEW_LIMIT_MODE: "warn" })).toThrow(/LIMIT_MODE must be fail or notice/);
     expect(() => load({ AGENT_REVIEW_LEDGER_UNAVAILABLE: "ignore" })).toThrow(/LEDGER_UNAVAILABLE must be run or stop/);
     expect(() => load({ AGENT_REVIEW_DAILY_BUDGET_USD: "0" })).toThrow(UsageError);
+  });
+
+  test("the ledger url must be https: the job's OIDC token travels to it; localhost is allowed for tests", () => {
+    for (const url of ["http://ledger.example", "ledger.example", "ftp://ledger.example", "https://", "HTTP://ledger.example", "http://localhost.evil.example", "http://127.0.0.1.evil.example"]) {
+      expect(() => load({ AGENT_REVIEW_LEDGER_URL: url })).toThrow(UsageError);
+      expect(() => load({ AGENT_REVIEW_LEDGER_URL: url })).toThrow(/AGENT_REVIEW_LEDGER_URL must start with https:\/\//);
+    }
+    for (const url of ["https://ledger.example", "HTTPS://ledger.example/base", "http://localhost", "http://localhost:8787", "http://localhost:8787/", "http://127.0.0.1:8787/v1", "http://127.0.0.1"]) {
+      expect(load({ AGENT_REVIEW_LEDGER_URL: url }).config.ledgerUrl).toBe(url.replace(/\/+$/, ""));
+    }
+    expect(load({ AGENT_REVIEW_LEDGER_URL: "" }).config.ledgerUrl).toBeUndefined();
   });
 
   test("askers is operator or write, and anything else is a configuration error", () => {

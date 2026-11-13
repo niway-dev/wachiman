@@ -361,11 +361,28 @@ the ledger trusts this repository. Exit code 3, before any model call.
 The job holds no `id-token: write`. Call `.github/workflows/review-platform.yml` instead of
 `review.yml`, and grant `id-token: write` in the caller's job ([install.md](install.md#optional-enroll-in-a-spend-ledger)).
 `review.yml` never holds that permission, so with `ledger_url` set it always stops with this message.
-Exit code 3.
+If the caller did grant it but GitHub still refuses the token (`GitHub did not issue an OIDC token for the
+ledger (HTTP 403)`), check the caller's `permissions:` and that the job runs from this repository,
+not from a fork. Exit code 3.
+
+### `ledger_url` does not look like the spend ledger
+
+The address answered, but not the way the ledger does: the job summary shows the HTTP status (a 404 or
+405 usually means a wrong path or host, a 301 or 302 a redirect that is not followed, a 200 an HTML page
+or other JSON). Nothing was reviewed, and `ledger_unavailable` does not apply: only a network error, a
+timeout, a 5xx or a 429 counts as the ledger being unreachable. Fix `ledger_url`, which must be the
+ledger's address and start with `https://`. Exit code 3. If the audience is wrong instead, the
+ledger answers `unauthorized`: `ledger_url` without trailing slashes must equal the service's
+`LEDGER_AUDIENCE` exactly.
+
+### `AGENT_REVIEW_LEDGER_URL must start with https://`
+
+A usage error (exit code 2): the job's OIDC token is sent to that address, so a cleartext URL is
+refused. Use an `https://` address (`http://localhost` and `http://127.0.0.1` are accepted for tests).
 
 ### The ledger could not be reached
 
-With `ledger_unavailable: run` (the default) the review still happens. Its footer says
+That means a network error, a timeout, a 5xx or a 429. With `ledger_unavailable: run` (the default) the review still happens. Its footer says
 `Not counted against the spend limit`, and the job summary under **Wachiman spend limit** says whether
 the run was recorded afterwards. With `stop`, the run ends with exit code 3 before any model call and
 posts nothing; re-run it when the ledger is back. If only the settle failed, the review is posted

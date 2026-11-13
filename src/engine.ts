@@ -35,6 +35,7 @@ import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import {
+  LedgerBadAnswer,
   LedgerNotPermitted,
   LedgerRefused,
   LedgerUnavailable,
@@ -315,7 +316,8 @@ export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command |
   const words = match[1].trim().split(/\s+/).filter(Boolean);
   if (words[0]?.toLowerCase() === "review") {
     const rest = words.slice(1);
-    return { kind: "review", paths: rest.filter((w) => w !== "--force"), force: rest.includes("--force") };
+    // `paths` is every word after `review`, as before the ledger: `comment` drops `--force` from it only when a ledger is set.
+    return { kind: "review", paths: rest, force: rest.includes("--force") };
   }
   return { kind: "answer" };
 }
@@ -2501,8 +2503,9 @@ function limitSentence(deps: Deps, refusal: Refusal) {
       : undefined;
   const estimate = onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : "";
   if (refusal.reason === "repository_limit") {
+    // The figures the ledger names with this reason are the account's, not the repository's: not shown.
     const own = period === "week" ? "weekly" : "daily";
-    return `This repository reached its own ${own} budget (\`${period === "week" ? "weekly_budget_usd" : "daily_budget_usd"}\` in the workflow, or the cap the account sets for this repository)${against ? `; ${against}` : ""}.${estimate}`;
+    return `This repository reached its own ${own} limit (\`${period === "week" ? "weekly_budget_usd" : "daily_budget_usd"}\` in the workflow, or the cap the account sets for this repository).${estimate}`;
   }
   const name = refusal.reason === "weekly_limit" ? "weekly" : "daily";
   return against
@@ -2592,6 +2595,11 @@ export function spendReserve(deps: Deps, repo: string, pr: number, headSha: stri
       ledgerNote(deps, message);
       throw new LedgerStopped(message);
     }
+    if (error instanceof LedgerBadAnswer) {
+      // A wrong address or a broken service, not an outage: `ledger_unavailable` does not apply.
+      ledgerNote(deps, error.message);
+      throw new LedgerStopped(error.message);
+    }
     if (error instanceof LedgerNotPermitted) {
       const message =
         "`ledger_url` is set, but this job cannot request an OIDC token, so nothing was reviewed. Call `.github/workflows/review-platform.yml` instead of `review.yml`, and grant `id-token: write` in the caller's job (docs/install.md).";
@@ -2643,9 +2651,25 @@ export function spendSettle(deps: Deps, grant: SpendGrant, spentUsd: number): st
     return grant.forced ? `${line}\n\n${LEDGER_FORCED_FOOTER}` : line;
   } catch (error) {
     deps.warn(`Could not settle with the ledger; the reservation stays counted: ${short200(error)}`);
-    ledgerNote(deps, `The settlement was not delivered: the ledger could not be reached after the run, so its reservation of ${usd(grant.reservedUsd ?? 0)} stays counted instead of the ${usd(spentUsd)} spent. The review is posted.`);
+    ledgerNote(deps, `The settlement was not delivered: the ledger could not be reached after the run, so its reservation of ${usd(grant.reservedUsd ?? 0)} stays counted instead of the ${usd(spentUsd)} spent.${onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : ""} The review is posted.`);
     return grant.forced ? LEDGER_FORCED_FOOTER : null;
   }
+}
+
+/**
+ * Whether the ledger granted less than a call needs (the minimum the review path also uses). When
+ * so, the run makes no model call: it settles with 0, so the reservation is released, and the job
+ * summary says so. Only a reserved grant can be this small: with no ledger the room is unlimited.
+ */
+function grantTooSmall(deps: Deps, grant: SpendGrant, what: string): boolean {
+  if (grant.kind !== "reserved" || grant.roomUsd >= MIN_BATCH_USD) return false;
+  spendSettle(deps, grant, 0);
+  ledgerNote(
+    deps,
+    `The ledger granted ${usd(grant.roomUsd)}, below the ${usd(MIN_BATCH_USD)} a call needs, so ${what} made no model call and settled with $0.00.${onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : ""}`,
+  );
+  deps.log(`The ledger granted ${usd(grant.roomUsd)}, below the minimum for ${what}; no model call.`);
+  return true;
 }
 
 /** Runs a paid step; if it throws, the ledger still hears what the calls so far cost, then the error goes on. */
@@ -3754,12 +3778,9 @@ export function review(deps: Deps, repo: string, pr: number, words: string[], fo
   if (ceiling === null) return;
   // What the automatic runs before this one cost; an operator's run is not counted and shows none.
   const automatic = isAutomatic(config.trigger);
-  // The last step before the first model call: the spend ledger, when one is configured.
-  const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.budgetUsd, ceiling.room), force && !automatic);
   const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
   const base = baseSha(gh, repo, pr);
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
-  const totalBudget = Math.min(config.budgetUsd, ceiling.room, grant.roomUsd);
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
   // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
@@ -3783,6 +3804,10 @@ export function review(deps: Deps, repo: string, pr: number, words: string[], fo
   // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
   // part of the change, and "nothing else changed" cannot be said of a part.
   const fullReview = since === null && paths.length === 0;
+  // Everything the run reads from GitHub is read by now. The ledger is asked last, just before the
+  // first paid step, so a failing read cannot leave a reservation that nobody settles.
+  const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.budgetUsd, ceiling.room), force && !automatic);
+  const totalBudget = Math.min(config.budgetUsd, ceiling.room, grant.roomUsd);
   const options: ReviewOptions = {
     ...reviewOptionsOf(config, totalBudget),
     ...(config.confidence && fullReview ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
@@ -4042,8 +4067,6 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
   }
   const ceiling = ceilingRoom(deps, repo, pr, headSha);
   if (ceiling === null) return;
-  const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.threadsBudgetUsd, ceiling.room), false);
-  const budgetUsd = Math.min(config.threadsBudgetUsd, ceiling.room, grant.roomUsd);
 
   const meta = JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,author"]));
   const repoDir = deps.repoDir ?? process.cwd();
@@ -4056,6 +4079,10 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     join(dir, "threads.json"),
     JSON.stringify(pending.map((t) => ({ ...t, code: codeAround(repoDir, t.path, t.line) })), null, 2),
   );
+  // The ledger is asked last, after every read and write above, so a failing one leaves no reservation unsettled.
+  const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.threadsBudgetUsd, ceiling.room), false);
+  const budgetUsd = Math.min(config.threadsBudgetUsd, ceiling.room, grant.roomUsd);
+  if (grantTooSmall(deps, grant, "thread replies")) return;
   const call = settledOnError(deps, grant, () =>
     runProvider(
       deps,
@@ -4706,6 +4733,13 @@ export function answer(deps: Deps, repo: string, pr: number, question: string, o
   });
   // One question is one call, with the budget a whole review had before batches: $1.
   const grant = spendReserve(deps, repo, pr, headSha, deps.config.answerBudgetUsd, false);
+  if (grantTooSmall(deps, grant, "an answer")) {
+    const note = `Wachiman did not answer: the spend limit leaves too little room for a call (at least ${usd(MIN_BATCH_USD)} is needed). Nothing was spent.`;
+    const body = `${BRAND}\n\n${note}\n\n${asker === undefined ? SIGNATURE.answer : `${SIGNATURE.ask}\n\n${SIGNATURE.answer}`}`;
+    if (deps.config.dryRun) deps.log(body);
+    else postAnswer(deps, repo, pr, body, line);
+    return;
+  }
   let result: ReturnType<typeof runProvider> | undefined;
   let failure = "";
   try {
@@ -4812,7 +4846,11 @@ export function comment(deps: Deps, repo: string, pr: number, request: string, a
   const operatorAsked =
     author === undefined ? askers === "operator" || deps.config.dryRun : author.toLowerCase() === operator.toLowerCase();
   if (operatorAsked) {
-    if (command?.kind === "review") review(deps, repo, pr, command.paths, command.force);
+    if (command?.kind === "review") {
+      // With no ledger `--force` means nothing: it stays a word that names no file, as it always did.
+      const words = deps.config.ledgerUrl ? command.paths.filter((w) => w !== "--force") : command.paths;
+      review(deps, repo, pr, words, command.force);
+    }
     else if (command) answer(deps, repo, pr, request, { line });
     return;
   }

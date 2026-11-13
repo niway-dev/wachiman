@@ -3,6 +3,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import {
   LedgerNotPermitted,
   LedgerRefused,
+  LedgerBadAnswer,
   LedgerUnavailable,
   canonicalReceipt,
   readReceipt,
@@ -50,9 +51,22 @@ describe("requestIdToken", () => {
     expect(calls).toEqual([]);
   });
 
-  test("a non-200 or a body without a value is LedgerUnavailable", () => {
-    expect(() => requestIdToken({ ACTIONS_ID_TOKEN_REQUEST_URL: "https://a/t?x=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "t" }, "a", fakeCurl(500, "boom").curl)).toThrow(LedgerUnavailable);
-    expect(() => requestIdToken({ ACTIONS_ID_TOKEN_REQUEST_URL: "https://a/t?x=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "t" }, "a", fakeCurl(200, "{}").curl)).toThrow(LedgerUnavailable);
+  const TOKEN_ENV = { ACTIONS_ID_TOKEN_REQUEST_URL: "https://a/t?x=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "t" };
+
+  test("a 5xx or a 429 from GitHub is LedgerUnavailable; any other refusal or a body without a value is a bad answer that names id-token", () => {
+    for (const status of [500, 503, 429]) expect(() => requestIdToken(TOKEN_ENV, "a", fakeCurl(status, "boom").curl)).toThrow(LedgerUnavailable);
+    for (const [status, body] of [[403, "{}"], [404, "{}"], [200, "{}"], [200, "<html>"]] as const) {
+      const thrown = (() => {
+        try {
+          requestIdToken(TOKEN_ENV, "a", fakeCurl(status, body).curl);
+        } catch (error) {
+          return error;
+        }
+      })();
+      expect(thrown).toBeInstanceOf(LedgerBadAnswer);
+      expect((thrown as Error).message).toContain(`HTTP ${status}`);
+      expect((thrown as Error).message).toContain("id-token: write");
+    }
   });
 });
 
@@ -137,11 +151,34 @@ describe("reserve", () => {
     expect(refusalOf(402, JSON.stringify({ reason: "repository_limit", period: "day" }))).toEqual({ reason: "repository_limit", period: "day" });
   });
 
-  test("a failed connection (curl status 7), a 503, a 400 without a reason and an unparsable 200 are LedgerUnavailable", () => {
+  test("a failed connection (curl status 7), a timeout, any 5xx and a 429 are LedgerUnavailable: the only outages", () => {
     expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(0, "", 7).curl)).toThrow(LedgerUnavailable);
-    expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(503, "down").curl)).toThrow(LedgerUnavailable);
-    expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(400, "{}").curl)).toThrow(LedgerUnavailable);
-    expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(200, "<html>").curl)).toThrow(LedgerUnavailable);
+    expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(0, "", 28).curl)).toThrow(LedgerUnavailable);
+    for (const status of [500, 502, 503, 504, 429]) expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(status, "down").curl)).toThrow(LedgerUnavailable);
+  });
+
+  test("anything else unexpected is a bad answer, not an outage: a redirect, a 400 without a reason, 404, 405, a 200 with malformed JSON or without the fields", () => {
+    for (const [status, body] of [[301, ""], [302, "<html>"], [400, "{}"], [404, "Not Found"], [405, ""], [200, "<html>"], [200, "{}"], [200, '{"reservationId":"r"}']] as const) {
+      const thrown = (() => {
+        try {
+          reserve("https://ledger.example", "tok", req, fakeCurl(status, body).curl);
+        } catch (error) {
+          return error;
+        }
+      })();
+      expect(thrown).toBeInstanceOf(LedgerBadAnswer);
+      expect(thrown).not.toBeInstanceOf(LedgerUnavailable);
+      expect((thrown as Error).message).toContain("`ledger_url` does not look like the spend ledger");
+      expect((thrown as Error).message).toContain(`HTTP ${status}`);
+    }
+  });
+
+  test("a grant that is negative or not finite is a malformed answer, never a budget", () => {
+    const granted = (grantedUsd: string) => `{"reservationId":"r","grantedUsd":${grantedUsd},"accountLeftUsd":1,"repositoryLeftUsd":null,"day":"d","week":"w","weekLeftUsd":null}`;
+    for (const value of ["-1", "-0.01", "1e999", "-1e999"]) {
+      expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(200, granted(value)).curl)).toThrow(LedgerBadAnswer);
+    }
+    expect(reserve("https://ledger.example", "tok", req, fakeCurl(200, granted("0")).curl).grantedUsd).toBe(0);
   });
 });
 
@@ -169,8 +206,9 @@ describe("settle", () => {
     expect(JSON.parse(bodyOf(calls[0]!))).toEqual({ reservationId: "r1", spentUsd: 1.25, calls: [CALL] });
   });
 
-  test("a 404 is LedgerUnavailable", () => {
-    expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(404, "{}").curl)).toThrow(LedgerUnavailable);
+  test("a 404 is a bad answer, a 503 an outage", () => {
+    expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(404, "{}").curl)).toThrow(LedgerBadAnswer);
+    expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(503, "{}").curl)).toThrow(LedgerUnavailable);
   });
 });
 
@@ -182,7 +220,8 @@ describe("record", () => {
     expect(JSON.parse(bodyOf(calls[0]!))).toEqual({ spentUsd: 0.5, calls: [CALL], trigger: "opened", pr: 7, reason: "unreserved" });
   });
 
-  test("anything but a 200 throws LedgerUnavailable", () => {
+  test("anything but a 200 throws: a 5xx or a failed connection LedgerUnavailable, a 404 a bad answer", () => {
+    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(404, "").curl)).toThrow(LedgerBadAnswer);
     expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(503, "").curl)).toThrow(LedgerUnavailable);
     expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(0, "", 7).curl)).toThrow(LedgerUnavailable);
   });

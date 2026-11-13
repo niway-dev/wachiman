@@ -81,8 +81,10 @@ class FakeProvider implements ProviderAdapter {
 interface LedgerOpts {
   /** The answer to `/v1/reserve`; default grants what was wanted. */
   reserve?: (wanted: number) => { status: number; body: unknown };
-  /** Make the id-token request fail (GitHub's endpoint answers 403). */
-  noToken?: boolean;
+  /** Make the id-token request fail: `true` is GitHub's endpoint answering 403, a number is that status. */
+  noToken?: boolean | number;
+  /** After the reserve, every `gh` call whose arguments contain this text fails with a 502. */
+  failAfterReserve?: string;
   /** Make every curl call fail at the network level. */
   down?: boolean;
   /** Reserve works, then the ledger goes away: settle fails at the network level. */
@@ -106,7 +108,7 @@ function fakeLedger(events: string[], opts: LedgerOpts = {}) {
     const reply = (status: number, body: unknown) => ({ status: 0, stdout: `${JSON.stringify(body)}\n${status}`, stderr: "" });
     if (url.startsWith("https://tokens.test/")) {
       events.push("token");
-      return opts.noToken ? reply(403, {}) : reply(200, { value: "jwt" });
+      return opts.noToken ? reply(typeof opts.noToken === "number" ? opts.noToken : 403, {}) : reply(200, { value: "jwt" });
     }
     if (url === `${LEDGER}/v1/reserve`) {
       events.push("reserve");
@@ -203,8 +205,13 @@ function setup(opts: Opts = {}) {
   const logs: string[] = [];
   const costs: CallCost[] = [];
   const notes: string[] = [];
+  const failing = opts.ledger?.failAfterReserve;
+  const guarded: GhFn = (args, input) => {
+    if (failing && events.includes("reserve") && args.join(" ").includes(failing)) throw new GhError("gh: Bad Gateway (HTTP 502)", 502, "Bad Gateway");
+    return gh(args, input);
+  };
   const deps: Deps = {
-    gh,
+    gh: guarded,
     provider,
     config: loadConfig({ AGENT_REVIEW_OPERATOR: "owner", ...opts.env }),
     repoDir: dir,
@@ -385,14 +392,16 @@ describe("a limit refuses the run", () => {
       reason: "repository_limit",
       period: "day",
       over: { period: "day" },
-      says: ["own daily budget", "`daily_budget_usd`", "(in 5 h 12 min)"],
+      says: ["own daily limit", "`daily_budget_usd`", "(in 5 h 12 min)"],
+      absent: ["$6.12", "$6.00", "the account has spent", "across its repositories"],
       key: `repository_limit:${DAY}`,
     },
     {
       reason: "repository_limit",
       period: "week",
       over: { period: "week", resetsAt: inHours(24 + 2) },
-      says: ["own weekly budget", "`weekly_budget_usd`", "(in 1 d 2 h)"],
+      says: ["own weekly limit", "`weekly_budget_usd`", "(in 1 d 2 h)"],
+      absent: ["$6.12", "$6.00", "the account has spent", "across its repositories", "today"],
       key: `repository_limit:${WEEK}`,
     },
   ];
@@ -410,6 +419,7 @@ describe("a limit refuses the run", () => {
         expect(t.posted).toHaveLength(1);
         expect(t.posted[0]).toContain("**Spend limit reached.**");
         for (const text of c.says) expect(t.posted[0]).toContain(text);
+        for (const text of c.absent ?? []) expect(t.posted[0]).not.toContain(text);
         expect(t.posted[0]).toContain("/wachiman review --force");
         expect(t.posted[0]).not.toMatch(/hard (maximum|limit|cap)/i);
         expect(readLimitNotice(t.posted[0]!.replace(/\n\n<!-- wachi:attempt id=[0-9a-f-]+ -->$/, ""))).toBe(c.key);
@@ -525,11 +535,17 @@ describe("an unreachable ledger", () => {
     expect(t.notes.join(" ")).toContain("not recorded");
   });
 
-  test("a failing token endpoint of GitHub is an outage, not a configuration error", () => {
-    const t = setup({ env: WITH_LEDGER, ledger: { noToken: true } });
-    review(t.deps, "o/r", 7, []);
-    expect(t.provider.requests).toHaveLength(1);
-    expect(t.posted[0]).toContain(LEDGER_NOT_COUNTED_NOTE);
+  test("GitHub's token endpoint failing with a 5xx or 429 is an outage; a 403 is a configuration error that stops the run", () => {
+    for (const status of [500, 503, 429]) {
+      const t = setup({ env: WITH_LEDGER, ledger: { noToken: status } });
+      review(t.deps, "o/r", 7, []);
+      expect(t.provider.requests).toHaveLength(1);
+      expect(t.posted[0]).toContain(LEDGER_NOT_COUNTED_NOTE);
+    }
+    const refused = setup({ env: WITH_LEDGER, ledger: { noToken: true } });
+    expect(() => review(refused.deps, "o/r", 7, [])).toThrow(/id-token: write/);
+    expect(refused.provider.requests).toHaveLength(0);
+    expect(refused.posted).toHaveLength(0);
   });
 
   test("ledger_unavailable stop: the run ends before any model call and posts nothing", () => {
@@ -715,5 +731,200 @@ describe("threadReplies and answer with the spend ledger", () => {
     threadReplies(down.deps, "o/r", 7, "owner");
     expect(down.replies[0]).toContain(LEDGER_NOT_COUNTED_NOTE);
     expect(readAutoCost(down.replies[0]!)).toBe(0.12);
+  });
+});
+
+describe("a reservation never outlives a step that fails after it", () => {
+  const settledEachReservation = (t: ReturnType<typeof setup>) => expect(t.settles.length).toBe(t.reserves.length);
+
+  test("review: a gh failure while reading the base commit or its instructions leaves no unsettled reservation", () => {
+    for (const failAfterReserve of ["/contents/", "api repos/o/r/pulls/7 "]) {
+      const t = setup({ env: WITH_LEDGER, ledger: { failAfterReserve } });
+      try {
+        review(t.deps, "o/r", 7, []);
+      } catch {
+        // A failing read may fail the run; what matters is that nothing is left reserved.
+      }
+      settledEachReservation(t);
+    }
+  });
+
+  test("review: a gh failure while posting, after the settle, keeps the settlement", () => {
+    const t = setup({ env: WITH_LEDGER, ledger: { failAfterReserve: "-X POST repos/o/r/pulls/7/reviews" } });
+    expect(() => review(t.deps, "o/r", 7, [])).toThrow(/502/);
+    expect(t.reserves).toHaveLength(1);
+    expect(t.settles).toHaveLength(1);
+  });
+
+  test("threadReplies: a gh failure while reading the pull request or writing its files leaves no unsettled reservation", () => {
+    const t = setup({
+      env: { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" },
+      reviewedAt: HEAD,
+      threads: [THREAD],
+      script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })],
+      ledger: { failAfterReserve: "title,body,author" },
+    });
+    try {
+      threadReplies(t.deps, "o/r", 7, "owner");
+    } catch {
+      // See above.
+    }
+    settledEachReservation(t);
+  });
+
+  test("answer: every read happens before the reserve, and a failing post still follows a settle", () => {
+    const t = setup({ env: COMMENT, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })], ledger: { failAfterReserve: "pr comment" } });
+    expect(() => answer(t.deps, "o/r", 7, "why?")).toThrow(/502/);
+    expect(t.reserves).toHaveLength(1);
+    expect(t.settles).toHaveLength(1);
+  });
+});
+
+describe("an answer that is not the ledger's stops the run, whatever ledger_unavailable says", () => {
+  const CASES: [number, unknown][] = [
+    [404, "Not Found"],
+    [405, ""],
+    [400, {}],
+    [301, ""],
+    [200, "<html>"],
+    [200, {}],
+  ];
+  for (const unavailable of ["run", "stop"]) {
+    test(`reserve answered 404, 405, 400, 301 or a malformed 200 stops before any model call (ledger_unavailable: ${unavailable})`, () => {
+      for (const [status, body] of CASES) {
+        const t = setup({
+          env: { ...WITH_LEDGER, AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable },
+          ledger: { reserve: () => ({ status, body }) },
+        });
+        const thrown = thrownBy(() => review(t.deps, "o/r", 7, []));
+        expect(thrown).toBeInstanceOf(LedgerStopped);
+        expect((thrown as Error).message).toContain("`ledger_url` does not look like the spend ledger");
+        expect((thrown as Error).message).toContain(`HTTP ${status}`);
+        expect(t.provider.requests).toHaveLength(0);
+        expect(t.posted).toHaveLength(0);
+        expect(t.notes[0]).toBe((thrown as Error).message);
+      }
+    });
+  }
+
+  test("a 429 and a 5xx are outages: the review runs uncounted", () => {
+    for (const status of [429, 500, 502, 504]) {
+      const t = setup({ env: WITH_LEDGER, ledger: { reserve: () => ({ status, body: "busy" }) } });
+      review(t.deps, "o/r", 7, []);
+      expect(t.provider.requests).toHaveLength(1);
+      expect(t.posted[0]).toContain(LEDGER_NOT_COUNTED_NOTE);
+    }
+  });
+
+  test("a grant that is negative stops the run as a malformed answer", () => {
+    const t = setup({
+      env: WITH_LEDGER,
+      ledger: { reserve: () => ({ status: 200, body: { reservationId: "r", grantedUsd: -1, accountLeftUsd: 1, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null } }) },
+    });
+    expect(() => review(t.deps, "o/r", 7, [])).toThrow(LedgerStopped);
+    expect(t.provider.requests).toHaveLength(0);
+  });
+});
+
+describe("a grant below the minimum a call needs", () => {
+  const small = {
+    reserve: () => ({
+      status: 200,
+      body: { reservationId: "res-1", grantedUsd: 0.01, accountLeftUsd: 0.01, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: 0.01 },
+    }),
+  };
+  const threadEnv = { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "thread" };
+
+  test("threadReplies makes no model call, settles with 0 and says so in the job summary", () => {
+    const t = setup({ env: threadEnv, reviewedAt: HEAD, threads: [THREAD], ledger: small });
+    threadReplies(t.deps, "o/r", 7, "owner");
+    expect(t.provider.requests).toHaveLength(0);
+    expect(t.events).toEqual(["token", "reserve", "token", "settle"]);
+    expect(t.settles[0]).toMatchObject({ reservationId: "res-1", spentUsd: 0, calls: [] });
+    expect(t.replies).toHaveLength(0);
+    expect(t.notes.join(" ")).toContain("$0.01, below the $0.05 a call needs");
+    expect(t.notes.join(" ")).toContain("settled with $0.00");
+  });
+
+  test("an answer makes no model call, settles with 0, tells the asker nothing was spent and says so in the job summary", () => {
+    const operator = setup({ env: COMMENT, ledger: small });
+    answer(operator.deps, "o/r", 7, "why?");
+    expect(operator.provider.requests).toHaveLength(0);
+    expect(operator.settles[0]).toMatchObject({ spentUsd: 0, calls: [] });
+    expect(operator.comments).toHaveLength(1);
+    expect(operator.comments[0]).toContain("Wachiman did not answer: the spend limit leaves too little room");
+    expect(operator.comments[0]).toContain("Nothing was spent.");
+    expect(operator.comments[0]).not.toContain("<sub>");
+    expect(operator.notes.join(" ")).toContain("below the $0.05 a call needs");
+
+    const other = setup({ env: COMMENT, ledger: small });
+    answer(other.deps, "o/r", 7, "why?", { asker: "someone" });
+    expect(other.provider.requests).toHaveLength(0);
+    expect(other.comments[0]).toContain(SIGNATURE.ask);
+    // It is not an answer that cost anything: the question ceiling counts nothing for it.
+    expect(readAutoCost(other.comments[0]!)).toBeNull();
+  });
+
+  test("a grant of exactly the minimum still runs the call", () => {
+    const t = setup({
+      env: COMMENT,
+      script: [() => ({ costUsd: 0.04, structuredOutput: ANSWER })],
+      ledger: { reserve: () => ({ status: 200, body: { reservationId: "res-1", grantedUsd: 0.05, accountLeftUsd: 1, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null } }) },
+    });
+    answer(t.deps, "o/r", 7, "why?");
+    expect(t.provider.requests).toHaveLength(1);
+    expect(t.provider.requests[0]!.maxBudgetUsd).toBeCloseTo(0.05, 10);
+  });
+
+  test("with no ledger there is no minimum to check", () => {
+    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "comment" }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
+    answer(t.deps, "o/r", 7, "why?");
+    expect(t.provider.requests).toHaveLength(1);
+  });
+});
+
+describe("the job summary on a subscription token says its dollars are estimates", () => {
+  const small = {
+    reserve: () => ({
+      status: 200,
+      body: { reservationId: "res-1", grantedUsd: 0.01, accountLeftUsd: 0.01, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: 0.01 },
+    }),
+  };
+
+  test("a settlement that was not delivered", () => {
+    const token = setup({ env: WITH_LEDGER, auth: "oauth-token", ledger: { downAfterReserve: true } });
+    review(token.deps, "o/r", 7, []);
+    expect(token.notes.join(" ")).toContain("settlement was not delivered");
+    expect(token.notes.join(" ")).toContain("Claude subscription: API-equivalent estimate, not a bill");
+    const key = setup({ env: WITH_LEDGER, ledger: { downAfterReserve: true } });
+    review(key.deps, "o/r", 7, []);
+    expect(key.notes.join(" ")).not.toContain("estimate");
+  });
+
+  test("a grant below the minimum", () => {
+    const env = { AGENT_REVIEW_LEDGER_URL: LEDGER, AGENT_REVIEW_TRIGGER: "comment" };
+    const token = setup({ env, auth: "subscription", ledger: small });
+    answer(token.deps, "o/r", 7, "why?");
+    expect(token.notes.join(" ")).toContain("API-equivalent estimate, not a bill");
+    const key = setup({ env, ledger: small });
+    answer(key.deps, "o/r", 7, "why?");
+    expect(key.notes.join(" ")).not.toContain("estimate");
+  });
+});
+
+describe("--force with no ledger", () => {
+  test("is still a word that names no file, logged as ignored, exactly as before the ledger existed", () => {
+    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "comment" } });
+    comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
+    expect(t.logs).toContain("Not paths in this pull request, ignored: --force");
+    expect(t.urls).toEqual([]);
+    expect(t.provider.requests).toHaveLength(1);
+  });
+
+  test("with a ledger it is the operator's flag and no longer a word", () => {
+    const t = setup({ env: COMMENT });
+    comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
+    expect(t.logs.some((l) => l.includes("ignored"))).toBe(false);
+    expect(t.reserves[0]).toMatchObject({ forced: true });
   });
 });

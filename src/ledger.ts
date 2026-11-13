@@ -24,8 +24,16 @@ export interface LedgerEnv {
   ACTIONS_ID_TOKEN_REQUEST_TOKEN?: string;
 }
 
-/** The ledger cannot answer: a network error, a timeout, a 5xx, an unparsable body. */
+/** The ledger cannot answer: a network error, a timeout, a 5xx or a 429. Only these are an outage. */
 export class LedgerUnavailable extends Error {}
+
+/**
+ * Something answered, but not the way the ledger does: a redirect, a 400, 404 or 405, a 200 whose body
+ * is not the documented JSON, a grant that is not a sane amount. That is a wrong `ledger_url` or a
+ * broken service, not an outage, so `ledger_unavailable` does not apply: the run stops. The message is
+ * ready to show.
+ */
+export class LedgerBadAnswer extends Error {}
 
 /**
  * The job cannot ask the ledger at all: it holds no OIDC request token. A configuration error that
@@ -101,6 +109,18 @@ const b64url = (text: string) => Buffer.from(text, "utf8").toString("base64url")
 /** The ledger url as configured, minus any trailing slashes, so `${base}/v1/...` has one slash. */
 const base = (ledgerUrl: string) => ledgerUrl.replace(/\/+$/, "");
 
+/** Whether an HTTP status means "try later": a server error or a rate limit. Anything else unexpected is not an outage. */
+const isOutage = (status: number) => status >= 500 || status === 429;
+
+/** The error for an answer the client cannot use: an outage for 5xx and 429, a wrong-address problem for the rest. */
+function unusable(route: string, status: number, what: string): Error {
+  return isOutage(status)
+    ? new LedgerUnavailable(`The ledger could not ${what} (HTTP ${status}).`)
+    : new LedgerBadAnswer(
+        `\`ledger_url\` does not look like the spend ledger: POST ${route} answered HTTP ${status}, not the documented answer. Check that \`ledger_url\` is the ledger's address.`,
+      );
+}
+
 /** One request. The HTTP status is the last line of the output (`-w "\n%{http_code}"`). */
 function call(curl: CurlFn, args: string[]): { status: number; body: string } {
   const run = curl(["-o", "-", "-w", "\n%{http_code}", ...args]);
@@ -144,7 +164,10 @@ export function requestIdToken(env: LedgerEnv, audience: string, curl: CurlFn): 
   const { status, body } = call(curl, ["-H", `Authorization: Bearer ${bearer}`, `${url}&audience=${encodeURIComponent(audience)}`]);
   const value = parseObject(body)?.value;
   if (status !== 200 || typeof value !== "string" || value === "") {
-    throw new LedgerUnavailable(`GitHub did not issue an id token (HTTP ${status}).`);
+    if (isOutage(status)) throw new LedgerUnavailable(`GitHub did not issue an id token (HTTP ${status}).`);
+    throw new LedgerBadAnswer(
+      `GitHub did not issue an OIDC token for the ledger (HTTP ${status}). Check that the job has \`id-token: write\` and calls review-platform.yml.`,
+    );
   }
   return value;
 }
@@ -183,7 +206,13 @@ export function reserve(ledgerUrl: string, token: string, req: ReserveRequest, c
   }
   const json = parseObject(body);
   if (status !== 200 || !json || typeof json.reservationId !== "string" || typeof json.grantedUsd !== "number") {
-    throw new LedgerUnavailable(`The ledger could not reserve (HTTP ${status}).`);
+    throw unusable("/v1/reserve", status, "reserve");
+  }
+  // A grant that is not a finite, non-negative amount is a malformed answer: never a budget.
+  if (!Number.isFinite(json.grantedUsd) || json.grantedUsd < 0) {
+    throw new LedgerBadAnswer(
+      `\`ledger_url\` does not look like the spend ledger: POST /v1/reserve granted ${String(json.grantedUsd)}, which is not an amount. Check that \`ledger_url\` is the ledger's address.`,
+    );
   }
   return {
     reservationId: json.reservationId,
@@ -208,7 +237,7 @@ export function settle(
   const json = parseObject(body);
   const receipt = json?.receipt;
   if (status !== 200 || !isReceipt(receipt) || typeof json?.signature !== "string") {
-    throw new LedgerUnavailable(`The ledger could not settle (HTTP ${status}).`);
+    throw unusable("/v1/settle", status, "settle");
   }
   return { receipt, signature: json.signature };
 }
@@ -231,7 +260,7 @@ export function record(
     reason: "unreserved",
   };
   const { status } = post(ledgerUrl, "/v1/record", token, payload, curl);
-  if (status !== 200) throw new LedgerUnavailable(`The ledger could not record the run (HTTP ${status}).`);
+  if (status !== 200) throw unusable("/v1/record", status, "record the run");
 }
 
 function isReceipt(value: unknown): value is Receipt {

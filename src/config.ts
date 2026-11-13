@@ -224,9 +224,16 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   }
   const bypass = get("LIMIT_BYPASS")?.trim();
   const ledgerUrl = get("LEDGER_URL")?.trim().replace(/\/+$/, "") || undefined;
-  // `review-platform.yml` grants `id-token: write`, so the request token is in the engine's
-  // environment there; a Codex sandbox could read it from /proc and mint tokens as this job.
-  if (provider !== "claude-code" && env.ACTIONS_ID_TOKEN_REQUEST_TOKEN !== undefined) {
+  // The job's OIDC token is sent to this address: never over cleartext, except to the local machine for tests.
+  if (ledgerUrl !== undefined && !/^https:\/\/\S/i.test(ledgerUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(?=[:/]|$)/i.test(ledgerUrl)) {
+    throw new UsageError(
+      `AGENT_REVIEW_LEDGER_URL must start with https:// (http://localhost and http://127.0.0.1 are allowed for tests), got "${ledgerUrl}".`,
+    );
+  }
+  // With a ledger, `review-platform.yml` grants `id-token: write`, so the request token is in the
+  // engine's environment; a Codex sandbox could read it from /proc and mint tokens as this job.
+  // Without `ledger_url` nothing uses the token and the guard does not apply.
+  if (ledgerUrl !== undefined && provider !== "claude-code" && env.ACTIONS_ID_TOKEN_REQUEST_TOKEN !== undefined) {
     throw new UsageError(
       `AGENT_REVIEW_PROVIDER ${provider} cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of review-platform.yml.`,
     );

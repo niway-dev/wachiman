@@ -483,10 +483,23 @@ limit, how much was spent against it and when it resets, and no model call is ma
 decides whether the job is red (`fail`, exit code 3) or green (`notice`). The operator can still
 start a review with `/wachiman review --force`; the ledger decides whether a forced run is allowed.
 
-**When the ledger cannot be reached**, `ledger_unavailable` decides: `run` (default) reviews under
+**A repository's own limit.** When the refusal is this repository's own daily or weekly limit
+(`daily_budget_usd`, `weekly_budget_usd` or a cap the account sets for the repository), the notice
+says so and when it resets. It shows no spent-against-limit figures, because the ledger reports the
+account's totals with that refusal, not the repository's.
+
+**A grant that is too small.** A thread-reply run or an answer whose grant is below $0.05, the least
+a call needs, makes no model call: it settles with $0, releasing the reservation, and the job summary
+says so. (A review with so little room reports partial coverage, as for any exhausted budget.) A
+grant that is negative or not a number is a malformed answer, which stops the run (below).
+
+**When the ledger cannot be reached** (a network error, a timeout, a 5xx or a 429), `ledger_unavailable` decides: `run` (default) reviews under
 the normal budgets, the footer says the run was not counted against the spend limit, and the engine
 tries to record the run once at the end; the job summary says whether that worked. `stop` ends the
 run with exit code 3 before any model call. Nothing fails because the ledger is down in `run` mode.
+Any other answer that is not the ledger's (a redirect, a 400, 404 or 405, a 200 whose body is not
+the documented JSON) is not an outage: it means `ledger_url` is wrong or the service is broken, so
+the run stops before any model call with exit code 3, whatever `ledger_unavailable` says.
 If the ledger fails only at settle, the review stands and the job summary says the settlement was
 not delivered. See [troubleshooting.md](troubleshooting.md#the-spend-ledger).
 

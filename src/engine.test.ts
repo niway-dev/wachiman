@@ -130,10 +130,10 @@ describe("parseCommand", () => {
     });
   });
 
-  test("--force anywhere after review sets force and is not a path", () => {
-    expect(parseCommand("/wachi review --force")).toEqual({ kind: "review", paths: [], force: true });
-    expect(parseCommand("/wachi review docs/ --force")).toEqual({ kind: "review", paths: ["docs/"], force: true });
-    expect(parseCommand("/wachi review --force docs/")).toEqual({ kind: "review", paths: ["docs/"], force: true });
+  test("--force anywhere after review sets force; parseCommand leaves it among the words, as before the ledger (comment drops it only with a ledger)", () => {
+    expect(parseCommand("/wachi review --force")).toEqual({ kind: "review", paths: ["--force"], force: true });
+    expect(parseCommand("/wachi review docs/ --force")).toEqual({ kind: "review", paths: ["docs/", "--force"], force: true });
+    expect(parseCommand("/wachi review --force docs/")).toEqual({ kind: "review", paths: ["--force", "docs/"], force: true });
   });
 
   test("treats any other mention as a question", () => {
