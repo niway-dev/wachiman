@@ -345,10 +345,14 @@ This part is what makes a ledger "look like" a ledger to the engine. The client 
 | What happened | The client's reading | What the run does |
 | --- | --- | --- |
 | Network error, timeout, 5xx, 429 | The ledger is unreachable | `ledger_unavailable: run` reviews under the normal budgets and tries to record at the end; `stop` exits with code 3 before any model call |
-| 402, or 401/403 with or without the documented body | A refusal; the body's `reason` is used when it is one of `limit`, `weekly_limit`, `repository_limit`, `not_linked`, `unauthorized`, else 402 reads as `limit`, 401 as `unauthorized`, 403 as `not_linked` | The run stops before any model call (exit code 3 with `limit_mode: fail`) |
-| Any other unexpected answer: a redirect, 400, 404, 405, a 200 whose body is not the documented JSON, a grant that is not a finite non-negative number | Not a ledger: `ledger_url` is wrong or the service is broken | The run stops before any model call with exit code 3, whatever `ledger_unavailable` says |
+| Any 4xx whose body's `reason` is one of `limit`, `weekly_limit`, `repository_limit`, `not_linked` or `unauthorized`; or a 402, 401 or 403 with any other body | A refusal. The body's `reason` wins; without one, 402 reads as `limit`, 401 as `unauthorized`, 403 as `not_linked` | The run stops before any model call (exit code 3 with `limit_mode: fail`) |
+| Any other unexpected answer: a redirect, a 4xx that is not a refusal (such as 400, 404 or 405), a 200 whose body is not the documented JSON, a grant that is not a finite non-negative number | Not a ledger: `ledger_url` is wrong or the service is broken | The run stops before any model call with exit code 3, whatever `ledger_unavailable` says |
 | No OIDC request variables in the job | The job cannot ask for a token | Exit code 3 unless `limit_bypass` is set |
 | `ledger_url` that does not start with `https://` (`http://localhost` and `http://127.0.0.1` are allowed for tests) | Usage error | Exit code 2 |
+
+Refusals are read only on reserve. On settle and record the client accepts a 200 and nothing else: a
+5xx or 429 is an outage (the review stands and the summary says the settlement or the record was
+not delivered), and any other status, 404 included, is read as "not a ledger".
 
 Consequences for an implementer: answer a refusal with 402, 401 or 403 and the documented body,
 never with 400 or 404. A request the ledger rejects for a size or range reason (400) is read by the
