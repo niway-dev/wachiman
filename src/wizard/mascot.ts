@@ -64,8 +64,14 @@ export interface MascotScene {
 /** The gap between the face and the text beside it. */
 const GAP = "  ";
 
+/** playIntro prints each row after the muted bar and two spaces. */
+const ROW_PREFIX = 3;
+
+/** The columns a line needs to sit beside the face: the row prefix, the face, the gap, the text. */
+const besideWidth = (message: string) => ROW_PREFIX + FACE_INSIDE + 2 + GAP.length + [...message].length;
+
 /** Narrower than this, the default line goes under the face instead of beside it. */
-export const SIDE_BY_SIDE_COLUMNS = 3 + FACE_INSIDE + 2 + GAP.length + [...DEFAULT_LINE].length;
+export const SIDE_BY_SIDE_COLUMNS = besideWidth(DEFAULT_LINE);
 
 export function mascotScene({ paint, ascii, columns, message }: MascotOptions): MascotScene {
   const edge = (text: string) => paint(text, "muted");
@@ -84,9 +90,8 @@ export function mascotScene({ paint, ascii, columns, message }: MascotOptions): 
   const name = paint(`${NAME}:`, "brand");
   // Beside the eyes only when the whole line fits on one row: the typing goes back to the eyes row
   // and redraws it from its start, which a wrapped line would break (it would also overwrite the
-  // row under it). The 3-column row prefix, the face, the gap, the text.
-  const width = ROW_PREFIX + FACE_INSIDE + 2 + GAP.length + [...message].length;
-  if (width <= columns) {
+  // row under it).
+  if (besideWidth(message) <= columns) {
     const leads: Record<Eyes, string> = {
       open: `${eyes}${GAP}`,
       blink: `${eyesRow(shut, shut)}${GAP}`,
@@ -130,8 +135,6 @@ const HIDE = "\x1b[?25l";
 const SHOW = "\x1b[?25h";
 /** One character every 18 ms: the 37-character default line takes about 0.7 s. */
 export const TYPE_MS = 18;
-/** playIntro prints each row after the muted bar and two spaces. */
-const ROW_PREFIX = 3;
 /** A blink keeps both eyes shut this long. */
 export const BLINK_MS = 140;
 /** After the line is typed, Wachi waits this long, then winks for `WINK_MS`. */

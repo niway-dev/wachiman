@@ -122,6 +122,15 @@ describe("playIntro", () => {
     expect(t.written()).toContain("\x1b[1B\n");
   });
 
+  test("stacked on a narrow terminal: no cursor movement, the line typed under the face", async () => {
+    const ui = fakeUi();
+    const t = term({ columns: 40 });
+    const result = await playIntro({ ui, term: t, env: { TERM: "xterm" }, version: "1.2.3", sleep: async () => {} });
+    expect(result).toBe("played");
+    expect(t.written()).not.toMatch(/\x1b\[\d+[AB]/);
+    expect(stripAnsi(t.written()).replace(/\r/g, "")).toContain(`╰───────╯\n│  ${NAME}: ${DEFAULT_LINE}`);
+  });
+
   test("a key skips the typing and the whole line still appears; Ctrl-C reports interrupted", async () => {
     for (const [key, expected] of [["x", "skipped"], ["\u0003", "interrupted"]] as const) {
       const t = term();
