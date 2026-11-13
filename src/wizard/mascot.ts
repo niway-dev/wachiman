@@ -53,8 +53,9 @@ export interface MascotScene {
   /** The start of the typed line: the eyes row with Wachi's name. Printed without a newline. */
   lead: string;
   /**
-   * `lead` with the eyes closed or winking, for redrawing the typed line in place. Absent on a
-   * narrow terminal, where the eyes are not on the typed line and so cannot be redrawn.
+   * `lead` with the eyes closed or winking, for redrawing the typed line in place. Absent when the
+   * line goes under the face (a narrow terminal, or a line too long to fit beside it): the eyes
+   * are not on the typed line then, so they cannot be redrawn.
    */
   leads?: Record<Eyes, string>;
   /** The text typed after `lead`. */
