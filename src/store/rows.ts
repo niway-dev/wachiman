@@ -7,7 +7,7 @@ import { mergeRanges, weekStart, type Limits, type Range, type SpendCall, type S
 
 export interface IndexedSpend {
   rows: SpendRow[];
-  /** The days the pulls covered, merged over accounts; empty when nothing was ever pulled. */
+  /** The days the pulls covered, of the account pulled last; empty when nothing was ever pulled. */
   actions: Range[];
   limits: Limits | null;
   pulledAt: string | null;
@@ -93,7 +93,7 @@ export function readSpendRows(indexPath: string): IndexedSpend {
     return {
       rows,
       actions: mergeRanges(ranges),
-      // One account is the normal case; with several, the first one's limits are shown.
+      // Only the account pulled last is indexed (listLedgerAccounts), so this holds one row.
       limits: { dailyUsd: pulls[0].daily_limit_usd, weeklyUsd: pulls[0].weekly_limit_usd },
       pulledAt: pulls.map((p) => p.pulled_at).sort().at(-1)!,
     };

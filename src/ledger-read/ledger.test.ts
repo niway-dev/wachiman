@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { UsageError } from "../config";
 import { fixtureHome, removeFixtureHomes } from "../../test/support/dashboard-fixture";
 import { refreshIndex } from "../store/index";
@@ -403,6 +403,8 @@ describe("review fixes", () => {
     await pullLedger(home, {}, undefined, deps(fakeFetch()));
     const before = files(home).sort();
     chmodSync(home, 0o500);
+    // Root ignores directory modes, so the read-only half of this test proves nothing there.
+    if (process.getuid?.() === 0) console.warn("running as root: the read-only home is not enforced");
     try {
       const { out } = status(home, ["--all-repos"]);
       expect(out).toContain("$");
@@ -514,6 +516,13 @@ describe("page polish and the two ledger clients", () => {
     expect(labels.length).toBeGreaterThanOrEqual(4);
     expect(labels.at(-1)).toBe("11-12");
     expect(labels).toContain("11-05");
+  });
+  test("a damaged credentials.json does not block a complete environment override", () => {
+    const home = tempHome();
+    mkdirSync(dirname(credentialsPath(home)), { recursive: true });
+    writeFileSync(credentialsPath(home), "{not json");
+    expect(resolveCredentials(home, { WACHIMAN_LEDGER_URL: URL_, WACHIMAN_LEDGER_TOKEN: TOKEN })).toEqual({ url: URL_, token: TOKEN });
+    expect(() => resolveCredentials(home, { WACHIMAN_LEDGER_TOKEN: TOKEN })).toThrow(/not valid JSON/);
   });
   test("the help and the docs tell the read side from the workflow's ledger client", async () => {
     const { USAGE } = await import("../cli");

@@ -93,7 +93,9 @@ function readFile(home: string): Partial<LedgerCredentials> {
 
 /** The credentials in force (environment over file), or undefined when the ledger is not connected. */
 export function resolveCredentials(home: string, env: Record<string, string | undefined>): LedgerCredentials | undefined {
-  const file = readFile(home);
+  // A complete environment pair wins outright, so a damaged file cannot block it.
+  const complete = !!env.WACHIMAN_LEDGER_URL && !!env.WACHIMAN_LEDGER_TOKEN;
+  const file = complete ? {} : readFile(home);
   const url = env.WACHIMAN_LEDGER_URL || file.url;
   const token = env.WACHIMAN_LEDGER_TOKEN || file.token;
   if (!url || !token) return undefined;
