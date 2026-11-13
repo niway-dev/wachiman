@@ -478,6 +478,10 @@ cancelled by a newer push is killed before it settles, so the reservation it hel
 reserved amount too (up to `budget_usd`, $3 by default). How long the ledger keeps it is the service's rule,
 not this repository's; the run posts no footer, so the amount is in no receipt.
 
+**An outage lifts the limit, on purpose.** With the default `ledger_unavailable: run`, a review that cannot
+reach the ledger goes ahead uncounted, because on a Claude subscription an overshoot costs plan usage, not
+cash; set `ledger_unavailable: stop` to stop those runs instead (below).
+
 **Estimates.** On a Claude subscription token the amounts are API-price estimates, not a bill (see
 below), so a limit in dollars bounds estimated usage, and the notice says so.
 
