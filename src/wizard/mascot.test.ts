@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { PassThrough } from "node:stream";
 import { fakeUi } from "../../test/support/fake-ui";
-import { canAnimate, chipTitle, DEFAULT_LINE, mascotScene, NAME, playIntro, SIDE_BY_SIDE_COLUMNS, TYPE_MS } from "./mascot";
+import { canAnimate, chipTitle, DEFAULT_LINE, FACE_INSIDE, mascotScene, NAME, playIntro, SIDE_BY_SIDE_COLUMNS, TYPE_MS } from "./mascot";
 import { stripAnsi, terminalStyle } from "./style";
 import { plain } from "./tone";
 
@@ -21,17 +21,22 @@ function term(over: { isTTY?: boolean; columns?: number; inputTTY?: boolean } = 
 }
 
 describe("the scene", () => {
-  test("side by side on a wide terminal: the line is on the face row; a narrow one puts it below", () => {
+  test("side by side on a wide terminal: the line is on the eyes row; a narrow one puts it below", () => {
     const wide = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS, message: DEFAULT_LINE });
-    expect(wide.lead).toBe(`│ ◉  ‿  ◉ │   ${NAME}: `);
-    expect(wide.top.at(-1)).toBe("╭─────────╮");
-    expect(wide.bottom).toEqual(["╰─────────╯"]);
+    expect(wide.top).toEqual(["╭───────────╮", "│     W     │"]);
+    expect(wide.lead).toBe(`│ ███   ███ │   ${NAME}: `);
+    expect(wide.bottom).toEqual(["│     ▾     │", "╰───────────╯"]);
     const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
-    expect(narrow.top.at(-3)).toBe("╭─────────╮");
-    expect(narrow.top.at(-2)).toBe("│ ◉  ‿  ◉ │");
-    expect(narrow.top.at(-1)).toBe("╰─────────╯");
+    expect(narrow.top).toEqual(["╭───────────╮", "│     W     │", "│ ███   ███ │", "│     ▾     │", "╰───────────╯"]);
     expect(narrow.lead).toBe(`${NAME}: `);
     expect(narrow.bottom).toEqual([]);
+  });
+
+  test("every row of the face has the same width, so the right border never shifts", () => {
+    for (const ascii of [false, true]) {
+      const s = mascotScene({ paint: plain, ascii, columns: 10, message: "x" });
+      expect(new Set(s.top.map((row) => [...row].length))).toEqual(new Set([FACE_INSIDE + 2]));
+    }
   });
 
   test("TERM=dumb gets ASCII art only", () => {

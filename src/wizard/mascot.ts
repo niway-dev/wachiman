@@ -1,19 +1,19 @@
 /**
  * The intro of the interactive commands: a colored `wachiman` chip with "On watch." and the
- * version, then Wachi, the guard, drawn as a small rounded face under a peaked cap, with a short
- * line typed out next to it.
+ * version, then Wachi, the guard: a wide rounded face with a W badge, bar eyes and a small ▾,
+ * with a short line typed out next to the eyes.
  *
  *    ┌  wachiman  On watch. v1.14.0
  *    │
- *    │     ▄███▄
- *    │   ▄██▀◆▀██▄
- *    │  ▀▀▀▀▀▀▀▀▀▀▀
- *    │  ╭─────────╮
- *    │  │ ◉  ‿  ◉ │   Wachi: Shift started. Let's watch this repo.
- *    │  ╰─────────╯
+ *    │  ╭───────────╮
+ *    │  │     W     │
+ *    │  │ ███   ███ │   Wachi: Shift started. Let's watch this repo.
+ *    │  │     ▾     │
+ *    │  ╰───────────╯
  *
- * The art is original and lives here as data. `mascotScene` and `chipTitle` are pure, so tests read
- * them; `playIntro` does the typing.
+ * Every row of the face is 13 columns wide (11 inside): a new row or variant must keep that sum,
+ * or the right border shifts. The art is original and lives here as data. `mascotScene` and
+ * `chipTitle` are pure, so tests read them; `playIntro` does the typing.
  *
  * Rules the player keeps:
  * - The typing runs only on a real terminal with color, outside CI, and without
@@ -28,8 +28,8 @@ import type { Ui } from "./ui";
 export const NAME = "Wachi";
 export const DEFAULT_LINE = "Shift started. Let's watch this repo.";
 
-/** The face under the cap: eyes, mouth. The pieces are painted separately. */
-const FACE = { left: "◉", mouth: "‿", right: "◉" } as const;
+/** Inside width of the face; every row pads to it. */
+export const FACE_INSIDE = 11;
 
 export interface MascotOptions {
   paint: Paint;
@@ -43,7 +43,7 @@ export interface MascotOptions {
 export interface MascotScene {
   /** Rows printed whole before the line that is typed. */
   top: string[];
-  /** The start of the typed line: the face row with Wachi's name. Printed without a newline. */
+  /** The start of the typed line: the eyes row with Wachi's name. Printed without a newline. */
   lead: string;
   /** The text typed after `lead`. */
   message: string;
@@ -55,31 +55,29 @@ export interface MascotScene {
 export const SIDE_BY_SIDE_COLUMNS = 66;
 
 export function mascotScene({ paint, ascii, columns, message }: MascotOptions): MascotScene {
-  const cap = (text: string) => paint(text, "brand");
   const edge = (text: string) => paint(text, "muted");
-  const badge = ascii ? "*" : "◆";
-  const eyes = ascii ? "o" : FACE.left;
-  const mouth = ascii ? "u" : FACE.mouth;
-  const art = ascii
-    ? {
-        crown: ["   .---.", "  /--*--\\", " ==========="],
-        top: "+---------+",
-        bottom: "+---------+",
-        side: "|",
-      }
-    : {
-        crown: ["   ▄███▄", " ▄██▀◆▀██▄", "▀▀▀▀▀▀▀▀▀▀▀"],
-        top: "╭─────────╮",
-        bottom: "╰─────────╯",
-        side: "│",
-      };
-  const crown = art.crown.map((row) => row.split(badge).map(cap).join(paint(badge, "warning")));
-  const face = `${edge(art.side)} ${paint(eyes, "strong")}  ${paint(mouth, "brand")}  ${paint(ascii ? "o" : FACE.right, "strong")} ${edge(art.side)}`;
-  const box = [...crown, edge(art.top)];
+  const g = ascii
+    ? { tl: "+", tr: "+", bl: "+", br: "+", h: "-", v: "|", eye: "###", mark: "v" }
+    : { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│", eye: "███", mark: "▾" };
+  const border = (l: string, r: string) => edge(`${l}${g.h.repeat(FACE_INSIDE)}${r}`);
+  const center = (text: string) => {
+    const pad = (FACE_INSIDE - text.length) / 2;
+    return [" ".repeat(Math.floor(pad)), " ".repeat(Math.ceil(pad))] as const;
+  };
+  const centered = (text: string, tone: Parameters<Paint>[1]) => {
+    const [l, r] = center(text);
+    return `${edge(g.v)}${l}${paint(text, tone)}${r}${edge(g.v)}`;
+  };
+  const badge = centered("W", "warning");
+  const eye = paint(g.eye, "strong");
+  const eyes = `${edge(g.v)} ${eye}   ${eye} ${edge(g.v)}`;
+  const mark = centered(g.mark, "warning");
   const name = `${paint(`${NAME}:`, "brand")} `;
-  if (columns >= SIDE_BY_SIDE_COLUMNS) return { top: box, lead: `${face}   ${name}`, message, bottom: [edge(art.bottom)] };
+  const top = [border(g.tl, g.tr), badge];
+  const bottom = [mark, border(g.bl, g.br)];
+  if (columns >= SIDE_BY_SIDE_COLUMNS) return { top, lead: `${eyes}   ${name}`, message, bottom };
   // A narrow terminal: the whole face first, then the line on its own row.
-  return { top: [...box, face, edge(art.bottom)], lead: name, message, bottom: [] };
+  return { top: [...top, eyes, ...bottom], lead: name, message, bottom: [] };
 }
 
 /** The first line of the session: the chip, "On watch." and the version. */
