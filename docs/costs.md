@@ -457,7 +457,9 @@ dedicated to Wachiman makes its spend easy to read and the key easy to revoke.
 
 A repository may enroll in a spend ledger: a service that keeps one daily and one weekly limit for an
 account across all its repositories ([install.md](install.md#optional-enroll-in-a-spend-ledger)). It
-is off unless `ledger_url` is set; then nothing below applies and nothing changes.
+is off unless `ledger_url` is set; then nothing below applies and nothing changes. What the engine
+sends the ledger, and what the ledger stores per run and per model call, is written in
+[ledger-api.md](ledger-api.md).
 
 With a ledger, each run asks before its first model call and tells the ledger what it spent after
 its last:

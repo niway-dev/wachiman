@@ -335,7 +335,9 @@ posted and the job is red. Narrow the question, or raise `answer_budget_usd`.
 
 ## The spend ledger
 
-These apply only when `ledger_url` is set ([costs.md](costs.md#the-spend-limit)).
+These apply only when `ledger_url` is set ([costs.md](costs.md#the-spend-limit)). If you run the
+ledger yourself, [ledger-api.md](ledger-api.md) says which answer the engine reads as a refusal, as an
+outage and as "not a ledger".
 
 ### `Spend limit reached`
 
