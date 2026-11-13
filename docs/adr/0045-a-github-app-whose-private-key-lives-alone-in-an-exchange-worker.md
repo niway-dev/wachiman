@@ -33,7 +33,8 @@ owner's words of that day are recorded under "Decided" in
 [#206](https://github.com/niway-dev/wachiman/issues/206).
 
 The owner also decided where the backend's code lives: this repository is public, and the
-backend is in a private repository "para que no sea publico y vulnerable". ADR 0024 put the
+backend is in a private repository "para que no sea publico y vulnerable". The reason is the
+exposed surface of backend code, not the key. ADR 0024 put the
 exchange in the ledger Worker, whose source is public here, and its guarantee to consumers rested
 on that ("the Worker's public code never calls GitHub with the minted token"). Both cannot hold.
 
@@ -54,11 +55,12 @@ on that ("the Worker's public code never calls GitHub with the minted token"). B
 4. **The exchange is the one specified in pull request #135, section 3,** with the eight
    amendments in the spec: its own Worker, its own OIDC audience, `review-platform.yml` in
    `job_workflow_ref`, `pull_request_review_comment` admitted, the installation looked up at
-   GitHub instead of in a table, `pull_requests: write` only, an allow list of repository owners,
+   GitHub instead of in a table, `pull_requests: write` only, a request limit per repository owner,
    and the call moved to the moment of posting.
-5. **The App is public and the exchange is closed.** Any account can install the App. The
-   exchange mints tokens only for repository owners on its allow list until the owner invites
-   outside users.
+5. **The App is public and so is the exchange.** Any account can install the App, and the
+   exchange serves every repository where it is installed. Installing is the consent and the
+   only admission step: no list, no invitation. A request limit per repository owner contains
+   abuse.
 6. **Identity never blocks a review.** On any exchange failure the run posts as
    `github-actions[bot]`. How the engine then recognises its own output is
    [ADR 0046](0046-own-output-is-recognised-by-bot-account-id-never-by-text-in-the-body.md).
@@ -90,11 +92,14 @@ on that ("the Worker's public code never calls GitHub with the minted token"). B
 - **The exchange inside the platform Worker,** beside the webhook, the accounts and the panel.
   One private Worker fewer. Rejected: that Worker has sessions, pages and the largest code
   surface, and a fault in any of it would run where the key is.
-- **Public source for the exchange,** so a consumer can read the code that holds the key. This is
-  the stronger position on trust and the owner's decision goes the other way. Private source does
-  not protect the key; what protects it is decision 3. Public source would let ADR 0024's
-  guarantee be checked, though a reader still could not prove the deployed Worker matches it. See
-  "Reopen when".
+- **Public source for the backend, the exchange included.** A consumer could read the code that
+  holds the key, and ADR 0024's guarantee could be checked, though a reader still could not prove
+  that the deployed Worker matches the source. Rejected by the owner: public backend code is a
+  larger target for one person to defend, and nothing needs it public while the owner is the
+  only user. What a self-hoster deploys, the ledger, stays public. See "Reopen when".
+- **An allow list of repository owners until the owner invites outside users.** It keeps a
+  stranger's pull requests out of the key's reach until the service is watched. Rejected by the
+  owner on 2026-11-12: the least friction, for anyone who installs.
 - **`issues: write` as well** (ADR 0024 decision 3). Not needed by any call the engine makes.
 - **Pin `job_workflow_ref` to an allow list of commits.** Stronger than a tag pattern. Rejected
   for now: a moved tag already runs code in the consumer's job with an equal token, and the list
@@ -108,6 +113,8 @@ on that ("the Worker's public code never calls GitHub with the minted token"). B
   pull request patches and write to pull requests on every installation, without the exchange's
   limits, until the key is deleted; tokens already minted live up to one hour more. One person
   operates the service and there is no on-call.
+- There is no invitation step: from the first outside installation the key can reach that
+  account's pull requests.
 - A consumer's pull request can show two authors after an exchange failure.
 - Comments posted as the App start workflow runs; comments posted with `GITHUB_TOKEN` did not.
   The caller's own jobs skip bot authors. A consumer's other automation that reacts to comments
@@ -130,9 +137,9 @@ on that ("the Worker's public code never calls GitHub with the minted token"). B
 
 ## Reopen when
 
-- **The owner invites the first outside user.** Before the allow list opens, decide again: an
-  admission rule tied to platform accounts, a separate posting job so the model's job has no
-  `id-token`, a non-exportable key, and whether the exchange's source becomes public.
+- **An account other than the owner's installs the App.** Decide again, that week: a separate
+  posting job so the model's job has no `id-token`, a non-exportable key, an alert on unusual
+  token requests, and whether the exchange's source becomes public.
 - A consumer asks to read the code that holds the key: publish the exchange Worker's source. It
   contains no secret.
 - The exchange fails on more than 5% of platform runs in a month: the fallback is hiding an

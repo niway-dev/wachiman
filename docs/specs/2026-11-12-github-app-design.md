@@ -33,14 +33,15 @@ can carry both authors; the engine recognises its own output by the author's bot
 | --- | --- | --- | --- |
 | 1 | Build the App now: comment identity, installation linking, sign-in. This overrides "No GitHub App for now" (PR #38), ADR 0005 decision 5 and ADR 0010's rejected alternative | Their reopen condition (someone other than the owner installs) is still not met. Their premises changed: the hosted platform now pays for the backend and for `id-token: write`, two of the four costs PR #38 weighed | 0045 (new) |
 | 2 | Permissions: `metadata: read` and `pull_requests: write`. No `issues`, no `contents`. No event is ticked at registration | Every write the engine makes already succeeds under `pull-requests: write` alone (`.github/workflows/review.yml`). One permission less is one thing less a stolen key can do | 0045 |
-| 3 | The exchange is a dedicated Worker with one route, `POST /v1/app/token`, one secret (the private key) and no database. Source in the private backend repository | The owner's decision of 2026-11-12 keeps the backend private. A Worker with one route keeps the key away from the ledger's public code, the panel, the webhook and their deploy credentials | 0045 |
+| 3 | The exchange is a dedicated Worker with one route, `POST /v1/app/token`, one secret (the private key) and no database. Source in the private backend repository | The backend's source is private by the owner's decision of 2026-11-12: public backend code is a larger target, and nothing needs it public today. A Worker with one route keeps the key away from the ledger's public code, the panel, the webhook and their deploy credentials | 0045 |
 | 4 | The exchange text of #135 section 3 stands, with eight amendments (section 2) | The owner's instruction. Each amendment follows from decision 2, 3 or 5, or answers a failure listed below | 0045 |
-| 5 | The App is public (any account can install it); the exchange admits only repository owners on an allow list until outside users are invited | The owner's repositories are in a personal account and an organisation, and a private App installs on one account only. The list keeps a stranger's installation from getting tokens before the service is ready for them | 0045 |
+| 5 | The App is public (any account can install it) and the exchange serves every repository where it is installed. Installing is the only admission step; a request limit per owner replaces any list or invitation | The owner wants the identity on their own pull requests and for anyone who installs, with the least friction (2026-11-12). Installing the App is the consent | 0045 |
 | 6 | Identity is cosmetic: any exchange failure posts as `github-actions[bot]` and the review still lands | Kept from ADR 0024 decision 5: a name on a comment is not worth a lost review | 0045 |
 | 7 | The engine recognises its own reviews and comments by bot account id and author type, in one function. Text in the body never grants trust | Two authors can post on one pull request. An id is the same in REST and GraphQL and survives renaming the App | 0046 (new) |
 | 8 | The App token is used only to create reviews, replies and comments. Reading, editing and resolving stay on the workflow's `GITHUB_TOKEN` | The smallest change to the engine, and the calls whose author nobody sees do not need the App | 0046 |
 | 9 | Installation webhooks and sign-in live in the platform Worker, with the webhook secret and the OAuth client secret. They never hold the private key | Neither needs it: a webhook is verified with its own secret and sign-in with the client secret | 0045 |
 | 10 | Pull requests #135 and #38 close unmerged when this design merges | Their App content is here; #135's other parts already shipped differently or belong to #205 (section 7) | — |
+| 11 | A platform account is created by itself on the first run or the first installation, keyed by GitHub's id of the owning account, and is claimed later by signing in | No sign-up, no link code, no invitation. GitHub already issues a stable id, so nothing is generated | — (proposed to #205, section 1.1) |
 
 ## Open questions
 
@@ -56,19 +57,23 @@ Each has the default that will be built if the owner does not answer.
    updating or deleting `v*`. Reason: someone who can move a tag already runs code in every
    consumer's job with that job's own `pull-requests: write` token, so the App token adds no
    reach. An allow list of commits would need a Worker deploy on every release.
-3. **When the accounts table exists, what replaces the allow list of decision 5?** Default: the
-   exchange asks the platform through a Service Binding whether the repository is enrolled. Owned
-   by #205.
-4. **Does the installation go to the right platform account?** Default: registration turns on
-   "Request user authorization (OAuth) during installation", so the person installing is signed in
-   during the same flow and the installation is linked to their account. Owned by #205 and
-   [#207](https://github.com/niway-dev/wachiman/issues/207).
+3. **The request limit of decision 5.** Default: 60 token requests per repository owner per
+   hour; above it the exchange answers 429 and the run posts as `github-actions[bot]`.
+   Unverified: that Cloudflare's rate limiting for Workers can count by a value read from the
+   verified token without a database.
+4. **Who may change an organisation account's limits?** Section 1.1 lets a signed-in person
+   claim an organisation's account when their token lists the App's installation there. That is
+   true for members with access to an installed repository, not only for owners. Default: the
+   person who installed the App administers the account; other members only read it. Owned by
+   #205 and [#207](https://github.com/niway-dev/wachiman/issues/207).
 5. **The exchange Worker's host name.** Default: its own host under the platform's domain, chosen
    in #205. The OIDC audience is that origin.
 
 ## Out of scope
 
 - A hosted reviewer, a Marketplace listing, Check Runs, autofix, any `contents` permission.
+- Installing the App as the only step. A repository still needs the caller workflow and its
+  model credential, because the review runs in its own Actions; `wachiman init` writes both.
 - The platform itself: accounts, limits, the panel, where the webhook writes (issue #205).
 - The sign-in flow and the CLI login command (issue #207). This design only fixes which App they
   use and which secrets they need.
@@ -88,6 +93,7 @@ Each has the default that will be built if the owner does not answer.
 - **A workflow in repository X gets a token for repository Y.**
 - **Another workflow in an installed repository posts as Wachiman.**
 - **A stranger installs the public App and floods the exchange.**
+- **Someone claims a platform account that is not theirs,** or reads an unclaimed one.
 - **A token meant for the ledger is replayed at the exchange,** or the reverse.
 - **A prompt-injected model in the job obtains the App token** and posts comments that start
   other workflows of the repository. Comments posted with `GITHUB_TOKEN` start none; comments
@@ -113,8 +119,8 @@ Each has the default that will be built if the owner does not answer.
 - [ ] The same test with a human comment and a third bot's comment that copy every marker and
       footer: neither is counted.
 - [ ] `POST /v1/app/token` answers 403 for each of: a `job_workflow_ref` other than
-      `review-platform.yml` at a `v*` tag, `event_name` `pull_request_target`, an owner outside the
-      allow list, a repository without the installation, a token with the ledger's audience.
+      `review-platform.yml` at a `v*` tag, `event_name` `pull_request_target`, a repository without
+      the installation, a token with the ledger's audience; and 429 above the owner's limit.
 - [ ] A 200 answer's token, sent to `GET /installation/repositories`, lists one repository, and
       its `permissions` are `metadata: read` and `pull_requests: write`.
 - [ ] With the exchange URL unreachable, a review lands as `github-actions[bot]` and the job log
@@ -142,6 +148,38 @@ the exchange is stateless.
 
 "Public" means one thing: any GitHub account or organisation can install the App. It says nothing
 about source code. The App's code is private; the engine and the ledger stay public.
+
+A repository can run in three ways, and all three stay:
+
+| Way | Caller uses | Spend recorded and checked | Author of the review |
+| --- | --- | --- | --- |
+| Direct | `review.yml` at a tag | no | `github-actions[bot]` |
+| Platform | `review-platform.yml` at a tag | yes, before the model runs | `github-actions[bot]` |
+| Platform with the App installed | `review-platform.yml` at a tag | yes | the App |
+
+Recording spend and checking whether a run may spend need the platform workflow and the run's
+OIDC token. They need nothing from the App.
+
+### 1.1 Accounts without sign-up (proposed to #205)
+
+The owner asked on 2026-11-12 for the least friction, and whether an account could have a
+generated id until someone claims it. Nothing has to be generated: GitHub gives every user and
+organisation a numeric id, and it reaches the platform twice, as `repository_owner_id` in a
+run's OIDC token and as `installation.account.id` in the installation event.
+
+- **Created by itself.** The first platform run of a repository, or the first installation,
+  creates the account for that owner id with the default limits. Spend is recorded and checked
+  from that first run. Nobody signed up.
+- **Unclaimed.** Until someone claims it, no person can read it or change its limits.
+- **Claimed by signing in.** A personal account is claimed when the signed-in user's id equals
+  the owner id. An organisation's account is claimed when the signed-in user's token lists the
+  App's installation on that organisation (`GET /user/installations`), so claiming an
+  organisation needs the App installed there. With "Request user authorization (OAuth) during
+  installation" on, whoever installs is signed in by the same flow and the account is claimed
+  with no further step.
+- **Cleaned up.** An unclaimed account with no run for 30 days is deleted.
+
+This is the App's side of the account model. The table, the limits and the panel are #205's.
 
 ## 2. The token exchange, carried from pull request #135
 
@@ -190,7 +228,7 @@ The text below is section 3 of `docs/specs/2026-11-07-three-modes-design.md` on 
 | A4 | `event_name` is `pull_request` or `issue_comment` | Also `pull_request_review_comment` | The threads job answers on that event; without it every reply would fall back |
 | A5 | Step 4 reads an `installations` table | Step 4 calls `GET /repos/{owner}/{repo}/installation` with the App JWT, using the `repository` claim; 404 gives 403 `not_installed` | No database in the Worker that holds the key. One more GitHub call per run |
 | A6 | The token carries `pull_requests` and `issues` write | `pull_requests: write` only | Decision 2 |
-| A7 | No admission rule | Before step 4: `repository_owner_id` must be in the Worker variable `ALLOWED_OWNER_IDS`, else 403 `not_admitted` | Decision 5 |
+| A7 | No limit on requests | The installation found in step 4 is the admission. Requests are counted per `repository_owner_id`; above the limit the answer is 429 `rate_limited`, which the engine treats as any other failure | Decision 5 |
 | A8 | The engine calls the exchange once, before `reserve` | The engine calls it when it is about to post, after the last model call of the run. The token stays in the engine's memory and is handed to each posting call; it is never written to the job environment or to disk | The model's child process and the App token should not exist at the same time. It also keeps the hour from running out |
 
 The hidden footer still records which author posted and why a fallback happened. It is for
@@ -277,7 +315,8 @@ Done once, by the owner, in the browser and a terminal. Nothing here can be done
    reviews run in your own Actions and the App only names them.
 3. **Callback URL:** leave empty now; issue #207 adds the panel's callback when sign-in ships.
    **Expire user authorization tokens:** on. **Request user authorization (OAuth) during
-   installation:** off now, on when sign-in ships (open question 4). **Enable Device Flow:** on.
+   installation:** off now, on when sign-in ships, so that installing also claims the account
+   (section 1.1). **Enable Device Flow:** on.
 4. **Webhook → Active:** off now. It is turned on with the platform's URL
    (`POST /v1/app/webhook`) and a secret when installation linking ships (step 9).
 5. **Permissions → Repository → Pull requests:** Read and write. Leave everything else at No
@@ -312,7 +351,6 @@ Where each value goes:
 | --- | --- | --- |
 | App private key (PKCS#8) | yes | exchange Worker secret `APP_PRIVATE_KEY`. Nowhere else: not git, not a laptop, not another Worker, not Actions secrets |
 | App ID | no | exchange Worker variable `APP_ID` |
-| Allowed owner ids | no | exchange Worker variable `ALLOWED_OWNER_IDS` (the organisation's and the personal account's numeric ids) |
 | Webhook secret | yes | platform Worker secret, when linking ships |
 | Client secret | yes | platform Worker secret, when web sign-in ships. Generated then, not before |
 | Client ID | no | platform Worker variable, and a constant in the CLI for the device flow |
@@ -399,3 +437,9 @@ Not verified, each with where it is settled:
 - The OIDC token is not issued to pull requests from forks. Wachiman does not review them (ADR
   0001), so nothing depends on it.
 - `GET /repos/{owner}/{repo}/installation` needs nothing beyond the App JWT (first run of S3).
+- `GET /user/installations` lists an organisation's installation for a member who can reach an
+  installed repository, not only for its owners. Read on the REST page, not probed
+  ([list app installations accessible to the user access token](https://docs.github.com/en/rest/apps/installations#list-app-installations-accessible-to-the-user-access-token));
+  settled in S4, and it is why open question 4 exists.
+- A Worker can count requests per repository owner without a database (open question 3;
+  settled in S3).
