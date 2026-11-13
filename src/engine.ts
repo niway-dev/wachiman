@@ -2602,7 +2602,7 @@ export function spendReserve(deps: Deps, repo: string, pr: number, headSha: stri
     }
     if (error instanceof LedgerNotPermitted) {
       const message =
-        "`ledger_url` is set, but this job cannot request an OIDC token, so nothing was reviewed. Call `.github/workflows/review-platform.yml` instead of `review.yml`, and grant `id-token: write` in the caller's job (docs/install.md).";
+        "`ledger_url` is set, but this job cannot request an OIDC token, so nothing was reviewed. Call `.github/workflows/wachiman-platform.yml` instead of `review.yml`, and grant `id-token: write` in the caller's job (docs/install.md).";
       ledgerNote(deps, message);
       throw new LedgerStopped(message);
     }

@@ -58,7 +58,7 @@ describe("loadConfig", () => {
 
   test("a provider other than claude-code is refused when a ledger url is set and an OIDC request token is present", () => {
     const message =
-      "AGENT_REVIEW_PROVIDER codex cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of review-platform.yml.";
+      "AGENT_REVIEW_PROVIDER codex cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of wachiman-platform.yml.";
     const token = { ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer" };
     const ledger = { AGENT_REVIEW_LEDGER_URL: "https://ledger.example" };
     expect(() => load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(message);

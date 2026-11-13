@@ -67,7 +67,7 @@ engine through the environment variable in the third column; those variables are
 | `threads_budget_usd` | number | `AGENT_REVIEW_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in v1.5.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
 | `batch_budget_usd` | number | `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
 | `answer_budget_usd` | number | `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | The cap given to the one call that answers a question. Separate from `budget_usd`. |
-| `ledger_url` | string | `AGENT_REVIEW_LEDGER_URL` | empty | Base URL of a spend ledger that keeps a daily and a weekly limit across repositories ([costs.md](costs.md#the-spend-limit)). Empty: no ledger call of any kind, no token request, nothing changes. Must start with `https://` (a usage error otherwise; `http://localhost` and `http://127.0.0.1` are allowed for tests), because the job's OIDC token is sent to it. Trailing slashes are dropped, and the token's audience is the result: it must equal the service's `LEDGER_AUDIENCE` exactly. Set it only when calling `review-platform.yml` with `id-token: write` ([install.md](install.md#optional-enroll-in-a-spend-ledger)); from `review.yml` the run stops and says so. |
+| `ledger_url` | string | `AGENT_REVIEW_LEDGER_URL` | empty | Base URL of a spend ledger that keeps a daily and a weekly limit across repositories ([costs.md](costs.md#the-spend-limit)). Empty: no ledger call of any kind, no token request, nothing changes. Must start with `https://` (a usage error otherwise; `http://localhost` and `http://127.0.0.1` are allowed for tests), because the job's OIDC token is sent to it. Trailing slashes are dropped, and the token's audience is the result: it must equal the service's `LEDGER_AUDIENCE` exactly. Set it only when calling `wachiman-platform.yml` with `id-token: write` ([install.md](install.md#optional-enroll-in-a-spend-ledger)); from `review.yml` the run stops and says so. |
 | `daily_budget_usd` | number | `AGENT_REVIEW_DAILY_BUDGET_USD` | `0` | A stricter daily number for this repository, in USD, sent to the ledger with each run. It never raises the account's own limit. In the workflow, `0` means unset; the environment variable must be unset or positive (the engine rejects `0`, exit 2). Used only with `ledger_url`. |
 | `weekly_budget_usd` | number | `AGENT_REVIEW_WEEKLY_BUDGET_USD` | `0` | The same, per week (weeks start on Monday, UTC). In the workflow, `0` means unset; the environment variable must be unset or positive. Used only with `ledger_url`. |
 | `limit_mode` | string | `AGENT_REVIEW_LIMIT_MODE` | `fail` | What a limit refusal does to the job, after the comment says which limit was reached: `fail` ends the job red with exit code 3, `notice` keeps it green. Not-linked, rejected-identity and missing-permission stops always exit 3. Used only with `ledger_url`. |
@@ -133,11 +133,11 @@ to run the job.
 | `threads` (thread replies) | read | write | not requested |
 | `on-demand` | read | write | read |
 
-`review-platform.yml` is the same workflow with one more permission: each of its jobs also holds
+`wachiman-platform.yml` is the same workflow with one more permission: each of its jobs also holds
 `id-token: write`, which the engine uses to ask the spend ledger for a GitHub OIDC token. A caller
 that uses it must grant `id-token: write` in its own job as well, because a called workflow cannot
 hold a permission its caller did not grant. Callers of `review.yml` need nothing new. The file is
-generated from `review.yml` by `scripts/generate-review-platform.ts`, and a test fails when the two
+generated from `review.yml` by `scripts/generate-wachiman-platform.ts`, and a test fails when the two
 differ. See [install.md](install.md#optional-enroll-in-a-spend-ledger).
 
 ### When each job runs

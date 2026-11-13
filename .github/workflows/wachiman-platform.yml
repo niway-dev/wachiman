@@ -1,7 +1,7 @@
 name: Wachiman review with the spend ledger (reusable)
 
-# GENERATED from .github/workflows/review.yml by scripts/generate-review-platform.ts. Do not edit it:
-# change review.yml and run `bun scripts/generate-review-platform.ts`; a test fails when this file is
+# GENERATED from .github/workflows/review.yml by scripts/generate-wachiman-platform.ts. Do not edit it:
+# change review.yml and run `bun scripts/generate-wachiman-platform.ts`; a test fails when this file is
 # not what the script writes.
 #
 # It is the same review as review.yml, except that each job also grants `id-token: write`. The engine
@@ -187,7 +187,7 @@ on:
         description: >-
           Base URL of the spend ledger that keeps a daily and a weekly limit across repositories
           (docs/costs.md). Empty, the default: no ledger call of any kind and nothing changes.
-          Set, the job needs an OIDC token, which only `review-platform.yml` can get (it grants
+          Set, the job needs an OIDC token, which only `wachiman-platform.yml` can get (it grants
           `id-token: write`); here the run stops and says so
         type: string
         default: ""

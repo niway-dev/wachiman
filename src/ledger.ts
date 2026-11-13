@@ -155,7 +155,7 @@ const post = (ledgerUrl: string, route: string, token: string, payload: unknown,
 
 /**
  * A GitHub OIDC token for `audience`. Needs `id-token: write` in the job, which only
- * `review-platform.yml` grants; without the request variables there is nothing to retry.
+ * `wachiman-platform.yml` grants; without the request variables there is nothing to retry.
  */
 export function requestIdToken(env: LedgerEnv, audience: string, curl: CurlFn): string {
   const url = env.ACTIONS_ID_TOKEN_REQUEST_URL;
@@ -166,7 +166,7 @@ export function requestIdToken(env: LedgerEnv, audience: string, curl: CurlFn): 
   if (status !== 200 || typeof value !== "string" || value === "") {
     if (isOutage(status)) throw new LedgerUnavailable(`GitHub did not issue an id token (HTTP ${status}).`);
     throw new LedgerBadAnswer(
-      `GitHub did not issue an OIDC token for the ledger (HTTP ${status}). Check that the job has \`id-token: write\` and calls review-platform.yml.`,
+      `GitHub did not issue an OIDC token for the ledger (HTTP ${status}). Check that the job has \`id-token: write\` and calls wachiman-platform.yml.`,
     );
   }
   return value;
