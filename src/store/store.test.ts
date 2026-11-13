@@ -334,6 +334,7 @@ describe("the local index", () => {
 });
 
 describe("nothing existing depends on the index", () => {
+  // ADR 0039: `status` reads the downloaded day files directly; no existing command reads the index.
   test("only the store and the command table import the store module", () => {
     const offenders: string[] = [];
     const walk = (dir: string) => {

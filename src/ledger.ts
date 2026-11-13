@@ -20,6 +20,7 @@ export const defaultCurl: CurlFn = (args) => {
 };
 
 export interface LedgerEnv {
+  GITHUB_ACTIONS?: string;
   ACTIONS_ID_TOKEN_REQUEST_URL?: string;
   ACTIONS_ID_TOKEN_REQUEST_TOKEN?: string;
 }
