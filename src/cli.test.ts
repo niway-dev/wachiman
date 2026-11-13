@@ -209,7 +209,7 @@ describe("exit code 3: the spend ledger stopped the run", () => {
     }
   });
 
-  test("a laptop with the URL set (no GITHUB_ACTIONS, no OIDC variables) reaches the model and is not stopped by the ledger (the fake claude returns no review, so the exit is not 0)", () => {
+  test("a laptop with the URL set (no GITHUB_ACTIONS, no OIDC variables) reaches the model and is not stopped by the ledger (exit is not 3; the fake claude returns no review)", () => {
     const w = world();
     try {
       const laptop = run(["review", "1"], w.env({ GITHUB_ACTIONS: "", ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", LEDGER_STATUS: "402", LEDGER_BODY: LIMIT }));
