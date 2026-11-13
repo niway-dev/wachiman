@@ -25,6 +25,7 @@ import {
   LEDGER_NOT_COUNTED_NOTE,
 } from "./engine";
 import type { CallCost } from "./cost";
+import { readCurlConfig } from "./fixtures/curl-config";
 import { readReceipt, type CurlFn } from "./ledger";
 import type { ProviderAdapter, ProviderAuth, ProviderRequest, ProviderResult } from "./providers/types";
 
@@ -100,11 +101,14 @@ function fakeLedger(events: string[], opts: LedgerOpts = {}) {
   const records: Record<string, unknown>[] = [];
   const urls: string[] = [];
   let reserved = false;
-  const curl: CurlFn = (args) => {
+  const curl: CurlFn = (args, stdin) => {
     urls.push(args[args.length - 1]!);
     if (opts.down) return { status: 7, stdout: "", stderr: "could not connect" };
     const url = args[args.length - 1]!;
-    const data = args.includes("--data") ? (JSON.parse(args[args.indexOf("--data") + 1]!) as Record<string, unknown>) : undefined;
+    // The engine keeps every secret and payload out of argv: a call that carries one there is a defect.
+    expect(args.join("\n")).not.toMatch(/Bearer|wantedUsd|reservationId|spentUsd/);
+    const sent = readCurlConfig(stdin).data;
+    const data = sent === undefined ? undefined : (JSON.parse(sent) as Record<string, unknown>);
     const reply = (status: number, body: unknown) => ({ status: 0, stdout: `${JSON.stringify(body)}\n${status}`, stderr: "" });
     if (url.startsWith("https://tokens.test/")) {
       events.push("token");
@@ -559,9 +563,9 @@ describe("an unreachable ledger", () => {
     const t = setup({ env: WITH_LEDGER });
     const real = t.deps.curl!;
     let reserves = 0;
-    t.deps.curl = (args) => {
+    t.deps.curl = (args, stdin) => {
       if (args[args.length - 1]!.endsWith("/v1/reserve") && reserves++ === 0) return { status: 28, stdout: "", stderr: "timed out" };
-      return real(args);
+      return real(args, stdin);
     };
     review(t.deps, "o/r", 7, []);
     expect(t.events.filter((e) => e === "record")).toHaveLength(1);
