@@ -54,7 +54,7 @@ has.
 
 ## Consequences
 
-These are breaking changes, marked as breaking (`refactor!`):
+The tool has one user, so this ships in a minor release, not a major one. What stops working:
 
 - **Environment variables.** Any caller, `.env` file or shell profile that sets `AGENT_REVIEW_*`
   must set the `WACHIMAN_*` name instead. An unchanged old name is ignored without a message, and
