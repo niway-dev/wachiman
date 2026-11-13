@@ -251,8 +251,8 @@ describe("wachiman dashboard (HTML)", () => {
   test("is listed in the help and takes --repo-dir without using it", () => {
     const { home } = fixtureHome();
     const help = wachiman(["--help"], home);
-    expect(help.stdout).toContain("wachiman dashboard [--json] [--out <file>] [--repo-dir <dir>]");
-    expect(wachiman(["dashboard", "--help"], home).stdout).toBe("wachiman dashboard [--json] [--out <file>] [--repo-dir <dir>]\n");
+    expect(help.stdout).toMatch(/^ {2}dashboard {3}/m);
+    expect(wachiman(["dashboard", "--help"], home).stdout).toContain("Usage\n  wachiman dashboard [--json] [--out <file>] [--repo-dir <dir>]\n");
     const repo = temp("wachiman-dash-cwd-");
     expect(wachiman(["dashboard", "--json", "--repo-dir", repo], home).code).toBe(0);
     expect(wachiman(["dashboard", "--json", "--repo-dir", join(repo, "missing")], home).code).toBe(2);

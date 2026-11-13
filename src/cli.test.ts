@@ -14,10 +14,19 @@ const run = (args: string[], env: Record<string, string> = {}) => {
 };
 
 describe("cli", () => {
-  test("--help prints the usage and exits 0", () => {
+  test("--help prints the short root help and exits 0", () => {
     const out = run(["--help"]);
     expect(out.code).toBe(0);
-    expect(out.stdout).toContain("wachiman review <pr>");
+    expect(out.stdout).toContain("wachiman <command> [options]");
+    expect(out.stdout).toContain("wachiman help ci");
+    expect(out.stdout).not.toContain("wachiman review <pr>");
+    expect(out.stdout.trimEnd().split("\n").length).toBeLessThanOrEqual(25);
+  });
+
+  test("bare wachiman prints the root help and exits 0", () => {
+    const out = run([]);
+    expect(out.code).toBe(0);
+    expect(out.stdout).toBe(run(["--help"]).stdout);
   });
 
   test("--version prints the package version", () => {
@@ -30,13 +39,12 @@ describe("cli", () => {
     expect(run(["review"]).code).toBe(2);
     expect(run(["review", "abc"]).code).toBe(2);
     expect(run(["frobnicate", "1"]).code).toBe(2);
-    expect(run([]).code).toBe(2);
     expect(run(["review", "1"]).code).toBe(2); // GH_TOKEN is not set
     expect(run(["comment", "1"], { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r" }).code).toBe(2); // no REQUEST
   });
 
   test("threads is a command: it needs a pull request number and takes no paths", () => {
-    expect(run(["--help"]).stdout).toContain("wachiman threads <pr>");
+    expect(run(["help", "ci"]).stdout).toContain("wachiman threads <pr>");
     expect(run(["threads"]).code).toBe(2);
     expect(run(["threads", "abc"]).code).toBe(2);
     expect(run(["threads", "7", "a.ts"]).code).toBe(2);
@@ -208,8 +216,8 @@ describe("exit code 3: the spend ledger stopped the run", () => {
     }
   });
 
-  test("--help lists exit code 3", () => {
-    expect(run(["--help"]).stdout).toContain("3 the spend ledger stopped the run");
+  test("help ci lists exit code 3", () => {
+    expect(run(["help", "ci"]).stdout).toMatch(/\n\s+3\s+The spend ledger stopped the run/);
   });
 });
 
