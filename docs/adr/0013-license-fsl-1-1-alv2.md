@@ -16,7 +16,7 @@ modifications, and some organizations forbid AGPL code outright.
 What was true when this was decided:
 
 - One copyright author. The only other commits are two Dependabot bumps of a workflow action.
-- The engine has no runtime dependency besides the pinned `bun` package, and no dev dependencies (ADR 0002, amended), so no third-party license limits
+- The package has three runtime dependencies, all approved by the owner and pinned: `bun`, `chalk` and `@clack/prompts` (ADR 0002, amendment 2026-11-13); the engine itself imports none of them. All three are MIT-licensed, so no third-party license limits
   the choice.
 - No outside contributions, forks or stars.
 - Every release up to v1.3.0 shipped a `LICENSE` that said "version 3 … or any later version",

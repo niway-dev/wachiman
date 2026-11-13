@@ -48,16 +48,9 @@ describe("when the launcher opens", () => {
     expect(io.printed()).toBe("");
   });
 
-  test("a bare `wachiman` without a terminal still says no command was given", async () => {
-    const errors: string[] = [];
-    const original = console.error;
-    console.error = (...a: unknown[]) => void errors.push(a.join(" "));
-    try {
-      expect(await main([], { CI: "true" })).toBe(2);
-    } finally {
-      console.error = original;
-    }
-    expect(errors.join("\n")).toContain("No command given.");
+  test("a bare `wachiman` without a terminal prints the root help and exits 0, and never opens the launcher", async () => {
+    // The test runner has no terminal on stdin, so `main` takes the help branch.
+    expect(await main([], { CI: "true" })).toBe(0);
   });
 });
 

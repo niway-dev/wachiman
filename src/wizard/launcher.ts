@@ -9,25 +9,21 @@
  * Nothing runs before the person confirms. For a command that spends the Claude subscription (a
  * review, an answer, a loop round) the confirmation first shows the repository, the scope, the
  * profile and the command. The prompt session is closed before `dispatch`, so the command owns the
- * terminal.
+ * terminal. The exception is `init` and `setup`: they are wizards of their own, so the launcher
+ * leaves the session frame open and the command's own outro closes it.
+ *
+ * The menus are Clack's, through the prompt wrapper in `./prompt.ts`; the launcher holds no
+ * terminal code of its own.
  */
 import { UsageError } from "../config";
 import { spawnGit, type GitRunner } from "../evidence";
 import { projectShow } from "../accounts/commands";
 import { repositoryKey } from "../history/store";
 import { quoteArgument } from "./command";
-import { createPrompter, type Choice, type Prompter, type PromptIO } from "./prompt";
+import { shouldLaunch, type LauncherStreams } from "./interactive";
+import { openPrompter, type Choice, type Outcome, type Prompter, type PromptIO } from "./prompt";
 
-export interface LauncherStreams {
-  stdin: { isTTY?: boolean };
-  stdout: { isTTY?: boolean };
-  stderr: { isTTY?: boolean };
-}
-
-/** The launcher opens on a real terminal outside CI; anything else gets the help text it always got. */
-export function shouldLaunch(env: Record<string, string | undefined>, streams: LauncherStreams): boolean {
-  return streams.stdin.isTTY === true && streams.stdout.isTTY === true && streams.stderr.isTTY === true && !env.CI;
-}
+export { shouldLaunch, type LauncherStreams } from "./interactive";
 
 export type Scope =
   | { kind: "branch"; base: string }
@@ -110,6 +106,14 @@ export function detectBase(cwd: string, git: GitRunner = spawnGit): string | und
   return ["origin/main", "main", "origin/master", "master"].find((ref) => run(["rev-parse", "--verify", "--quiet", ref]).status === 0);
 }
 
+/** The branches a change can be compared against: local and remote, the detected base first, `HEAD` and the symbolic `origin/HEAD` left out. */
+export function listRefs(cwd: string, base: string | undefined, git: GitRunner = spawnGit): string[] {
+  const out = git(["for-each-ref", "--format=%(refname:short)", "--sort=-committerdate", "refs/heads", "refs/remotes"], { cwd, timeoutMs: 10_000 });
+  if (out.status !== 0) return base ? [base] : [];
+  const refs = out.stdout.split("\n").map((r) => r.trim()).filter((r) => r !== "" && r !== "origin" && !r.endsWith("/HEAD"));
+  return [...new Set([...(base ? [base] : []), ...refs])];
+}
+
 export interface LauncherDeps {
   env: Record<string, string | undefined>;
   version: string;
@@ -117,6 +121,8 @@ export interface LauncherDeps {
   dispatch: (argv: string[]) => Promise<number>;
   streams?: LauncherStreams;
   promptIO?: PromptIO;
+  /** An open prompt session, for a test of the terminal flow; otherwise one is opened over `promptIO` or the terminal. */
+  prompter?: Prompter;
   cwd?: string;
   git?: GitRunner;
 }
@@ -175,10 +181,10 @@ interface Plan {
 export async function runLauncher(deps: LauncherDeps): Promise<number> {
   const { env, version } = deps;
   const cwd = deps.cwd ?? process.cwd();
-  const prompter = createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env);
-  const finish = (code: number) => {
+  const prompter = deps.prompter ?? (await openPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env));
+  const finish = (code: number, outcome: Outcome = "done", message?: string) => {
     // The prompt session ends before the command starts: it takes the terminal for itself.
-    prompter.close();
+    prompter.close(outcome, message);
     return code;
   };
   try {
@@ -189,7 +195,7 @@ export async function runLauncher(deps: LauncherDeps): Promise<number> {
     for (;;) {
       prompter.say("");
       const top = await prompter.select<Top>("What would you like to do?", TOP, 0);
-      if (top === null) return finish(cancelled(prompter));
+      if (top === null) return finish(cancelled(prompter), "cancelled", NOTHING_RAN);
       if (top === "exit") return finish(0);
       if ((top === "review" || top === "ask" || top === "loop") && !context.name) {
         // Fail before the scope, base and question prompts: none of these can run outside a clone.
@@ -198,41 +204,45 @@ export async function runLauncher(deps: LauncherDeps): Promise<number> {
       }
       const plan = await planFor(top, prompter, { cwd, git: deps.git, context });
       if (plan === "back") continue;
-      if (plan === null) return finish(cancelled(prompter));
+      if (plan === null) return finish(cancelled(prompter), "cancelled", NOTHING_RAN);
 
       const line = commandLine(plan.argv);
       if (SPENDING.has(plan.action) || plan.action === "skills") {
-        if (!context.name && plan.action !== "skills") {
-          prompter.say("This needs a git repository. Run wachiman from inside a clone.", "error");
-          continue;
-        }
-        prompter.say("");
         const rows: [string, string][] = SPENDING.has(plan.action)
           ? [["repository", context.name ?? "-"], ["scope", plan.scope ? scopeLabel(plan.scope) : "the open loop"], ["profile", context.profile], ["command", line]]
           : [["command", line]];
-        for (const [k, v] of rows) prompter.say(`  ${k.padEnd(10)} ${v}`);
-        prompter.say(
-          SPENDING.has(plan.action) ? "  It runs your signed-in Claude and counts against your subscription." : "  It copies the skills into ~/.agents/skills and each Claude Code config directory.",
-          "muted",
-        );
+        const cost = SPENDING.has(plan.action) ? "It runs your signed-in Claude and counts against your subscription." : "It copies the skills into ~/.agents/skills and each Claude Code config directory.";
+        if (prompter.fancy) prompter.note([...rows.map(([k, v]) => `${k.padEnd(10)} ${v}`), "", cost].join("\n"), SPENDING.has(plan.action) ? "Ready to run" : "Ready to install");
+        else {
+          prompter.say("");
+          for (const [k, v] of rows) prompter.say(`  ${k.padEnd(10)} ${v}`);
+          prompter.say(`  ${cost}`, "muted");
+        }
         const go = await prompter.confirm(SPENDING.has(plan.action) ? "Run it?" : "Install them?", true);
-        if (go === null) return finish(cancelled(prompter));
+        if (go === null) return finish(cancelled(prompter), "cancelled", NOTHING_RAN);
         if (!go) {
           prompter.say("Nothing was run.", "muted");
           continue;
         }
-      } else prompter.say(`  ${line}`, "muted");
-      prompter.close();
+      } else if (!prompter.fancy) prompter.say(`  ${line}`, "muted");
+      if (SESSION_COMMANDS.has(plan.action)) prompter.suspend();
+      else prompter.close("done", prompter.fancy ? `Running ${line}` : undefined);
       return await deps.dispatch(plan.argv);
     }
   } catch (error) {
-    prompter.close();
+    prompter.close("failed");
     throw error;
   }
 }
 
+/** `init` and `setup` run a wizard of their own: the launcher leaves the session frame open for their outro. */
+const SESSION_COMMANDS: ReadonlySet<Action> = new Set<Action>(["init", "setup"]);
+
+const NOTHING_RAN = "Cancelled. Nothing was run.";
+
 function cancelled(prompter: Prompter): number {
-  prompter.say("cancelled: nothing was run.", "warning");
+  // The outro of a terminal session says it; a plain one needs the line.
+  if (!prompter.fancy) prompter.say("cancelled: nothing was run.", "warning");
   return 130;
 }
 
@@ -283,7 +293,7 @@ async function planFor(top: Exclude<Top, "exit">, prompter: Prompter, ctx: { cwd
     if (mode === null) return null;
     if (mode === "back") return "back";
     if (mode === "continue") return { action: "loop-continue", argv: commandArgs("loop-continue") };
-    const base = await prompter.text("Base (the branch or commit the loop starts from)", detectBase(ctx.cwd, ctx.git), refProblem("The base"));
+    const base = await askBase(prompter, "Base (the branch or commit the loop starts from)", ctx);
     if (base === null) return null;
     return { action: "loop-start", argv: commandArgs("loop-start", { base }), scope: { kind: "branch", base } };
   }
@@ -292,7 +302,7 @@ async function planFor(top: Exclude<Top, "exit">, prompter: Prompter, ctx: { cwd
   if (kind === null) return null;
   let scope: Scope;
   if (kind === "branch") {
-    const base = await prompter.text("Base (the branch or commit this one is compared against)", detectBase(ctx.cwd, ctx.git), refProblem("The base"));
+    const base = await askBase(prompter, "Base (the branch or commit this one is compared against)", ctx);
     if (base === null) return null;
     scope = { kind, base };
   } else if (kind === "commit") {
@@ -305,4 +315,26 @@ async function planFor(top: Exclude<Top, "exit">, prompter: Prompter, ctx: { cwd
   const question = await prompter.text("Question (leave empty for a walkthrough of the change)", "", (v) => (v.startsWith("-") ? "Start the question with a word, not a dash." : undefined));
   if (question === null) return null;
   return { action: "ask", argv: commandArgs("ask", { scope, question }), scope };
+}
+
+const OTHER_REF = Symbol("other-ref");
+
+/**
+ * The base of a comparison. On a terminal with more than one branch it is a list the person filters
+ * by typing, with a last entry to type any other commit; otherwise (and always without a terminal)
+ * it is the question with the detected base as its default.
+ */
+async function askBase(prompter: Prompter, label: string, ctx: { cwd: string; git?: GitRunner }): Promise<string | null> {
+  const detected = detectBase(ctx.cwd, ctx.git);
+  const refs = prompter.fancy ? listRefs(ctx.cwd, detected, ctx.git) : [];
+  if (refs.length > 1) {
+    const choices: Choice<string | typeof OTHER_REF>[] = [
+      ...refs.map((ref) => ({ label: ref, value: ref, ...(ref === detected ? { description: "the default base" } : {}) })),
+      { label: "Another branch or commit…", value: OTHER_REF },
+    ];
+    const picked = await prompter.autocomplete(label, choices, 0);
+    if (picked === null) return null;
+    if (picked !== OTHER_REF) return picked;
+  }
+  return prompter.text(label, detected, refProblem("The base"));
 }

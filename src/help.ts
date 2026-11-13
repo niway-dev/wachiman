@@ -4,7 +4,7 @@
  * only a GitHub Actions run uses. Nothing here loads configuration, reads the repository or calls a
  * model: `helpFor` is called by `main` before any of that. The full reference is docs/cli.md.
  */
-import { terminalStyle, type Tone } from "./wizard/style";
+import { plain, type Paint } from "./wizard/tone";
 import { askUsage } from "./local-ask";
 import { dashboardUsage } from "./store/command";
 import { ledgerUsage } from "./ledger-read/command";
@@ -19,14 +19,10 @@ import { statusUsage } from "./status/command";
 
 export const DOCS = "https://github.com/niway-dev/wachiman/blob/main/docs";
 
-/** Colors the section headers only; plain text when the output is not a terminal or `NO_COLOR` is set. */
-export type Paint = (text: string, tone: Tone) => string;
-
-export const plain: Paint = (text) => text;
-
-export function paintFor(output: { isTTY?: boolean }, env: Record<string, string | undefined>): Paint {
-  return terminalStyle(output, env);
-}
+// Colors the section headers only. The page takes a `Paint`; `terminalStyle` in `src/wizard/style.ts` makes the one that uses
+// chalk (plain text when the output is not a terminal or `NO_COLOR` is set), so this module, which
+// the review engine's entry point imports, never loads it.
+export { plain, type Paint };
 
 type Row = readonly [name: string, text: string];
 

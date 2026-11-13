@@ -12,7 +12,7 @@
  * an empty working directory, which is all the installed CLI lets it apply. There is no fallback
  * to an unrestricted helper.
  */
-import { spawnSync } from "node:child_process";
+import { spawn as spawnChild, spawnSync } from "node:child_process";
 import { accessSync, constants, mkdtempSync, realpathSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -36,6 +36,47 @@ const defaultSpawn: SpawnFn = (binary, args, options) => {
   const run = spawnSync(binary, args, options);
   return { status: run.status, stdout: run.stdout ?? "", stderr: run.stderr ?? "", error: run.error };
 };
+
+/** The same call without blocking the event loop, so a spinner keeps turning while `claude` runs. */
+export type AsyncSpawnFn = (...args: Parameters<SpawnFn>) => Promise<SpawnResult>;
+
+/** Like `spawnSync` with `timeout` and `maxBuffer`: a process that outlives the timeout is killed and reports ETIMEDOUT; output past the buffer reports ENOBUFS. */
+export const defaultAsyncSpawn: AsyncSpawnFn = (binary, args, options) =>
+  new Promise((resolve) => {
+    let stdout = "";
+    let stderr = "";
+    let failure: Error | undefined;
+    let settled = false;
+    const finish = (status: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ status, stdout, stderr, ...(failure ? { error: failure } : {}) });
+    };
+    const child = spawnChild(binary, args, { cwd: options.cwd, env: options.env, shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    const fail = (code: string) => {
+      failure ??= Object.assign(new Error(`spawn ${binary} ${code}`), { code });
+      child.kill("SIGKILL");
+    };
+    const timer = setTimeout(() => fail("ETIMEDOUT"), options.timeout);
+    // Decode the stream, not each chunk, so a character split across two chunks stays whole, and count bytes like spawnSync.
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    let bytes = 0;
+    const collect = (which: "stdout" | "stderr") => (chunk: string) => {
+      if (which === "stdout") stdout += chunk;
+      else stderr += chunk;
+      bytes += Buffer.byteLength(chunk);
+      if (bytes > options.maxBuffer) fail("ENOBUFS");
+    };
+    child.stdout.on("data", collect("stdout"));
+    child.stderr.on("data", collect("stderr"));
+    child.on("error", (error) => {
+      failure ??= error;
+      finish(null);
+    });
+    child.on("close", (code) => finish(code));
+  });
 
 /** What the confirmation looks at on disk: the directory and the binary themselves, nothing inside. */
 export interface ConfirmIo {
@@ -111,8 +152,26 @@ function samePath(a: string, b: string, io: ConfirmIo) {
  * Runs `<binary> --version` and `<binary> auth status` (JSON, the documented default) with
  * `buildChildEnv(env, { auth: "subscription", configDir })`, from an empty temporary directory,
  * 15 s and 64 KiB each. Both `local` and `doctor` call it before any model call.
+ *
+ * The steps are one generator that yields each process it wants run and gets the result back, so
+ * the blocking `confirmProfile` and the non-blocking `confirmProfileAsync` share every check.
  */
 export function confirmProfile(p: ResolvedProfile, env: Env, spawn: SpawnFn = defaultSpawn, io: ConfirmIo = defaultIo): Confirmation {
+  const steps = confirmSteps(p, env, io);
+  let step = steps.next();
+  while (!step.done) step = steps.next(spawn(...step.value));
+  return step.value;
+}
+
+/** The same confirmation with `claude` run off the event loop; the default spawn is asynchronous. */
+export async function confirmProfileAsync(p: ResolvedProfile, env: Env, spawn: AsyncSpawnFn = defaultAsyncSpawn, io: ConfirmIo = defaultIo): Promise<Confirmation> {
+  const steps = confirmSteps(p, env, io);
+  let step = steps.next();
+  while (!step.done) step = steps.next(await spawn(...step.value));
+  return step.value;
+}
+
+function* confirmSteps(p: ResolvedProfile, env: Env, io: ConfirmIo): Generator<Parameters<SpawnFn>, Confirmation, SpawnResult> {
   const { profile } = p;
   const label = profile.kind === "default" ? "default" : profile.name;
   const login =
@@ -162,7 +221,7 @@ export function confirmProfile(p: ResolvedProfile, env: Env, spawn: SpawnFn = de
       encoding: "utf8" as const,
     };
 
-    const probe = spawn(binary, ["--version"], options);
+    const probe = yield [binary, ["--version"], options];
     if (probe.error || probe.status !== 0) {
       return {
         ok: false,
@@ -173,7 +232,7 @@ export function confirmProfile(p: ResolvedProfile, env: Env, spawn: SpawnFn = de
     }
     const version = probe.stdout.match(/\d+\.\d+\.\d+/)?.[0] ?? brief(probe.stdout);
 
-    const run = spawn(binary, ["auth", "status"], options);
+    const run = yield [binary, ["auth", "status"], options];
     if (run.error) {
       return {
         ok: false,
