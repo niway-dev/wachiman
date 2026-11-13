@@ -81,7 +81,7 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
   const registered = (name: string) => Object.hasOwn(config?.profiles ?? {}, name);
   const say = (line: string) => prompter.say(line);
 
-  const total = ctx.fromInit ? (ctx.initMode === "both" ? 6 : 5) : 4;
+  const total = ctx.fromInit ? (ctx.initMode === "both" ? 7 : 6) : 4;
   if (!ctx.fromInit) {
     prompter.step("Project", 1, total);
     say(`repository: ${repo.name} (${repo.keyedBy === "remote" ? `origin ${repo.remote ?? "(unparsed)"}` : `path ${repo.path}`})`);

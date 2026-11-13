@@ -13,6 +13,8 @@ export interface UiOption {
   value: number;
   label: string;
   hint?: string;
+  /** Shown but not pickable. */
+  disabled?: boolean;
 }
 
 export type LogKind = "message" | "info" | "success" | "warn" | "error" | "step";

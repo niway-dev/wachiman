@@ -14,7 +14,7 @@ bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman t
 bun src/cli.ts local [paths…] [--base <ref> | --from <commit> | --commit <commit> | --working-tree staged|all] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
   [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
 bun src/cli.ts setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]
-bun src/cli.ts init [--mode github|local|both] [--operator <login>] [--version <tag>] [--path <file>] \
+bun src/cli.ts init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
   [--force] [--dry-run] [--yes] [--repo-dir <dir>]
 bun src/cli.ts doctor [--json] [--profile <name> | --all-profiles] [--repo-dir <dir>] [--redact-paths]
 bun src/cli.ts profile list|create|add|login|remove|default ...
@@ -84,7 +84,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `ledger connect <url>`, `ledger disconnect`, `ledger pull [--since <n>d]` | Connect to the spend ledger with a read token, and download its entries to the laptop so `status` and `dashboard` can show Actions runs next to laptop runs. See [`ledger`](#ledger). |
 | `ask [question…]` | Answers one question about the local change (or walks through it when there is no question), on your own signed-in `claude`; no GitHub call, nothing posted. See [`ask`](#ask) below. |
 | `setup [--profile <name>]` | Binds this repository to an account profile; on a terminal without `--profile` it asks. See [`setup`](#setup-doctor-profile-and-project). |
-| `init` | Writes the GitHub caller workflow, or hands over to `setup`. See [`init`](#init). |
+| `init` | Writes the GitHub caller workflow and the repository settings file, or hands over to `setup`. See [`init`](#init). |
 | `doctor` | Reports what a local run would use and what would fail. |
 | `profile …`, `project …` | Manage account profiles and the repository's binding. |
 | `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
@@ -427,7 +427,7 @@ listed, never described as undone.
 ### `init`
 
 ```sh
-wachiman init [--mode github|local|both] [--operator <login>] [--version <tag>] [--path <file>] \
+wachiman init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
   [--force] [--dry-run] [--yes] [--repo-dir <dir>]
 ```
 
@@ -442,8 +442,22 @@ not log in or bind an account. Choosing local/both already requests setup, so no
 invitation is shown. Standalone `setup` keeps its opening invitation. Init never commits, pushes,
 opens a PR or creates a secret.
 
-The Git worktree is validated before questions. Interactive stages identify the project, review
-mode, configuration, binding confirmation when relevant, and checks/next actions. The route total
+`init` also records what kind of repository this is, in `.github/wachiman.yml` (not under
+`.github/workflows/`, where GitHub would parse it as a workflow). On a terminal it asks "What kind
+of repository is this?" (Monorepo, Single project, or Distributed repository, which is listed as
+coming soon and cannot be picked); `--project-kind monorepo|single` answers it. The kind is
+metadata only: nothing else in Wachiman reads it, and the file never chooses an account, a profile
+or a binary ([ADR 0048](adr/0048-a-repository-settings-file-at-github-wachiman-yml.md)). It applies
+in all three modes. Without a terminal and without `--project-kind` the file is not written or
+changed. A new file holds two comment lines and `kind: monorepo` (or `single`). The same kind
+leaves it untouched (`.github/wachiman.yml already says kind: X.`); a different or missing `kind:`
+line is replaced or appended, every other line kept, after a confirmation on a terminal or with
+`--force` without one. `--dry-run` never writes it and prints `would write .github/wachiman.yml
+(kind: X)` on stderr. Init does not commit it: the closing steps say to add it with the workflow
+(`local` mode: to commit it).
+
+The Git worktree is validated before questions. Interactive stages identify the project, project
+type, review mode, configuration, binding confirmation when relevant, and checks/next actions. The route total
 appears once the mode is known. A non-empty `NO_COLOR`, `TERM=dumb` and non-terminal
 output disable styling; prompts and status stay on stderr. JSON results and dry-run workflow
 bytes on stdout are unchanged. Existing workflow replacement still requires `--force`.
@@ -457,14 +471,15 @@ command that binds the repository later.
 | Flag | Rule |
 | --- | --- |
 | `--mode` | Mandatory without a terminal |
+| `--project-kind <kind>` | `monorepo` or `single`; `distributed` is refused as not available yet. Written to `.github/wachiman.yml` in every mode. Asked on a terminal when absent; without a terminal and without it, the file is not touched |
 | `--operator <login>` | Mandatory for `github` and `both` without a terminal; a GitHub login |
 | `--version <tag>` | `vX.Y.Z` or a 40-character commit SHA, written after `review.yml@`. Default: the release tag bundled in this build (`DEFAULT_WORKFLOW_REF`, moved by release-please at each release commit); the CLI's own version is never used as a tag |
 | `--path <file>` | Default `.github/workflows/wachiman-review.yml`, relative to the repository top level (also when run from a subdirectory); a `.yml` or `.yaml` file directly in `.github/workflows/` |
-| `--force` | Replaces an existing file after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it an existing file is exit 2 |
+| `--force` | Replaces an existing workflow after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it an existing file is exit 2. With `--project-kind` it also lets a run without a terminal change a different `kind:` in `.github/wachiman.yml` (no backup; only that line changes), and it is accepted in `--mode local` for that |
 | `--dry-run` | Prints the rendered file to stdout and writes nothing |
 | `--yes` | No prompts |
 
-`--mode local` with `--operator`, `--version`, `--path`, `--force` or `--dry-run` is exit 2. A
+`--mode local` with `--operator`, `--version`, `--path`, `--force` (unless `--project-kind` is given) or `--dry-run` is exit 2. A
 `.github`, `workflows` or target that is a symbolic link is refused. On a terminal the file is
 previewed on stderr and `Write it?` is asked first; Escape, Ctrl-C or Ctrl-D exit 130 and write
 nothing.

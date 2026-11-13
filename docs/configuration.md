@@ -576,6 +576,7 @@ edits them is reviewed under the base version and the review says the change app
 | `.github/wachiman.md` | The repository's review focus. Optional. |
 | `.github/claude-review.md` | The old name of the focus file. It is read only when `.github/wachiman.md` does not exist at the base commit, with a deprecation notice on stderr. |
 | `CLAUDE.md`, `AGENTS.md` | Read from the repository root only, if present. |
+| `.github/wachiman.yml` | Repository settings, written by `wachiman init` ([ADR 0048](adr/0048-a-repository-settings-file-at-github-wachiman-yml.md)). It holds `kind: monorepo` or `kind: single` and is metadata only: neither the engine nor the CLI reads it today. It never chooses an account, a profile or a binary. |
 
 Each file is cut at 64 KiB (the agent is told the file was cut). A file over the contents API's
 size limit arrives with no content and is treated as cut. A missing file (404) is fine; any other
@@ -587,7 +588,7 @@ topics ([cli.md](cli.md#finding-labels)), change a budget, or turn off a check. 
 
 Each of these is a fixed behaviour of the engine at this release:
 
-- A configuration file of any kind (YAML or otherwise).
+- A configuration file of any kind (YAML or otherwise). `.github/wachiman.yml` records the repository kind as metadata only and changes nothing.
 - A way to include a file that matches a built-in exclude pattern.
 - File risk scores and the order they produce.
 - The set of severities and topics.

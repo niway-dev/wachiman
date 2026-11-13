@@ -7,6 +7,7 @@ import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp
 import { snapshotTree } from "../../test/support/tree-snapshot";
 import { UsageError } from "../config";
 import { parseInitFlags } from "./args";
+import { readKind, settingsContent, withKind } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { runInitCommand, type InitDeps } from "./run";
 import { runSetupCommand } from "../setup/run";
@@ -74,7 +75,7 @@ describe("init --mode github --operator me --dry-run", () => {
   test("it terminates after rendering: no setup line, no prompt, even in a terminal", async () => {
     const w = world();
     const io = scripted([]);
-    const code = await init(w, ["--mode", "both", "--operator", "me", "--version", "v1.5.0", "--path", ".github/workflows/wachiman-review.yml", "--dry-run"], { interactive: true, promptIO: io, bindNow: () => Promise.reject(new Error("must not chain")) });
+    const code = await init(w, ["--mode", "both", "--operator", "me", "--version", "v1.5.0", "--path", ".github/workflows/wachiman-review.yml", "--project-kind", "monorepo", "--dry-run"], { interactive: true, promptIO: io, bindNow: () => Promise.reject(new Error("must not chain")) });
     expect(code).toBe(0);
     expect(w.out.join("")).toBe(expected("me"));
     expect(w.err.join("\n")).not.toContain("setup");
@@ -283,7 +284,7 @@ describe("init with scripted prompts", () => {
     scratch.push(home);
     const env = { WACHIMAN_HOME: home, PATH: "/usr/bin", USER: "fixture" };
     const tools = fakeToolchain();
-    const promptIO = scripted(mode === "both" ? ["", "", ""] : ["", ""]);
+    const promptIO = scripted(["", "", "", ""]); // kind, Write it? (both) or Write .github/wachiman.yml? (local), account, binding
     const code = await runInitCommand({ repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) }, env, w.io, w.deps({
       interactive: true,
       promptIO,
@@ -300,8 +301,9 @@ describe("init with scripted prompts", () => {
     expect(promptIO.printed()).not.toContain("Run wachiman setup now");
     expect(promptIO.printed().match(/Bind .* to default\?/g)).toHaveLength(1);
     expect(existsSync(w.target)).toBe(mode === "both");
-    expect(promptIO.printed()).toContain(mode === "both" ? "Step 4/6  Claude account" : "Step 3/5  Claude account");
-    expect(promptIO.printed()).toContain(mode === "both" ? "Step 6/6  Checks and next actions" : "Step 5/5  Checks and next actions");
+    expect(readFileSync(join(w.repo, ".github", "wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
+    expect(promptIO.printed()).toContain(mode === "both" ? "Step 5/7  Claude account" : "Step 4/6  Claude account");
+    expect(promptIO.printed()).toContain(mode === "both" ? "Step 7/7  Checks and next actions" : "Step 6/6  Checks and next actions");
     expect(w.err.join("\n")).toContain("local: ready");
     if (mode === "both") expect(w.err.join("\n").match(/github: pending/g)).toHaveLength(1);
   });
@@ -317,7 +319,7 @@ describe("init with scripted prompts", () => {
 
   test("defaults taken by Enter equal the printed defaults", async () => {
     const w = world();
-    const io = scripted(["", "octocat", "", "", ""]); // mode, operator, tag, file, Write it?
+    const io = scripted(["", "", "octocat", "", "", ""]); // kind, mode, operator, tag, file, Write it?
     const code = await init(w, [], { interactive: true, promptIO: io });
     expect(code).toBe(0);
     const printed = io.printed();
@@ -325,15 +327,20 @@ describe("init with scripted prompts", () => {
     expect(printed).toContain("Release tag to pin [v1.5.0]");
     expect(printed).toContain("Workflow file [.github/workflows/wachiman-review.yml]");
     expect(printed).toContain("Write it? [Y/n]");
-    expect(printed).toContain("Step 3/4  GitHub workflow");
-    expect(printed).toContain("Step 4/4  Checks and next actions");
+    expect(printed).toMatch(/1\. Monorepo \(default\)/);
+    expect(printed).toContain("3. Distributed repository (coming soon)");
+    expect(printed).toContain("Step 2  Project type");
+    expect(printed).toContain("Step 3  Review mode");
+    expect(printed).toContain("Step 4/5  GitHub workflow");
+    expect(printed).toContain("Step 5/5  Checks and next actions");
+    expect(readFileSync(join(w.repo, ".github", "wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
     // What the printed defaults mean is what was written.
     expect(readFileSync(w.target, "utf8")).toBe(expected("octocat", "v1.5.0"));
   });
 
   test("the preview shows the file and whether it is new before the question", async () => {
     const w = world();
-    const io = scripted(["1", "octocat", "", "", "y"]);
+    const io = scripted(["", "1", "octocat", "", "", "y"]);
     await init(w, [], { interactive: true, promptIO: io });
     expect(w.err.join("\n")).toContain("--- .github/workflows/wachiman-review.yml (new)");
     expect(w.err.join("\n")).toContain('operator: "octocat"');
@@ -341,7 +348,7 @@ describe("init with scripted prompts", () => {
 
   test("an invalid answer is shown and asked again; flags already given are not asked", async () => {
     const w = world();
-    const io = scripted(["bad login", "me", "", "y"]); // operator (twice), file, Write it?
+    const io = scripted(["", "bad login", "me", "", "y"]); // kind, operator (twice), file, Write it?
     const code = await init(w, ["--mode", "github", "--version", "v1.5.0"], { interactive: true, promptIO: io });
     expect(code).toBe(0);
     expect(io.printed()).toContain("is not a GitHub login");
@@ -360,7 +367,7 @@ describe("init with scripted prompts", () => {
   test.each([
     ["Escape", ESC],
     ["Ctrl-C", CTRL_C],
-  ])("%s at the mode question exits 130 and writes nothing", async (_n, key) => {
+  ])("%s at the first question exits 130 and writes nothing", async (_n, key) => {
     const w = world();
     const before = snapshotTree(w.repo);
     expect(await init(w, [], { interactive: true, promptIO: scripted([key]) })).toBe(130);
@@ -370,7 +377,7 @@ describe("init with scripted prompts", () => {
 
   test("Ctrl-D (the input ends) at the Write it? question exits 130 and writes nothing", async () => {
     const w = world();
-    const io = scripted(["1", "me", "", ""]); // mode, operator, tag, file: the input ends at Write it?
+    const io = scripted(["", "1", "me", "", ""]); // kind, mode, operator, tag, file: the input ends at Write it?
     expect(await init(w, [], { interactive: true, promptIO: io })).toBe(130);
     expect(io.printed()).toContain("Write it?");
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
@@ -378,7 +385,7 @@ describe("init with scripted prompts", () => {
 
   test("answering no to Write it? writes nothing and exits 0", async () => {
     const w = world();
-    expect(await init(w, [], { interactive: true, promptIO: scripted(["1", "me", "", "", "n"]) })).toBe(0);
+    expect(await init(w, [], { interactive: true, promptIO: scripted(["", "1", "me", "", "", "n"]) })).toBe(0);
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
     expect(w.err.join("\n")).toContain("not written");
   });
@@ -386,14 +393,14 @@ describe("init with scripted prompts", () => {
   test("an existing target without --force is exit 2 before the question", async () => {
     const w = world();
     await init(w, ["--mode", "github", "--operator", "me"]);
-    const io = scripted(["1", "me", "", ""]);
+    const io = scripted(["", "1", "me", "", ""]);
     expect(await exit2(init(w, [], { interactive: true, promptIO: io }))).toContain("--force");
     expect(io.printed()).not.toContain("Write it?");
   });
 
   test("local mode enters setup directly without another invitation", async () => {
     const w = world();
-    const io = scripted(["2", "from-setup"]);
+    const io = scripted(["", "2", "", "from-setup"]);
     let got: string | null | undefined;
     const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async (p) => {
       got = await p.text("Setup asks", undefined);
@@ -401,13 +408,15 @@ describe("init with scripted prompts", () => {
     } });
     expect(code).toBe(0);
     expect(got).toBe("from-setup");
-    expect(existsSync(join(w.repo, ".github"))).toBe(false);
+    expect(existsSync(w.target)).toBe(false);
+    expect(readFileSync(join(w.repo, ".github", "wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
+    expect(w.err.join("\n")).toContain("Commit .github/wachiman.yml");
     expect(io.printed()).not.toContain("Run wachiman setup now");
   });
 
   test("both: setup runs in the same process, sharing the prompt session", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", "", "from-setup"]);
+    const io = scripted(["", "3", "me", "", "", "", "from-setup"]);
     let got: string | null | undefined;
     const code = await init(w, [], {
       interactive: true,
@@ -424,7 +433,7 @@ describe("init with scripted prompts", () => {
 
   test("both: cancelling during setup leaves the confirmed workflow in place and says so", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", ""]);
+    const io = scripted(["", "3", "me", "", "", ""]);
     const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async () => 130 });
     expect(code).toBe(130);
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
@@ -433,7 +442,7 @@ describe("init with scripted prompts", () => {
 
   test("both: a setup failure reports the completed workflow write", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", ""]);
+    const io = scripted(["", "3", "me", "", "", ""]);
     const code = await exit2(init(w, [], { interactive: true, promptIO: io, bindNow: async () => { throw new UsageError("setup failed"); } }));
     expect(code).toContain("setup failed");
     expect(existsSync(w.target)).toBe(true);
@@ -461,5 +470,168 @@ describe("init from a subdirectory of the repository", () => {
     expect(await runInitCommand(parseInitFlags(argv, sub), {}, w.io, w.deps())).toBe(0);
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
     expect(existsSync(join(sub, ".github"))).toBe(false);
+  });
+});
+
+describe("the repository settings file .github/wachiman.yml", () => {
+  const settingsFile = (w: World) => join(w.repo, ".github", "wachiman.yml");
+  const baseArgs = ["--mode", "github", "--operator", "me", "--version", "v1.5.0"];
+
+  test("a new file has the explanatory comments and the kind, and the next steps name it", async () => {
+    const w = world();
+    expect(await init(w, [...baseArgs, "--project-kind", "monorepo"])).toBe(0);
+    expect(readFileSync(settingsFile(w), "utf8")).toBe(
+      [
+        "# Wachiman settings for this repository, written by `wachiman init`. Commit it like any file.",
+        '# kind: the shape of the repository, "monorepo" or "single". Metadata only for now.',
+        "kind: monorepo",
+        "",
+      ].join("\n"),
+    );
+    expect(statSync(settingsFile(w)).mode & 0o777).toBe(0o644);
+    expect(readdirSync(join(w.repo, ".github")).sort()).toEqual(["wachiman.yml", "workflows"]);
+    expect(w.err.join("\n")).toContain("Open a pull request that adds .github/workflows/wachiman-review.yml and .github/wachiman.yml.");
+  });
+
+  test("local mode writes only the settings file and tells the person to commit it", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "local", "--project-kind", "single"])).toBe(0);
+    expect(readFileSync(settingsFile(w), "utf8")).toBe(settingsContent("single"));
+    expect(existsSync(w.target)).toBe(false);
+    expect(w.err.join("\n")).toContain("Commit .github/wachiman.yml");
+  });
+
+  test("the same kind leaves the file untouched and says so", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, ".github"));
+    writeFileSync(settingsFile(w), "# mine\nkind: 'single'  # note\nother: 1\n");
+    const before = snapshotTree(w.repo);
+    expect(await init(w, ["--mode", "local", "--project-kind", "single"])).toBe(0);
+    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(w.err.join("\n")).toContain(".github/wachiman.yml already says kind: single.");
+  });
+
+  test("a different kind needs --force when nobody can be asked, and nothing is written without it", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, ".github"));
+    writeFileSync(settingsFile(w), "kind: monorepo\n");
+    const before = snapshotTree(w.repo);
+    expect(await exit2(init(w, [...baseArgs, "--project-kind", "single"]))).toContain("--force");
+    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(existsSync(w.target)).toBe(false);
+  });
+
+  test("--force replaces only the kind line and keeps every other line", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, ".github"));
+    writeFileSync(settingsFile(w), "# mine\nowner: team-a\nkind: monorepo\nnested:\n  kind: keep-me\n");
+    expect(await init(w, ["--mode", "local", "--project-kind", "single", "--force"])).toBe(0);
+    expect(readFileSync(settingsFile(w), "utf8")).toBe("# mine\nowner: team-a\nkind: single\nnested:\n  kind: keep-me\n");
+    expect(readdirSync(join(w.repo, ".github"))).toEqual(["wachiman.yml"]); // no backup file is left behind
+  });
+
+  test("a file without a kind line gets one appended", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, ".github"));
+    writeFileSync(settingsFile(w), "owner: team-a");
+    expect(await init(w, ["--mode", "local", "--project-kind", "single", "--force"])).toBe(0);
+    expect(readFileSync(settingsFile(w), "utf8")).toBe("owner: team-a\nkind: single\n");
+  });
+
+  test("--dry-run writes nothing, says what it would write on stderr, and keeps stdout to the workflow", async () => {
+    const w = world();
+    const before = snapshotTree(w.repo);
+    expect(await init(w, [...baseArgs, "--project-kind", "single", "--dry-run"])).toBe(0);
+    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(w.err.join("\n")).toContain("would write .github/wachiman.yml (kind: single)");
+    expect(w.out.join("")).toBe(expected("me", "v1.5.0"));
+  });
+
+  test("without --project-kind and without a terminal the file is not written, and nothing is said about it", async () => {
+    const w = world();
+    expect(await init(w, baseArgs)).toBe(0);
+    expect(existsSync(settingsFile(w))).toBe(false);
+    expect(w.err.join("\n")).not.toContain("wachiman.yml");
+    mkdirSync(join(w.repo, ".github"), { recursive: true });
+    writeFileSync(settingsFile(w), "kind: monorepo\n");
+    expect(await init(w, ["--mode", "local"])).toBe(0);
+    expect(readFileSync(settingsFile(w), "utf8")).toBe("kind: monorepo\n");
+  });
+
+  test("an invalid kind, or distributed, is exit 2 before anything is written", async () => {
+    const w = world();
+    expect(await exit2(init(w, ["--mode", "local", "--project-kind", "polyrepo"]))).toContain("monorepo or single");
+    expect(await exit2(init(w, ["--mode", "local", "--project-kind", "distributed"]))).toContain("not available yet");
+    expect(existsSync(join(w.repo, ".github"))).toBe(false);
+  });
+
+  test("a settings file that is a symbolic link is refused", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, ".github"));
+    writeFileSync(join(w.repo, "elsewhere.yml"), "kind: single\n");
+    symlinkSync(join(w.repo, "elsewhere.yml"), settingsFile(w));
+    expect(await exit2(init(w, ["--mode", "local", "--project-kind", "single"]))).toContain("symbolic link");
+  });
+
+  describe("on a prompt", () => {
+    test("local: the kind question lists distributed as not available, the preview comes before Write, and No writes nothing", async () => {
+      const w = world();
+      const io = scripted(["3", "1", "n"]); // distributed (refused), monorepo, no
+      const code = await init(w, ["--mode", "local"], { interactive: true, promptIO: io });
+      expect(code).toBe(0);
+      expect(io.printed()).toContain("Option 3 is not available yet");
+      expect(io.printed()).toContain("Write .github/wachiman.yml? [Y/n]");
+      expect(w.err.join("\n")).toContain("--- .github/wachiman.yml (new)");
+      expect(existsSync(settingsFile(w))).toBe(false);
+    });
+
+    test("an existing different kind asks to change it; yes replaces only that line", async () => {
+      const w = world();
+      mkdirSync(join(w.repo, ".github"));
+      writeFileSync(settingsFile(w), "owner: a\nkind: monorepo\n");
+      const io = scripted(["2", "y"]);
+      expect(await init(w, ["--mode", "local"], { interactive: true, promptIO: io })).toBe(0);
+      expect(io.printed()).toContain("Change kind from monorepo to single in .github/wachiman.yml? [Y/n]");
+      expect(readFileSync(settingsFile(w), "utf8")).toBe("owner: a\nkind: single\n");
+    });
+
+    test("an existing different kind: no keeps the file, and a github run still writes the workflow", async () => {
+      const w = world();
+      mkdirSync(join(w.repo, ".github"));
+      writeFileSync(settingsFile(w), "kind: monorepo\n");
+      const io = scripted(["2", "", "n", "y"]); // kind single, workflow file (default), change? no, Write it? yes
+      expect(await init(w, [...baseArgs], { interactive: true, promptIO: io })).toBe(0);
+      expect(readFileSync(settingsFile(w), "utf8")).toBe("kind: monorepo\n");
+      expect(existsSync(w.target)).toBe(true);
+      expect(w.err.join("\n")).toContain(".github/wachiman.yml left as it is.");
+    });
+
+    test("github: one Write it? covers the workflow and the new settings file; Ctrl-D there writes neither", async () => {
+      const w = world();
+      expect(await init(w, [...baseArgs], { interactive: true, promptIO: scripted(["1", ""]) })).toBe(130);
+      expect(existsSync(join(w.repo, ".github"))).toBe(false);
+      expect(w.err.join("\n")).toContain("cancelled: nothing was written");
+      const w2 = world();
+      expect(await init(w2, [...baseArgs], { interactive: true, promptIO: scripted(["1", "", "y"]) })).toBe(0);
+      expect(existsSync(settingsFile(w2))).toBe(true);
+      expect(existsSync(w2.target)).toBe(true);
+    });
+
+    test("a kind given on the command line is not asked", async () => {
+      const w = world();
+      const io = scripted(["y"]);
+      expect(await init(w, ["--mode", "local", "--project-kind", "single"], { interactive: true, promptIO: io })).toBe(0);
+      expect(io.printed()).not.toContain("What kind of repository");
+      expect(readFileSync(settingsFile(w), "utf8")).toContain("kind: single\n");
+    });
+  });
+});
+
+describe("settings text helpers", () => {
+  test("readKind drops quotes and comments; withKind touches only the top-level kind line", () => {
+    expect(readKind('kind: "single"\n')).toBe("single");
+    expect(readKind("kind: monorepo # why\n")).toBe("monorepo");
+    expect(readKind("  kind: nested\n")).toBeUndefined();
+    expect(withKind("a: 1\r\nkind: x\r\nb: 2\r\n", "single")).toBe("a: 1\r\nkind: single\r\nb: 2\r\n");
   });
 });

@@ -1,7 +1,8 @@
 /**
  * `wachiman init` (command contract section 5.5): parse, prompt, resolve, then the one impure
- * half. It writes only the chosen workflow file and its `.bak` copy, after the person has seen
- * what will be written (or named `--yes` or no terminal with every mandatory flag). It never
+ * half. It writes only the chosen workflow file and its `.bak` copy, and, when the repository kind
+ * is given or answered, the settings file `.github/wachiman.yml` (ADR 0048), after the person has
+ * seen what will be written (or named `--yes` or no terminal with every mandatory flag). It never
  * commits, pushes, opens a pull request or creates a secret, and it makes no network request.
  */
 import { readFileSync } from "node:fs";
@@ -16,6 +17,7 @@ import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
 import { projectCommands, quoteArgument } from "../wizard/command";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
+import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, writeWorkflow, type WriteHooks } from "./write";
 
@@ -100,6 +102,47 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
 
+  // The settings file: planned first (a link or a non-file in the way fails before anything is written), written under the same confirm.
+  const plan = options.settings ? planSettings(root, options.settings.kind) : undefined;
+  let settingsToWrite = plan && plan.action !== "same" ? plan : undefined;
+  let settingsWritten = false;
+  if (plan?.action === "same") io.stderr(`${SETTINGS_PATH} already says kind: ${plan.kind}.`);
+  if (settingsToWrite && github?.dryRun) {
+    io.stderr(`would write ${SETTINGS_PATH} (kind: ${settingsToWrite.kind})`);
+    if (settingsToWrite.action === "change" && !options.settings?.force) {
+      io.stderr(`note: ${SETTINGS_PATH} says kind: ${settingsToWrite.from ?? "(none)"}; a real run needs --force to change it.`);
+    }
+  }
+  if (settingsToWrite?.action === "change" && !github?.dryRun && !prompter && !options.settings?.force) {
+    throw new UsageError(`${SETTINGS_PATH} says kind: ${settingsToWrite.from ?? "(none)"}, not ${settingsToWrite.kind}. Re-run with --force to change it.`);
+  }
+  const settingsTitle = (p: Exclude<SettingsPlan, { action: "same" }>) => (p.action === "create" ? `${SETTINGS_PATH} (new)` : `${SETTINGS_PATH} (kind: ${p.from ?? "none"} to ${p.kind})`);
+  const showSettings = (p: Exclude<SettingsPlan, { action: "same" }>) => {
+    const body = p.action === "create" ? p.content.replace(/\n$/, "") : `kind: ${p.kind}`;
+    if (prompter?.fancy) prompter.note(body, settingsTitle(p));
+    else {
+      io.stderr(`--- ${settingsTitle(p)}`);
+      io.stderr(body);
+    }
+  };
+  /** Asks before replacing a different `kind:`; false: kept as it is, null: cancelled. */
+  const confirmChange = async (): Promise<boolean | null> => {
+    if (!prompter || settingsToWrite?.action !== "change") return true;
+    const { from, kind } = settingsToWrite;
+    const answer = await prompter.confirm(from === undefined ? `Add kind: ${kind} to ${SETTINGS_PATH}?` : `Change kind from ${from} to ${kind} in ${SETTINGS_PATH}?`, true);
+    if (answer === false) {
+      io.stderr(`${SETTINGS_PATH} left as it is.`);
+      settingsToWrite = undefined;
+    }
+    return answer;
+  };
+  const commitSettings = () => {
+    if (!settingsToWrite) return;
+    writeSettings(root, settingsToWrite);
+    settingsWritten = true;
+    io.stderr(`wrote ${SETTINGS_PATH} (kind: ${settingsToWrite.kind}).`);
+  };
+
   if (github) {
     const now = (deps.now ?? (() => new Date().toISOString()))();
     const rendered = renderCallerWorkflow((deps.readTemplate ?? readDefaultTemplate)(), {
@@ -126,6 +169,12 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
         io.stderr(`--- ${shown} (${inspected.exists ? "would overwrite" : "new"})`);
         io.stderr(preview);
       }
+      if (settingsToWrite) showSettings(settingsToWrite);
+      const changeAnswer = await confirmChange();
+      if (changeAnswer === null) {
+        io.stderr("cancelled: nothing was written.");
+        return 130;
+      }
       const answer = await prompter.confirm("Write it?", true);
       if (answer === null) {
         io.stderr("cancelled: nothing was written.");
@@ -140,21 +189,49 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     } else {
       io.stderr(`writing ${shown} (${inspected.exists ? "replacing the existing file; a .bak copy is kept" : "new"}).`);
     }
+    commitSettings();
     const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
     written = shown;
     io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
-    if (options.mode === "github") prompter?.step("Checks and next actions", 4, 4);
+    if (options.mode === "github") prompter?.step("Checks and next actions", 5, 5);
     if (prompter?.fancy) {
       // The same two things, as the closing "Next steps" box with the commands to run.
       prompter.nextAction("Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.", ["gh secret set ANTHROPIC_API_KEY"]);
-      prompter.nextAction(`Open a pull request that adds ${shown}. init does not commit, push or open one.`, [`git add ${quoteArgument(shown, "posix")}`, 'git commit -m "Add the Wachiman review workflow"', "git push"]);
+      const added = settingsWritten ? `${shown} and ${SETTINGS_PATH}` : shown;
+      prompter.nextAction(`Open a pull request that adds ${added}. init does not commit, push or open one.`, [
+        `git add ${quoteArgument(shown, "posix")}${settingsWritten ? ` ${SETTINGS_PATH}` : ""}`,
+        `git commit -m "Add the Wachiman review workflow${settingsWritten ? " and settings" : ""}"`,
+        "git push",
+      ]);
       prompter.say("Local runs use your signed-in claude, never this key.", "muted");
     } else {
       io.stderr("Two things are left to do in GitHub:");
       io.stderr("  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.");
-      io.stderr(`  2. Open a pull request that adds ${shown}. init does not commit, push or open one.`);
+      io.stderr(`  2. Open a pull request that adds ${settingsWritten ? `${shown} and ${SETTINGS_PATH}` : shown}. init does not commit, push or open one.`);
       io.stderr("Local runs use your signed-in claude, never this key.");
     }
+  }
+
+  if (!github && settingsToWrite && prompter) {
+    showSettings(settingsToWrite);
+    const changeAnswer = await confirmChange();
+    if (changeAnswer === null) {
+      io.stderr("cancelled: nothing was written.");
+      return 130;
+    }
+    if (settingsToWrite) {
+      const answer = settingsToWrite.action === "create" ? await prompter.confirm(`Write ${SETTINGS_PATH}?`, true) : true;
+      if (answer === null) {
+        io.stderr("cancelled: nothing was written.");
+        return 130;
+      }
+      if (answer) commitSettings();
+      else io.stderr("not written.");
+    }
+  } else if (!github) commitSettings();
+  if (!github && settingsWritten) {
+    if (prompter?.fancy) prompter.nextAction(`Commit ${SETTINGS_PATH} so the repository kind travels with it. init does not commit.`, [`git add ${SETTINGS_PATH}`, 'git commit -m "Record the repository kind for Wachiman"']);
+    else io.stderr(`Commit ${SETTINGS_PATH} like any file; init does not commit.`);
   }
 
   if (options.mode === "github") {

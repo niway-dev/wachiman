@@ -193,7 +193,7 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (status.ok) io.stderr(`account: signed in (${status.auth.authMethod}; claude ${status.binary.version})`);
     else if (!explained) io.stderr(`warning: ${status.problem} Fix: ${status.fix}`);
 
-    const total = deps.fromInit ? (deps.initMode === "both" ? 6 : 5) : 4;
+    const total = deps.fromInit ? (deps.initMode === "both" ? 7 : 6) : 4;
     prompter.step("Checks and next actions", total, total);
     const code = closeSetup(repoDir, env, io, deps);
     if (flags.json) io.stdout(`${JSON.stringify(projectShow(repoDir, env, deps), null, 2)}\n`);
