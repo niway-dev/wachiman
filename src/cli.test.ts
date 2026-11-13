@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractRepoDir, runResetConfidence } from "./cli";
@@ -85,6 +85,107 @@ describe("cli", () => {
       rmSync(home, { recursive: true, force: true });
       rmSync(bin, { recursive: true, force: true });
     }
+  });
+});
+
+describe("exit code 3: the spend ledger stopped the run", () => {
+  /** `gh`, `claude` and `curl` as shell scripts: a one-file pull request, a probe that logs model calls, a scripted ledger. */
+  function world() {
+    const bin = mkdtempSync(join(tmpdir(), "wachiman-ledger-bin-"));
+    const modelCalls = join(bin, "model-called");
+    const script = (name: string, body: string) => {
+      writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+      chmodSync(join(bin, name), 0o755);
+    };
+    script("claude", `case "$*" in *--version*) echo "9.9.9 (Claude Code)";; *) touch "${modelCalls}";; esac`);
+    script(
+      "gh",
+      [
+        'case "$*" in',
+        `  "pr view"*) printf '%s\\n' '{"headRefOid":"head1234567","title":"t","body":"b","author":{"login":"u"}}';;`,
+        `  *pulls/1/files*) printf '%s\\n' '{"filename":"a.ts","additions":1,"deletions":0,"patch":"@@ -0,0 +1 @@\\n+x"}';;`,
+        "  *pulls/1/reviews*|*pulls/1/comments*) ;;",
+        "  *) exit 1;;",
+        "esac",
+      ].join("\n"),
+    );
+    script(
+      "curl",
+      [
+        '[ -n "$CURL_EXIT" ] && exit "$CURL_EXIT"',
+        "for last; do :; done",
+        'case "$last" in',
+        `  https://tokens.test/*) printf '{"value":"jwt"}\\n200';;`,
+        `  *) printf '%s\\n%s' "$LEDGER_BODY" "$LEDGER_STATUS";;`,
+        "esac",
+      ].join("\n"),
+    );
+    const env = (extra: Record<string, string>) => ({
+      PATH: `${bin}:${process.env.PATH ?? ""}`,
+      GH_TOKEN: "x",
+      GITHUB_REPOSITORY: "o/r",
+      AGENT_REVIEW_DRY_RUN: "1",
+      AGENT_REVIEW_TRIGGER: "opened",
+      AGENT_REVIEW_LEDGER_URL: "https://ledger.test",
+      ACTIONS_ID_TOKEN_REQUEST_URL: "https://tokens.test/token?api=1",
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer",
+      ...extra,
+    });
+    return { bin, env, modelCalled: () => existsSync(modelCalls) };
+  }
+
+  const LIMIT = JSON.stringify({ reason: "limit", accountSpentUsd: 6.12, accountLimitUsd: 6, day: "2026-11-06" });
+
+  test("a limit exits 3 in fail mode (the default) and 0 in notice mode; neither calls the model", () => {
+    const w = world();
+    try {
+      const failed = run(["review", "1"], w.env({ LEDGER_STATUS: "402", LEDGER_BODY: LIMIT }));
+      expect(failed.code).toBe(3);
+      expect(failed.stderr).toContain("wachiman: spend limit reached:");
+      expect(failed.stdout).toContain("Spend limit reached");
+      const quiet = run(["review", "1"], w.env({ LEDGER_STATUS: "402", LEDGER_BODY: LIMIT, AGENT_REVIEW_LIMIT_MODE: "notice" }));
+      expect(quiet.code).toBe(0);
+      expect(quiet.stdout).toContain("Spend limit reached");
+      expect(w.modelCalled()).toBe(false);
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("an unreachable ledger reviews by default and exits 3 before any model call with ledger_unavailable: stop", () => {
+    const w = world();
+    try {
+      const stopped = run(["review", "1"], w.env({ CURL_EXIT: "7", AGENT_REVIEW_LEDGER_UNAVAILABLE: "stop" }));
+      expect(stopped.code).toBe(3);
+      expect(stopped.stderr).toContain("wachiman: ledger:");
+      expect(w.modelCalled()).toBe(false);
+      const running = run(["review", "1"], w.env({ CURL_EXIT: "7" }));
+      expect(running.code).not.toBe(3);
+      expect(running.stderr).not.toContain("wachiman: ledger:");
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("an unlinked repository and a job without an OIDC token exit 3 whatever ledger_unavailable says", () => {
+    const w = world();
+    try {
+      for (const unavailable of ["run", "stop"]) {
+        const unlinked = run(["review", "1"], w.env({ LEDGER_STATUS: "403", LEDGER_BODY: JSON.stringify({ reason: "not_linked" }), AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable }));
+        expect(unlinked.code).toBe(3);
+        expect(unlinked.stderr).toContain("not linked");
+        const bare = run(["review", "1"], w.env({ ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable }));
+        expect(bare.code).toBe(3);
+        expect(bare.stderr).toContain("review-platform.yml");
+      }
+      expect(w.modelCalled()).toBe(false);
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("--help lists exit code 3", () => {
+    expect(run(["--help"]).stdout).toContain("3 the spend ledger stopped the run");
   });
 });
 

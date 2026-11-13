@@ -67,6 +67,12 @@ engine through the environment variable in the third column; those variables are
 | `threads_budget_usd` | number | `AGENT_REVIEW_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in v1.5.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
 | `batch_budget_usd` | number | `AGENT_REVIEW_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
 | `answer_budget_usd` | number | `AGENT_REVIEW_ANSWER_BUDGET_USD` | `1` | The cap given to the one call that answers a question. Separate from `budget_usd`. |
+| `ledger_url` | string | `AGENT_REVIEW_LEDGER_URL` | empty | Base URL of a spend ledger that keeps a daily and a weekly limit across repositories ([costs.md](costs.md#the-spend-limit)). Empty: no ledger call of any kind, no token request, nothing changes. Set it only when calling `review-platform.yml` with `id-token: write` ([install.md](install.md#optional-enroll-in-a-spend-ledger)); from `review.yml` the run stops and says so. |
+| `daily_budget_usd` | number | `AGENT_REVIEW_DAILY_BUDGET_USD` | `0` | A stricter daily number for this repository, in USD, sent to the ledger with each run. It never raises the account's own limit. `0` means unset. Used only with `ledger_url`. |
+| `weekly_budget_usd` | number | `AGENT_REVIEW_WEEKLY_BUDGET_USD` | `0` | The same, per week (weeks start on Monday, UTC). `0` means unset. Used only with `ledger_url`. |
+| `limit_mode` | string | `AGENT_REVIEW_LIMIT_MODE` | `fail` | What a limit refusal does to the job, after the comment says which limit was reached: `fail` ends the job red with exit code 3, `notice` keeps it green. Not-linked, rejected-identity and missing-permission stops always exit 3. Used only with `ledger_url`. |
+| `limit_bypass` | boolean | `AGENT_REVIEW_LIMIT_BYPASS` | `false` | Skip the ledger for this repository, at its own risk: no reservation, no record. The review footer says the limit was bypassed. |
+| `ledger_unavailable` | string | `AGENT_REVIEW_LEDGER_UNAVAILABLE` | `run` | When the ledger cannot be reached (network, timeout, 5xx): `run` reviews under the normal budgets, says the run was not counted and tries to record it afterwards; `stop` ends the run with exit code 3 before any model call. Not used for configuration errors, which always stop. |
 | `askers` | string | `AGENT_REVIEW_ASKERS` | `operator` | Who may ask a question by comment: `operator` (only the operator) or `write` (also a collaborator with admin, maintain or write permission, which GitHub checks on each question). With `write` the thread and on-demand jobs also start for a collaborator's comment that starts with the command word. A collaborator's `review` is refused. See [Questions from collaborators](cli.md#questions-from-collaborators). |
 | `ask_ceiling_usd` | number | `AGENT_REVIEW_ASK_CEILING_USD` | `3` | The most all questions from people other than the operator may spend on one pull request. The operator's questions are not limited. Used only with `askers: write`. |
 | `batch_lines` | number | `AGENT_REVIEW_BATCH_LINES` | `1000` | Changed lines (additions plus deletions) per batch. A whole number. |
@@ -126,6 +132,13 @@ to run the job.
 | `review` (automatic) | read | write | not requested |
 | `threads` (thread replies) | read | write | not requested |
 | `on-demand` | read | write | read |
+
+`review-platform.yml` is the same workflow with one more permission: each of its jobs also holds
+`id-token: write`, which the engine uses to ask the spend ledger for a GitHub OIDC token. A caller
+that uses it must grant `id-token: write` in its own job as well, because a called workflow cannot
+hold a permission its caller did not grant. Callers of `review.yml` need nothing new. The file is
+generated from `review.yml` by `scripts/generate-review-platform.ts`, and a test fails when the two
+differ. See [install.md](install.md#optional-enroll-in-a-spend-ledger).
 
 ### When each job runs
 

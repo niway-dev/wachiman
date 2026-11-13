@@ -14,6 +14,9 @@ export type Trigger = string;
 /** Whether a run started by `trigger` spends from the pull request's automatic ceiling. */
 export const isAutomatic = (trigger: Trigger | undefined) => trigger !== undefined && trigger !== "comment";
 
+export type LimitMode = "fail" | "notice";
+export type LedgerUnavailableMode = "run" | "stop";
+
 export interface EngineConfig {
   /** Total per review invocation, USD. */
   budgetUsd: number;
@@ -29,6 +32,21 @@ export interface EngineConfig {
    * (`sizeGate` in estimate.ts), so raising the budgets lifts it. Local runs only warn.
    */
   sizeGateUsd: number;
+  /**
+   * `AGENT_REVIEW_LEDGER_URL`: the spend ledger service, trimmed, without a trailing slash. Unset
+   * means no ledger call of any kind. It is also the OIDC audience, as configured.
+   */
+  ledgerUrl?: string;
+  /** `AGENT_REVIEW_DAILY_BUDGET_USD`: a stricter daily number for this repository; it never raises the account's limit. */
+  dailyBudgetUsd?: number;
+  /** `AGENT_REVIEW_WEEKLY_BUDGET_USD`: the same, per week. */
+  weeklyBudgetUsd?: number;
+  /** `AGENT_REVIEW_LIMIT_MODE`: when a limit refuses a run, `fail` exits 3 (red job); `notice` posts the comment and passes. */
+  limitMode: LimitMode;
+  /** `AGENT_REVIEW_LIMIT_BYPASS`: `1` or `true` skips the ledger for this run. */
+  limitBypass: boolean;
+  /** `AGENT_REVIEW_LEDGER_UNAVAILABLE`: with an unreachable ledger, `run` reviews anyway (and says so); `stop` exits 3 before any model call. */
+  ledgerUnavailable: LedgerUnavailableMode;
   /** `AGENT_REVIEW_THREADS_BUDGET_USD`: the one provider call of a thread-only run. */
   threadsBudgetUsd: number;
   /**
@@ -196,6 +214,23 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   if (trigger !== undefined && !/^[a-z_]+$/.test(trigger)) {
     throw new UsageError(`AGENT_REVIEW_TRIGGER must be a lowercase event action such as synchronize, got "${trigger}".`);
   }
+  const limitMode = get("LIMIT_MODE") ?? "fail";
+  if (limitMode !== "fail" && limitMode !== "notice") {
+    throw new UsageError(`AGENT_REVIEW_LIMIT_MODE must be fail or notice, got "${limitMode}".`);
+  }
+  const ledgerUnavailable = get("LEDGER_UNAVAILABLE") ?? "run";
+  if (ledgerUnavailable !== "run" && ledgerUnavailable !== "stop") {
+    throw new UsageError(`AGENT_REVIEW_LEDGER_UNAVAILABLE must be run or stop, got "${ledgerUnavailable}".`);
+  }
+  const bypass = get("LIMIT_BYPASS")?.trim();
+  const ledgerUrl = get("LEDGER_URL")?.trim().replace(/\/+$/, "") || undefined;
+  // `review-platform.yml` grants `id-token: write`, so the request token is in the engine's
+  // environment there; a Codex sandbox could read it from /proc and mint tokens as this job.
+  if (provider !== "claude-code" && env.ACTIONS_ID_TOKEN_REQUEST_TOKEN !== undefined) {
+    throw new UsageError(
+      `AGENT_REVIEW_PROVIDER ${provider} cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of review-platform.yml.`,
+    );
+  }
   return {
     budgetUsd: number("BUDGET_USD", 3),
     autoBudgetUsd: number("AUTO_BUDGET_USD", 6),
@@ -224,6 +259,12 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     verifyBudgetUsd: number("VERIFY_BUDGET_USD", 1),
     verifierModel: verifierModel ?? DEFAULT_VERIFIER_MODEL,
     confidence: confidenceRaw === "1" || confidenceRaw === "true",
+    ledgerUrl,
+    dailyBudgetUsd: get("DAILY_BUDGET_USD") === undefined ? undefined : number("DAILY_BUDGET_USD", 0),
+    weeklyBudgetUsd: get("WEEKLY_BUDGET_USD") === undefined ? undefined : number("WEEKLY_BUDGET_USD", 0),
+    limitMode,
+    limitBypass: bypass === "1" || bypass === "true",
+    ledgerUnavailable,
   };
 }
 

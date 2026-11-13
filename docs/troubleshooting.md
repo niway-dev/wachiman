@@ -333,6 +333,49 @@ bill", and the amount is what the calls would cost at API prices ([costs.md](cos
 A question failed. The reason is `budget` when the answer cap ended the call, `turns` when it reached `max_turns`, `timeout` when `call_timeout_s` killed it, or `error`. Nothing is
 posted and the job is red. Narrow the question, or raise `answer_budget_usd`.
 
+## The spend ledger
+
+These apply only when `ledger_url` is set ([costs.md](costs.md#the-spend-limit)).
+
+### `Spend limit reached`
+
+The comment names the period (daily, weekly, or this repository's own `daily_budget_usd` or
+`weekly_budget_usd`), how much was spent against which limit, and when it resets. No model call was
+made. The job is red with exit code 3 unless `limit_mode` is `notice`. Wait for the reset, raise the
+limit in the ledger, or, as the operator, comment `/wachiman review --force`. The notice is posted
+once per pull request and period, so a later push is refused without another comment.
+
+### `This repository is not linked to a ledger account`
+
+The ledger does not know this repository. Nothing was reviewed. Link the repository in the ledger,
+remove `ledger_url`, or set `limit_bypass: true`. `ledger_unavailable` does not change this: it is a
+configuration error, not an outage. Exit code 3.
+
+### `The ledger did not accept this job's identity token`
+
+The ledger rejected the GitHub OIDC token. Check that `ledger_url` is the ledger's address and that
+the ledger trusts this repository. Exit code 3, before any model call.
+
+### `ledger_url is set, but this job cannot request an OIDC token`
+
+The job holds no `id-token: write`. Call `.github/workflows/review-platform.yml` instead of
+`review.yml`, and grant `id-token: write` in the caller's job ([install.md](install.md#optional-enroll-in-a-spend-ledger)).
+`review.yml` never holds that permission, so with `ledger_url` set it always stops with this message.
+Exit code 3.
+
+### The ledger could not be reached
+
+With `ledger_unavailable: run` (the default) the review still happens. Its footer says
+`Not counted against the spend limit`, and the job summary under **Wachiman spend limit** says whether
+the run was recorded afterwards. With `stop`, the run ends with exit code 3 before any model call and
+posts nothing; re-run it when the ledger is back. If only the settle failed, the review is posted
+without a receipt and the summary says the settlement was not delivered.
+
+### A job nobody expected to be red
+
+Exit code 3 means the ledger stopped the run, not that the engine failed. Check the comment on the
+pull request and the **Wachiman spend limit** section of the job summary.
+
 ## Output refused: a credential-shaped string
 
 ```text
@@ -426,6 +469,7 @@ The canonical table is in [cli.md](cli.md). What each code means when you read a
 | 0 | A review or an answer was posted, or there was nothing to do: not a command, not the operator, `Already reviewed`, `Nothing to review`, an all-budget `ran out of its budget` comment. | Green does not mean a review exists. |
 | 1 | An engine error: missing key or binary, a failed `gh` call, `The agent did not return a review for any batch.`, the credential-shaped output refusal, a failed answer. | Not always "nothing posted": see above. |
 | 2 | A usage error: unknown command, bad pull request number, a missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting such as `AGENT_REVIEW_BUDGET_USD must be a positive number, got "0".`, or an unknown provider. | Printed with the usage text. |
+| 3 | The spend ledger stopped the run before any model call: a limit with `limit_mode: fail`, a repository the ledger does not know, a rejected identity token, a job without `id-token: write` while `ledger_url` is set, or an unreachable ledger with `ledger_unavailable: stop`. | See [The spend ledger](#the-spend-ledger). A limit with `limit_mode: notice` exits 0. |
 
 One setting breaks that pattern: a malformed `AGENT_REVIEW_PRICE_PER_MTOK` (the Codex price override)
 exits 1, not 2. That setting is available only in the CLI.

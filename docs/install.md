@@ -284,6 +284,34 @@ repository before you have seen it, so it is not recommended.
   [SECURITY.md](../SECURITY.md).
 - You know what a run can spend: [costs.md](costs.md).
 
+## Optional: enroll in a spend ledger
+
+Enrolling is optional. A repository that does not set `ledger_url` changes nothing and needs no new
+permission.
+
+A spend ledger keeps a daily and a weekly limit across repositories ([costs.md](costs.md#the-spend-limit)).
+To use one, call `review-platform.yml` instead of `review.yml` and grant `id-token: write` in the
+caller's job. A called workflow cannot hold a permission its caller did not grant, which is why
+`review.yml` itself never asks for it:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write      # lets the job ask the ledger for a GitHub OIDC token
+jobs:
+  review:
+    uses: niway-dev/wachiman/.github/workflows/review-platform.yml@v1.5.0
+    with:
+      operator: your-github-login
+      ledger_url: https://your-ledger.example.com
+      daily_budget_usd: 5   # optional, stricter than the account's limit
+```
+
+`templates/wachiman-review-caller.yml` carries the same block as a comment. The token is used only
+to authenticate to the ledger; the agent that reads your code never sees it.
+
 ## Optional: a focus file
 
 Add `.github/wachiman.md` to say what this repository's reviews should look at beyond the

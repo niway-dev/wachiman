@@ -453,6 +453,43 @@ reusable workflow; on a subscription there is no per-call charge, see the next s
 options are described in its own documentation, which this repository does not verify. Using a key
 dedicated to Wachiman makes its spend easy to read and the key easy to revoke.
 
+## The spend limit
+
+A repository may enroll in a spend ledger: a service that keeps one daily and one weekly limit for an
+account across all its repositories ([install.md](install.md#optional-enroll-in-a-spend-ledger)). It
+is off unless `ledger_url` is set; then nothing below applies and nothing changes.
+
+With a ledger, each run asks before its first model call and tells the ledger what it spent after
+its last:
+
+1. **Reserve.** The run says how much it wants (its budget), the trigger and the pull request number.
+   The ledger grants that or less, and the run's budget is capped by the grant. Your own
+   `daily_budget_usd` and `weekly_budget_usd` are sent too; they can only make the limit stricter.
+2. **Settle.** The run sends the amount it spent and its calls, the same fields as the
+   `wachiman-cost` log lines. The ledger answers with a signed receipt, which goes into the hidden
+   footer of the comment. No code, finding text, pull request title or credential is sent.
+
+**What the limit bounds.** It bounds what the ledger lets runs *start*: a run is refused when the
+reservations and settled spend of the period have reached the limit. It is best-effort, not a hard
+maximum. A call can exceed its cap (see [How each provider enforces its cap](#how-each-provider-enforces-its-cap)),
+two runs can reserve at the same moment, a run the ledger could not be asked about is not counted
+until it is recorded, and a failed settle leaves the reservation counted at the reserved amount.
+
+**Estimates.** On a Claude subscription token the amounts are API-price estimates, not a bill (see
+below), so a limit in dollars bounds estimated usage, and the notice says so.
+
+**When a limit is reached** the run posts one comment per pull request and period that says which
+limit, how much was spent against it and when it resets, and no model call is made. `limit_mode`
+decides whether the job is red (`fail`, exit code 3) or green (`notice`). The operator can still
+start a review with `/wachiman review --force`; the ledger decides whether a forced run is allowed.
+
+**When the ledger cannot be reached**, `ledger_unavailable` decides: `run` (default) reviews under
+the normal budgets, the footer says the run was not counted against the spend limit, and the engine
+tries to record the run once at the end; the job summary says whether that worked. `stop` ends the
+run with exit code 3 before any model call. Nothing fails because the ledger is down in `run` mode.
+If the ledger fails only at settle, the review stands and the job summary says the settlement was
+not delivered. See [troubleshooting.md](troubleshooting.md#the-spend-ledger).
+
 ## When the review runs on a Claude subscription
 
 With `CLAUDE_CODE_OAUTH_TOKEN` instead of `ANTHROPIC_API_KEY` ([install.md](install.md#review-on-a-claude-subscription)),

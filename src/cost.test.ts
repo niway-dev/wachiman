@@ -5,6 +5,7 @@ import {
   costLine,
   costLogLine,
   formatTokens,
+  ledgerCall,
   renderCostSummary,
   writeStepSummary,
   type CallCost,
@@ -202,5 +203,61 @@ describe("the job summary", () => {
     expect(written[0][0]).toBe("/tmp/s");
     expect(written[0][1]).toContain("| **Total** |");
     expect(writeStepSummary([call()], { GITHUB_STEP_SUMMARY: "/nope" }, () => { throw new Error("EACCES"); })).toBe(false);
+  });
+});
+
+describe("ledgerCall", () => {
+  const FIELDS = [
+    "auth", "cache_read_tokens", "cache_write_tokens", "costKnown", "cost_usd", "duration_ms", "input_tokens",
+    "label", "model", "operation", "output_tokens", "terminal_reason", "turns",
+  ];
+
+  test("carries the thirteen fields of the contract and nothing about where the call ran", () => {
+    const sent = ledgerCall(call({ auth: "oauth-token" }));
+    expect(Object.keys(sent).sort()).toEqual(FIELDS);
+    expect(sent).toEqual({
+      operation: "review",
+      label: "batch 1/2",
+      model: "claude-sonnet-5-5",
+      turns: 7,
+      duration_ms: 41000,
+      input_tokens: 1200,
+      output_tokens: 3400,
+      cache_read_tokens: 560000,
+      cache_write_tokens: 21000,
+      cost_usd: 0.4321,
+      costKnown: true,
+      terminal_reason: "success",
+      auth: "oauth-token",
+    });
+  });
+
+  test("has the names and values of the wachiman-cost line for the same call", () => {
+    for (const c of [call(), call({ costKnown: false, costUsd: 0.5, auth: "subscription" })]) {
+      const printed = JSON.parse(costLogLine(c, { trigger: "opened" }).replace("wachiman-cost ", "")) as Record<string, unknown>;
+      for (const key of ["repo", "pr", "trigger", "countedUsd"]) delete printed[key];
+      expect(ledgerCall(c)).toEqual(printed);
+    }
+  });
+
+  test("an unknown cost is null, never its cap; a call with no auth is api-key", () => {
+    expect(ledgerCall(call({ costKnown: false, costUsd: 0.5 }))).toMatchObject({ cost_usd: null, costKnown: false, auth: "api-key" });
+  });
+});
+
+describe("writeStepSummary with ledger notes", () => {
+  test("appends a spend limit section with one bullet per note, even when no call was made", () => {
+    const written: string[] = [];
+    const append = (_path: string, text: string) => void written.push(text);
+    expect(writeStepSummary([], { GITHUB_STEP_SUMMARY: "/tmp/s" }, append, ["The ledger could not be reached.", "The run was not recorded."])).toBe(true);
+    expect(written[0]).toContain("### Wachiman spend limit");
+    expect(written[0]).toContain("- The ledger could not be reached.\n- The run was not recorded.");
+    expect(written[0]).not.toContain("### Wachiman model cost");
+  });
+
+  test("without notes the summary is what it was", () => {
+    const written: string[] = [];
+    writeStepSummary([call()], { GITHUB_STEP_SUMMARY: "/tmp/s" }, (_p, t) => void written.push(t), []);
+    expect(written[0]).not.toContain("spend limit");
   });
 });

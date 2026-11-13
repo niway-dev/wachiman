@@ -171,6 +171,34 @@ on:
           minute job limit.
         type: number
         default: 180
+      ledger_url:
+        description: >-
+          Base URL of the spend ledger that keeps a daily and a weekly limit across repositories
+          (docs/costs.md). Empty, the default: no ledger call of any kind and nothing changes.
+          Set, the job needs an OIDC token, which only `review-platform.yml` can get (it grants
+          `id-token: write`); here the run stops and says so
+        type: string
+        default: ""
+      daily_budget_usd:
+        description: A stricter daily number for this repository, in USD, sent to the ledger with each run; it never raises the account's limit. 0 means unset
+        type: number
+        default: 0
+      weekly_budget_usd:
+        description: A stricter weekly number for this repository, in USD; it never raises the account's limit. 0 means unset
+        type: number
+        default: 0
+      limit_mode:
+        description: When a limit refuses a run, `fail` ends it with exit code 3 (red job) and `notice` posts the comment and passes
+        type: string
+        default: fail
+      limit_bypass:
+        description: Skip the ledger for this repository, at its own risk; the review footer says so
+        type: boolean
+        default: false
+      ledger_unavailable:
+        description: When the ledger cannot be reached, `run` reviews under the normal budgets and says the run was not counted; `stop` ends the run with exit code 3 before any model call
+        type: string
+        default: run
       pr_confidence:
         description: >-
           Trial. Write PR Confidence, a grade of whether the diff does what the title and body say,
@@ -361,6 +389,12 @@ jobs:
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
+          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
           # `opened`, `ready_for_review` or `synchronize`: each is an automatic run that counts
           # against `auto_budget_usd`.
           AGENT_REVIEW_TRIGGER: ${{ github.event.action }}
@@ -483,6 +517,12 @@ jobs:
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
+          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
           AGENT_REVIEW_ASKERS: ${{ inputs.askers }}
           AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
           # A question in the review panel is answered with this cap (routed to `comment`).
@@ -624,6 +664,12 @@ jobs:
           AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
           AGENT_REVIEW_MENTION: ${{ inputs.mention }}
           AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
+          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
           AGENT_REVIEW_ASKERS: ${{ inputs.askers }}
           AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
         # Bun's working directory is `engine/`; see the `review` job.

@@ -198,6 +198,17 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
     expect(Object.keys(child)).toEqual(["PATH"]);
   });
 
+  test("the OIDC request variables are not forwarded to the agent", () => {
+    const env = { PATH: "/bin", ACTIONS_ID_TOKEN_REQUEST_URL: "x", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "y" };
+    for (const auth of [undefined, "subscription", "oauth-token"] as const) {
+      const child = buildChildEnv(env, { auth });
+      expect(child).not.toHaveProperty("ACTIONS_ID_TOKEN_REQUEST_URL");
+      expect(child).not.toHaveProperty("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
+    }
+    expect(CHILD_ENV_ALLOWLIST as readonly string[]).not.toContain("ACTIONS_ID_TOKEN_REQUEST_URL");
+    expect(CHILD_ENV_ALLOWLIST as readonly string[]).not.toContain("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
+  });
+
   test("a spend-cap ending is reported as budget", () => {
     const binary = stubBinary(
       `cat >/dev/null; echo '{"is_error":true,"subtype":"error_max_budget_usd","num_turns":9,"total_cost_usd":0.5}'`,

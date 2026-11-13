@@ -36,8 +36,58 @@ describe("loadConfig", () => {
       verifyBudgetUsd: 1,
       verifierModel: "claude-opus-5-5",
       confidence: false,
+      limitMode: "fail",
+      limitBypass: false,
+      ledgerUnavailable: "run",
     });
     expect(warnings).toEqual([]);
+  });
+
+  test("the ledger settings: unset means no ledger, mode defaults to fail, bypass to false, unavailable to run", () => {
+    const { config: c } = load({});
+    expect(c.ledgerUrl).toBeUndefined();
+    expect(c.dailyBudgetUsd).toBeUndefined();
+    expect(c.weeklyBudgetUsd).toBeUndefined();
+    expect(c.limitMode).toBe("fail");
+    expect(c.limitBypass).toBe(false);
+    expect(c.ledgerUnavailable).toBe("run");
+    expect(load({ AGENT_REVIEW_LEDGER_URL: "  " }).config.ledgerUrl).toBeUndefined();
+    // The workflow passes an empty string for a budget of 0 (unset).
+    expect(load({ AGENT_REVIEW_DAILY_BUDGET_USD: "", AGENT_REVIEW_WEEKLY_BUDGET_USD: "" }).config.dailyBudgetUsd).toBeUndefined();
+  });
+
+  test("a provider other than claude-code is refused wherever an OIDC request token is present", () => {
+    const message =
+      "AGENT_REVIEW_PROVIDER codex cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of review-platform.yml.";
+    const token = { ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer" };
+    const ledger = { AGENT_REVIEW_LEDGER_URL: "https://ledger.example" };
+    expect(() => load({ ...token, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(message);
+    expect(() => load({ ...token, AGENT_REVIEW_PROVIDER: "codex" })).toThrow(UsageError);
+    expect(() => load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_LIMIT_BYPASS: "true" })).toThrow(message);
+    expect(load({ ...token, ...ledger, AGENT_REVIEW_PROVIDER: "claude-code" }).config.ledgerUrl).toBe("https://ledger.example");
+    // No token in the environment: Codex is fine, with or without a ledger url (the CLI case).
+    expect(load({ AGENT_REVIEW_PROVIDER: "codex" }).config.provider).toBe("codex");
+    expect(load({ ...ledger, AGENT_REVIEW_PROVIDER: "codex" }).config.provider).toBe("codex");
+  });
+
+  test("ledger url loses a trailing slash; the ledger settings are read; a bad mode is a usage error", () => {
+    const { config: c } = load({
+      AGENT_REVIEW_LEDGER_URL: "https://ledger.example/",
+      AGENT_REVIEW_LIMIT_MODE: "notice",
+      AGENT_REVIEW_LIMIT_BYPASS: "true",
+      AGENT_REVIEW_LEDGER_UNAVAILABLE: "stop",
+      AGENT_REVIEW_DAILY_BUDGET_USD: "2.5",
+      AGENT_REVIEW_WEEKLY_BUDGET_USD: "10",
+    });
+    expect(c.ledgerUrl).toBe("https://ledger.example");
+    expect(c.limitMode).toBe("notice");
+    expect(c.limitBypass).toBe(true);
+    expect(c.ledgerUnavailable).toBe("stop");
+    expect(c.dailyBudgetUsd).toBe(2.5);
+    expect(c.weeklyBudgetUsd).toBe(10);
+    expect(() => load({ AGENT_REVIEW_LIMIT_MODE: "warn" })).toThrow(/LIMIT_MODE must be fail or notice/);
+    expect(() => load({ AGENT_REVIEW_LEDGER_UNAVAILABLE: "ignore" })).toThrow(/LEDGER_UNAVAILABLE must be run or stop/);
+    expect(() => load({ AGENT_REVIEW_DAILY_BUDGET_USD: "0" })).toThrow(UsageError);
   });
 
   test("askers is operator or write, and anything else is a configuration error", () => {

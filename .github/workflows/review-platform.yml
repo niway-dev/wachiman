@@ -1,0 +1,692 @@
+name: Wachiman review with the spend ledger (reusable)
+
+# GENERATED from .github/workflows/review.yml by scripts/generate-review-platform.ts. Do not edit it:
+# change review.yml and run `bun scripts/generate-review-platform.ts`; a test fails when this file is
+# not what the script writes.
+#
+# It is the same review as review.yml, except that each job also grants `id-token: write`. The engine
+# uses that permission to ask the spend ledger (`ledger_url`) for a GitHub OIDC token. Call this
+# workflow only to enroll in the ledger: the caller must grant `id-token: write` too (in the caller's
+# job), because a called workflow cannot hold a permission its caller did not grant. Callers that do
+# not use a ledger call review.yml and change nothing. See docs/install.md and docs/costs.md.
+#
+# Everything below this block is review.yml, unchanged.
+
+# Reusable workflow: an advisory review of a pull request, paid from the caller's own API key.
+# Call it from a short caller file (templates/wachiman-review-caller.yml); see docs/install.md.
+# The review is never a required check, an approval, a change request or a merge gate.
+#
+# What the consumer must trust (see SECURITY.md and docs/adr/0001-distribution-and-trust.md):
+#   - Everyone who can push a branch to the calling repository. On `pull_request` GitHub runs
+#     the caller file from the pull request's own merge commit, so a person who can push can
+#     edit the caller and read `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`, whichever it
+#     passes. Nothing here defends against that.
+#   - The ref of this workflow that the caller pins. A floating tag such as `v1` is a trust
+#     dependency on this repository's maintainers; pin a full commit SHA for immutability.
+#
+# What this workflow does about it:
+#   - Fork pull requests are excluded (they get no secrets anyway), and the on-demand path
+#     re-checks that the head belongs to the calling repository before it runs anything.
+#   - `pull_request_target` is not used and must not be added to the caller.
+#   - Only the `operator` login can start an on-demand run or a thread-reply run (a reply in a
+#     review thread, `pull_request_review_comment`). With `askers: write` a collaborator with write
+#     access can also start one by a question that starts with the command word; the engine checks
+#     that permission again. The jobs fail early when `operator` is empty or still a template
+#     placeholder.
+#   - The reviewed head is data: it is checked out without credentials into `head/`, and the
+#     engine that holds the key comes from this repository at the version of this workflow into
+#     `engine/`, never from the head. Bun runs inside `engine/` with `--no-env-file` and the
+#     engine's own `bunfig.toml`, so a `bunfig.toml` (whose `preload` runs code) or a `.env` in
+#     the head is never read; the head's path is passed with `--repo-dir`. The agent gets an
+#     allowlisted environment (docs/providers/claude-code.md). The engine launches Claude Code with `--restricted --strict-mcp-config
+#     --tools Read,Glob,Grep` and its own settings, so the head's `.claude/` settings and hooks
+#     are blocked, no MCP server starts and only read tools exist. That is not a sandbox: it is
+#     claimed only for what tests show.
+#   - Budgets and batch sizes come from the caller's `with:` values, never from the pull request.
+#     The automatic runs of one pull request share a ceiling (`auto_budget_usd`) that is summed
+#     from Wachiman's own signed review footers (docs/adr/0012-*.md).
+
+on:
+  workflow_call:
+    inputs:
+      operator:
+        description: GitHub login allowed to start on-demand runs by comment
+        type: string
+        required: true
+      mention:
+        description: Command that starts an on-demand run (`/wachi`, `/wachiman`, `@agent-review` and `@claude` are always accepted too)
+        type: string
+        default: "/wachiman"
+      budget_usd:
+        description: Most one review run may spend, in USD
+        type: number
+        default: 3
+      auto_budget_usd:
+        description: >-
+          Most all automatic runs on one pull request (the first review, push reviews and thread
+          replies) may spend together, in USD, summed from the signed footers of Wachiman's own
+          reviews. At the limit one notice is posted and automatic runs stop; `/wachiman review` is
+          not limited by it. The default leaves room for one full review (`budget_usd`, $3) and
+          several push reviews
+        type: number
+        default: 6
+      size_gate_usd:
+        description: >-
+          A review whose estimated cost (from the diff size, before any model call) is above this,
+          in USD, is not run: one comment gives the estimate and the inputs to raise. The gate is
+          never below what the run may spend (`budget_usd`, and for automatic runs also
+          `auto_budget_usd`), so raising those lifts it. There is no unlimited value
+        type: number
+        default: 6
+      threads_budget_usd:
+        description: Most one thread-reply run may spend, in USD (it counts against `auto_budget_usd`)
+        type: number
+        default: 0.25
+      batch_budget_usd:
+        description: Most one batch may spend, in USD
+        type: number
+        default: 0.75
+      answer_budget_usd:
+        description: Most one on-demand question may spend, in USD
+        type: number
+        default: 1
+      askers:
+        description: >-
+          Who may ask a question by comment: `operator` (only the operator, the default) or `write`
+          (also a collaborator with admin, maintain or write permission, which GitHub confirms on
+          each question; a collaborator's `review` is refused). With `write`, the thread and
+          on-demand jobs also start for a collaborator's comment that starts with the command word;
+          with `operator` they start for nobody but the operator
+        type: string
+        default: operator
+      ask_ceiling_usd:
+        description: >-
+          Most all questions from people other than the operator may spend on one pull request, in
+          USD; used only with `askers: write`
+        type: number
+        default: 3
+      batch_lines:
+        description: Changed lines per batch
+        type: number
+        default: 1000
+      batch_chars:
+        description: Diff characters per batch
+        type: number
+        default: 140000
+      model:
+        description: Model the agent uses
+        type: string
+        default: claude-sonnet-5-5
+      effort:
+        description: Reasoning effort the model runs at (low, medium, high, xhigh or max); printed in every review footer
+        type: string
+        default: high
+      verify:
+        description: After the batches, one more call tries to refute every finding above info before it is posted; a finding is dropped only with a disproof whose line exists at head (ADR 0027). Off by default; set true to enable verification
+        type: boolean
+        default: false
+      verify_budget_usd:
+        description: The verifier's reserve, taken out of budget_usd before the batches run (at most half of it)
+        type: number
+        default: 1
+      verifier_model:
+        description: Model the verifier uses; it always runs at effort high
+        type: string
+        default: claude-opus-5-5
+      max_turns:
+        description: Most agent turns one call may take (Claude Code --max-turns); a call that reaches it is reported, and its files are retried once
+        type: number
+        default: 40
+      call_timeout_s:
+        description: Wall-clock seconds one call may run before it is killed; keep it well under the 30 minute job limit
+        type: number
+        default: 900
+      on_provider_unavailable:
+        description: When the Anthropic account rejects every call (no credit, bad key, rate limit), warn posts a notice and passes the check; fail posts it and fails the check
+        type: string
+        default: warn
+      provider:
+        description: Agent provider; only claude-code exists
+        type: string
+        default: claude-code
+      claude_code_version:
+        description: Pinned Claude Code version
+        type: string
+        default: 2.1.304
+      claude_code_sha256:
+        description: >-
+          Optional SHA-256 of the Claude Code binary for the runner's platform (linux-x64 on
+          ubuntu-latest). Empty means the hash is read from the publisher's manifest.
+        type: string
+        default: ""
+      bun_version:
+        description: Pinned Bun version
+        type: string
+        default: 1.3.4
+      skip_branch_prefixes:
+        description: Comma-separated head branch prefixes whose pull requests are not reviewed
+        type: string
+        default: release-please--
+      review_on_push:
+        description: >-
+          Review every push to an open pull request, only the new commits (the caller must list
+          `synchronize` in its `pull_request` types). A push can spend up to `budget_usd`, within
+          `auto_budget_usd` for the pull request; set false to review only on open, ready for
+          review and `/wachiman review`.
+        type: boolean
+        default: true
+      push_debounce_seconds:
+        description: >-
+          Seconds a push (`synchronize`) waits before any model call, so a newer push cancels this
+          run while it sleeps and spends nothing. Only pushes wait: `opened`, `ready_for_review`
+          and comment runs start at once. `0` disables the wait. The wait counts toward the 30
+          minute job limit.
+        type: number
+        default: 180
+      ledger_url:
+        description: >-
+          Base URL of the spend ledger that keeps a daily and a weekly limit across repositories
+          (docs/costs.md). Empty, the default: no ledger call of any kind and nothing changes.
+          Set, the job needs an OIDC token, which only `review-platform.yml` can get (it grants
+          `id-token: write`); here the run stops and says so
+        type: string
+        default: ""
+      daily_budget_usd:
+        description: A stricter daily number for this repository, in USD, sent to the ledger with each run; it never raises the account's limit. 0 means unset
+        type: number
+        default: 0
+      weekly_budget_usd:
+        description: A stricter weekly number for this repository, in USD; it never raises the account's limit. 0 means unset
+        type: number
+        default: 0
+      limit_mode:
+        description: When a limit refuses a run, `fail` ends it with exit code 3 (red job) and `notice` posts the comment and passes
+        type: string
+        default: fail
+      limit_bypass:
+        description: Skip the ledger for this repository, at its own risk; the review footer says so
+        type: boolean
+        default: false
+      ledger_unavailable:
+        description: When the ledger cannot be reached, `run` reviews under the normal budgets and says the run was not counted; `stop` ends the run with exit code 3 before any model call
+        type: string
+        default: run
+      pr_confidence:
+        description: >-
+          Trial. Write PR Confidence, a grade of whether the diff does what the title and body say,
+          into the pull request description after the review (one more small model call per full
+          review), and reset it to "cannot say" at the start of every push run. A push after the first
+          review is reviewed incrementally and an incremental review is not graded, so the block shows
+          "cannot say" until a review of the whole pull request runs. Not an approval or a check.
+          See docs/pr-confidence.md
+        type: boolean
+        default: false
+    # Pass exactly one in the caller. With both, the token wins and the key never reaches the agent
+    # (ADR 0037); a run is never retried with the other credential. With neither, the run fails.
+    secrets:
+      ANTHROPIC_API_KEY:
+        description: Anthropic API key that pays for the review (billed per token)
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: >-
+          Token from `claude setup-token` that lets the review run on the Claude subscription of the
+          person who made it (tied to that person's plan and usage limits)
+        required: false
+
+# Concurrency is per job, never per workflow: every comment on a pull request starts a run,
+# and a workflow-level group would let a skipped `on-demand` cancel a review.
+
+jobs:
+  review:
+    name: Wachiman review
+    # Fork and Dependabot pull requests get no secrets, so the job could only fail there.
+    # The skipped branch prefixes are checked in the first step (a prefix list cannot be
+    # matched in an expression). These conditions hold for every `pull_request` action, so a
+    # push (`synchronize`) to a draft, a fork or a skipped branch is skipped like an open is.
+    # `review_on_push: false` skips the push runs; the trigger itself lives in the caller.
+    # A burst of pushes runs once: the concurrency group below cancels the older run.
+    if: |
+      github.event_name == 'pull_request' &&
+      (github.event.action != 'synchronize' || inputs.review_on_push) &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # batches run one after another
+    concurrency:
+      group: agent-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Check the operator input
+        env:
+          OPERATOR: ${{ inputs.operator }}
+        run: |
+          op="${OPERATOR//[[:space:]]/}"
+          lower="${op,,}"
+          if [ -z "$op" ] || [[ "$lower" == edit* ]] || [ "$lower" = "your-github-login" ]; then
+            echo "::error title=operator is not set::The workflow input 'operator' is empty or still a template placeholder ('$op'). Set it to your GitHub login in the caller workflow. A placeholder can be registered by anyone and would make them the operator."
+            exit 1
+          fi
+
+      - name: Skip branches that are not reviewed
+        id: gate
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PREFIXES: ${{ inputs.skip_branch_prefixes }}
+        run: |
+          IFS=',' read -ra list <<< "$PREFIXES"
+          for p in "${list[@]}"; do
+            p="${p// /}"
+            if [ -n "$p" ] && [[ "$HEAD_REF" == "$p"* ]]; then
+              echo "Branch $HEAD_REF matches skipped prefix $p; not reviewing."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
+      # In a reusable workflow, `github.workflow_sha` and `github.workflow_ref` describe the
+      # caller's workflow, not this one. The `job` context describes the workflow file that
+      # defines the job, and the GitHub docs use exactly these two properties to check out a
+      # reusable workflow's own source:
+      # https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
+      # So the engine version always equals the version of this workflow that was called.
+      - name: Checkout the engine at this workflow's version
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: engine
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Bun
+        if: steps.gate.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ inputs.bun_version }}
+
+      # PR Confidence (ADR 0033 decision 14): before the push wait and with no model call, the
+      # description block becomes "cannot say" for the commit under review. A run that a newer
+      # push cancels during the wait, or that fails later, leaves no grade of an older commit.
+      # It is best-effort: a failure is a warning and never stops the review.
+      - name: Reset PR Confidence for this commit
+        if: steps.gate.outputs.skip != 'true' && inputs.pr_confidence && github.event.action == 'synchronize'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AGENT_REVIEW_CONFIDENCE: ${{ inputs.pr_confidence }}
+        working-directory: engine
+        run: bun --no-env-file --config=bunfig.toml src/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"
+
+      # Before any model call. The concurrency group above cancels this run when a newer push
+      # arrives, so a run cancelled here has spent nothing. Only `synchronize` waits.
+      - name: Wait for further pushes
+        if: github.event.action == 'synchronize'
+        env:
+          DEBOUNCE: ${{ inputs.push_debounce_seconds }}
+        run: |
+          seconds="${DEBOUNCE//[[:space:]]/}"
+          if ! [[ "$seconds" =~ ^[0-9]+$ ]]; then
+            echo "::warning title=push_debounce_seconds ignored::'$DEBOUNCE' is not a whole number of seconds; not waiting."
+            exit 0
+          fi
+          if [ "$seconds" -gt 0 ]; then
+            echo "Waiting ${seconds}s for further pushes; a newer push cancels this run before it spends anything."
+            sleep "$seconds"
+          fi
+
+      # The head, not the default merge commit, so the files match the diff's lines. It is
+      # data: it goes into `head/`, a sibling of the engine's `engine/`, no credentials stay in
+      # its .git, and the engine never runs with it as its working directory, so Bun reads no
+      # `bunfig.toml` or `.env` from it.
+      - name: Checkout the pull request head
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Record the engine version
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          ENGINE_REPO: ${{ job.workflow_repository }}
+          ENGINE_SHA: ${{ job.workflow_sha }}
+        run: |
+          echo "Engine $ENGINE_REPO@$ENGINE_SHA, run from engine/ with --no-env-file and its own bunfig.toml." >> "$GITHUB_STEP_SUMMARY"
+          echo "The reviewed head is in head/ and is read as data: its bunfig.toml and .env are never loaded." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install Claude Code
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          CLAUDE_CODE_VERSION: ${{ inputs.claude_code_version }}
+          CLAUDE_CODE_SHA256: ${{ inputs.claude_code_sha256 }}
+          CLAUDE_INSTALL_DIR: ${{ runner.temp }}/claude-bin
+        # Downloads the pinned binary and fails the job unless its SHA-256 matches. With no
+        # `claude_code_sha256` the expected hash comes from the publisher's manifest, which
+        # proves integrity against the publisher, not against a compromised publisher; pass
+        # the input to pin the hash independently. See docs/providers/claude-code.md.
+        run: |
+          bash engine/src/install-claude-code.sh
+          echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Review the pull request
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          AGENT_REVIEW_BUDGET_USD: ${{ inputs.budget_usd }}
+          AGENT_REVIEW_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
+          AGENT_REVIEW_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
+          AGENT_REVIEW_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
+          AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
+          AGENT_REVIEW_BATCH_LINES: ${{ inputs.batch_lines }}
+          AGENT_REVIEW_BATCH_CHARS: ${{ inputs.batch_chars }}
+          AGENT_REVIEW_MODEL: ${{ inputs.model }}
+          AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
+          AGENT_REVIEW_VERIFY: ${{ inputs.verify }}
+          AGENT_REVIEW_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
+          AGENT_REVIEW_VERIFIER_MODEL: ${{ inputs.verifier_model }}
+          AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
+          AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
+          AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
+          AGENT_REVIEW_MENTION: ${{ inputs.mention }}
+          AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
+          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
+          # `opened`, `ready_for_review` or `synchronize`: each is an automatic run that counts
+          # against `auto_budget_usd`.
+          AGENT_REVIEW_TRIGGER: ${{ github.event.action }}
+          AGENT_REVIEW_CONFIDENCE: ${{ inputs.pr_confidence }}
+        # Bun's working directory is `engine/`, which this repository owns. `--config=<path>`
+        # needs the equals sign: `-c <path>` did not replace the head's config in Bun 1.3.4.
+        working-directory: engine
+        run: bun --no-env-file --config=bunfig.toml src/cli.ts review "$PR" --repo-dir "$GITHUB_WORKSPACE/head"
+
+  threads:
+    name: Wachiman thread replies
+    # A comment in the review panel (`pull_request_review_comment`) starts the job when it is:
+    #   - a comment that starts with the mention, new or a reply, from the operator, or from a
+    #     collaborator (OWNER, MEMBER or COLLABORATOR) only when `askers` is `write`; or
+    #   - a reply written by the operator, whatever it says (the thread-only run, as before).
+    # The head must be in this repository, and nothing here is a bot. The gate runs before any paid
+    # step: a stranger's comment on a public repository starts a skipped job and nothing else. The
+    # engine decides the rest: a collaborator's question is answered only after GitHub confirms write
+    # access; a reply without a question is the operator's alone, and the thread-only run acts only
+    # when the head was already reviewed and only on threads Wachiman opened.
+    if: |
+      github.event_name == 'pull_request_review_comment' &&
+      github.event.comment.user.type != 'Bot' &&
+      ((github.event.comment.user.login == inputs.operator && github.event.comment.in_reply_to_id) ||
+       ((startsWith(github.event.comment.body, inputs.mention) ||
+         startsWith(github.event.comment.body, '/wachi') ||
+         startsWith(github.event.comment.body, '@agent-review') ||
+         startsWith(github.event.comment.body, '@claude')) &&
+        (github.event.comment.user.login == inputs.operator ||
+         (inputs.askers == 'write' &&
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))))) &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Its own group, never cancelling: a reply must not cancel the review of a push that arrived
+    # seconds before. GitHub keeps one pending run per group, and a run handles every pending
+    # thread, so a dropped pending run loses nothing.
+    concurrency:
+      group: agent-review-threads-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Check the operator input
+        env:
+          OPERATOR: ${{ inputs.operator }}
+        run: |
+          op="${OPERATOR//[[:space:]]/}"
+          lower="${op,,}"
+          if [ -z "$op" ] || [[ "$lower" == edit* ]] || [ "$lower" = "your-github-login" ]; then
+            echo "::error title=operator is not set::The workflow input 'operator' is empty or still a template placeholder ('$op'). Set it to your GitHub login in the caller workflow. A placeholder can be registered by anyone and would make them the operator."
+            exit 1
+          fi
+
+      # The head is data, as in the `review` job: it goes into `head/`.
+      - name: Checkout the pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+          fetch-depth: 1
+          persist-credentials: false
+
+      # See the `review` job for why this is `job.workflow_sha` and not `github.workflow_sha`.
+      - name: Checkout the engine at this workflow's version
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: engine
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Record the engine version
+        env:
+          ENGINE_REPO: ${{ job.workflow_repository }}
+          ENGINE_SHA: ${{ job.workflow_sha }}
+        run: |
+          echo "Engine $ENGINE_REPO@$ENGINE_SHA, run from engine/ with --no-env-file and its own bunfig.toml." >> "$GITHUB_STEP_SUMMARY"
+          echo "The reviewed head is in head/ and is read as data: its bunfig.toml and .env are never loaded." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ inputs.bun_version }}
+
+      - name: Install Claude Code
+        env:
+          CLAUDE_CODE_VERSION: ${{ inputs.claude_code_version }}
+          CLAUDE_CODE_SHA256: ${{ inputs.claude_code_sha256 }}
+          CLAUDE_INSTALL_DIR: ${{ runner.temp }}/claude-bin
+        # See the `review` job for what the pinned download proves.
+        run: |
+          bash engine/src/install-claude-code.sh
+          echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Answer the pending threads
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          # The reply's text and place: a question in a thread is answered in it (ADR 0032 decision 4).
+          # Environment only, never interpolated into the script.
+          REQUEST: ${{ github.event.comment.body }}
+          AGENT_REVIEW_COMMENT_ID: ${{ github.event.comment.id }}
+          AGENT_REVIEW_COMMENT_IN_REPLY_TO: ${{ github.event.comment.in_reply_to_id }}
+          AGENT_REVIEW_COMMENT_PATH: ${{ github.event.comment.path }}
+          AGENT_REVIEW_COMMENT_LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
+          AGENT_REVIEW_TRIGGER: thread
+          AGENT_REVIEW_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
+          AGENT_REVIEW_THREADS_BUDGET_USD: ${{ inputs.threads_budget_usd }}
+          AGENT_REVIEW_MODEL: ${{ inputs.model }}
+          AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
+          AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
+          AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
+          AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
+          AGENT_REVIEW_MENTION: ${{ inputs.mention }}
+          AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
+          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
+          AGENT_REVIEW_ASKERS: ${{ inputs.askers }}
+          AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
+          # A question in the review panel is answered with this cap (routed to `comment`).
+          AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
+        # Bun's working directory is `engine/`; see the `review` job.
+        working-directory: engine
+        run: bun --no-env-file --config=bunfig.toml src/cli.ts threads "$PR" --repo-dir "$GITHUB_WORKSPACE/head"
+
+  on-demand:
+    name: Wachiman on demand
+    # The operator's login starts a run. So does a comment that starts with the mention from an OWNER,
+    # MEMBER or COLLABORATOR (`author_association` is `OWNER` for a user-owned repository but `MEMBER`
+    # in an organisation), and only when `askers` is `write`: a cheap pre-filter only. The engine
+    # refuses every such comment unless GitHub confirms the author's write access (ADR 0032 decision 9).
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      (github.event.comment.user.login == inputs.operator ||
+       (github.event.comment.user.type != 'Bot' &&
+        inputs.askers == 'write' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        (startsWith(github.event.comment.body, inputs.mention) ||
+         startsWith(github.event.comment.body, '/wachi') ||
+         startsWith(github.event.comment.body, '@agent-review') ||
+         startsWith(github.event.comment.body, '@claude')))) &&
+      (contains(github.event.comment.body, inputs.mention) ||
+       contains(github.event.comment.body, '/wachi') ||
+       contains(github.event.comment.body, '@agent-review') ||
+       contains(github.event.comment.body, '@claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # batches run one after another
+    # The operator's runs keep the group they always had and cancel one another. A collaborator's
+    # question gets its own group that never cancels, so it cannot cancel the operator's review of
+    # the same pull request.
+    concurrency:
+      group: agent-review-on-demand-${{ github.event.issue.number }}${{ github.event.comment.user.login != inputs.operator && '-ask' || '' }}
+      cancel-in-progress: ${{ github.event.comment.user.login == inputs.operator }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+    steps:
+      # The `if:` above cannot fail loudly, so a placeholder operator is refused here as well.
+      - name: Check the operator input
+        env:
+          OPERATOR: ${{ inputs.operator }}
+        run: |
+          op="${OPERATOR//[[:space:]]/}"
+          lower="${op,,}"
+          if [ -z "$op" ] || [[ "$lower" == edit* ]] || [ "$lower" = "your-github-login" ]; then
+            echo "::error title=operator is not set::The workflow input 'operator' is empty or still a template placeholder ('$op'). Set it to your GitHub login in the caller workflow. A placeholder can be registered by anyone and would make them the operator."
+            exit 1
+          fi
+
+      # `issue_comment` carries no head repository, so check it before anything reads the
+      # head: on a fork's pull request the job stops instead of running its code with the key.
+      - name: Refuse a fork pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.issue.number }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .head.repo.full_name)
+          if [ "$head" != "$GITHUB_REPOSITORY" ]; then
+            echo "Pull request #$PR comes from $head, not $GITHUB_REPOSITORY; not running." >&2
+            exit 1
+          fi
+
+      # The head is data, as in the `review` job: it goes into `head/`.
+      - name: Checkout the pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+          path: head
+          fetch-depth: 1
+          persist-credentials: false
+
+      # See the `review` job for why this is `job.workflow_sha` and not `github.workflow_sha`.
+      - name: Checkout the engine at this workflow's version
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: engine
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Record the engine version
+        env:
+          ENGINE_REPO: ${{ job.workflow_repository }}
+          ENGINE_SHA: ${{ job.workflow_sha }}
+        run: |
+          echo "Engine $ENGINE_REPO@$ENGINE_SHA, run from engine/ with --no-env-file and its own bunfig.toml." >> "$GITHUB_STEP_SUMMARY"
+          echo "The reviewed head is in head/ and is read as data: its bunfig.toml and .env are never loaded." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ inputs.bun_version }}
+
+      - name: Install Claude Code
+        env:
+          CLAUDE_CODE_VERSION: ${{ inputs.claude_code_version }}
+          CLAUDE_CODE_SHA256: ${{ inputs.claude_code_sha256 }}
+          CLAUDE_INSTALL_DIR: ${{ runner.temp }}/claude-bin
+        # Downloads the pinned binary and fails the job unless its SHA-256 matches. With no
+        # `claude_code_sha256` the expected hash comes from the publisher's manifest, which
+        # proves integrity against the publisher, not against a compromised publisher; pass
+        # the input to pin the hash independently. See docs/providers/claude-code.md.
+        run: |
+          bash engine/src/install-claude-code.sh
+          echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      # The comment reaches the engine through the environment, never interpolated into the
+      # shell, so its text cannot run as a command.
+      - name: Review or answer
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.issue.number }}
+          REQUEST: ${{ github.event.comment.body }}
+          AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          # The operator's own request: `auto_budget_usd` does not limit it.
+          AGENT_REVIEW_TRIGGER: comment
+          AGENT_REVIEW_BUDGET_USD: ${{ inputs.budget_usd }}
+          AGENT_REVIEW_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
+          AGENT_REVIEW_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
+          AGENT_REVIEW_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}
+          AGENT_REVIEW_BATCH_LINES: ${{ inputs.batch_lines }}
+          AGENT_REVIEW_BATCH_CHARS: ${{ inputs.batch_chars }}
+          AGENT_REVIEW_MODEL: ${{ inputs.model }}
+          AGENT_REVIEW_EFFORT: ${{ inputs.effort }}
+          AGENT_REVIEW_VERIFY: ${{ inputs.verify }}
+          AGENT_REVIEW_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
+          AGENT_REVIEW_VERIFIER_MODEL: ${{ inputs.verifier_model }}
+          AGENT_REVIEW_MAX_TURNS: ${{ inputs.max_turns }}
+          AGENT_REVIEW_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
+          AGENT_REVIEW_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
+          AGENT_REVIEW_PROVIDER: ${{ inputs.provider }}
+          AGENT_REVIEW_MENTION: ${{ inputs.mention }}
+          AGENT_REVIEW_OPERATOR: ${{ inputs.operator }}
+          AGENT_REVIEW_LEDGER_URL: ${{ inputs.ledger_url }}
+          AGENT_REVIEW_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
+          AGENT_REVIEW_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
+          AGENT_REVIEW_LIMIT_MODE: ${{ inputs.limit_mode }}
+          AGENT_REVIEW_LIMIT_BYPASS: ${{ inputs.limit_bypass }}
+          AGENT_REVIEW_LEDGER_UNAVAILABLE: ${{ inputs.ledger_unavailable }}
+          AGENT_REVIEW_ASKERS: ${{ inputs.askers }}
+          AGENT_REVIEW_ASK_CEILING_USD: ${{ inputs.ask_ceiling_usd }}
+        # Bun's working directory is `engine/`; see the `review` job.
+        working-directory: engine
+        run: bun --no-env-file --config=bunfig.toml src/cli.ts comment "$PR" --repo-dir "$GITHUB_WORKSPACE/head"

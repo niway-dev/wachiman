@@ -27,13 +27,27 @@
  * best-effort, not a sandbox: it relies on the consumer repository's trust assumption (only trusted people push).
  * The command-line entry point is `src/cli.ts`.
  */
-import { ESTIMATE_NOTE, NO_USAGE, addUsage, costLine, costLogLine, isEstimate, type CallCost, type Operation, type TokenUsage } from "./cost";
+import { ESTIMATE_NOTE, NO_USAGE, addUsage, costLine, costLogLine, isEstimate, ledgerCall, type CallCost, type Operation, type TokenUsage } from "./cost";
 import { spawnSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
-import { isAutomatic, operatorProblem, type EngineConfig, type Trigger } from "./config";
+import { isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
+import {
+  LedgerNotPermitted,
+  LedgerRefused,
+  LedgerUnavailable,
+  defaultCurl,
+  receiptFooter,
+  record as ledgerRecord,
+  requestIdToken,
+  reserve as ledgerReserve,
+  settle as ledgerSettle,
+  type CurlFn,
+  type LedgerEnv,
+  type Refusal,
+} from "./ledger";
 import {
   EVIDENCE_CAPS,
   addedLinesOf,
@@ -234,7 +248,8 @@ export interface Review {
   comments: InlineComment[];
 }
 
-export type Command = { kind: "review"; paths: string[] } | { kind: "answer" };
+/** `force` is `--force` after `review`: spend past a spent limit. Only the operator's comment may honour it. */
+export type Command = { kind: "review"; paths: string[]; force: boolean } | { kind: "answer" };
 
 export const DEFAULT_EXCLUDE = [
   "**/bun.lock",
@@ -298,7 +313,10 @@ export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command |
   const match = body.match(new RegExp(`${mentionSource(keyword)}(.*)`));
   if (!match) return null;
   const words = match[1].trim().split(/\s+/).filter(Boolean);
-  if (words[0]?.toLowerCase() === "review") return { kind: "review", paths: words.slice(1) };
+  if (words[0]?.toLowerCase() === "review") {
+    const rest = words.slice(1);
+    return { kind: "review", paths: rest.filter((w) => w !== "--force"), force: rest.includes("--force") };
+  }
   return { kind: "answer" };
 }
 
@@ -1100,6 +1118,8 @@ export function buildReview(input: {
   effort?: string;
   /** An automatic run: its footer gets the flag the pull request's ceiling sums (ADR 0012). */
   automatic?: boolean;
+  /** The ledger's footer lines (receipt, or a note that the run was not counted), written immediately before the cost line. */
+  receiptLine?: string;
   /** The configured mention keyword, for the hint on how to ask for the rest. */
   mention?: string;
   /** Files the engine kept out of `files` because no model can review them (binaries). */
@@ -1253,6 +1273,7 @@ export function buildReview(input: {
       `<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost${input.estimate ? " (estimate)" : ""} |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n</details>`,
     );
   }
+  if (input.receiptLine) parts.push(input.receiptLine);
   parts.push(
     costLine({
       modelLabel,
@@ -1815,6 +1836,12 @@ export interface Deps extends CoreDeps {
    * current directory.
    */
   repoDir?: string;
+  /** Runs `curl` for the spend ledger; swapped for a fake in tests. Default: the real `curl`. */
+  curl?: CurlFn;
+  /** Where the id-token request variables come from. Default: `process.env`. */
+  ledgerEnv?: LedgerEnv;
+  /** What the ledger did or could not do in this run, one line each: the CLI writes them into the job summary. */
+  ledgerNotes?: string[];
 }
 
 const blockingSleep = (ms: number) => void Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -2371,6 +2398,264 @@ export function ceilingRoom(
     comments: [],
   });
   return null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The spend ledger: ask before the first model call, say what was spent after the last.
+
+/** A limit refused the run: the account's daily or weekly limit, or this repository's own. `mode` is the caller's `limit_mode`. */
+export class SpendLimitReached extends Error {
+  constructor(
+    readonly refusal: Refusal,
+    readonly mode: LimitMode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * The run was stopped before any model call for a ledger reason that is not a limit: the
+ * repository is not linked, the ledger does not accept the job's identity, the job cannot request
+ * an OIDC token, or the ledger is unreachable and `ledger_unavailable` is `stop`. The message says
+ * what to fix.
+ */
+export class LedgerStopped extends Error {}
+
+/** What a run may spend after asking the ledger, and what the run still owes it. */
+export interface SpendGrant {
+  /** `none`: no ledger. `bypassed`: `limit_bypass`. `reserved`: the ledger granted `roomUsd`. `unreached`: it could not be asked. */
+  kind: "none" | "bypassed" | "reserved" | "unreached";
+  reservationId: string | null;
+  roomUsd: number;
+  /** What the ledger granted: only for a `reserved` grant. */
+  reservedUsd?: number;
+  /** Reserved with `forced`: the footer says so, next to the receipt. */
+  forced?: boolean;
+  /** Where this run's calls start in `deps.costs`: the settle sends the calls from here on. */
+  costsFrom: number;
+  trigger: string;
+  pr: number;
+}
+
+/** Written where the receipt would be when a repository skips the ledger. */
+export const LEDGER_BYPASSED_FOOTER = "<!-- wachi:ledger bypassed -->";
+
+/** Written next to the receipt of a `/wachiman review --force` run, which may pass a limit. */
+export const LEDGER_FORCED_FOOTER = "<!-- wachi:forced -->";
+
+/** The footer line of a run the ledger could not count. */
+export const LEDGER_NOT_COUNTED_NOTE = "<sub>Not counted against the spend limit: the ledger could not be reached.</sub>";
+
+/** The footer line of a run that skipped the ledger. */
+export const LEDGER_BYPASSED_NOTE = "<sub>Spend limit bypassed for this repository (`limit_bypass`).</sub>";
+
+/**
+ * The notice posted when a limit refuses a run, once per pull request per limit and period. Its
+ * footer names the reason and the day or week it was posted for, so a second run in the same
+ * period posts nothing.
+ */
+const LIMIT_SOURCE = "<!-- wachi:limit reason=(limit|weekly_limit|repository_limit) on=(\\d{4}-\\d{2}-\\d{2}) -->";
+export const limitFooter = (reason: string, on: string) => `<!-- wachi:limit reason=${reason} on=${on} -->`;
+const LIMIT_NOTICE = new RegExp(`\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${LIMIT_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`);
+
+/** `reason:on` of a signed limit notice, or null when the body is not one. */
+export function readLimitNotice(body: string) {
+  const match = body.trimEnd().match(LIMIT_NOTICE);
+  return match ? `${match[1]}:${match[2]}` : null;
+}
+
+const usd = (value: number) => `$${value.toFixed(2)}`;
+const DAY_MS = 86_400_000;
+
+/** The Monday (`YYYY-MM-DD`, UTC) of the week `ms` falls in. */
+const mondayOf = (ms: number) => new Date(Math.floor(ms / DAY_MS) * DAY_MS - ((new Date(ms).getUTCDay() + 6) % 7) * DAY_MS).toISOString().slice(0, 10);
+
+/** The period a refusal is about: the weekly limit is a week, the account's daily limit a day, the repository's follows `period`. */
+const periodOf = (refusal: Refusal) => (refusal.reason === "weekly_limit" ? "week" : refusal.reason === "limit" ? "day" : (refusal.period ?? "day"));
+
+/** `00:00 UTC (in 5 h 12 min)`, or with the date and days for a week: the reset the ledger named, relative to now. */
+function resetText(deps: Deps, refusal: Refusal) {
+  const now = (deps.now ?? Date.now)();
+  const period = periodOf(refusal);
+  const named = refusal.resetsAt ? Date.parse(refusal.resetsAt) : Number.NaN;
+  const reset = Number.isNaN(named)
+    ? period === "week"
+      ? Date.parse(mondayOf(now)) + 7 * DAY_MS
+      : Math.floor(now / DAY_MS + 1) * DAY_MS
+    : named;
+  const stamp = new Date(reset).toISOString();
+  const minutes = Math.max(0, Math.floor((reset - now) / 60_000));
+  const hours = Math.floor(minutes / 60);
+  const left = hours >= 24 ? `${Math.floor(hours / 24)} d ${hours % 24} h` : `${hours} h ${minutes % 60} min`;
+  return `${period === "week" ? `${stamp.slice(0, 10)} ` : ""}${stamp.slice(11, 16)} UTC (in ${left})`;
+}
+
+/** What the notice says was reached, how much was spent against which limit, in the words of its period. */
+function limitSentence(deps: Deps, refusal: Refusal) {
+  const period = periodOf(refusal);
+  const when = period === "week" ? "this week" : "today";
+  const against =
+    refusal.accountSpentUsd !== undefined && refusal.accountLimitUsd !== undefined
+      ? `the account has spent **${usd(refusal.accountSpentUsd)} of ${usd(refusal.accountLimitUsd)}** ${when} across its repositories`
+      : undefined;
+  const estimate = onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : "";
+  if (refusal.reason === "repository_limit") {
+    const own = period === "week" ? "weekly" : "daily";
+    return `This repository reached its own ${own} budget (\`${period === "week" ? "weekly_budget_usd" : "daily_budget_usd"}\` in the workflow, or the cap the account sets for this repository)${against ? `; ${against}` : ""}.${estimate}`;
+  }
+  const name = refusal.reason === "weekly_limit" ? "weekly" : "daily";
+  return against
+    ? `The ${name} spend limit is reached: ${against}.${estimate}`
+    : `The ${name} spend limit is reached.${estimate}`;
+}
+
+function postLimitNotice(deps: Deps, repo: string, pr: number, headSha: string, refusal: Refusal) {
+  const now = (deps.now ?? Date.now)();
+  const week = periodOf(refusal) === "week";
+  const on = (week ? refusal.week : refusal.day) ?? (week ? mondayOf(now) : new Date(now).toISOString().slice(0, 10));
+  const key = `${refusal.reason}:${on}`;
+  const jq = '.[] | select(.user.login == "github-actions[bot]") | {body} | @json';
+  const told = jsonLines<{ body: string | null }>(deps.gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/reviews`, "--jq", jq])).some(
+    (r) => readLimitNotice(r.body ?? "") === key,
+  );
+  if (told) {
+    deps.log(`A spend limit is reached and this pull request already has its notice (${key}); posting none.`);
+    return;
+  }
+  postReview(deps, repo, pr, headSha, {
+    body: [
+      branded(
+        `**Spend limit reached.** ${limitSentence(deps, refusal)} It resets at **${resetText(deps, refusal)}**. To review this pull request now, comment \`${deps.config.mention} review --force\`. To change a limit, edit the account in the ledger; to let this repository ignore the ledger, set \`limit_bypass: true\` (at your own risk).`,
+      ),
+      SIGNATURE.review,
+      limitFooter(refusal.reason, on),
+    ].join("\n\n"),
+    comments: [],
+  });
+}
+
+const ledgerNote = (deps: Deps, note: string) => void deps.ledgerNotes?.push(note);
+const short200 = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 200);
+
+/** The dollars the calls since `grant` cost, for a run that ended before it could say what it spent. */
+export const spentSince = (deps: Deps, grant: SpendGrant) => (deps.costs ?? []).slice(grant.costsFrom).reduce((n, c) => n + c.costUsd, 0);
+
+/**
+ * Asks the ledger how much this run may spend, before any model call. With no `ledger_url` there is
+ * nothing to ask and the room is unlimited; `limit_bypass` skips the ledger the same way, and the
+ * footer says so. A refusal for a limit posts the notice (once per period per pull request) and
+ * throws `SpendLimitReached`. A repository the ledger does not know, an identity it does not
+ * accept and a job without an OIDC token are configuration errors: `LedgerStopped`, whatever
+ * `ledger_unavailable` says. A ledger that cannot be reached lets the run go on under its normal
+ * budgets (`unreached`), or stops it with `LedgerStopped` when `ledger_unavailable` is `stop`.
+ */
+export function spendReserve(deps: Deps, repo: string, pr: number, headSha: string, wantedUsd: number, forced: boolean): SpendGrant {
+  const { config } = deps;
+  const open = { reservationId: null, roomUsd: Number.POSITIVE_INFINITY, costsFrom: deps.costs?.length ?? 0, trigger: config.trigger ?? "cli", pr };
+  if (!config.ledgerUrl) return { kind: "none", ...open };
+  if (config.limitBypass) {
+    deps.log("ledger bypassed");
+    ledgerNote(deps, "The spend limit was bypassed for this run (`limit_bypass`); nothing was reserved or recorded.");
+    return { kind: "bypassed", ...open };
+  }
+  const curl = deps.curl ?? defaultCurl;
+  try {
+    const token = requestIdToken(deps.ledgerEnv ?? process.env, config.ledgerUrl, curl);
+    const granted = ledgerReserve(
+      config.ledgerUrl,
+      token,
+      {
+        wantedUsd,
+        callerLimitUsd: config.dailyBudgetUsd,
+        callerWeeklyLimitUsd: config.weeklyBudgetUsd,
+        trigger: open.trigger,
+        forced,
+        pr,
+      },
+      curl,
+    );
+    return { kind: "reserved", ...open, reservationId: granted.reservationId, roomUsd: granted.grantedUsd, reservedUsd: granted.grantedUsd, ...(forced ? { forced: true } : {}) };
+  } catch (error) {
+    if (error instanceof LedgerRefused) {
+      const { reason } = error.refusal;
+      if (reason === "limit" || reason === "weekly_limit" || reason === "repository_limit") {
+        postLimitNotice(deps, repo, pr, headSha, error.refusal);
+        const message = limitSentence(deps, error.refusal).replace(/\*\*/g, "");
+        ledgerNote(deps, `A spend limit refused this run before any model call: ${message}`);
+        throw new SpendLimitReached(error.refusal, config.limitMode, message);
+      }
+      const message =
+        reason === "not_linked"
+          ? "This repository is not linked to a ledger account, so nothing was reviewed. Ask the ledger's operator to link it, or remove `ledger_url` (or set `limit_bypass: true`)."
+          : "The ledger did not accept this job's identity token, so nothing was reviewed. Check that `ledger_url` is the ledger's address, and that the ledger knows this repository.";
+      ledgerNote(deps, message);
+      throw new LedgerStopped(message);
+    }
+    if (error instanceof LedgerNotPermitted) {
+      const message =
+        "`ledger_url` is set, but this job cannot request an OIDC token, so nothing was reviewed. Call `.github/workflows/review-platform.yml` instead of `review.yml`, and grant `id-token: write` in the caller's job (docs/install.md).";
+      ledgerNote(deps, message);
+      throw new LedgerStopped(message);
+    }
+    if (error instanceof LedgerUnavailable) {
+      if (config.ledgerUnavailable === "stop") {
+        const message = `The spend ledger could not be reached (${short200(error)}) and \`ledger_unavailable\` is \`stop\`, so nothing was reviewed. Re-run later, or set \`ledger_unavailable: run\` to review without it.`;
+        ledgerNote(deps, message);
+        throw new LedgerStopped(message);
+      }
+      deps.warn(`The spend ledger could not be reached; reviewing under the normal budgets: ${short200(error)}`);
+      return { kind: "unreached", ...open };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Tells the ledger what the run spent, with the calls it made, and returns the footer lines for the
+ * review (joined by a blank line), or null when there is nothing to say. Nothing here fails the
+ * run. After a reservation: the signed receipt (a failed settle leaves the reservation counted at
+ * the reserved amount, and the job summary says so). After an unreachable ledger: the run is
+ * recorded once, apart from reserved runs; the footer says it was not counted, and the job summary
+ * says whether it was recorded. A forced run's lines also carry the forced footer.
+ */
+export function spendSettle(deps: Deps, grant: SpendGrant, spentUsd: number): string | null {
+  const { ledgerUrl } = deps.config;
+  if (grant.kind === "bypassed") return `${LEDGER_BYPASSED_NOTE}\n\n${LEDGER_BYPASSED_FOOTER}`;
+  if (grant.kind === "none" || !ledgerUrl) return null;
+  const curl = deps.curl ?? defaultCurl;
+  const calls = (deps.costs ?? []).slice(grant.costsFrom).map(ledgerCall);
+  if (grant.kind === "unreached") {
+    try {
+      ledgerRecord(ledgerUrl, requestIdToken(deps.ledgerEnv ?? process.env, ledgerUrl, curl), { spentUsd, calls, trigger: grant.trigger, pr: grant.pr }, curl);
+      ledgerNote(deps, "This run was not counted against the spend limit because the ledger could not be reached when it started. It was recorded afterwards, apart from reserved runs.");
+    } catch (error) {
+      deps.warn(`Could not record the run with the ledger: ${short200(error)}`);
+      ledgerNote(deps, "This run was not counted against the spend limit because the ledger could not be reached, and it was not recorded: the ledger has no entry for it.");
+    }
+    return LEDGER_NOT_COUNTED_NOTE;
+  }
+  try {
+    // A fresh token: a long run can outlive the one `spendReserve` used.
+    const token = requestIdToken(deps.ledgerEnv ?? process.env, ledgerUrl, curl);
+    const { receipt, signature } = ledgerSettle(ledgerUrl, token, grant.reservationId!, spentUsd, calls, curl);
+    const line = receiptFooter(receipt, signature);
+    return grant.forced ? `${line}\n\n${LEDGER_FORCED_FOOTER}` : line;
+  } catch (error) {
+    deps.warn(`Could not settle with the ledger; the reservation stays counted: ${short200(error)}`);
+    ledgerNote(deps, `The settlement was not delivered: the ledger could not be reached after the run, so its reservation of ${usd(grant.reservedUsd ?? 0)} stays counted instead of the ${usd(spentUsd)} spent. The review is posted.`);
+    return grant.forced ? LEDGER_FORCED_FOOTER : null;
+  }
+}
+
+/** Runs a paid step; if it throws, the ledger still hears what the calls so far cost, then the error goes on. */
+function settledOnError<T>(deps: Deps, grant: SpendGrant, run: () => T): T {
+  try {
+    return run();
+  } catch (error) {
+    spendSettle(deps, grant, spentSince(deps, grant));
+    throw error;
+  }
 }
 
 /** The estimate of reviewing `files` with this configuration: the batches `planBatches` makes, priced per batch. */
@@ -3213,6 +3498,8 @@ export function githubReview(
     scoped: boolean;
     mention: string;
     automatic: boolean;
+    /** The ledger's footer lines, when the run has any. */
+    receiptLine?: string;
     /** Computed by the connector from every file of the pull request, not only the reviewed ones. */
     instructionChanges: { files: string[]; baseSha: string };
     /** The run is on a Claude subscription: the footer says its dollars are estimates. */
@@ -3247,6 +3534,7 @@ export function githubReview(
     modelLabel: result.provider.label,
     effort: result.provider.effort,
     automatic: github.automatic,
+    receiptLine: github.receiptLine,
     mention: github.mention,
     instructionChanges: github.instructionChanges,
     riskMap: result.riskMap,
@@ -3257,7 +3545,8 @@ export function githubReview(
   });
 }
 
-export function review(deps: Deps, repo: string, pr: number, words: string[]) {
+/** `force` (`--force`) counts only for the operator's own run, never an automatic trigger. */
+export function review(deps: Deps, repo: string, pr: number, words: string[], force = false) {
   const { gh, config } = deps;
   const meta = JSON.parse(
     gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,title,body,author"]),
@@ -3465,10 +3754,12 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
   if (ceiling === null) return;
   // What the automatic runs before this one cost; an operator's run is not counted and shows none.
   const automatic = isAutomatic(config.trigger);
+  // The last step before the first model call: the spend ledger, when one is configured.
+  const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.budgetUsd, ceiling.room), force && !automatic);
   const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
   const base = baseSha(gh, repo, pr);
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
-  const totalBudget = Math.min(config.budgetUsd, ceiling.room);
+  const totalBudget = Math.min(config.budgetUsd, ceiling.room, grant.roomUsd);
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
   // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
@@ -3496,9 +3787,10 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     ...reviewOptionsOf(config, totalBudget),
     ...(config.confidence && fullReview ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
   };
-  const result = reviewChange(input, options, deps);
+  const result = settledOnError(deps, grant, () => reviewChange(input, options, deps));
   const { usage, costUsdEstimate: spent } = result.execution;
   const operation: Operation = since ? "re-review" : "review";
+  const receiptLine = spendSettle(deps, grant, spent) ?? undefined;
 
   if (result.execution.callsWithOutput === 0) {
     // A failed automatic run still spent money: its notice carries the cost line the ceiling sums.
@@ -3507,6 +3799,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
         ? postReview(deps, repo, pr, headSha, {
             body: [
               branded(text),
+              ...(receiptLine ? [receiptLine] : []),
               costLine({
                 modelLabel: result.provider.label,
                 effort: config.effort,
@@ -3521,7 +3814,10 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
             ].join("\n\n"),
             comments: [],
           })
-        : bodyOnly(text);
+        : // A manual run keeps its receipt and forced/bypass lines, but not `SIGNATURE.auto`: the ceiling does not count it.
+          receiptLine
+          ? postReview(deps, repo, pr, headSha, { body: [branded(text), receiptLine].join("\n\n"), comments: [] })
+          : bodyOnly(text);
     const { rejection, stop } = result.execution;
     const refused = rejection && rejection.kind !== "other" ? { kind: rejection.kind, text: rejection.text } : undefined;
     if (refused) {
@@ -3579,6 +3875,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[]) {
     scoped: paths.length > 0,
     mention: config.mention,
     automatic,
+    receiptLine,
     instructionChanges: {
       files: changedInstructionFiles(prFiles.map((f) => f.filename)),
       baseSha: instructions.baseSha,
@@ -3745,7 +4042,8 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
   }
   const ceiling = ceilingRoom(deps, repo, pr, headSha);
   if (ceiling === null) return;
-  const budgetUsd = Math.min(config.threadsBudgetUsd, ceiling.room);
+  const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.threadsBudgetUsd, ceiling.room), false);
+  const budgetUsd = Math.min(config.threadsBudgetUsd, ceiling.room, grant.roomUsd);
 
   const meta = JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,author"]));
   const repoDir = deps.repoDir ?? process.cwd();
@@ -3758,16 +4056,19 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     join(dir, "threads.json"),
     JSON.stringify(pending.map((t) => ({ ...t, code: codeAround(repoDir, t.path, t.line) })), null, 2),
   );
-  const call = runProvider(
-    deps,
-    config,
-    repoDir,
-    { operation: "reply", label: "threads", repo, pr },
-    buildThreadsPrompt({ pr, repo, headSha }, dir),
-    dir,
-    budgetUsd,
-    THREAD_SCHEMA,
+  const call = settledOnError(deps, grant, () =>
+    runProvider(
+      deps,
+      config,
+      repoDir,
+      { operation: "reply", label: "threads", repo, pr },
+      buildThreadsPrompt({ pr, repo, headSha }, dir),
+      dir,
+      budgetUsd,
+      THREAD_SCHEMA,
+    ),
   );
+  const receiptLine = spendSettle(deps, grant, call.costUsd);
   const raw = !call.isError ? (call.structuredOutput as { thread_replies?: ThreadReply[] } | undefined) : undefined;
   if (!raw || !Array.isArray(raw.thread_replies)) {
     throw new Error(`The agent did not answer the threads (${call.terminalReason}); $${call.costUsd.toFixed(2)} spent.`);
@@ -3811,7 +4112,7 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
     const prior = { spent: ceiling.spent, runs: ceiling.runs };
     const cost =
       i === 0
-        ? `\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`, prSoFar(prior, call.costUsd)], usage: call.usage, estimate: onSubscription(deps), costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
+        ? `${receiptLine ? `\n\n${receiptLine}` : ""}\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`, prSoFar(prior, call.costUsd)], usage: call.usage, estimate: onSubscription(deps), costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
         : `\n\n<sub>this run $${call.costUsd.toFixed(2)} · ${prSoFar(prior, call.costUsd)}${estimateTail(onSubscription(deps))}</sub>`;
     const body = `${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(reply.reply)}${cost}\n\n${SIGNATURE.reply}`;
     if (config.dryRun) {
@@ -4404,6 +4705,7 @@ export function answer(deps: Deps, repo: string, pr: number, question: string, o
     thread: line && !walkthrough ? threadBefore(deps.gh, repo, pr, line) : undefined,
   });
   // One question is one call, with the budget a whole review had before batches: $1.
+  const grant = spendReserve(deps, repo, pr, headSha, deps.config.answerBudgetUsd, false);
   let result: ReturnType<typeof runProvider> | undefined;
   let failure = "";
   try {
@@ -4414,16 +4716,20 @@ export function answer(deps: Deps, repo: string, pr: number, question: string, o
       { operation: "on-demand", label: "question", repo, pr },
       prompt,
       dir,
-      deps.config.answerBudgetUsd,
+      Math.min(deps.config.answerBudgetUsd, grant.roomUsd),
       ASK_SCHEMA,
     );
   } catch (error) {
     // The call died without a result: for someone but the operator it is counted at its cap below.
-    if (asker === undefined) throw error;
+    if (asker === undefined) {
+      spendSettle(deps, grant, spentSince(deps, grant));
+      throw error;
+    }
     failure = String(error).slice(0, 200);
   }
   const parsed = result && !result.isError ? result.structuredOutput : undefined;
-  const costUsd = result?.costUsd ?? deps.config.answerBudgetUsd;
+  const costUsd = result?.costUsd ?? Math.min(deps.config.answerBudgetUsd, grant.roomUsd);
+  const receiptLine = spendSettle(deps, grant, costUsd);
   const build = (text: string) => {
     const cost = costLine({
       modelLabel: deps.provider.modelLabel(),
@@ -4434,7 +4740,7 @@ export function answer(deps: Deps, repo: string, pr: number, question: string, o
       costUsd,
     });
     const signed = asker === undefined ? SIGNATURE.answer : `${SIGNATURE.ask}\n\n${SIGNATURE.answer}`;
-    return `${BRAND}\n\n${text}\n\n${cost}\n\n${signed}`;
+    return `${BRAND}\n\n${text}\n\n${receiptLine ? `${receiptLine}\n\n` : ""}${cost}\n\n${signed}`;
   };
   let text: string;
   if (isAskAnswer(parsed)) {
@@ -4506,7 +4812,7 @@ export function comment(deps: Deps, repo: string, pr: number, request: string, a
   const operatorAsked =
     author === undefined ? askers === "operator" || deps.config.dryRun : author.toLowerCase() === operator.toLowerCase();
   if (operatorAsked) {
-    if (command?.kind === "review") review(deps, repo, pr, command.paths);
+    if (command?.kind === "review") review(deps, repo, pr, command.paths, command.force);
     else if (command) answer(deps, repo, pr, request, { line });
     return;
   }
