@@ -1,4 +1,4 @@
-# ADR 0048: A repository settings file at `.github/wachiman.yml`
+# ADR 0048: A repository settings file at the root, `.wachiman.yml`
 
 - **Status:** accepted 2026-11-13 by the owner. Implemented by the pull request that adds this
   file (`feat/init-project-kind`). Implements the `wachiman init` step "Project type".
@@ -18,7 +18,7 @@ text; bindings live in the home directory. Both `local` mode (no workflow at all
 
 ## Decision
 
-1. **The answer is stored in `.github/wachiman.yml`**, a new repository settings file, committed
+1. **The answer is stored in `.wachiman.yml` at the repository root**, a new settings file, committed
    like any other file. Its first and only key is `kind: monorepo` or `kind: single`, with two
    comment lines that say what the file is and that the key is metadata for now.
 2. **`init` writes it when the kind is known.** The kind is known from `--project-kind
@@ -30,7 +30,7 @@ text; bindings live in the home directory. Both `local` mode (no workflow at all
    `--force`.
 4. **The file is read and written with plain string handling.** `init` only creates the file or
    replaces one line, so no YAML library is added.
-5. **The file is not a workflow.** It lives beside `.github/workflows/`, not in it.
+5. **There is one file in one place.** Only the root `.wachiman.yml` is read or written; a second location is never accepted. It is YAML so it can carry comments, and it is not a workflow because it is not under `.github/workflows/`.
 
 ## Alternatives rejected
 
@@ -38,22 +38,25 @@ text; bindings live in the home directory. Both `local` mode (no workflow at all
   repository is never bound there, so the answer would be lost for every clone and for CI.
 - **An input of the reusable workflow.** It would change the workflow's public contract for a
   value nothing reads, and `local` mode has no workflow to carry it.
+- **A `wachiman.yml` inside `.github/`.** Tried first and rejected: in local mode it sat alone in a folder that
+  reads as GitHub Actions configuration, where nothing else of Wachiman's exists.
+- **Both locations, like Renovate.** It raises the question of which one wins when both exist, and
+  the answer would have to be documented, tested and explained to every user. One place needs none.
+- **JSON (`.wachiman.json`).** No comments, and the file will carry commented optional keys.
 - **A file inside `.github/workflows/`.** GitHub parses every YAML file there as a workflow, so a
   settings file would show up as a broken workflow.
-- **`.wachiman.json` at the repository root.** The [CLI design](../specs/2026-11-09-cli-and-verified-reviews-design.md)
-  already treats anything read from the reviewed repository as untrusted for choosing an account
-  or a binary. A new root config file would invite that use; a file beside the workflows, whose
-  contract says it never chooses them, does not.
 
 ## Consequences
 
 - A repository that ran `init` with a kind has one more committed file. `init` prints the
   `git add` for it next to the workflow and, in `local` mode, a line that says to commit it.
-- `--dry-run` never writes it; it prints `would write .github/wachiman.yml (kind: X)` on stderr
+- `--dry-run` never writes it; it prints `would write .wachiman.yml (kind: X)` on stderr
   and stdout stays the workflow only.
 - Changing the kind later is `wachiman init --project-kind <kind> --force` (or editing the line).
 - The file is not read by any engine or CLI path today. A later feature that reads it needs its
-  own decision about what it may influence.
+  own decision about what it may influence. Reading more keys can use Bun's built-in
+  `Bun.YAML.parse` (no dependency). Any key that changes spend must be read from the base commit in
+  Actions, like the focus file, never from the pull request's head.
 
 ## Non-goals
 

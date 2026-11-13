@@ -1,20 +1,21 @@
 /**
- * The repository settings file `.github/wachiman.yml`, written by `init` (ADR 0048). Today it holds
+ * The repository settings file `.wachiman.yml`, written by `init` (ADR 0048). Today it holds
  * one key, `kind`, as metadata: nothing else in Wachiman reads it, and it never chooses an account,
  * a profile or a binary. It is plain string handling on purpose (no YAML library): init only ever
  * creates the file or replaces the one top-level `kind:` line, and keeps every other line as it was.
  *
- * It lives beside the workflows, not in them: GitHub parses every YAML file under
- * `.github/workflows/` as a workflow.
+ * It lives at the repository root so it is visible in every mode, including local mode where there
+ * is no workflow and no `.github/` folder. It is never inside `.github/workflows/`: GitHub parses
+ * every YAML file there as a workflow.
  */
 import { randomBytes } from "node:crypto";
-import { linkSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { linkSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { UsageError } from "../config";
 import type { ProjectKind } from "./options";
 import { inspectTarget, type TargetState } from "./write";
 
-export const SETTINGS_PATH = ".github/wachiman.yml";
+export const SETTINGS_PATH = ".wachiman.yml";
 
 const KIND_LINE = /^kind:[^\r\n]*/m;
 
@@ -63,7 +64,6 @@ export function planSettings(repoDir: string, kind: ProjectKind): SettingsPlan {
 export function writeSettings(repoDir: string, plan: Exclude<SettingsPlan, { action: "same" }>, hooks?: { beforeCommit?: () => void }): string {
   const { inspected } = plan;
   const dir = dirname(inspected.target);
-  mkdirSync(dir, { recursive: true });
   const again = inspectTarget(repoDir, SETTINGS_PATH);
   if (again.exists !== inspected.exists || again.identity !== inspected.identity) {
     throw new UsageError(`${inspected.target} changed while init was running; nothing was written. Run it again.`);

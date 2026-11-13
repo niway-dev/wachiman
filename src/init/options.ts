@@ -34,7 +34,7 @@ export interface InitOptions {
   mode: InitMode;
   /** Present iff mode !== "local". */
   github?: { operator: string; tag: string; path: string; force: boolean; dryRun: boolean };
-  /** Present iff the kind was given (flag or answer); then `.github/wachiman.yml` is written or checked. `force` allows changing a different `kind:` without asking. */
+  /** Present iff the kind was given (flag or answer); then `.wachiman.yml` is written or checked. `force` allows changing a different `kind:` without asking. */
   settings?: { kind: ProjectKind; force: boolean };
   repoDir: string;
   interactive: boolean;

@@ -34,8 +34,8 @@ describe("init on a terminal session", () => {
     expect(w.ui.of("confirm")[0].message).toBe("Write it?");
     expect(readFileSync(w.target, "utf8")).toContain('operator: "octocat"');
     // The settings file is a second titled note, written under the same confirm.
-    expect(w.ui.of("note")[1].title).toBe(".github/wachiman.yml (new)");
-    expect(readFileSync(join(w.repo, ".github", "wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
+    expect(w.ui.of("note")[1].title).toBe(".wachiman.yml (new)");
+    expect(readFileSync(join(w.repo, ".wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
     // The old `--- path` preview lines are for the plain session only.
     expect(w.err.join("\n")).not.toContain("--- .github/workflows");
   });
@@ -53,7 +53,7 @@ describe("init on a terminal session", () => {
     const w = world([0, "octocat", "", null]);
     expect(await w.run()).toBe(130);
     expect(existsSync(w.target)).toBe(false);
-    expect(existsSync(join(w.repo, ".github", "wachiman.yml"))).toBe(false);
+    expect(existsSync(join(w.repo, ".wachiman.yml"))).toBe(false);
   });
 
   test("status lines go through the Ui, not loose to stderr", async () => {

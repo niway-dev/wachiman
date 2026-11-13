@@ -442,17 +442,17 @@ not log in or bind an account. Choosing local/both already requests setup, so no
 invitation is shown. Standalone `setup` keeps its opening invitation. Init never commits, pushes,
 opens a PR or creates a secret.
 
-`init` also records what kind of repository this is, in `.github/wachiman.yml` (not under
+`init` also records what kind of repository this is, in `.wachiman.yml` (not under
 `.github/workflows/`, where GitHub would parse it as a workflow). On a terminal it asks "What kind
 of repository is this?" (Monorepo, Single project, or Distributed repository, which is listed as
 coming soon and cannot be picked); `--project-kind monorepo|single` answers it. The kind is
 metadata only: nothing else in Wachiman reads it, and the file never chooses an account, a profile
-or a binary ([ADR 0048](adr/0048-a-repository-settings-file-at-github-wachiman-yml.md)). It applies
+or a binary ([ADR 0048](adr/0048-a-repository-settings-file-at-the-root-wachiman-yml.md)). It applies
 in all three modes. Without a terminal and without `--project-kind` the file is not written or
 changed. A new file holds two comment lines and `kind: monorepo` (or `single`). The same kind
-leaves it untouched (`.github/wachiman.yml already says kind: X.`); a different or missing `kind:`
+leaves it untouched (`.wachiman.yml already says kind: X.`); a different or missing `kind:`
 line is replaced or appended, every other line kept, after a confirmation on a terminal or with
-`--force` without one. `--dry-run` never writes it and prints `would write .github/wachiman.yml
+`--force` without one. `--dry-run` never writes it and prints `would write .wachiman.yml
 (kind: X)` on stderr. Init does not commit it: the closing steps say to add it with the workflow
 (`local` mode: to commit it).
 
@@ -471,11 +471,11 @@ command that binds the repository later.
 | Flag | Rule |
 | --- | --- |
 | `--mode` | Mandatory without a terminal |
-| `--project-kind <kind>` | `monorepo` or `single`; `distributed` is refused as not available yet. Written to `.github/wachiman.yml` in every mode. Asked on a terminal when absent; without a terminal and without it, the file is not touched |
+| `--project-kind <kind>` | `monorepo` or `single`; `distributed` is refused as not available yet. Written to `.wachiman.yml` in every mode. Asked on a terminal when absent; without a terminal and without it, the file is not touched |
 | `--operator <login>` | Mandatory for `github` and `both` without a terminal; a GitHub login |
 | `--version <tag>` | `vX.Y.Z` or a 40-character commit SHA, written after `review.yml@`. Default: the release tag bundled in this build (`DEFAULT_WORKFLOW_REF`, moved by release-please at each release commit); the CLI's own version is never used as a tag |
 | `--path <file>` | Default `.github/workflows/wachiman-review.yml`, relative to the repository top level (also when run from a subdirectory); a `.yml` or `.yaml` file directly in `.github/workflows/` |
-| `--force` | Replaces an existing workflow after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it an existing file is exit 2. With `--project-kind` it also lets a run without a terminal change a different `kind:` in `.github/wachiman.yml` (no backup; only that line changes), and it is accepted in `--mode local` for that |
+| `--force` | Replaces an existing workflow after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it an existing file is exit 2. With `--project-kind` it also lets a run without a terminal change a different `kind:` in `.wachiman.yml` (no backup; only that line changes), and it is accepted in `--mode local` for that |
 | `--dry-run` | Prints the rendered file to stdout and writes nothing |
 | `--yes` | No prompts |
 

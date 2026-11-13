@@ -284,7 +284,7 @@ describe("init with scripted prompts", () => {
     scratch.push(home);
     const env = { WACHIMAN_HOME: home, PATH: "/usr/bin", USER: "fixture" };
     const tools = fakeToolchain();
-    const promptIO = scripted(["", "", "", ""]); // kind, Write it? (both) or Write .github/wachiman.yml? (local), account, binding
+    const promptIO = scripted(["", "", "", ""]); // kind, Write it? (both) or Write .wachiman.yml? (local), account, binding
     const code = await runInitCommand({ repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) }, env, w.io, w.deps({
       interactive: true,
       promptIO,
@@ -301,7 +301,7 @@ describe("init with scripted prompts", () => {
     expect(promptIO.printed()).not.toContain("Run wachiman setup now");
     expect(promptIO.printed().match(/Bind .* to default\?/g)).toHaveLength(1);
     expect(existsSync(w.target)).toBe(mode === "both");
-    expect(readFileSync(join(w.repo, ".github", "wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
+    expect(readFileSync(join(w.repo, ".wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
     expect(promptIO.printed()).toContain(mode === "both" ? "Step 5/7  Claude account" : "Step 4/6  Claude account");
     expect(promptIO.printed()).toContain(mode === "both" ? "Step 7/7  Checks and next actions" : "Step 6/6  Checks and next actions");
     expect(w.err.join("\n")).toContain("local: ready");
@@ -333,7 +333,7 @@ describe("init with scripted prompts", () => {
     expect(printed).toContain("Step 3  Review mode");
     expect(printed).toContain("Step 4/5  GitHub workflow");
     expect(printed).toContain("Step 5/5  Checks and next actions");
-    expect(readFileSync(join(w.repo, ".github", "wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
+    expect(readFileSync(join(w.repo, ".wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
     // What the printed defaults mean is what was written.
     expect(readFileSync(w.target, "utf8")).toBe(expected("octocat", "v1.5.0"));
   });
@@ -409,8 +409,8 @@ describe("init with scripted prompts", () => {
     expect(code).toBe(0);
     expect(got).toBe("from-setup");
     expect(existsSync(w.target)).toBe(false);
-    expect(readFileSync(join(w.repo, ".github", "wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
-    expect(w.err.join("\n")).toContain("Commit .github/wachiman.yml");
+    expect(readFileSync(join(w.repo, ".wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
+    expect(w.err.join("\n")).toContain("Commit .wachiman.yml");
     expect(io.printed()).not.toContain("Run wachiman setup now");
   });
 
@@ -473,8 +473,8 @@ describe("init from a subdirectory of the repository", () => {
   });
 });
 
-describe("the repository settings file .github/wachiman.yml", () => {
-  const settingsFile = (w: World) => join(w.repo, ".github", "wachiman.yml");
+describe("the repository settings file .wachiman.yml", () => {
+  const settingsFile = (w: World) => join(w.repo, ".wachiman.yml");
   const baseArgs = ["--mode", "github", "--operator", "me", "--version", "v1.5.0"];
 
   test("a new file has the explanatory comments and the kind, and the next steps name it", async () => {
@@ -489,8 +489,9 @@ describe("the repository settings file .github/wachiman.yml", () => {
       ].join("\n"),
     );
     expect(statSync(settingsFile(w)).mode & 0o777).toBe(0o644);
-    expect(readdirSync(join(w.repo, ".github")).sort()).toEqual(["wachiman.yml", "workflows"]);
-    expect(w.err.join("\n")).toContain("Open a pull request that adds .github/workflows/wachiman-review.yml and .github/wachiman.yml.");
+    expect(readdirSync(join(w.repo, ".github"))).toEqual(["workflows"]);
+    expect(existsSync(settingsFile(w))).toBe(true);
+    expect(w.err.join("\n")).toContain("Open a pull request that adds .github/workflows/wachiman-review.yml and .wachiman.yml.");
   });
 
   test("local mode writes only the settings file and tells the person to commit it", async () => {
@@ -498,7 +499,7 @@ describe("the repository settings file .github/wachiman.yml", () => {
     expect(await init(w, ["--mode", "local", "--project-kind", "single"])).toBe(0);
     expect(readFileSync(settingsFile(w), "utf8")).toBe(settingsContent("single"));
     expect(existsSync(w.target)).toBe(false);
-    expect(w.err.join("\n")).toContain("Commit .github/wachiman.yml");
+    expect(w.err.join("\n")).toContain("Commit .wachiman.yml");
   });
 
   test("the same kind leaves the file untouched and says so", async () => {
@@ -508,7 +509,7 @@ describe("the repository settings file .github/wachiman.yml", () => {
     const before = snapshotTree(w.repo);
     expect(await init(w, ["--mode", "local", "--project-kind", "single"])).toBe(0);
     expect(snapshotTree(w.repo)).toEqual(before);
-    expect(w.err.join("\n")).toContain(".github/wachiman.yml already says kind: single.");
+    expect(w.err.join("\n")).toContain(".wachiman.yml already says kind: single.");
   });
 
   test("a different kind needs --force when nobody can be asked, and nothing is written without it", async () => {
@@ -527,7 +528,7 @@ describe("the repository settings file .github/wachiman.yml", () => {
     writeFileSync(settingsFile(w), "# mine\nowner: team-a\nkind: monorepo\nnested:\n  kind: keep-me\n");
     expect(await init(w, ["--mode", "local", "--project-kind", "single", "--force"])).toBe(0);
     expect(readFileSync(settingsFile(w), "utf8")).toBe("# mine\nowner: team-a\nkind: single\nnested:\n  kind: keep-me\n");
-    expect(readdirSync(join(w.repo, ".github"))).toEqual(["wachiman.yml"]); // no backup file is left behind
+    expect(readdirSync(w.repo).filter((f) => f.startsWith(".wachiman.yml"))).toEqual([".wachiman.yml"]); // no backup file is left behind
   });
 
   test("an edit to the settings file during the write is never overwritten, and the workflow written before it stays", async () => {
@@ -539,7 +540,7 @@ describe("the repository settings file .github/wachiman.yml", () => {
     expect(await exit2(init(w, [...baseArgs, "--project-kind", "single", "--force"], { settingsHooks }))).toContain("changed while init was running");
     expect(readFileSync(settingsFile(w), "utf8")).toBe(edited);
     expect(existsSync(w.target)).toBe(true);
-    expect(w.err.join("\n")).toContain("was written before .github/wachiman.yml failed and stays in place.");
+    expect(w.err.join("\n")).toContain("was written before .wachiman.yml failed and stays in place.");
   });
 
   test("a settings file that appears during the write is never overwritten", async () => {
@@ -562,7 +563,7 @@ describe("the repository settings file .github/wachiman.yml", () => {
     const before = snapshotTree(w.repo);
     expect(await init(w, [...baseArgs, "--project-kind", "single", "--dry-run"])).toBe(0);
     expect(snapshotTree(w.repo)).toEqual(before);
-    expect(w.err.join("\n")).toContain("would write .github/wachiman.yml (kind: single)");
+    expect(w.err.join("\n")).toContain("would write .wachiman.yml (kind: single)");
     expect(w.out.join("")).toBe(expected("me", "v1.5.0"));
   });
 
@@ -599,8 +600,8 @@ describe("the repository settings file .github/wachiman.yml", () => {
       const code = await init(w, ["--mode", "local"], { interactive: true, promptIO: io });
       expect(code).toBe(0);
       expect(io.printed()).toContain("Option 3 is not available yet");
-      expect(io.printed()).toContain("Write .github/wachiman.yml? [Y/n]");
-      expect(w.err.join("\n")).toContain("--- .github/wachiman.yml (new)");
+      expect(io.printed()).toContain("Write .wachiman.yml? [Y/n]");
+      expect(w.err.join("\n")).toContain("--- .wachiman.yml (new)");
       expect(existsSync(settingsFile(w))).toBe(false);
     });
 
@@ -610,7 +611,7 @@ describe("the repository settings file .github/wachiman.yml", () => {
       writeFileSync(settingsFile(w), "owner: a\nkind: monorepo\n");
       const io = scripted(["2", "y"]);
       expect(await init(w, ["--mode", "local"], { interactive: true, promptIO: io })).toBe(0);
-      expect(io.printed()).toContain("Change kind from monorepo to single in .github/wachiman.yml? [Y/n]");
+      expect(io.printed()).toContain("Change kind from monorepo to single in .wachiman.yml? [Y/n]");
       expect(readFileSync(settingsFile(w), "utf8")).toBe("owner: a\nkind: single\n");
     });
 
@@ -622,7 +623,7 @@ describe("the repository settings file .github/wachiman.yml", () => {
       expect(await init(w, [...baseArgs], { interactive: true, promptIO: io })).toBe(0);
       expect(readFileSync(settingsFile(w), "utf8")).toBe("kind: monorepo\n");
       expect(existsSync(w.target)).toBe(true);
-      expect(w.err.join("\n")).toContain(".github/wachiman.yml left as it is.");
+      expect(w.err.join("\n")).toContain(".wachiman.yml left as it is.");
     });
 
     test("github: one Write it? covers the workflow and the new settings file; Ctrl-D there writes neither", async () => {
