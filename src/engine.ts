@@ -4826,7 +4826,7 @@ export function answer(deps: Deps, repo: string, pr: number, question: string, o
 function postAskLimit(deps: Deps, repo: string, pr: number, spent: number) {
   const body = [
     branded(
-      `The question budget for this pull request is used up: questions from collaborators have spent $${spent.toFixed(2)} of the $${deps.config.askCeilingUsd.toFixed(2)} ceiling, so this question is not answered. The repository operator can still ask.${onSubscription(deps) ? " These are API-equivalent estimates: the reviews run on a Claude subscription, not a bill." : ""}`,
+      `The question budget for this pull request is used up: questions from collaborators have spent $${spent.toFixed(2)} of the $${deps.config.askCeilingUsd.toFixed(2)} ceiling, so this question is not answered. The repository operator can still ask.${onSubscription(deps) ? " These questions run on a Claude subscription, so the dollars are API-equivalent estimates, not a bill." : ""}`,
     ),
     SIGNATURE.answer,
     SIGNATURE.askLimit,
