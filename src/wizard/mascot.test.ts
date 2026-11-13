@@ -23,11 +23,11 @@ function term(over: { isTTY?: boolean; columns?: number; inputTTY?: boolean } = 
 describe("the scene", () => {
   test("side by side on a wide terminal: the line is on the eyes row; a narrow one puts it below", () => {
     const wide = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS, message: DEFAULT_LINE });
-    expect(wide.top).toEqual(["╭───────────╮", "│     W     │"]);
-    expect(wide.lead).toBe(`│ ███   ███ │   ${NAME}: `);
-    expect(wide.bottom).toEqual(["│     ▾     │", "╰───────────╯"]);
+    expect(wide.top).toEqual(["╭─────────────╮", "│      W      │", "│             │"]);
+    expect(wide.lead).toBe(`│  ███   ███  │   ${NAME}: `);
+    expect(wide.bottom).toEqual(["│      ‿      │", "│             │", "╰─────────────╯"]);
     const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
-    expect(narrow.top).toEqual(["╭───────────╮", "│     W     │", "│ ███   ███ │", "│     ▾     │", "╰───────────╯"]);
+    expect(narrow.top).toEqual(["╭─────────────╮", "│      W      │", "│             │", "│  ███   ███  │", "│      ‿      │", "│             │", "╰─────────────╯"]);
     expect(narrow.lead).toBe(`${NAME}: `);
     expect(narrow.bottom).toEqual([]);
   });
