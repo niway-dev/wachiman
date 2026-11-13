@@ -5,6 +5,24 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.15.0](https://github.com/niway-dev/wachiman/compare/v1.14.0...v1.15.0) (2026-11-13)
+
+
+### Features
+
+* **cli:** address local review of the help pages ([7fe57fb](https://github.com/niway-dev/wachiman/commit/7fe57fb1536bf773426995edc8036bf1cb6b9ce3))
+* **cli:** interactive CLI on Clack and chalk, with Wachi the guard ([#224](https://github.com/niway-dev/wachiman/issues/224)) ([a656aad](https://github.com/niway-dev/wachiman/commit/a656aad9597e87d1e9d64c4718f2671bbf0a30cc))
+* **cli:** keep -h and --help as text or values from being read as help ([6ce5262](https://github.com/niway-dev/wachiman/commit/6ce526274b17bb04d4cc2d102d1ba0b204525a9c))
+* **cli:** point the ledger help tests at the new help pages ([647b0a4](https://github.com/niway-dev/wachiman/commit/647b0a4bbd9be0da0f516d52b2cdfdc0593b15a6))
+* **cli:** short root help and a help page for every command ([377206f](https://github.com/niway-dev/wachiman/commit/377206f8bcb91c017fe1acf1838455670a436d0b))
+* **cli:** short root help and a help page for every command ([9b451f7](https://github.com/niway-dev/wachiman/commit/9b451f7ad57ac653034331ad6293e9d914a20629))
+* **ledger:** the laptop reads the ledger; one report covers laptop and Actions runs ([25756f3](https://github.com/niway-dev/wachiman/commit/25756f36d5a1f83917568893c3af5affddf0ab1d))
+
+
+### Bug Fixes
+
+* **ledger:** keep tokens and payloads out of curl's argument list ([1f8ec59](https://github.com/niway-dev/wachiman/commit/1f8ec5971a6e160f2252321ec3cde0f2eca785c5))
+
 ## [1.14.0](https://github.com/niway-dev/wachiman/compare/v1.13.0...v1.14.0) (2026-11-13)
 
 
