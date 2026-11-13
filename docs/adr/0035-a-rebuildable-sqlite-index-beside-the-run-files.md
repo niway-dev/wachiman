@@ -52,7 +52,7 @@ every command depends on.
 ## Non-goals
 
 - A query language or a public schema for the index.
-- Sending any figure anywhere.
+- Sending any figure anywhere. (ADR 0039 adds a read of the GitHub-side ledger; it still sends nothing.)
 - Enforcing a spend limit. That is issue #122 and pull request #129.
 
 ## Reopen if

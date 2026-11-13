@@ -7,6 +7,7 @@
 import { terminalStyle, type Tone } from "./wizard/style";
 import { askUsage } from "./local-ask";
 import { dashboardUsage } from "./store/command";
+import { ledgerUsage } from "./ledger-read/command";
 import { doctorUsage } from "./doctor/run";
 import { historyUsage } from "./history/command";
 import { initUsage } from "./init/args";
@@ -221,38 +222,61 @@ const historyPage: Page = {
   docs: `${DOCS}/cli.md#history`,
 };
 
+const REFRESH: Row = ["--refresh", "Run `ledger pull` first (the only request it can make). A failed download warns and keeps the entries already on disk. With no ledger connected it exits 2"];
+const LEDGER_ENV: Row = ["WACHIMAN_LEDGER_URL, WACHIMAN_LEDGER_TOKEN", "Override the connected ledger (only read with --refresh)"];
+
 const statusPage: Page = {
   usage: statusUsage,
-  summary: "Show what this laptop kept of its local runs and their estimated cost. Reads local history only; GitHub Actions runs are not counted.",
+  summary: "Show what this laptop kept of its local runs and their estimated cost; after `ledger pull`, GitHub Actions runs too. Reads local files only unless --refresh is given.",
   options: [
     ["--since <n>d", "Only runs from the last n days"],
     ["--all-repos", "Every repository in the history"],
     ["--repo <name|key>", "One repository by name or key, from any directory"],
     ["--model <text>", "Only runs whose model id contains the text"],
-    ["--profile <name>", "Only runs made with that account"],
-    ["--by day|repo|model|profile", "How the table groups runs. Default: day"],
+    ["--profile <name>", "Only runs made with that account (leaves out Actions runs)"],
+    ["--by day|week|repo|pr|model|profile|source", "How the table groups runs. Default: day"],
+    ["--source laptop|actions|all", "Only laptop runs, only Actions runs from the pulled ledger, or both. Default: all"],
+    REFRESH,
     ["--json", "wachiman.status/1: the filters, totals, groups and every run"],
     REPO_DIR,
   ],
-  env: [HOME_ENV, ["WACHIMAN_HISTORY_DAYS", "How long a --history run is kept. Default: 30; 0 keeps all"]],
-  exit: [["0", "Printed (with no run kept it says how to start)"], ["2", "Usage error"]],
-  examples: ["wachiman status --since 7d --by model", "wachiman status --all-repos --json"],
+  env: [HOME_ENV, ["WACHIMAN_HISTORY_DAYS", "How long a --history run is kept. Default: 30; 0 keeps all"], LEDGER_ENV],
+  exit: [["0", "Printed (with no run kept it says how to start)"], ["2", "Usage error, or --refresh or --source actions with no ledger connected"]],
+  examples: ["wachiman status --since 7d --by model", "wachiman status --all-repos --source actions --json"],
   docs: `${DOCS}/cli.md#status`,
 };
 
 const dashboardPage: Page = {
   usage: dashboardUsage,
-  summary: "Export one static HTML page (or JSON) with the spend, findings and loop rounds of every repository in the local history. No claude, no GitHub, no network, no server.",
+  summary: "Export one static HTML page (or JSON) with the spend, findings and loop rounds of every repository in the local history, and Actions spend once a ledger is pulled. No claude, no GitHub, no server; a request only with --refresh.",
   options: [
     ["--json", "Print wachiman.dashboard/1 on stdout instead of writing the page"],
     ["--out <file>", "Where to write the page. Default: ~/.wachiman/dashboard.html. Not allowed with --json"],
+    REFRESH,
     ["--repo-dir <dir>", "Accepted and unused"],
   ],
-  env: [HOME_ENV],
-  exit: [["0", "Written or printed (also with no run kept)"], ["1", "A loop file, the index or the page could not be written"], ["2", "Usage error"]],
+  env: [HOME_ENV, LEDGER_ENV],
+  exit: [["0", "Written or printed (also with no run kept)"], ["1", "A loop file, the index or the page could not be written"], ["2", "Usage error, or --refresh with no ledger connected"]],
   examples: ["wachiman dashboard", "wachiman dashboard --json"],
   docs: `${DOCS}/local-dashboard.md`,
 };
+
+const LEDGER_EXIT: readonly Row[] = [["0", "Done"], ["1", "The ledger could not be reached, refused the token or answered something unexpected"], ["2", "Usage error, or pull with no ledger connected"]];
+const ledgerPage = (usage: string, summary: string, options: readonly Row[], examples: string[]): Page => ({
+  usage, summary, options, env: [HOME_ENV, ["WACHIMAN_LEDGER_URL, WACHIMAN_LEDGER_TOKEN", "Override the credentials file"]], exit: LEDGER_EXIT, examples, docs: `${DOCS}/cli.md#ledger`,
+});
+const ledgerRoot = ledgerPage(
+  ledgerUsage,
+  "Connect to the spend ledger with a read token and download its entries, so status and dashboard can show GitHub Actions runs next to laptop runs. pull and --refresh are the only requests; nothing from a run is ever sent. Run `wachiman ledger <subcommand> --help` for one of them.",
+  [],
+  ["wachiman ledger connect https://ledger.example.com", "wachiman ledger pull --since 14d"],
+);
+const ledgerSubs: Record<string, Page> = {
+  connect: ledgerPage("wachiman ledger connect <url>", "Ask for the read token on standard input (not echoed) and keep it in ~/.wachiman/ledger/credentials.json, mode 0600.", [["<url>", "https, or http only for localhost, 127.0.0.1 or [::1]"]], ["wachiman ledger connect https://ledger.example.com"]),
+  disconnect: ledgerPage("wachiman ledger disconnect", "Delete the stored credentials. Entries already downloaded stay on disk.", [], ["wachiman ledger disconnect"]),
+  pull: ledgerPage("wachiman ledger pull [--since <n>d]", "Download the ledger's entries into ~/.wachiman/ledger, one file per UTC day, replacing each day as a whole.", [["--since <n>d", "How many days back. Default: 35; at most 92"]], ["wachiman ledger pull", "wachiman ledger pull --since 7d"]),
+};
+const ledgerPageWithSubs: Page = { ...ledgerRoot, options: undefined, subs: ledgerSubs };
 
 const setupPage: Page = {
   usage: setupUsage,
@@ -377,7 +401,7 @@ export const CI_COMMANDS = ["review", "comment", "threads", "reset-confidence"] 
 
 const PAGES: Readonly<Record<string, Page>> = {
   local: localPage, loop: loopPage, ask: askPage,
-  history: historyPage, status: statusPage, dashboard: dashboardPage,
+  history: historyPage, status: statusPage, dashboard: dashboardPage, ledger: ledgerPageWithSubs,
   setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage,
   review: reviewPage, comment: commentPage, threads: threadsPage, "reset-confidence": resetConfidencePage,
 };
@@ -448,7 +472,7 @@ export function rootHelp(paint: Paint = plain): string {
     ...rows([["local", "Review a branch, commit, or working-tree changes"], ["loop", "Run one round of a tracked review loop"], ["ask", "Explain a change or ask a question"]]),
     "",
     paint("Results", "strong"),
-    ...rows([["history", "Browse findings and record verdicts"], ["status", "Show local usage and estimated cost"], ["dashboard", "Export a local usage dashboard"]]),
+    ...rows([["history", "Browse findings and record verdicts"], ["status", "Show local usage and estimated cost"], ["dashboard", "Export a local usage dashboard"], ["ledger", "Download GitHub Actions spend from the ledger"]]),
     "",
     paint("Configuration", "strong"),
     ...rows([
@@ -460,8 +484,7 @@ export function rootHelp(paint: Paint = plain): string {
       ["skills", "Install or remove the agent skills"],
     ]),
     "",
-    "Help: wachiman <command> --help · wachiman help ci",
-    `Docs: ${DOCS}/cli.md`,
+    `Help: wachiman <command> --help · wachiman help ci · docs: ${DOCS}/cli.md`,
     "Options: -h, --help · -v, --version",
     "",
   ].join("\n");

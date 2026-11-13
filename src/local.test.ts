@@ -226,6 +226,14 @@ describe("readInputFile", () => {
   });
 });
 
+describe("wachiman local with WACHIMAN_LEDGER_URL set (the laptop read side's setting)", () => {
+  test("runs normally: exit 0, no ledger request, no ledger or Actions line on stderr", () => {
+    const r = local("ok", [], { WACHIMAN_LEDGER_URL: "https://ledger.invalid", WACHIMAN_LEDGER_TOKEN: "t" });
+    expect(r.code).toBe(0);
+    expect(r.stderr).not.toMatch(/ledger|GitHub Actions run/i);
+  });
+});
+
 describe("wachiman local", () => {
   test("reviews the branch, prints progress on stderr and the report on stdout, and never calls gh", () => {
     const r = local("ok");

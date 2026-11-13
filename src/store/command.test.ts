@@ -230,7 +230,7 @@ describe("wachiman dashboard (HTML)", () => {
     expect(page).toContain(esc(hostile));
     expect(page).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     // The only tags are the ones the page itself writes.
-    expect(page.match(/<([a-z][a-z0-9]*)/g)!.map((t) => t.slice(1)).filter((t) => !["html", "head", "meta", "title", "style", "body", "main", "h1", "h2", "p", "div", "b", "table", "thead", "tbody", "tr", "th", "td", "span", "svg", "rect"].includes(t))).toEqual([]);
+    expect(page.match(/<([a-z][a-z0-9]*)/g)!.map((t) => t.slice(1)).filter((t) => !["html", "head", "meta", "title", "style", "body", "main", "h1", "h2", "p", "div", "b", "table", "thead", "tbody", "tr", "th", "td", "span", "svg", "rect", "code"].includes(t))).toEqual([]);
   });
 
   test("never runs claude or gh, and has no flag that opens a browser", () => {
@@ -252,7 +252,7 @@ describe("wachiman dashboard (HTML)", () => {
     const { home } = fixtureHome();
     const help = wachiman(["--help"], home);
     expect(help.stdout).toMatch(/^ {2}dashboard {3}/m);
-    expect(wachiman(["dashboard", "--help"], home).stdout).toContain("Usage\n  wachiman dashboard [--json] [--out <file>] [--repo-dir <dir>]\n");
+    expect(wachiman(["dashboard", "--help"], home).stdout).toContain("Usage\n  wachiman dashboard [--json] [--out <file>] [--refresh] [--repo-dir <dir>]\n");
     const repo = temp("wachiman-dash-cwd-");
     expect(wachiman(["dashboard", "--json", "--repo-dir", repo], home).code).toBe(0);
     expect(wachiman(["dashboard", "--json", "--repo-dir", join(repo, "missing")], home).code).toBe(2);

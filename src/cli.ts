@@ -16,6 +16,7 @@
  *                                       call, no GitHub request, grounded in the stored review (src/local-ask.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
  *   wachiman status                 what the local history kept and its estimated cost; files only
+ *   wachiman ledger connect|disconnect|pull  connect to the spend ledger and download its entries (src/ledger-read/)
  *   wachiman dashboard              spend, findings and loops across every repository in the history, as one
  *                                       static HTML file or JSON, from a rebuildable index (src/store/)
  *   wachiman setup [--profile <name>] bind this repository to an account profile (home config only);
@@ -40,6 +41,8 @@ import { loadConfig, UsageError } from "./config";
 import { parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus } from "./status/command";
 import { parseDashboardArgs, runDashboard } from "./store/command";
+import { parseLedgerArgs, runLedger } from "./ledger-read/command";
+import { pullLedger } from "./ledger-read/pull";
 import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { parseLocalArgs, runLocal } from "./local";
 import { parseLoopArgs, runLoop } from "./loop/command";
@@ -234,6 +237,17 @@ function usageError(message: string, command: string | undefined): number {
   return 2;
 }
 
+/** `--refresh`: download the ledger first. A failed download warns and leaves the files already on disk in use. */
+async function refreshLedger(env: Record<string, string | undefined>) {
+  try {
+    const r = await pullLedger(wachimanHome(env), env, undefined);
+    console.error(`wachiman: ledger refreshed (${r.entries} entries, ${r.from} to ${r.to}).`);
+  } catch (error) {
+    if (error instanceof UsageError) throw error;
+    console.error(`wachiman: ledger refresh failed: ${error instanceof Error ? error.message : error}. Showing the entries already downloaded.`);
+  }
+}
+
 export async function main(argv: string[], env: Record<string, string | undefined>): Promise<number> {
   const mode = argv[0];
   if (argv.length === 0) return runNoArgs(env);
@@ -265,6 +279,12 @@ export async function main(argv: string[], env: Record<string, string | undefine
       const parsed = parseSkillsArgs(argv.slice(1));
       if ("help" in parsed) return (writeAll(1, commandHelp(["skills"])!), 0);
       return runSkills(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
+    }
+    if (mode === "ledger") {
+      // Before extractRepoDir: no repository is read. The only command that contacts the ledger (ADR 0039).
+      const parsed = parseLedgerArgs(argv.slice(1));
+      if ("help" in parsed) return (writeAll(1, commandHelp(["ledger"])!), 0);
+      return await runLedger(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (text) => void process.stderr.write(text) });
     }
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {
@@ -298,11 +318,13 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "status") {
       const parsed = parseStatusArgs(args.slice(1));
       if ("help" in parsed) return (writeAll(1, commandHelp(["status"])!), 0);
+      if (parsed.refresh) await refreshLedger(env);
       return runStatus(parsed, repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line), version: readVersion() });
     }
     if (mode === "dashboard") {
       const parsed = parseDashboardArgs(args.slice(1));
       if ("help" in parsed) return (writeAll(1, commandHelp(["dashboard"])!), 0);
+      if (parsed.refresh) await refreshLedger(env);
       return runDashboard(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "history") {
