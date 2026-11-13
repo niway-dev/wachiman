@@ -24,12 +24,21 @@ describe("the scene", () => {
   test("side by side on a wide terminal: the line is on the eyes row; a narrow one puts it below", () => {
     const wide = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS, message: DEFAULT_LINE });
     expect(wide.top).toEqual(["╭─────────────╮", "│      W      │", "│             │"]);
-    expect(wide.lead).toBe(`│  ███   ███  │   ${NAME}: `);
+    expect(wide.lead).toBe(`│   ◉     ◉   │   ${NAME}: `);
     expect(wide.bottom).toEqual(["│      ‿      │", "│             │", "╰─────────────╯"]);
     const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
-    expect(narrow.top).toEqual(["╭─────────────╮", "│      W      │", "│             │", "│  ███   ███  │", "│      ‿      │", "│             │", "╰─────────────╯"]);
+    expect(narrow.top).toEqual(["╭─────────────╮", "│      W      │", "│             │", "│   ◉     ◉   │", "│      ‿      │", "│             │", "╰─────────────╯"]);
     expect(narrow.lead).toBe(`${NAME}: `);
     expect(narrow.bottom).toEqual([]);
+  });
+
+  test("blink closes both eyes and wink closes only the right one, at the same width", () => {
+    const s = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS, message: DEFAULT_LINE });
+    expect(s.leads?.open).toBe(`│   ◉     ◉   │   ${NAME}: `);
+    expect(s.leads?.blink).toBe(`│   ─     ─   │   ${NAME}: `);
+    expect(s.leads?.wink).toBe(`│   ◉     ─   │   ${NAME}: `);
+    const narrow = mascotScene({ paint: plain, ascii: false, columns: SIDE_BY_SIDE_COLUMNS - 1, message: DEFAULT_LINE });
+    expect(narrow.leads).toBeUndefined();
   });
 
   test("every row of the face has the same width, so the right border never shifts", () => {

@@ -1,19 +1,20 @@
 /**
  * The intro of the interactive commands: a colored `wachiman` chip with "On watch." and the
- * version, then Wachi, the guard: a wide rounded face with a W badge, bar eyes and a small ‿ smile,
- * with a short line typed out next to the eyes.
+ * version, then Wachi, the guard: a wide rounded face with a W badge, round ◉ eyes and a small ‿ smile,
+ * with a short line typed out next to the eyes. While it types, Wachi blinks once, and it winks
+ * (one eye) when the line is done.
  *
  *    ┌  wachiman  On watch. v1.14.0
  *    │
  *    │  ╭─────────────╮
  *    │  │      W      │
  *    │  │             │
- *    │  │  ███   ███  │   Wachi: Shift started. Let's watch this repo.
+ *    │  │   ◉     ◉   │   Wachi: Shift started. Let's watch this repo.
  *    │  │      ‿      │
  *    │  │             │
  *    │  ╰─────────────╯
  *
- * Every row of the face is 15 columns wide (13 inside: the eyes row is 2 + 3 + 3 + 3 + 2): a new row or variant must keep that sum,
+ * Every row of the face is 15 columns wide (13 inside: the eyes row is 3 + 1 + 5 + 1 + 3): a new row or variant must keep that sum,
  * or the right border shifts. The art is original and lives here as data. `mascotScene` and
  * `chipTitle` are pure, so tests read them; `playIntro` does the typing.
  *
@@ -42,11 +43,19 @@ export interface MascotOptions {
   message: string;
 }
 
+/** Which eyes are open: both, neither (a blink) or only the left one (a wink). */
+export type Eyes = "open" | "blink" | "wink";
+
 export interface MascotScene {
   /** Rows printed whole before the line that is typed. */
   top: string[];
   /** The start of the typed line: the eyes row with Wachi's name. Printed without a newline. */
   lead: string;
+  /**
+   * `lead` with the eyes closed or winking, for redrawing the typed line in place. Absent on a
+   * narrow terminal, where the eyes are not on the typed line and so cannot be redrawn.
+   */
+  leads?: Record<Eyes, string>;
   /** The text typed after `lead`. */
   message: string;
   /** Rows printed whole after the typed line. */
@@ -59,8 +68,8 @@ export const SIDE_BY_SIDE_COLUMNS = 66;
 export function mascotScene({ paint, ascii, columns, message }: MascotOptions): MascotScene {
   const edge = (text: string) => paint(text, "muted");
   const g = ascii
-    ? { tl: "+", tr: "+", bl: "+", br: "+", h: "-", v: "|", eye: "###", mark: "u" }
-    : { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│", eye: "███", mark: "‿" };
+    ? { tl: "+", tr: "+", bl: "+", br: "+", h: "-", v: "|", eye: "o", shut: "-", mark: "u" }
+    : { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│", eye: "◉", shut: "─", mark: "‿" };
   const border = (l: string, r: string) => edge(`${l}${g.h.repeat(FACE_INSIDE)}${r}`);
   const center = (text: string) => {
     const pad = (FACE_INSIDE - text.length) / 2;
@@ -71,14 +80,23 @@ export function mascotScene({ paint, ascii, columns, message }: MascotOptions): 
     return `${edge(g.v)}${l}${paint(text, tone)}${r}${edge(g.v)}`;
   };
   const badge = centered("W", "warning");
-  const eye = paint(g.eye, "strong");
-  const eyes = `${edge(g.v)}  ${eye}   ${eye}  ${edge(g.v)}`;
+  const open = paint(g.eye, "strong");
+  const shut = paint(g.shut, "strong");
+  const eyesRow = (left: string, right: string) => `${edge(g.v)}   ${left}     ${right}   ${edge(g.v)}`;
+  const eyes = eyesRow(open, open);
   const blank = `${edge(g.v)}${" ".repeat(FACE_INSIDE)}${edge(g.v)}`;
   const mark = centered(g.mark, "brand");
   const name = `${paint(`${NAME}:`, "brand")} `;
   const top = [border(g.tl, g.tr), badge, blank];
   const bottom = [mark, blank, border(g.bl, g.br)];
-  if (columns >= SIDE_BY_SIDE_COLUMNS) return { top, lead: `${eyes}   ${name}`, message, bottom };
+  if (columns >= SIDE_BY_SIDE_COLUMNS) {
+    const leads: Record<Eyes, string> = {
+      open: `${eyes}   ${name}`,
+      blink: `${eyesRow(shut, shut)}   ${name}`,
+      wink: `${eyesRow(open, shut)}   ${name}`,
+    };
+    return { top, lead: leads.open, leads, message, bottom };
+  }
   // A narrow terminal: the whole face first, then the line on its own row.
   return { top: [...top, eyes, ...bottom], lead: name, message, bottom: [] };
 }
@@ -115,6 +133,11 @@ const HIDE = "\x1b[?25l";
 const SHOW = "\x1b[?25h";
 /** One character every 18 ms: the 37-character default line takes about 0.7 s. */
 export const TYPE_MS = 18;
+/** A blink keeps both eyes shut this long. */
+export const BLINK_MS = 140;
+/** After the line is typed, Wachi waits this long, then winks for `WINK_MS`. */
+export const WINK_DELAY_MS = 250;
+export const WINK_MS = 420;
 
 export interface IntroOptions {
   ui: Ui;
@@ -154,15 +177,34 @@ export async function playIntro({ ui, term, env, version, line = DEFAULT_LINE, s
     input.resume();
     output.write(`${HIDE}${row(scene.lead)}`);
     await Promise.race([sleep(120), new Promise<void>((resolve) => (wake = resolve))]);
+    const chars = [...scene.message];
+    const pause = (ms: number) => Promise.race([sleep(ms), new Promise<void>((resolve) => (wake = resolve))]);
+    // Redraw the typed line in place with other eyes: carriage return, then lead and text again.
+    const face = (eyes: Eyes, text: string) => void output.write(`\r${row(scene.leads![eyes])}${text}`);
+    const blinkAt = scene.leads ? Math.floor(chars.length / 3) : -1;
     let typed = 0;
-    for (const ch of [...scene.message]) {
+    for (const ch of chars) {
       if (stop) break;
+      if (typed === blinkAt) {
+        const sofar = chars.slice(0, typed).join("");
+        face("blink", sofar);
+        await pause(BLINK_MS);
+        face("open", sofar);
+      }
       output.write(ch);
       typed += 1;
-      await Promise.race([sleep(TYPE_MS), new Promise<void>((resolve) => (wake = resolve))]);
+      await pause(TYPE_MS);
     }
     // A key skipped the typing: the rest of the line appears at once.
-    output.write([...scene.message].slice(typed).join(""));
+    output.write(chars.slice(typed).join(""));
+    if (!stop && scene.leads) {
+      await pause(WINK_DELAY_MS);
+      if (!stop) {
+        face("wink", scene.message);
+        await pause(WINK_MS);
+        face("open", scene.message);
+      }
+    }
   } finally {
     input.off("data", onData);
     input.setRawMode!(wasRaw);
