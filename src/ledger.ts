@@ -11,13 +11,31 @@
 import { spawnSync } from "node:child_process";
 import { createPublicKey, verify } from "node:crypto";
 
-/** `curl`'s exit status and output; the HTTP status is read from the output (see `call`). */
-export type CurlFn = (args: string[]) => { status: number; stdout: string; stderr: string };
+/**
+ * `curl`'s exit status and output; the HTTP status is read from the output (see `call`). `stdin` is the
+ * text curl reads as its configuration (`--config -`): every secret and every payload travels there,
+ * never in `args`, because the argument list of a process is readable by every other process on the
+ * machine and capped at 128 KB per argument. Copy this split for any new route.
+ */
+export type CurlFn = (args: string[], stdin?: string) => { status: number; stdout: string; stderr: string };
 
-export const defaultCurl: CurlFn = (args) => {
-  const run = spawnSync("curl", ["--silent", "--show-error", "--max-time", "20", ...args], { encoding: "utf8" });
+/**
+ * Twenty seconds at most, and no redirect is followed (curl's default: no `--location`). `-q` must
+ * come first: it keeps the machine's `~/.curlrc` from changing either (a `location`, a `proxy`).
+ */
+export const defaultCurl: CurlFn = (args, stdin) => {
+  const run = spawnSync("curl", ["-q", "--silent", "--show-error", "--max-time", "20", ...args], { encoding: "utf8", input: stdin });
   return { status: run.status ?? 1, stdout: run.stdout ?? "", stderr: run.stderr ?? run.error?.message ?? "" };
 };
+
+const ESCAPES: Record<string, string> = { "\\": "\\\\", '"': '\\"', "\t": "\\t", "\n": "\\n", "\r": "\\r", "\v": "\\v" };
+
+/**
+ * One curl configuration file (`curl --config -`): `option = "value"` lines. Inside the double quotes
+ * curl reads `\\`, `\"`, `\t`, `\n`, `\r` and `\v` as escapes, so these are the only characters changed.
+ */
+export const curlConfig = (entries: [option: string, value: string][]): string =>
+  entries.map(([option, value]) => `${option} = "${value.replace(/[\\"\t\n\r\v]/g, (c) => ESCAPES[c]!)}"\n`).join("");
 
 export interface LedgerEnv {
   GITHUB_ACTIONS?: string;
@@ -122,9 +140,12 @@ function unusable(route: string, status: number, what: string): Error {
       );
 }
 
-/** One request. The HTTP status is the last line of the output (`-w "\n%{http_code}"`). */
-function call(curl: CurlFn, args: string[]): { status: number; body: string } {
-  const run = curl(["-o", "-", "-w", "\n%{http_code}", ...args]);
+/**
+ * One request. `args` ends with the url; `secret` is what must not appear in argv (headers, data) and
+ * goes to curl on stdin. The HTTP status is the last line of the output (`-w "\n%{http_code}"`).
+ */
+function call(curl: CurlFn, args: string[], secret: [option: string, value: string][]): { status: number; body: string } {
+  const run = curl(["--config", "-", "-o", "-", "-w", "\n%{http_code}", ...args], curlConfig(secret));
   if (run.status !== 0) throw new LedgerUnavailable(`curl failed (exit ${run.status}): ${run.stderr.trim()}`);
   const cut = run.stdout.lastIndexOf("\n");
   const status = Number(run.stdout.slice(cut + 1).trim());
@@ -142,16 +163,10 @@ const parseObject = (body: string): Record<string, unknown> | undefined => {
 };
 
 const post = (ledgerUrl: string, route: string, token: string, payload: unknown, curl: CurlFn) =>
-  call(curl, [
-    "-X",
-    "POST",
-    "-H",
-    `Authorization: Bearer ${token}`,
-    "-H",
-    "Content-Type: application/json",
-    "--data",
-    JSON.stringify(payload),
-    `${base(ledgerUrl)}${route}`,
+  call(curl, ["-X", "POST", `${base(ledgerUrl)}${route}`], [
+    ["header", `Authorization: Bearer ${token}`],
+    ["header", "Content-Type: application/json"],
+    ["data", JSON.stringify(payload)],
   ]);
 
 /**
@@ -162,7 +177,7 @@ export function requestIdToken(env: LedgerEnv, audience: string, curl: CurlFn): 
   const url = env.ACTIONS_ID_TOKEN_REQUEST_URL;
   const bearer = env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
   if (!url || !bearer) throw new LedgerNotPermitted("this job has no OIDC token: id-token: write is not granted");
-  const { status, body } = call(curl, ["-H", `Authorization: Bearer ${bearer}`, `${url}&audience=${encodeURIComponent(audience)}`]);
+  const { status, body } = call(curl, [`${url}&audience=${encodeURIComponent(audience)}`], [["header", `Authorization: Bearer ${bearer}`]]);
   const value = parseObject(body)?.value;
   if (status !== 200 || typeof value !== "string" || value === "") {
     if (isOutage(status)) throw new LedgerUnavailable(`GitHub did not issue an id token (HTTP ${status}).`);

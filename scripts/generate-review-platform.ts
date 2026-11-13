@@ -8,6 +8,9 @@
  * permission in `review.yml` would break every caller that has not granted it, so only callers that
  * choose `review-platform.yml` grant it.
  *
+ * Folding the two files back into one depends on what GitHub does with a caller that does not grant
+ * `id-token: write`; that is checked on the first real enrolled run, outside this repository.
+ *
  *   bun scripts/generate-review-platform.ts          write the file
  *   bun scripts/generate-review-platform.ts --check  exit 1 if the committed file is not what this writes
  */
