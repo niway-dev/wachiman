@@ -31,8 +31,20 @@ export const LEGACY_GUIDES: readonly string[] = [
   "Context that fits no other section.",
 ];
 
+/**
+ * The reformatted copy of the same template (version 0b) moved the row guides out of the cells into
+ * one comment above the status table. Such a comment is recognised by how it starts; what follows
+ * it is the old row guides, which are replaced with it.
+ */
+export const LEGACY_GUIDE_PREFIXES: readonly string[] = ["Status table rows, in this order. Fill the right-hand cell of each:"];
+
 export const collapseSpace = (text: string) => text.trim().split(/\s+/).join(" ");
 
 const KNOWN = new Set(LEGACY_GUIDES.map(collapseSpace));
 
-export const isLegacyGuide = (text: string) => KNOWN.has(collapseSpace(text));
+const KNOWN_PREFIXES = LEGACY_GUIDE_PREFIXES.map(collapseSpace);
+
+export const isLegacyGuide = (text: string) => {
+  const collapsed = collapseSpace(text);
+  return KNOWN.has(collapsed) || KNOWN_PREFIXES.some((prefix) => collapsed.startsWith(prefix));
+};

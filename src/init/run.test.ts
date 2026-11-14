@@ -324,7 +324,7 @@ describe("init with scripted prompts", () => {
     expect(printed).toMatch(/1\. In GitHub Actions on pull requests \(default\)/);
     expect(printed).toContain("Release tag to pin [v1.5.0]");
     expect(printed).toContain("Workflow file [.github/workflows/wachiman-review.yml]");
-    expect(printed).toContain("is adopted and replaced (a .bak copy is kept); nothing is committed. [Y/n]");
+    expect(printed).toContain("is adopted and replaced (a backup is kept); nothing is committed. [Y/n]");
     expect(printed).toContain("Write it? [Y/n]");
     expect(printed).toContain("Step 3/4  GitHub workflow");
     expect(printed).toContain("Step 4/4  Checks and next actions");

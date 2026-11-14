@@ -63,9 +63,9 @@ export interface WriteHooks {
 }
 
 /**
- * Writes `content` to the inspected target. With `backup`, an existing file is copied to
- * `<target>.bak-<stamp>` first (`-2`, `-3`… when that name is taken); without it, an existing file
- * is simply replaced. It is replaced only if it is the same file that was inspected. A new file is
+ * Writes `content` to the inspected target. With `backup`, an existing file is copied first, to
+ * `<target>.bak-<stamp>` or, when `backupDir` is given, to `<backupDir>/<relative path>.<stamp>`
+ * (`-2`, `-3`… when that name is taken); without it, an existing file is simply replaced. It is replaced only if it is the same file that was inspected. A new file is
  * linked into place, which fails if one appeared meanwhile. Returns the backup path when one was
  * made.
  */
@@ -77,6 +77,8 @@ export function writeManagedFile(p: {
   now: string;
   label: string;
   backup: boolean;
+  /** A directory outside the working tree for the backups; without it they sit next to the target. */
+  backupDir?: string;
   hooks?: WriteHooks;
 }): { target: string; backup?: string } {
   const { inspected, label } = p;
@@ -90,8 +92,10 @@ export function writeManagedFile(p: {
   let backup: string | undefined;
   if (inspected.exists && p.backup) {
     const stamp = backupStamp(p.now);
+    const base = p.backupDir === undefined ? `${inspected.target}.bak-` : join(p.backupDir, `${p.relativePath}.`);
+    if (p.backupDir !== undefined) mkdirSync(dirname(base), { recursive: true });
     for (let n = 1; backup === undefined; n++) {
-      const candidate = `${inspected.target}.bak-${stamp}${n === 1 ? "" : `-${n}`}`;
+      const candidate = `${base}${stamp}${n === 1 ? "" : `-${n}`}`;
       try {
         copyFileSync(inspected.target, candidate, constants.COPYFILE_EXCL);
         backup = candidate;

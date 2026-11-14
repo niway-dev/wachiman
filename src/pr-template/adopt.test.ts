@@ -308,3 +308,30 @@ describe("merging into an existing definition", () => {
     expect(() => loadRepoChoice(JSON.stringify(merged), catalog)).not.toThrow();
   });
 });
+
+describe("the reformatted shared template (version 0b): row guides in one comment above the status table", () => {
+  // fixtures/adopt/version-0b.md is that template as a repository's formatter left it, with its header comment shortened.
+  const CLA = '<!-- First pull request from someone other than the maintainer? Comment the CLA statement from CLA.md ("How to sign") before review. -->';
+  const shared = fixture("version-0b.md");
+  // A repository's own comment sits between the header and the row guide, as in the copy that was reformatted.
+  const withCla = shared.replace("\n\n<!-- Status table rows", `\n\n${CLA}\n\n<!-- Status table rows`);
+
+  test("the fixture is the shared template plus nothing: no repository line moves", () => {
+    const result = adopt(shared);
+    expect(result.preamble).toEqual([]);
+    expect(result.custom).toEqual([]);
+    expect(result.add).toEqual([]);
+  });
+
+  test("only the repository's own CLA reminder moves to the preamble; the old row guide is replaced", () => {
+    expect(withCla).toContain(CLA);
+    const result = adopt(withCla);
+    expect(result.preamble).toEqual([CLA]);
+    expect(result.report.filter((l) => l.startsWith("moved to preamble"))).toHaveLength(1);
+    expect(result.report.join("\n")).toContain("treated as a guide comment and replaced: Status table rows, in this order.");
+    const { output } = generated(withCla);
+    expect(output).not.toContain("pr_body.py");
+    expect(output).not.toContain("Fill the right-hand cell of each");
+    expect(output).toContain(CLA);
+  });
+});

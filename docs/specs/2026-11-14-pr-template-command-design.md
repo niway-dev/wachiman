@@ -74,6 +74,11 @@ contract. `install` writes files only; `--commit` makes the commit for whoever t
     every branch.
 12. A formatter rewrite of the installed file (cell padding, blank lines, trailing spaces) makes
     `status` read "edited by hand", and `install` refuses to touch the file.
+13. A backup written next to the template is committed by accident (`git add -A`, `git add
+    .github`) or scanned by a formatter or linter.
+14. Adoption misses a later copy of the hand-copied template (the reformatted one, whose row guides
+    sit in one comment above the status table), so the old guidance is kept in `preamble` beside the
+    catalog's own.
 
 ## Acceptance criteria
 
@@ -86,12 +91,16 @@ contract. `install` writes files only; `--commit` makes the commit for whoever t
       prints that repository's template.
 - [ ] `wachiman pr-template install` writes `.github/pull_request_template.md` generated from the
       catalog plus `.github/pr-template.json`; it refuses a hand-edited file without `--force`;
-      `--force` and adoption keep a `.bak-<stamp>` copy; a managed rewrite keeps none.
+      `--force` and adoption keep a backup at `.git/wachiman/backups/<relative path>.<stamp>` (outside the
+      working tree; next to the file only when there is no git directory); a managed rewrite keeps none.
 - [ ] Installing over an unmanaged template replaces the template's own structure with the
       catalog's and keeps everything else, as described in "Adopting an unmanaged file"; the
       fixture made from this repository's copy keeps both checkboxes in `preamble`, drops the old
       guide comment and the old footer, and leaves no `<model>` or `<sha>` in the output; the
-      kaipu-record copy keeps its CLA comment in `preamble`.
+      kaipu-record copy keeps its CLA comment in `preamble`. The reformatted copy of the shared
+      template (row guides in one comment above the status table, padded tables) is a second legacy
+      fixture, `version-0b`: adopting it moves nothing to `preamble`, and the same file with a CLA
+      reminder comment moves only that comment.
 - [ ] `install --commit` creates one commit containing only the files it wrote, with the message
       `docs: install the Wachiman PR description template` (or `docs: update the PR description
       template to version N`); without `--commit` nothing is committed; it never pushes and never
@@ -280,7 +289,11 @@ outside the template's own structure is dropped.
 The file writes reuse the protections of `src/init/write.ts` (refuses symlinks, temp file and
 rename), generalised so its names and messages are not about workflows. Backups differ from
 `init`: a managed file (current or outdated) is regenerable, so rewriting it makes no backup;
-adoption of an unmanaged file and `--force` over a hand-edited one write `<file>.bak-<stamp>`.
+adoption of an unmanaged file and `--force` over a hand-edited one write a backup to
+`<git common dir>/wachiman/backups/<relative path>.<stamp>` (`git rev-parse --git-common-dir`, so it
+works in a linked worktree and outlives it), never into the working tree, so no `git add` can pick it up
+and no formatter or linter scans it; the full path is printed. Only when there is no git directory
+the backup is `<file>.bak-<stamp>` next to the file.
 `install --from` over an existing, different `.github/pr-template.json` refuses without `--force`,
 which backs that file up too. Backups are never staged or committed by `--commit`.
 

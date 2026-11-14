@@ -11,7 +11,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { UsageError } from "../config";
 import { parseFlags } from "../flags";
 import { analyzeUnmanaged, mergeAdoption } from "./adopt";
@@ -183,7 +183,17 @@ export function runStatus(opts: StatusOptions, repoDir: string, io: Io, deps: De
 
 // ------------------------------------------------------------------ install
 
-const shown = (relativePath: string, backup: string) => join(dirname(relativePath), basename(backup));
+/**
+ * Where backups go: `<git common dir>/wachiman/backups`, which is never tracked, is not in the working
+ * tree for a formatter or linter to scan, and survives the removal of a linked worktree. Without a git
+ * directory they stay next to the file.
+ */
+function backupDirOf(repoDir: string, git: GitRunner): string | undefined {
+  const run = git(["rev-parse", "--git-common-dir"], repoDir);
+  const out = run.stdout.trim();
+  if (run.status !== 0 || out === "") return undefined;
+  return join(resolve(repoDir, out), "wachiman", "backups");
+}
 
 export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: Deps = {}): number {
   const catalog = deps.catalog ?? loadCatalog();
@@ -195,7 +205,7 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
   if (fromText !== null) {
     loadRepoChoice(fromText, catalog);
     if (json.text !== null && !sameJson(json.text, fromText) && !opts.force) {
-      throw new UsageError(`${CHOICE_FILE} already exists and differs from ${opts.from}. Re-run with --force to replace it (a .bak copy is kept), or edit it by hand.`);
+      throw new UsageError(`${CHOICE_FILE} already exists and differs from ${opts.from}. Re-run with --force to replace it (a backup is kept), or edit it by hand.`);
     }
   }
   let choiceText = fromText ?? json.text;
@@ -209,13 +219,13 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
 
   if (state.state === "edited-by-hand") {
     if (!opts.force) {
-      throw new UsageError(`${TEMPLATE_FILE} was edited by hand, so it is not replaced. Move the change into ${CHOICE_FILE}, or re-run with --force (a .bak copy is kept).`);
+      throw new UsageError(`${TEMPLATE_FILE} was edited by hand, so it is not replaced. Move the change into ${CHOICE_FILE}, or re-run with --force (a backup is kept).`);
     }
     backupTemplate = true;
   } else if (state.state === "unmanaged") {
     if (json.text !== null && !opts.force) {
       throw new UsageError(
-        `${TEMPLATE_FILE} is not managed by Wachiman and ${CHOICE_FILE} already exists. Re-run with --force: both files get a .bak copy and what the old file adds is merged into the JSON.`,
+        `${TEMPLATE_FILE} is not managed by Wachiman and ${CHOICE_FILE} already exists. Re-run with --force: both files get a backup and what the old file adds is merged into the JSON.`,
       );
     }
     const baseChoice = choiceText === null ? null : loadRepoChoice(choiceText, catalog);
@@ -223,7 +233,7 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
     const merged = mergeAdoption(choiceText === null ? null : (JSON.parse(choiceText) as Record<string, unknown>), adoption);
     const contributes = adoption.custom.length > 0 || adoption.preamble.length > 0 || adoption.add.length > 0;
     if (choiceText !== null || contributes) choiceText = `${JSON.stringify(merged, null, 2)}\n`;
-    notes.push(`adopting the unmanaged ${TEMPLATE_FILE}; the old file is kept as a .bak copy.`, ...adoption.report.map((l) => `  ${l}`));
+    notes.push(`adopting the unmanaged ${TEMPLATE_FILE}; the old file is kept as a backup under .git/wachiman/backups.`, ...adoption.report.map((l) => `  ${l}`));
     backupTemplate = true;
   }
 
@@ -233,15 +243,16 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
 
   for (const note of notes) io.stderr(note);
   const written: string[] = [];
+  const backupDir = backupDirOf(repoDir, deps.git ?? defaultGit);
   const report = (relativePath: string, result: { target: string; backup?: string }) => {
     written.push(result.target);
-    io.stderr(`wrote ${relativePath}${result.backup ? `; the earlier file is kept as ${shown(relativePath, result.backup)}` : ""}.`);
+    io.stderr(`wrote ${relativePath}${result.backup ? `; the earlier file is kept as ${result.backup}` : ""}.`);
   };
   if (writeJson && choiceText !== null) {
-    report(CHOICE_FILE, writeManagedFile({ repoDir, relativePath: CHOICE_FILE, content: choiceText, inspected: json.inspected, now, label: LABEL, backup: json.text !== null, hooks: deps.hooks }));
+    report(CHOICE_FILE, writeManagedFile({ repoDir, relativePath: CHOICE_FILE, content: choiceText, inspected: json.inspected, now, label: LABEL, backup: json.text !== null, backupDir, hooks: deps.hooks }));
   }
   if (writeTemplate) {
-    report(TEMPLATE_FILE, writeManagedFile({ repoDir, relativePath: TEMPLATE_FILE, content, inspected: template.inspected, now, label: LABEL, backup: backupTemplate, hooks: deps.hooks }));
+    report(TEMPLATE_FILE, writeManagedFile({ repoDir, relativePath: TEMPLATE_FILE, content, inspected: template.inspected, now, label: LABEL, backup: backupTemplate, backupDir, hooks: deps.hooks }));
   } else {
     io.stderr(`${TEMPLATE_FILE} is already current; nothing to do.`);
   }

@@ -87,7 +87,7 @@ wachiman pr-template status --json
 | `missing` | There is no `.github/pull_request_template.md` | Writes it |
 | `current` | The file matches what this Wachiman generates from your `.github/pr-template.json`, ignoring formatting (see Formatters) | Nothing |
 | `outdated` | The stamp is intact, but regenerating gives a different file: a newer catalog, or you changed `.github/pr-template.json` | Rewrites it, with no backup, because the file can be generated again |
-| `edited by hand` | The content of the file no longer matches its stamp (a formatter rewrite does not count) | Refuses. `--force` replaces it and keeps a `.bak-<timestamp>` copy |
+| `edited by hand` | The content of the file no longer matches its stamp (a formatter rewrite does not count) | Refuses. `--force` replaces it and keeps a backup (see Backups) |
 | `unmanaged` | A template with no stamp, written by someone | Adopts it (see below) |
 | `invalid` | `.github/pr-template.json` does not parse or breaks a rule of the catalog | Refuses, and says which rule. Nothing falls back to another version |
 
@@ -164,13 +164,21 @@ adopts it instead of overwriting it:
 
 Nothing outside the template's own structure is dropped. `install` prints each line or block it
 moved and each comment it treated as a guide comment, so a comment of yours that was misread as
-guidance is visible. The old file is kept as `.github/pull_request_template.md.bak-<timestamp>`.
+guidance is visible. The old file is kept as a backup (see Backups).
 
 Adoption refuses when `.github/pr-template.json` already exists, unless you pass `--force`: both
 files then get a backup and what the old file adds is merged into the JSON (new entries are
 appended, existing ones are kept). `install --from <json>` copies a definition into
 `.github/pr-template.json` first, and refuses to replace a different existing one without
-`--force`. A `.bak` file is never staged or committed by `--commit`.
+`--force`. A backup is never staged or committed by `--commit`.
+
+### Backups
+
+A backup is written to `<git dir>/wachiman/backups/<path>.<YYYYMMDD-HHMMSS>`, for example
+`.git/wachiman/backups/.github/pull_request_template.md.20261114-202919`, and `install` prints the full
+path. It is outside the working tree: `git add -A` cannot commit it and a formatter or linter does not
+scan it. In a linked worktree it goes to the repository's shared git directory, so it outlives the
+worktree. Without a git directory it stays next to the file as `<file>.bak-<timestamp>`.
 
 ## Check a description
 
@@ -294,4 +302,4 @@ exit 2. A script that depends on it should check `wachiman --version` first.
 | `.github/pull_request_template.md` | `install` | No. It is generated; `status` reports a change of content as `edited by hand`. A formatter may rewrite it |
 | `.github/pr-template.json` | You (or `install` when it adopts a template or copies `--from`) | Yes |
 | `.github/pr-risk.toml` | You | Yes |
-| `.github/pull_request_template.md.bak-<timestamp>` | `install` | A backup. Delete it when you no longer need it |
+| `.git/wachiman/backups/.github/pull_request_template.md.<timestamp>` | `install` | A backup, outside the working tree. Delete it when you no longer need it |

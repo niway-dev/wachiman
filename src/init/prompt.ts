@@ -62,5 +62,5 @@ async function askPrTemplate(flags: RawInitFlags, prompter: Prompter): Promise<b
   if (flags.prTemplate !== undefined) return flags.prTemplate;
   // A dry run writes nothing, so it asks nothing about a file.
   if (flags.dryRun) return false;
-  return prompter.confirm("Also install the PR description template? An existing .github/pull_request_template.md is adopted and replaced (a .bak copy is kept); nothing is committed.", true);
+  return prompter.confirm("Also install the PR description template? An existing .github/pull_request_template.md is adopted and replaced (a backup is kept); nothing is committed.", true);
 }

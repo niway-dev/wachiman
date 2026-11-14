@@ -23,6 +23,9 @@ const catalog = loadCatalog();
 const MARKER = ["BREAKING", "CHANGE"].join(" ");
 const fixture = (name: string) => join(import.meta.dir, "fixtures", "adopt", name);
 const defaultTemplate = renderTemplate(resolveTemplate(catalog, null), catalog.version);
+/** Backups live in the git directory, never in the working tree: `<git dir>/wachiman/backups/<path>.<stamp>`. */
+const BACKUPS = ".git/wachiman/backups";
+const bak = (rel: string, suffix = STAMP) => `${BACKUPS}/${rel}.${suffix}`;
 
 function world() {
   const repo = emptyRepo();
@@ -250,19 +253,62 @@ describe("install: edited by hand", () => {
     expect(w.out.join("")).toContain("edited by hand:");
   });
 
-  test("--force replaces it and keeps the edited file as a .bak-<stamp> copy; a second one gets -2", () => {
+  test("--force replaces it and keeps the edited file as a backup in the git directory; a second one gets -2", () => {
     const w = world();
     install(w);
     edit(w);
     const edited = w.read(TEMPLATE);
     expect(install(w, ["--force"])).toBe(0);
     expect(w.read(TEMPLATE)).toBe(defaultTemplate);
-    expect(w.read(`${TEMPLATE}.bak-${STAMP}`)).toBe(edited);
+    expect(w.read(bak(TEMPLATE))).toBe(edited);
     edit(w);
     const second = w.read(TEMPLATE);
     install(w, ["--force"]);
-    expect(w.read(`${TEMPLATE}.bak-${STAMP}-2`)).toBe(second);
-    expect(w.ls()).toEqual(["pull_request_template.md", `pull_request_template.md.bak-${STAMP}`, `pull_request_template.md.bak-${STAMP}-2`]);
+    expect(w.read(bak(TEMPLATE, `${STAMP}-2`))).toBe(second);
+    expect(w.ls()).toEqual(["pull_request_template.md"]);
+    expect(w.ls(`${BACKUPS}/.github`)).toEqual([`pull_request_template.md.${STAMP}`, `pull_request_template.md.${STAMP}-2`]);
+  });
+
+  test("a backup is outside the working tree: nothing untracked appears, and the message names the full path", () => {
+    const w = world();
+    install(w);
+    git(w.repo, "add", "-A");
+    git(w.repo, "commit", "-q", "-m", "template");
+    edit(w);
+    git(w.repo, "commit", "-q", "-am", "edit");
+    w.err.length = 0;
+    install(w, ["--force"]);
+    // Only the restored template differs from the commit; no backup file shows up as untracked.
+    expect(git(w.repo, "status", "--short").trim()).toBe("M .github/pull_request_template.md");
+    expect(w.ls()).toEqual(["pull_request_template.md"]);
+    const log = w.err.join("\n");
+    expect(log).toContain(`the earlier file is kept as ${w.path(bak(TEMPLATE))}`);
+  });
+
+  test("in a linked worktree the backup goes to the shared git directory, which outlives the worktree", () => {
+    const w = world();
+    install(w);
+    git(w.repo, "add", "-A");
+    git(w.repo, "commit", "-q", "-m", "template");
+    const linked = join(mkdtempSync(join(tmpdir(), "wachiman-linked-")), "wt");
+    scratch.push(join(linked, ".."));
+    git(w.repo, "worktree", "add", "-q", "-b", "linked", linked);
+    const edited = readFileSync(join(linked, TEMPLATE), "utf8").replace("## What", "## Whatever");
+    writeFileSync(join(linked, TEMPLATE), edited);
+    const opts = parseInstallArgs(["--force"]);
+    if (opts.help) throw new Error("unexpected help");
+    expect(runInstall(opts, linked, w.io, w.deps())).toBe(0);
+    expect(readFileSync(join(w.repo, bak(TEMPLATE)), "utf8")).toBe(edited);
+    expect(git(linked, "status", "--short").trim()).toBe("");
+  });
+
+  test("without a git directory the backup stays next to the file", () => {
+    const w = world();
+    install(w);
+    edit(w);
+    const noGit: GitRunner = () => ({ status: 128, stdout: "", stderr: "fatal: not a git repository" });
+    install(w, ["--force"], { git: noGit });
+    expect(w.ls()).toEqual(["pull_request_template.md", `pull_request_template.md.bak-${STAMP}`]);
   });
 
   test("--force on a current template does nothing", () => {
@@ -291,7 +337,7 @@ describe("install: adopting an unmanaged template", () => {
     expect(out).not.toMatch(/<model>|<sha>/);
     expect(out).not.toContain("pr_body.py");
     expect(out).toContain("<sub>Describes commit {sha}.</sub>");
-    expect(w.read(`${TEMPLATE}.bak-${STAMP}`)).toBe(old);
+    expect(w.read(bak(TEMPLATE))).toBe(old);
     const log = w.err.join("\n");
     expect(log).toContain("adopting the unmanaged");
     expect(log).toContain("moved to preamble: - [ ] I said whether");
@@ -303,7 +349,8 @@ describe("install: adopting an unmanaged template", () => {
     const before = snapshotTree(w.repo);
     install(w);
     expect(snapshotTree(w.repo)).toEqual(before);
-    expect(w.ls()).toEqual(["pr-template.json", "pull_request_template.md", `pull_request_template.md.bak-${STAMP}`]);
+    expect(w.ls()).toEqual(["pr-template.json", "pull_request_template.md"]);
+    expect(w.ls(`${BACKUPS}/.github`)).toEqual([`pull_request_template.md.${STAMP}`]);
   });
 
   test("the team template: the reminder is in the preamble, the section and the row are custom entries", () => {
@@ -335,8 +382,8 @@ describe("install: adopting an unmanaged template", () => {
     const choice = JSON.parse(w.read(CHOICE));
     expect(choice.preamble).toEqual(["- [ ] Already here", "", "- [ ] An old repository line"]);
     expect(choice.custom.map((c: { id: string }) => c.id)).toEqual(["notes-from-the-team"]);
-    expect(w.read(`${CHOICE}.bak-${STAMP}`)).toBe(json);
-    expect(w.read(`${TEMPLATE}.bak-${STAMP}`)).toBe("- [ ] An old repository line\n\n## Notes from the team\n");
+    expect(w.read(bak(CHOICE))).toBe(json);
+    expect(w.read(bak(TEMPLATE))).toBe("- [ ] An old repository line\n\n## Notes from the team\n");
   });
 
   test("an unmanaged file that adds nothing writes no pr-template.json", () => {
@@ -345,7 +392,8 @@ describe("install: adopting an unmanaged template", () => {
     install(w);
     expect(existsSync(w.path(CHOICE))).toBe(false);
     expect(w.read(TEMPLATE)).toBe(defaultTemplate);
-    expect(w.ls()).toEqual(["pull_request_template.md", `pull_request_template.md.bak-${STAMP}`]);
+    expect(w.ls()).toEqual(["pull_request_template.md"]);
+    expect(w.ls(`${BACKUPS}/.github`)).toEqual([`pull_request_template.md.${STAMP}`]);
   });
 
   test("an old file that holds the breaking-change marker is refused and nothing is written", () => {
@@ -467,7 +515,7 @@ describe("install --from", () => {
     expect(snapshotTree(w.repo)).toEqual(before);
     install(w, ["--from", from, "--force"]);
     expect(w.read(CHOICE)).toBe(choiceJson);
-    expect(w.read(`${CHOICE}.bak-${STAMP}`)).toBe(old);
+    expect(w.read(bak(CHOICE))).toBe(old);
   });
 
   test("over the same JSON, whatever its spacing, it is not refused and not rewritten", () => {
@@ -536,8 +584,8 @@ describe("--commit", () => {
     install(w, ["--commit"]);
     expect(commits(w)[0]).toBe("docs: install the Wachiman PR description template");
     expect(git(w.repo, "show", "--name-only", "--format=").trim().split("\n").sort()).toEqual([".github/pr-template.json", ".github/pull_request_template.md"]);
-    expect(w.ls()).toContain(`pull_request_template.md.bak-${STAMP}`);
-    expect(git(w.repo, "status", "--short").trim()).toBe(`?? .github/pull_request_template.md.bak-${STAMP}`);
+    expect(w.read(bak(TEMPLATE))).toBe("- [ ] Mine\n");
+    expect(git(w.repo, "status", "--short").trim()).toBe("");
   });
 
   test("when a stamped template already existed the message names the version", () => {
@@ -586,12 +634,13 @@ describe("--commit", () => {
       return { status: 0, stdout: "abc123\n", stderr: "" };
     };
     install(w, ["--commit"], { git: fake });
-    expect(calls.map((c) => c[0])).toEqual(["add", "commit", "rev-parse"]);
+    expect(calls.map((c) => c[0])).toEqual(["rev-parse", "add", "commit", "rev-parse"]);
+    expect(calls[0]).toEqual(["rev-parse", "--git-common-dir"]);
     const flat = calls.flat();
     expect(flat).not.toContain("--no-verify");
     expect(flat).not.toContain("-n");
     expect(flat).not.toContain("push");
-    expect(calls[1]![calls[1]!.indexOf("--") - 1]).toBe("docs: install the Wachiman PR description template");
+    expect(calls[2]![calls[2]!.indexOf("--") - 1]).toBe("docs: install the Wachiman PR description template");
     expect(w.out.join("").trim()).toBe("abc123");
   });
 
