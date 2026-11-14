@@ -145,7 +145,8 @@ wrote the change) declared.
 
 `templates/pr/sections.json` ships in the package (`templates/` is already in `files`,
 [ADR 0028](../adr/0028-the-npm-package-installs-bun-itself-behind-a-node-launcher-and-no-windows-executable.md)).
-Illustrative shape; the build fixes the exact field names:
+Illustrative and abbreviated (the real catalog lists every row, section and block of the current
+template, each with an `id`); the build fixes the exact field names:
 
 ```jsonc
 {
@@ -154,6 +155,7 @@ Illustrative shape; the build fixes the exact field names:
     { "id": "type",       "kind": "status-row", "label": "Type",     "locked": false, "default": true },
     { "id": "risk",       "kind": "status-row", "label": "Risk",     "locked": true,  "rule": "risk-floor" },
     { "id": "needs-you",  "kind": "section",    "heading": "Needs you", "locked": true, "rule": "not-empty" },
+    { "id": "evidence",   "kind": "section",    "heading": "Evidence", "required": true, "default": true },
     { "id": "decisions",  "kind": "section",    "heading": "Decisions", "required": false, "default": true },
     { "id": "screenshots","kind": "section",    "heading": "Screenshots", "required": true, "default": false },
     { "id": "changes",    "kind": "details",    "summary": "Changes", "rule": "max-rows:7" },
@@ -166,7 +168,8 @@ Illustrative shape; the build fixes the exact field names:
 
 Each section carries its guide comment (the text that tells the author what goes there). The
 order in the catalog is the order in the template. `default: true` sections make up the default
-template; `default: false` sections are offered by the catalog for a repository to add.
+template; `default: false` sections are offered by the catalog for a repository to add. A `custom`
+entry's `after` names the `id` it follows; an unknown `id` is a configuration error.
 
 A repository's choice, `.github/pr-template.json`:
 
@@ -212,7 +215,7 @@ any private repository.
 | State | Meaning | `install` without `--force` |
 | --- | --- | --- |
 | missing | No `.github/pull_request_template.md` | Writes it |
-| unmanaged | A file with no stamp | Adopts it (below), keeps a backup, prints what moved. Refuses without `--force` when `.github/pr-template.json` already exists |
+| unmanaged | A file with no stamp | Adopts it (below), keeps a backup, prints what moved. Refuses without `--force` when `.github/pr-template.json` already exists; with `--force` it backs that JSON up and merges into it (new custom entries and preamble blocks appended, existing entries kept) |
 | current | Stamp hash matches the file, and regenerating gives the same file | Nothing to do |
 | outdated | Stamp hash matches, but regenerating gives a different file (new catalog version or a changed `pr-template.json`) | Rewrites it |
 | edited by hand | The file no longer matches its stamp hash | Refuses; `--force` keeps a backup |
@@ -236,8 +239,9 @@ template's own structure and the rest:
 | A status row, `##` section or `<details>` block the catalog does not know | Becomes a `custom` entry in `.github/pr-template.json`, optional, in its old position |
 | Any other line (checkboxes, notes, a CLA reminder) | Goes to `preamble`, in its old order |
 
-The command prints each moved line or block. Nothing outside the template's own structure is
-dropped.
+The command prints each moved line or block, and each comment it treated as a guide comment and
+replaced, so a repository comment misread as guidance is visible and still in the backup. Nothing
+outside the template's own structure is dropped.
 
 ### Writing files
 

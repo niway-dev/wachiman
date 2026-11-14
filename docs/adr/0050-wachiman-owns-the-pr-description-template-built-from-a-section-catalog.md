@@ -39,7 +39,9 @@ picks which optional sections it uses and may add its own, within limits Wachima
    configuration error: exit 2 in the commands that read the template, `invalid` in `status`.
 5. **The checker is a TypeScript port of the Python one.** Its fixed lists become catalog entries,
    its rule codes stay, and its test cases become fixtures the port must pass. Its risk rules are
-   ported literally, including `.github/pr-risk.toml`; the engine's `RISK_RULES` stay as they are.
+   ported literally, including `.github/pr-risk.toml` (read from the base commit,
+   [ADR 0051](0051-a-pull-request-is-checked-against-its-own-template-and-locked-sections-come-from-wachiman.md));
+   the engine's `RISK_RULES` stay as they are.
 
 ## Alternatives rejected
 
