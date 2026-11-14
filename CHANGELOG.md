@@ -5,6 +5,27 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.16.0](https://github.com/niway-dev/wachiman/compare/v1.15.0...v1.16.0) (2026-11-14)
+
+
+### Features
+
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([38c4546](https://github.com/niway-dev/wachiman/commit/38c4546ecda5898e95aa791019a4ff4df492ce80))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([e7ab617](https://github.com/niway-dev/wachiman/commit/e7ab617c15866d2d375e5c444a41a3369c0294ca))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([d40e1a4](https://github.com/niway-dev/wachiman/commit/d40e1a42f9caa2a1985f4729ccbc4aa19878c8ba))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([2dc4498](https://github.com/niway-dev/wachiman/commit/2dc449862e07207aed8e19692601293dc332375d))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([27078df](https://github.com/niway-dev/wachiman/commit/27078dfbcbd325039c743a6c76db1f2c40d33879))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([87459bb](https://github.com/niway-dev/wachiman/commit/87459bbea5fe20d08a8379bbc5fef0000609f23e))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([1ec37f7](https://github.com/niway-dev/wachiman/commit/1ec37f7e270cb66b6f3072b160202c835a5b0464))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([5c2f4ee](https://github.com/niway-dev/wachiman/commit/5c2f4ee7363395d015446e470b1a35700f8a5ee6))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([f92fe7e](https://github.com/niway-dev/wachiman/commit/f92fe7e867312ca9e0c188e82e5d6ed16491079e))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([86d7149](https://github.com/niway-dev/wachiman/commit/86d7149dcf661cd52f7fda35f275b5980ef49cc6))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([7ab0535](https://github.com/niway-dev/wachiman/commit/7ab0535447e8270d4f7611c9536947f1b1d421a1))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([8f41c1b](https://github.com/niway-dev/wachiman/commit/8f41c1bd0ccff5a9d1ec3e0bac4ba943d142fd3e))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([1ff8d87](https://github.com/niway-dev/wachiman/commit/1ff8d87446fbdb8eb8065158b8d7920612e873f4))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([865ed2b](https://github.com/niway-dev/wachiman/commit/865ed2b6153b362bd98dc0347941a5a88d5f9f28))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([be1e4ac](https://github.com/niway-dev/wachiman/commit/be1e4ac54e35c3a756a885d8fd63cb2121d011f9))
+
 ## [1.15.0](https://github.com/niway-dev/wachiman/compare/v1.14.0...v1.15.0) (2026-11-13)
 
 

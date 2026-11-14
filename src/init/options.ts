@@ -48,7 +48,7 @@ export type ResolveResult<T> = { ok: true; options: T } | { ok: false; error: st
  * docs/releasing.md); the CLI's own version is never a substitute,
  * because an unreleased or unrelated version would pin a workflow that does not exist.
  */
-export const DEFAULT_WORKFLOW_REF: string | undefined = "v1.15.0"; // x-release-please-version
+export const DEFAULT_WORKFLOW_REF: string | undefined = "v1.16.0"; // x-release-please-version
 
 export const DEFAULT_WORKFLOW_PATH = ".github/workflows/wachiman-review.yml";
 const WORKFLOWS_DIR = ".github/workflows/";
