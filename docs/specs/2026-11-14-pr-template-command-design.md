@@ -26,7 +26,7 @@ contract. `install` writes files only; `--commit` makes the commit for whoever t
 | 4 | The checker is a TypeScript port of `pr_body.py`; its tests become fixtures; its risk rules are ported literally | Consumers cannot run a script from a private repository; the product stays TypeScript on Bun ([ADR 0002](../adr/0002-typescript-on-bun-zero-dependencies.md)) | 0050 (new) |
 | 5 | A PR is checked against its own `.github/pr-template.json`; locked sections come from Wachiman, never from the repository | Whoever changes the template wants to see it working in that PR; locked sections stop a PR from removing the rules that matter | 0051 (new) |
 | 6 | The installed `.github/pull_request_template.md` is generated, stamped and never hand-edited; repository lines live in the repository JSON as a `preamble` | One place to edit; `status` can tell current, outdated and hand-edited apart | 0052 (new) |
-| 7 | `install` writes files only; `--commit` is opt-in and makes one commit with the files it wrote | Nobody is forced; Wachiman never pushes ([ADR 0034](../adr/0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md) keeps Wachiman away from code) | 0052 (new) |
+| 7 | `install` writes files only; `--commit` is opt-in and makes one commit with the files it wrote | Nobody is forced; pushing and opening the PR stay with the caller's tooling | 0052 (new) |
 | 8 | `format` reorders a description to the template's order, without deleting or rewriting text | Helps an author or agent meet the format without making it rigid | — |
 
 ## Open questions
@@ -35,7 +35,7 @@ contract. `install` writes files only; `--commit` makes the commit for whoever t
    creating a private repository on the owner's personal account, and uses it only for the run in
    the last acceptance criterion.
 2. **Where a repository's choice lives once `.wachiman.yml` exists.** The repository settings file
-   (open PR [#232](https://github.com/niway-dev/wachiman/pull/232), ADR 0048 there) is for
+   (ADR 0048 in open PR [#232](https://github.com/niway-dev/wachiman/pull/232)) is for
    settings; the template definition is content, so it stays in `.github/pr-template.json`.
    Default: keep it separate; revisit if `.wachiman.yml` grows a section for templates.
 3. **Which PostHog parts the default adopts.** Default: an `Agent context` collapsed block (how
@@ -72,16 +72,19 @@ contract. `install` writes files only; `--commit` makes the commit for whoever t
 
 ## Acceptance criteria
 
-- [ ] `templates/pr/sections.json` defines every section of the default template; a
-      `.github/pr-template.json` that drops a locked section is rejected with a message naming it.
+- [ ] `templates/pr/sections.json` defines every section of the default template; `show`,
+      `install` and `check` exit 2 with a message naming the section when
+      `.github/pr-template.json` drops a locked section, and exit 2 naming the problem when the
+      JSON does not parse or names an unknown section. None of them falls back to another version.
 - [ ] `wachiman pr-template show` prints the default template; with `.github/pr-template.json` it
       prints that repository's template.
 - [ ] `wachiman pr-template install` writes `.github/pull_request_template.md` generated from the
       catalog plus `.github/pr-template.json`; it refuses a hand-edited or unmanaged file without
       `--force`, and `--force` keeps a `.bak-<stamp>` copy.
-- [ ] Installing over an unmanaged template moves every line it does not recognise into `preamble`
-      in `.github/pr-template.json` and prints them; the fixture made from the wachiman copy keeps
-      both checkboxes.
+- [ ] Installing over an unmanaged template replaces the template's own structure with the
+      catalog's and keeps everything else, as described in "Adopting an unmanaged file"; the
+      fixture made from this repository's copy keeps both checkboxes in `preamble`, drops the old
+      guide comment and the old footer, and leaves no `<model>` or `<sha>` in the output.
 - [ ] `install --commit` creates one commit containing only the files it wrote, with the message
       `docs: install the Wachiman PR description template` (or `docs: update the PR description
       template to version N`); without `--commit` nothing is committed; it never pushes and never
@@ -89,8 +92,8 @@ contract. `install` writes files only; `--commit` makes the commit for whoever t
 - [ ] `wachiman pr-template status` prints one of missing, current, outdated, edited by hand or
       unmanaged; exits 0 only for current; `--json` prints `{state, version, installedVersion}`.
 - [ ] `wachiman pr-template check` passes every case of the Python checker's suite, ported as
-      fixtures, plus: a custom required section missing; an optional section dropped; a locked
-      section dropped by the JSON (still required).
+      fixtures, plus: a custom required section missing; an optional section dropped; a
+      description without a locked section fails whatever the JSON says.
 - [ ] `check --pr <n>` on a PR that changes `.github/pr-template.json` uses that PR's version and
       prints `checked against the template in this pull request`.
 - [ ] `check` reports the breaking-change marker anywhere in the body, comments included, and
@@ -204,13 +207,35 @@ any private repository.
 | State | Meaning | `install` without `--force` |
 | --- | --- | --- |
 | missing | No `.github/pull_request_template.md` | Writes it |
-| unmanaged | A file with no stamp | Adopts it: unknown lines go to `preamble`, printed |
+| unmanaged | A file with no stamp | Adopts it (below), and prints what moved |
 | current | Stamp hash matches the file, and regenerating gives the same file | Nothing to do |
 | outdated | Stamp hash matches, but regenerating gives a different file (new catalog version or a changed `pr-template.json`) | Rewrites it |
 | edited by hand | The file no longer matches its stamp hash | Refuses; `--force` keeps a backup |
 
 "Outdated" compares against what the repository asked for (its JSON), never against the default,
 so a custom template is not outdated only because it is custom.
+
+### Adopting an unmanaged file
+
+Recognition works on blocks, not lines. The old file is split into the template's own structure
+and the rest:
+
+| Part of the old file | What happens |
+| --- | --- |
+| Guide comments, the status table, `##` sections, `<details>` blocks, the Wachiman block and the footer whose label, heading or summary the catalog knows | Replaced by the catalog's version; the old wording is not kept |
+| A status row, `##` section or `<details>` block the catalog does not know | Becomes a `custom` entry in `.github/pr-template.json`, optional, in its old position |
+| Any other line (checkboxes, notes, a CLA reminder) | Goes to `preamble`, in its old order |
+
+The command prints each moved line or block. Nothing outside the template's own structure is
+dropped.
+
+### Writing files
+
+The file writes reuse the protections of `src/init/write.ts` (refuses symlinks, temp file and
+rename), generalised so its names and messages are not about workflows. Backups differ from
+`init`: a managed file (current or outdated) is regenerable, so rewriting it makes no backup; only
+`--force` over a hand-edited or unmanaged file writes `<file>.bak-<stamp>`. The backup is never
+staged or committed by `--commit`.
 
 ### The checker
 
@@ -258,8 +283,7 @@ wachiman pr-template strip   <file>
 ```
 
 `--from <json>` copies the given definition into `.github/pr-template.json` before generating.
-The command registers in `src/cli.ts` and `src/help.ts` like `skills`. File writes reuse the
-protections of `src/init/write.ts` (refuses symlinks, temp file and rename, timestamped backup).
+The command registers in `src/cli.ts` and `src/help.ts` like `skills`.
 
 ### State of the art
 

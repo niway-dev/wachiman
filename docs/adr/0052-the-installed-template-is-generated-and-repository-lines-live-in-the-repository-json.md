@@ -23,12 +23,17 @@ hash per file and leaves modified files alone (`src/skills/install.ts:151`).
    the rest of the file. It is not edited by hand.
 2. **A repository's own lines live in `preamble`** in `.github/pr-template.json`, rendered at the
    top of the template.
-3. **Adopting an unmanaged file** moves every line the generator does not recognise into
-   `preamble`, prints them, and drops none.
+3. **Adopting an unmanaged file** works on blocks: the parts the catalog knows (guide comments,
+   status rows, sections, collapsed blocks, the Wachiman block, the footer) are replaced by the
+   catalog's; unknown rows, sections and blocks become custom entries; every other line goes to
+   `preamble`. The command prints what moved and drops nothing outside the template's structure.
 4. **A hand-edited file is never replaced without `--force`**, and `--force` keeps a timestamped
-   backup.
+   backup, which `--commit` never stages. A managed file is regenerated without a backup.
 5. **`install` writes files only.** `--commit` is opt-in: one commit containing only the files the
-   command wrote, a default `docs:` message, hooks run, nothing pushed.
+   command wrote, a default `docs:` message, hooks run, nothing pushed. This is the first command
+   that commits for the user; it touches only template files, never code, so the review loop's
+   rule of never editing code ([ADR 0034](0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md))
+   still holds.
 
 ## Alternatives rejected
 
