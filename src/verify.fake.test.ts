@@ -34,7 +34,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
@@ -114,7 +114,7 @@ const five = [
 ];
 
 const asVerifier = (verdicts: unknown[], over: Partial<ProviderResult> = {}) => () => ({ costUsd: 0.3, structuredOutput: { verdicts }, ...over });
-const review = (result: ReturnType<typeof reviewChange>) =>
+const review = (result: Awaited<ReturnType<typeof reviewChange>>) =>
   githubReview(result, { since: null, rebased: false, scoped: false, mention: "/wachiman", automatic: false, instructionChanges: { files: [], baseSha: "b".repeat(40) } });
 
 const batch = (findings: Finding[], costUsd = 0.2) => () => ({
@@ -123,7 +123,7 @@ const batch = (findings: Finding[], costUsd = 0.2) => () => ({
 });
 
 describe("the verifier through the review core", () => {
-  test("five candidates: drops a proved refutation, degrades a bad one, marks pre-existing, moves a severity, leaves the unanswered inconclusive", () => {
+  test("five candidates: drops a proved refutation, degrades a bad one, marks pre-existing, moves a severity, leaves the unanswered inconclusive", async () => {
     const provider = new FakeProvider([batch(five)]);
     const verifier = new FakeProvider(
       [
@@ -146,7 +146,7 @@ describe("the verifier through the review core", () => {
     );
     const base = baseSnapshot();
     const { deps: d } = deps(provider, verifier, base.make);
-    const result = reviewChange(branchInput(), options(), d);
+    const result = await reviewChange(branchInput(), options(), d);
 
     expect(result.format).toBe("wachiman.review-result/2");
     // The proved refutation is gone; the bad one counts as doubt (low confidence, so a fix becomes a question).
@@ -182,7 +182,7 @@ describe("the verifier through the review core", () => {
     expect(review(result).body).not.toContain("a is refuted");
   });
 
-  test("a verifier stop keeps the verdicts it returned and marks every other candidate not verified", () => {
+  test("a verifier stop keeps the verdicts it returned and marks every other candidate not verified", async () => {
     const provider = new FakeProvider([batch(five)]);
     const verifier = new FakeProvider([
       asVerifier(
@@ -194,7 +194,7 @@ describe("the verifier through the review core", () => {
       ),
     ]);
     const { deps: d } = deps(provider, verifier);
-    const result = reviewChange(branchInput(), options(), d);
+    const result = await reviewChange(branchInput(), options(), d);
 
     expect(result.verification).toMatchObject({ status: "partial", stop: { kind: "budget" }, dropped: 0, inconclusive: 3 });
     expect(result.verification?.entries.map((e) => [e.id, e.status])).toEqual([
@@ -212,10 +212,10 @@ describe("the verifier through the review core", () => {
     expect(body).toContain("**Partly verified**");
   });
 
-  test("a failed verifier call posts every finding unverified and says so", () => {
+  test("a failed verifier call posts every finding unverified and says so", async () => {
     const provider = new FakeProvider([batch(three), () => ({ isError: true, terminalReason: "error", errorText: "overloaded", costUsd: 0.05 })]);
     const { deps: d, warnings } = deps(provider);
-    const result = reviewChange(branchInput(), options(), d);
+    const result = await reviewChange(branchInput(), options(), d);
 
     expect(result.findings.map((f) => [f.line, f.severity, f.confidence, f.verification.status])).toEqual([
       [2, "fix", "high", "inconclusive"],
@@ -230,69 +230,69 @@ describe("the verifier through the review core", () => {
     expect(body).toContain("verification failed");
   });
 
-  test("a rate-limit or billing stop is a quota stop", () => {
+  test("a rate-limit or billing stop is a quota stop", async () => {
     const provider = new FakeProvider([batch(three), () => ({ isError: true, terminalReason: "error", providerError: "rate_limit", errorText: "slow down", costUsd: 0 })]);
-    const result = reviewChange(branchInput(), options(), deps(provider).deps);
+    const result = await reviewChange(branchInput(), options(), deps(provider).deps);
     expect(result.verification).toMatchObject({ status: "failed", stop: { kind: "quota" } });
   });
 
-  test("an answer that is not a verdict list is failed, not salvaged", () => {
+  test("an answer that is not a verdict list is failed, not salvaged", async () => {
     const provider = new FakeProvider([batch(three), () => ({ costUsd: 0.1, structuredOutput: { verdicts: "c1: supported" } })]);
-    const result = reviewChange(branchInput(), options(), deps(provider).deps);
+    const result = await reviewChange(branchInput(), options(), deps(provider).deps);
     expect(result.verification?.status).toBe("failed");
     expect(result.findings).toHaveLength(3);
   });
 
-  test("a schema-invalid envelope is not used, even when it carries a valid refutation", () => {
+  test("a schema-invalid envelope is not used, even when it carries a valid refutation", async () => {
     const provider = new FakeProvider([batch(three)]);
     const refutation = { id: "c1", verdict: "refuted", reason: "b is set on line 2", checked: [{ snapshot: "head", path: "src/a.ts", line: 2 }], disproof: { snapshot: "head", path: "src/a.ts", line: 2 } };
     const verifier = new FakeProvider([() => ({ costUsd: 0.2, structuredOutput: { verdicts: [refutation], notes: "an extra field the schema forbids" } })]);
-    const result = reviewChange(branchInput(), options(), deps(provider, verifier).deps);
+    const result = await reviewChange(branchInput(), options(), deps(provider, verifier).deps);
     expect(result.verification).toMatchObject({ status: "failed", dropped: 0, inconclusive: 3 });
     expect(result.findings).toHaveLength(3);
     // The same envelope without the violation does drop the finding.
     const clean = new FakeProvider([() => ({ costUsd: 0.2, structuredOutput: { verdicts: [refutation] } })]);
-    expect(reviewChange(branchInput(), options(), deps(new FakeProvider([batch(three)]), clean).deps).verification?.dropped).toBe(1);
+    expect((await reviewChange(branchInput(), options(), deps(new FakeProvider([batch(three)]), clean).deps)).verification?.dropped).toBe(1);
     // A wrong enum inside one verdict also voids the whole envelope.
     const wrongEnum = new FakeProvider([() => ({ costUsd: 0.2, structuredOutput: { verdicts: [refutation, { id: "c2", verdict: "maybe", reason: "x", checked: [] }] } })]);
-    const second = reviewChange(branchInput(), options(), deps(new FakeProvider([batch(three)]), wrongEnum).deps);
+    const second = await reviewChange(branchInput(), options(), deps(new FakeProvider([batch(three)]), wrongEnum).deps);
     expect(second.verification).toMatchObject({ status: "failed", dropped: 0 });
     expect(second.findings).toHaveLength(3);
   });
 
-  test("a verifier call that throws is counted at its cap and the review still posts", () => {
+  test("a verifier call that throws is counted at its cap and the review still posts", async () => {
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
-    const result = reviewChange(branchInput(), options({ totalBudgetUsd: 2 }), d);
+    const result = await reviewChange(branchInput(), options({ totalBudgetUsd: 2 }), d);
     expect(result.findings).toHaveLength(3);
     expect(result.verification?.status).toBe("failed");
     // The batches had 2 − 1 (the reserve); the verifier got what was left: 2 − 0.2.
     expect(result.verification?.costUsd).toBeCloseTo(1.8);
   });
 
-  test("no budget left: skipped, findings posted unverified, no call", () => {
+  test("no budget left: skipped, findings posted unverified, no call", async () => {
     const provider = new FakeProvider([batch(three, 0.98)]);
     const verifier = new FakeProvider([asVerifier([])]);
     const { deps: d } = deps(provider, verifier);
-    const result = reviewChange(branchInput(), options({ totalBudgetUsd: 1 }), d);
+    const result = await reviewChange(branchInput(), options({ totalBudgetUsd: 1 }), d);
     expect(verifier.requests).toHaveLength(0);
     expect(result.verification).toMatchObject({ status: "skipped", costUsd: 0, stop: { kind: "budget" } });
     expect(result.findings.every((f) => f.verification.status === "inconclusive")).toBe(true);
   });
 
-  test("the base snapshot is made lazily, once, and released even when the call fails", () => {
+  test("the base snapshot is made lazily, once, and released even when the call fails", async () => {
     const none = baseSnapshot();
     const noFindings = new FakeProvider([batch([finding({ severity: "info", topic: "docs" })])]);
-    reviewChange(branchInput(), options(), deps(noFindings, undefined, none.make).deps);
+    await reviewChange(branchInput(), options(), deps(noFindings, undefined, none.make).deps);
     expect(none.made.acquired).toBe(0);
 
     const failing = baseSnapshot();
     const provider = new FakeProvider([batch(three), () => ({ isError: true, terminalReason: "error", errorText: "boom" })]);
-    reviewChange(branchInput(), options(), deps(provider, undefined, failing.make).deps);
+    await reviewChange(branchInput(), options(), deps(provider, undefined, failing.make).deps);
     expect(failing.made).toMatchObject({ acquired: 1, released: 1 });
   });
 
-  test("the base snapshot is released when the verifier's temp directory cannot be made", () => {
+  test("the base snapshot is released when the verifier's temp directory cannot be made", async () => {
     const leaking = baseSnapshot();
     const provider = new FakeProvider([batch(three)]);
     const before = process.env.TMPDIR;
@@ -303,7 +303,7 @@ describe("the verifier through the review core", () => {
       return snap;
     };
     try {
-      expect(() => reviewChange(branchInput(), options(), deps(provider, undefined, make).deps)).toThrow();
+      await expect(reviewChange(branchInput(), options(), deps(provider, undefined, make).deps)).rejects.toThrow();
     } finally {
       if (before === undefined) delete process.env.TMPDIR;
       else process.env.TMPDIR = before;
@@ -311,7 +311,7 @@ describe("the verifier through the review core", () => {
     expect(leaking.made).toMatchObject({ acquired: 1, released: 1 });
   });
 
-  test("a base snapshot that cannot be made warns and the review goes on without base evidence", () => {
+  test("a base snapshot that cannot be made warns and the review goes on without base evidence", async () => {
     const provider = new FakeProvider([batch(three)]);
     const verifier = new FakeProvider([
       asVerifier([
@@ -329,14 +329,14 @@ describe("the verifier through the review core", () => {
     const { deps: d, warnings } = deps(provider, verifier, () => {
       throw new Error("git is gone");
     });
-    const result = reviewChange(branchInput(), options(), d);
+    const result = await reviewChange(branchInput(), options(), d);
     expect(warnings.some((w) => w.includes("base snapshot could not be made"))).toBe(true);
     expect(verifier.requests[0].prompt).toContain("base snapshot is not available");
     // No base to cite: the pre-existing claim is not accepted.
     expect(result.findings[0]).toMatchObject({ origin: "unknown", tier: "Important" });
   });
 
-  test("a disproof that leaves the snapshot through a symlink is not accepted", () => {
+  test("a disproof that leaves the snapshot through a symlink is not accepted", async () => {
     const input = branchInput();
     const outside = mkdtempSync(join(tmpdir(), "verify-outside-"));
     writeFileSync(join(outside, "secret.ts"), "x\n".repeat(50));
@@ -346,12 +346,12 @@ describe("the verifier through the review core", () => {
     const verifier = new FakeProvider([
       asVerifier([{ id: "c1", verdict: "refuted", reason: "guarded", checked: [{ snapshot: "head", path: "src/a.ts", line: 2 }], disproof: { snapshot: "head", path: "src/link.ts", line: 10 } }]),
     ]);
-    const result = reviewChange(input, options(), deps(provider, verifier).deps);
+    const result = await reviewChange(input, options(), deps(provider, verifier).deps);
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0].verification).toMatchObject({ status: "inconclusive", claimed: "refuted" });
   });
 
-  test("the reserve is taken before the batches: when they cannot run past it, the verifier still runs", () => {
+  test("the reserve is taken before the batches: when they cannot run past it, the verifier still runs", async () => {
     // $1 in total: the reserve is half, $0.50. The first batch spends exactly that, so the second
     // is not reached, and the verifier gets what is left of the total.
     const twoFiles = branchInput();
@@ -359,7 +359,7 @@ describe("the verifier through the review core", () => {
     const provider = new FakeProvider([batch([finding({})], 0.5)]);
     const verifier = new FakeProvider([asVerifier([{ id: "c1", verdict: "supported", reason: "yes", checked: [{ snapshot: "head", path: "src/a.ts", line: 2 }] }], { costUsd: 0.1 })]);
     const { deps: d } = deps(provider, verifier);
-    const result = reviewChange(twoFiles, options({ totalBudgetUsd: 1, batchLines: 1 }), d);
+    const result = await reviewChange(twoFiles, options({ totalBudgetUsd: 1, batchLines: 1 }), d);
     expect(provider.requests).toHaveLength(1);
     expect(provider.requests[0].maxBudgetUsd).toBeCloseTo(0.5);
     expect(result.batches.map((b) => b.status)).toEqual(["reviewed", "not run: budget spent"]);
@@ -368,17 +368,17 @@ describe("the verifier through the review core", () => {
     expect(result.verification?.status).toBe("verified");
   });
 
-  test("no finding above info: no verifier call, no cost", () => {
+  test("no finding above info: no verifier call, no cost", async () => {
     const provider = new FakeProvider([batch([finding({ severity: "info", topic: "docs" })])]);
     const { deps: d } = deps(provider);
-    const result = reviewChange(branchInput(), options(), d);
+    const result = await reviewChange(branchInput(), options(), d);
     expect(provider.requests).toHaveLength(1);
     expect(result.verification).toMatchObject({ status: "nothing", costUsd: 0, entries: [] });
     expect(result.execution.costUsdEstimate).toBeCloseTo(0.2);
     expect(review(result).body).not.toContain("verif");
   });
 
-  test("a finding the verifier left inconclusive collapses with a question already on its line", () => {
+  test("a finding the verifier left inconclusive collapses with a question already on its line", async () => {
     const provider = new FakeProvider([
       batch([finding({ line: 2, title: "b is wrong" }), finding({ line: 2, title: "is b meant?", topic: "question", severity: "consider" })]),
     ]);
@@ -386,11 +386,11 @@ describe("the verifier through the review core", () => {
       () => ({ structuredOutput: { verdicts: [{ id: "c1", verdict: "inconclusive", reason: "cannot tell", checked: [] }, { id: "c2", verdict: "supported", reason: "yes", checked: [] }] } }),
     ]);
     const { deps: d } = deps(provider, verifier);
-    const result = reviewChange(branchInput(), options(), d);
+    const result = await reviewChange(branchInput(), options(), d);
     expect(result.findings.map((f) => [f.line, f.topic, f.severity, f.title])).toEqual([[2, "question", "fix", "b is wrong"]]);
   });
 
-  test("after the provider refused a batch, the verifier is not called and the record says why", () => {
+  test("after the provider refused a batch, the verifier is not called and the record says why", async () => {
     const twoFiles = branchInput();
     twoFiles.files.push({ filename: "src/b.ts", additions: 2, deletions: 0, patch: "@@ -0,0 +1,2 @@\n+export const d = 4;\n+export const e = 5;" });
     const credit = "API Error: 400 Your credit balance is too low to access the Anthropic API.";
@@ -400,34 +400,34 @@ describe("the verifier through the review core", () => {
     ]);
     const verifier = new FakeProvider([]);
     const { deps: d } = deps(provider, verifier);
-    const result = reviewChange(twoFiles, options({ batchLines: 1 }), d);
+    const result = await reviewChange(twoFiles, options({ batchLines: 1 }), d);
     expect(verifier.requests).toHaveLength(0);
     expect(result.verification).toMatchObject({ status: "failed", costUsd: 0, stop: { kind: "error" } });
     expect(result.verification?.stop?.detail).toContain("credit balance");
     expect(result.findings).toHaveLength(1);
   });
 
-  test("without its own adapter the record names the reviewer's model and effort, the ones that ran", () => {
+  test("without its own adapter the record names the reviewer's model and effort, the ones that ran", async () => {
     const provider = new FakeProvider([batch([finding({})]), () => ({ structuredOutput: { verdicts: [{ id: "c1", verdict: "supported", reason: "yes", checked: [] }] } })]);
     const { deps: d } = deps(provider);
     const opts = options();
-    const result = reviewChange(branchInput(), opts, d);
+    const result = await reviewChange(branchInput(), opts, d);
     expect(result.verification).toMatchObject({ status: "verified", model: opts.model, effort: opts.effort });
   });
 
-  test("when opted in: the reserve is taken out of the batches' budget", () => {
+  test("when opted in: the reserve is taken out of the batches' budget", async () => {
     // $1 in total: the reserve is half, so the batch gets $0.50 instead of its usual $0.75.
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
-    const result = reviewChange(branchInput(), reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 1), d);
+    const result = await reviewChange(branchInput(), reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 1), d);
     expect(provider.requests[0].maxBudgetUsd).toBeCloseTo(0.5);
     expect(result.verification).toBeDefined();
   });
 
-  test("off by default: no reserve, no call, no verification block", () => {
+  test("off by default: no reserve, no call, no verification block", async () => {
     const provider = new FakeProvider([batch(three)]);
     const { deps: d } = deps(provider);
-    const result = reviewChange(branchInput(), reviewOptionsOf(loadConfig({}), 5), d);
+    const result = await reviewChange(branchInput(), reviewOptionsOf(loadConfig({}), 5), d);
     expect(provider.requests).toHaveLength(1);
     expect(provider.requests[0].maxBudgetUsd).toBeCloseTo(0.75);
     expect(result.verification).toBeUndefined();

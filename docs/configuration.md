@@ -457,24 +457,36 @@ model writes, and the footer is read only at the very end of the body.
 
 What one review does, in order:
 
-1. Batches are processed one at a time, riskiest first.
-2. Before each call, the engine computes what is left: `budget_usd` minus what the calls so far
-   reported. If less than $0.05 is left, no more calls start. The remaining files are listed as not
-   reviewed (`not run: budget spent`).
-3. A call gets the smaller of `batch_budget_usd` and what is left.
+1. Batches start in risk order, riskiest first, and up to four run at once. The limit is a constant
+   in the engine (`BATCH_CONCURRENCY`), not a setting, and it is the same in CI and on a laptop.
+2. Before each call, the engine computes what is left: `budget_usd` minus what the finished calls
+   reported, minus what the calls still running may spend (their reservations). If less than $0.05
+   is left and some call is still running, the batch waits, because that call may give money back.
+   If nothing is running, no more calls start, and the remaining files are listed as not reviewed
+   (`not run: budget spent`).
+3. A call gets the smaller of `batch_budget_usd` and what is left, and that amount is reserved
+   until the call finishes. Then the reservation is replaced by what the call really cost, so the
+   total can never pass `budget_usd` by more than a call's own overshoot.
 4. **If a batch comes back with files unaccounted for, the engine makes one more call for those
-   files**, again with the smaller of `batch_budget_usd` and what is left, as long as at least
-   $0.05 remains. A batch can therefore cost up to two calls. This also happens when the first
-   call failed or returned nothing: the retry then covers every file of the batch.
+   files**, in the same slot and by the same rule: the smaller of `batch_budget_usd` and what is
+   left, as long as at least $0.05 remains. Money reserved by the batches still running is not
+   available to it, so a retry can get a smaller cap than the first call. A batch can therefore
+   cost up to two calls. This also happens when the first call failed or returned nothing: the
+   retry then covers every file of the batch.
+   After a call is refused for a reason on the reviewer's side (no credit, a rejected key, a rate
+   limit that outlasted its retry), no new batch starts (`not run: provider rejected the call`);
+   the batches already running finish.
 5. A call that threw without returning a result is counted at its cap, because what it spent is
    unknown.
 6. The footer's cost is the engine's sum of the costs the provider reported for the review's
    calls. It is not an invoice.
 
 Illustrative, with the defaults ($3 total, $0.75 a call): a review with five batches, each
-using its full call, reaches $3.00 after four calls, so the fifth batch is not started. If the first
-batch also needs a retry, that retry is a second $0.75 call, and the total is reached after three
-batches. All of this is arithmetic on the settings, not a measurement of any real review.
+using its full call, reaches $3.00 after four calls, so the fifth batch is not started: the first
+four reserve $0.75 each, which is the whole total, and the fifth waits and then finds nothing left.
+For the same reason a retry of the first batch finds nothing left either. If the calls cost less than
+their cap, the money comes back as each one finishes and the fifth batch, or a retry, starts then.
+All of this is arithmetic on the settings, not a measurement of any real review.
 
 What "cap" means depends on the provider:
 

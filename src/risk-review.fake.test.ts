@@ -33,7 +33,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
@@ -87,7 +87,7 @@ const GITHUB = {
 };
 
 /** One batch that reviews src/a.ts, reports a valid auth fact, one fact on a line that does not exist, and two judgement items. */
-function reviewWithFacts(input = branchInput()) {
+async function reviewWithFacts(input = branchInput()) {
   const provider = new FakeProvider([
     () => ({
       structuredOutput: out({
@@ -107,13 +107,13 @@ function reviewWithFacts(input = branchInput()) {
       }),
     }),
   ]);
-  const result = reviewChange(input, options(), deps(provider));
+  const result = await reviewChange(input, options(), deps(provider));
   return { provider, result, input };
 }
 
 describe("the risk map of a review", () => {
-  test("a valid fact is kept; a fact on a missing line and an item on a missing file are dropped and counted", () => {
-    const { provider, result } = reviewWithFacts();
+  test("a valid fact is kept; a fact on a missing line and an item on a missing file are dropped and counted", async () => {
+    const { provider, result } = await reviewWithFacts();
     expect(provider.requests[0].prompt).toContain("Also report risk facts");
     expect(result.riskMap?.level).toBe("high");
     expect(result.riskMap?.facts).toEqual([{ kind: "auth", path: "src/a.ts", line: 2, why: "The check is skipped on this path." }]);
@@ -122,8 +122,8 @@ describe("the risk map of a review", () => {
     expect(result.riskMap?.floor).toBe(false);
   });
 
-  test("the GitHub body carries the map after the count line, with the valid references only", () => {
-    const { result } = reviewWithFacts();
+  test("the GitHub body carries the map after the count line, with the valid references only", async () => {
+    const { result } = await reviewWithFacts();
     const body = githubReview(result, GITHUB).body;
     expect(body).toContain("### Risk map");
     expect(body).toContain("**High.**");
@@ -136,9 +136,9 @@ describe("the risk map of a review", () => {
     expect(body.indexOf("### Risk map")).toBeLessThan(body.indexOf("### Summary"));
   });
 
-  test("a review with no facts on files without a risky path renders the two-line form and no heading", () => {
+  test("a review with no facts on files without a risky path renders the two-line form and no heading", async () => {
     const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: ["src/a.ts"], summary: "Fine." }) })]);
-    const result = reviewChange(branchInput(), options(), deps(provider));
+    const result = await reviewChange(branchInput(), options(), deps(provider));
     expect(result.batches[0].status).toBe("reviewed");
     expect(result.riskMap?.level).toBe("low");
     const body = githubReview(result, GITHUB).body;
@@ -146,7 +146,7 @@ describe("the risk map of a review", () => {
     expect(body).not.toContain("### Risk map");
   });
 
-  test("a partial review says at least, with the count of files not read", () => {
+  test("a partial review says at least, with the count of files not read", async () => {
     const provider = new FakeProvider([
       () => ({
         structuredOutput: out({
@@ -156,15 +156,15 @@ describe("the risk map of a review", () => {
         }),
       }),
     ]);
-    const result = reviewChange(branchInput(), options(), deps(provider));
+    const result = await reviewChange(branchInput(), options(), deps(provider));
     expect(result.coverage.partial).toBe(true);
     expect(result.riskMap?.floor).toBe(true);
     const body = githubReview(result, GITHUB).body;
     expect(body).toContain("**At least high.** 1 file was not reviewed.");
   });
 
-  test("a trimmed body keeps the map: the long part is cut, the map is not", () => {
-    const { result } = reviewWithFacts();
+  test("a trimmed body keeps the map: the long part is cut, the map is not", async () => {
+    const { result } = await reviewWithFacts();
     result.findings = [
       ...result.findings,
       ...Array.from({ length: 400 }, (_, i) => ({
@@ -180,13 +180,13 @@ describe("the risk map of a review", () => {
     expect(body).toContain("**High.**");
   });
 
-  test("a push-only review says so on the level line", () => {
-    const { result } = reviewWithFacts();
+  test("a push-only review says so on the level line", async () => {
+    const { result } = await reviewWithFacts();
     const body = githubReview(result, { ...GITHUB, since: "c".repeat(40) }).body;
     expect(body).toContain("This push only. **High.**");
   });
 
-  test("an absolute path in a fact is made relative to the head, as findings are", () => {
+  test("an absolute path in a fact is made relative to the head, as findings are", async () => {
     const input = branchInput();
     const provider = new FakeProvider([
       () => ({
@@ -196,12 +196,12 @@ describe("the risk map of a review", () => {
         }),
       }),
     ]);
-    const result = reviewChange(input, options(), deps(provider));
+    const result = await reviewChange(input, options(), deps(provider));
     expect(result.riskMap?.facts.map((f) => f.path)).toEqual(["src/a.ts"]);
   });
 
-  test("the local Markdown has the map before the findings, the JSON /2 has it and /1 does not", () => {
-    const { result } = reviewWithFacts();
+  test("the local Markdown has the map before the findings, the JSON /2 has it and /1 does not", async () => {
+    const { result } = await reviewWithFacts();
     const md = renderMarkdown(result, {});
     expect(md).toContain("## Risk map");
     expect(md.indexOf("## Risk map")).toBeLessThan(md.indexOf("## Findings"));
@@ -212,8 +212,8 @@ describe("the risk map of a review", () => {
     expect("riskMap" in JSON.parse(renderJson(result, 1))).toBe(false);
   });
 
-  test("the terminal output carries the map as plain text", () => {
-    const { result } = reviewWithFacts();
+  test("the terminal output carries the map as plain text", async () => {
+    const { result } = await reviewWithFacts();
     const text = renderTerminal(result, { agentPrompt: false });
     expect(text).toContain("Risk map:\n\nHigh.");
     expect(text).toContain("auth · src/a.ts:2");
