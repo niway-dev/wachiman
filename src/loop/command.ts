@@ -4,7 +4,8 @@
  * between calls; this command never edits code.
  *
  * Exit codes: 0 converged, 10 findings still open, 11 stopped without converging (`round cap`,
- * `review failed`), 2 usage error, 130 interrupted.
+ * `review failed`), 2 usage error, 130 interrupted. With `--summary`, 0 printed (and published when asked),
+ * 1 printed but the publish failed.
  *
  * The review is `runLocal` itself, asked for result `/2` with history on, so the account rules, the
  * prompt and the history are exactly those of `wachiman local`. Round 1 reviews the whole range from
@@ -257,7 +258,10 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   const wantsPublish = (st: LoopState): boolean => {
     if (args.publish !== undefined) return args.publish;
     const base = git(repoDir, ["merge-base", st.base, head]);
-    if (base.status !== 0 || base.stdout.trim() === "") return false;
+    if (base.status !== 0 || base.stdout.trim() === "") {
+      io.stderr(`loop: publishLoopSummary was not checked: no merge-base of ${st.base} and HEAD; pass --publish to publish anyway.`);
+      return false;
+    }
     const where = `the merge-base ${sha7(base.stdout.trim())}`;
     try {
       return localRepoSettings(repoDir, base.stdout.trim())?.publishLoopSummary === true;

@@ -122,7 +122,7 @@ function perRound(rounds: LoopRound[], label: (r: LoopRound) => string, prefix =
   const { recorded, missing } = groups(rounds, label);
   if (recorded.length === 0) return NOT_RECORDED;
   const only = recorded.length === 1 && missing.length === 0;
-  const body = only ? recorded[0].label : recorded.map((g) => `${g.label} (${roundsText(g.rounds)})`).join(", ");
+  const body = only ? safe(recorded[0].label) : recorded.map((g) => `${safe(g.label)} (${roundsText(g.rounds)})`).join(", ");
   return `${prefix}${body}${missing.length > 0 ? `; ${NOT_RECORDED} for ${roundsText(missing)}` : ""}`;
 }
 

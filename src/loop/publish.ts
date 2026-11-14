@@ -51,20 +51,25 @@ const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 300)
 /** Runs a `gh` call that must succeed, or fails with what `gh` said. */
 function must(gh: GhRunner, what: string, args: string[], input?: string): string {
   const out = gh(args, input);
-  if (out.status !== 0) throw new UsageError(`could not ${what}: ${oneLine(out.stderr || out.stdout) || `gh exited ${out.status}`}`);
+  if (out.status !== 0) {
+    const said = oneLine(out.stderr || out.stdout) || (out.status === null ? `gh did not finish within ${GH_TIMEOUT_MS / 1000} seconds or was stopped` : `gh exited ${out.status}`);
+    throw new UsageError(`could not ${what}: ${said}`);
+  }
   return out.stdout;
 }
 
 export function publishSummary(body: string, branch: string, gh: GhRunner): Published {
   if (body.length > MAX_COMMENT_CHARS) throw new UsageError(`the summary is ${body.length} characters; GitHub comments stop at 65,536, so it was not published.`);
 
-  const listed = must(gh, "list the pull requests of this branch", ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url", "--limit", "5"]);
-  let prs: { number: number; url: string }[];
+  const listed = must(gh, "list the pull requests of this branch", ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url,isCrossRepository", "--limit", "5"]);
+  let prs: { number: number; url: string; isCrossRepository?: boolean }[];
   try {
     prs = JSON.parse(listed);
   } catch {
     throw new UsageError("could not read the pull request list gh returned.");
   }
+  // `--head` matches the branch name only: a pull request from a fork that happens to share the name is not this branch's.
+  if (Array.isArray(prs)) prs = prs.filter((p) => p.isCrossRepository !== true);
   if (!Array.isArray(prs) || prs.length === 0) throw new UsageError(`no open pull request has ${branch} as its head; open it first, then publish the summary.`);
   if (prs.length > 1) throw new UsageError(`more than one open pull request has ${branch} as its head (${prs.map((p) => `#${p.number}`).join(", ")}); publish by hand.`);
   const pr = prs[0];

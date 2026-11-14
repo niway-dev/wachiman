@@ -346,6 +346,18 @@ describe("publishLoopSummary in .wachiman.yml", () => {
     expect(g.calls).toEqual([]);
   }, 30_000);
 
+  test("when the merge-base cannot be computed the setting is not read, and that is said instead of staying silent", async () => {
+    const dir = repo({ ".wachiman.yml": SETTINGS_ON });
+    const s = session(dir);
+    await s.run(fakeReview(dir, [[FINDING]]), fakeGh().gh, "--base", "main");
+    writeLoopFile(s.root, s.key, "feat/x", { ...s.state(), base: "no-such-ref" });
+    const g = fakeGh();
+    const r = await s.run(fakeReview(dir, []), g.gh, "--summary");
+    expect(r.code).toBe(0);
+    expect(g.calls).toEqual([]);
+    expect(r.err.some((l) => l.includes("publishLoopSummary was not checked: no merge-base of no-such-ref"))).toBe(true);
+  }, 30_000);
+
   test("a broken settings file is ignored with a warning and the round goes on", async () => {
     const dir = repo({ ".wachiman.yml": "publishLoopSummary: maybe\n" });
     const s = session(dir);

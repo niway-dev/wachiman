@@ -29,7 +29,7 @@ describe("publishSummary", () => {
     const f = fakeGh({});
     const done = publishSummary(BODY, "feat/x", f.gh);
     expect(done).toEqual({ action: "created", url: "https://github.com/niway-dev/wachiman/pull/7#issuecomment-100", pullRequest: PR.url });
-    expect(f.calls[0].args).toEqual(["pr", "list", "--head", "feat/x", "--state", "open", "--json", "number,url", "--limit", "5"]);
+    expect(f.calls[0].args).toEqual(["pr", "list", "--head", "feat/x", "--state", "open", "--json", "number,url,isCrossRepository", "--limit", "5"]);
     const post = f.calls.find((c) => c.args.includes("POST"))!;
     expect(post.args).toContain("repos/niway-dev/wachiman/issues/7/comments");
     expect(JSON.parse(post.input!)).toEqual({ body: BODY });
@@ -64,6 +64,21 @@ describe("publishSummary", () => {
     const f = fakeGh(answers as never);
     expect(() => publishSummary(BODY, "feat/x", f.gh)).toThrow(UsageError);
     expect(() => publishSummary(BODY, "feat/x", f.gh)).toThrow(message);
+  });
+
+  test("a pull request from a fork that shares the branch name is never the target", () => {
+    const fork = { number: 9, url: "https://github.com/niway-dev/wachiman/pull/9", isCrossRepository: true };
+    const own = { ...PR, isCrossRepository: false };
+    const both = fakeGh({ prs: [fork, own] });
+    expect(publishSummary(BODY, "feat/x", both.gh).pullRequest).toBe(PR.url);
+    const onlyFork = fakeGh({ prs: [fork] });
+    expect(() => publishSummary(BODY, "feat/x", onlyFork.gh)).toThrow(/no open pull request has feat\/x as its head/);
+    expect(onlyFork.calls).toHaveLength(1);
+  });
+
+  test("a gh call that did not finish says so instead of reporting a null exit", () => {
+    const gh: GhRunner = () => ({ status: null, stdout: "", stderr: "" });
+    expect(() => publishSummary(BODY, "feat/x", gh)).toThrow(/did not finish within 60 seconds/);
   });
 
   test("a summary over GitHub's comment limit is refused before any call", () => {
