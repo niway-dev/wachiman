@@ -404,6 +404,16 @@ describe("runFormat", () => {
     expect(readFileSync(join(dir, "body.md"), "utf8")).toBe(read("unknown-section.md"));
   });
 
+  test("--write refuses a file that is not valid UTF-8 and leaves its bytes alone", () => {
+    const dir = tmp();
+    const bytes = Buffer.concat([Buffer.from(read("unknown-section.md")), Buffer.from([0xff, 0xfe, 0x0a])]);
+    writeFileSync(join(dir, "body.md"), bytes);
+    const c = capture();
+    expect(runFormat({ file: "body.md", write: true }, dir, c.io, noTools)).toBe(2);
+    expect(c.err()).toContain("not valid UTF-8");
+    expect(readFileSync(join(dir, "body.md")).equals(bytes)).toBe(true);
+  });
+
   test("--write on an ordered file changes nothing and says so", () => {
     const dir = tmp();
     put(dir, "body.md", read("in-order.md"));
