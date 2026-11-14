@@ -158,7 +158,8 @@ const HUMAN: Record<string, string> = { "edited-by-hand": "edited by hand" };
 
 export function runStatus(opts: StatusOptions, repoDir: string, io: Io, deps: Deps = {}): number {
   const catalog = deps.catalog ?? loadCatalog();
-  const state = templateState({ catalog, fileText: readManaged(repoDir, TEMPLATE_FILE).text, choiceText: readManaged(repoDir, CHOICE_FILE).text });
+  const choiceText = readManaged(repoDir, CHOICE_FILE).text;
+  const state = templateState({ catalog, fileText: readManaged(repoDir, TEMPLATE_FILE).text, choiceText });
   if (opts.json) {
     io.stdout(`${JSON.stringify({ state: state.state, version: state.version, installedVersion: state.installedVersion })}\n`);
     if (state.problem !== undefined) io.stderr(state.problem);
@@ -171,7 +172,9 @@ export function runStatus(opts: StatusOptions, repoDir: string, io: Io, deps: De
     current: `current: ${TEMPLATE_FILE} matches what ${CHOICE_FILE} and version ${state.version} generate.\nNothing to do.`,
     outdated: `outdated: ${TEMPLATE_FILE} is not what this Wachiman generates${installed}.\nNext: run \`wachiman pr-template install\`; it rewrites the file and keeps no backup, because the file is regenerable.`,
     "edited-by-hand": `edited by hand: ${TEMPLATE_FILE} no longer matches its stamp${installed}.\nNext: move the change into ${CHOICE_FILE} (a "preamble" line or a custom section), then run \`wachiman pr-template install --force\`; the edited file is kept as a backup.`,
-    unmanaged: `unmanaged: ${TEMPLATE_FILE} has no Wachiman stamp.\nNext: run \`wachiman pr-template install\`; it adopts the file, keeps a backup and prints what moved.`,
+    unmanaged: choiceText === null
+      ? `unmanaged: ${TEMPLATE_FILE} has no Wachiman stamp.\nNext: run \`wachiman pr-template install\`; it adopts the file, keeps a backup and prints what moved.`
+      : `unmanaged: ${TEMPLATE_FILE} has no Wachiman stamp.\nNext: run \`wachiman pr-template install --force\`; plain install refuses because ${CHOICE_FILE} already exists. With --force both files get a backup and what the old file adds is merged into ${CHOICE_FILE}.`,
     invalid: `invalid: ${state.problem ?? `${CHOICE_FILE} is not a valid definition`}\nNext: fix ${CHOICE_FILE}, or remove it to use the default template. Nothing falls back on its own.`,
   };
   io.stdout(`${lines[state.state] ?? name}\n`);

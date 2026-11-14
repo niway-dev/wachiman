@@ -143,4 +143,11 @@ describe("strip changes only what it removes", () => {
     const stamp = `<!-- wachiman:pr-template version=1 sha256=${"a".repeat(64)} -->`;
     expect(stripDescription(`${stamp}\n\nbody  \n`)).toBe("body  \n");
   });
+
+  test("CRLF input keeps its line endings, mixed endings stay line by line", () => {
+    expect(stripDescription("a  \r\n<!-- gone -->\r\nb\r\n", { all: true })).toBe("a  \r\nb\r\n");
+    expect(stripDescription("a\r\n\r\n\r\n<!-- x -->\r\n\r\nb\nc\r\n", { all: true })).toBe("a\r\n\r\nb\nc\r\n");
+    const same = "x\r\ny\rz\n";
+    expect(stripDescription(same)).toBe(same);
+  });
 });

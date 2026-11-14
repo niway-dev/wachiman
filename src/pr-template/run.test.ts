@@ -108,6 +108,19 @@ describe("runPrTemplate", () => {
     expect(f.out.join("")).toContain("hello");
   });
 
+  test("a fileBase given in the deps is kept, not replaced by the directory the command was given", () => {
+    const w = world();
+    const elsewhere = mkdtempSync(join(tmpdir(), "wachiman-base-"));
+    try {
+      writeFileSync(join(elsewhere, "desc.md"), "## Summary\n\nhello\n");
+      const run = () => ({ code: 1, stdout: "", stderr: "no" });
+      runPrTemplate(["check", "desc.md", "--title", "feat: x"], w.repo, w.io, { check: { fileBase: elsewhere, run } });
+      expect(w.err.join("\n")).not.toMatch(/cannot read/);
+    } finally {
+      rmSync(elsewhere, { recursive: true, force: true });
+    }
+  });
+
   test("a directory that is not a git repository is used as it is", () => {
     const dir = mkdtempSync(join(tmpdir(), "wachiman-nogit-"));
     try {

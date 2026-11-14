@@ -227,7 +227,7 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
     const heading = HEADING.exec(line);
     if (heading) {
       const level = heading[1]!.length;
-      const name = heading[2]!.replace(/\s*#+\s*$/, "");
+      const name = heading[2]!.replace(/(?:^|\s+)#+\s*$/, "");
       if (level === 2) {
         const known = findKnown("section", name);
         if (known) {

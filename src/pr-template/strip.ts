@@ -51,8 +51,25 @@ function isGuide(c: DescriptionComment, parsed: ParsedDescription, cleanLines: s
   return parsed.headings.some((h) => h.line === prev) || /<\/summary>\s*$/.test(cleanLines[prev]!);
 }
 
+/**
+ * `text` with each line ending that is not `\n` replaced by a single private-use character (one for
+ * `\r\n`, one for a lone `\r`), so it has the length of the parsed source and can be cut at the same
+ * offsets. Null when the text has no `\r`. The characters are picked so they are not in `text`.
+ */
+function tagEndings(text: string): { tagged: string; crlf: string; cr: string } | null {
+  if (!text.includes("\r")) return null;
+  const free: string[] = [];
+  for (let code = 0xe000; free.length < 2 && code <= 0xf8ff; code++) if (!text.includes(String.fromCharCode(code))) free.push(String.fromCharCode(code));
+  if (free.length < 2) return null;
+  const [crlf, cr] = free as [string, string];
+  return { tagged: text.replace(/\r\n|\r/g, (m) => (m === "\r\n" ? crlf : cr)), crlf, cr };
+}
+
 export function stripDescription(text: string, opts: StripOptions = {}): string {
   const parsed = parseDescription(text);
+  const tags = tagEndings(text);
+  // The same characters as `parsed.source`, with the original line endings still marked.
+  const body = tags?.tagged ?? parsed.source;
   const cleanLines = parsed.clean.split("\n");
   const texts = opts.all ? new Set<string>() : guideTexts(opts.catalog ?? loadCatalog());
 
@@ -80,13 +97,14 @@ export function stripDescription(text: string, opts: StripOptions = {}): string 
       to = c.endLine + 1 >= parsed.lines.length ? parsed.source.length : lineStart(c.endLine + 1);
     }
     if (from < at) continue;
-    out += parsed.source.slice(at, from);
+    out += body.slice(at, from);
     if (!c.wholeLine && (to >= parsed.source.length || parsed.source[to] === "\n")) out = out.replace(/[ \t]+$/, "");
     marks.push(out.length);
     at = to;
   }
-  out += parsed.source.slice(at);
-  return collapseAround(out, marks);
+  out += body.slice(at);
+  const collapsed = collapseAround(out, marks, tags?.crlf, tags?.cr);
+  return tags ? collapsed.replaceAll(tags.crlf, "\r\n").replaceAll(tags.cr, "\r") : collapsed;
 }
 
 const isBlank = (line: string) => line.trim() === "";
@@ -94,17 +112,27 @@ const isBlank = (line: string) => line.trim() === "";
 /**
  * Collapses each run of blank lines that touches a removal point (`marks` are offsets in `text`) to
  * one blank line, or to none at the start of the text; at the end it leaves just the final newline.
+ * A line ending is `\n` or one of the two tag characters `tagEndings` put in; each kept line keeps its own.
  */
-function collapseAround(text: string, marks: number[]): string {
+function collapseAround(text: string, marks: number[], crlf?: string, cr?: string): string {
   if (marks.length === 0) return text;
-  const lines = text.split("\n");
+  const lines: string[] = [];
+  const ends: string[] = [];
   const starts: number[] = [];
   {
-    let offset = 0;
-    for (const line of lines) {
-      starts.push(offset);
-      offset += line.length + 1;
+    let from = 0;
+    for (let k = 0; k < text.length; k++) {
+      const c = text[k]!;
+      if (c === "\n" || c === crlf || c === cr) {
+        starts.push(from);
+        lines.push(text.slice(from, k));
+        ends.push(c);
+        from = k + 1;
+      }
     }
+    starts.push(from);
+    lines.push(text.slice(from));
+    ends.push("");
   }
   const touched = new Set<number>();
   for (const mark of marks) {
@@ -118,10 +146,13 @@ function collapseAround(text: string, marks: number[]): string {
     touched.add(lo);
     touched.add(lo - 1);
   }
-  const out: string[] = [];
+  const out: { line: string; end: string }[] = [];
+  const keep = (from: number, to: number) => {
+    for (let k = from; k <= to; k++) out.push({ line: lines[k]!, end: ends[k]! });
+  };
   for (let i = 0; i < lines.length; ) {
     if (!isBlank(lines[i]!)) {
-      out.push(lines[i]!);
+      keep(i, i);
       i += 1;
       continue;
     }
@@ -129,10 +160,11 @@ function collapseAround(text: string, marks: number[]): string {
     while (end + 1 < lines.length && isBlank(lines[end + 1]!)) end += 1;
     let hit = false;
     for (let k = i; k <= end; k++) if (touched.has(k)) hit = true;
-    if (!hit) out.push(...lines.slice(i, end + 1));
-    else if (end === lines.length - 1) out.push("");
-    else if (i > 0) out.push("");
+    if (!hit) keep(i, end);
+    else if (end === lines.length - 1) out.push({ line: "", end: "" });
+    else if (i > 0) out.push({ line: "", end: ends[i]! });
     i = end + 1;
   }
-  return out.join("\n");
+  // Every line but the last is followed by its own ending.
+  return out.map((o, k) => o.line + (k < out.length - 1 ? o.end : "")).join("");
 }

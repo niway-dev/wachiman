@@ -228,17 +228,18 @@ export function parseDescription(input: string): ParsedDescription {
   // Fenced code is never structure: a heading, `<details>` or `<sub>` written inside a fence is text.
   const fenced: boolean[] = [];
   {
-    let fence: string | null = null;
+    let fence: { ch: string; len: number } | null = null;
     structuralLines.forEach((line, i) => {
       const s = line.trim();
       if (fence !== null) {
         fenced[i] = true;
-        if (s.startsWith(fence)) fence = null;
+        // CommonMark: a fence closes on the same character, at least as many times as the opener, nothing else on the line.
+        if (s[0] === fence.ch && s.length >= fence.len && s === fence.ch.repeat(s.length)) fence = null;
         return;
       }
       const open = FENCE_OPEN.exec(s);
       if (open) {
-        fence = open[1]!.slice(0, 3);
+        fence = { ch: open[1]![0]!, len: open[1]!.length };
         fenced[i] = true;
         return;
       }
@@ -271,7 +272,7 @@ export function parseDescription(input: string): ParsedDescription {
   structuralLines.forEach((line, i) => {
     if (fenced[i] || details.some((d) => i > d.startLine && i <= d.endLine)) return;
     const h = HEADING.exec(line);
-    if (h) headings.push({ name: h[1]!.replace(/\s*#+$/, "").trim(), line: i, raw: lines[i]! });
+    if (h) headings.push({ name: h[1]!.replace(/(?:^|\s+)#+$/, "").trim(), line: i, raw: lines[i]! });
   });
   const headerEndLine = headings[0]?.line ?? lines.length;
 

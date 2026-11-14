@@ -46,6 +46,20 @@ describe("resolveTemplate", () => {
     expect(list.slice(at, at + 5)).toEqual(["evidence", "first", "inner", "second", "decisions"]);
   });
 
+  test("three siblings keep their declared order, and a chain stays directly under its anchor", () => {
+    const list = ids({
+      custom: [
+        { id: "a", kind: "section", heading: "A", after: "evidence" },
+        { id: "a1", kind: "details", summary: "A1", after: "a" },
+        { id: "b", kind: "section", heading: "B", after: "evidence" },
+        { id: "a2", kind: "details", summary: "A2", after: "a1" },
+        { id: "c", kind: "section", heading: "C", after: "evidence" },
+      ],
+    });
+    const at = list.indexOf("evidence");
+    expect(list.slice(at, at + 7)).toEqual(["evidence", "a", "a1", "a2", "b", "c", "decisions"]);
+  });
+
   test("a custom entry with no after goes before the Wachiman block; a custom row ends the table", () => {
     const list = ids({
       custom: [

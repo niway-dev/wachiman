@@ -76,6 +76,22 @@ describe("parseDescription", () => {
     expect(real.subs).toHaveLength(1);
   });
 
+  test("heading names: only a closing sequence after whitespace is removed, so a section named C# keeps its #", () => {
+    const p = parseDescription("## C#\n\n## Name ##\n\n## Also ##  \n\n## F# ###\n");
+    expect(p.headings.map((h) => h.name)).toEqual(["C#", "Name", "Also", "F#"]);
+  });
+
+  test("a fence closes only on the same character, at least as long as the opener", () => {
+    const longer = parseDescription("## What\n````\n```\n## inside\n```\n````\n## Real\n");
+    expect(longer.headings.map((h) => h.name)).toEqual(["What", "Real"]);
+    const mixed = parseDescription("## What\n~~~\n```\n## inside\n~~~\n## Real\n");
+    expect(mixed.headings.map((h) => h.name)).toEqual(["What", "Real"]);
+    const shorter = parseDescription("## What\n~~~~\n~~~\n## inside\n~~~~  \n## Real\n");
+    expect(shorter.headings.map((h) => h.name)).toEqual(["What", "Real"]);
+    const notClosing = parseDescription("## What\n```\n```js\n## inside\n```\n## Real\n");
+    expect(notClosing.headings.map((h) => h.name)).toEqual(["What", "Real"]);
+  });
+
   test("a details block's text keeps its fences while the matching ignores them", () => {
     const p = parseDescription("<details><summary><b>Notes</b></summary>\n\n```\nsome code\n```\n\n</details>\n");
     expect(p.details[0]!.clean).toContain("some code");

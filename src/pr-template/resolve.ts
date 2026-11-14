@@ -44,7 +44,12 @@ export function resolveTemplate(catalog: Catalog, choice: RepoChoice | null): Re
       const anchor = all.findIndex((e) => e.id === custom.after);
       if (anchor === -1) throw new PrTemplateConfigError(`.github/pr-template.json: custom entry "${custom.id}" names the unknown id "${custom.after}".`);
       at = anchor + 1;
-      while (all[at]?.custom && all[at]?.after === custom.after) at += 1;
+      // Skip what is already attached to this anchor, directly or through a chain of custom entries.
+      const attached = new Set([custom.after]);
+      while (all[at]?.custom && all[at]!.after !== undefined && attached.has(all[at]!.after!)) {
+        attached.add(all[at]!.id);
+        at += 1;
+      }
     } else if (custom.kind === "status-row") {
       at = all.map((e) => e.kind).lastIndexOf("status-row") + 1;
     } else {

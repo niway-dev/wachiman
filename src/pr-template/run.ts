@@ -48,9 +48,10 @@ export function runPrTemplate(argv: string[], repoDir: string, io: PrTemplateIo,
   // The managed files live at the repository's top level, wherever the command was pointed inside it;
   // `risk` already asks git, so it keeps the directory it was given.
   const root = first === "risk" || first === "strip" ? repoDir : repositoryRoot(repoDir);
-  // `gh` and `git` run in the repository the command was pointed at (`--repo-dir`), not in wherever the shell is.
-  // A relative file argument belongs to where the command was run (or `--repo-dir`); the root is only for `.github/` and git.
-  const check: PrTemplateDeps = { ...deps.check, fileBase: repoDir, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? root)) };
+  // `check` reads a relative file argument from `fileBase`, by default the directory the command was given
+  // (`--repo-dir`), and runs `gh` and `git` there unless a caller passes its own runner; the repository root is
+  // only for `.github/` and git. `strip` and `format` take their file against the directory or root they are given.
+  const check: PrTemplateDeps = { ...deps.check, fileBase: deps.check?.fileBase ?? repoDir, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? root)) };
   const help = () => (io.stdout(commandHelp(["pr-template", first])!), 0);
   switch (first) {
     case "show": {

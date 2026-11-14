@@ -153,6 +153,11 @@ describe("block recognition", () => {
     expect(a.add).toEqual(["screenshots"]);
   });
 
+  test("a custom section named C# keeps its #, and a closing sequence after a space is removed", () => {
+    const a = adopt("## C#\n\nx\n\n## Tools ##\n\ny\n");
+    expect(a.custom.map((c) => ("name" in c ? c.name : (c as { heading?: string }).heading))).toEqual(["C#", "Tools"]);
+  });
+
   test("a section reusing a locked name is not a custom entry", () => {
     const a = adopt("<details><summary><b>Risk</b></summary>\n\n</details>\n");
     expect(a.custom).toEqual([]);

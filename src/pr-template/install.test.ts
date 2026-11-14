@@ -407,6 +407,20 @@ describe("status", () => {
     expect(JSON.parse(w.out.join("")).state).toBe("unmanaged");
   });
 
+  test("unmanaged: the next step is install, or install --force when pr-template.json already exists", () => {
+    const w = world();
+    w.put(TEMPLATE, "plain\n");
+    status(w);
+    expect(w.out.join("")).toMatch(/run `wachiman pr-template install`;/);
+    expect(w.out.join("")).not.toContain("--force");
+    const f = world();
+    f.put(TEMPLATE, "plain\n");
+    f.put(CHOICE, "{}\n");
+    status(f);
+    expect(f.out.join("")).toContain("`wachiman pr-template install --force`");
+    expect(f.out.join("")).toContain(CHOICE);
+  });
+
   test("a custom template is not outdated for being custom", () => {
     const w = world();
     w.put(CHOICE, JSON.stringify({ drop: ["decisions"], preamble: ["- [ ] Read CLA.md"] }));
