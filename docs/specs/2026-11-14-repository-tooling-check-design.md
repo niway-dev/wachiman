@@ -121,7 +121,16 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
       the file's blob, so any edit would release a formatter finding whether or not it fixed the
       format. The developer runs `wachiman local` (or the hook) for tooling. `loop` never passes
       `--fix-format`.
-- [ ] Actions and local: when the detector finds tooling, the batch prompt gets an "Enforced
+- [ ] Modes: the tooling step runs only for the default range (`--base`) and `--working-tree`.
+      `--commit`, `--from` and `--input` skip it with the summary line "tooling: not run for this
+      mode"; `--input` has no checkout, and for the other two the head of the review is not the
+      working tree's head.
+- [ ] Prompt per mode. Actions, and any local review where no tool ran: the "Enforced tooling"
+      section and the new sentence below. Local, when a tool ran: the section lists the tools that
+      ran and says their results are already reported, so the model reports none for those
+      files. `loop`: neither the section nor the new sentence; its prompt keeps today's sentence.
+      A model finding on line 0 of a file a tool already rejected is dropped as a duplicate.
+- [ ] When the detector finds tooling, the batch prompt gets an "Enforced
       tooling" section (tool, config, where enforced, file types covered), and the sentence
       "Skip praise, style a formatter would catch" becomes "Skip praise and style the enforced
       formatter fixes silently; a changed file it would reject breaks the hook or CI, so report

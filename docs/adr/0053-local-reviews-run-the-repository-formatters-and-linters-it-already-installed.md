@@ -54,8 +54,10 @@ and deciding whether Prettier would rewrite it is not something a model does rel
 - A local review takes longer by the tools' run time, bounded at 60 seconds per tool.
 - Local and Actions reviews of the same commit can differ by these findings. The summary names
   every detected tool and its outcome; in JSON only result version 2 carries it (`tooling`).
-- The consent rule trusts commit author emails, which can be forged. It prevents running a
-  colleague's code by accident, not a deliberate forgery.
+- The consent rule is a guard against accidents, not a security boundary. It trusts commit author
+  emails, which can be forged, and a hostile commit under the developer's own email (pulled or
+  merged into their branch) passes it. It stops the common case: running a colleague's tooling
+  while reviewing their branch.
 
 ## Non-goals
 
