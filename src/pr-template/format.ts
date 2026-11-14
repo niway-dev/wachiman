@@ -43,6 +43,8 @@ export interface FormatOptions {
 export interface FormatDeps extends PrTemplateDeps {
   /** Standard input as text. Default: reads file descriptor 0 synchronously. */
   stdin?: () => string;
+  /** Writes the temporary file of `--write` (exclusive create); a test makes it fail halfway. */
+  writeTemp?: (path: string, content: string) => void;
 }
 
 /** `argv` is what follows `format`. */
@@ -319,10 +321,10 @@ function templateFor(catalog: Catalog, choiceText: string | null): ResolvedTempl
 }
 
 /** Replaces the file through a temporary file in the same directory, if it is still the file that was read. */
-function rewrite(target: string, shown: string, content: string, before: ReturnType<typeof lstatSync>) {
+function rewrite(target: string, shown: string, content: string, before: ReturnType<typeof lstatSync>, writeTemp?: (path: string, content: string) => void) {
   const tmp = join(dirname(target), `.${basename(target)}.${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
-  writeFileSync(tmp, content, { flag: "wx" });
   try {
+    (writeTemp ?? ((path, text) => writeFileSync(path, text, { flag: "wx" })))(tmp, content);
     chmodSync(tmp, before.mode & 0o777);
     const now = lstatSync(target);
     if (now.isSymbolicLink() || now.ino !== before.ino || now.dev !== before.dev || now.mtimeMs !== before.mtimeMs) {
@@ -380,7 +382,7 @@ export function runFormat(opts: FormatOptions, repoDir: string, io: PrTemplateIo
       io.stderr(`${PREFIX}: ${opts.file} is already in the template's order; nothing changed.`);
       return 0;
     }
-    rewrite(target!, opts.file!, result, before!);
+    rewrite(target!, opts.file!, result, before!, deps.writeTemp);
     io.stderr(`${PREFIX}: reordered ${opts.file}.`);
     return 0;
   } catch (err) {

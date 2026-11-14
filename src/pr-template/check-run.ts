@@ -189,15 +189,20 @@ function checkFile(opts: CheckOptions, repoDir: string, io: PrTemplateIo, deps: 
   let riskExtension: RiskExtension | null = null;
   let riskError: string | undefined;
   let commitMessages: string[] = [];
+  // two independent reads: a failure in one is reported as its own step and never discards the other
   try {
     const found = changesFromGit(run, repoDir, opts.base);
     files = found.changes;
     riskExtension = extensionFrom(gitFileAt(run, repoDir, found.mergeBase, RISK_EXTENSION_FILE), warn);
-    commitMessages = commitMessagesFromGit(run, repoDir, opts.base);
   } catch (err) {
     riskError = (err as Error).message;
     files = undefined;
-    warn(`commit message check skipped: ${riskError}`);
+    warn(`the risk floor could not be computed: ${riskError}`);
+  }
+  try {
+    commitMessages = commitMessagesFromGit(run, repoDir, opts.base);
+  } catch (err) {
+    warn(`commit message check skipped: ${(err as Error).message}`);
   }
 
   return report(
@@ -232,12 +237,14 @@ function checkPr(number: number, opts: CheckOptions, io: PrTemplateIo, deps: PrT
   } catch (err) {
     riskError = (err as Error).message;
   }
-  // the risk extension comes from the base branch, so a PR cannot lower its own floor
+  // the risk extension comes from the base branch, so a PR cannot lower its own floor; a file that
+  // cannot be fetched is an error (exit 2), never a lower floor
   let riskExtension: RiskExtension | null = null;
   try {
     riskExtension = extensionFrom(ghFileAt(run, pr.baseRepo, RISK_EXTENSION_FILE, pr.baseRef), warn);
   } catch (err) {
-    warn(`${RISK_EXTENSION_FILE} ignored: ${(err as Error).message}`);
+    if (!(err instanceof ToolError)) throw err;
+    throw new ToolError(`cannot read ${RISK_EXTENSION_FILE} from ${pr.baseRepo}@${pr.baseRef}: ${err.message}`);
   }
 
   const common = {
@@ -255,14 +262,23 @@ function checkPr(number: number, opts: CheckOptions, io: PrTemplateIo, deps: PrT
   const changesTemplate = pr.paths.includes(CHOICE_FILE) || (files ?? []).some((f) => f.path === CHOICE_FILE);
   if (changesTemplate) {
     io.stdout("checked against the template in this pull request\n");
-    const baseText = ghFileAt(run, pr.baseRepo, CHOICE_FILE, pr.baseRef);
-    const source = baseText === null ? "the default, the base has no .github/pr-template.json" : CHOICE_FILE;
+    // the comparison is advisory: when the base's template cannot be fetched, the result below still stands
+    let baseText: string | null | undefined;
     try {
-      const baseResult = checkDescription({ ...common, template: templateFor(catalog, baseText) });
-      for (const line of compareLines(source, result.findings, baseResult.findings)) io.stdout(`${line}\n`);
+      baseText = ghFileAt(run, pr.baseRepo, CHOICE_FILE, pr.baseRef);
     } catch (err) {
-      if (!(err instanceof UsageError)) throw err;
-      io.stdout(`the template on the base branch is not valid, so there is nothing to compare with: ${err.message}\n`);
+      if (!(err instanceof ToolError)) throw err;
+      io.stdout(`the comparison with the template on the base branch is unavailable: ${err.message}\n`);
+    }
+    if (baseText !== undefined) {
+      const source = baseText === null ? "the default, the base has no .github/pr-template.json" : CHOICE_FILE;
+      try {
+        const baseResult = checkDescription({ ...common, template: templateFor(catalog, baseText) });
+        for (const line of compareLines(source, result.findings, baseResult.findings)) io.stdout(`${line}\n`);
+      } catch (err) {
+        if (!(err instanceof UsageError)) throw err;
+        io.stdout(`the template on the base branch is not valid, so there is nothing to compare with: ${err.message}\n`);
+      }
     }
   }
   return report(result, io);

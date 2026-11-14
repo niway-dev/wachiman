@@ -71,6 +71,8 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
   let prevOtherId: string | undefined;
   let sawHeader = false;
   let lastPreambleEnd = -1;
+  // One entry per `<details>` that is open: "moved" when its lines go to the preamble (so its closing tag goes too), "structure" when the catalog regenerates it.
+  const openDetails: ("moved" | "structure")[] = [];
 
   const noteKnown = (e: CatalogEntry) => {
     if (e.kind === "status-row") prevRowId = e.id;
@@ -143,10 +145,19 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
         if (inner === "wachiman:confidence:start") {
           let k = j + 1;
           while (k < lines.length && collapseSpace(lines[k]!.replace(/^\s*<!--/, "").replace(/-->\s*$/, "")) !== "wachiman:confidence:end") k++;
-          report("replaced the Wachiman block by the catalog's.");
+          if (k < lines.length) {
+            report("replaced the Wachiman block by the catalog's.");
+            ctx = null;
+            afterKnown = false;
+            i = k + 1;
+            continue;
+          }
+          // No end marker: nothing says where the block stops, so the marker is an ordinary line and everything after it is kept.
+          report("a Wachiman start marker has no end marker; it is kept as an ordinary line and nothing after it was dropped.");
+          toPreamble(raw, i, j + 1);
           ctx = null;
           afterKnown = false;
-          i = Math.min(k + 1, lines.length);
+          i = j + 1;
           continue;
         }
         if (inner === "wachiman:confidence:end" || inner.startsWith("wachiman:pr-template")) {
@@ -159,8 +170,12 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
         const matches = isHeader || isLegacyGuide(inner) || catalogGuides.has(inner);
         if (isHeader || matches || afterKnown) {
           if (!isHeader && ctx !== null && "custom" in ctx && !matches && ctx.custom.guide === undefined && !/<!--|-->/.test(inner) && !(ctx.custom.kind === "status-row" && /[|\r\n]/.test(inner))) {
-            ctx.custom.guide = inner;
-            report(`kept the comment under "${ctx.custom.name}" as its guide: ${clip(inner)}`);
+            if (result.custom.includes(ctx.custom)) {
+              ctx.custom.guide = inner;
+              report(`kept the comment under "${ctx.custom.name}" as its guide: ${clip(inner)}`);
+            } else {
+              report(`the comment under "${ctx.custom.name}" was not kept as a guide: the entry is already in .github/pr-template.json and stays as it is (the comment is in the backup): ${clip(inner)}`);
+            }
           } else {
             report(`treated as a guide comment and replaced: ${clip(inner)}`);
           }
@@ -212,6 +227,7 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
       const name = (bold ? bold[1]! : summary.replace(/<[^>]+>/g, "")).trim();
       const known = findKnown("details", name);
       if (known) {
+        openDetails.push("structure");
         ctx = { known };
         knownCount.details++;
         noteKnown(known);
@@ -222,12 +238,36 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
       const entry = newCustom("details", name);
       if (entry) {
         ctx = { custom: entry };
+        openDetails.push("structure");
         afterKnown = true;
         i++;
         continue;
       }
+      // A locked or duplicate name: the block is the repository's, so it moves whole, with its closing tag.
+      openDetails.push("moved");
+      toPreamble([line], i, i + 1);
+      ctx = null;
+      afterKnown = false;
+      i++;
+      continue;
+    }
+    if (/^\s*<details\b/i.test(line)) {
+      // Any other opening tag is ordinary text, but its closing tag has to travel with it.
+      openDetails.push("moved");
+      toPreamble([line], i, i + 1);
+      ctx = null;
+      afterKnown = false;
+      i++;
+      continue;
     }
     if (/^\s*<\/details>\s*$/i.test(line)) {
+      const closed = openDetails.pop();
+      if (closed === "moved") {
+        toPreamble([line], i, i + 1);
+        afterKnown = false;
+        i++;
+        continue;
+      }
       ctx = null;
       afterKnown = false;
       i++;
@@ -263,7 +303,9 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
         if (entry) {
           const cell = row[2]!.trim();
           const text = collapseSpace(/^<!--(.*)-->$/.exec(cell)?.[1] ?? cell);
-          if (text !== "" && !/<!--|-->|\|/.test(text)) {
+          if (text !== "" && !/<!--|-->|\|/.test(text) && !result.custom.includes(entry)) {
+            report(`the cell of "${entry.name}" was not kept as a guide: the entry is already in .github/pr-template.json and stays as it is (the cell is in the backup).`);
+          } else if (text !== "" && !/<!--|-->|\|/.test(text)) {
             entry.guide = text;
             report(`kept the cell of "${entry.name}" as its guide: ${clip(text)}`);
           } else if (text !== "") {

@@ -58,6 +58,8 @@ export const backupStamp = (iso: string) => iso.replace(/[-:]/g, "").replace("T"
 export interface WriteHooks {
   /** Runs after the temporary file is complete and before it replaces the target; a test changes the target here. */
   beforeCommit?: () => void;
+  /** Writes the temporary file (exclusive create); a test makes it fail halfway. */
+  writeTemp?: (path: string, content: string) => void;
 }
 
 /**
@@ -99,8 +101,8 @@ export function writeManagedFile(p: {
     }
   }
   const tmp = join(dir, `.${basename(inspected.target)}.${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
-  writeFileSync(tmp, p.content, { flag: "wx", mode: 0o644 });
   try {
+    (p.hooks?.writeTemp ?? ((path, content) => writeFileSync(path, content, { flag: "wx", mode: 0o644 })))(tmp, p.content);
     p.hooks?.beforeCommit?.();
     if (inspected.exists) {
       const now = lstatOrNull(inspected.target);

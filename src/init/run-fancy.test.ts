@@ -50,6 +50,14 @@ describe("init on a terminal session", () => {
     expect(w.ui.of("outro").map((e) => e.message)).toEqual(["Nothing was written."]);
   });
 
+  test("declining the workflow but accepting the template installs the template and does not claim nothing was written", async () => {
+    const w = world(["octocat", "", true, false]); // operator, file (default), PR template (yes), Write it? (no)
+    expect(await w.run()).toBe(0);
+    expect(existsSync(w.target)).toBe(false);
+    expect(readFileSync(join(w.repo, ".github", "pull_request_template.md"), "utf8")).toContain("wachiman:pr-template version=1");
+    expect(w.ui.of("outro").map((e) => e.message)).toEqual(["The workflow was not written; the PR description template is in place."]);
+  });
+
   test("cancelling the confirmation exits 130 and writes nothing", async () => {
     const w = world(["octocat", "", false, null]);
     expect(await w.run()).toBe(130);

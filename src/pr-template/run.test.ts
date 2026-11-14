@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
 import { UsageError } from "../config";
@@ -78,5 +79,26 @@ describe("runPrTemplate", () => {
     commit(e2e.repo, { "a.txt": "x\n" }, "second");
     expect(runPrTemplate(["risk", "--base", "HEAD~1"], e2e.repo, e2e.io)).toBe(0);
     expect(e2e.out.join("")).toMatch(/Low|Medium|High/);
+  });
+
+  test("install and status use the git top level when the command is pointed at a subdirectory", () => {
+    const w = world();
+    const sub = join(w.repo, "packages", "app");
+    mkdirSync(sub, { recursive: true });
+    expect(runPrTemplate(["install"], sub, w.io)).toBe(0);
+    expect(existsSync(join(w.repo, ".github", "pull_request_template.md"))).toBe(true);
+    expect(existsSync(join(sub, ".github"))).toBe(false);
+    expect(runPrTemplate(["status"], sub, w.io)).toBe(0);
+  });
+
+  test("a directory that is not a git repository is used as it is", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wachiman-nogit-"));
+    try {
+      const w = world();
+      expect(runPrTemplate(["install"], dir, w.io)).toBe(0);
+      expect(existsSync(join(realpathSync(dir), ".github", "pull_request_template.md"))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -367,6 +367,19 @@ describe("runFormat", () => {
     expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
 
+  test("--write leaves no temporary file behind when writing it fails, and the file is untouched", () => {
+    const dir = tmp();
+    put(dir, "body.md", read("unknown-section.md"));
+    const c = capture();
+    const writeTemp = (path: string) => {
+      writeFileSync(path, "partial");
+      throw new Error("no space left on device");
+    };
+    expect(() => runFormat({ file: "body.md", write: true }, dir, c.io, { ...noTools, writeTemp })).toThrow("no space left on device");
+    expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+    expect(readFileSync(join(dir, "body.md"), "utf8")).toBe(read("unknown-section.md"));
+  });
+
   test("--write on an ordered file changes nothing and says so", () => {
     const dir = tmp();
     put(dir, "body.md", read("in-order.md"));

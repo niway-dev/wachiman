@@ -528,6 +528,19 @@ describe("init and the PR description template", () => {
     expect(w.err.join("\n")).toContain("pr-template: not installed:");
   });
 
+  test("any other error while installing the template is reported too, and init carries on", async () => {
+    const w = world();
+    const hooks = {
+      beforeCommit: () => {
+        throw new Error("disk went away");
+      },
+    };
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--pr-template"], { prTemplate: { hooks } })).toBe(0);
+    expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
+    expect(w.err.join("\n")).toContain("pr-template: not installed: disk went away");
+    expect(w.err.join("\n")).toContain("github: pending;");
+  });
+
   test("--dry-run installs nothing and says why", async () => {
     const w = world();
     const before = snapshotTree(w.repo);

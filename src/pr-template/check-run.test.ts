@@ -144,6 +144,34 @@ describe("CliTest: check a file", () => {
     expect(c.err()).toContain("cannot read nowhere.md");
   });
 
+  test("a git failure names the real subcommand, not the -c option", () => {
+    const got = run(tmp(), validBody({ risk: "🔴 High, x" }));
+    expect(got.err).toContain("git merge-base failed: fatal: bad revision 'no-such-ref'");
+    expect(got.err).not.toContain("core.quotepath");
+  });
+
+  test("a failing git log skips only the commit messages: the risk floor already computed still applies", () => {
+    const answers: Record<string, CommandResult> = {
+      "git -c core.quotepath=false merge-base": ok("0123abc\n"),
+      "git -c core.quotepath=false diff": ok("diff --git a/db/migrations/1.sql b/db/migrations/1.sql\n@@ -0,0 +1 @@\n+x\n"),
+      "git show 0123abc:.github/pr-risk.toml": fail("fatal: path '.github/pr-risk.toml' does not exist in '0123abc'"),
+      "git -c core.quotepath=false log": fail("fatal: ambiguous argument 'no-such-ref..HEAD'"),
+    };
+    const got = run(tmp(), validBody(), answers);
+    expect(got.status).toBe(1);
+    expect(got.err).toContain("risk-below-floor");
+    expect(got.err).not.toContain("risk-unverified");
+    expect(got.err).toContain("commit message check skipped: git log failed");
+    expect(got.err).not.toContain("risk floor");
+    expect(run(tmp(), validBody({ risk: "🔴 High, a migration" }), answers).status).toBe(0);
+  });
+
+  test("a failure while computing the floor is reported as that step, not as a skipped commit check", () => {
+    const got = run(tmp(), validBody());
+    expect(got.err).toContain("warning: the risk floor could not be computed: git merge-base failed");
+    expect(got.err).not.toContain("commit message check skipped: git merge-base");
+  });
+
   test("without --head the head comes from git, and a failing git skips the comparison with a warning", () => {
     const dir = tmp();
     put(dir, "body.md", validBody({ risk: "🔴 High, x" }));
@@ -185,7 +213,7 @@ describe("check a file against a real git repository", () => {
     if (r.code !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
   };
   /** A base commit (with an optional pr-risk.toml) and one branch commit adding `path`. */
-  const repo = (extension: string | null, path: string, message = "feat: add a file") => {
+  const repo = (extension: string | null, path: string, message = "feat: add a file", branchExtension?: string) => {
     const dir = tmp();
     git(dir, "init", "-q", "-b", "main");
     put(dir, "a.txt", "a\n");
@@ -193,6 +221,7 @@ describe("check a file against a real git repository", () => {
     git(dir, "add", "-A");
     git(dir, "commit", "-q", "-m", "base");
     put(dir, path, "x = 1\n");
+    if (branchExtension !== undefined) put(dir, ".github/pr-risk.toml", branchExtension);
     git(dir, "add", "-A");
     git(dir, "commit", "-q", "-m", message);
     return dir;
@@ -218,6 +247,12 @@ describe("check a file against a real git repository", () => {
     const ext = '[high]\npaths = ["^vault/"]\n';
     expect(check(repo(ext, "vault/a.py"), validBody()).err).toContain("risk-below-floor");
     expect(check(repo(null, "vault/a.py"), validBody()).status).toBe(0);
+    // the branch rewrites the extension in the same commit: the base's version still wins
+    const lowered = check(repo(ext, "vault/a.py", "feat: add a file", "# the branch removed the rule\n"), validBody());
+    expect(lowered.status).toBe(1);
+    expect(lowered.err).toContain("risk-below-floor");
+    const raised = check(repo(null, "vault/a.py", "feat: add a file", ext), validBody());
+    expect([raised.status, raised.out]).toEqual([0, "ok\n"]);
   });
 
   test("risk prints the line and reads the extension from the base", () => {
@@ -235,6 +270,8 @@ describe("check a file against a real git repository", () => {
     const c = capture();
     expect(runRisk({ base: "origin/main" }, repo(null, "a.py"), c.io)).toBe(2);
     expect(c.err()).toContain("pass --base <ref> if origin/main does not exist");
+    expect(c.err()).toContain("git merge-base failed");
+    expect(c.err()).not.toContain("core.quotepath");
     expect(c.out()).toBe("");
   });
 
@@ -267,6 +304,7 @@ describe("check a pull request", () => {
       ...over,
     }));
   const api = (repo: string, path: string, ref: string) => `repos/${repo}/contents/${path}?ref=${ref}`;
+  const commit = (repo: string, ref: string) => `repos/${repo}/commits/${ref}`;
   const TEMPLATE = ".github/pr-template.json";
   const baseAnswers = (over: Record<string, CommandResult> = {}): Record<string, CommandResult> => ({
     "gh pr view 7": view(),
@@ -274,6 +312,9 @@ describe("check a pull request", () => {
     [api(BASE, TEMPLATE, HEAD)]: notFound,
     [api(BASE, TEMPLATE, "main")]: notFound,
     [api(BASE, ".github/pr-risk.toml", "main")]: notFound,
+    // a 404 from the contents API means "absent" only when the repository and commit can be reached
+    [commit(BASE, HEAD)]: ok("{}"),
+    [commit(BASE, "main")]: ok("{}"),
     ...over,
   });
   const check = (answers: Record<string, CommandResult>, dir = tmp(), opts: { repo?: string; allowBreaking?: boolean } = {}) => {
@@ -327,10 +368,38 @@ describe("check a pull request", () => {
     expect(got.err).toContain("failed");
   });
 
+  test("a 404 for a file in an unreachable repository or commit is an error, not an absent file", () => {
+    const gone = fail("gh: Not Found (HTTP 404)");
+    const head = check(baseAnswers({ [commit(BASE, HEAD)]: gone }));
+    expect(head.status).toBe(2);
+    expect(head.err).toContain(`${BASE}@${HEAD}`);
+    expect(head.out).toBe("");
+    const baseBranch = check(baseAnswers({ [commit(BASE, "main")]: gone }));
+    expect(baseBranch.status).toBe(2);
+    expect(baseBranch.err).toContain(".github/pr-risk.toml");
+  });
+
+  test("a risk extension that cannot be fetched fails closed with exit 2, naming it", () => {
+    const vault = ok("diff --git a/vault/x.py b/vault/x.py\n@@ -1 +1 @@\n-a\n+b\n");
+    const got = check(baseAnswers({ "gh pr diff 7": vault, [api(BASE, ".github/pr-risk.toml", "main")]: fail("gh: HTTP 502 Bad Gateway") }));
+    expect(got.status).toBe(2);
+    expect(got.err).toContain("cannot read .github/pr-risk.toml");
+    expect(got.err).toContain("502");
+    expect(got.out).toBe("");
+    expect(got.err).not.toContain("risk-below-floor");
+  });
+
+  test("a risk extension that is really absent is not an error", () => {
+    const got = check(baseAnswers());
+    expect(got.status).toBe(0);
+    expect(got.calls.some((c) => c.includes(commit(BASE, "main")))).toBe(true);
+  });
+
   test("a fork's template is read from the head repository", () => {
     const got = check(baseAnswers({
       "gh pr view 7": view({ isCrossRepository: true, headRepository: { name: "widgets-fork" }, headRepositoryOwner: { login: "someone" } }),
       [api("someone/widgets-fork", TEMPLATE, HEAD)]: notFound,
+      [commit("someone/widgets-fork", HEAD)]: ok("{}"),
     }));
     expect(got.status).toBe(0);
     expect(got.calls.some((c) => c.includes(api("someone/widgets-fork", TEMPLATE, HEAD)))).toBe(true);
@@ -417,6 +486,24 @@ describe("check a pull request", () => {
     const got = check(answers);
     expect(got.status).toBe(0);
     expect(got.out).toContain("the template on the base branch is not valid");
+  });
+
+  test("a base template that cannot be fetched only drops the comparison", () => {
+    const answers = baseAnswers({
+      "gh pr view 7": view({ files: [{ path: TEMPLATE }] }),
+      [api(BASE, TEMPLATE, HEAD)]: ok(fixture("custom-template.json")),
+      [api(BASE, TEMPLATE, "main")]: fail("gh: HTTP 502 Bad Gateway"),
+    });
+    const got = check(answers);
+    expect(got.status).toBe(1);
+    expect(got.err).toContain("section-missing");
+    expect(got.out).toContain("checked against the template in this pull request");
+    expect(got.out).toContain("the comparison with the template on the base branch is unavailable");
+    expect(got.out).toContain("502");
+    expect(got.out).not.toContain("would report");
+    const passing = check({ ...answers, "gh pr view 7": view({ body: validCustomBody(), files: [{ path: TEMPLATE }] }) });
+    expect(passing.status).toBe(0);
+    expect(passing.out.endsWith("ok\n")).toBe(true);
   });
 
   test("gh failing to show the PR is exit 2", () => {

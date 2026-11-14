@@ -120,6 +120,55 @@ describe("block recognition", () => {
     expect(a.custom).toEqual([]);
   });
 
+  test("a details block that goes to the preamble keeps its closing tag, and the generated file stays balanced", () => {
+    const text = "<details><summary><b>Risk</b></summary>\n\nOur own note.\n\n</details>\n";
+    const { merged, output } = generated(text);
+    const preamble = (merged.preamble as string[]).join("\n");
+    expect(preamble).toContain("<details><summary><b>Risk</b></summary>");
+    expect(preamble).toContain("Our own note.");
+    expect(preamble).toContain("</details>");
+    expect((output.match(/<details\b/gi) ?? []).length).toBe((output.match(/<\/details>/gi) ?? []).length);
+    expect(output).toContain("Our own note.");
+  });
+
+  test("a nested custom details inside a moved one does not take the closing tag of the outer", () => {
+    const a = adopt("<details>\n<summary>Outer</summary>\n<details><summary>Inner notes</summary>\ntext\n</details>\n</details>\n");
+    const kept = a.preamble.join("\n");
+    expect((kept.match(/<details\b/gi) ?? []).length).toBe((kept.match(/<\/details>/gi) ?? []).length);
+  });
+
+  test("a Wachiman start marker with no end marker loses nothing after it", () => {
+    const a = adopt("<!-- wachiman:confidence:start -->\n- [ ] keep me\n\n## Why\n<!-- g -->\nafter the why\n");
+    const kept = a.preamble.join("\n");
+    expect(kept).toContain("<!-- wachiman:confidence:start -->");
+    expect(kept).toContain("- [ ] keep me");
+    expect(kept).toContain("after the why");
+    expect(a.report.join("\n")).not.toContain("replaced the Wachiman block");
+  });
+
+  test("a start marker with its end marker is still replaced by the catalog's block", () => {
+    const a = adopt("<!-- wachiman:confidence:start -->\nold block\n<!-- wachiman:confidence:end -->\n- [ ] keep\n");
+    expect(a.preamble).toEqual(["- [ ] keep"]);
+    expect(a.report.join("\n")).toContain("replaced the Wachiman block");
+  });
+
+  test("a comment under an entry that is already custom is reported as not kept", () => {
+    const existing = [{ id: "migration-notes", kind: "section" as const, name: "Migration notes", required: false }];
+    const a = adopt("## Migration notes\n<!-- Steps an operator runs. -->\n", { existingCustom: existing });
+    const report = a.report.join("\n");
+    expect(report).not.toContain("kept the comment under");
+    expect(report).toContain("not kept");
+    expect(a.custom).toEqual([]);
+  });
+
+  test("a table cell of a row that is already custom is reported as not kept", () => {
+    const existing = [{ id: "ticket", kind: "status-row" as const, name: "Ticket", required: false }];
+    const a = adopt("| | |\n|---|---|\n| **Ticket** | <!-- The ticket --> |\n", { existingCustom: existing });
+    const report = a.report.join("\n");
+    expect(report).not.toContain("kept the cell of");
+    expect(report).toContain("not kept");
+  });
+
   test("preamble blocks that were apart are kept apart with a blank line", () => {
     const a = adopt("- [ ] one\n\n- [ ] two\n- [ ] three\n");
     expect(a.preamble).toEqual(["- [ ] one", "", "- [ ] two", "- [ ] three"]);

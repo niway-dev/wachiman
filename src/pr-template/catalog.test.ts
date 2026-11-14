@@ -153,6 +153,29 @@ describe("repository choice", () => {
     rejects({ custom: [{ id: "mine", kind: "section", heading: "what" }] }, /already the name of the section "what"/);
   });
 
+  test("a custom name that could change the template's structure is rejected, naming the entry", () => {
+    const entry = (kind: "section" | "status-row" | "details", name: string) => ({
+      custom: [{ id: "mine", kind, [kind === "section" ? "heading" : kind === "status-row" ? "label" : "summary"]: name }],
+    });
+    // a second heading smuggled in through a newline, a carriage return or another control character
+    rejects(entry("section", "Notes\n## Injected"), /custom entry "mine": the heading must be one line/);
+    rejects(entry("section", "Notes\r## Injected"), /custom entry "mine": the heading must be one line/);
+    rejects(entry("details", "Tab\there"), /custom entry "mine": the summary must be one line/);
+    rejects(entry("status-row", "Bell\u0007"), /custom entry "mine": the label must be one line/);
+    rejects(entry("section", "Line\u2028break"), /the heading must be one line/);
+    // empty and too long
+    rejects(entry("section", "   "), /must not be empty/);
+    rejects(entry("section", "x".repeat(81)), /custom entry "mine": the heading is 81 characters; the limit is 80/);
+    expect(choice(entry("section", "x".repeat(80))).custom[0]!.name).toHaveLength(80);
+    // a status row is a table row
+    rejects(entry("status-row", "Owner | Team"), /custom entry "mine": the label must not contain "\|"/);
+    expect(choice(entry("section", "Owner | Team")).custom[0]!.name).toBe("Owner | Team");
+    // HTML that would open a tag or close the guide comment
+    rejects(entry("section", "<b>Mine</b>"), /custom entry "mine": the heading must not contain "<" or ">"/);
+    rejects(entry("details", "a > b"), /the summary must not contain "<" or ">"/);
+    rejects(entry("section", "Mine --> done"), /the heading must not contain "-->"/);
+  });
+
   test("a custom after naming an unknown id", () => {
     rejects({ custom: [{ id: "mine", kind: "section", heading: "Mine", after: "nowhere" }] }, /unknown id "nowhere"/);
   });

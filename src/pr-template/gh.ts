@@ -26,10 +26,19 @@ export const defaultRunner: CommandRunner = (cmd, cwd) => {
 
 const firstLine = (text: string) => text.trim().split("\n")[0] || "no message";
 
+/** The command as a person would name it: `git diff`, `gh pr view`. Leading `-c key=value` options of git are not part of the name. */
+function commandName(cmd: string[]): string {
+  const words = [cmd[0]!];
+  let i = 1;
+  while (cmd[0] === "git" && cmd[i] === "-c" && i + 1 < cmd.length) i += 2;
+  words.push(...cmd.slice(i, i + (cmd[0] === "git" ? 1 : 2)));
+  return words.join(" ");
+}
+
 /** stdout of a command that must succeed. */
 export function runOrThrow(run: CommandRunner, cmd: string[], cwd?: string): string {
   const r = run(cmd, cwd);
-  if (r.code !== 0) throw new ToolError(`${cmd.slice(0, 3).join(" ")} failed: ${firstLine(r.stderr)}`);
+  if (r.code !== 0) throw new ToolError(`${commandName(cmd)} failed: ${firstLine(r.stderr)}`);
   return r.stdout;
 }
 
@@ -118,11 +127,19 @@ export function ghPrDiff(run: CommandRunner, number: number, repo?: string): Cha
   return parsePatch(runOrThrow(run, ["gh", "pr", "diff", String(number), ...repoFlag(repo)]));
 }
 
-/** A file of a repository at a commit or branch, through the contents API; null when it does not exist there. */
+/**
+ * A file of a repository at a commit or branch, through the contents API. Null only when the file
+ * is absent: a 404 also answers an unreachable repository or ref, so after one the commit is
+ * looked up through the same API family, and if that fails too the error is raised.
+ */
 export function ghFileAt(run: CommandRunner, repo: string, path: string, ref: string): string | null {
   const cmd = ["gh", "api", "-H", "Accept: application/vnd.github.raw+json", `repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`];
   const r = run(cmd);
   if (r.code === 0) return r.stdout;
-  if (/\b404\b|not found/i.test(r.stderr)) return null;
-  throw new ToolError(`gh api ${repo}/${path}@${ref} failed: ${firstLine(r.stderr)}`);
+  if (!/\b404\b|not found/i.test(r.stderr)) throw new ToolError(`gh api ${repo}/${path}@${ref} failed: ${firstLine(r.stderr)}`);
+  const reach = run(["gh", "api", `repos/${repo}/commits/${encodeURIComponent(ref)}`]);
+  if (reach.code !== 0) {
+    throw new ToolError(`gh api ${repo}/${path}@${ref} failed: ${repo}@${ref} cannot be reached (${firstLine(reach.stderr)})`);
+  }
+  return null;
 }

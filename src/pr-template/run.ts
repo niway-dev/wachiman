@@ -24,6 +24,17 @@ export interface PrTemplateRunDeps {
   format?: Parameters<typeof runFormat>[3];
 }
 
+/**
+ * The repository's top level for `dir`, from `git rev-parse --show-toplevel` run there (an argument
+ * array, no shell). Not a git repository, or no git: `dir` itself, so the command still works in a
+ * plain directory.
+ */
+function repositoryRoot(dir: string): string {
+  const r = defaultRunner(["git", "rev-parse", "--show-toplevel"], dir);
+  const top = r.code === 0 ? r.stdout.trim() : "";
+  return top === "" ? dir : top;
+}
+
 const isSubcommand = (word: string): word is Subcommand => (SUBCOMMANDS as readonly string[]).includes(word);
 
 /** `argv` is what follows `pr-template`. Returns the exit code: 0, 1 findings or a state to act on, 2 usage or configuration. */
@@ -33,29 +44,32 @@ export function runPrTemplate(argv: string[], repoDir: string, io: PrTemplateIo,
   if (!isSubcommand(first)) {
     throw new UsageError(`Unknown pr-template subcommand "${first}". Use one of: ${SUBCOMMANDS.join(", ")}.`);
   }
+  // The managed files live at the repository's top level, wherever the command was pointed inside it;
+  // `risk` already asks git, so it keeps the directory it was given.
+  const root = first === "risk" || first === "strip" ? repoDir : repositoryRoot(repoDir);
   // `gh` and `git` run in the repository the command was pointed at (`--repo-dir`), not in wherever the shell is.
-  const check: PrTemplateDeps = { ...deps.check, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? repoDir)) };
+  const check: PrTemplateDeps = { ...deps.check, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? root)) };
   const help = () => (io.stdout(commandHelp(["pr-template", first])!), 0);
   switch (first) {
     case "show": {
       const parsed = parseShowArgs(rest);
-      return "help" in parsed ? help() : runShow(parsed, repoDir, io, deps.install);
+      return "help" in parsed ? help() : runShow(parsed, root, io, deps.install);
     }
     case "install": {
       const parsed = parseInstallArgs(rest);
-      return "help" in parsed ? help() : runInstall(parsed, repoDir, io, deps.install);
+      return "help" in parsed ? help() : runInstall(parsed, root, io, deps.install);
     }
     case "status": {
       const parsed = parseStatusArgs(rest);
-      return "help" in parsed ? help() : runStatus(parsed, repoDir, io, deps.install);
+      return "help" in parsed ? help() : runStatus(parsed, root, io, deps.install);
     }
     case "check": {
       const parsed = parseCheckArgs(rest);
-      return "help" in parsed ? help() : runCheck(parsed, repoDir, io, check);
+      return "help" in parsed ? help() : runCheck(parsed, root, io, check);
     }
     case "format": {
       const parsed = parseFormatArgs(rest);
-      return "help" in parsed ? help() : runFormat(parsed, repoDir, io, deps.format);
+      return "help" in parsed ? help() : runFormat(parsed, root, io, deps.format);
     }
     case "risk": {
       const parsed = parseRiskArgs(rest);

@@ -299,7 +299,26 @@ describe("DetailsTest", () => {
   test("a summary with no bold title is unknown", () => {
     expect(codes(validBody().replace("<details><summary><b>Notes</b>", "<details><summary>Notes"))).toEqual(["details-unknown"]);
   });
+
+  test("a details element with attributes on its opening tag is still a collapsed block", () => {
+    const open = validBody().replace("<details><summary><b>Notes</b>", "<details open><summary><b>Notes</b>");
+    expect(open).toContain("<details open>");
+    expect(codes(open)).toEqual([]);
+    // it is read as the Notes block, not skipped: an unknown title in an open block is still reported
+    expect(codes(open.replace("<b>Notes</b>", "<b>Extras</b>"))).toEqual(["details-unknown"]);
+    // and a required block written that way is found
+    const template = requiredDetailsTemplate();
+    expect(codes(withMigrationPlan("<details open>"), { template })).toEqual([]);
+  });
 });
+
+/** A repository that requires a "Migration plan" collapsed block, after Notes. */
+const requiredDetailsTemplate = () =>
+  resolveTemplate(catalog, loadRepoChoice(JSON.stringify({ custom: [{ id: "migration-plan", kind: "details", summary: "Migration plan", required: true, after: "notes" }] }), catalog));
+
+/** `validBody()` with the Migration plan block before the Wachiman block; `opening` is its opening tag. */
+const withMigrationPlan = (opening: string) =>
+  validBody().replace("<!-- wachiman:confidence:start -->", `${opening}<summary><b>Migration plan</b></summary>\n\nNone.\n\n</details>\n\n<!-- wachiman:confidence:start -->`);
 
 describe("a custom template", () => {
   const custom = () => customTemplate();
@@ -323,9 +342,15 @@ describe("a custom template", () => {
   });
 
   test("an optional section dropped by the repository passes without it", () => {
-    expect(validBody()).toContain("**Decisions** | None");
-    expect(validBody()).not.toContain("## Decisions");
-    expect(run(validCustomBody())).toEqual([]);
+    // the default template offers the Decisions section and the Agent context block; this repository drops both
+    const ids = (t: typeof defaultTemplate) => t.sections.map((e) => e.id);
+    expect(ids(defaultTemplate)).toEqual(expect.arrayContaining(["decisions", "agent-context"]));
+    expect(ids(custom())).not.toEqual(expect.arrayContaining(["decisions"]));
+    expect(ids(custom())).not.toEqual(expect.arrayContaining(["agent-context"]));
+    const body = validCustomBody();
+    expect(body).not.toContain("## Decisions");
+    expect(body).not.toContain("<b>Agent context");
+    expect(run(body)).toEqual([]);
   });
 
   test("a dropped section that is written anyway is not an allowed heading", () => {
@@ -341,6 +366,14 @@ describe("a custom template", () => {
     expect(run(validCustomBody())).toEqual([]);
     const body = validCustomBody().replace("<!-- wachiman:confidence:start -->", "<details><summary><b>Agent context</b></summary>\n\nx\n\n</details>\n\n<!-- wachiman:confidence:start -->");
     expect(run(body)).toEqual(["details-unknown"]);
+  });
+
+  test("a required collapsed block that is missing fails, and passes once it is there", () => {
+    const template = requiredDetailsTemplate();
+    const result = checkDescription({ body: validBody(), title: TITLE, head: HEAD, template, catalog, risk: LOW, commitMessages: [] });
+    expect(result.findings.map((f) => f.code)).toEqual(["section-missing"]);
+    expect(result.findings[0]!.message).toContain('"Migration plan" collapsed block');
+    expect(codes(withMigrationPlan("<details>"), { template })).toEqual([]);
   });
 
   test("a heading is checked in the template's order", () => {

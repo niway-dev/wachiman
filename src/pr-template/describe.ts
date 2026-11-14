@@ -128,7 +128,8 @@ export interface ParsedDescription {
 const COMMENT = /<!--[\s\S]*?-->/g;
 const HEADING = /^ {0,3}##(?!#)\s+(.*?)\s*$/;
 const STATUS_ROW = /^\s*\|\s*\*\*([^*|]+?)\*\*\s*\|(.*?)\|?\s*$/;
-const DETAILS = /<details>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g;
+/** The opening tag may carry attributes (`<details open>`); the summary rules are unchanged. */
+const DETAILS = /<details(?:\s[^>]*)?>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g;
 const SUB = /<sub>([\s\S]*?)<\/sub>/g;
 const FENCE_OPEN = /^(```+|~~~+)/;
 

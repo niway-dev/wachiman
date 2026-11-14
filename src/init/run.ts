@@ -105,18 +105,21 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
   let templateDone = false;
-  /** Installs the PR description template once, at the end of the workflow work. A refusal is a report, not a failure. */
-  const installTemplate = () => {
-    if (!options.prTemplate || templateDone) return;
+  let templateInstalled = false;
+  /** Installs the PR description template once, at the end of the workflow work. A refusal or a failure is a report, not a failure of init. Returns whether it is in place. */
+  const installTemplate = (): boolean => {
+    if (!options.prTemplate) return false;
+    if (templateDone) return templateInstalled;
     templateDone = true;
     try {
       // Same semantics as `pr-template install` with no --force and no --commit: init never commits.
       runInstall({ force: false, commit: false }, root, io, deps.prTemplate);
+      templateInstalled = true;
     } catch (error) {
-      if (!(error instanceof UsageError)) throw error;
-      io.stderr(`pr-template: not installed: ${error.message}`);
+      io.stderr(`pr-template: not installed: ${error instanceof Error ? error.message : String(error)}`);
       io.stderr("The rest of init is unaffected. See `wachiman pr-template status`.");
     }
+    return templateInstalled;
   };
 
   if (github) {
@@ -153,9 +156,9 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       }
       if (!answer) {
         io.stderr("not written.");
-        installTemplate();
+        const templateIn = installTemplate();
         // The closing line of a terminal session says what happened, not "All set".
-        if (prompter.fancy) prompter.close("done", "Nothing was written.");
+        if (prompter.fancy) prompter.close("done", templateIn ? "The workflow was not written; the PR description template is in place." : "Nothing was written.");
         return 0;
       }
     } else {

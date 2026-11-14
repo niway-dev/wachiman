@@ -502,6 +502,16 @@ describe("--commit", () => {
     expect(git(w.repo, "show", "--name-only", "--format=").trim().split("\n").sort()).toEqual([".github/pr-template.json", ".github/pull_request_template.md"]);
   });
 
+  test("a failure while writing the temporary file leaves no temporary file behind", () => {
+    const w = world();
+    const writeTemp = (path: string) => {
+      writeFileSync(path, "partial");
+      throw new Error("no space left on device");
+    };
+    expect(() => install(w, [], { hooks: { writeTemp } })).toThrow("no space left on device");
+    expect(readdirSync(join(w.repo, ".github")).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+  });
+
   test("when nothing was written there is nothing to commit", () => {
     const w = world();
     install(w, ["--commit"]);

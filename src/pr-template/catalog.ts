@@ -280,6 +280,26 @@ function validateNames(entries: CatalogEntry[]) {
 
 const CUSTOM_NAME_KEY: Record<CustomKind, string> = { "status-row": "label", section: "heading", details: "summary" };
 
+export const MAX_NAME_LENGTH = 80;
+const LINE_BREAKING_OR_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+
+/**
+ * A custom name is written into the template as a heading, a table label or a bold summary, so it
+ * must not be able to add structure: no line break or control character (a second heading), no `|`
+ * in a status row (a second cell), no `<` or `>` (an HTML tag) and no `-->` (it would close the
+ * comment around a guide). The check applies to the name as written; nothing is repaired.
+ */
+function checkCustomName(name: string, nameKey: string, kind: CustomKind, where: string) {
+  if (name.trim() === "") throw new PrTemplateConfigError(`${where}: the ${nameKey} must not be empty.`);
+  if (LINE_BREAKING_OR_CONTROL.test(name)) throw new PrTemplateConfigError(`${where}: the ${nameKey} must be one line without control characters.`);
+  if (name.length > MAX_NAME_LENGTH) {
+    throw new PrTemplateConfigError(`${where}: the ${nameKey} is ${name.length} characters; the limit is ${MAX_NAME_LENGTH}.`);
+  }
+  if (kind === "status-row" && name.includes("|")) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "|"; it is a table cell.`);
+  if (name.includes("-->")) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "-->".`);
+  if (/[<>]/.test(name)) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "<" or ">".`);
+}
+
 /**
  * Parse and validate `.github/pr-template.json`. `catalog` is the one the choice is read against
  * (default: the shipped one). The text that is not valid is named in the error; nothing is
@@ -332,6 +352,7 @@ export function loadRepoChoice(text: string, catalog: Catalog = loadCatalog()): 
     if (!ID.test(id)) throw new PrTemplateConfigError(`${where}: the id must be lower-case words joined by hyphens.`);
     if (byId.has(id) || customIds.has(id)) throw new PrTemplateConfigError(`${where}: the id is already used by another section.`);
     const name = str(item, nameKey, where) as string;
+    checkCustomName(name, nameKey, kind, where);
     const locked = lockedNames.find((n) => sameName(n, name));
     if (locked !== undefined) throw new PrTemplateConfigError(`${where}: "${name}" reuses the locked name "${locked}".`);
     const twin = included.find((e) => e.kind === kind && sameName(entryName(e) ?? "", name));
