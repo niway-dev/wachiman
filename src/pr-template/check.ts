@@ -96,12 +96,22 @@ export function bareAdrMentions(input: string): string[] {
   return [...text.matchAll(new RegExp(ADR_REF.source, "gi"))].map((m) => m[0]);
 }
 
-/** Data rows of the first Markdown table in `text`: the rows after its separator line. */
+/**
+ * Data rows of the first Markdown table in `text`: the contiguous lines with an unescaped `|` right
+ * after its separator line (which has a header line with a `|` above it). A table may be written
+ * without its outer pipes. Without a separator, the lines that start with `|` stand in, minus the header.
+ */
 export function tableRows(text: string): string[] {
-  // A table may be written without its outer pipes: a line with an unescaped `|` is a row either way.
-  const rows = text.split("\n").map((l) => l.trim()).filter((l) => /(?<!\\)\|/.test(l));
-  const sep = rows.findIndex((l) => /^\|?[\s:|-]+\|?$/.test(l) && l.includes("-"));
-  return sep === -1 ? rows.slice(1) : rows.slice(sep + 1);
+  const hasPipe = (l: string) => /(?<!\\)\|/.test(l);
+  const lines = text.split("\n").map((l) => l.trim());
+  const sep = lines.findIndex((l, i) => i > 0 && /^\|?[\s:|-]+\|?$/.test(l) && l.includes("-") && hasPipe(lines[i - 1]!));
+  if (sep === -1) return lines.filter((l) => l.startsWith("|")).slice(1);
+  const rows: string[] = [];
+  for (const l of lines.slice(sep + 1)) {
+    if (l === "" || !hasPipe(l)) break;
+    rows.push(l);
+  }
+  return rows;
 }
 
 function splitCells(row: string): string[] {

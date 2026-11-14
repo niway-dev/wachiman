@@ -291,6 +291,12 @@ describe("DetailsTest", () => {
     expect(codes(validBody().replace(table, bare.replace("c | b | a | w\n", "")))).toEqual([]);
   });
 
+  test("changes rows stop at the first blank line: pipe prose after the table adds nothing", () => {
+    const table = "| Change | Before | After | Where to look |\n|---|---|---|---|\n" + only;
+    const prose = "\n" + "Run a | b\n".repeat(8);
+    expect(codes(validBody().replace(table, table + prose))).toEqual([]);
+  });
+
   test("changes seven rows is fine", () => {
     expect(codes(validBody().replace(only, row.repeat(7)))).toEqual([]);
   });

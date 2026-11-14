@@ -231,6 +231,25 @@ describe("block recognition", () => {
     expect(existsSync(join(repo, ".github", "pr-template.json"))).toBe(false);
   });
 
+  test("an unclosed code fence refuses the adoption before anything is written, and a closed one with a blank line inside is kept", () => {
+    for (const old of ["- [ ] ok\n\n```sh\nbun test\n", "~~~\nopen\n"]) {
+      expect(() => adopt(old)).toThrow(UsageError);
+      expect(() => adopt(old)).toThrow(/fenced code block[\s\S]*nothing was written/);
+    }
+    const repo = emptyRepo();
+    commit(repo, { "README.md": "x\n", ".github/pull_request_template.md": "```sh\nbun test\n" }, "init");
+    expect(() => runInstall(parseInstallArgs([]) as Parameters<typeof runInstall>[0], repo, { stdout: () => {}, stderr: () => {} }, { now: () => "2026-11-14T10:00:00.000Z" })).toThrow(UsageError);
+    expect(existsSync(join(repo, ".github", "pr-template.json"))).toBe(false);
+    expect(() => generated("```sh\nbun test\n\nbun lint\n```\n")).not.toThrow();
+  });
+
+  test("a whole-line `<!-- wachiman:other -->` comment is dropped and reported, and install succeeds", () => {
+    const old = "<!-- wachiman:other -->\n- [ ] keep\n";
+    expect(adopt(old).preamble).toEqual(["- [ ] keep"]);
+    expect(adopt(old).report.join("\n")).toMatch(/Wachiman marker/);
+    expect(() => generated(old)).not.toThrow();
+  });
+
   test("a start marker with its end marker is still replaced by the catalog's block", () => {
     const a = adopt("<!-- wachiman:confidence:start -->\nold block\n<!-- wachiman:confidence:end -->\n- [ ] keep\n");
     expect(a.preamble).toEqual(["- [ ] keep"]);
@@ -252,6 +271,13 @@ describe("block recognition", () => {
     const report = a.report.join("\n");
     expect(report).not.toContain("kept the cell of");
     expect(report).toContain("not kept");
+  });
+
+  test("a multi-value cell of a row that is already custom is reported as not kept, not refused", () => {
+    const existing = [{ id: "ticket", kind: "status-row" as const, name: "Ticket", required: false }];
+    const a = adopt("| | |\n|---|---|\n| **Ticket** | one | two |\n", { existingCustom: existing });
+    expect(a.report.join("\n")).toContain("not kept");
+    expect(a.custom).toEqual([]);
   });
 
   test("the cell of an unknown status row becomes its guide, and a row with more cells refuses the adoption", () => {

@@ -10,15 +10,16 @@
  * - any other block goes to `preamble`, in order.
  *
  * What the loader (`loadRepoChoice`) would reject never reaches the output: a name it refuses stays
- * in the preamble as ordinary lines, a Wachiman marker is dropped (the catalog writes its own), and
- * a comment that is opened and never closed (or closed and never opened) refuses the adoption with
- * a `UsageError`, before anything is written.
+ * in the preamble as ordinary lines, a Wachiman marker (any `<!-- wachiman:` comment) is dropped
+ * (the catalog writes its own), and a comment that is opened and never closed (or closed and never
+ * opened) or a fenced code block that is never closed refuses the adoption with a `UsageError`,
+ * before anything is written.
  *
  * The report lists every block that moved and every comment taken for a guide, so a repository
  * comment misread as guidance is visible (and still in the backup).
  */
 import { UsageError } from "../config";
-import { checkCustomName, commentProblem, CUSTOM_NAME_KEY, entryName, type Catalog, type CatalogEntry, type CustomEntry, type CustomKind } from "./catalog";
+import { checkCustomName, commentProblem, CUSTOM_NAME_KEY, entryName, fenceProblem, type Catalog, type CatalogEntry, type CustomEntry, type CustomKind } from "./catalog";
 import { LEGACY_HEADER_PREFIX, collapseSpace, isLegacyGuide } from "./legacy-guides";
 import { STATUS_GUIDE_LEAD, normalizeForStamp } from "./render";
 
@@ -39,7 +40,7 @@ const DETAILS_OPEN = /^\s*<details\b[^>]*>\s*<summary>(.*?)<\/summary>\s*$/i;
 const STATUS_ROW = /^\|\s*\*\*(.+?)\*\*\s*\|(.*)\|\s*$/;
 const TABLE_HEADER = /^\|\s*\|\s*\|\s*$/;
 const TABLE_SEPARATOR = /^\|(\s*:?-+:?\s*\|)+\s*$/;
-const WACHIMAN_MARKER = /wachiman:confidence:|wachiman:pr-template/i;
+const WACHIMAN_MARKER = /<!--\s*wachiman:|wachiman:confidence:|wachiman:pr-template/i;
 const FOOTER = /^<sub>(.*)<\/sub>\s*$/;
 
 /** Whether `line` starts a block of its own, so a text run ends before it. */
@@ -100,7 +101,7 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
       if (line !== raw) report("rewrote a <model> or <sha> tag as a {model} or {sha} placeholder; GitHub hides HTML tags.");
       // The catalog writes the Wachiman markers itself, and the loader refuses them in the preamble.
       if (WACHIMAN_MARKER.test(line)) {
-        const cleaned = line.replace(/<!--\s*wachiman:(?:confidence:|pr-template)[^]*?-->/gi, "");
+        const cleaned = line.replace(/<!--\s*wachiman:[^]*?-->/gi, "");
         report(`dropped a Wachiman marker from a line that was kept: ${clip(line.trim())}`);
         if (WACHIMAN_MARKER.test(cleaned) || cleaned.trim() === "") continue;
         line = cleaned.trimEnd();
@@ -336,7 +337,7 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
         if (entry) {
           const cell = row[2]!.trim();
           const text = collapseSpace(/^<!--(.*)-->$/.exec(cell)?.[1] ?? cell);
-          if (/<!--|-->|\|/.test(text)) {
+          if (/<!--|-->|\|/.test(text) && result.custom.includes(entry)) {
             // More than one value, or markup a guide cannot carry: dropping it would lose the repository's text.
             throw new UsageError(
               `The old template has a row of "${entry.name}" on line ${i + 1} with more than one value or markup in its cell: "${clip(trimmed, 60)}". A row keeps one plain value as its guide. Reduce the row to one value (or move the rest out of the table) in the old file and run install again; nothing was written.`,
@@ -381,6 +382,16 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
     if (rest.length > 0) toPreamble(rest, i, j);
     afterKnown = false;
     i = j;
+  }
+
+  // The loader reads the whole preamble, so a fence is judged across blocks (one may hold a blank line).
+  const openFence = fenceProblem(result.preamble);
+  if (openFence !== undefined) {
+    const at = result.preamble.findLastIndex((entry) => /^ {0,3}(`{3,}|~{3,})/m.test(entry));
+    const where = result.preamble.slice(Math.max(at, 0)).join("\n").trim();
+    throw new UsageError(
+      `The old template ${openFence} near "${clip(where, 60)}", which would render the rest of the generated template as code. Close the fence in the old file and run install again; nothing was written.`,
+    );
   }
 
   const parts = [
