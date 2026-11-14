@@ -149,10 +149,17 @@ export function stopLine(result: ReviewResult) {
   return `stop: ${stop} — ${why}${files}`;
 }
 
-/** The provider, effort, profile and engine version, for the last line. */
-export function providerLine(result: ReviewResult) {
+/** Which of the model and the effort the repository's `.wachiman.yml` chose, so the last line can say so. */
+export interface SettingsFrom {
+  model?: boolean;
+  effort?: boolean;
+}
+
+/** The provider, effort, profile and engine version, for the last line; `from` marks a value that came from `.wachiman.yml`. */
+export function providerLine(result: ReviewResult, from: SettingsFrom = {}) {
   const verified = result.verification ? verificationSegment(result.verification) : undefined;
-  return `${result.provider.label} · effort ${result.provider.effort} · profile ${result.provider.profile} · Wachiman ${result.engine.version}${verified ? ` · ${verified}` : ""}`;
+  const file = " (from .wachiman.yml)";
+  return `${result.provider.label}${from.model ? file : ""} · effort ${result.provider.effort}${from.effort ? file : ""} · profile ${result.provider.profile} · Wachiman ${result.engine.version}${verified ? ` · ${verified}` : ""}`;
 }
 
 /** The note on review-instruction files the change edits, or null. */

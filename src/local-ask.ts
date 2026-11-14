@@ -96,6 +96,7 @@ export function runAsk(
     env,
     stderr: io.stderr,
     deps,
+    scope: { workingTree: args.workingTree, base: args.base, commit: args.commit, from: args.from, maxDepth: args.maxDepth },
   });
   const onSigint = () => {
     state.interrupted = true;

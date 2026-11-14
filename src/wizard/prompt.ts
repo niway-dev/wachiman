@@ -16,7 +16,7 @@
  * ending (Ctrl-D). A test of the fancy session passes its own `Ui` and scripts the answers.
  */
 import { createInterface, type Interface } from "node:readline";
-import { createFancyPrompter } from "./prompt-fancy";
+import { createFancyPrompter, usableDefault } from "./prompt-fancy";
 import { terminalStyle, type NextStepSink, type Tone } from "./style";
 import { loadUi, type Ui } from "./ui";
 
@@ -30,6 +30,8 @@ export interface Choice<T> {
   label: string;
   value: T;
   description?: string;
+  /** Shown with "(coming soon)" and never pickable. A default index never lands on one. */
+  disabled?: boolean;
 }
 
 export type Outcome = "done" | "cancelled" | "failed";
@@ -157,10 +159,15 @@ export function createPrompter(io: PromptIO, env: Record<string, string | undefi
     return nextLine();
   };
 
-  /** The numbered list and `Choice [n]:` line. */
-  async function numberedSelect<T>(label: string, choices: Choice<T>[], defaultIndex: number): Promise<T | null> {
+  /** The numbered list and `Choice [n]:` line. A disabled choice is listed but cannot be picked. */
+  async function numberedSelect<T>(label: string, choices: Choice<T>[], requestedDefault: number): Promise<T | null> {
+    const defaultIndex = usableDefault(choices, requestedDefault);
     say(label, "accent");
     choices.forEach((c, i) => {
+      if (c.disabled) {
+        say(`  ${i + 1}. ${c.label} (coming soon)`, "muted");
+        return;
+      }
       say(`  ${i + 1}. ${c.label}${i === defaultIndex ? " (default)" : ""}`, i === defaultIndex ? "accent" : undefined);
       if (c.description) say(`     ${c.description}`, "muted");
     });
@@ -170,7 +177,13 @@ export function createPrompter(io: PromptIO, env: Record<string, string | undefi
       const answer = line.trim();
       if (answer === "") return choices[defaultIndex].value;
       const n = Number(answer);
-      if (/^\d+$/.test(answer) && n >= 1 && n <= choices.length) return choices[n - 1].value;
+      if (/^\d+$/.test(answer) && n >= 1 && n <= choices.length) {
+        if (choices[n - 1].disabled) {
+          say(`Option ${n} is not available yet. Pick another number, or press Enter for ${defaultIndex + 1}.`, "error");
+          continue;
+        }
+        return choices[n - 1].value;
+      }
       say(`Enter a number from 1 to ${choices.length}, or press Enter for ${defaultIndex + 1}.`, "error");
     }
   }

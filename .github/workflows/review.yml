@@ -102,13 +102,13 @@ on:
         type: number
         default: 140000
       model:
-        description: Model the agent uses
+        description: Model the agent uses. Empty (the default) means not set here, so `model` in .wachiman.yml at the pull request's base commit applies, else claude-sonnet-5-5. A value set here always wins
         type: string
-        default: claude-sonnet-5-5
+        default: ''
       effort:
-        description: Reasoning effort the model runs at (low, medium, high, xhigh or max); printed in every review footer
+        description: Reasoning effort the model runs at (low, medium, high, xhigh or max); printed in every review footer. Empty (the default) means not set here, so `effort` in .wachiman.yml at the pull request's base commit applies, else high. A value set here always wins
         type: string
-        default: high
+        default: ''
       verify:
         description: After the batches, one more call tries to refute every finding above info before it is posted; a finding is dropped only with a disproof whose line exists at head (ADR 0027). Off by default; set true to enable verification
         type: boolean

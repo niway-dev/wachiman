@@ -14,7 +14,7 @@ bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman t
 bun src/cli.ts local [paths…] [--base <ref> | --from <commit> | --commit <commit> | --working-tree staged|all] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
   [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
 bun src/cli.ts setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]
-bun src/cli.ts init [--mode github|local|both] [--operator <login>] [--version <tag>] [--path <file>] \
+bun src/cli.ts init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
   [--force] [--dry-run] [--yes] [--repo-dir <dir>]
 bun src/cli.ts doctor [--json] [--profile <name> | --all-profiles] [--repo-dir <dir>] [--redact-paths]
 bun src/cli.ts profile list|create|add|login|remove|default ...
@@ -84,7 +84,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `ledger connect <url>`, `ledger disconnect`, `ledger pull [--since <n>d]` | Connect to the spend ledger with a read token, and download its entries to the laptop so `status` and `dashboard` can show Actions runs next to laptop runs. See [`ledger`](#ledger). |
 | `ask [question…]` | Answers one question about the local change (or walks through it when there is no question), on your own signed-in `claude`; no GitHub call, nothing posted. See [`ask`](#ask) below. |
 | `setup [--profile <name>]` | Binds this repository to an account profile; on a terminal without `--profile` it asks. See [`setup`](#setup-doctor-profile-and-project). |
-| `init` | Writes the GitHub caller workflow, or hands over to `setup`. See [`init`](#init). |
+| `init` | Writes the GitHub caller workflow and the repository settings file, or hands over to `setup`. See [`init`](#init). |
 | `doctor` | Reports what a local run would use and what would fail. |
 | `profile …`, `project …` | Manage account profiles and the repository's binding. |
 | `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
@@ -381,8 +381,8 @@ and confirmations to stderr; `--json` prints the document named below.
 | `profile default <name> \| --none` | Sets or clears the configured default |
 | `project show [--json] [--repo-dir <dir>]` | The repository's key, its binding, and what `local` would use here now, with the rule and any ignored values. `--json` prints `wachiman.project/1` |
 | `project unbind [--repo-dir <dir>] [--yes]` | Removes this repository's binding |
-| `setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to a profile, prints exactly what it will write, asks `Bind <repo> to <name>?` (only on a terminal), then runs the `doctor` summary. On a terminal without `--profile` it is a wizard: see below |
-| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `history`, `skills`, `isolation`. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
+| `setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to a profile, prints what it saved and where, then runs the `doctor` summary. On a terminal without `--profile` it is a wizard: see below |
+| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `settings`, `history`, `skills`, `isolation`. The `settings` row reads `.wachiman.yml` in the working tree (read-only: it never writes or moves anything) and reports its `kind`, `model` and `effort` and where the effective model and effort of a run come from (the environment, the file or the default); an invalid working copy is a required failure (runs read the file at the base commit or merge-base and ignore a broken one with a warning, so the fix takes effect once committed and merged), and an old `.github/wachiman.yml` is a warning: its fix is `mv .github/wachiman.yml .wachiman.yml`, or, when a root `.wachiman.yml` also exists, to merge the old file into it and remove the old one. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
 
 `remove` and `unbind` ask before writing. Without a terminal (or with `CI` set) they need `--yes`;
 without it they exit 2. `setup` needs `--profile <name>` when it cannot ask (no terminal, `CI` is `true` or `1`
@@ -407,27 +407,36 @@ showing its default (on a terminal the highlighted entry and the placeholder; wi
    name and then, naming the side effect, whether to create `~/.wachiman/claude-<name>` and open
    Claude there so you can sign in; that directory and sign-in happen at once, and nothing is
    registered yet.
-3. A summary of the profile's name, kind, directory and binary, and the repository's identity and
-   scope, then `Bind <repo> to <profile>?`. Only a yes saves anything, and it saves the pending
-   profile (if any) and the binding in one locked write.
+3. There is no confirm step: picking the profile is the confirmation. Wachiman saves the pending
+   profile (if any) and the binding in one locked write and prints one line, for example
+   `local reviews of app (every clone of <origin>) will use the account "work-a"; saved in ~/.wachiman/config.json, nothing in the repository`.
+   The wizard has three steps (Project, Claude account, Checks); started from `init` it has no
+   Project step of its own and the session totals are in the `init` section.
+
+Wachiman starts the `claude` binary itself, so it cannot see a shell alias or function that points
+`claude` at another configuration directory. The profile list therefore also offers each
+`~/.claude-<name>` directory in your home that no profile registers, labelled
+`~/.claude-<name> (your own Claude directory, used in place)`. Picking one registers it as an
+external profile named `<name>` (the same as `wachiman profile add <name> --config-dir <dir>`) and
+binds it; the directory is not opened or changed.
 
 The selector offers your current Claude session (`default`), registered/discovered profiles,
 creation of an isolated profile, and registration of an existing directory. Enter prefers the
 current binding, then the configured global default, then your current session. The current
 session shares your normal Claude settings; it does not register or copy a profile directory.
 
-Then it checks the account (offering `Sign in now?` for a signed-out managed/external profile)
-and prints the `doctor` summary. Required checks passing produces `local: ready` and a review
+Then it checks the account (offering `Sign in now?` for a signed-out managed/external profile; for
+your current session nothing is offered or run) and prints the `doctor` summary. Required checks passing produces `local: ready` and a review
 command; this does not validate the review range. A required failure produces `local: not ready`,
-exit 1, and a doctor command for this repository. The saved binding remains. Suggested paths are
-shell-quoted; Windows output names PowerShell and Git Bash alternatives. Escape, Ctrl-C or Ctrl-D exits 130; before the final yes no
+exit 1 (scripts read it as "this machine is not ready"), and a doctor command for this repository. The saved binding remains. Suggested paths are
+shell-quoted; Windows output names PowerShell and Git Bash alternatives. Escape, Ctrl-C or Ctrl-D exits 130; before the profile is picked no
 configuration is saved, and a managed directory or a Claude sign-in that already happened is
 listed, never described as undone.
 
 ### `init`
 
 ```sh
-wachiman init [--mode github|local|both] [--operator <login>] [--version <tag>] [--path <file>] \
+wachiman init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
   [--force] [--dry-run] [--yes] [--repo-dir <dir>]
 ```
 
@@ -435,18 +444,52 @@ First-time setup of a repository. `--mode github` writes the maintained caller w
 (`templates/wachiman-review-caller.yml`) to `.github/workflows/wachiman-review.yml` with your
 `operator:` and the release tag you pin, and a one-line header that says Actions is billed through
 the repository secret `ANTHROPIC_API_KEY` while local runs use your signed-in `claude`. `--mode
-local` writes no workflow; on a terminal it continues directly into account selection and the
-final binding confirmation. `--mode both` writes the workflow and then continues into the same
+local` writes no workflow; on a terminal it continues directly into account selection and saves the
+binding without a second question. `--mode both` writes the workflow and then continues into the same
 account setup. Without prompts, local/both prints the command to run `setup` separately; it does
 not log in or bind an account. Choosing local/both already requests setup, so no second general
 invitation is shown. Standalone `setup` keeps its opening invitation. Init never commits, pushes,
 opens a PR or creates a secret.
 
-The Git worktree is validated before questions. Interactive stages identify the project, review
-mode, configuration, binding confirmation when relevant, and checks/next actions. The route total
-appears once the mode is known. A non-empty `NO_COLOR`, `TERM=dumb` and non-terminal
+`init` also records what kind of repository this is, in `.wachiman.yml` (not under
+`.github/workflows/`, where GitHub would parse it as a workflow). On a terminal it asks "What kind
+of repository is this?" (Monorepo, Single project, or Distributed repository, which is listed as
+coming soon and cannot be picked); `--project-kind monorepo|single` answers it. The kind is
+metadata only, and the file never chooses an account, a profile
+or a binary ([ADR 0048](adr/0048-a-repository-settings-file-at-the-root-wachiman-yml.md)). It applies
+in all three modes. Without a terminal and without `--project-kind` the file is not written or
+changed. A new file holds two comment lines, `kind: monorepo` (or `single`), and `model` and `effort` commented out under a line saying Wachiman's defaults are what its benchmarks measure (`init` never asks for them; see [configuration](configuration.md#the-settings-file-wachimanyml)). The same kind
+leaves it untouched (`.wachiman.yml already says kind: X.`); a different or missing `kind:`
+line is replaced or appended, every other line kept, after a confirmation on a terminal or with
+`--force` without one. `--dry-run` never writes it and prints `would write .wachiman.yml
+(kind: X)` on stderr. Init does not commit it: the closing steps say to add it with the workflow
+(`local` mode: to commit it).
+
+The Git worktree is validated before questions. Interactive stages identify the project, project
+type, review mode, configuration, the Claude account when relevant, and checks/next actions. The route total
+appears once the mode is known: 5 steps for `github` and for `local`, 6 for `both`. A non-empty `NO_COLOR`, `TERM=dumb` and non-terminal
 output disable styling; prompts and status stay on stderr. JSON results and dry-run workflow
-bytes on stdout are unchanged. Existing workflow replacement still requires `--force`.
+bytes on stdout are unchanged.
+
+Questions on a terminal: the repository kind, the review mode, and, for `github` and `both`, your
+GitHub username, prefilled with the account `gh` is signed in as (`gh api user --jq .login`; no
+default when `gh` is missing or fails) and phrased with its profile URL, `https://github.com/<username>`.
+Only that person's `/wachiman` comments start a paid run. The release tag (the version of this CLI,
+`DEFAULT_WORKFLOW_REF`) and the workflow path (`.github/workflows/wachiman-review.yml`) are not asked;
+`--version` and `--path` still override them. The tag is asked only when a build has no bundled release.
+
+Running `init` again after a failure is safe. If the workflow file already holds what init would
+write (the generated header line, which carries a date, is ignored), init says it is unchanged and
+continues; the same holds without a terminal. If it differs, a terminal shows the new file and asks
+`Replace the existing workflow? A .bak copy is kept.` (default yes: the person is running init again
+on purpose and the earlier file is kept); without a terminal it still needs `--force` and exits 2
+without it.
+
+If the final Claude sign-in check fails, everything is already saved and the session closes with a
+neutral message, not `Stopped.`: `Saved. One step left: sign in to Claude (`claude auth login`), then
+run `wachiman init` again or `wachiman doctor`.` For the current session it adds that a shell alias
+or function that sets `CLAUDE_CONFIG_DIR` is invisible to Wachiman and says how to register that
+directory with `wachiman profile add`. The exit code stays 1.
 
 A written workflow is reported as `github: pending`: add `ANTHROPIC_API_KEY` and submit the workflow
 in GitHub. Init does not check those remote actions. Both mode reports this separately from local
@@ -457,14 +500,15 @@ command that binds the repository later.
 | Flag | Rule |
 | --- | --- |
 | `--mode` | Mandatory without a terminal |
+| `--project-kind <kind>` | `monorepo` or `single`; `distributed` is refused as not available yet. Written to `.wachiman.yml` in every mode. Asked on a terminal when absent; without a terminal and without it, the file is not touched |
 | `--operator <login>` | Mandatory for `github` and `both` without a terminal; a GitHub login |
 | `--version <tag>` | `vX.Y.Z` or a 40-character commit SHA, written after `review.yml@`. Default: the release tag bundled in this build (`DEFAULT_WORKFLOW_REF`, moved by release-please at each release commit); the CLI's own version is never used as a tag |
 | `--path <file>` | Default `.github/workflows/wachiman-review.yml`, relative to the repository top level (also when run from a subdirectory); a `.yml` or `.yaml` file directly in `.github/workflows/` |
-| `--force` | Replaces an existing file after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it an existing file is exit 2 |
+| `--force` | Replaces an existing workflow after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it, an existing file that differs is exit 2 (one that is identical is reported unchanged). With `--project-kind` it also lets a run without a terminal change a different `kind:` in `.wachiman.yml` (no backup; only that line changes), and it is accepted in `--mode local` for that |
 | `--dry-run` | Prints the rendered file to stdout and writes nothing |
 | `--yes` | No prompts |
 
-`--mode local` with `--operator`, `--version`, `--path`, `--force` or `--dry-run` is exit 2. A
+`--mode local` with `--operator`, `--version`, `--path`, `--force` (unless a kind is given with `--project-kind` or answered on a terminal) or `--dry-run` is exit 2. A
 `.github`, `workflows` or target that is a symbolic link is refused. On a terminal the file is
 previewed on stderr and `Write it?` is asked first; Escape, Ctrl-C or Ctrl-D exit 130 and write
 nothing.

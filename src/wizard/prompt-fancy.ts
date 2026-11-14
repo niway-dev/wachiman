@@ -12,7 +12,15 @@ import type { LogKind, Ui } from "./ui";
 type Terminal = NodeJS.ReadableStream & { isTTY?: boolean; isRaw?: boolean; setRawMode?: (mode: boolean) => unknown };
 type TerminalOut = NodeJS.WritableStream & { isTTY?: boolean; columns?: number };
 
-const toOptions = <T>(choices: Choice<T>[]) => choices.map((c, i) => ({ value: i, label: c.label, hint: c.description }));
+const toOptions = <T>(choices: Choice<T>[]) =>
+  choices.map((c, i) => ({ value: i, label: c.disabled ? `${c.label} (coming soon)` : c.label, hint: c.description, ...(c.disabled ? { disabled: true } : {}) }));
+
+/** The requested default, or the first choice that can be picked when it points at a disabled one. */
+export function usableDefault<T>(choices: Choice<T>[], index: number): number {
+  if (!choices[index]?.disabled) return index;
+  const first = choices.findIndex((c) => !c.disabled);
+  return first === -1 ? index : first;
+}
 
 export function createFancyPrompter(io: PromptIO, env: Record<string, string | undefined>, ui: Ui): Prompter {
   const output = io.output as TerminalOut;
@@ -34,7 +42,7 @@ export function createFancyPrompter(io: PromptIO, env: Record<string, string | u
   const pick = async <T>(ask: typeof ui.select, label: string, choices: Choice<T>[], defaultIndex: number): Promise<T | null> => {
     // An earlier Ctrl-C (also during the intro) ends the whole session.
     if (cancelled) return null;
-    const index = await ask({ message: label, options: toOptions(choices), initial: defaultIndex });
+    const index = await ask({ message: label, options: toOptions(choices), initial: usableDefault(choices, defaultIndex) });
     if (index === null) {
       cancelled = true;
       return null;

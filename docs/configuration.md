@@ -32,12 +32,15 @@ here makes a review approve, request changes or block a merge.
 | --- | --- | --- |
 | Caller workflow: `with:` and `secrets:` | The repository that installs Wachiman | Everything the [reusable workflow](#reusable-workflow) accepts. The workflow turns the inputs into `WACHIMAN_*` environment variables for the engine. |
 | Environment variables | Whoever runs the CLI directly, or a copied install | The [engine settings](#engine-settings) and [other variables](#other-environment-variables). Three of them (`DRY_RUN`, `EXCLUDE`, `PRICE_PER_MTOK`) have no reusable-workflow input. |
-| Files in the repository | The repository | What the reviewer is told to look for. They are not settings. See [Repository files](#repository-files). |
+| `.wachiman.yml` at the repository root | The repository | Only `model` and `effort` (plus the metadata `kind`), read from the base commit, and only where no input or variable set them. See [The settings file](#the-settings-file-wachimanyml). |
+| Instruction files in the repository | The repository | What the reviewer is told to look for. They are not settings. See [Repository files](#repository-files). |
 
 Rules that hold everywhere:
 
-- Settings are read once, when the process starts. There is no configuration file (no YAML, no
-  per-directory file) and no per-pull-request override.
+- Settings are read once, when the process starts. The only file that sets anything is
+  `.wachiman.yml` at the repository root, and only `model` and `effort`; it is read from the base
+  commit, so a pull request cannot change its own review through it. There is no per-directory
+  file and no per-pull-request override.
 - A pull request's title, body or comments cannot change a setting. The caller file can, and on
   `pull_request` events GitHub reads it from the pull request's own merge commit, so anyone who can
   push a branch to the repository can edit it. [SECURITY.md](../SECURITY.md) says what that implies.
@@ -77,8 +80,8 @@ engine through the environment variable in the third column; those variables are
 | `ask_ceiling_usd` | number | `WACHIMAN_ASK_CEILING_USD` | `3` | The most all questions from people other than the operator may spend on one pull request. The operator's questions are not limited. Used only with `askers: write`. |
 | `batch_lines` | number | `WACHIMAN_BATCH_LINES` | `1000` | Changed lines (additions plus deletions) per batch. A whole number. |
 | `batch_chars` | number | `WACHIMAN_BATCH_CHARS` | `140000` | Characters of diff per batch. A whole number. |
-| `model` | string | `WACHIMAN_MODEL` | `claude-sonnet-5-5` | The model name passed to the provider. The workflow always sends a value, so the engine's per-provider default never applies here. |
-| `effort` | string | `WACHIMAN_EFFORT` | `high` | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max`. **New in v1.4.0; v1.3.0's workflow has no such input.** Sent to the engine by both jobs and used by both providers. See [Reasoning effort](#reasoning-effort). |
+| `model` | string | `WACHIMAN_MODEL` | empty | The model name passed to the provider. Empty means not set here: the engine then uses `model` from [`.wachiman.yml`](#the-settings-file-wachimanyml) at the pull request's base commit, else the provider's default (`claude-sonnet-5-5` for `claude-code`). A value set here always wins. |
+| `effort` | string | `WACHIMAN_EFFORT` | empty | Reasoning effort: `low`, `medium`, `high`, `xhigh` or `max`. Empty means not set here: the engine then uses `effort` from [`.wachiman.yml`](#the-settings-file-wachimanyml) at the pull request's base commit, else `high`. A value set here always wins. **New in v1.4.0; v1.3.0's workflow has no such input.** Sent to the engine by every job and used by both providers. See [Reasoning effort](#reasoning-effort). |
 | `verify` | boolean | `WACHIMAN_VERIFY` | `false` | After the batches, one more call tries to refute every finding above `info`; a finding is dropped only when the verifier names a disproof whose path and line exist at head, and one it cannot confirm is posted at `low` confidence. **New in v1.10.0, off by default since the 2026-11-10 configuration update; set `true` to enable verification.** ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md)) Runs on automatic reviews and `/wachiman review`, not on thread replies. |
 | `verify_budget_usd` | number | `WACHIMAN_VERIFY_BUDGET_USD` | `1` | The verifier's reserve, taken out of `budget_usd` before the batches run, at most half of it. The verifier gets this plus whatever the batches did not spend. Counts against `auto_budget_usd` like any call. |
 | `pr_confidence` | boolean | `WACHIMAN_CONFIDENCE` | `false` | PR Confidence ([ADR 0033](adr/0033-a-fidelity-grade-the-engine-computes-from-checked-claims.md), [page](pr-confidence.md)): a full review of a pull request lists the claims in its title and body with one more small call, grades the change against them and writes the grade between two markers at the top of the description. On each push that starts a review run (`synchronize`, with `review_on_push` on and the pull request not a draft), a step that makes no model call first sets that block to `cannot say` for the commit under review. Needs the `pull-requests: write` permission the review job already has. Not used by `wachiman local`. Off by default. |
@@ -182,10 +185,10 @@ applies.
 | `WACHIMAN_ASK_CEILING_USD` | number | `3` | Finite, greater than 0 | The most the questions of everyone but the operator may spend on one pull request, summed from the answers' own cost footers. The operator's questions are not limited. Used only with `askers: write`. | both |
 | `WACHIMAN_BATCH_LINES` | integer | `1000` | Whole number, greater than 0 | Changed lines per batch. | both |
 | `WACHIMAN_BATCH_CHARS` | integer | `140000` | Whole number, greater than 0 | Diff characters per batch (the comment in the code equates this to about 40k tokens at 3.5 characters a token). It counts the diff only, not the whole prompt. | both |
-| `WACHIMAN_MODEL` | string | `claude-sonnet-5-5` for `claude-code`, `gpt-6.1-sol` for `codex` | Any string the provider accepts | The model name passed to the provider. Not validated by the engine; Codex additionally needs a known price. | both |
+| `WACHIMAN_MODEL` | string | `claude-sonnet-5-5` for `claude-code`, `gpt-6.1-sol` for `codex` | Any string the provider accepts | The model name passed to the provider. Not validated by the engine; Codex additionally needs a known price. Set (and not empty), it wins over `model` in `.wachiman.yml`. | both |
 | `WACHIMAN_PROVIDER` | string | `claude-code` | `claude-code`, `codex` | Which adapter runs the agent. Any other value is a usage error (exit 2) that lists the accepted ones. | n/a |
 | `WACHIMAN_PRICE_PER_MTOK` | string | unset | `input,cached_input,output[,cache_write]`: three or four numbers, each 0 or more | USD per million tokens, used to turn Codex's token counts into dollars. Without the fourth field, cache writes are priced at 2.5 times the input rate (see [costs.md](costs.md)). Takes precedence over the built-in price, also for a model that has one. | Codex only; ignored by Claude |
-| `WACHIMAN_EFFORT` | string | `high` | `low`, `medium`, `high`, `xhigh`, `max` | How hard the model reasons. Always passed explicitly, so a change in a provider CLI's own default cannot alter reviews. **New in v1.4.0.** Any other value is a usage error (exit 2). See [Reasoning effort](#reasoning-effort). | both |
+| `WACHIMAN_EFFORT` | string | `high` (or `effort` in `.wachiman.yml`) | `low`, `medium`, `high`, `xhigh`, `max` | How hard the model reasons. Always passed explicitly, so a change in a provider CLI's own default cannot alter reviews. **New in v1.4.0.** Any other value is a usage error (exit 2). See [Reasoning effort](#reasoning-effort). | both |
 | `WACHIMAN_MAX_TURNS` | integer | `40` | Whole number, greater than 0 | Most agent turns one provider call may take. **New in v1.4.0.** Normal batches take 5–12 turns; the cap only stops a looping run. See [Turn cap and call timeout](#turn-cap-and-call-timeout). | Claude: sent as `--max-turns`. Codex: no such flag; ignored |
 | `WACHIMAN_CALL_TIMEOUT_S` | integer | `900` | Whole number, greater than 0 | Wall-clock seconds one provider call may run. Past it the process is killed (`SIGKILL`) and the call ends as `timeout`, with cost reported as 0 because the CLI prints nothing before it ends. **New in v1.4.0.** See [Turn cap and call timeout](#turn-cap-and-call-timeout). | both |
 | `WACHIMAN_ON_PROVIDER_UNAVAILABLE` | string | `warn` | `warn`, `fail` | When every call is rejected for a reason on the reviewer's side (no credit, bad key, persistent rate limit): `warn` posts a notice and finishes green, `fail` posts it and throws. Any other value is a usage error (exit 2). | both |
@@ -207,7 +210,7 @@ How values are read:
   part that is empty after trimming is read as `0`, so `2,,10` means a cached-input price of 0.
 - `WACHIMAN_EXCLUDE` is split on commas and empty entries are dropped. Entries are not trimmed,
   so a space after a comma becomes part of the pattern and the pattern will not match.
-- `WACHIMAN_MODEL` falls back to the default of the selected provider only. An unrecognised
+- `WACHIMAN_MODEL` falls back to `model` in `.wachiman.yml`, then to the default of the selected provider only. An unrecognised
   provider also falls back to the Claude default for the model, then fails with the usage error.
 
 ### Reasoning effort
@@ -218,8 +221,8 @@ None of that holds from v1.4.0.
 
 | | |
 | --- | --- |
-| Workflow input | `effort` (default `high`) |
-| Environment variable | `WACHIMAN_EFFORT` (default `high`) |
+| Workflow input | `effort` (default empty: `effort` in `.wachiman.yml`, else `high`) |
+| Environment variable | `WACHIMAN_EFFORT` (default `high`, or `effort` in `.wachiman.yml`) |
 | Accepted values | `low`, `medium`, `high`, `xhigh`, `max` |
 | Applies to | Both providers. Claude Code gets `--effort <value>`; Codex gets `-c model_reasoning_effort="<value>"`. |
 | Where it is shown | The footer of every review and of every `comment` answer, as `effort <value>` ([cli.md](cli.md#what-it-posts)). |
@@ -233,7 +236,7 @@ How it is read:
 - A value outside the list is a usage error: the run stops before any call with
   `WACHIMAN_EFFORT must be one of low, medium, high, xhigh, max, got "…".` and exit 2. There
   is no silent fallback to `high`. Case matters: `High` is rejected.
-- A set but empty variable counts as unset, so an empty `effort` input means `high`.
+- A set but empty variable counts as unset, so an empty `effort` input means the file's `effort`, else `high`.
 - Claude Code accepts `--effort` from version 2.1.72 (per a comment in the adapter). The workflow's
   pinned `claude_code_version` is newer; if you run the CLI yourself, use at least that version.
 
@@ -583,11 +586,56 @@ GitHub error stops the review. These files can say what to look for. They cannot
 topics ([cli.md](cli.md#finding-labels)), change a budget, or turn off a check. How to write them:
 [review-policy.md](review-policy.md).
 
+### The settings file `.wachiman.yml`
+
+`wachiman init` writes `.wachiman.yml` at the repository root ([ADR 0048](adr/0048-a-repository-settings-file-at-the-root-wachiman-yml.md)).
+It takes three optional keys; unknown keys are ignored:
+
+```yaml
+kind: monorepo          # or single; metadata only, nothing reads it yet
+# Optional. Wachiman's defaults are what its benchmarks measure; change them knowing that.
+# model: claude-sonnet-5-5
+# effort: high
+```
+
+- `kind` is metadata. It never chooses an account, a profile or a binary.
+- `model` is a model name, not checked beyond being non-empty (like `WACHIMAN_MODEL`).
+- `effort` is `low`, `medium`, `high`, `xhigh` or `max`.
+- A broken file never blocks a review. An `effort` that is not one of those values, a `model` that is
+  not text, unparseable YAML or a file over 64 KB at the base commit (Actions) or the merge-base
+  (local) is ignored with one warning (`ignored .wachiman.yml at the base commit <sha>: <reason>;
+  using defaults`) in the job log or on stderr, and the run continues on the environment and the
+  built-in defaults. The pull request that fixes the file is therefore reviewed, under the defaults.
+  `wachiman doctor` reports the working copy as a failed check. A missing file is fine.
+- `model` applies to whichever provider runs. A Claude model name with `WACHIMAN_PROVIDER=codex`
+  fails the same way a wrong `WACHIMAN_MODEL` would; set a model that fits the provider your
+  workflow uses.
+- `init` does not ask for `model` or `effort`; a new file carries them commented out.
+
+**Precedence, highest first:** an explicit workflow input or `WACHIMAN_MODEL` / `WACHIMAN_EFFORT`
+(an empty value counts as not set), then `.wachiman.yml`, then the built-in default. The workflow's
+`model` and `effort` inputs default to empty so the file can apply in Actions. The file never
+changes the verifier's model (`verifier_model`).
+
+**Where it is read from ([ADR 0049](adr/0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md)):**
+these two keys change what a review costs, so the file is read at the pull request's **base
+commit** in Actions, never from the head, like `.github/wachiman.md`. A pull request that edits
+`model` or `effort` is reviewed under the base's values, and the change applies after merge.
+`wachiman local` and `wachiman ask` read it at the commit the instruction files are read at: the
+merge-base of the range, `HEAD` for `--working-tree`, or the base commit of an `--input` file. A
+working-tree edit of the file is not used until it is committed. Nothing is read when both values
+are already explicit.
+
+The run says when the file decided: a `settings: model …, effort … from .wachiman.yml at …` line in the
+job log (Actions) or on stderr (local), and `(from .wachiman.yml)` after the model and the effort in
+the last line of a local terminal or Markdown report. The posted review footer is unchanged.
+`wachiman doctor` shows the file and where the effective model and effort come from.
+
 ## Not configurable
 
 Each of these is a fixed behaviour of the engine at this release:
 
-- A configuration file of any kind (YAML or otherwise).
+- Anything in `.wachiman.yml` beyond `kind`, `model` and `effort` (every other setting stays an input or a variable): the verifier's model, budgets, an account, a profile or a binary are not read from it.
 - A way to include a file that matches a built-in exclude pattern.
 - File risk scores and the order they produce.
 - The set of severities and topics.

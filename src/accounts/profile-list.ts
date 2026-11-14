@@ -42,6 +42,30 @@ export interface ProfileList {
   profiles: ProfileListEntry[];
 }
 
+export interface DetectedClaudeDir {
+  /** The profile name proposed for it: the suffix of `~/.claude-<suffix>`. */
+  name: string;
+  configDir: string;
+}
+
+/**
+ * The `~/.claude-<name>` directories in the person's home that no profile registers: the
+ * configuration directories people keep for a second account, usually reached through a shell alias
+ * or function that sets CLAUDE_CONFIG_DIR, which Wachiman cannot see. Looks at the listing only.
+ */
+export function detectClaudeDirs(userHome: string, config: WachimanConfigV1 | undefined): DetectedClaudeDir[] {
+  const registered = new Set(Object.values(config?.profiles ?? {}).map((p) => p.configDir));
+  try {
+    return readdirSync(userHome, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && d.name.startsWith(".claude-"))
+      .map((d) => ({ name: d.name.slice(".claude-".length).toLowerCase(), configDir: join(userHome, d.name) }))
+      .filter((d) => /^[a-z0-9][a-z0-9-]{0,31}$/.test(d.name) && !registered.has(d.configDir))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
 /** Registered profiles plus the `claude-*` directories under the home that no entry names. Looks at the home's listing only. */
 export function buildProfileList(home: string, config: WachimanConfigV1 | undefined): ProfileList {
   const profiles: ProfileListEntry[] = Object.entries(config?.profiles ?? {}).map(([name, entry]) => ({

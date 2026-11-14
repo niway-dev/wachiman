@@ -291,13 +291,14 @@ const setupPage: Page = {
 
 const initPage: Page = {
   usage: initUsage,
-  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write nothing and hand over to setup.",
+  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write no workflow and hand over to setup. With a repository kind, also write .wachiman.yml.",
   options: [
     ["--mode github|local|both", "What to set up. Required without a terminal"],
     ["--operator <login>", "The GitHub login allowed to command the reviewer. Required for github and both without a terminal"],
     ["--version <tag>", "vX.Y.Z or a 40-character commit SHA written after review.yml@. Default: the release bundled in this build"],
     ["--path <file>", "Default: .github/workflows/wachiman-review.yml; a .yml or .yaml file directly in .github/workflows/"],
-    ["--force", "Replace an existing file after copying it to <file>.bak-<timestamp>"],
+    ["--project-kind monorepo|single", "The kind of repository, recorded in .wachiman.yml (metadata only). Asked on a terminal; without one, the file is left alone"],
+    ["--force", "Replace an existing workflow after copying it to <file>.bak-<timestamp>; with --project-kind, also change a different kind"],
     ["--dry-run", "Print the file to stdout and write nothing"],
     ["--yes", "No prompts"],
     REPO_DIR,

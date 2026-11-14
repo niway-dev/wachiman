@@ -33,7 +33,8 @@ import { closeSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
-import { isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
+import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
+import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parseRepoSettings, wantsRepoSettings, type RepoSettings } from "./repo-settings";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -1674,6 +1675,54 @@ export function readBaseInstructions(
   warn: (line: string) => void,
 ): BaseInstructions {
   return instructionsFrom(sha, (path) => fileAtBase(gh, repo, path, sha), warn);
+}
+
+/**
+ * `.wachiman.yml` as it is at the pull request's base commit, parsed, or undefined when the base has
+ * none. Like the focus file, never the head's copy: a pull request that edits `model` or `effort`
+ * is reviewed, and paid for, under the base's values. A file the contents API cannot return whole
+ * (over 64 KB) is a usage error rather than a guess. An invalid file is a usage error naming it;
+ * `withBaseSettings` turns that into a warning, so a broken file never blocks a review.
+ */
+export function readBaseSettings(gh: GhFn, repo: string, sha: string): RepoSettings | undefined {
+  const file = fileAtBase(gh, repo, SETTINGS_PATH, sha);
+  if (!file) return undefined;
+  if (file.truncated) throw new UsageError(`${SETTINGS_PATH} at the base commit is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
+  return parseRepoSettings(file.content);
+}
+
+/**
+ * `config` with the model and the effort the base commit's `.wachiman.yml` sets, wherever no
+ * explicit `WACHIMAN_MODEL` / `WACHIMAN_EFFORT` (a workflow input) did. Reads nothing when both
+ * were explicit. Logs one line when the file decided something, so the job log says so. A broken
+ * file at the base (bad YAML, a bad `effort`, too large) is ignored with a warning and the run
+ * continues on the environment and the defaults: the pull request that fixes the file must be
+ * reviewable. Errors from GitHub itself still propagate.
+ */
+export function withBaseSettings(
+  config: EngineConfig,
+  gh: GhFn,
+  repo: string,
+  pr: number,
+  log: (line: string) => void,
+  warn: (line: string) => void = log,
+): EngineConfig {
+  if (!wantsRepoSettings(config)) return config;
+  const sha = baseSha(gh, repo, pr);
+  let settings: RepoSettings | undefined;
+  try {
+    settings = readBaseSettings(gh, repo, sha);
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    warn(ignoredSettingsNote(error.message, `the base commit ${sha.slice(0, 7)}`));
+    return config;
+  }
+  if (!settings) return config;
+  const where = `the base commit ${sha.slice(0, 7)}`;
+  const next = applyRepoSettings(config, settings, { where, warn });
+  const note = fileSettingsNote(next, where);
+  if (note) log(`settings: ${note}`);
+  return next;
 }
 
 /**

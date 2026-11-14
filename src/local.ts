@@ -13,13 +13,16 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadConfig, UsageError } from "./config";
+import { loadConfig, UsageError, type EngineConfig } from "./config";
 import {
   buildLocalInput,
   DEFAULT_MAX_DEPTH,
   EMPTY_TREE_LABEL,
+  localRepoSettings,
+  localSettingsCommit,
   type LocalRefs,
   removeSnapshot,
+  type SettingsScope,
   snapshotHead,
   warnSnapshotDifferences,
 } from "./connectors/local-git";
@@ -27,6 +30,7 @@ import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, r
 import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
+import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, wantsRepoSettings, type RepoSettings } from "./repo-settings";
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
 import { historyRoot, historySettings, saveRun } from "./history";
 import { readConfig, wachimanHome } from "./accounts/config";
@@ -282,6 +286,34 @@ export interface LocalSession {
 }
 
 /**
+ * `config` with the model and the effort the repository's `.wachiman.yml` sets where nothing explicit
+ * did. The file is read at the commit the instruction files are read at (`localSettingsCommit`),
+ * never from the working tree or the head, for the same reason as in Actions: the change under
+ * review cannot choose what it is reviewed under. One stderr line says when the file decided. A
+ * broken file at that commit is ignored with a warning and the run continues on the environment and
+ * the defaults, so the change that fixes it can be reviewed.
+ */
+export function withLocalSettings(config: EngineConfig, repoDir: string, scope: SettingsScope, stderr: (line: string) => void): EngineConfig {
+  if (!wantsRepoSettings(config)) return config;
+  const sha = localSettingsCommit(repoDir, scope);
+  if (sha === undefined) return config;
+  const where = `${scope.inputBase !== undefined ? "the input's base" : scope.workingTree ? "HEAD" : "the merge-base"} ${short(sha)}`;
+  let settings: RepoSettings | undefined;
+  try {
+    settings = localRepoSettings(repoDir, sha);
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    stderr(ignoredSettingsNote(error.message, where));
+    return config;
+  }
+  if (!settings) return config;
+  const next = applyRepoSettings(config, settings, { where, warn: stderr });
+  const note = fileSettingsNote(next, where);
+  if (note) stderr(`settings: ${note}`);
+  return next;
+}
+
+/**
  * The settings, the account (ADR 0029), the subscription-mode provider and, with `--verify`, the
  * verifier, all checked before any call. Nothing in the reviewed repository takes part: a corrupt
  * store, a value that resolves to nothing, or a profile that does not confirm is a usage error.
@@ -293,12 +325,15 @@ export function openLocalSession(p: {
   env: Record<string, string | undefined>;
   stderr: (line: string) => void;
   deps: LocalDeps;
+  /** The scope flags: they decide the commit whose `.wachiman.yml` is read (the one the instruction files are read at). */
+  scope?: SettingsScope;
 }): LocalSession {
   const { env, repoDir, deps } = p;
-  const loaded = loadConfig(env, p.stderr);
-  if (loaded.provider !== "claude-code") {
-    throw new UsageError(`WACHIMAN_PROVIDER=${loaded.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`);
+  const loadedEnv = loadConfig(env, p.stderr);
+  if (loadedEnv.provider !== "claude-code") {
+    throw new UsageError(`WACHIMAN_PROVIDER=${loadedEnv.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`);
   }
+  const loaded = withLocalSettings(loadedEnv, repoDir, p.scope ?? {}, p.stderr);
   // A person ran it: no automatic ceiling (decision 14).
   const config = {
     ...loaded,
@@ -470,6 +505,14 @@ export function runLocal(
     env,
     stderr: io.stderr,
     deps,
+    scope: {
+      workingTree: args.workingTree,
+      base: args.base,
+      commit: args.commit,
+      from: args.from,
+      maxDepth: args.maxDepth,
+      inputBase: fileInput?.change.base.sha,
+    },
   });
 
   let release: (() => void) | undefined;
@@ -575,6 +618,7 @@ export function runLocal(
       io.stderr(thisRunText(result, annotation));
       io.stderr(sinceLastRunText(annotation));
     }
+    const settingsFrom = { model: config.modelSource === "file", effort: config.effortSource === "file" };
     const text =
       args.format === "json"
         ? renderJson(
@@ -584,9 +628,10 @@ export function runLocal(
             annotation ? result.findings.map((_, i) => annotation!.byIndex.get(i)?.id) : undefined,
           )
         : args.format === "markdown"
-          ? renderMarkdown(result, { profileNote, history: annotation })
+          ? renderMarkdown(result, { profileNote, history: annotation, settingsFrom })
           : renderTerminal(result, {
               profileNote,
+              settingsFrom,
               agentPrompt: args.agentPrompt,
               history: annotation,
             });

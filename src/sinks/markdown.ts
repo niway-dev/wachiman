@@ -15,6 +15,7 @@ import {
   markdownLabel,
   profileText,
   providerLine,
+  type SettingsFrom,
   SECTION_TITLES,
   sections,
   verificationNotes,
@@ -33,7 +34,7 @@ function fenced(text: string, info: string) {
 
 const sentenceCase = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
-export function renderMarkdown(result: ReviewResult, opts: { profileNote?: string; history?: HistoryAnnotation } = {}): string {
+export function renderMarkdown(result: ReviewResult, opts: { profileNote?: string; history?: HistoryAnnotation; settingsFrom?: SettingsFrom } = {}): string {
   const parts: string[] = [];
   parts.push(`# Wachiman review of ${neutralise(result.change.describe)}, at ${sha7(result.change.head.sha)}`);
   parts.push(`${sentenceCase(coverageText(result))}.`, `Profile: ${profileText(result, opts.profileNote)}`, countLine(result.findings));
@@ -83,7 +84,7 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
   if (result.execution.notices.length > 0) {
     parts.push("## Notices", result.execution.notices.map((n) => `- ${neutralise(n)}`).join("\n"));
   }
-  parts.push(estimateLine(result), stopLine(result), providerLine(result));
+  parts.push(estimateLine(result), stopLine(result), providerLine(result, opts.settingsFrom));
   parts.push("## Prompt for your agent", fenced(agentPrompt(result), "text"));
   return `${parts.join("\n\n")}\n`;
 }

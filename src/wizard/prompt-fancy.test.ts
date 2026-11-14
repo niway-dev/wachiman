@@ -26,6 +26,18 @@ describe("the terminal session on a scripted Ui", () => {
     expect(ui.of("confirm")[0].initial).toBe(false);
   });
 
+  test("a disabled choice is passed to the Ui as disabled, and the initial option is never on it", async () => {
+    const ui = fakeUi([1]);
+    const p = createPrompter(streams(), {}, ui);
+    const list = [{ label: "alpha", value: "a", disabled: true }, { label: "beta", value: "b" }];
+    expect(await p.select("Pick", list, 0)).toBe("b");
+    expect(ui.of("select")[0].initial).toBe(1);
+    expect(ui.of("select")[0].options).toEqual([
+      { value: 0, label: "alpha (coming soon)", hint: undefined, disabled: true },
+      { value: 1, label: "beta", hint: undefined },
+    ]);
+  });
+
   test("a validation problem is shown and the question is asked again; the default is validated as typed", async () => {
     const ui = fakeUi(["", "good"]);
     const p = createPrompter(streams(), {}, ui);
