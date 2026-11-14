@@ -22,9 +22,10 @@ and deciding whether Prettier would rewrite it is not something a model does rel
 1. `wachiman local` runs the repository's formatters and linters in check mode on the changed
    files, from the checkout's root with its own `node_modules/.bin`, configs and plugins. It never
    installs or fetches a tool.
-2. It does so by default only on the developer's own work: a working-tree review, or a range whose
-   commits are all authored by the configured `user.email`. Any other range needs
-   `--run-tooling`. `--no-tooling` turns the step off.
+2. It does so by default only on the developer's own work: every commit between the base and
+   `HEAD` authored by the configured `user.email`, for a range and for a working-tree review alike.
+   An unset `user.email` never passes. Anything else needs `--run-tooling`; `--no-tooling` turns
+   the step off. `loop` does not run the step.
 3. `--fix-format` applies formatter write mode to the files that failed, in the working tree, only
    when the working-tree file equals the reviewed commit. It never commits. Linters are never
    auto-fixed, and `loop` never passes the flag. This is the one exception to ADR 0034's "the CLI
@@ -51,8 +52,8 @@ and deciding whether Prettier would rewrite it is not something a model does rel
 - Local findings now depend on what the developer has installed; a missing tool shows as "not
   checked", never as a pass.
 - A local review takes longer by the tools' run time, bounded at 60 seconds per tool.
-- Local and Actions reviews of the same commit can differ by these findings. The summary and the
-  result's `tooling` array name every detected tool and its outcome.
+- Local and Actions reviews of the same commit can differ by these findings. The summary names
+  every detected tool and its outcome; in JSON only result version 2 carries it (`tooling`).
 - The consent rule trusts commit author emails, which can be forged. It prevents running a
   colleague's code by accident, not a deliberate forgery.
 

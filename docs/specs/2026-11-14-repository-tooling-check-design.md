@@ -66,7 +66,9 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
    reported, because the check passed the file explicitly.
 7. Checking makes a network call or adds a dependency to Wachiman.
 8. The deterministic table notice fires on a table the formatter prints as it is: in a file no
-   Prettier-family formatter covers, with `proseWrap: never`, or inside a fenced code block.
+   Prettier-family formatter covers, with `proseWrap: never` (globally or through an
+   `overrides` entry), in a file the formatter ignores, inside a fenced code block, or on a file
+   the real tool already checked.
 9. The prompt section grows the prompt for repositories with no detected tooling.
 
 ## Acceptance criteria
@@ -83,12 +85,16 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
       finds the same `node_modules/.bin`, configs and plugins the developer's hooks use; a
       monorepo binary is looked up from the root's `node_modules/.bin` only. The files passed are
       the changed files' working-tree paths. A file whose working-tree content differs from the
-      reviewed commit is not passed and is listed as "not checked: edited since the reviewed
-      commit". For a `--working-tree` review they are the same by definition.
-- [ ] The consent rule of decision 3: tools run for `--working-tree`, and for a range whose
-      commits all have the configured `user.email` as author. Otherwise the summary says
-      "tooling: not run, the range has commits by others; pass --run-tooling to run it", and no
-      tool runs. `--no-tooling` turns the step off. A test covers a range with one foreign commit.
+      reviewed content is not passed and is listed as "not checked: edited since the review". The
+      reviewed content is the head commit for a range, the index for `--working-tree staged`, and
+      the working tree for `--working-tree all`.
+- [ ] The consent rule of decision 3: tools run when every commit between the base and `HEAD`
+      has the configured `user.email` as author. A `--working-tree` review applies the same check
+      to the branch it sits on (no commits since the base passes). An unset or empty `user.email`
+      never passes. Otherwise the summary says "tooling: not run, the branch has commits by
+      others; pass --run-tooling to run it", and no tool runs. A developer with several
+      identities passes `--run-tooling`. `--no-tooling` turns the step off. Tests: a range with
+      one foreign commit, an unset `user.email`, a working-tree review on a colleague's branch.
 - [ ] Per-file results, per tool: Prettier `--list-different` (exit 0 clean, 1 files listed, 2
       error); oxfmt `--list-different --no-error-on-unmatched-pattern`; Biome
       `format --reporter=json`; ESLint `--format json`; oxlint `--format json`. Every file is
@@ -103,12 +109,18 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
       adds one summary line and no finding. The review's exit code does not change because of a
       tool that did not run.
 - [ ] The summary lists every detected tool with its outcome (passed, N files rejected, not
-      checked: reason). Result version 2 gains an additive `tooling` array with the same facts;
-      version 1 is unchanged.
+      checked: reason), in terminal and Markdown output for both result versions. Result version
+      2 gains an additive `tooling` array with the same facts, and
+      `docs/formats/review-result.v2.schema.json` and `docs/formats/README.md` describe it.
+      Version 1 is unchanged, so a v1 JSON consumer sees tool findings but cannot tell "passed"
+      from "not checked"; the docs page says to use `--result-version 2` for that.
 - [ ] `--fix-format` runs the write mode of each formatter that failed, on its failed files only,
       in the working tree; prints the changed files; never stages or commits. In an interactive
       terminal without the flag, the end of the review offers the same action and defaults to no.
-      `loop` never passes it.
+- [ ] `loop` does not run the tooling step in this slice: its stop rule keys line-0 findings on
+      the file's blob, so any edit would release a formatter finding whether or not it fixed the
+      format. The developer runs `wachiman local` (or the hook) for tooling. `loop` never passes
+      `--fix-format`.
 - [ ] Actions and local: when the detector finds tooling, the batch prompt gets an "Enforced
       tooling" section (tool, config, where enforced, file types covered), and the sentence
       "Skip praise, style a formatter would catch" becomes "Skip praise and style the enforced
@@ -118,9 +130,12 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
       `proseWrap` is not `never`, a table outside fenced code blocks whose separator cells are
       narrower than their column, or whose rows differ in display width (emoji and East Asian
       wide characters count as two columns), yields one `consider` finding, topic `rules`, on
-      the table's first line, worded the same every time, like `adrNotices`. Tests: the template
-      file of kaipu-record#617 is flagged; its oxfmt output is not; a table inside a code fence is
-      not; a file with `proseWrap: never` is not.
+      the table's first line, worded the same every time, like `adrNotices`. It is skipped for a
+      file the real tool checked in this run (the tool's result wins), for a file matching an
+      entry of the tool's ignore list or an `overrides` glob (matched with `Bun.Glob`; a pattern it
+      cannot read skips the notice: a missed notice is cheaper than a false one). Tests: the
+      template file of kaipu-record#617 is flagged; its oxfmt output is not; a table inside a code
+      fence is not; a file with `proseWrap: never` is not; a file in `.prettierignore` is not.
 - [ ] Docs: `docs/` gains a page on what is detected, what runs, the consent rule and
       `--fix-format`; `wachiman local --help` lists `--fix-format`, `--run-tooling` and
       `--no-tooling`; README and `docs/cli.md`, which say the CLI never edits code, gain the one
