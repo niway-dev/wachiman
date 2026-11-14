@@ -1114,7 +1114,7 @@ describe("accounts in local", () => {
     expect(r.calls()).toEqual([]);
   }, 30_000);
 
-  test("an unconfirmed profile makes no provider call: a fake provider is never touched", () => {
+  test("an unconfirmed profile makes no provider call: a fake provider is never touched", async () => {
     const repo = branchRepo();
     const { whome } = accounts(repo, { binding: "work-a" });
     const touched: string[] = [];
@@ -1131,8 +1131,8 @@ describe("accounts in local", () => {
           getProvider: () => provider,
         },
       );
-    expect(run).toThrow(UsageError);
-    expect(run).toThrow("wachiman profile login work-a");
+    await expect(run()).rejects.toThrow(UsageError);
+    await expect(run()).rejects.toThrow("wachiman profile login work-a");
     expect(touched).toEqual([]);
     expect(stderr.some((l) => l.startsWith("profile: work-a"))).toBe(true);
   });

@@ -3044,7 +3044,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
 
   // Batches run side by side, at most `BATCH_CONCURRENCY` at a time, launched in risk order. Each
   // one ends in its own outcome; the report, the parts and the file lists are put together in
-  // batch order afterwards, so the finish order never shows in the result.
+  // batch order afterwards, so the finish order does not decide them. Warnings and the cost rows
+  // are recorded as the calls end, and name their batch.
   interface BatchOutcome {
     report: BatchReport;
     parts: { label: string; output: ReviewOutput }[];
