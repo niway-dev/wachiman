@@ -350,6 +350,10 @@ soft client-side cap, so it can be exceeded ([costs.md](costs.md)).
 Releases do not reach your repository by themselves. You change the pin, or you ask a tool to
 propose the change.
 
+- **`wachiman upgrade` changes it on your machine.** It updates the CLI, then rewrites the pin in
+  `.github/workflows` to that release and prints the commit commands; `wachiman upgrade --repo-only` rewrites the
+  pin to the version you already have installed. Nothing is committed for you. See [`upgrade`](cli.md#upgrade).
+
 - **Dependabot is optional, and you turn it on.** Nothing in this repository enables it for
   you. With it enabled for GitHub Actions, it opens a pull request for each new release that
   changes the `uses:` line, with the release notes linked. You read it and merge or close it.
