@@ -63,9 +63,46 @@ describe("planCliUpgrade", () => {
   test("picks bun or npm from the package root, and refuses a clone and an executable", () => {
     const at = (root: string): InstallKind => ({ kind: "npm", root });
     expect(planCliUpgrade(at("/Users/me/.bun/install/global/node_modules/wachiman"))).toMatchObject({ command: "bun", args: ["add", "-g", "wachiman@latest"] });
-    expect(planCliUpgrade(at("/usr/local/lib/node_modules/wachiman"))).toMatchObject({ command: "npm", args: ["install", "-g", "wachiman@latest"] });
+    expect(planCliUpgrade(at("/usr/local/lib/node_modules/wachiman"), "latest", {}, () => "/usr/local")).toMatchObject({ command: "npm", args: ["install", "-g", "wachiman@latest"] });
     expect(planCliUpgrade({ kind: "source", root: "/code/wachiman" }).kind).toBe("refused");
     expect(planCliUpgrade({ kind: "exe", version: "1.0.0" }).kind).toBe("refused");
+  });
+});
+
+describe("planCliUpgrade, installs it cannot identify", () => {
+  const at = (root: string): InstallKind => ({ kind: "npm", root });
+  test("pnpm, yarn and volta globals are refused with the path, even though npm exists", () => {
+    for (const root of [
+      "/Users/me/Library/pnpm/global/5/node_modules/wachiman",
+      "/Users/me/.config/yarn/global/node_modules/wachiman",
+      "/Users/me/.yarn/global/node_modules/wachiman",
+      "/Users/me/.volta/tools/image/packages/wachiman/lib/node_modules/wachiman",
+    ]) {
+      const plan = planCliUpgrade(at(root), "latest", {}, () => "/usr/local");
+      expect(plan.kind).toBe("refused");
+      expect(plan.kind === "refused" && plan.reason).toContain(`(${root})`);
+      expect(plan.kind === "refused" && plan.reason).toContain("wachiman upgrade --repo-only");
+    }
+  });
+
+  test("a real npm prefix, with a similar sibling directory not matching and a prefix that cannot be read refusing", () => {
+    const root = "/Users/me/.nvm/versions/node/v22.1.0/lib/node_modules/wachiman";
+    expect(planCliUpgrade(at(root), "latest", {}, () => "/Users/me/.nvm/versions/node/v22.1.0")).toMatchObject({ command: "npm" });
+    expect(planCliUpgrade(at(root), "latest", {}, () => "/Users/me/.nvm/versions/node/v22.1")).toMatchObject({ kind: "refused" });
+    expect(planCliUpgrade(at(root), "latest", {}, () => undefined).kind).toBe("refused");
+  });
+
+  test("runUpgrade runs no installer for a pnpm global, exits 0, and keeps the pins unless --to is given", () => {
+    const a = caller("v1.0.0");
+    const r = rig({ "a.yml": a });
+    const pnpm = { install: at("/Users/me/Library/pnpm/global/5/node_modules/wachiman") };
+    expect(r.go({}, pnpm)).toBe(0);
+    expect(r.runs).toEqual([]);
+    expect(r.read("a.yml")).toBe(a);
+    expect(r.out.join("")).toContain("does not drive");
+    expect(r.go({ to: "v1.1.0" }, pnpm)).toBe(0);
+    expect(r.runs).toEqual([]);
+    expect(r.read("a.yml")).toContain("@v1.1.0");
   });
 });
 
@@ -110,6 +147,7 @@ function rig(files: Record<string, string>, { inRepo = true }: { inRepo?: boolea
           git,
           run: (c, a) => (r.runs.push([c, ...a].join(" ")), 0),
           latest: () => (r.latestCalls++, "1.3.0"),
+          npmPrefix: () => "/usr",
           ...deps,
         },
       ),
@@ -142,8 +180,8 @@ describe("runUpgrade", () => {
     const at = (root: string): InstallKind => ({ kind: "npm", root });
     expect(planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" })).toMatchObject({ command: "bun" });
     expect(planCliUpgrade(at("D:\\tools\\bun\\install\\global\\node_modules\\wachiman"), "latest", { BUN_INSTALL: "D:\\tools\\bun\\" })).toMatchObject({ command: "bun" });
-    expect(planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", {})).toMatchObject({ command: "npm" });
-    expect(planCliUpgrade(at("/usr/lib/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" })).toMatchObject({ command: "npm" });
+    expect(planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", {}, () => "/opt/bunhome")).toMatchObject({ command: "npm" });
+    expect(planCliUpgrade(at("/usr/lib/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" }, () => "/usr")).toMatchObject({ command: "npm" });
   });
 
   test("--check reports both versions, installs nothing and writes nothing", () => {
@@ -279,6 +317,24 @@ describe("runUpgrade", () => {
     expect(r.go({}, { latest: () => "1.2.0" })).toBe(0);
     expect(r.runs).toEqual([]);
     expect(r.read("a.yml")).toContain("@v1.2.0");
+  });
+
+  test("--to older than the npm-installed CLI installs nothing and only moves the pins", () => {
+    const r = rig({ "a.yml": caller("v1.0.0") });
+    expect(r.go({ to: "v1.1.0" })).toBe(0);
+    expect(r.runs).toEqual([]);
+    expect(r.out.join("")).toContain("nothing to install");
+    expect(r.read("a.yml")).toContain("@v1.1.0");
+  });
+
+  test("a pin that crosses a major version asks for the release notes; a minor move does not", () => {
+    const r = rig({ "a.yml": caller("v1.2.0") });
+    expect(r.go({}, { latest: () => "2.0.0" })).toBe(0);
+    expect(r.read("a.yml")).toContain("@v2.0.0");
+    expect(r.out.join("")).toContain("crosses a major version (v1.2.0 to v2.0.0): read the release notes before committing");
+    const minor = rig({ "a.yml": caller("v1.0.0") });
+    minor.go({});
+    expect(minor.out.join("")).not.toContain("major version");
   });
 
   test("a SHA, a branch and a newer pin are reported and left alone", () => {

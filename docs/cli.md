@@ -562,7 +562,9 @@ so a new release never reaches CI without a change you review. `upgrade` makes t
 
 1. **The CLI.** It reads the latest version with `npm view wachiman version`, then installs it with the package manager
    that owns the global install: `bun add -g wachiman@latest` when the package sits under `~/.bun/install/global`,
-   `npm install -g wachiman@latest` otherwise. A custom Bun home (`$BUN_INSTALL/install/global`) counts as bun. On
+   `npm install -g wachiman@latest` when it sits under npm's global prefix (`npm prefix -g`). A custom Bun home
+   (`$BUN_INSTALL/install/global`) counts as bun. An install made with pnpm, yarn or volta is not driven: the command
+   names the path and says to update it with that tool, then run `wachiman upgrade --repo-only`. On
    Windows the package manager is started through a shell so that `npm.cmd` and `bun.cmd` are found. The package manager runs with your terminal. A clone or a `wachiman-dev`
    build is never upgraded: the command says to `git pull` or run `scripts/dev-build.sh`. A CLI that is already on the
    latest version installs nothing.
@@ -572,7 +574,9 @@ so a new release never reaches CI without a change you review. `upgrade` makes t
    and nothing is committed. A pin that is a commit SHA, a branch, a floating tag or a pre-release is listed and left alone,
    and a pin newer than the target is never moved down.
 
-If step 1 is skipped (a clone) or fails, step 2 runs only when you pass `--to`; otherwise it is skipped and the output says why.
+If step 1 is skipped (a clone, or an install this command does not drive), step 2 runs only when you pass `--to`;
+otherwise it is skipped and the output says why. If step 1 fails, step 2 does not run, even with `--to`: the pins stay.
+When a pin moves across a major version, the output asks you to read the release notes before committing.
 
 - `--check` prints the installed and the latest version and changes nothing.
 - `--repo-only` skips step 1 and pins the installed version (or `--to`); use it after upgrading the CLI another way, or

@@ -1,15 +1,16 @@
 /**
  * `wachiman upgrade`: update the CLI, then the workflow pin in this repository.
  *
- * Step 1 installs the latest release with the package manager that owns the global install (bun or
- * npm); a clone or a `wachiman-dev` build is never upgraded here. Step 2 rewrites the pins in
+ * Step 1 installs the latest release with the package manager that owns the global install, but only
+ * when it can be identified positively: bun (under its global dir) or npm (under `npm prefix -g`).
+ * pnpm, yarn, volta, a clone or a `wachiman-dev` build are refused, never guessed. Step 2 rewrites the pins in
  * `.github/workflows/*.yml` to that release and prints the git commands to commit them; it never
  * commits. Both the package manager and the registry lookup are injected, so no test touches
  * either. The pin is exact on purpose: a floating tag would run a new release in CI without a
  * reviewed change.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { UsageError } from "../config";
 import { spawnGit, type GitRunner } from "../evidence";
 import { parseFlags } from "../flags";
@@ -55,6 +56,8 @@ export interface UpgradeDeps {
   fs?: PinFs & { write: (path: string, text: string) => void };
   /** `process.env`, for `BUN_INSTALL`. */
   env?: Record<string, string | undefined>;
+  /** npm's global prefix (`npm prefix -g`), or undefined when it cannot be read. Called only when the install is not bun's. */
+  npmPrefix?: () => string | undefined;
 }
 
 /** npm and bun are `npm.cmd` and `bun.cmd` shims on Windows, which `spawn` finds only through a shell. */
@@ -73,6 +76,13 @@ const defaultLatest = () => {
   const run = spawnSync("npm", ["view", "wachiman", "version"], { encoding: "utf8", timeout: 30_000, ...spawnShell(process.platform) });
   const version = run.status === 0 ? String(run.stdout).trim() : "";
   return parseTag(version) ? version : undefined;
+};
+
+/** `npm prefix -g`: the directory whose `lib/node_modules` (`node_modules` on Windows) holds npm's global packages. */
+const defaultNpmPrefix = () => {
+  const run = spawnSync("npm", ["prefix", "-g"], { encoding: "utf8", timeout: 30_000, ...spawnShell(process.platform) });
+  const prefix = run.status === 0 ? String(run.stdout).trim() : "";
+  return prefix === "" ? undefined : prefix;
 };
 
 const realFs = {
@@ -96,16 +106,39 @@ const isDevBuild = (version: string) => /-dev-/.test(version);
 
 const slashes = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/, "");
 
-export function planCliUpgrade(install: InstallKind, spec = "latest", env: Record<string, string | undefined> = {}): CliPlan {
+const real = (path: string) => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+};
+
+/** True when `root` is `prefix` or below it, compared as given and after resolving symlinks (Homebrew, nvm). */
+const under = (root: string, prefix: string) => {
+  const inside = (r: string, p: string) => `${slashes(r)}/`.startsWith(`${slashes(p)}/`);
+  return inside(root, prefix) || inside(real(root), real(prefix));
+};
+
+export function planCliUpgrade(
+  install: InstallKind,
+  spec = "latest",
+  env: Record<string, string | undefined> = {},
+  npmPrefix: () => string | undefined = () => undefined,
+): CliPlan {
   if (install.kind === "source") {
     return { kind: "refused", reason: "this is a clone or a development build (wachiman-dev); update a clone with `git pull` (then `bun install`), and rebuild a dev build with scripts/dev-build.sh" };
   }
   if (install.kind === "exe") return { kind: "refused", reason: "this is a standalone executable; download the newer one" };
   const custom = env.BUN_INSTALL ? `${slashes(env.BUN_INSTALL)}/install/global/` : undefined;
   const bun = /[\\/]\.bun[\\/]install[\\/]global[\\/]/.test(install.root) || (custom !== undefined && `${slashes(install.root)}/`.startsWith(custom));
-  return bun
-    ? { kind: "command", manager: "bun", command: "bun", args: ["add", "-g", `wachiman@${spec}`] }
-    : { kind: "command", manager: "npm", command: "npm", args: ["install", "-g", `wachiman@${spec}`] };
+  if (bun) return { kind: "command", manager: "bun", command: "bun", args: ["add", "-g", `wachiman@${spec}`] };
+  const prefix = npmPrefix();
+  if (prefix !== undefined && under(install.root, prefix)) return { kind: "command", manager: "npm", command: "npm", args: ["install", "-g", `wachiman@${spec}`] };
+  return {
+    kind: "refused",
+    reason: `Wachiman was installed with a package manager this command does not drive (${install.root}): update it with that tool, then run \`wachiman upgrade --repo-only\``,
+  };
 }
 
 type Io = { stdout: (text: string) => void; stderr: (line: string) => void };
@@ -146,7 +179,7 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
     // install kind looks like a normal npm install; the version is the reliable marker.
     const plan: CliPlan = isDevBuild(deps.version)
       ? { kind: "refused", reason: "a development build: update it with scripts/dev-build.sh" }
-      : planCliUpgrade(install, opts.to === undefined ? "latest" : opts.to.slice(1), deps.env ?? process.env);
+      : planCliUpgrade(install, opts.to === undefined ? "latest" : opts.to.slice(1), deps.env ?? process.env, deps.npmPrefix ?? defaultNpmPrefix);
     if (plan.kind === "refused") {
       io.stdout(`The CLI is not upgraded: ${plan.reason}.\n`);
     } else {
@@ -209,6 +242,8 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
   const changed: string[] = [];
   const left: string[] = [];
   const failed: string[] = [];
+  let crossedMajor: string | undefined;
+  const targetMajor = parseTag(target)?.[0];
   for (const { file } of files) {
     const path = `${root}/${file}`;
     try {
@@ -216,6 +251,10 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
       if (result.outcomes.some((o) => o.kind === "rewritten")) {
         fs.write(path, result.text);
         changed.push(file);
+        for (const o of result.outcomes) {
+          const major = o.kind === "rewritten" ? parseTag(o.from)?.[0] : undefined;
+          if (major !== undefined && targetMajor !== undefined && major < targetMajor) crossedMajor ??= o.from;
+        }
       }
       for (const o of result.outcomes) {
         const why = leftReason(o, target);
@@ -227,6 +266,7 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
   }
   if (changed.length > 0) {
     io.stdout(`Pinned Wachiman to ${target} in:\n${changed.map((f) => `  ${f}`).join("\n")}\n`);
+    if (crossedMajor) io.stdout(`This crosses a major version (${crossedMajor} to ${target}): read the release notes before committing.\n`);
   } else {
     io.stdout(`No pin needed a change (target ${target}).\n`);
   }
