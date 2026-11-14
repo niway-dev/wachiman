@@ -97,6 +97,16 @@ describe("what strip keeps that the earlier checker removed", () => {
     expect(commentCount(out)).toBe(3);
   });
 
+  test("only the first comment under a heading is a guide: a second one is the repository's and stays", () => {
+    const text = "## Migration notes\n<!-- Say which data moves. -->\n<!-- Ask the owner first. -->\n\nSteps.\n";
+    expect(stripDescription(text)).toBe("## Migration notes\n<!-- Ask the owner first. -->\n\nSteps.\n");
+  });
+
+  test("only the first comment after a summary line is a guide", () => {
+    const text = "<details>\n<summary>Rollback</summary>\n<!-- Say how to roll back. -->\n<!-- Page the owner. -->\nSteps.\n</details>\n";
+    expect(stripDescription(text)).toBe("<details>\n<summary>Rollback</summary>\n<!-- Page the owner. -->\nSteps.\n</details>\n");
+  });
+
   test("a guide comment is recognised by its text wherever it sits", () => {
     const guide = catalog.sections.find((e) => e.id === "what")!.guide!;
     expect(stripDescription(`intro\n\n<!-- ${guide} -->\n\nbody\n`)).toBe("intro\n\nbody\n");
