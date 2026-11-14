@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BATCH_CONCURRENCY } from "./engine";
 import { UsageError } from "./config";
 import type { WachimanConfigV1 } from "./accounts/config";
 import { toResultV1 } from "./formats";
@@ -345,14 +346,19 @@ describe("wachiman local", () => {
     // The binary image is not a file the model could review, so it is not counted among the unreviewed.
     expect(r.stdout).toContain("not reviewable: img.png (binary)");
     expect(r.stdout).toContain("not reached: the provider rejected the call");
-    expect(r.calls()).toHaveLength(1);
+    // Batches already in flight when the first is refused finish; no batch starts after it. How many
+    // were in flight depends on how fast the refusal came back, never on more than the pool size.
+    expect(r.calls().length).toBeGreaterThanOrEqual(1);
+    expect(r.calls().length).toBeLessThanOrEqual(BATCH_CONCURRENCY);
   }, 30_000);
 
   test("Ctrl-C stops the review after the call it interrupted, removes the snapshot and exits 130", () => {
     const r = local("interrupt", [], { WACHIMAN_BATCH_LINES: "1" });
     expect(r.code).toBe(130);
     expect(r.stderr).toContain("Interrupted");
-    expect(r.calls()).toHaveLength(1);
+    // Calls already in flight are cut short too; none starts after the interruption.
+    expect(r.calls().length).toBeGreaterThanOrEqual(1);
+    expect(r.calls().length).toBeLessThanOrEqual(BATCH_CONCURRENCY);
     for (const dir of (r.read("dirs") ?? "").split("\n").filter(Boolean)) expect(existsSync(dir)).toBe(false);
   }, 30_000);
 
@@ -1114,8 +1120,8 @@ describe("accounts in local", () => {
     const touched: string[] = [];
     const provider = new Proxy({} as never, { get: (_t, name) => (touched.push(String(name)), () => undefined) });
     const stderr: string[] = [];
-    const run = () =>
-      runLocal(
+    const run = async () =>
+      await runLocal(
         parseLocalArgs([]),
         repo.dir,
         { WACHIMAN_HOME: whome, PATH: process.env.PATH },

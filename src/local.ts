@@ -248,10 +248,10 @@ export function interruptible(provider: ProviderAdapter, state: { interrupted: b
     preflight: () => provider.preflight(),
     modelLabel: () => provider.modelLabel(),
     leaksSecret: (texts) => provider.leaksSecret(texts),
-    run: (request) => {
+    run: async (request) => {
       if (state.interrupted) throw new InterruptedError("the review was interrupted");
       try {
-        return provider.run(request);
+        return await provider.run(request);
       } catch (error) {
         if (error instanceof InterruptedError) state.interrupted = true;
         throw error;
@@ -444,7 +444,7 @@ export function sizeWarning(estimate: ReviewEstimate, gate: number, budgetUsd: n
   return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), above the $${gate.toFixed(2)} size gate. Local runs are never refused; this one continues and stops at its budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD).`;
 }
 
-export function runLocal(
+export async function runLocal(
   args: LocalArgs,
   repoDir: string,
   env: Record<string, string | undefined>,
@@ -454,7 +454,7 @@ export function runLocal(
     engineVersion: string;
   },
   deps: LocalDeps = {},
-): number {
+): Promise<number> {
   const fileInput = args.input === undefined ? undefined : readInputFile(args.input);
   if ((args.workingTree || fileInput?.change.kind === "working-tree") && args.resultVersion === 1) {
     throw new UsageError("Working-tree reviews require --result-version 2; a tree is not a commit.");
@@ -529,7 +529,7 @@ export function runLocal(
         : "verify: off",
     );
 
-    const result = reviewChange(input, reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), {
+    const result = await reviewChange(input, reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), {
       provider,
       ...(verifier ? { verifier } : {}),
       // The verifier reads the code before the change too; made once, only when there is something to check.

@@ -70,7 +70,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.events.push("model");
     this.requests.push(request);
     const step = this.script[this.requests.length - 1];
@@ -253,9 +253,9 @@ const CALL_KEYS = [
 
 const inHours = (h: number) => new Date(Date.now() + h * 3_600_000 + 30_000).toISOString();
 
-function thrownBy(run: () => void): unknown {
+async function thrownBy(run: () => unknown): Promise<unknown> {
   try {
-    run();
+    await run();
   } catch (error) {
     return error;
   }
@@ -263,9 +263,9 @@ function thrownBy(run: () => void): unknown {
 }
 
 describe("review() with no ledger_url", () => {
-  test("no curl call of any kind and no token request: the run is what it was before the ledger existed", () => {
+  test("no curl call of any kind and no token request: the run is what it was before the ledger existed", async () => {
     const t = setup({ env: { WACHIMAN_TRIGGER: "opened" } });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.events).toEqual(["model"]);
     expect(t.urls).toEqual([]);
@@ -274,12 +274,12 @@ describe("review() with no ledger_url", () => {
     expect(t.notes).toEqual([]);
   });
 
-  test("the same for a thread run and an answer", () => {
+  test("the same for a thread run and an answer", async () => {
     const thread = setup({ env: { WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })] });
-    threadReplies(thread.deps, "o/r", 7, "owner");
+    await threadReplies(thread.deps, "o/r", 7, "owner");
     expect(thread.urls).toEqual([]);
     const asked = setup({ env: { WACHIMAN_TRIGGER: "comment" }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
-    answer(asked.deps, "o/r", 7, "why?");
+    await answer(asked.deps, "o/r", 7, "why?");
     expect(asked.urls).toEqual([]);
     expect(asked.events).toEqual(["model"]);
   });
@@ -295,9 +295,9 @@ describe("a laptop with WACHIMAN_LEDGER_URL set (not GitHub Actions)", () => {
     return { t, lines };
   };
 
-  test("a review runs, makes no ledger or token request, records nothing and says once that the ledger is skipped", () => {
+  test("a review runs, makes no ledger or token request, records nothing and says once that the ledger is skipped", async () => {
     const { t, lines } = laptop({ env: WITH_LEDGER });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.events).toEqual(["model"]);
     expect(t.urls).toEqual([]);
@@ -306,36 +306,36 @@ describe("a laptop with WACHIMAN_LEDGER_URL set (not GitHub Actions)", () => {
     expect(lines.filter((l) => /not a GitHub Actions run/.test(l))).toHaveLength(1);
   });
 
-  test("an answer and thread replies run the same way", () => {
+  test("an answer and thread replies run the same way", async () => {
     const asked = laptop({ env: { ...COMMENT }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
-    answer(asked.t.deps, "o/r", 7, "why?");
+    await answer(asked.t.deps, "o/r", 7, "why?");
     expect(asked.t.events).toEqual(["model"]);
     expect(asked.t.urls).toEqual([]);
     const thread = laptop({ env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })] });
-    threadReplies(thread.t.deps, "o/r", 7, "owner");
+    await threadReplies(thread.t.deps, "o/r", 7, "owner");
     expect(thread.t.events).toEqual(["model"]);
     expect(thread.t.urls).toEqual([]);
   });
 
-  test("limit_bypass changes nothing outside Actions: still skipped, no 'bypassed' note", () => {
+  test("limit_bypass changes nothing outside Actions: still skipped, no 'bypassed' note", async () => {
     const { t } = laptop({ env: { ...WITH_LEDGER, WACHIMAN_LIMIT_BYPASS: "1" } });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.urls).toEqual([]);
     expect(t.notes).toEqual([]);
   });
 
-  test("inside GitHub Actions with no OIDC variables the run still stops and names id-token: write", () => {
+  test("inside GitHub Actions with no OIDC variables the run still stops and names id-token: write", async () => {
     const t = setup({ env: WITH_LEDGER });
     t.deps.ledgerEnv = { GITHUB_ACTIONS: "true" };
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow(/id-token: write/);
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(/id-token: write/);
     expect(t.provider.requests).toHaveLength(0);
   });
 });
 
 describe("review() with the spend ledger", () => {
-  test("a run reserves before its first model call with min(budget, ceiling room) and settles with the real cost; the footer carries the receipt before the cost line", () => {
+  test("a run reserves before its first model call with min(budget, ceiling room) and settles with the real cost; the footer carries the receipt before the cost line", async () => {
     const t = setup({ env: WITH_LEDGER });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.events).toEqual(["token", "reserve", "model", "token", "settle"]);
     expect(t.reserves[0]).toEqual({ wantedUsd: 3, trigger: "opened", forced: false, pr: 7 });
     expect(t.settles[0]!.reservationId).toBe("res-1");
@@ -353,23 +353,23 @@ describe("review() with the spend ledger", () => {
     expect(t.notes).toEqual([]);
   });
 
-  test("the reserve asks for min(budget, what the ceiling leaves)", () => {
+  test("the reserve asks for min(budget, what the ceiling leaves)", async () => {
     const spent = `x\n\n<sub>m · $1.90</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
     const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_AUTO_BUDGET_USD: "2" }, reviews: [spent] });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.reserves[0]!.wantedUsd as number).toBeCloseTo(0.1, 10);
   });
 
-  test("the repository's own daily and weekly budgets are sent as the caller's limits", () => {
+  test("the repository's own daily and weekly budgets are sent as the caller's limits", async () => {
     const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_DAILY_BUDGET_USD: "1.5", WACHIMAN_WEEKLY_BUDGET_USD: "6" } });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.reserves[0]).toMatchObject({ callerLimitUsd: 1.5, callerWeeklyLimitUsd: 6 });
     const unset = setup({ env: WITH_LEDGER });
-    review(unset.deps, "o/r", 7, []);
+    await review(unset.deps, "o/r", 7, []);
     expect(Object.keys(unset.reserves[0]!).sort()).toEqual(["forced", "pr", "trigger", "wantedUsd"]);
   });
 
-  test("a grant smaller than wanted caps the run budget: $0.30 granted runs with $0.30", () => {
+  test("a grant smaller than wanted caps the run budget: $0.30 granted runs with $0.30", async () => {
     const t = setup({
       env: WITH_LEDGER,
       ledger: {
@@ -379,14 +379,14 @@ describe("review() with the spend ledger", () => {
         }),
       },
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.provider.requests[0]!.maxBudgetUsd).toBeCloseTo(0.3, 10);
   });
 
-  test("the settle carries only the reservation, the amount and the calls; each call has exactly the wachiman-cost fields that describe it", () => {
+  test("the settle carries only the reservation, the amount and the calls; each call has exactly the wachiman-cost fields that describe it", async () => {
     const t = setup({ env: WITH_LEDGER });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(Object.keys(t.settles[0]!).sort()).toEqual(["calls", "reservationId", "spentUsd"]);
     const calls = t.settles[0]!.calls as Record<string, unknown>[];
     expect(calls).toHaveLength(t.costs.length);
@@ -404,21 +404,21 @@ describe("review() with the spend ledger", () => {
     for (const secret of ["\"t\"", "src/a.ts", "a.ts", "jwt", "bearer", "row 1"]) expect(sent).not.toContain(secret);
   });
 
-  test("a subscription-token run and an API-key run both settle with the auth of each call", () => {
+  test("a subscription-token run and an API-key run both settle with the auth of each call", async () => {
     const token = setup({ env: WITH_LEDGER, auth: "oauth-token" });
-    review(token.deps, "o/r", 7, []);
+    await review(token.deps, "o/r", 7, []);
     expect((token.settles[0]!.calls as { auth: string }[]).map((c) => c.auth)).toEqual(token.costs.map(() => "oauth-token"));
     const key = setup({ env: WITH_LEDGER });
-    review(key.deps, "o/r", 7, []);
+    await review(key.deps, "o/r", 7, []);
     expect((key.settles[0]!.calls as { auth: string }[]).map((c) => c.auth)).toEqual(key.costs.map(() => "api-key"));
   });
 
-  test("a call whose cost is unknown settles as cost_usd null and costKnown false, counted at its cap in spentUsd", () => {
+  test("a call whose cost is unknown settles as cost_usd null and costKnown false, counted at its cap in spentUsd", async () => {
     const t = setup({
       env: WITH_LEDGER,
       script: [() => ({ costUsd: 0.5, costKnown: false, terminalReason: "timeout", isError: true }), () => ({ costUsd: 0.5, costKnown: false, terminalReason: "timeout", isError: true })],
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     const calls = t.settles[0]!.calls as { cost_usd: number | null; costKnown: boolean }[];
     expect(calls[0]).toMatchObject({ cost_usd: null, costKnown: false });
     expect(t.settles[0]!.spentUsd as number).toBeGreaterThan(0.4);
@@ -459,9 +459,9 @@ describe("a limit refuses the run", () => {
 
   for (const c of CASES) {
     for (const mode of ["fail", "notice"] as const) {
-      test(`${c.reason} (${c.period}) in ${mode} mode: one notice says the period, the amounts and the reset; no model call; the error carries the mode`, () => {
+      test(`${c.reason} (${c.period}) in ${mode} mode: one notice says the period, the amounts and the reset; no model call; the error carries the mode`, async () => {
         const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LIMIT_MODE: mode }, ledger: { reserve: () => body(c.reason, c.over) } });
-        const thrown = thrownBy(() => review(t.deps, "o/r", 7, []));
+        const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
         expect(thrown).toBeInstanceOf(SpendLimitReached);
         expect((thrown as SpendLimitReached).mode).toBe(mode);
         expect((thrown as SpendLimitReached).refusal.reason).toBe(c.reason);
@@ -477,31 +477,31 @@ describe("a limit refuses the run", () => {
         expect(t.notes[0]).toContain("refused this run");
 
         // The same period, the notice is already on the pull request: still refused, nothing more posted.
-        expect(() => review(t.deps, "o/r", 7, [])).toThrow(SpendLimitReached);
+        await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(SpendLimitReached);
         expect(t.posted).toHaveLength(1);
       });
     }
   }
 
-  test("on a subscription token the figures are marked as estimates", () => {
+  test("on a subscription token the figures are marked as estimates", async () => {
     const t = setup({ env: WITH_LEDGER, auth: "oauth-token", ledger: { reserve: () => body("limit") } });
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow(SpendLimitReached);
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(SpendLimitReached);
     expect(t.posted[0]).toContain("API-equivalent estimate, not a bill");
     const key = setup({ env: WITH_LEDGER, ledger: { reserve: () => body("limit") } });
-    expect(() => review(key.deps, "o/r", 7, [])).toThrow(SpendLimitReached);
+    await expect(review(key.deps, "o/r", 7, [])).rejects.toThrow(SpendLimitReached);
     expect(key.posted[0]).not.toContain("estimate");
   });
 
-  test("a refusal that names no amounts still says which limit and when it resets", () => {
+  test("a refusal that names no amounts still says which limit and when it resets", async () => {
     const t = setup({ env: WITH_LEDGER, ledger: { reserve: () => ({ status: 402, body: { reason: "weekly_limit" } }) } });
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow(SpendLimitReached);
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(SpendLimitReached);
     expect(t.posted[0]).toContain("weekly spend limit is reached");
     expect(t.posted[0]).toMatch(/resets at \*\*\d{4}-\d{2}-\d{2} 00:00 UTC/);
   });
 
-  test("in a dry run the notice is logged by postReview, not posted", () => {
+  test("in a dry run the notice is logged by postReview, not posted", async () => {
     const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_DRY_RUN: "1" }, ledger: { reserve: () => body("limit") } });
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow(SpendLimitReached);
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(SpendLimitReached);
     expect(t.posted).toHaveLength(0);
     expect(t.logs.some((l) => l.includes("Spend limit reached"))).toBe(true);
   });
@@ -518,21 +518,21 @@ describe("a limit refuses the run", () => {
 
 describe("configuration errors are not outages", () => {
   for (const unavailable of ["run", "stop"]) {
-    test(`not_linked, unauthorized and a missing OIDC permission stop the run before any model call with ledger_unavailable: ${unavailable}`, () => {
+    test(`not_linked, unauthorized and a missing OIDC permission stop the run before any model call with ledger_unavailable: ${unavailable}`, async () => {
       const env = { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable };
       const unlinked = setup({ env, ledger: { reserve: () => ({ status: 403, body: { reason: "not_linked" } }) } });
-      expect(thrownBy(() => review(unlinked.deps, "o/r", 7, []))).toBeInstanceOf(LedgerStopped);
+      expect(await thrownBy(() => review(unlinked.deps, "o/r", 7, []))).toBeInstanceOf(LedgerStopped);
       expect(unlinked.notes[0]).toContain("not linked");
       expect(unlinked.provider.requests).toHaveLength(0);
       expect(unlinked.posted).toHaveLength(0);
 
       const refused = setup({ env, ledger: { reserve: () => ({ status: 401, body: { reason: "unauthorized" } }) } });
-      expect(() => review(refused.deps, "o/r", 7, [])).toThrow(/did not accept this job's identity token/);
+      await expect(review(refused.deps, "o/r", 7, [])).rejects.toThrow(/did not accept this job's identity token/);
       expect(refused.provider.requests).toHaveLength(0);
 
       const noPermission = setup({ env });
       noPermission.deps.ledgerEnv = { GITHUB_ACTIONS: "true" };
-      expect(() => review(noPermission.deps, "o/r", 7, [])).toThrow(/review-platform\.yml.*id-token: write/);
+      await expect(review(noPermission.deps, "o/r", 7, [])).rejects.toThrow(/review-platform\.yml.*id-token: write/);
       expect(noPermission.provider.requests).toHaveLength(0);
       expect(noPermission.urls).toEqual([]);
       expect(noPermission.posted).toHaveLength(0);
@@ -541,10 +541,10 @@ describe("configuration errors are not outages", () => {
 });
 
 describe("an unreachable ledger", () => {
-  test("ledger_unavailable run (the default): the review runs under its normal budgets, says it was not counted, and records the run", () => {
+  test("ledger_unavailable run (the default): the review runs under its normal budgets, says it was not counted, and records the run", async () => {
     const t = setup({ env: WITH_LEDGER, ledger: { down: true } });
     // The ledger is down for every call, the record at the end included: nothing reaches it.
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.provider.requests[0]!.maxBudgetUsd).toBeGreaterThan(0.5);
     expect(t.posted).toHaveLength(1);
@@ -559,7 +559,7 @@ describe("an unreachable ledger", () => {
     expect(t.notes.join(" ")).toContain("not recorded");
   });
 
-  test("when the ledger is back at the end, the run is recorded once with the allowed fields; the summary says recorded", () => {
+  test("when the ledger is back at the end, the run is recorded once with the allowed fields; the summary says recorded", async () => {
     const t = setup({ env: WITH_LEDGER });
     const real = t.deps.curl!;
     let reserves = 0;
@@ -567,7 +567,7 @@ describe("an unreachable ledger", () => {
       if (args[args.length - 1]!.endsWith("/v1/reserve") && reserves++ === 0) return { status: 28, stdout: "", stderr: "timed out" };
       return real(args, stdin);
     };
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.events.filter((e) => e === "record")).toHaveLength(1);
     expect(t.events.filter((e) => e === "settle")).toHaveLength(0);
     expect(Object.keys(t.records[0]!).sort()).toEqual(["calls", "pr", "reason", "spentUsd", "trigger"]);
@@ -577,31 +577,31 @@ describe("an unreachable ledger", () => {
     expect(t.posted[0]).toContain(LEDGER_NOT_COUNTED_NOTE);
   });
 
-  test("a 5xx at reserve is an outage too; a record that fails does not fail the run", () => {
+  test("a 5xx at reserve is an outage too; a record that fails does not fail the run", async () => {
     const t = setup({ env: WITH_LEDGER, ledger: { reserve: () => ({ status: 503, body: "down" }), recordFails: true } });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.events).toEqual(["token", "reserve", "model", "token", "record"]);
     expect(t.posted).toHaveLength(1);
     expect(t.notes.join(" ")).toContain("not recorded");
   });
 
-  test("GitHub's token endpoint failing with a 5xx or 429 is an outage; a 403 is a configuration error that stops the run", () => {
+  test("GitHub's token endpoint failing with a 5xx or 429 is an outage; a 403 is a configuration error that stops the run", async () => {
     for (const status of [500, 503, 429]) {
       const t = setup({ env: WITH_LEDGER, ledger: { noToken: status } });
-      review(t.deps, "o/r", 7, []);
+      await review(t.deps, "o/r", 7, []);
       expect(t.provider.requests).toHaveLength(1);
       expect(t.posted[0]).toContain(LEDGER_NOT_COUNTED_NOTE);
     }
     const refused = setup({ env: WITH_LEDGER, ledger: { noToken: true } });
-    expect(() => review(refused.deps, "o/r", 7, [])).toThrow(/id-token: write/);
+    await expect(review(refused.deps, "o/r", 7, [])).rejects.toThrow(/id-token: write/);
     expect(refused.provider.requests).toHaveLength(0);
     expect(refused.posted).toHaveLength(0);
   });
 
-  test("ledger_unavailable stop: the run ends before any model call and posts nothing", () => {
+  test("ledger_unavailable stop: the run ends before any model call and posts nothing", async () => {
     const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: "stop" }, ledger: { down: true } });
-    const thrown = thrownBy(() => review(t.deps, "o/r", 7, []));
+    const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
     expect(thrown).toBeInstanceOf(LedgerStopped);
     expect((thrown as Error).message).toContain("ledger_unavailable");
     expect(t.provider.requests).toHaveLength(0);
@@ -610,9 +610,9 @@ describe("an unreachable ledger", () => {
     expect(t.notes[0]).toContain("could not be reached");
   });
 
-  test("unreachable at settle after a successful reserve: the result stands; the summary says the settlement was not delivered", () => {
+  test("unreachable at settle after a successful reserve: the result stands; the summary says the settlement was not delivered", async () => {
     const t = setup({ env: WITH_LEDGER, ledger: { downAfterReserve: true } });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.posted).toHaveLength(1);
     expect(readReceipt(t.posted[0]!)).toBeNull();
     expect(t.posted[0]).not.toContain(LEDGER_NOT_COUNTED_NOTE);
@@ -623,45 +623,45 @@ describe("an unreachable ledger", () => {
 });
 
 describe("the operator's --force, a bypass and a failed run", () => {
-  test("/wachiman review --force by the operator reserves with forced: true; the same words from an automatic trigger reserve with forced: false; a non-operator's --force does nothing", () => {
+  test("/wachiman review --force by the operator reserves with forced: true; the same words from an automatic trigger reserve with forced: false; a non-operator's --force does nothing", async () => {
     const operator = setup({ env: COMMENT });
-    comment(operator.deps, "o/r", 7, "/wachiman review --force", "owner");
+    await comment(operator.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(operator.reserves[0]).toMatchObject({ forced: true, trigger: "comment" });
 
     const unset = setup({ env: { WACHIMAN_LEDGER_URL: LEDGER } });
-    comment(unset.deps, "o/r", 7, "/wachiman review --force", "owner");
+    await comment(unset.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(unset.reserves[0]).toMatchObject({ forced: true, trigger: "cli" });
 
     const stranger = setup({ env: COMMENT });
-    comment(stranger.deps, "o/r", 7, "/wachiman review --force", "someone-else");
+    await comment(stranger.deps, "o/r", 7, "/wachiman review --force", "someone-else");
     expect(stranger.events).toEqual([]);
 
     const automatic = setup({ env: WITH_LEDGER });
-    comment(automatic.deps, "o/r", 7, "/wachiman review --force", "owner");
+    await comment(automatic.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(automatic.reserves[0]).toMatchObject({ forced: false, trigger: "opened" });
 
     const plain = setup({ env: COMMENT });
-    comment(plain.deps, "o/r", 7, "/wachiman review", "owner");
+    await comment(plain.deps, "o/r", 7, "/wachiman review", "owner");
     expect(plain.reserves[0]).toMatchObject({ forced: false });
   });
 
-  test("the operator's --force run says forced next to its receipt; a normal run does not, and an automatic run's cost still reads", () => {
+  test("the operator's --force run says forced next to its receipt; a normal run does not, and an automatic run's cost still reads", async () => {
     const forced = setup({ env: COMMENT });
-    comment(forced.deps, "o/r", 7, "/wachiman review --force", "owner");
+    await comment(forced.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(forced.posted[0]).toContain(LEDGER_FORCED_FOOTER);
     expect(readReceipt(forced.posted[0]!)).not.toBeNull();
     const plain = setup({ env: COMMENT });
-    comment(plain.deps, "o/r", 7, "/wachiman review", "owner");
+    await comment(plain.deps, "o/r", 7, "/wachiman review", "owner");
     expect(plain.posted[0]).not.toContain(LEDGER_FORCED_FOOTER);
     const automatic = setup({ env: WITH_LEDGER });
-    review(automatic.deps, "o/r", 7, []);
+    await review(automatic.deps, "o/r", 7, []);
     expect(automatic.posted[0]).not.toContain(LEDGER_FORCED_FOOTER);
     expect(readAutoCost(automatic.posted[0]!)).toBeCloseTo(0.1, 10);
   });
 
-  test("--force is not taken as a path", () => {
+  test("--force is not taken as a path", async () => {
     const t = setup({ env: COMMENT });
-    comment(t.deps, "o/r", 7, "/wachiman review --force a.ts", "owner");
+    await comment(t.deps, "o/r", 7, "/wachiman review --force a.ts", "owner");
     expect(t.provider.requests).toHaveLength(1);
     expect(t.posted[0]).not.toContain(marker(HEAD));
     // The flag is not a path: it is read as the force flag, and nothing is logged as an ignored word.
@@ -669,9 +669,9 @@ describe("the operator's --force, a bypass and a failed run", () => {
     expect(t.logs.join("\n")).not.toContain("Not paths in this pull request");
   });
 
-  test("bypass makes no ledger call, logs ledger bypassed, and the footer says so", () => {
+  test("bypass makes no ledger call, logs ledger bypassed, and the footer says so", async () => {
     const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LIMIT_BYPASS: "true" } });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.events).toEqual(["model"]);
     expect(t.urls).toEqual([]);
     expect(t.logs).toContain("ledger bypassed");
@@ -680,12 +680,12 @@ describe("the operator's --force, a bypass and a failed run", () => {
     expect(readAutoCost(t.posted[0]!)).toBeCloseTo(0.1, 10);
   });
 
-  test("a failed run (no batch output) still settles and its notice carries the receipt", () => {
+  test("a failed run (no batch output) still settles and its notice carries the receipt", async () => {
     const t = setup({
       env: WITH_LEDGER,
       script: [() => ({ costUsd: 0.6, terminalReason: "budget", isError: true }), () => ({ costUsd: 0.4, terminalReason: "budget", isError: true })],
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.events.filter((e) => e === "settle")).toHaveLength(1);
     expect(t.settles[0]!.spentUsd as number).toBeGreaterThan(0.5);
     expect(t.posted).toHaveLength(1);
@@ -694,12 +694,12 @@ describe("the operator's --force, a bypass and a failed run", () => {
     expect(readAutoCost(t.posted[0]!)).toBeGreaterThan(0.5);
   });
 
-  test("a failed manual --force review keeps its receipt and forced footer, and does not count toward the ceiling", () => {
+  test("a failed manual --force review keeps its receipt and forced footer, and does not count toward the ceiling", async () => {
     const t = setup({
       env: COMMENT,
       script: [() => ({ costUsd: 0.6, terminalReason: "budget", isError: true }), () => ({ costUsd: 0.4, terminalReason: "budget", isError: true })],
     });
-    comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
+    await comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(t.posted).toHaveLength(1);
     expect(t.posted[0]).toContain("ran out of its budget");
     expect(readReceipt(t.posted[0]!)).not.toBeNull();
@@ -707,7 +707,7 @@ describe("the operator's --force, a bypass and a failed run", () => {
     expect(readAutoCost(t.posted[0]!)).toBeNull();
   });
 
-  test("a run that throws after a reservation still settles what its calls cost", () => {
+  test("a run that throws after a reservation still settles what its calls cost", async () => {
     const t = setup({
       env: WITH_LEDGER,
       script: [
@@ -716,7 +716,7 @@ describe("the operator's --force, a bypass and a failed run", () => {
         },
       ],
     });
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow();
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow();
     expect(t.events.filter((e) => e === "settle")).toHaveLength(1);
     expect(t.settles[0]!.calls as unknown[]).not.toHaveLength(0);
   });
@@ -733,14 +733,14 @@ const THREAD: RawThread = { isResolved: false, path: "src/a.ts", line: 3, commen
 const THREAD_REPLY = { thread_replies: [{ comment_id: 7, status: "addressed", reply: "The guard runs first.", cites: ["src/a.ts:3"] }] };
 
 describe("threadReplies and answer with the spend ledger", () => {
-  test("threadReplies reserves, runs, settles with the call's cost; the first reply carries the receipt before the cost line", () => {
+  test("threadReplies reserves, runs, settles with the call's cost; the first reply carries the receipt before the cost line", async () => {
     const t = setup({
       env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
       threads: [THREAD],
       script: [() => ({ costUsd: 0.12, structuredOutput: THREAD_REPLY })],
     });
-    threadReplies(t.deps, "o/r", 7, "owner");
+    await threadReplies(t.deps, "o/r", 7, "owner");
     expect(t.events).toEqual(["token", "reserve", "model", "token", "settle"]);
     expect(t.reserves[0]).toEqual({ wantedUsd: 0.25, trigger: "thread", forced: false, pr: 7 });
     expect(t.settles[0]!.spentUsd).toBe(0.12);
@@ -752,9 +752,9 @@ describe("threadReplies and answer with the spend ledger", () => {
     expect(readAutoCost(t.replies[0]!)).toBe(0.12);
   });
 
-  test("answer reserves, runs, settles with the call's cost; the receipt line comes before the cost line", () => {
+  test("answer reserves, runs, settles with the call's cost; the receipt line comes before the cost line", async () => {
     const t = setup({ env: COMMENT, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
-    answer(t.deps, "o/r", 7, "why?");
+    await answer(t.deps, "o/r", 7, "why?");
     expect(t.events).toEqual(["token", "reserve", "model", "token", "settle"]);
     expect(t.reserves[0]).toEqual({ wantedUsd: 1, trigger: "comment", forced: false, pr: 7 });
     expect(t.settles[0]!.spentUsd).toBe(0.2);
@@ -764,14 +764,14 @@ describe("threadReplies and answer with the spend ledger", () => {
     expect(lines[receiptAt + 1]!.startsWith("<sub>")).toBe(true);
   });
 
-  test("a refused threadReplies posts the notice and runs nothing; an unreachable ledger lets it run and marks the first reply", () => {
+  test("a refused threadReplies posts the notice and runs nothing; an unreachable ledger lets it run and marks the first reply", async () => {
     const refused = setup({
       env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
       threads: [THREAD],
       ledger: { reserve: () => ({ status: 402, body: { reason: "limit", accountSpentUsd: 6, accountLimitUsd: 6, day: DAY } }) },
     });
-    expect(() => threadReplies(refused.deps, "o/r", 7, "owner")).toThrow(SpendLimitReached);
+    await expect(threadReplies(refused.deps, "o/r", 7, "owner")).rejects.toThrow(SpendLimitReached);
     expect(refused.provider.requests).toHaveLength(0);
     expect(refused.posted[0]).toContain("**Spend limit reached.**");
 
@@ -782,7 +782,7 @@ describe("threadReplies and answer with the spend ledger", () => {
       ledger: { down: true },
       script: [() => ({ costUsd: 0.12, structuredOutput: THREAD_REPLY })],
     });
-    threadReplies(down.deps, "o/r", 7, "owner");
+    await threadReplies(down.deps, "o/r", 7, "owner");
     expect(down.replies[0]).toContain(LEDGER_NOT_COUNTED_NOTE);
     expect(readAutoCost(down.replies[0]!)).toBe(0.12);
   });
@@ -791,11 +791,11 @@ describe("threadReplies and answer with the spend ledger", () => {
 describe("a reservation never outlives a step that fails after it", () => {
   const settledEachReservation = (t: ReturnType<typeof setup>) => expect(t.settles.length).toBe(t.reserves.length);
 
-  test("review: a gh failure while reading the base commit or its instructions leaves no unsettled reservation", () => {
+  test("review: a gh failure while reading the base commit or its instructions leaves no unsettled reservation", async () => {
     for (const failAfterReserve of ["/contents/", "api repos/o/r/pulls/7 "]) {
       const t = setup({ env: WITH_LEDGER, ledger: { failAfterReserve } });
       try {
-        review(t.deps, "o/r", 7, []);
+        await review(t.deps, "o/r", 7, []);
       } catch {
         // A failing read may fail the run; what matters is that nothing is left reserved.
       }
@@ -803,14 +803,14 @@ describe("a reservation never outlives a step that fails after it", () => {
     }
   });
 
-  test("review: a gh failure while posting, after the settle, keeps the settlement", () => {
+  test("review: a gh failure while posting, after the settle, keeps the settlement", async () => {
     const t = setup({ env: WITH_LEDGER, ledger: { failAfterReserve: "-X POST repos/o/r/pulls/7/reviews" } });
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow(/502/);
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(/502/);
     expect(t.reserves).toHaveLength(1);
     expect(t.settles).toHaveLength(1);
   });
 
-  test("threadReplies: a gh failure while reading the pull request or writing its files leaves no unsettled reservation", () => {
+  test("threadReplies: a gh failure while reading the pull request or writing its files leaves no unsettled reservation", async () => {
     const t = setup({
       env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
@@ -819,16 +819,16 @@ describe("a reservation never outlives a step that fails after it", () => {
       ledger: { failAfterReserve: "title,body,author" },
     });
     try {
-      threadReplies(t.deps, "o/r", 7, "owner");
+      await threadReplies(t.deps, "o/r", 7, "owner");
     } catch {
       // See above.
     }
     settledEachReservation(t);
   });
 
-  test("answer: every read happens before the reserve, and a failing post still follows a settle", () => {
+  test("answer: every read happens before the reserve, and a failing post still follows a settle", async () => {
     const t = setup({ env: COMMENT, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })], ledger: { failAfterReserve: "pr comment" } });
-    expect(() => answer(t.deps, "o/r", 7, "why?")).toThrow(/502/);
+    await expect(answer(t.deps, "o/r", 7, "why?")).rejects.toThrow(/502/);
     expect(t.reserves).toHaveLength(1);
     expect(t.settles).toHaveLength(1);
   });
@@ -839,45 +839,45 @@ describe("a provider that dies after the reserve still settles, in the thread an
     throw new Error("the model process died");
   };
 
-  test("threadReplies settles once, with what its calls cost", () => {
+  test("threadReplies settles once, with what its calls cost", async () => {
     const t = setup({
       env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
       reviewedAt: HEAD,
       threads: [THREAD],
       script: [died],
     });
-    expect(() => threadReplies(t.deps, "o/r", 7, "owner")).toThrow();
+    await expect(threadReplies(t.deps, "o/r", 7, "owner")).rejects.toThrow();
     expect(t.reserves).toHaveLength(1);
     expect(t.settles).toHaveLength(1);
   });
 
-  test("answer for the operator settles once and rethrows", () => {
+  test("answer for the operator settles once and rethrows", async () => {
     const t = setup({ env: COMMENT, script: [died] });
-    expect(() => answer(t.deps, "o/r", 7, "why?")).toThrow(/died/);
+    await expect(answer(t.deps, "o/r", 7, "why?")).rejects.toThrow(/died/);
     expect(t.reserves).toHaveLength(1);
     expect(t.settles).toHaveLength(1);
   });
 
-  test("answer for another asker settles once at the cap and still answers", () => {
+  test("answer for another asker settles once at the cap and still answers", async () => {
     const t = setup({ env: COMMENT, script: [died] });
-    answer(t.deps, "o/r", 7, "why?", { asker: "someone" });
+    await answer(t.deps, "o/r", 7, "why?", { asker: "someone" });
     expect(t.reserves).toHaveLength(1);
     expect(t.settles).toHaveLength(1);
     expect(t.settles[0]!.spentUsd).toBe(1);
     expect(t.comments[0]).toContain("It still counts toward the question budget.");
   });
 
-  test("answer and threadReplies refused by the ledger run nothing and settle nothing; a stopped ledger does the same", () => {
+  test("answer and threadReplies refused by the ledger run nothing and settle nothing; a stopped ledger does the same", async () => {
     const refuse = { reserve: () => ({ status: 402, body: { reason: "limit", accountSpentUsd: 6, accountLimitUsd: 6, day: DAY } }) };
     const a = setup({ env: COMMENT, ledger: refuse });
-    expect(() => answer(a.deps, "o/r", 7, "why?")).toThrow(SpendLimitReached);
+    await expect(answer(a.deps, "o/r", 7, "why?")).rejects.toThrow(SpendLimitReached);
     expect(a.provider.requests).toHaveLength(0);
     expect(a.settles).toHaveLength(0);
     const wrong = { reserve: () => ({ status: 404, body: "Not Found" }) };
     const b = setup({ env: COMMENT, ledger: wrong });
-    expect(() => answer(b.deps, "o/r", 7, "why?")).toThrow(LedgerStopped);
+    await expect(answer(b.deps, "o/r", 7, "why?")).rejects.toThrow(LedgerStopped);
     const c = setup({ env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], ledger: wrong });
-    expect(() => threadReplies(c.deps, "o/r", 7, "owner")).toThrow(LedgerStopped);
+    await expect(threadReplies(c.deps, "o/r", 7, "owner")).rejects.toThrow(LedgerStopped);
     expect(c.provider.requests).toHaveLength(0);
     expect(c.settles).toHaveLength(0);
   });
@@ -893,13 +893,13 @@ describe("an answer that is not the ledger's stops the run, whatever ledger_unav
     [200, {}],
   ];
   for (const unavailable of ["run", "stop"]) {
-    test(`reserve answered 404, 405, 400, 301 or a malformed 200 stops before any model call (ledger_unavailable: ${unavailable})`, () => {
+    test(`reserve answered 404, 405, 400, 301 or a malformed 200 stops before any model call (ledger_unavailable: ${unavailable})`, async () => {
       for (const [status, body] of CASES) {
         const t = setup({
           env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable },
           ledger: { reserve: () => ({ status, body }) },
         });
-        const thrown = thrownBy(() => review(t.deps, "o/r", 7, []));
+        const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
         expect(thrown).toBeInstanceOf(LedgerStopped);
         expect((thrown as Error).message).toContain("`ledger_url` does not look like the spend ledger");
         expect((thrown as Error).message).toContain(`HTTP ${status}`);
@@ -910,21 +910,21 @@ describe("an answer that is not the ledger's stops the run, whatever ledger_unav
     });
   }
 
-  test("a 429 and a 5xx are outages: the review runs uncounted", () => {
+  test("a 429 and a 5xx are outages: the review runs uncounted", async () => {
     for (const status of [429, 500, 502, 504]) {
       const t = setup({ env: WITH_LEDGER, ledger: { reserve: () => ({ status, body: "busy" }) } });
-      review(t.deps, "o/r", 7, []);
+      await review(t.deps, "o/r", 7, []);
       expect(t.provider.requests).toHaveLength(1);
       expect(t.posted[0]).toContain(LEDGER_NOT_COUNTED_NOTE);
     }
   });
 
-  test("a grant that is negative stops the run as a malformed answer", () => {
+  test("a grant that is negative stops the run as a malformed answer", async () => {
     const t = setup({
       env: WITH_LEDGER,
       ledger: { reserve: () => ({ status: 200, body: { reservationId: "r", grantedUsd: -1, accountLeftUsd: 1, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null } }) },
     });
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow(LedgerStopped);
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(LedgerStopped);
     expect(t.provider.requests).toHaveLength(0);
   });
 });
@@ -938,9 +938,9 @@ describe("a grant below the minimum a call needs", () => {
   };
   const threadEnv = { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" };
 
-  test("threadReplies makes no model call, settles with 0 and says so in the job summary", () => {
+  test("threadReplies makes no model call, settles with 0 and says so in the job summary", async () => {
     const t = setup({ env: threadEnv, reviewedAt: HEAD, threads: [THREAD], ledger: small });
-    threadReplies(t.deps, "o/r", 7, "owner");
+    await threadReplies(t.deps, "o/r", 7, "owner");
     expect(t.provider.requests).toHaveLength(0);
     expect(t.events).toEqual(["token", "reserve", "token", "settle"]);
     expect(t.settles[0]).toMatchObject({ reservationId: "res-1", spentUsd: 0, calls: [] });
@@ -949,9 +949,9 @@ describe("a grant below the minimum a call needs", () => {
     expect(t.notes.join(" ")).toContain("settled with $0.00");
   });
 
-  test("an answer makes no model call, settles with 0, tells the asker nothing was spent and says so in the job summary", () => {
+  test("an answer makes no model call, settles with 0, tells the asker nothing was spent and says so in the job summary", async () => {
     const operator = setup({ env: COMMENT, ledger: small });
-    answer(operator.deps, "o/r", 7, "why?");
+    await answer(operator.deps, "o/r", 7, "why?");
     expect(operator.provider.requests).toHaveLength(0);
     expect(operator.settles[0]).toMatchObject({ spentUsd: 0, calls: [] });
     expect(operator.comments).toHaveLength(1);
@@ -961,27 +961,27 @@ describe("a grant below the minimum a call needs", () => {
     expect(operator.notes.join(" ")).toContain("below the $0.05 a call needs");
 
     const other = setup({ env: COMMENT, ledger: small });
-    answer(other.deps, "o/r", 7, "why?", { asker: "someone" });
+    await answer(other.deps, "o/r", 7, "why?", { asker: "someone" });
     expect(other.provider.requests).toHaveLength(0);
     expect(other.comments[0]).toContain(SIGNATURE.ask);
     // It is not an answer that cost anything: the question ceiling counts nothing for it.
     expect(readAutoCost(other.comments[0]!)).toBeNull();
   });
 
-  test("a grant of exactly the minimum still runs the call", () => {
+  test("a grant of exactly the minimum still runs the call", async () => {
     const t = setup({
       env: COMMENT,
       script: [() => ({ costUsd: 0.04, structuredOutput: ANSWER })],
       ledger: { reserve: () => ({ status: 200, body: { reservationId: "res-1", grantedUsd: 0.05, accountLeftUsd: 1, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null } }) },
     });
-    answer(t.deps, "o/r", 7, "why?");
+    await answer(t.deps, "o/r", 7, "why?");
     expect(t.provider.requests).toHaveLength(1);
     expect(t.provider.requests[0]!.maxBudgetUsd).toBeCloseTo(0.05, 10);
   });
 
-  test("with no ledger there is no minimum to check", () => {
+  test("with no ledger there is no minimum to check", async () => {
     const t = setup({ env: { WACHIMAN_TRIGGER: "comment" }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
-    answer(t.deps, "o/r", 7, "why?");
+    await answer(t.deps, "o/r", 7, "why?");
     expect(t.provider.requests).toHaveLength(1);
   });
 });
@@ -994,39 +994,39 @@ describe("the job summary on a subscription token says its dollars are estimates
     }),
   };
 
-  test("a settlement that was not delivered", () => {
+  test("a settlement that was not delivered", async () => {
     const token = setup({ env: WITH_LEDGER, auth: "oauth-token", ledger: { downAfterReserve: true } });
-    review(token.deps, "o/r", 7, []);
+    await review(token.deps, "o/r", 7, []);
     expect(token.notes.join(" ")).toContain("settlement was not delivered");
     expect(token.notes.join(" ")).toContain("Claude subscription: API-equivalent estimate, not a bill");
     const key = setup({ env: WITH_LEDGER, ledger: { downAfterReserve: true } });
-    review(key.deps, "o/r", 7, []);
+    await review(key.deps, "o/r", 7, []);
     expect(key.notes.join(" ")).not.toContain("estimate");
   });
 
-  test("a grant below the minimum", () => {
+  test("a grant below the minimum", async () => {
     const env = { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "comment" };
     const token = setup({ env, auth: "subscription", ledger: small });
-    answer(token.deps, "o/r", 7, "why?");
+    await answer(token.deps, "o/r", 7, "why?");
     expect(token.notes.join(" ")).toContain("API-equivalent estimate, not a bill");
     const key = setup({ env, ledger: small });
-    answer(key.deps, "o/r", 7, "why?");
+    await answer(key.deps, "o/r", 7, "why?");
     expect(key.notes.join(" ")).not.toContain("estimate");
   });
 });
 
 describe("--force with no ledger", () => {
-  test("is still a word that names no file, logged as ignored, exactly as before the ledger existed", () => {
+  test("is still a word that names no file, logged as ignored, exactly as before the ledger existed", async () => {
     const t = setup({ env: { WACHIMAN_TRIGGER: "comment" } });
-    comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
+    await comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(t.logs).toContain("Not paths in this pull request, ignored: --force");
     expect(t.urls).toEqual([]);
     expect(t.provider.requests).toHaveLength(1);
   });
 
-  test("with a ledger it is the operator's flag and no longer a word", () => {
+  test("with a ledger it is the operator's flag and no longer a word", async () => {
     const t = setup({ env: COMMENT });
-    comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
+    await comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(t.logs.some((l) => l.includes("ignored"))).toBe(false);
     expect(t.reserves[0]).toMatchObject({ forced: true });
   });

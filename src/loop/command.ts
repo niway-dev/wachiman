@@ -155,11 +155,11 @@ type IdentifiedResult = ReviewResult & { findings: { id: string }[] };
 type Attempt = { ok: true; result: IdentifiedResult } | { ok: false; why: string } | { interrupted: true };
 
 /** One review call: succeeds only with a complete `/2` result in which every finding has a history id. */
-function attempt(args: LocalArgs, repoDir: string, env: Record<string, string | undefined>, io: LoopIo, deps: LoopDeps): Attempt {
+async function attempt(args: LocalArgs, repoDir: string, env: Record<string, string | undefined>, io: LoopIo, deps: LoopDeps): Promise<Attempt> {
   let out = "";
   let code: number;
   try {
-    code = (deps.review ?? runLocal)(args, repoDir, env, { stdout: (t) => (out += t), stderr: io.stderr, engineVersion: io.engineVersion }, deps);
+    code = await (deps.review ?? runLocal)(args, repoDir, env, { stdout: (t) => (out += t), stderr: io.stderr, engineVersion: io.engineVersion }, deps);
   } catch (error) {
     if (error instanceof UsageError) throw error;
     return { ok: false, why: error instanceof Error ? error.message : String(error) };
@@ -188,7 +188,7 @@ interface LoopIo {
 const withVerdicts = (ledger: LedgerEntry[], verdicts: ReturnType<typeof readVerdicts>): LoopFinding[] =>
   ledger.map((e) => ({ ...e, ...(verdicts.get(e.id) ? { verdict: { verdict: verdicts.get(e.id)!.verdict, reason: verdicts.get(e.id)!.reason } } : {}) }));
 
-export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, string | undefined>, io: LoopIo, deps: LoopDeps = {}): number {
+export async function runLoop(args: LoopArgs, repoDir: string, env: Record<string, string | undefined>, io: LoopIo, deps: LoopDeps = {}): Promise<number> {
   const root = historyRoot(wachimanHome(env));
   const key = repositoryKey(repoDir).key;
   const branch = currentBranch(repoDir);
@@ -258,10 +258,10 @@ export function runLoop(args: LoopArgs, repoDir: string, env: Record<string, str
     ...(args.profile !== undefined ? { profile: args.profile } : {}),
     ...(args.maxDepth !== undefined ? { maxDepth: args.maxDepth } : {}),
   };
-  let made = attempt(localArgs, repoDir, env, io, deps);
+  let made = await attempt(localArgs, repoDir, env, io, deps);
   if ("ok" in made && !made.ok) {
     io.stderr(`loop: the review failed (${made.why}); trying once more.`);
-    made = attempt(localArgs, repoDir, env, io, deps);
+    made = await attempt(localArgs, repoDir, env, io, deps);
   }
   if ("interrupted" in made) return 130;
   if (!made.ok) {

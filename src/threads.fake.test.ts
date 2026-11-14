@@ -32,7 +32,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret(texts: string[]) {
     return texts.some((t) => t.includes("SECRET"));
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     recordPrompt("threads.fake", request);
     const step = this.script[this.requests.length - 1];
@@ -209,9 +209,9 @@ describe("threadReplies (cli.ts threads)", () => {
 
   const resolves = (calls: string[]) => calls.filter((c) => /resolveReviewThread|unresolve/i.test(c));
 
-  test("an operator reply on a reviewed head gets one reply in the thread citing path:line; the thread is not resolved", () => {
+  test("an operator reply on a reviewed head gets one reply in the thread citing path:line; the thread is not resolved", async () => {
     const t = setup();
-    threadReplies(t.deps, "o/r", 7, "owner");
+    await threadReplies(t.deps, "o/r", 7, "owner");
     expect(t.provider.requests).toHaveLength(1);
     expect(t.replies).toHaveLength(1);
     expect(t.replies[0].id).toBe(7);
@@ -222,7 +222,7 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(t.calls.some((c) => /graphql.*mutation/.test(c))).toBe(false);
   });
 
-  test("the first reply's footer carries the reply operation and the tokens, and the call is recorded", () => {
+  test("the first reply's footer carries the reply operation and the tokens, and the call is recorded", async () => {
     const usage = { input: 900, output: 150, cacheRead: 40000, cacheWrite: 2000 };
     const t = setup({
       script: [
@@ -237,7 +237,7 @@ describe("threadReplies (cli.ts threads)", () => {
       ],
     });
     t.deps.costs = [];
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.replies[0].body).toContain(
       "<sub>Fake Model · effort high · reply · answers 1 thread(s) · PR so far $0.12 over 1 automatic run · 900 in / 150 out / 40k cache read / 2.0k cache write · $0.12</sub>",
     );
@@ -245,9 +245,9 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(t.deps.costs).toMatchObject([{ operation: "reply", label: "threads", model: "claude-sonnet-5-5", usage, costUsd: 0.12, pr: 7 }]);
   });
 
-  test("the call is one provider call with the thread schema, the read-only tools and the thread budget", () => {
+  test("the call is one provider call with the thread schema, the read-only tools and the thread budget", async () => {
     const t = setup();
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     const request = t.provider.requests[0];
     expect(request.outputSchema).toBe(THREAD_SCHEMA);
     expect(request.allowedTools).toEqual(["read", "glob", "grep"]);
@@ -257,9 +257,9 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(request.prompt).toContain("never \"tested\"");
   });
 
-  test("threads.json holds the finding, the replies, the reply count and the head's code at the lines", () => {
+  test("threads.json holds the finding, the replies, the reply count and the head's code at the lines", async () => {
     const t = setup();
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     const dir = t.provider.requests[0].addDirs[0];
     const file = JSON.parse(readFileSync(join(dir, "threads.json"), "utf8"));
     expect(file).toHaveLength(1);
@@ -268,7 +268,7 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(file[0].code).toContain("3: row 3");
   });
 
-  test("the first reply records the run's cost, flagged automatic, for the ceiling; later ones show the same total unflagged", () => {
+  test("the first reply records the run's cost, flagged automatic, for the ceiling; later ones show the same total unflagged", async () => {
     const t = setup({
       threads: [[thread([FINDING(7), OWNER_REPLY()]), thread([FINDING(8), OWNER_REPLY("nope", 901)])]],
       script: [
@@ -283,7 +283,7 @@ describe("threadReplies (cli.ts threads)", () => {
         }),
       ],
     });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.replies.map((r) => r.id)).toEqual([7, 8]);
     expect(readAutoCost(t.replies[0].body)).toBe(0.12);
     expect(readAutoCost(t.replies[1].body)).toBeNull();
@@ -293,9 +293,9 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(t.replies[1].body).toContain("<sub>this run $0.12 · PR so far $0.12 over 1 automatic run</sub>");
   });
 
-  test("an unreviewed push: no model call, no reply (the push's review will answer)", () => {
+  test("an unreviewed push: no model call, no reply (the push's review will answer)", async () => {
     const t = setup({ reviewedAt: "old1111111" });
-    threadReplies(t.deps, "o/r", 7, "owner");
+    await threadReplies(t.deps, "o/r", 7, "owner");
     expect(t.provider.requests).toHaveLength(0);
     expect(t.replies).toEqual([]);
     expect(t.notices).toEqual([]);
@@ -303,56 +303,56 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(t.calls.some((c) => c.startsWith("api graphql"))).toBe(false);
   });
 
-  test("a pull request never reviewed: no model call", () => {
+  test("a pull request never reviewed: no model call", async () => {
     const t = setup({ reviewedAt: null });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.provider.requests).toHaveLength(0);
     expect(t.replies).toEqual([]);
   });
 
-  test("a reply by someone who is not the operator starts nothing", () => {
+  test("a reply by someone who is not the operator starts nothing", async () => {
     const t = setup();
-    threadReplies(t.deps, "o/r", 7, "stranger");
+    await threadReplies(t.deps, "o/r", 7, "stranger");
     expect(t.provider.requests).toHaveLength(0);
     expect(t.calls).toEqual([]);
     expect(t.warnings.length).toBeGreaterThan(0);
   });
 
-  test("the operator comparison ignores case, and a placeholder operator is refused", () => {
+  test("the operator comparison ignores case, and a placeholder operator is refused", async () => {
     const t = setup({ operator: "Owner" });
-    threadReplies(t.deps, "o/r", 7, "OWNER");
+    await threadReplies(t.deps, "o/r", 7, "OWNER");
     expect(t.replies).toHaveLength(1);
     const bad = setup({ operator: "your-github-login" });
-    expect(() => threadReplies(bad.deps, "o/r", 7, "your-github-login")).toThrow("placeholder");
+    await expect(threadReplies(bad.deps, "o/r", 7, "your-github-login")).rejects.toThrow("placeholder");
     expect(bad.calls).toEqual([]);
     const empty = setup({ operator: "" });
-    expect(() => threadReplies({ ...empty.deps, config: { ...empty.deps.config, operator: "" } }, "o/r", 7)).toThrow("empty");
+    await expect(threadReplies({ ...empty.deps, config: { ...empty.deps.config, operator: "" } }, "o/r", 7)).rejects.toThrow("empty");
   });
 
-  test("a third owner reply in a thread with two Wachiman replies gets no answer and no model call", () => {
+  test("a third owner reply in a thread with two Wachiman replies gets no answer and no model call", async () => {
     const t = setup({
       threads: [[thread([FINDING(7), OWNER_REPLY(), WACHI_REPLY(800), OWNER_REPLY("2", 901), WACHI_REPLY(801), OWNER_REPLY("3", 902)])]],
     });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.provider.requests).toHaveLength(0);
     expect(t.replies).toEqual([]);
   });
 
-  test("no pending thread: no model call", () => {
+  test("no pending thread: no model call", async () => {
     const t = setup({ threads: [[thread([FINDING(7)])]] });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.provider.requests).toHaveLength(0);
   });
 
-  test("a thread that is not Wachiman's is never offered to the model", () => {
+  test("a thread that is not Wachiman's is never offered to the model", async () => {
     const foreign = thread([node("github-actions", "NONE", "Other workflow", 5), OWNER_REPLY()]);
     const t = setup({ threads: [[foreign, thread([FINDING(7), OWNER_REPLY()])]] });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     const file = JSON.parse(readFileSync(join(t.provider.requests[0].addDirs[0], "threads.json"), "utf8"));
     expect(file.map((x: { comment_id: number }) => x.comment_id)).toEqual([7]);
   });
 
-  test("a reply for a thread the engine did not hand over, or one given twice, is ignored", () => {
+  test("a reply for a thread the engine did not hand over, or one given twice, is ignored", async () => {
     const t = setup({
       script: [
         () => ({
@@ -367,12 +367,12 @@ describe("threadReplies (cli.ts threads)", () => {
         }),
       ],
     });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.replies.map((r) => r.id)).toEqual([7]);
     expect(t.replies[0].body).toContain("First");
   });
 
-  test("cited lines are checked: a missing file, a line past the end, or 'addressed' with no cite drops the reply", () => {
+  test("cited lines are checked: a missing file, a line past the end, or 'addressed' with no cite drops the reply", async () => {
     const bad = (cites: string[], status: "addressed" | "still_open" = "addressed") =>
       setup({
         script: [() => ({ costUsd: 0.05, structuredOutput: { thread_replies: [{ comment_id: 7, status, reply: "Claim.", cites }] } })],
@@ -386,17 +386,17 @@ describe("threadReplies (cli.ts threads)", () => {
       [["src/a.ts:99"], "still_open"],
     ] as const) {
       const t = bad([...cites], status);
-      threadReplies(t.deps, "o/r", 7);
+      await threadReplies(t.deps, "o/r", 7);
       expect(t.replies).toEqual([]);
       expect(t.warnings.length).toBeGreaterThan(0);
     }
     // A reply that does not claim to be addressed needs no cite.
     const ok = bad([], "still_open");
-    threadReplies(ok.deps, "o/r", 7);
+    await threadReplies(ok.deps, "o/r", 7);
     expect(ok.replies).toHaveLength(1);
   });
 
-  test("the model's text cannot forge the automatic flag or a signature", () => {
+  test("the model's text cannot forge the automatic flag or a signature", async () => {
     const t = setup({
       script: [
         () => ({
@@ -409,74 +409,74 @@ describe("threadReplies (cli.ts threads)", () => {
         }),
       ],
     });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     const body = t.replies[0].body;
     expect(body.split(SIGNATURE.auto)).toHaveLength(2);
     expect(body.split(SIGNATURE.review)).toHaveLength(1);
     expect(readAutoCost(body)).toBe(0.2);
   });
 
-  test("text the provider flags as a credential is not posted", () => {
+  test("text the provider flags as a credential is not posted", async () => {
     const t = setup({
       script: [() => ({ costUsd: 0.05, structuredOutput: { thread_replies: [{ comment_id: 7, status: "still_open", reply: "SECRET", cites: [] }] } })],
     });
-    expect(() => threadReplies(t.deps, "o/r", 7)).toThrow("credential");
+    await expect(threadReplies(t.deps, "o/r", 7)).rejects.toThrow("credential");
     expect(t.replies).toEqual([]);
   });
 
-  test("a push that lands while the model works: nothing is posted, the push's review answers", () => {
+  test("a push that lands while the model works: nothing is posted, the push's review answers", async () => {
     const t = setup({ heads: [HEAD, OTHER_HEAD] });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.replies).toEqual([]);
   });
 
-  test("a thread that someone answered meanwhile is not answered twice", () => {
+  test("a thread that someone answered meanwhile is not answered twice", async () => {
     const t = setup({
       threads: [[thread([FINDING(7), OWNER_REPLY()])], [thread([FINDING(7), OWNER_REPLY(), WACHI_REPLY()])]],
     });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.replies).toEqual([]);
   });
 
-  test("an agent that returns nothing usable is an engine error, not a silent success", () => {
+  test("an agent that returns nothing usable is an engine error, not a silent success", async () => {
     const t = setup({ script: [() => ({ costUsd: 0.05, isError: true, terminalReason: "budget" })] });
-    expect(() => threadReplies(t.deps, "o/r", 7)).toThrow("did not answer");
+    await expect(threadReplies(t.deps, "o/r", 7)).rejects.toThrow("did not answer");
     expect(t.replies).toEqual([]);
   });
 
-  test("it counts against the pull request's ceiling: the budget is what is left, capped by the thread budget", () => {
+  test("it counts against the pull request's ceiling: the budget is what is left, capped by the thread budget", async () => {
     const t = setup({ spent: 5.9 });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.provider.requests[0].maxBudgetUsd).toBeCloseTo(0.1, 10);
     const roomy = setup({ spent: 0.2, env: { WACHIMAN_THREADS_BUDGET_USD: "0.4" } });
-    threadReplies(roomy.deps, "o/r", 7);
+    await threadReplies(roomy.deps, "o/r", 7);
     expect(roomy.provider.requests[0].maxBudgetUsd).toBe(0.4);
   });
 
-  test("at the ceiling it posts the one notice and answers nothing; a second reply posts no second notice", () => {
+  test("at the ceiling it posts the one notice and answers nothing; a second reply posts no second notice", async () => {
     const t = setup({ spent: 6.0 });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.provider.requests).toHaveLength(0);
     expect(t.replies).toEqual([]);
     expect(t.notices).toHaveLength(1);
     expect(t.notices[0]).toContain("Automatic reviews paused: $6.00 of $6.00");
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.notices).toHaveLength(1);
   });
 
-  test("with a notice already posted for this ceiling, nothing is posted", () => {
+  test("with a notice already posted for this ceiling, nothing is posted", async () => {
     const t = setup({ spent: 6.0, existingNotice: "6.00" });
-    threadReplies(t.deps, "o/r", 7);
+    await threadReplies(t.deps, "o/r", 7);
     expect(t.notices).toEqual([]);
     expect(t.provider.requests).toHaveLength(0);
   });
 
-  test("a dry run logs the reply and posts nothing", () => {
+  test("a dry run logs the reply and posts nothing", async () => {
     const t = setup({ env: { WACHIMAN_DRY_RUN: "1" } });
     const logs: string[] = [];
-    threadReplies({ ...t.deps, log: (l) => void logs.push(l) }, "o/r", 7);
+    await threadReplies({ ...t.deps, log: (l) => void logs.push(l) }, "o/r", 7);
     expect(t.replies).toEqual([]);
     expect(logs.join("\n")).toContain("Appears addressed");
   });

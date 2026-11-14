@@ -26,7 +26,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     const claims = request.outputSchema === CLAIMS_SCHEMA;
     const output: unknown = claims
@@ -77,7 +77,7 @@ function fakeGh(world: World, opts: { failPatch?: boolean } = {}): GhFn {
   };
 }
 
-function run(env: Record<string, string>, opts: { failPatch?: boolean; words?: string[]; body?: string } = {}) {
+async function run(env: Record<string, string>, opts: { failPatch?: boolean; words?: string[]; body?: string } = {}) {
   const head = mkdtempSync(join(tmpdir(), "conf-review-head-"));
   mkdirSync(join(head, "src"));
   writeFileSync(join(head, "src/a.ts"), "one;\ntwo;\nthree;\n");
@@ -95,13 +95,13 @@ function run(env: Record<string, string>, opts: { failPatch?: boolean; words?: s
     sleep: () => {},
     now: () => Date.UTC(2026, 10, 11),
   };
-  review(deps, "o/r", 7, opts.words ?? []);
+  await review(deps, "o/r", 7, opts.words ?? []);
   return { world, provider, warnings, logs: logs.join("\n") };
 }
 
 describe("the description block after a review", () => {
-  test("is written after the review, keeps the author's text, and links the review", () => {
-    const r = run({ WACHIMAN_CONFIDENCE: "1" });
+  test("is written after the review, keeps the author's text, and links the review", async () => {
+    const r = await run({ WACHIMAN_CONFIDENCE: "1" });
     expect(r.world.reviews).toHaveLength(1);
     expect(r.world.patches).toHaveLength(1);
     const body = r.world.body;
@@ -115,43 +115,43 @@ describe("the description block after a review", () => {
     expect(r.provider.requests).toHaveLength(2);
   });
 
-  test("the review comment carries a short PR Confidence line", () => {
-    const r = run({ WACHIMAN_CONFIDENCE: "1" });
+  test("the review comment carries a short PR Confidence line", async () => {
+    const r = await run({ WACHIMAN_CONFIDENCE: "1" });
     const posted = r.world.reviews[0] as { body: string };
     expect(posted.body).toContain("PR Confidence: A");
   });
 
-  test("a second review replaces the block and leaves the text outside it byte for byte", () => {
-    const first = run({ WACHIMAN_CONFIDENCE: "1" }).world.body;
-    const second = run({ WACHIMAN_CONFIDENCE: "1", WACHIMAN_DRY_RUN: "0" }, { body: first }).world.body;
+  test("a second review replaces the block and leaves the text outside it byte for byte", async () => {
+    const first = (await run({ WACHIMAN_CONFIDENCE: "1" })).world.body;
+    const second = (await run({ WACHIMAN_CONFIDENCE: "1", WACHIMAN_DRY_RUN: "0" }, { body: first })).world.body;
     expect(second.split(BLOCK_START)).toHaveLength(2);
     expect(second.endsWith(`\n\n${AUTHOR_BODY}`)).toBe(true);
     expect(second.slice(second.indexOf(BLOCK_END))).toBe(first.slice(first.indexOf(BLOCK_END)));
   });
 
-  test("a failed write is a warning: the review is still posted and nothing throws", () => {
-    const r = run({ WACHIMAN_CONFIDENCE: "1" }, { failPatch: true });
+  test("a failed write is a warning: the review is still posted and nothing throws", async () => {
+    const r = await run({ WACHIMAN_CONFIDENCE: "1" }, { failPatch: true });
     expect(r.world.reviews).toHaveLength(1);
     expect(r.world.patches).toHaveLength(0);
     expect(r.warnings.join("\n")).toContain("PR Confidence");
   });
 
-  test("a dry run posts nothing and writes nothing", () => {
-    const r = run({ WACHIMAN_CONFIDENCE: "1", WACHIMAN_DRY_RUN: "1" });
+  test("a dry run posts nothing and writes nothing", async () => {
+    const r = await run({ WACHIMAN_CONFIDENCE: "1", WACHIMAN_DRY_RUN: "1" });
     expect(r.world.reviews).toHaveLength(0);
     expect(r.world.patches).toHaveLength(0);
   });
 
-  test("with the flag off there is no claims call and the description is untouched", () => {
-    const r = run({});
+  test("with the flag off there is no claims call and the description is untouched", async () => {
+    const r = await run({});
     expect(r.provider.requests).toHaveLength(1);
     expect(r.world.patches).toHaveLength(0);
     expect(r.world.body).toBe(AUTHOR_BODY);
     expect((r.world.reviews[0] as { body: string }).body).not.toContain("PR Confidence");
   });
 
-  test("a scoped review does not grade: no claims call, and the block says cannot say", () => {
-    const r = run({ WACHIMAN_CONFIDENCE: "1" }, { words: ["src/a.ts"] });
+  test("a scoped review does not grade: no claims call, and the block says cannot say", async () => {
+    const r = await run({ WACHIMAN_CONFIDENCE: "1" }, { words: ["src/a.ts"] });
     expect(r.provider.requests.every((q) => q.outputSchema !== CLAIMS_SCHEMA)).toBe(true);
     expect(r.world.body).toContain("cannot say");
     expect(r.world.body).not.toMatch(/\bA \(trial\)/);

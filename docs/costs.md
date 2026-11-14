@@ -178,12 +178,16 @@ the cost estimate of the whole review with a number. See [The size gate](#the-si
 
 A review splits the changed files into batches and sends each batch to the agent as one call, riskiest
 files first (the risk score is a heuristic on file paths; see [architecture.md](architecture.md)).
-The engine keeps a running total, `spent`, of what each call reports. Before each call it works out
-the cap for that call:
+The engine keeps a running total, `spent`, of what each call reports. Up to four batches run at
+once, so before each call it also counts what the calls still running may spend (`reserved`, each
+call's cap until it finishes, when the real cost replaces it). It works out the cap for that call:
 
 ```
-cap = min(batch_budget_usd, budget_usd - spent)
+cap = min(batch_budget_usd, budget_usd - spent - reserved)
 ```
+
+Running batches side by side does not raise the cost: the calls and their caps are the same, and
+the reservations keep the sum of caps inside `budget_usd`.
 
 Four rules follow from that code:
 
