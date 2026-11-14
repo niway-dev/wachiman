@@ -36,6 +36,28 @@ describe("select", () => {
   });
 });
 
+describe("select with a disabled choice", () => {
+  const withDisabled = [
+    { label: "alpha", value: "a" },
+    { label: "beta", value: "b" },
+    { label: "gamma", value: "c", disabled: true },
+  ];
+
+  test("it is listed as coming soon, and its number is refused and asked again", async () => {
+    const io = scripted(["3", "2"]);
+    expect(await createPrompter(io).select("Pick one", withDisabled, 0)).toBe("b");
+    expect(io.printed()).toContain("3. gamma (coming soon)");
+    expect(io.printed()).toContain("Option 3 is not available yet");
+  });
+
+  test("Enter never takes a disabled default: it falls to the first choice that can be picked", async () => {
+    const io = scripted([""]);
+    expect(await createPrompter(io).select("Pick one", withDisabled, 2)).toBe("a");
+    expect(io.printed()).toMatch(/1\. alpha.*\(default\)/);
+    expect(io.printed()).not.toMatch(/3\. gamma.*\(default\)/);
+  });
+});
+
 describe("text", () => {
   test("Enter takes the default printed in brackets", async () => {
     const io = scripted([""]);

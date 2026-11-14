@@ -50,7 +50,7 @@ class AllReviewed implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     if (this.findOne && JSON.stringify(request.outputSchema).includes('"verdicts"')) {
       return {
@@ -79,10 +79,10 @@ class AllReviewed implements ProviderAdapter {
 }
 
 /** The prompts of one core run, with the per-batch run directory as a placeholder. */
-function prompts(input: ReviewInput, verify = false, baseSnapshot?: () => { dir: string; release(): void }) {
+async function prompts(input: ReviewInput, verify = false, baseSnapshot?: () => { dir: string; release(): void }) {
   const provider = new AllReviewed(input.files.map((f) => f.filename), verify);
   const options = reviewOptionsOf(loadConfig(verify ? { WACHIMAN_VERIFY: "1" } : {}, () => {}), 3);
-  reviewChange(input, options, { provider, ...(baseSnapshot ? { baseSnapshot } : {}), log: () => {}, warn: () => {}, sleep: () => {}, rateLimitBackoffMs: 0 });
+  await reviewChange(input, options, { provider, ...(baseSnapshot ? { baseSnapshot } : {}), log: () => {}, warn: () => {}, sleep: () => {}, rateLimitBackoffMs: 0 });
   return provider.requests.map((r) => r.prompt.replaceAll(r.addDirs[0], "<RUN_DIR>"));
 }
 
@@ -104,7 +104,7 @@ const fixtures = readdirSync(FIXTURES)
 describe("prompt parity between the github and local-git connectors", () => {
   for (const fx of fixtures) {
     const present = hasCommit(fx.headSha) && hasCommit(fx.mergeBase);
-    test.skipIf(!present)(`pull request #${fx.pr} at ${fx.headSha.slice(0, 7)} (needs its commits: git fetch --unshallow)`, () => {
+    test.skipIf(!present)(`pull request #${fx.pr} at ${fx.headSha.slice(0, 7)} (needs its commits: git fetch --unshallow)`, async () => {
       const snapshot = snapshotHead(ROOT, fx.headSha);
       snapshots.push(snapshot.dir);
       expect(snapshot.missing).toEqual([]);
@@ -140,15 +140,15 @@ describe("prompt parity between the github and local-git connectors", () => {
       expect(local.files.map((f) => f.filename)).toEqual(fx.files.map((f) => f.filename));
       const localOnly = local.files.filter((f) => f.patch && !withPatch.has(f.filename)).map((f) => f.filename);
       if (localOnly.length > 0) console.log(`#${fx.pr}: only the local connector has a patch for ${localOnly.join(", ")}`);
-      const fromGithub = prompts(github);
-      const fromLocal = prompts(local);
+      const fromGithub = await prompts(github);
+      const fromLocal = await prompts(local);
       expect(fromLocal.length).toBe(fromGithub.length);
       expect(fromLocal.length).toBeGreaterThan(0);
       fromLocal.forEach((prompt, i) => expect(prompt, `#${fx.pr} batch ${i + 1}`).toBe(fromGithub[i]));
       // The same with verification on: the verifier's prompt is part of the contract too. Neither
       // connector provides a base snapshot here, so both prompts say the base is not available.
-      const verifiedGithub = prompts(github, true);
-      const verifiedLocal = prompts(local, true);
+      const verifiedGithub = await prompts(github, true);
+      const verifiedLocal = await prompts(local, true);
       expect(verifiedLocal.length).toBe(fromLocal.length + 1);
       expect(verifiedLocal.at(-1)).toContain("<candidate id=\"c1\"");
       expect(verifiedLocal.length).toBe(verifiedGithub.length);
@@ -159,7 +159,7 @@ describe("prompt parity between the github and local-git connectors", () => {
 
 describe("the verifier prompt when only the local connector has a base snapshot", () => {
   const fx = fixtures.find((x) => hasCommit(x.headSha) && hasCommit(x.mergeBase));
-  test.skipIf(!fx)("differs from the GitHub one only in the base-availability text", () => {
+  test.skipIf(!fx)("differs from the GitHub one only in the base-availability text", async () => {
     const f = fx as PrFixture;
     const snapshot = snapshotHead(ROOT, f.headSha);
     snapshots.push(snapshot.dir);
@@ -177,8 +177,8 @@ describe("the verifier prompt when only the local connector has a base snapshot"
       rebased: false,
       threads: [],
     });
-    const github = prompts(input, true).at(-1) as string;
-    const local = prompts(input, true, () => ({ dir: "/fake/base", release() {} })).at(-1) as string;
+    const github = (await prompts(input, true)).at(-1) as string;
+    const local = (await prompts(input, true, () => ({ dir: "/fake/base", release() {} }))).at(-1) as string;
     const a = github.split("\n");
     const b = local.split("\n");
     expect(b.length).toBe(a.length);

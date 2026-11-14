@@ -135,6 +135,16 @@ describe("renderMarkdown", () => {
     expect(renderMarkdown(r, {})).toContain("Profile: isolated — a Claude Code profile that holds only a sign-in");
   });
 
+  test("a model or effort that came from .wachiman.yml says so on the last line, in both local formats; JSON is unchanged", () => {
+    const r = local();
+    const line = `${r.provider.label} (from .wachiman.yml) · effort ${r.provider.effort} (from .wachiman.yml) · profile`;
+    expect(renderMarkdown(r, { settingsFrom: { model: true, effort: true } })).toContain(line);
+    expect(renderTerminal(r, { agentPrompt: false, settingsFrom: { model: true, effort: true } })).toContain(line);
+    expect(renderMarkdown(r, { settingsFrom: { effort: true } })).toContain(`${r.provider.label} · effort ${r.provider.effort} (from .wachiman.yml) · profile`);
+    expect(renderMarkdown(r, {})).not.toContain("from .wachiman.yml");
+    expect(renderJson(r, 1)).not.toContain("from .wachiman.yml");
+  });
+
   test("a fence longer than any backtick run in the prompt", () => {
     const r = local();
     r.findings[0].body = "Use ```ts\ncode\n``` here.";

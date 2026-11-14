@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { UsageError } from "../config";
-import { parseInitFlags } from "./args";
+import { initUsage, parseInitFlags } from "./args";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type RawInitFlags } from "./options";
 
 const REF = "v1.5.0";
@@ -169,5 +169,39 @@ describe("parseInitFlags: the argument parser", () => {
     expect(() => parse(["stray"])).toThrow(UsageError);
     expect(() => parse(["--force=yes"])).toThrow(UsageError);
     expect(() => parse(["--mode"])).toThrow(UsageError);
+  });
+});
+
+describe("resolveInitOptions: --project-kind", () => {
+  test("monorepo and single are accepted in every mode, and recorded with --force", () => {
+    expect(ok({ mode: "local", projectKind: "monorepo" }).settings).toEqual({ kind: "monorepo", force: false });
+    expect(ok({ mode: "github", operator: "me", projectKind: "single", force: true }).settings).toEqual({ kind: "single", force: true });
+    expect(ok({ mode: "both", operator: "me", projectKind: "single" }).settings).toEqual({ kind: "single", force: false });
+  });
+
+  test("without the flag there are no settings, so a scripted init does not touch the file", () => {
+    expect(ok({ mode: "local" }).settings).toBeUndefined();
+    expect(ok({ mode: "github", operator: "me" }).settings).toBeUndefined();
+  });
+
+  test("the kind is not a workflow-only flag: local mode accepts it, and --force with it", () => {
+    expect(ok({ mode: "local", projectKind: "single", force: true }).settings).toEqual({ kind: "single", force: true });
+    expect(error({ mode: "local", force: true })).toContain("--force");
+  });
+
+  test("another value is refused; distributed says it is not available yet", () => {
+    expect(error({ mode: "local", projectKind: "polyrepo" })).toContain('must be monorepo or single, got "polyrepo"');
+    expect(error({ mode: "github", operator: "me", projectKind: "distributed" })).toContain("not available yet");
+  });
+});
+
+describe("parseInitFlags: --project-kind", () => {
+  test("the value is carried as projectKind and listed in the usage", () => {
+    expect(parseInitFlags(["--mode", "local", "--project-kind", "single"], "/r")).toEqual({ mode: "local", projectKind: "single", repoDir: "/r" });
+    expect(initUsage).toContain("--project-kind monorepo|single");
+  });
+
+  test("a missing value is a usage error", () => {
+    expect(() => parseInitFlags(["--project-kind"], "/r")).toThrow(UsageError);
   });
 });

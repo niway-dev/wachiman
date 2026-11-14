@@ -25,6 +25,7 @@
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
+ *   wachiman upgrade [--check]     update the CLI, then the workflow pin in this repository (src/upgrade/)
  *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
@@ -43,15 +44,17 @@ import { parseStatusArgs, runStatus } from "./status/command";
 import { parseDashboardArgs, runDashboard } from "./store/command";
 import { parseLedgerArgs, runLedger } from "./ledger-read/command";
 import { pullLedger } from "./ledger-read/pull";
-import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
+import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, withBaseSettings, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { parseLocalArgs, runLocal } from "./local";
 import { parseLoopArgs, runLoop } from "./loop/command";
 import { parseAskArgs, runAsk } from "./local-ask";
 import { parseProfileArgs, parseProjectArgs, runProfile, runProject } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
 import { parseSkillsArgs, runSkills } from "./skills/install";
+import { parseUpgradeArgs, runUpgrade } from "./upgrade/command";
 import { parseDoctorArgs, runDoctor } from "./doctor/run";
 import { parseInitFlags } from "./init/args";
+import { ghLogin } from "./init/github-login";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
 import { projectCommands } from "./wizard/command";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
@@ -198,8 +201,9 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
   return runInitCommand(flags, env, io, {
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
-    // Choosing local/both already requests setup; keep its final write confirmation.
-    bindNow: (prompter, mode) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, initMode: mode, unboundHints: projectCommands("setup", repoDir, process.cwd()) }),
+    githubLogin: ghLogin,
+    // Choosing local/both already requests setup, which saves the binding without asking again.
+    bindNow: (prompter, mode, closing) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, initMode: mode, unboundHints: projectCommands("setup", repoDir, process.cwd()), closing }),
   });
 }
 
@@ -325,7 +329,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {
       // No GitHub: no token, no repository, no `gh` function anywhere on this path.
-      return runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
+      return await runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
@@ -333,7 +337,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "loop") {
       // Like `local`: no GitHub token, no `gh` function anywhere on this path.
-      return runLoop(parseLoopArgs(args.slice(1)), repoDir, env, {
+      return await runLoop(parseLoopArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
@@ -341,7 +345,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "ask") {
       // Like `local`: no GitHub token, no `gh` function anywhere on this path.
-      return runAsk(parseAskArgs(args.slice(1)), repoDir, env, {
+      return await runAsk(parseAskArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
@@ -349,6 +353,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);
+    }
+    if (mode === "upgrade") {
+      const parsed = parseUpgradeArgs(args.slice(1), repoDir);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["upgrade"])!), 0);
+      return runUpgrade(parsed, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
     }
     if (mode === "setup" || mode === "init") return await runWizard(mode, args.slice(1), repoDir, env);
     if (mode === "status") {
@@ -384,13 +393,39 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // decision 4); the rest of the thread-only run is unchanged. Its trigger is the question's, not
     // an automatic run's, so it does not spend from the automatic ceiling.
     const effective = routeMode(mode, commentLine, env.REQUEST ?? "", loaded.mention);
-    const config = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
-    const provider = getProvider(config.provider, config);
+    const routed = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
+    const mainProvider = (c: typeof routed) => getProvider(c.provider, c);
     // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
-    const verifier = config.verify && mode !== "threads" ? getProvider(config.provider, { ...config, model: config.verifierModel, effort: "high" }) : undefined;
+    const verifier = routed.verify && mode !== "threads" ? getProvider(routed.provider, { ...routed, model: routed.verifierModel, effort: "high" }) : undefined;
+    let provider = mainProvider(routed);
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
     const request = effective === "comment" ? required(env, "REQUEST") : "";
+    // Before any call is paid for: a missing binary or settings file would fail every batch.
+    try {
+      provider.preflight();
+      verifier?.preflight();
+    } catch (error) {
+      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
+      return 1;
+    }
+    // Where no workflow input or WACHIMAN_* set them, the model and the effort come from the base
+    // commit's `.wachiman.yml` (never the head's, ADR 0049), so the estimate, the size gate and every
+    // call agree. The adapters are rebuilt only when the file changed one of them.
+    let config = withBaseSettings(routed, defaultGh, repo, pr, (line) => console.log(line), (line) => console.error(line));
+    if (config.model !== routed.model || config.effort !== routed.effort) {
+      // Settings never change the verifier (own model, effort high), so only the main provider is rebuilt.
+      const before = provider;
+      provider = mainProvider(config);
+      try {
+        provider.preflight();
+      } catch (error) {
+        // A value the base file set that this provider cannot use must not block the pull request that fixes it.
+        console.error(`wachiman: ignored model/effort from .wachiman.yml at the base commit: ${error instanceof Error ? error.message : error}; using the workflow's values.`);
+        provider = before;
+        config = routed;
+      }
+    }
     const costs: CallCost[] = [];
     const ledgerNotes: string[] = [];
     const deps: Deps = {
@@ -405,18 +440,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
       log: (line) => console.log(line),
       warn: (line) => console.error(line),
     };
-    // Before any call is paid for: a missing binary or settings file would fail every batch.
     try {
-      provider.preflight();
-      verifier?.preflight();
-    } catch (error) {
-      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
-      return 1;
-    }
-    try {
-      if (effective === "review") review(deps, repo, pr, rest);
-      else if (effective === "threads") threadReplies(deps, repo, pr, env.WACHIMAN_COMMENT_AUTHOR || undefined);
-      else comment(deps, repo, pr, request, env.WACHIMAN_COMMENT_AUTHOR || undefined, commentLine);
+      if (effective === "review") await review(deps, repo, pr, rest);
+      else if (effective === "threads") await threadReplies(deps, repo, pr, env.WACHIMAN_COMMENT_AUTHOR || undefined);
+      else await comment(deps, repo, pr, request, env.WACHIMAN_COMMENT_AUTHOR || undefined, commentLine);
     } finally {
       // Also after a failed run: the calls it made were paid for.
       writeStepSummary(costs, env, undefined, ledgerNotes);

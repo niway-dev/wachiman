@@ -17,6 +17,7 @@ import { UsageError } from "../config";
 import {
   instructionFileOf,
   instructionsFrom,
+  MAX_INSTRUCTION_BYTES,
   REVIEW_INPUT_FORMAT,
   resolveScope,
   type BaseInstructions,
@@ -24,6 +25,7 @@ import {
   type ReviewInput,
 } from "../engine";
 import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
+import { parseRepoSettings, SETTINGS_PATH, type RepoSettings } from "../repo-settings";
 
 const TIMEOUT_MS = 60_000;
 /** The whole branch diff is one output; a large branch can be far over the evidence step's 8 MB. */
@@ -351,6 +353,51 @@ export function localInstructions(
     },
     warn,
   );
+}
+
+/** What decides the commit whose `.wachiman.yml` a local run reads: the same scope flags the review itself takes. */
+export interface SettingsScope {
+  /** `--working-tree`: the instruction files are read at `HEAD`, and so is the settings file. */
+  workingTree?: "staged" | "all";
+  base?: string;
+  commit?: string;
+  from?: string;
+  maxDepth?: number;
+  /** `--input`: the base commit the input file names. */
+  inputBase?: string;
+}
+
+/**
+ * The commit whose `.wachiman.yml` a local run reads, the one the instruction files are read at:
+ * the merge-base (the start of the diff), `HEAD` for a working-tree review, or the input file's
+ * base. Never the head, so a branch cannot raise the model or the effort it is reviewed under.
+ * Undefined when the scope does not resolve; the review's own ref checks report that, with their
+ * message, a moment later.
+ */
+export function localSettingsCommit(repoDir: string, scope: SettingsScope, git: GitRunner = spawnGit): string | undefined {
+  if (scope.inputBase !== undefined) return scope.inputBase;
+  try {
+    if (scope.workingTree) return run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
+    return resolveRefs(repoDir, scope.base, git, scope.maxDepth, { commit: scope.commit, from: scope.from }).mergeBase;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `.wachiman.yml` as it is at `sha`, parsed, or undefined when there is none there (or `sha` is
+ * not in this clone: an `--input` file can name one that is not). An invalid file is a usage error.
+ */
+export function localRepoSettings(repoDir: string, sha: string, git: GitRunner = spawnGit): RepoSettings | undefined {
+  let bytes: Buffer | null;
+  try {
+    bytes = blobAt(repoDir, sha, SETTINGS_PATH, git);
+  } catch {
+    return undefined;
+  }
+  if (!bytes) return undefined;
+  if (bytes.length > MAX_INSTRUCTION_BYTES) throw new UsageError(`${SETTINGS_PATH} at ${short(sha)} is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
+  return parseRepoSettings(bytes.toString("utf8"));
 }
 
 const names = (out: string) => out.split("\0").filter(Boolean);

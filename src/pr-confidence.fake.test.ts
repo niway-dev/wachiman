@@ -33,7 +33,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
@@ -123,27 +123,27 @@ const limited = (reason: "turns" | "timeout", step: () => Partial<ProviderResult
 describe("what the review did not read or finish", () => {
   const paths = ["src/upload.ts", "src/log.ts"];
 
-  test("a confirmed change plus a binary file the review never read gives B, naming the binary", () => {
+  test("a confirmed change plus a binary file the review never read gives B, naming the binary", async () => {
     const input = prInput(paths);
     mkdirSync(join(input.headDir!, "assets"));
     writeFileSync(join(input.headDir!, "assets/logo.png"), Buffer.from([0, 1, 2, 3, 0, 255]));
     input.files = [...input.files, { filename: "assets/logo.png", additions: 0, deletions: 0 }];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    const f = reviewChange(input, graded(), deps(provider)).fidelity!;
+    const f = (await reviewChange(input, graded(), deps(provider))).fidelity!;
     expect(f.unexplainedFiles).toEqual(["assets/logo.png"]);
     expect(f.grade).toBe("B");
   });
 
-  test("a file the owner excluded from the review is named too, and a lockfile is still explained", () => {
+  test("a file the owner excluded from the review is named too, and a lockfile is still explained", async () => {
     const input = prInput([...paths, "src/notes.md"]);
     input.files = [...input.files, { filename: "bun.lock", additions: 5, deletions: 5, patch: patchOf(5) }];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    const f = reviewChange(input, { ...graded(), exclude: ["src/notes.md"] }, deps(provider)).fidelity!;
+    const f = (await reviewChange(input, { ...graded(), exclude: ["src/notes.md"] }, deps(provider))).fidelity!;
     expect(f.unexplainedFiles).toEqual(["src/notes.md"]);
     expect(f.grade).toBe("B");
   });
 
-  test("build output the engine skips by default, beside two confirmed claims, keeps A", () => {
+  test("build output the engine skips by default, beside two confirmed claims, keeps A", async () => {
     const input = prInput(paths);
     input.files = [
       ...input.files,
@@ -153,49 +153,49 @@ describe("what the review did not read or finish", () => {
       { filename: "src/__snapshots__/upload.test.ts.snap", additions: 5, deletions: 5, patch: patchOf(5) },
     ];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    expect(reviewChange(input, graded(), deps(provider)).fidelity).toMatchObject({ grade: "A", unexplainedFiles: [] });
+    expect((await reviewChange(input, graded(), deps(provider))).fidelity).toMatchObject({ grade: "A", unexplainedFiles: [] });
   });
 
-  test("a lockfile alone beside two confirmed claims keeps A", () => {
+  test("a lockfile alone beside two confirmed claims keeps A", async () => {
     const input = prInput(paths);
     input.files = [...input.files, { filename: "bun.lock", additions: 5, deletions: 5, patch: patchOf(5) }];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    expect(reviewChange(input, graded(), deps(provider)).fidelity).toMatchObject({ grade: "A", unexplainedFiles: [] });
+    expect((await reviewChange(input, graded(), deps(provider))).fidelity).toMatchObject({ grade: "A", unexplainedFiles: [] });
   });
 
-  test("a title and body too long for the claims call give cannot say with that reason", () => {
+  test("a title and body too long for the claims call give cannot say with that reason", async () => {
     const description = `Retries failed uploads and logs each retry. ${"More detail. ".repeat(3000)}`;
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    const f = reviewChange(prInput(paths, { description }), graded(), deps(provider)).fidelity!;
+    const f = (await reviewChange(prInput(paths, { description }), graded(), deps(provider))).fidelity!;
     expect(f.grade).toBe("cannot say");
     expect(f.reasons).toEqual(["The pull request text was too long to read in full"]);
     expect(f.trial).toBe(false);
   });
 
-  test("a batch that hits the turn limit with usable output gives cannot say", () => {
+  test("a batch that hits the turn limit with usable output gives cannot say", async () => {
     const provider = new FakeProvider([TWO_CLAIMS, limited("turns", batchOf(paths))]);
-    const f = reviewChange(prInput(paths), graded(), deps(provider)).fidelity!;
+    const f = (await reviewChange(prInput(paths), graded(), deps(provider))).fidelity!;
     expect(f.grade).toBe("cannot say");
     expect(f.reasons).toEqual(["The run did not finish"]);
   });
 
-  test("a batch killed by the time limit with usable output gives cannot say", () => {
+  test("a batch killed by the time limit with usable output gives cannot say", async () => {
     const provider = new FakeProvider([TWO_CLAIMS, limited("timeout", batchOf(paths))]);
-    expect(reviewChange(prInput(paths), graded(), deps(provider)).fidelity?.grade).toBe("cannot say");
+    expect((await reviewChange(prInput(paths), graded(), deps(provider))).fidelity?.grade).toBe("cannot say");
   });
 
-  test("a claims call that hits the turn limit with a usable list gives cannot say", () => {
+  test("a claims call that hits the turn limit with a usable list gives cannot say", async () => {
     const provider = new FakeProvider([limited("turns", TWO_CLAIMS), batchOf(paths)]);
-    const f = reviewChange(prInput(paths), graded(), deps(provider)).fidelity!;
+    const f = (await reviewChange(prInput(paths), graded(), deps(provider))).fidelity!;
     expect(f.grade).toBe("cannot say");
   });
 });
 
 describe("the grade of a pull request review", () => {
-  test("two confirmed claims and one file no claim explains give B, and the file is named", () => {
+  test("two confirmed claims and one file no claim explains give B, and the file is named", async () => {
     const paths = ["src/upload.ts", "src/log.ts", "src/extra.ts"];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     const f = result.fidelity!;
     expect(f.claims.map((c) => c.status)).toEqual(["confirmed", "confirmed"]);
     expect(f.unexplainedFiles).toEqual(["src/extra.ts"]);
@@ -207,44 +207,44 @@ describe("the grade of a pull request review", () => {
     expect(validate(resultSchema, JSON.parse(JSON.stringify(result)))).toEqual([]);
   });
 
-  test("the same pull request without that file gives A, marked as a trial", () => {
+  test("the same pull request without that file gives A, marked as a trial", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity).toMatchObject({ grade: "A", trial: true, reasons: [], unexplainedFiles: [] });
   });
 
-  test("a title and body that name nothing checkable give C with the stated reason", () => {
+  test("a title and body that name nothing checkable give C with the stated reason", async () => {
     const paths = ["src/upload.ts"];
     const provider = new FakeProvider([
       claimsAnswer({ text: "Various improvements.", vague: true }),
       () => ({ structuredOutput: out({ files_reviewed: paths, summary: "Reviewed." }) }),
     ]);
-    const result = reviewChange(prInput(paths, { title: "Updates", description: "Various improvements." }), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths, { title: "Updates", description: "Various improvements." }), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("C");
     expect(result.fidelity?.reasons[0]).toBe("The pull request does not say what it changes");
     expect(result.fidelity?.claims.map((c) => c.status)).toEqual(["vague"]);
   });
 
-  test("a pull request with no claim at all gives C too", () => {
+  test("a pull request with no claim at all gives C too", async () => {
     const paths = ["src/upload.ts"];
     const provider = new FakeProvider([claimsAnswer(), () => ({ structuredOutput: out({ files_reviewed: paths, summary: "Reviewed." }) })]);
-    const result = reviewChange(prInput(paths, { title: "wip", description: "" }), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths, { title: "wip", description: "" }), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("C");
   });
 
-  test("a money risk fact gives at most B even when every claim is confirmed", () => {
+  test("a money risk fact gives at most B even when every claim is confirmed", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const provider = new FakeProvider([
       TWO_CLAIMS,
       batchOf(paths, { risk_facts: [{ kind: "money", path: "src/upload.ts", line: 4, why: "A retry can charge twice." }] }),
     ]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("B");
     expect(result.fidelity?.reasons[0]).toContain("money");
   });
 
-  test("a contradicted claim gives C", () => {
+  test("a contradicted claim gives C", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const provider = new FakeProvider([
       TWO_CLAIMS,
@@ -255,35 +255,35 @@ describe("the grade of a pull request review", () => {
         ],
       }),
     ]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("C");
     expect(result.fidelity?.claims[1]).toMatchObject({ status: "contradicted", evidence: [{ path: "src/log.ts", line: 5 }] });
   });
 
-  test("evidence on a line that does not exist at the head leaves the claim unverified, so B", () => {
+  test("evidence on a line that does not exist at the head leaves the claim unverified, so B", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const provider = new FakeProvider([
       TWO_CLAIMS,
       batchOf(paths, { claim_assignments: [supports("src/upload.ts", 0, 2), supports("src/log.ts", 1, 99)] }),
     ]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.claims.map((c) => c.status)).toEqual(["confirmed", "unverified"]);
     expect(result.fidelity?.grade).toBe("B");
     expect(result.fidelity?.reasons).toEqual(["Claim not verified: Logs each retry."]);
   });
 
-  test("an open Blocker gives C", () => {
+  test("an open Blocker gives C", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const blocker = { path: "src/upload.ts", line: 2, severity: "blocker" as const, topic: "bug" as const, confidence: "high" as const, title: "Loses data", body: "It drops the file." };
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths, { findings: [blocker] })]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("C");
     expect(result.fidelity?.reasons).toEqual(["One open Blocker"]);
   });
 });
 
 describe("a run that did not read everything has no grade", () => {
-  test("a spend-ceiling stop gives cannot say, whatever the claims say", () => {
+  test("a spend-ceiling stop gives cannot say, whatever the claims say", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const provider = new FakeProvider([
       TWO_CLAIMS,
@@ -294,7 +294,7 @@ describe("a run that did not read everything has no grade", () => {
       },
     ]);
     const options = { ...graded(0.4), batchLines: 10 };
-    const result = reviewChange(prInput(paths), options, deps(provider));
+    const result = await reviewChange(prInput(paths), options, deps(provider));
     expect(result.batches.map((b) => b.status)).toEqual(["reviewed", "not run: budget spent"]);
     expect(result.fidelity?.grade).toBe("cannot say");
     expect(result.fidelity?.trial).toBe(false);
@@ -302,23 +302,23 @@ describe("a run that did not read everything has no grade", () => {
     expect(result.fidelity?.reasons).toContain("One file was not read");
   });
 
-  test("a file the batch did not account for gives cannot say", () => {
+  test("a file the batch did not account for gives cannot say", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(["src/upload.ts"]), () => ({ structuredOutput: out({ files_reviewed: ["src/upload.ts"] }) })]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("cannot say");
     expect(result.fidelity?.reasons).toContain("One file was not read");
   });
 
-  test("a claims call that returns nothing usable gives cannot say, never C", () => {
+  test("a claims call that returns nothing usable gives cannot say, never C", async () => {
     const paths = ["src/upload.ts"];
     const provider = new FakeProvider([() => ({ structuredOutput: { nope: true } }), () => ({ structuredOutput: out({ files_reviewed: paths }) })]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("cannot say");
     expect(provider.requests[1]?.prompt).not.toContain("claim_assignments");
   });
 
-  test("a claims call that throws gives cannot say and the review goes on", () => {
+  test("a claims call that throws gives cannot say and the review goes on", async () => {
     const paths = ["src/upload.ts"];
     const provider = new FakeProvider([
       () => {
@@ -326,16 +326,16 @@ describe("a run that did not read everything has no grade", () => {
       },
       () => ({ structuredOutput: out({ files_reviewed: paths, summary: "Reviewed." }) }),
     ]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("cannot say");
     expect(result.findings).toEqual([]);
     expect(result.execution.callsWithOutput).toBe(1);
   });
 
-  test("a budget too small for the claims call skips it and gives cannot say", () => {
+  test("a budget too small for the claims call skips it and gives cannot say", async () => {
     const paths = ["src/upload.ts"];
     const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: paths, summary: "Reviewed." }) })]);
-    const result = reviewChange(prInput(paths), graded(0.1), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(0.1), deps(provider));
     expect(provider.claimsCalls).toHaveLength(0);
     expect(result.fidelity?.grade).toBe("cannot say");
     expect(result.fidelity?.reasons[0]).toBe("The run stopped at the spend ceiling");
@@ -343,11 +343,11 @@ describe("a run that did not read everything has no grade", () => {
 });
 
 describe("the claims call", () => {
-  test("is one extra call, costed and counted like any other", () => {
+  test("is one extra call, costed and counted like any other", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const costs: NonNullable<CoreDeps["costs"]> = [];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    const result = reviewChange(prInput(paths), graded(), { ...deps(provider), costs });
+    const result = await reviewChange(prInput(paths), graded(), { ...deps(provider), costs });
     expect(provider.requests).toHaveLength(2);
     expect(provider.claimsCalls).toHaveLength(1);
     expect(costs.map((c) => c.label)).toEqual(["claims", "batch 1/1"]);
@@ -356,7 +356,7 @@ describe("the claims call", () => {
     expect(provider.claimsCalls[0]?.maxBudgetUsd).toBeLessThanOrEqual(CLAIMS_BUDGET_USD);
   });
 
-  test("reads the title and body the author wrote, without Wachiman's block", () => {
+  test("reads the title and body the author wrote, without Wachiman's block", async () => {
     const paths = ["src/upload.ts"];
     const block = `${BLOCK_START}\n## Wachiman · PR Confidence\n> B · old letter\n${BLOCK_END}`;
     const author = "Retries failed uploads.";
@@ -376,14 +376,14 @@ describe("the claims call", () => {
     });
     expect(input.change.description).toBe(author);
     const provider = new FakeProvider([claimsAnswer({ text: author }), batchOf(paths)]);
-    reviewChange(input, graded(), deps(provider));
+    await reviewChange(input, graded(), deps(provider));
     const prompt = provider.claimsCalls[0]!.prompt;
     expect(prompt).toContain(JSON.stringify({ title: "Retry uploads", body: author }));
     expect(prompt).not.toContain(BLOCK_START);
     expect(prompt).not.toContain("old letter");
   });
 
-  test("an absolute path in an assignment or its evidence is made relative to the head", () => {
+  test("an absolute path in an assignment or its evidence is made relative to the head", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const input = prInput(paths);
     const abs = (p: string) => `${input.headDir}/${p}`;
@@ -399,15 +399,15 @@ describe("the claims call", () => {
         }),
       }),
     ]);
-    const result = reviewChange(input, graded(), deps(provider));
+    const result = await reviewChange(input, graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("A");
     expect(result.fidelity?.claims.map((c) => c.evidence[0]?.path)).toEqual(["src/upload.ts", "src/log.ts"]);
   });
 
-  test("the batches get the claims and the optional claim_assignments output", () => {
+  test("the batches get the claims and the optional claim_assignments output", async () => {
     const paths = ["src/upload.ts"];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    reviewChange(prInput(paths), graded(), deps(provider));
+    await reviewChange(prInput(paths), graded(), deps(provider));
     const batch = provider.requests[1]!;
     expect(batch.prompt).toContain('0. "Retries failed uploads."');
     expect(batch.prompt).toContain('1. "Logs each retry."');
@@ -418,10 +418,10 @@ describe("the claims call", () => {
 });
 
 describe("what is not a full pull request review gets no grade and no extra call", () => {
-  test("without the option, a pull request review makes no claims call and has no fidelity", () => {
+  test("without the option, a pull request review makes no claims call and has no fidelity", async () => {
     const paths = ["src/upload.ts"];
     const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: paths, summary: "Reviewed." }) })]);
-    const result = reviewChange(prInput(paths), base(), deps(provider));
+    const result = await reviewChange(prInput(paths), base(), deps(provider));
     expect(provider.requests).toHaveLength(1);
     expect(provider.requests[0]?.prompt).not.toContain("## Claims");
     expect(provider.requests[0]?.outputSchema).toBeDefined();
@@ -429,22 +429,22 @@ describe("what is not a full pull request review gets no grade and no extra call
     expect(result.fidelity).toBeUndefined();
   });
 
-  test("a local branch review never produces fidelity, even when the option is passed", () => {
+  test("a local branch review never produces fidelity, even when the option is passed", async () => {
     const headDir = mkdtempSync(join(tmpdir(), "conf-branch-"));
     mkdirSync(join(headDir, "src"));
     writeFileSync(join(headDir, "src/a.ts"), "const a = 1;\nconst b = 2;\nconst c = 3;\n");
     const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: ["src/a.ts"], summary: "Fine." }) })]);
-    const result = reviewChange({ ...structuredClone(branchFixture), headDir }, graded(), deps(provider));
+    const result = await reviewChange({ ...structuredClone(branchFixture), headDir }, graded(), deps(provider));
     expect(provider.requests).toHaveLength(1);
     expect(result.fidelity).toBeUndefined();
   });
 });
 
 describe("result /2 and /1", () => {
-  test("/2 has fidelity and the /1 downgrade does not", () => {
+  test("/2 has fidelity and the /1 downgrade does not", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity).toBeDefined();
     expect(JSON.stringify(result)).toContain('"fidelity"');
     const v1 = toResultV1(result);
@@ -452,10 +452,10 @@ describe("result /2 and /1", () => {
     expect(v1).not.toHaveProperty("fidelity");
   });
 
-  test("the review comment body carries a short PR Confidence result", () => {
+  test("the review comment body carries a short PR Confidence result", async () => {
     const paths = ["src/upload.ts", "src/log.ts", "src/extra.ts"];
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths)]);
-    const result = reviewChange(prInput(paths), graded(), deps(provider));
+    const result = await reviewChange(prInput(paths), graded(), deps(provider));
     const body = githubReview(result, {
       since: null,
       rebased: false,

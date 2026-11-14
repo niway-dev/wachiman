@@ -100,7 +100,9 @@ contact@niway.com.
 
 ### Which models can it use?
 
-The default is `claude-sonnet-5-5` at effort high, run through Claude Code. The `model` input is passed to Claude
+The default is `claude-sonnet-5-5` at effort high, run through Claude Code. A repository can set another model
+and effort in `.wachiman.yml` (read from the pull request's base commit; an explicit `model` or `effort` input wins).
+The model is passed to Claude
 Code as given; the engine does not check it, and no other Claude model is documented as tested
 here. The Codex adapter defaults to `gpt-6.1-sol`. See [configuration.md](configuration.md) and
 [providers/claude-code.md](providers/claude-code.md).

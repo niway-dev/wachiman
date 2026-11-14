@@ -175,7 +175,7 @@ function* confirmSteps(p: ResolvedProfile, env: Env, io: ConfirmIo): Generator<P
   const { profile } = p;
   const label = profile.kind === "default" ? "default" : profile.name;
   const login =
-    profile.kind === "default" ? "sign in with your own `claude` (run it and use /login)" : `wachiman profile login ${profile.name}`;
+    profile.kind === "default" ? "sign in with your own claude: `claude auth login`" : `wachiman profile login ${profile.name}`;
   const configDir = profile.kind === "default" ? undefined : profile.configDir;
 
   if (configDir !== undefined && !io.isDirectory(configDir)) {

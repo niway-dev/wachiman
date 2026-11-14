@@ -77,7 +77,7 @@ export function storedReviewOf(
   return undefined;
 }
 
-export function runAsk(
+export async function runAsk(
   args: AskArgs,
   repoDir: string,
   env: Record<string, string | undefined>,
@@ -87,7 +87,7 @@ export function runAsk(
     engineVersion: string;
   },
   deps: LocalDeps = {},
-): number {
+): Promise<number> {
   // The account, the provider and the settings are checked before the change is read, as `local` does.
   const { config, provider, state } = openLocalSession({
     profile: args.profile,
@@ -96,6 +96,7 @@ export function runAsk(
     env,
     stderr: io.stderr,
     deps,
+    scope: { workingTree: args.workingTree, base: args.base, commit: args.commit, from: args.from, maxDepth: args.maxDepth },
   });
   const onSigint = () => {
     state.interrupted = true;
@@ -159,10 +160,10 @@ export function runAsk(
     });
 
     // One call, read-only, in the snapshot of the head: the same place the review reads from.
-    let result: ReturnType<typeof runProvider> | undefined;
+    let result: Awaited<ReturnType<typeof runProvider>> | undefined;
     let failure = "";
     try {
-      result = runProvider(
+      result = await runProvider(
         { provider, log: io.stderr, warn: io.stderr },
         config,
         input.headDir,
