@@ -24,11 +24,13 @@ export const LEVELS: readonly (readonly [string, string])[] = [
 
 export interface ChangedFile {
   path: string;
+  /** For a rename or a copy, the path it came from: the path rules look at it as well as at `path`. */
+  from?: string;
   /** A (added), M (modified), D (deleted) or R (renamed). Default M. */
   status?: string;
   /** The hunk lines of the diff, `+` and `-` prefixed; empty when only the path is known. */
   patch?: string;
-  /** The diff names this file but its path could not be read: `path` is the raw header, and the floor goes to High. */
+  /** The diff names this file but a path could not be read (`path` is then the raw header, or the source of a rename): the floor goes to High. */
   unreadable?: boolean;
 }
 
@@ -299,9 +301,11 @@ export function computeRisk(
   warn: (line: string) => void = () => {},
 ): Risk {
   let best: Risk = { level: LOW, rule: null, path: null };
+  // The source of a rename or copy is judged as a path of its own, without the hunk lines.
+  const judged = changes.flatMap((c) => (c.from ? [c, { path: c.from, status: c.status }] : [c]));
   for (const rule of [...DEFAULT_RULES, ...extensionRules(extra, warn)]) {
     if (rule.level <= best.level) continue;
-    for (const change of changes) {
+    for (const change of judged) {
       const path = rule.matches(change);
       if (path) {
         best = { level: rule.level, rule: rule.name, path };
@@ -379,11 +383,12 @@ function headerPath(rest: string): string | undefined {
 /**
  * Split a unified diff into one entry per file; `patch` holds the hunk lines only. A file's path
  * comes from `rename to`, else the `+++` line (or the `---` line when the file is deleted), else the
- * `diff --git` header; the header alone is used for binary files and mode changes. When none of
+ * `diff --git` header; the header alone is used for binary files and mode changes. The source of a
+ * rename or copy is kept in `from`. When none of
  * them can be read the file is kept with `unreadable: true`, never dropped.
  */
 export function parsePatch(text: string): ChangedFile[] {
-  interface Current { header: string; status: string; lines: string[]; renameTo?: string | null; minus?: string | null; plus?: string | null }
+  interface Current { header: string; status: string; lines: string[]; renameTo?: string | null; renameFrom?: string | null; minus?: string | null; plus?: string | null }
   const done: Current[] = [];
   let cur: Current | null = null;
   let inHunk = false;
@@ -399,7 +404,10 @@ export function parsePatch(text: string): ChangedFile[] {
     } else if (!inHunk) {
       if (line.startsWith("new file mode")) cur.status = "A";
       else if (line.startsWith("deleted file mode")) cur.status = "D";
-      else if (line.startsWith("rename from")) cur.status = "R";
+      else if (line.startsWith("rename from ")) {
+        cur.status = "R";
+        cur.renameFrom = readName(line.slice("rename from ".length));
+      } else if (line.startsWith("copy from ")) cur.renameFrom = readName(line.slice("copy from ".length));
       else if (line.startsWith("rename to ")) cur.renameTo = readName(line.slice("rename to ".length));
       else if (line.startsWith("--- ")) cur.minus = markerPath(line.slice(4), "a/");
       else if (line.startsWith("+++ ")) cur.plus = markerPath(line.slice(4), "b/");
@@ -412,6 +420,7 @@ export function parsePatch(text: string): ChangedFile[] {
   return done.map((c): ChangedFile => {
     const path = c.renameTo || (c.plus === undefined ? undefined : c.plus) || (c.plus === null && c.minus ? c.minus : undefined) || headerPath(c.header);
     const patch = c.lines.join("\n");
-    return path ? { path, status: c.status, patch } : { path: c.header, status: c.status, patch, unreadable: true };
+    if (path && c.renameFrom === null) return { path, status: c.status, patch, unreadable: true };
+    return path ? { path, status: c.status, patch, ...(c.renameFrom ? { from: c.renameFrom } : {}) } : { path: c.header, status: c.status, patch, unreadable: true };
   });
 }

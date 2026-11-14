@@ -292,6 +292,9 @@ const LINE_BREAKING_OR_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 export function checkCustomName(name: string, nameKey: string, kind: CustomKind, where: string) {
   if (name.trim() === "") throw new PrTemplateConfigError(`${where}: the ${nameKey} must not be empty.`);
   if (LINE_BREAKING_OR_CONTROL.test(name)) throw new PrTemplateConfigError(`${where}: the ${nameKey} must be one line without control characters.`);
+  if (name !== name.trim() || / {2,}/.test(name)) {
+    throw new PrTemplateConfigError(`${where}: the ${nameKey} must not start or end with whitespace or contain a run of spaces; the checker reads headings and cells trimmed and collapsed.`);
+  }
   if (name.length > MAX_NAME_LENGTH) {
     throw new PrTemplateConfigError(`${where}: the ${nameKey} is ${name.length} characters; the limit is ${MAX_NAME_LENGTH}.`);
   }
@@ -315,6 +318,23 @@ export function commentProblem(text: string): string | undefined {
     if (end === -1) return 'opens a comment ("<!--") it does not close';
     at = end + 3;
   }
+}
+
+/**
+ * Whether the preamble, taken as one block of lines, leaves a fenced code block open (GitHub would
+ * render everything below it as code). A fence opens on a line that starts, after up to three
+ * spaces, with three or more backticks or tildes, and closes on a later line of the same character,
+ * at least as long and with nothing after it.
+ */
+export function fenceProblem(lines: readonly string[]): string | undefined {
+  let fence: string | null = null;
+  for (const line of lines.flatMap((l) => l.split("\n"))) {
+    const mark = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (mark === null) continue;
+    if (fence === null) fence = mark[1]!;
+    else if (mark[1]![0] === fence[0] && mark[1]!.length >= fence.length && mark[2]!.trim() === "") fence = null;
+  }
+  return fence === null ? undefined : 'opens a fenced code block ("```" or "~~~") it does not close';
 }
 
 /**
@@ -397,11 +417,13 @@ export function loadRepoChoice(text: string, catalog: Catalog = loadCatalog()): 
   });
 
   preamble.forEach((line, i) => {
-    if (/wachiman:confidence:|wachiman:pr-template/.test(line)) {
+    if (/wachiman:confidence:|wachiman:pr-template|<!--\s*wachiman:/.test(line)) {
       throw new PrTemplateConfigError(`${here}: a preamble line must not contain a Wachiman marker.`);
     }
     const problem = commentProblem(line);
     if (problem !== undefined) throw new PrTemplateConfigError(`${here}: preamble[${i}] ${problem}; the rest of the template would be hidden or broken.`);
   });
+  const open = fenceProblem(preamble);
+  if (open !== undefined) throw new PrTemplateConfigError(`${here}: the preamble ${open}; the rest of the template would be rendered as code.`);
   return { base: "default", add, drop, custom, preamble };
 }

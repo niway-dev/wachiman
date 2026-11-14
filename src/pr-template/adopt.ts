@@ -336,13 +336,16 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
         if (entry) {
           const cell = row[2]!.trim();
           const text = collapseSpace(/^<!--(.*)-->$/.exec(cell)?.[1] ?? cell);
-          if (text !== "" && !/<!--|-->|\|/.test(text) && !result.custom.includes(entry)) {
+          if (/<!--|-->|\|/.test(text)) {
+            // More than one value, or markup a guide cannot carry: dropping it would lose the repository's text.
+            throw new UsageError(
+              `The old template has a row of "${entry.name}" on line ${i + 1} with more than one value or markup in its cell: "${clip(trimmed, 60)}". A row keeps one plain value as its guide. Reduce the row to one value (or move the rest out of the table) in the old file and run install again; nothing was written.`,
+            );
+          } else if (text !== "" && !result.custom.includes(entry)) {
             report(`the cell of "${entry.name}" was not kept as a guide: the entry is already in .github/pr-template.json and stays as it is (the cell is in the backup).`);
-          } else if (text !== "" && !/<!--|-->|\|/.test(text)) {
+          } else if (text !== "") {
             entry.guide = text;
             report(`kept the cell of "${entry.name}" as its guide: ${clip(text)}`);
-          } else if (text !== "") {
-            report(`the cell of "${entry.name}" could not be kept as a guide; it is in the backup.`);
           }
           ctx = null;
           afterKnown = false;

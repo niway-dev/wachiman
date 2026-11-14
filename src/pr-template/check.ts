@@ -98,8 +98,9 @@ export function bareAdrMentions(input: string): string[] {
 
 /** Data rows of the first Markdown table in `text`: the rows after its separator line. */
 export function tableRows(text: string): string[] {
-  const rows = text.split("\n").map((l) => l.trim()).filter((l) => l.startsWith("|"));
-  const sep = rows.findIndex((l) => /^\|[\s:|-]+\|?$/.test(l) && l.includes("-"));
+  // A table may be written without its outer pipes: a line with an unescaped `|` is a row either way.
+  const rows = text.split("\n").map((l) => l.trim()).filter((l) => /(?<!\\)\|/.test(l));
+  const sep = rows.findIndex((l) => /^\|?[\s:|-]+\|?$/.test(l) && l.includes("-"));
   return sep === -1 ? rows.slice(1) : rows.slice(sep + 1);
 }
 
@@ -218,7 +219,8 @@ export function checkDescription(input: CheckInput): CheckResult {
     if (e.rule !== "not-empty") continue;
     const section = parsed.sections.find((s) => s.name === e.heading);
     if (!section) continue;
-    let text = section.clean.split("<details")[0]!;
+    // Only the section's own text: not its collapsed blocks, and not the footer that follows it.
+    let text = parsed.structural.split("\n").slice(section.startLine + 1, section.bodyEndLine).join("\n");
     text = text.replace(/^\s*[-*]\s*\[[ xX]?\]\s*$/gm, "");
     text = text.replace(/\*\*(Before|After) merge:?\*\*:?/g, "");
     if (text.trim() === "") {

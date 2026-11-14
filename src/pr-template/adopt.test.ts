@@ -254,6 +254,15 @@ describe("block recognition", () => {
     expect(report).toContain("not kept");
   });
 
+  test("the cell of an unknown status row becomes its guide, and a row with more cells refuses the adoption", () => {
+    const a = adopt("| | |\n|---|---|\n| **Team** | Keep this |\n");
+    expect(a.custom).toEqual([expect.objectContaining({ kind: "status-row", name: "Team", guide: "Keep this" })]);
+    const old = "| | |\n|---|---|\n| **Team** | Keep this | extra |\n";
+    expect(() => adopt(old)).toThrow(UsageError);
+    expect(() => adopt(old)).toThrow(/line 3/);
+    expect(() => adopt("| | |\n|---|---|\n| **Team** | a <!-- b --> c |\n")).toThrow(/line 3/);
+  });
+
   test("preamble blocks that were apart are kept apart with a blank line", () => {
     const a = adopt("- [ ] one\n\n- [ ] two\n- [ ] three\n");
     expect(a.preamble).toEqual(["- [ ] one", "", "- [ ] two", "- [ ] three"]);

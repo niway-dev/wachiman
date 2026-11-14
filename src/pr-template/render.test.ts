@@ -326,6 +326,13 @@ describe("templateState and a formatter", () => {
     expect(templateState(input(rewritten(fresh, (b) => `\n\n${b}\n\n`))).state).toBe("current");
   });
 
+  test("indenting the table rows (Markdown then renders code, not a table) is an edit by hand", () => {
+    const indented = rewritten(fresh, (b) => b.replace(/^\|/gm, "    |"));
+    expect(indented).not.toBe(fresh);
+    expect(templateState(input(indented)).state).toBe("edited-by-hand");
+    expect(normalizeForStamp("    | a  | b |\n")).toBe("    | a | b |\n");
+  });
+
   test("a reformatted custom file is current against its own JSON", () => {
     const json = golden("custom-choice.json");
     const custom = golden("custom-template.md");

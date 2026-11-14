@@ -278,6 +278,7 @@ export function parseDescription(input: string): ParsedDescription {
 
   const statusRows: DescriptionStatusRow[] = [];
   for (let i = 0; i < headerEndLine; i++) {
+    if (fenced[i]) continue; // a row inside fenced code is text, not a row
     const m = STATUS_ROW.exec(structuralLines[i]!);
     if (m) statusRows.push({ label: m[1]!.trim(), value: m[2]!.trim(), line: i, raw: lines[i]! });
   }

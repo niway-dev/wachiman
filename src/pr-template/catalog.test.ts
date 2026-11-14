@@ -158,6 +158,10 @@ describe("repository choice", () => {
     const entry = (kind: "section" | "status-row" | "details", name: string) => ({
       custom: [{ id: "mine", kind, [kind === "section" ? "heading" : kind === "status-row" ? "label" : "summary"]: name }],
     });
+    // the checker reads a heading trimmed and with spaces collapsed, so the template it generated would not pass
+    rejects({ custom: [{ id: "mine", kind: "section", heading: " Team " }] }, /custom entry "mine": the heading must not start or end with whitespace/);
+    rejects({ custom: [{ id: "mine", kind: "section", heading: "Two  spaces" }] }, /run of spaces/);
+    rejects({ custom: [{ id: "mine", kind: "status-row", label: "Owner " }] }, /the label must not start or end with whitespace/);
     // a second heading smuggled in through a newline, a carriage return or another control character
     rejects(entry("section", "Notes\n## Injected"), /custom entry "mine": the heading must be one line/);
     rejects(entry("section", "Notes\r## Injected"), /custom entry "mine": the heading must be one line/);
@@ -206,6 +210,14 @@ describe("repository choice", () => {
 
   test("a preamble line must not carry a Wachiman marker", () => {
     rejects({ preamble: ["<!-- wachiman:confidence:start -->"] }, /Wachiman marker/);
+  });
+
+  test("the preamble must not leave a code fence open, and any Wachiman marker comment is refused", () => {
+    rejects({ preamble: ["```"] }, /preamble opens a fenced code block/);
+    rejects({ preamble: ["  ~~~ts", "code"] }, /fenced code block/);
+    rejects({ preamble: ["````", "```"] }, /fenced code block/);
+    rejects({ preamble: ["<!-- wachiman:other -->"] }, /Wachiman marker/);
+    expect(choice({ preamble: ["```", "x", "```", "~~~\ny\n~~~"] }).preamble).toHaveLength(4);
   });
 
   test("a preamble entry must not open a comment it does not close, or close one it did not open", () => {

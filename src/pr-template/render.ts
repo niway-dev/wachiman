@@ -28,6 +28,9 @@ export const sha256Hex = (text: string) => createHash("sha256").update(text).dig
  *   (`| :--- | ---: |`) becomes `|---|---|`, so dash counts and alignment colons are ignored;
  * - runs of blank lines become one, and leading and trailing blank lines go.
  *
+ * Leading whitespace is kept on every line: a formatter never changes it in the generated template,
+ * and indenting a table by four spaces turns it into a code block.
+ *
  * Spaces in any other text, and inside comments that start on their own line, are kept.
  */
 export function normalizeForStamp(body: string): string {
@@ -46,7 +49,9 @@ export function normalizeForStamp(body: string): string {
       } else if (mark !== null) {
         fence = mark[1]!;
       } else if (trimmed.startsWith("|")) {
-        line = TABLE_SEPARATOR.test(trimmed) ? separatorRow(trimmed) : collapseOutsideComments(trimmed);
+        // The indentation stays: four spaces make Markdown render the row as code, not a table.
+        const indent = line.slice(0, line.length - trimmed.length);
+        line = indent + (TABLE_SEPARATOR.test(trimmed) ? separatorRow(trimmed) : collapseOutsideComments(trimmed));
       }
     }
     if (line === "" && (out.length === 0 || out[out.length - 1] === "")) continue;

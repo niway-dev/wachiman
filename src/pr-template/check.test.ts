@@ -121,6 +121,11 @@ describe("StatusRowTest", () => {
 });
 
 describe("NeedsYouTest", () => {
+  test("footer text does not fill an empty Needs you", () => {
+    const body = validBody().replace("Nothing. Merge when checks are green.\n", "<sub>Unrelated footer text.</sub>\n");
+    expect(codes(body)).toContain("needs-you-empty");
+  });
+
   test("needs you empty", () => {
     expect(codes(validBody().replace("Nothing. Merge when checks are green.\n", "**Before merge**\n- [ ]\n"))).toEqual(["needs-you-empty"]);
   });
@@ -225,6 +230,12 @@ describe("RiskRowTest", () => {
     expect(codes(validBody(), { risk: null })).toEqual([]);
   });
 
+  test("a Risk row inside a fenced code block is not the Risk row", () => {
+    const body = validBody({ risk: "🔴 High, auth" }).replace(/\| \*\*Risk\*\* \|[^\n]*\n/, (row) => `\`\`\`\n${row}\`\`\`\n`);
+    expect(body).toContain("```\n| **Risk**");
+    expect(codes(body, { risk: HIGH })).toContain("status-row-missing");
+  });
+
   test("the floor can be computed from the changed files", () => {
     const files = [{ path: "src/auth/session.ts" }];
     expect(codes(validBody(), { risk: undefined, files })).toEqual(["risk-below-floor"]);
@@ -270,6 +281,14 @@ describe("DetailsTest", () => {
 
   test("changes too many rows", () => {
     expect(codes(validBody().replace(only, row.repeat(8)))).toEqual(["changes-too-many-rows"]);
+  });
+
+  test("changes too many rows is caught in a table without outer pipes", () => {
+    const table = "| Change | Before | After | Where to look |\n|---|---|---|---|\n" + only;
+    expect(validBody()).toContain(table);
+    const bare = "Change | Before | After | Where to look\n--|--|--|--\n" + "c | b | a | w\n".repeat(8);
+    expect(codes(validBody().replace(table, bare))).toEqual(["changes-too-many-rows"]);
+    expect(codes(validBody().replace(table, bare.replace("c | b | a | w\n", "")))).toEqual([]);
   });
 
   test("changes seven rows is fine", () => {

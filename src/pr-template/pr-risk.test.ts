@@ -282,6 +282,27 @@ describe("ParsePatchTest", () => {
     expect(computeRisk(parsePatch(diff)).level).toBe(HIGH);
   });
 
+  test("a rename out of a protected folder is still seen as that folder", () => {
+    const diff = ["diff --git a/auth/session.ts b/src/ordinary.ts", "similarity index 100%", "rename from auth/session.ts", "rename to src/ordinary.ts"].join("\n");
+    const [file] = parsePatch(diff);
+    expect(file).toMatchObject({ path: "src/ordinary.ts", from: "auth/session.ts", status: "R" });
+    expect(formatRisk(computeRisk([file!]))).toBe("🔴 High: authentication, sessions or permissions (auth/session.ts)");
+  });
+
+  test("a copy from a protected folder, and a quoted source, are seen too", () => {
+    const copy = ["diff --git a/auth/session.ts b/src/ordinary.ts", "similarity index 100%", "copy from auth/session.ts", "copy to src/ordinary.ts"].join("\n");
+    expect(computeRisk(parsePatch(copy)).level).toBe(HIGH);
+    const quoted = ["diff --git a/x b/src/ordinary.ts", "similarity index 100%", String.raw`rename from "auth/s\"x.ts"`, "rename to src/ordinary.ts"].join("\n");
+    expect(parsePatch(quoted)[0]!.from).toBe('auth/s"x.ts');
+    const broken = ["diff --git a/x b/src/ordinary.ts", "similarity index 100%", String.raw`rename from "auth/s\q.ts"`, "rename to src/ordinary.ts"].join("\n");
+    expect(computeRisk(parsePatch(broken)).level).toBe(HIGH);
+  });
+
+  test("a deleted protected file still counts its path", () => {
+    const diff = ["diff --git a/auth/session.ts b/auth/session.ts", "deleted file mode 100644", "index 1111111..0000000", "--- a/auth/session.ts", "+++ /dev/null", "@@ -1 +0,0 @@", "-x"].join("\n");
+    expect(computeRisk(parsePatch(diff)).path).toBe("auth/session.ts");
+  });
+
   test("a deleted file takes its name from the --- line", () => {
     const diff = [
       "diff --git a/old dir/gone.py b/old dir/gone.py",
