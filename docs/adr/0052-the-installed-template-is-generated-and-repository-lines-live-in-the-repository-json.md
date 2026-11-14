@@ -1,6 +1,6 @@
 # ADR 0052: The installed template is generated; repository lines live in the repository JSON
 
-- **Status:** proposed 2026-11-14. Not implemented.
+- **Status:** proposed 2026-11-14. Implemented by the `wachiman pr-template` command in the [pr-template command pull request](https://github.com/niway-dev/wachiman/pull/242), open.
 - **Date:** 2026-11-14
 - **Issue:** [NIW2-776](https://linear.app/niway/issue/NIW2-776/wachiman-build-install-check-and-format-the-pr-description-template)
 
