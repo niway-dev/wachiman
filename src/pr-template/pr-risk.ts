@@ -30,7 +30,7 @@ export interface ChangedFile {
   status?: string;
   /** The hunk lines of the diff, `+` and `-` prefixed; empty when only the path is known. */
   patch?: string;
-  /** The diff names this file but a path could not be read (`path` is then the raw header, or the source of a rename): the floor goes to High. */
+  /** The diff names this file but a path could not be read (`path` is then the raw header or the destination): the floor goes to High. */
   unreadable?: boolean;
 }
 

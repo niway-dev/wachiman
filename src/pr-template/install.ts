@@ -237,7 +237,8 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
     backupTemplate = true;
   }
 
-  // Everything that can fail is computed before the first write.
+  // Everything that can be decided without writing is computed here. A later write can still fail after the
+  // JSON was written; each error names what was and was not replaced.
   const content = generate(catalog, choiceText);
   const writeJson = choiceText !== null && (json.text === null || !sameJson(json.text, choiceText));
 
