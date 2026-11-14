@@ -3052,7 +3052,6 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     notRun: string[];
     rejectedFiles: string[];
     budgetCut: string[];
-    costUsd: number;
     usage: TokenUsage;
     budgetError: boolean;
     stopped?: "turns" | "timeout";
@@ -3099,7 +3098,6 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       notRun: [],
       rejectedFiles: [],
       budgetCut: [],
-      costUsd: 0,
       usage: NO_USAGE,
       budgetError: false,
       anyLimit: false,
@@ -3119,7 +3117,6 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     spent += first.costUsd;
     reserved.delete(i);
     notify();
-    out.costUsd += first.costUsd;
     out.usage = addUsage(out.usage, first.usage);
     noteRejection(first.rejection);
     if (first.rejection) out.rejections.push(first.rejection);
@@ -3164,7 +3161,6 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       spent += retry.costUsd;
       reserved.delete(i);
       notify();
-      out.costUsd += retry.costUsd;
       out.usage = addUsage(out.usage, retry.usage);
       turns += retry.turns;
       cost += retry.costUsd;
@@ -3205,7 +3201,6 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       notRun: status === "not run: budget spent" ? files : [],
       rejectedFiles: status === "not run: budget spent" ? [] : files,
       budgetCut: [],
-      costUsd: 0,
       usage: NO_USAGE,
       budgetError: false,
       anyLimit: false,
