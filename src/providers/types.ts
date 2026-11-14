@@ -121,6 +121,9 @@ export interface ProviderAdapter {
    * or anything shaped like one). The engine throws and posts nothing.
    */
   leaksSecret(texts: string[]): boolean;
-  /** Runs one call to completion. Throws when the call produced no result at all. */
-  run(request: ProviderRequest): ProviderResult;
+  /**
+   * Runs one call to completion without blocking the process: the engine keeps several calls in
+   * flight at once (the batches of one review). Rejects when the call produced no result at all.
+   */
+  run(request: ProviderRequest): Promise<ProviderResult>;
 }

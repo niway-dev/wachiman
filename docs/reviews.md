@@ -222,7 +222,10 @@ nothing was reviewed reliably. Ask for part of it with `/wachiman review <path>`
 ## Batches, and what "riskiest first" means
 
 The engine does not hand the whole pull request to the model in one call. It cuts the reviewable
-files into **batches** and makes one provider call per batch, one after another.
+files into **batches** and makes one provider call per batch. Up to four batches run at once, and
+they start in risk order, so the riskiest are always the first to run. The report, the coverage
+table and the posted comment list the batches in batch order, whichever finished first. Every log
+line a batch prints starts with `batch i/n:`, so lines from batches that overlap can be told apart.
 
 1. **Group by module.** Files that share a directory prefix (the first directory; more segments
    under `apps/` and `packages/`) are kept next to each other.

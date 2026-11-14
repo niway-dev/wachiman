@@ -1636,12 +1636,13 @@ describe("checkOutput", () => {
 });
 
 describe("attempt", () => {
-  test("returns the value of a call that ran", () => {
-    expect(attempt(() => 42, 0.75)).toEqual({ ok: true, value: 42 });
+  test("returns the value of a call that ran", async () => {
+    expect(await attempt(() => 42, 0.75)).toEqual({ ok: true, value: 42 });
+    expect(await attempt(async () => 43, 0.75)).toEqual({ ok: true, value: 43 });
   });
 
-  test("turns a call that threw into a failure counted at its cap", () => {
-    const failed = attempt(() => {
+  test("turns a call that threw into a failure counted at its cap", async () => {
+    const failed = await attempt(() => {
       throw new Error("the agent did not run (status 1)");
     }, 0.75);
     expect(failed).toEqual({
@@ -1649,6 +1650,8 @@ describe("attempt", () => {
       error: "Error: the agent did not run (status 1)",
       costUsd: 0.75,
     });
+    // A rejected promise is a failure too, not a crash of the review.
+    expect(await attempt(async () => Promise.reject(new Error("died")), 0.5)).toEqual({ ok: false, error: "Error: died", costUsd: 0.5 });
   });
 });
 

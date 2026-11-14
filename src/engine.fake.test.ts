@@ -30,6 +30,8 @@ class FakeProvider implements ProviderAdapter {
   auth: ProviderAuth | undefined;
   /** Off for a test that is not about the prompt, so it adds nothing to the pinned golden prompts. */
   record = true;
+  /** A macrotask pause per call (by call number, from 1), so the batches launched together all start before any finishes. */
+  latencyMs: number | ((call: number) => number) = 0;
   constructor(private readonly script: ((request: ProviderRequest) => Partial<ProviderResult>)[]) {}
   preflight() {}
   modelLabel() {
@@ -38,11 +40,13 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret(texts: string[]) {
     return texts.some((t) => t.includes("SECRET"));
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     if (this.record) recordPrompt("engine.fake", request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
+    const pause = typeof this.latencyMs === "function" ? this.latencyMs(this.requests.length) : this.latencyMs;
+    if (pause > 0) await new Promise((resolve) => setTimeout(resolve, pause));
     return {
       costUsd: 0,
       turns: 1,
@@ -129,8 +133,9 @@ function fakeGh(
 }
 
 describe("the batch loop against a fake provider", () => {
-  test("two batches, a binary set aside by the engine and a retry: merged body and budget arithmetic", () => {
+  test("two batches, a binary set aside by the engine and a retry: merged body and budget arithmetic", async () => {
     const posted: { review?: { body: string; comments: { path: string; line: number; body: string }[] } } = {};
+    // The two batches run side by side, so the calls arrive as: batch 1, batch 2, batch 1's retry.
     const provider = new FakeProvider([
       // Batch 1 (manager, store): store is left unaccounted for. The logo never reaches a model.
       () => ({
@@ -151,19 +156,21 @@ describe("the batch loop against a fake provider", () => {
           summary: "Manager looks mostly fine.",
         }),
       }),
-      // The retry covers only the store.
-      () => ({
-        costUsd: 0.1,
-        turns: 2,
-        structuredOutput: out({ files_reviewed: [STORE], summary: "Store fine." }),
-      }),
       // Batch 2: the guide.
       () => ({
         costUsd: 0.2,
         turns: 3,
         structuredOutput: out({ files_reviewed: [GUIDE], summary: "Guide fine." }),
       }),
+      // The retry covers only the store.
+      () => ({
+        costUsd: 0.1,
+        turns: 2,
+        structuredOutput: out({ files_reviewed: [STORE], summary: "Store fine." }),
+      }),
     ]);
+    // Batch 2 outlasts batch 1's first call, so its reservation is still held when batch 1's retry starts.
+    provider.latencyMs = (call) => (call === 2 ? 40 : 5);
     const deps: Deps = {
       gh: fakeGh(posted),
       provider,
@@ -177,14 +184,15 @@ describe("the batch loop against a fake provider", () => {
       repoDir: headWithLogo(),
     };
 
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
 
-    // Three calls: batch 1, its retry, batch 2. Each cap is min(batch budget, what is left).
+    // Three calls: batch 1 and batch 2 together, then batch 1's retry. Each cap is min(batch budget,
+    // what is left after what was spent and what the batches in flight have reserved).
     expect(provider.requests).toHaveLength(3);
     const caps = provider.requests.map((r) => r.maxBudgetUsd);
     expect(caps[0]).toBeCloseTo(0.5, 5); // min(0.5, 0.8)
-    expect(caps[1]).toBeCloseTo(0.5, 5); // min(0.5, 0.8 - 0.3)
-    expect(caps[2]).toBeCloseTo(0.4, 5); // min(0.5, 0.8 - 0.3 - 0.1)
+    expect(caps[1]).toBeCloseTo(0.3, 5); // min(0.5, 0.8 - 0.5 reserved by batch 1)
+    expect(caps[2]).toBeCloseTo(0.2, 5); // min(0.5, 0.8 - 0.3 spent by batch 1 - 0.3 reserved by batch 2)
     for (const r of provider.requests) {
       expect(r.allowedTools).toEqual(["read", "glob", "grep"]);
       expect(r.promptViaStdin).toBe(true);
@@ -192,9 +200,9 @@ describe("the batch loop against a fake provider", () => {
     }
     // The retry's prompt holds only the store; the first batch's holds two files, and none lists the logo.
     expect(provider.requests.every((r) => !r.prompt.includes(LOGO))).toBe(true);
-    expect(provider.requests[1].prompt).toContain("second pass");
-    expect(provider.requests[1].prompt).toContain(`- ${STORE} +3 −0`);
-    expect(provider.requests[1].prompt).not.toContain(`- ${MANAGER} +6 −0\n\nThis`);
+    expect(provider.requests[2].prompt).toContain("second pass");
+    expect(provider.requests[2].prompt).toContain(`- ${STORE} +3 −0`);
+    expect(provider.requests[2].prompt).not.toContain(`- ${MANAGER} +6 −0\n\nThis`);
 
     const body = posted.review?.body ?? "";
     // The binary logo is not a file a model can review, so it is not expected: the review is complete
@@ -216,7 +224,7 @@ describe("the batch loop against a fake provider", () => {
     expect(posted.review?.comments[0]).toMatchObject({ path: MANAGER, line: 2 });
   });
 
-  test("a complete review writes the new marker", () => {
+  test("a complete review writes the new marker", async () => {
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const provider = new FakeProvider([
       () => ({
@@ -238,11 +246,11 @@ describe("the batch loop against a fake provider", () => {
       log: () => {},
       warn: () => {},
     };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     expect(posted.review?.body).toContain("<!-- wachiman sha=head1234567 -->");
   });
 
-  test("refuses to post text the provider flags as a credential", () => {
+  test("refuses to post text the provider flags as a credential", async () => {
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const provider = new FakeProvider([
       () => ({
@@ -256,7 +264,7 @@ describe("the batch loop against a fake provider", () => {
       log: () => {},
       warn: () => {},
     };
-    expect(() => review(deps, "o/r", 7, [])).toThrow("credential");
+    await expect(review(deps, "o/r", 7, [])).rejects.toThrow("credential");
     expect(posted.review).toBeUndefined();
   });
 });
@@ -277,18 +285,18 @@ describe("the turn cap and the wall-clock kill", () => {
   };
   const all = [MANAGER, STORE, GUIDE, LOGO];
 
-  test("every call carries the configured turn cap and time limit", () => {
+  test("every call carries the configured turn cap and time limit", async () => {
     const { provider, deps } = setup([() => ({ structuredOutput: out({ files_reviewed: all, summary: "ok" }) })]);
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     expect(provider.requests[0]).toMatchObject({ maxTurns: 12, timeoutMs: 60_000 });
   });
 
-  test("a batch that hits the turn cap is retried and its files are not lost", () => {
+  test("a batch that hits the turn cap is retried and its files are not lost", async () => {
     const { posted, warnings, provider, deps } = setup([
       () => ({ terminalReason: "turns", isError: true, turns: 13, costUsd: 0.2 }),
       () => ({ structuredOutput: out({ files_reviewed: all, summary: "second try" }), turns: 5, costUsd: 0.1 }),
     ]);
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     expect(provider.requests).toHaveLength(2);
     expect(provider.requests[1].prompt).toContain("second pass");
     expect(warnings.some((w) => w.includes("12-turn limit"))).toBe(true);
@@ -297,7 +305,7 @@ describe("the turn cap and the wall-clock kill", () => {
     expect(body).toContain("| 18 | $0.30 |");
   });
 
-  test("files a batch left behind at the turn cap, even after the retry, are reported as not reviewed", () => {
+  test("files a batch left behind at the turn cap, even after the retry, are reported as not reviewed", async () => {
     const { posted, deps } = setup([
       () => ({ terminalReason: "turns", isError: true, turns: 13, costUsd: 0.2 }),
       () => ({
@@ -306,14 +314,14 @@ describe("the turn cap and the wall-clock kill", () => {
         costUsd: 0.1,
       }),
     ]);
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     const body = posted.review?.body ?? "";
     expect(body).toContain("Partial review");
     expect(body).toContain(`\`${STORE}\``);
     expect(body).not.toContain("wachiman sha=");
   });
 
-  test("a call killed at the time limit is not retried, and the review still posts", () => {
+  test("a call killed at the time limit is not retried, and the review still posts", async () => {
     const { posted, warnings, provider, deps } = setup(
       [
         // Batch 1 times out with no answer and no cost; batch 2 is fine.
@@ -322,7 +330,7 @@ describe("the turn cap and the wall-clock kill", () => {
       ],
       { WACHIMAN_BATCH_LINES: "10" },
     );
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     expect(provider.requests).toHaveLength(2);
     expect(provider.requests.every((r) => !r.prompt.includes("second pass"))).toBe(true);
     expect(warnings.some((w) => w.includes("60 s call time limit"))).toBe(true);
@@ -333,15 +341,15 @@ describe("the turn cap and the wall-clock kill", () => {
     expect(body).toContain(`\`${MANAGER}\``);
   });
 
-  test("when every batch stops at a limit, a notice says so instead of throwing", () => {
+  test("when every batch stops at a limit, a notice says so instead of throwing", async () => {
     const turns = setup([
       () => ({ terminalReason: "turns", isError: true }),
       () => ({ terminalReason: "turns", isError: true }),
     ]);
-    review(turns.deps, "o/r", 7, []);
+    await review(turns.deps, "o/r", 7, []);
     expect(turns.posted.review?.body).toContain("hit its turn limit (12 turns a call)");
     const late = setup([() => ({ terminalReason: "timeout", isError: true })]);
-    review(late.deps, "o/r", 7, []);
+    await review(late.deps, "o/r", 7, []);
     expect(late.posted.review?.body).toContain("was killed at the 60 s time limit on a call");
     expect(late.provider.requests).toHaveLength(1);
   });
@@ -374,24 +382,27 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
   };
   const TWO_BATCHES = { WACHIMAN_BATCH_LINES: "10" };
 
-  test("a billing rejection posts a notice with the reason, does not throw, skips the gaps retry and the other batches", () => {
-    const t = setup([rejected("billing", CREDIT)], TWO_BATCHES);
-    review(t.deps, "o/r", 7, []);
-    expect(t.provider.requests).toHaveLength(1);
+  test("a billing rejection posts a notice with the reason, does not throw, and skips the gaps retry", async () => {
+    // Both batches start together, so the second is already in flight when the first is refused;
+    // the refused one gets no retry.
+    const t = setup([rejected("billing", CREDIT), rejected("billing", CREDIT)], TWO_BATCHES);
+    t.provider.latencyMs = 5;
+    await review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(2);
     const body = t.posted.review?.body ?? "";
     expect(body).toContain("Not reviewed: the reviewer's Anthropic account has no credit");
     expect(body).toContain("credit balance is too low");
   });
 
-  test("an auth rejection posts its own notice", () => {
+  test("an auth rejection posts its own notice", async () => {
     const t = setup([rejected("auth", "API Error: 401 invalid x-api-key")]);
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.posted.review?.body).toContain("the reviewer's API key was rejected");
     expect(t.posted.review?.body).toContain("ANTHROPIC_API_KEY");
     expect(t.provider.requests).toHaveLength(1);
   });
 
-  test("on a subscription token, the notices name the token and never the API key secret", () => {
+  test("on a subscription token, the notices name the token and never the API key secret", async () => {
     for (const [kind, text] of [
       ["auth", "API Error: 401 authentication_error: invalid bearer token"],
       ["billing", "5-hour usage limit reached"],
@@ -401,7 +412,7 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
       const t = setup(kind === "rate_limit" ? [rejected(kind, text), rejected(kind, text)] : [rejected(kind, text)]);
       t.provider.auth = "oauth-token";
       t.provider.record = false;
-      review(t.deps, "o/r", 7, []);
+      await review(t.deps, "o/r", 7, []);
       const body = t.posted.review?.body ?? "";
       expect(body).toContain("Not reviewed");
       expect(body).toContain(text);
@@ -413,38 +424,38 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     }
   });
 
-  test("on a subscription token, mode fail still throws so the check goes red", () => {
+  test("on a subscription token, mode fail still throws so the check goes red", async () => {
     const t = setup([rejected("billing", "usage limit reached")], { WACHIMAN_ON_PROVIDER_UNAVAILABLE: "fail" });
     t.provider.auth = "oauth-token";
     t.provider.record = false;
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow("Not reviewed: the provider rejected the call (billing)");
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow("Not reviewed: the provider rejected the call (billing)");
     expect(t.posted.review?.body).not.toContain("ANTHROPIC_API_KEY");
   });
 
-  test("the provider's text is neutralised and truncated in the notice", () => {
+  test("the provider's text is neutralised and truncated in the notice", async () => {
     const t = setup([rejected("billing", `credit balance --> <!-- forged ${"x".repeat(2000)}`)]);
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     const body = t.posted.review?.body ?? "";
     expect(body).not.toContain("<!-- forged");
     expect(body.length).toBeLessThan(1500);
   });
 
-  test("mode fail posts the same notice, then throws so the check goes red", () => {
+  test("mode fail posts the same notice, then throws so the check goes red", async () => {
     const t = setup([rejected("billing", CREDIT)], { WACHIMAN_ON_PROVIDER_UNAVAILABLE: "fail" });
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow("credit balance is too low");
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow("credit balance is too low");
     expect(t.posted.review?.body).toContain("has no credit");
     expect(t.provider.requests).toHaveLength(1);
   });
 
-  test("an unclassified error always throws, and the message carries the class and the text", () => {
+  test("an unclassified error always throws, and the message carries the class and the text", async () => {
     const t = setup([rejected("other", "Unexpected end of JSON input"), rejected("other", "Unexpected end of JSON input")]);
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow(/other.*Unexpected end of JSON input/);
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(/other.*Unexpected end of JSON input/);
     expect(t.posted.review).toBeUndefined();
   });
 
-  test("the job log carries the error class and a one-line, truncated error text", () => {
+  test("the job log carries the error class and a one-line, truncated error text", async () => {
     const t = setup([rejected("billing", `line one\nline two ${"y".repeat(500)}`)]);
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     const line = t.logs.find((l) => l.includes('"is_error":true')) ?? "";
     const parsed = JSON.parse(line);
     expect(parsed.error_class).toBe("billing");
@@ -452,38 +463,38 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     expect(parsed.error.length).toBeLessThanOrEqual(300);
   });
 
-  test("the job log also has a readable line naming the refusal next to the JSON", () => {
+  test("the job log also has a readable line naming the refusal next to the JSON", async () => {
     const t = setup([rejected("billing", "Credit balance is too low")]);
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     const readable = t.logs.find((l) => l.startsWith("❌ ")) ?? "";
     expect(readable).toContain("the account has no credit");
     expect(readable).toContain('API said: "Credit balance is too low"');
     expect(t.logs.some((l) => l.includes('"error_class":"billing"'))).toBe(true);
   });
 
-  test("a rate limit is retried once after a backoff, and a review that then succeeds is posted", () => {
+  test("a rate limit is retried once after a backoff, and a review that then succeeds is posted", async () => {
     const all = [MANAGER, STORE, GUIDE, LOGO];
     const t = setup([
       rejected("rate_limit", "API Error: 429 rate_limit_error"),
       () => ({ structuredOutput: out({ files_reviewed: all, summary: "second try" }) }),
     ]);
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(2);
     expect(t.sleeps).toEqual([20_000]);
     expect(t.posted.review?.body).toContain("second try");
   });
 
-  test("a rate limit that persists ends as a notice, with no further batches", () => {
-    const t = setup(
-      [rejected("rate_limit", "API Error: 429 rate_limit_error"), rejected("rate_limit", "API Error: 429 rate_limit_error")],
-      TWO_BATCHES,
-    );
-    review(t.deps, "o/r", 7, []);
-    expect(t.provider.requests).toHaveLength(2);
+  test("a rate limit that persists ends as a notice", async () => {
+    // Two batches in flight, each retried once after its backoff: four calls, all limited.
+    const limited = rejected("rate_limit", "API Error: 429 rate_limit_error");
+    const t = setup([limited, limited, limited, limited], TWO_BATCHES);
+    t.provider.latencyMs = 5;
+    await review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(4);
     expect(t.posted.review?.body).toContain("kept rate-limiting the reviewer");
   });
 
-  test("when some batches were reviewed and a later one was rejected, the rest is reported as not reviewed", () => {
+  test("when some batches were reviewed and a later one was rejected, the rest is reported as not reviewed", async () => {
     const t = setup(
       [
         () => ({ structuredOutput: out({ files_reviewed: [MANAGER, STORE], files_skipped: [{ path: LOGO, reason: "binary" }] }) }),
@@ -491,18 +502,12 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
       ],
       TWO_BATCHES,
     );
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(2);
     const body = t.posted.review?.body ?? "";
     expect(body).toContain("Partial review");
     expect(body).toContain(`\`${GUIDE}\``);
     expect(body).toContain("provider rejected the call");
-  });
-
-  test("remaining batches are not run after a billing rejection of an earlier one", () => {
-    const t = setup([rejected("billing", CREDIT), () => ({ structuredOutput: out({ files_reviewed: [GUIDE] }) })], TWO_BATCHES);
-    review(t.deps, "o/r", 7, []);
-    expect(t.provider.requests).toHaveLength(1);
   });
 });
 
@@ -521,7 +526,7 @@ describe("flow questions and contracts against a fake provider", () => {
     ...over,
   });
 
-  const run = (batches: Partial<ProviderResult>[], lineCounter: Deps["lineCounter"], env: Record<string, string> = {}) => {
+  const run = async (batches: Partial<ProviderResult>[], lineCounter: Deps["lineCounter"], env: Record<string, string> = {}) => {
     const posted: { review?: { body: string; comments: { body: string }[] } } = {};
     const warnings: string[] = [];
     const provider = new FakeProvider(batches.map((b) => () => b));
@@ -533,14 +538,14 @@ describe("flow questions and contracts against a fake provider", () => {
       warn: (w) => warnings.push(w),
       lineCounter,
     };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     return { posted: posted.review, warnings, provider };
   };
 
   const everything = out({ files_reviewed: [MANAGER, STORE, GUIDE, LOGO], summary: "ok" });
 
-  test("the batch prompt asks the flow questions and the schema carries contracts and confidence", () => {
-    const { provider } = run([{ structuredOutput: everything }], () => 100);
+  test("the batch prompt asks the flow questions and the schema carries contracts and confidence", async () => {
+    const { provider } = await run([{ structuredOutput: everything }], () => 100);
     const [request] = provider.requests;
     expect(request.prompt).toContain("## What the change does to the running product");
     expect(request.prompt).toContain("Failure path");
@@ -551,8 +556,8 @@ describe("flow questions and contracts against a fake provider", () => {
     expect(schema.required).toContain("contracts");
   });
 
-  test("a contract whose citations exist is rendered, with the finding's confidence", () => {
-    const { posted, warnings } = run(
+  test("a contract whose citations exist is rendered, with the finding's confidence", async () => {
+    const { posted, warnings } = await run(
       [
         {
           structuredOutput: {
@@ -575,8 +580,8 @@ describe("flow questions and contracts against a fake provider", () => {
     expect(posted?.comments[0].body).toContain("**Fix · bug: Seen flag skipped (confidence high)**");
   });
 
-  test("a citation to a missing file or a line past the end is a warning, and the review still posts", () => {
-    const { posted, warnings } = run(
+  test("a citation to a missing file or a line past the end is a warning, and the review still posts", async () => {
+    const { posted, warnings } = await run(
       [
         {
           structuredOutput: {
@@ -593,8 +598,8 @@ describe("flow questions and contracts against a fake provider", () => {
     expect(posted?.body).toContain("A citation did not resolve in the head.");
   });
 
-  test("contracts from two batches are merged into one block, one entry per action and location", () => {
-    const { posted, provider } = run(
+  test("contracts from two batches are merged into one block, one entry per action and location", async () => {
+    const { posted, provider } = await run(
       [
         {
           structuredOutput: out({
@@ -645,7 +650,7 @@ const THREAD = (id: number, path: string, after: ReturnType<typeof threadComment
 describe("one review carries its inline comments (issue #17)", () => {
   const PRIOR = `👮 **Wachiman** · review of the whole pull request, at \`old1111\`: all 4 files reviewed.\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- wachiman sha=old1111111 -->\n\n<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->`;
 
-  test("three findings and two thread replies: one POST to /reviews with all three comments, replies on the replies endpoint", () => {
+  test("three findings and two thread replies: one POST to /reviews with all three comments, replies on the replies endpoint", async () => {
     const posts: { url: string; payload: { body?: string; comments?: unknown[] } }[] = [];
     const base = fakeGh({});
     const gh: GhFn = (args, input) => {
@@ -685,7 +690,7 @@ describe("one review carries its inline comments (issue #17)", () => {
       }),
     ]);
     const deps: Deps = { gh, provider, config: loadConfig({}), log: () => {}, warn: () => {} };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
 
     const reviews = posts.filter((p) => p.url.endsWith("/pulls/7/reviews"));
     expect(reviews).toHaveLength(1);
@@ -700,7 +705,7 @@ describe("one review carries its inline comments (issue #17)", () => {
     expect(posts).toHaveLength(3);
   });
 
-  test("only threads waiting for an answer are read and answered: not one Wachiman answered last, not one at its cap", () => {
+  test("only threads waiting for an answer are read and answered: not one Wachiman answered last, not one at its cap", async () => {
     const posts: { url: string }[] = [];
     const seen: { comment_id: number; wachi_replies?: number }[][] = [];
     const base = fakeGh({});
@@ -738,7 +743,7 @@ describe("one review carries its inline comments (issue #17)", () => {
         };
       },
     ]);
-    review({ gh, provider, config: loadConfig({}), log: () => {}, warn: () => {} }, "o/r", 7, []);
+    await review({ gh, provider, config: loadConfig({}), log: () => {}, warn: () => {} }, "o/r", 7, []);
 
     expect(seen[0].map((t) => [t.comment_id, t.wachi_replies])).toEqual([
       [101, 0],
@@ -753,7 +758,7 @@ describe("one review carries its inline comments (issue #17)", () => {
 });
 
 describe("the confidence rule through review()", () => {
-  test("a low-confidence fix is posted as a question and the run logs how many were rewritten", () => {
+  test("a low-confidence fix is posted as a question and the run logs how many were rewritten", async () => {
     const posted: { review?: { body: string; comments: { path: string; line: number; body: string }[] } } = {};
     const logs: string[] = [];
     const provider = new FakeProvider([
@@ -777,7 +782,7 @@ describe("the confidence rule through review()", () => {
       log: (l) => logs.push(l),
       warn: () => {},
     };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     const heads = (posted.review?.comments ?? []).map((c) => c.body.split("\n")[0]);
     expect(heads).toContain("👮 **Wachiman** · Important · 🟠❓ **Fix · question: Maybe leaks (confidence low)**");
     expect(heads).toContain("👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Off by one (confidence high)**");
@@ -788,7 +793,7 @@ describe("the confidence rule through review()", () => {
     ]);
   });
 
-  test("logs nothing when no finding needed the rule", () => {
+  test("logs nothing when no finding needed the rule", async () => {
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const logs: string[] = [];
     const provider = new FakeProvider([
@@ -801,7 +806,7 @@ describe("the confidence rule through review()", () => {
         }),
       }),
     ]);
-    review({ gh: fakeGh(posted), provider, config: loadConfig({}), log: (l) => logs.push(l), warn: () => {} }, "o/r", 7, []);
+    await review({ gh: fakeGh(posted), provider, config: loadConfig({}), log: (l) => logs.push(l), warn: () => {} }, "o/r", 7, []);
     expect(logs.some((l) => l.startsWith("Confidence rule:"))).toBe(false);
   });
 });
@@ -809,7 +814,7 @@ describe("the confidence rule through review()", () => {
 describe("the ADR notice", () => {
   const ADR = "docs/adr/0003-two-axis-finding-labels.md";
   const withAdr = [...prFiles, { filename: ADR, additions: 2, deletions: 0, patch: "@@ -1,1 +1,2 @@\n x\n+y" }];
-  const run = (words: string[], findings: ReviewOutput["findings"], exclude?: string) => {
+  const run = async (words: string[], findings: ReviewOutput["findings"], exclude?: string) => {
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const gh = fakeGh(posted);
     const provider = new FakeProvider([
@@ -831,12 +836,12 @@ describe("the ADR notice", () => {
       log: () => {},
       warn: () => {},
     };
-    review(deps, "o/r", 7, words);
+    await review(deps, "o/r", 7, words);
     return posted.review;
   };
 
-  test("goes in the body once, collapsed with the model's own, and opens no thread", () => {
-    const posted = run(
+  test("goes in the body once, collapsed with the model's own, and opens no thread", async () => {
+    const posted = await run(
       [],
       [{ path: ADR, line: 0, severity: "info", topic: "adr", title: "ADR edited", body: "Model says so." }],
     );
@@ -848,14 +853,14 @@ describe("the ADR notice", () => {
     expect(body).toContain("1 finding(s); 0 on their lines");
   });
 
-  test("is not added for a decision record outside the requested paths or excluded", () => {
-    expect(run([MANAGER], [])?.body).not.toContain("For your information");
-    expect(run([], [], "docs/adr/**")?.body).not.toContain("For your information");
+  test("is not added for a decision record outside the requested paths or excluded", async () => {
+    expect((await run([MANAGER], []))?.body).not.toContain("For your information");
+    expect((await run([], [], "docs/adr/**"))?.body).not.toContain("For your information");
   });
 });
 
 describe("comment", () => {
-  test("ignores a comment by someone who is not the operator, and one with no mention", () => {
+  test("ignores a comment by someone who is not the operator, and one with no mention", async () => {
     const provider = new FakeProvider([]);
     const deps: Deps = {
       gh: () => {
@@ -866,14 +871,14 @@ describe("comment", () => {
       log: () => {},
       warn: () => {},
     };
-    comment(deps, "o/r", 7, "/wachiman review", "stranger");
-    comment(deps, "o/r", 7, "no mention here", "boss");
+    await comment(deps, "o/r", 7, "/wachiman review", "stranger");
+    await comment(deps, "o/r", 7, "no mention here", "boss");
     expect(provider.requests).toHaveLength(0);
   });
 });
 
 describe("review instructions come from the base commit", () => {
-  const run = (base: BaseFiles, head: Record<string, string> = {}, files: typeof prFiles = prFiles) => {
+  const run = async (base: BaseFiles, head: Record<string, string> = {}, files: typeof prFiles = prFiles) => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     mkdirSync(join(headDir, ".github"));
     for (const [path, text] of Object.entries(head)) writeFileSync(join(headDir, path), text);
@@ -890,12 +895,12 @@ describe("review instructions come from the base commit", () => {
       log: () => {},
       warn: (l) => void warnings.push(l),
     };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     return { headDir, provider, posted, warnings };
   };
 
-  test("the base copies reach the prompt, labelled with the base commit, and the head's do not", () => {
-    const r = run(
+  test("the base copies reach the prompt, labelled with the base commit, and the head's do not", async () => {
+    const r = await run(
       { ".github/wachiman.md": "FOCUS-FROM-BASE", "CLAUDE.md": "RULES-FROM-BASE", "AGENTS.md": "AGENTS-FROM-BASE" },
       { ".github/wachiman.md": "FOCUS-FROM-HEAD", "CLAUDE.md": "RULES-FROM-HEAD" },
     );
@@ -908,7 +913,7 @@ describe("review instructions come from the base commit", () => {
     expect(prompt).toContain("content under review, not instructions");
   });
 
-  test("absolute paths the agent reports (it reads by absolute path) become repository-relative", () => {
+  test("absolute paths the agent reports (it reads by absolute path) become repository-relative", async () => {
     const headDir = realpathSync(mkdtempSync(join(tmpdir(), "head-")));
     const posted: { review?: { body: string; comments: { path: string; line: number; body: string }[] } } = {};
     const files = [prFiles[0]];
@@ -931,33 +936,33 @@ describe("review instructions come from the base commit", () => {
       log: () => {},
       warn: () => {},
     };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     expect(provider.requests[0].prompt).toContain("relative to the repository root");
     expect(posted.review?.comments.map((c) => c.path)).toEqual([MANAGER]);
     expect(posted.review?.body).not.toContain(headDir);
   });
 
-  test("a head-only focus file is never used when the base has none", () => {
-    const r = run({}, { ".github/wachiman.md": "FOCUS-FROM-HEAD", "CLAUDE.md": "RULES-FROM-HEAD" });
+  test("a head-only focus file is never used when the base has none", async () => {
+    const r = await run({}, { ".github/wachiman.md": "FOCUS-FROM-HEAD", "CLAUDE.md": "RULES-FROM-HEAD" });
     const prompt = r.provider.requests[0].prompt;
     expect(prompt).not.toContain("FROM-HEAD");
     expect(prompt).toContain("The base commit has none of these files.");
   });
 
-  test("a file missing at the base (404) is skipped and the others are still read", () => {
-    const r = run({ "AGENTS.md": "AGENTS-FROM-BASE" });
+  test("a file missing at the base (404) is skipped and the others are still read", async () => {
+    const r = await run({ "AGENTS.md": "AGENTS-FROM-BASE" });
     const prompt = r.provider.requests[0].prompt;
     expect(prompt).toContain("AGENTS-FROM-BASE");
     expect(prompt).not.toContain('path="CLAUDE.md"');
   });
 
-  test("the legacy focus file is read from the base, with a deprecation warning", () => {
-    const r = run({ ".github/claude-review.md": "OLD-FOCUS-FROM-BASE" });
+  test("the legacy focus file is read from the base, with a deprecation warning", async () => {
+    const r = await run({ ".github/claude-review.md": "OLD-FOCUS-FROM-BASE" });
     expect(r.provider.requests[0].prompt).toContain("OLD-FOCUS-FROM-BASE");
     expect(r.warnings.join("\n")).toContain("deprecated");
   });
 
-  test("an error other than 404 stops the review instead of reviewing without the rules", () => {
+  test("an error other than 404 stops the review instead of reviewing without the rules", async () => {
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const gh = fakeGh(posted);
     const deps: Deps = {
@@ -970,13 +975,13 @@ describe("review instructions come from the base commit", () => {
       log: () => {},
       warn: () => {},
     };
-    expect(() => review(deps, "o/r", 7, [])).toThrow(GhError);
+    await expect(review(deps, "o/r", 7, [])).rejects.toThrow(GhError);
     expect(posted.review).toBeUndefined();
   });
 
-  test("a file over 64 KB is cut with a notice, on a character boundary", () => {
+  test("a file over 64 KB is cut with a notice, on a character boundary", async () => {
     const big = "é".repeat(40 * 1024) + "TAIL-NEVER-SHOWN"; // 80 KB+ in UTF-8
-    const r = run({ "CLAUDE.md": big });
+    const r = await run({ "CLAUDE.md": big });
     const prompt = r.provider.requests[0].prompt;
     expect(prompt).toContain("[Cut: the file is longer than 64 KB at the base commit");
     expect(prompt).not.toContain("TAIL-NEVER-SHOWN");
@@ -984,23 +989,23 @@ describe("review instructions come from the base commit", () => {
     expect(r.warnings.join("\n")).toContain("CLAUDE.md at the base commit is over 64 KB");
   });
 
-  test("a pull request that edits an instruction file says the change takes effect after merge", () => {
+  test("a pull request that edits an instruction file says the change takes effect after merge", async () => {
     const edited = [...prFiles, { filename: "CLAUDE.md", additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+x" }];
-    const r = run({ "CLAUDE.md": "RULES-FROM-BASE" }, {}, edited);
+    const r = await run({ "CLAUDE.md": "RULES-FROM-BASE" }, {}, edited);
     expect(r.posted.review?.body).toContain("Review instructions changed");
     expect(r.posted.review?.body).toContain("`CLAUDE.md`");
     expect(r.posted.review?.body).toContain("takes effect after merge");
     expect(r.posted.review?.body).toContain("bbbbbbb");
   });
 
-  test("no notice when the pull request leaves those files alone", () => {
-    const r = run({ "CLAUDE.md": "RULES-FROM-BASE" });
+  test("no notice when the pull request leaves those files alone", async () => {
+    const r = await run({ "CLAUDE.md": "RULES-FROM-BASE" });
     expect(r.posted.review?.body).not.toContain("Review instructions changed");
   });
 });
 
 describe("the answer path reads the instructions from the base commit", () => {
-  test("base copies reach the prompt and the head's do not", () => {
+  test("base copies reach the prompt and the head's do not", async () => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     writeFileSync(join(headDir, "CLAUDE.md"), "RULES-FROM-HEAD");
     const posted: string[] = [];
@@ -1027,7 +1032,7 @@ describe("the answer path reads the instructions from the base commit", () => {
       log: () => {},
       warn: () => {},
     };
-    comment(deps, "o/r", 7, "/wachiman why is this here?", "boss");
+    await comment(deps, "o/r", 7, "/wachiman why is this here?", "boss");
     const prompt = provider.requests[0].prompt;
     expect(prompt).toContain("Repository instructions (from the base commit bbbbbbb)");
     expect(prompt).toContain("RULES-FROM-BASE");
@@ -1038,7 +1043,7 @@ describe("the answer path reads the instructions from the base commit", () => {
 });
 
 describe("the on-demand answer reports its cost", () => {
-  test("the footer names the operation and the tokens, and the call is recorded as on-demand", () => {
+  test("the footer names the operation and the tokens, and the call is recorded as on-demand", async () => {
     const posted: string[] = [];
     const usage = { input: 50, output: 60, cacheRead: 7000, cacheWrite: 800 };
     const provider = new FakeProvider([() => ({ structuredOutput: { sections: [{ title: "Answer", body: "the answer", refs: [] }], not_answered: "" }, costUsd: 0.07, usage, model: "claude-sonnet-5-5" })]);
@@ -1065,7 +1070,7 @@ describe("the on-demand answer reports its cost", () => {
       log: () => {},
       warn: () => {},
     };
-    comment(deps, "o/r", 7, "/wachiman why is this here?", "boss");
+    await comment(deps, "o/r", 7, "/wachiman why is this here?", "boss");
     expect(posted[0]).toContain("effort high · on-demand · 50 in / 60 out / 7.0k cache read / 800 cache write · $0.07</sub>");
     expect(costs).toMatchObject([{ operation: "on-demand", label: "question", usage, costUsd: 0.07, pr: 7, repo: "o/r" }]);
   });
@@ -1087,9 +1092,9 @@ describe("comment with an operator that is not a real login", () => {
   };
 
   for (const operator of ["", "   ", "EDIT-THIS-github-login", "your-github-login", "Your-GitHub-Login", "EDIT-ME", "edit"]) {
-    test(`refuses "${operator}" before reading the comment or calling anything`, () => {
+    test(`refuses "${operator}" before reading the comment or calling anything`, async () => {
       const { deps, provider } = depsFor(operator);
-      expect(() => comment(deps, "o/r", 7, "/wachiman review", "someone")).toThrow(/operator login/);
+      await expect(comment(deps, "o/r", 7, "/wachiman review", "someone")).rejects.toThrow(/operator login/);
       expect(provider.requests).toHaveLength(0);
     });
   }
@@ -1123,7 +1128,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     commits?: "ordinary" | "merge";
   }
 
-  function run(world: World) {
+  async function run(world: World) {
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const calls: string[] = [];
     const base = fakeGh(posted, {}, world.current);
@@ -1170,13 +1175,13 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     ]);
     const logs: string[] = [];
     const deps: Deps = { gh, provider, config: loadConfig({}), log: (l) => void logs.push(l), warn: () => {} };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     return { posted: posted.review, provider, prompts, logs, calls };
   }
 
-  test("a rebase with the same lines posts only a marker and calls no model", () => {
+  test("a rebase with the same lines posts only a marker and calls no model", async () => {
     for (const status of ["diverged", "behind"]) {
-      const r = run({ status, old: oldFiles, current: rebasedFiles });
+      const r = await run({ status, old: oldFiles, current: rebasedFiles });
       expect(r.provider.requests).toHaveLength(0);
       expect(r.posted?.comments).toEqual([]);
       expect(r.posted?.body.split("\n")[0]).toBe(
@@ -1188,11 +1193,11 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     }
   });
 
-  test("a rebase where one file changed reviews only that file, and says so", () => {
+  test("a rebase where one file changed reviews only that file, and says so", async () => {
     const edited = rebasedFiles.map((f) =>
       f.filename === STORE ? { ...f, additions: 4, patch: "@@ -0,0 +1,4 @@\n+x\n+y\n+z\n+extra" } : f,
     );
-    const r = run({ status: "diverged", old: oldFiles, current: edited });
+    const r = await run({ status: "diverged", old: oldFiles, current: edited });
     expect(r.provider.requests).toHaveLength(1);
     const prompt = r.prompts[0];
     expect(prompt).toContain(`- ${STORE} +4 −0`);
@@ -1205,48 +1210,48 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(r.posted?.body).toContain(`<!-- wachiman sha=${HEAD} -->`);
   });
 
-  test("a new file after a rebase is reviewed; the unchanged ones are not", () => {
+  test("a new file after a rebase is reviewed; the unchanged ones are not", async () => {
     const added = [...rebasedFiles, { filename: "src/new.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+n" }];
-    const r = run({ status: "diverged", old: oldFiles, current: added });
+    const r = await run({ status: "diverged", old: oldFiles, current: added });
     expect(r.prompts[0]).toContain("- src/new.ts +1 −0");
     expect(r.prompts[0]).not.toContain(`- ${LOGO}`);
     expect(r.prompts[0]).not.toContain(`- ${MANAGER}`);
   });
 
-  test("a binary whose blob changed is part of the delta but never goes to a model", () => {
+  test("a binary whose blob changed is part of the delta but never goes to a model", async () => {
     // Same lines everywhere, but the logo's blob changed. The rebase delta still lists it, and the
     // engine then sets it aside as binary: no call, no ceiling check, no $0.00 automatic run in the
     // footers, a one-line notice, and the marker moves.
-    const r = run({ status: "diverged", old: oldFiles, current: withLogoBlob(rebasedFiles, "logo-blob-2") });
+    const r = await run({ status: "diverged", old: oldFiles, current: withLogoBlob(rebasedFiles, "logo-blob-2") });
     expect(r.provider.requests).toHaveLength(0);
     expect(r.posted?.body.split("\n")[0]).toContain(`Nothing to review at \`head123\`: not reviewable: \`${LOGO}\` (binary).`);
     expect(r.posted?.body).toContain("wachiman sha=");
     expect(r.posted?.body).not.toContain(SIGNATURE.auto);
     expect(r.posted?.body).not.toContain("<sub>");
     // GitHub sent no blob for either side: nothing proves the logo is the same, so it is in the delta again.
-    const unknown = run({ status: "diverged", old: withLogoBlob(prFiles, undefined), current: withLogoBlob(rebasedFiles, undefined) });
+    const unknown = await run({ status: "diverged", old: withLogoBlob(prFiles, undefined), current: withLogoBlob(rebasedFiles, undefined) });
     expect(unknown.provider.requests).toHaveLength(0);
     expect(unknown.posted?.body).toContain(`\`${LOGO}\` (binary)`);
   });
 
-  test("when the old commit is gone, the change cannot be compared: full review, no crash", () => {
-    const r = run({ status: "throws", old: "throws", current: rebasedFiles });
+  test("when the old commit is gone, the change cannot be compared: full review, no crash", async () => {
+    const r = await run({ status: "throws", old: "throws", current: rebasedFiles });
     expect(r.provider.requests).toHaveLength(1);
     expect(r.logs.join("\n")).toContain("cannot be compared");
     expect(r.prompts[0]).toContain("the whole pull request");
     expect(r.posted?.body.split("\n")[0]).toContain("review of the whole pull request");
   });
 
-  test("a list that may be cut short is not trusted: full review", () => {
+  test("a list that may be cut short is not trusted: full review", async () => {
     const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}.ts`, additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+x" }));
-    const r = run({ status: "diverged", old: many, current: rebasedFiles });
+    const r = await run({ status: "diverged", old: many, current: rebasedFiles });
     expect(r.provider.requests).toHaveLength(1);
     expect(r.prompts[0]).toContain("the whole pull request");
   });
 
-  test("new commits on top (ahead) review the pull request's files whose change differs from the reviewed one", () => {
+  test("new commits on top (ahead) review the pull request's files whose change differs from the reviewed one", async () => {
     // The old change cannot be read: every file compare lists that is in the pull request is reviewed.
-    const r = run({ status: "ahead", old: "throws", current: rebasedFiles });
+    const r = await run({ status: "ahead", old: "throws", current: rebasedFiles });
     expect(r.provider.requests).toHaveLength(1);
     const first = r.posted?.body.split("\n")[0] ?? "";
     expect(first).toContain("review of the changes since `old1111`, at `head123`");
@@ -1255,7 +1260,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     const edited = rebasedFiles.map((f) =>
       f.filename === STORE ? { ...f, additions: 4, patch: "@@ -0,0 +1,4 @@\n+x\n+y\n+z\n+extra" } : f,
     );
-    const one = run({ status: "ahead", old: oldFiles, current: edited, since: edited });
+    const one = await run({ status: "ahead", old: oldFiles, current: edited, since: edited });
     expect(one.provider.requests).toHaveLength(1);
     expect(one.prompts[0]).toContain(`- ${STORE} +4 −0`);
     expect(one.prompts[0]).not.toContain(`- ${MANAGER}`);
@@ -1266,21 +1271,21 @@ describe("a push after a review (incremental, rebase-aware)", () => {
   const guardedAt = (patch: string, extra: Partial<(typeof prFiles)[number]> = {}) =>
     ({ filename: GUARDED, additions: 1, deletions: 0, patch, ...extra }) as (typeof prFiles)[number];
 
-  test("a push that restores a line the reviewed change deleted is reviewed, merge or not", () => {
+  test("a push that restores a line the reviewed change deleted is reviewed, merge or not", async () => {
     // Reviewed: guard deleted, extra added. The push puts guard back and keeps extra. The file's
     // change differs from the reviewed one, so it is a candidate, and guard now equals the base.
     const reviewed = guardedAt("@@ -1,3 +1,3 @@\n-guard()\n+extra()\n work()\n end()");
     const current = guardedAt("@@ -1,3 +1,4 @@\n guard()\n+extra()\n work()\n end()");
     const pushed = guardedAt("@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()");
     for (const commits of ["ordinary", "merge", undefined] as const) {
-      const r = run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits });
+      const r = await run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits });
       expect(r.provider.requests).toHaveLength(1);
       expect(r.prompts[0]).toContain("+guard()");
       expect(r.posted?.body).not.toContain("Brought up to date");
     }
   });
 
-  test("when the prior change is unknown, a restored line is sent, never dropped", () => {
+  test("when the prior change is unknown, a restored line is sent, never dropped", async () => {
     const current = guardedAt("@@ -1,3 +1,4 @@\n guard()\n+extra()\n work()\n end()");
     const pushed = guardedAt("@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()");
     const many = Array.from({ length: 300 }, (_, i) => guardedAt("@@ -0,0 +1,1 @@\n+x", { filename: `f${i}.ts` }));
@@ -1290,29 +1295,29 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     };
     for (const [name, old] of Object.entries(priors))
       for (const commits of ["merge", undefined] as const) {
-        const r = run({ status: "ahead", old, current: [current], since: [pushed], commits });
+        const r = await run({ status: "ahead", old, current: [current], since: [pushed], commits });
         expect(r.provider.requests, `${name}, commits ${commits}`).toHaveLength(1);
         expect(r.prompts[0]).toContain("+guard()");
         expect(r.posted?.body).not.toContain("Brought up to date");
       }
   });
 
-  test("a push with no merge commit is not narrowed at all", () => {
+  test("a push with no merge commit is not narrowed at all", async () => {
     // The pull request's patch has no row for the added line, so narrowing would call it the
     // base's; with no merge among the commits nothing came from a merged branch.
     const reviewed = guardedAt("@@ -1,3 +1,3 @@\n-guard()\n+extra()\n work()\n end()");
     const current = guardedAt("@@ -1,3 +1,3 @@\n-guard()\n+other()\n work()\n end()");
     const pushed = guardedAt("@@ -1,3 +1,3 @@\n-guard()\n-extra()\n+other()\n work()\n end()");
-    const ordinary = run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits: "ordinary" });
+    const ordinary = await run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits: "ordinary" });
     expect(ordinary.provider.requests).toHaveLength(1);
     expect(ordinary.prompts[0]).toContain("+other()");
     expect(ordinary.prompts[0]).toContain("-extra()");
     // The same push with a merge among the commits is narrowed: the unchanged-looking rows go.
-    const merged = run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits: "merge" });
+    const merged = await run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits: "merge" });
     expect(merged.provider.requests).toHaveLength(1);
   });
 
-  test("a rename keeps the ownership of the rows the reviewed change added", () => {
+  test("a rename keeps the ownership of the rows the reviewed change added", async () => {
     // Reviewed: GUARD and `other` added to old.ts. The push renames it to new.ts, drops GUARD and
     // keeps `other`. The prior patch is indexed by the old name; compare says where it came from.
     const reviewed = guardedAt("@@ -1,5 +1,7 @@\n a\n b\n+GUARD\n c\n d\n e\n+other", { filename: "src/old.ts" });
@@ -1327,14 +1332,14 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       deletions: 1,
     });
     for (const commits of ["merge", undefined] as const) {
-      const r = run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits });
+      const r = await run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits });
       expect(r.provider.requests).toHaveLength(1);
       expect(r.prompts[0]).toContain("-GUARD");
       expect(r.posted?.body).not.toContain("Brought up to date");
     }
     // The rename cannot be matched to a reviewed file (the old name is not the one compare lists
     // for the review): the full current patch is sent rather than nothing.
-    const unmatched = run({
+    const unmatched = await run({
       status: "ahead",
       old: [{ ...reviewed, filename: "src/elsewhere.ts" }],
       current: [current],
@@ -1344,14 +1349,14 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(unmatched.provider.requests).toHaveLength(1);
   });
 
-  test("a merge of the base branch into the pull request reviews none of the base's files", () => {
+  test("a merge of the base branch into the pull request reviews none of the base's files", async () => {
     // Since the last review the branch gained only the base's commits: compare lists files the
     // pull request does not touch, and the pull request's own change is the one already reviewed.
     const fromBase = [
       { filename: "src/elsewhere.ts", additions: 9, deletions: 2, patch: "@@ -1,2 +1,9 @@\n-old\n+new" },
       { filename: "docs/changelog.md", additions: 3, deletions: 0, patch: "@@ -0,0 +1,3 @@\n+a\n+b\n+c" },
     ];
-    const r = run({ status: "ahead", old: oldFiles, current: oldFiles, since: fromBase });
+    const r = await run({ status: "ahead", old: oldFiles, current: oldFiles, since: fromBase });
     expect(r.provider.requests).toHaveLength(0);
     expect(r.posted?.body.split("\n")[0]).toBe(
       "👮 **Wachiman** · Brought up to date with the base branch, no new changes since `old1111`.",
@@ -1359,18 +1364,18 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(lastEngineMarker([{ body: r.posted?.body ?? "" }])).toBe(HEAD);
     // The merge also touched a file the pull request changes, without changing the pull request's
     // own hunks in it: compare lists it, and it is still not reviewed.
-    const touched = run({ status: "ahead", old: oldFiles, current: oldFiles, since: [...fromBase, oldFiles[0]] });
+    const touched = await run({ status: "ahead", old: oldFiles, current: oldFiles, since: [...fromBase, oldFiles[0]] });
     expect(touched.provider.requests).toHaveLength(0);
     // When the pull request's hunks in that file did change, only that file is reviewed.
     const changed = oldFiles.map((f) => (f.filename === MANAGER ? { ...f, additions: 7, patch: `${f.patch}\n+more` } : f));
-    const hunk = run({ status: "ahead", old: oldFiles, current: changed, since: [...fromBase, changed[0]] });
+    const hunk = await run({ status: "ahead", old: oldFiles, current: changed, since: [...fromBase, changed[0]] });
     expect(hunk.provider.requests).toHaveLength(1);
     expect(hunk.prompts[0]).toContain(`- ${MANAGER} +7`);
     expect(hunk.prompts[0]).not.toContain("- src/elsewhere.ts");
     expect(hunk.logs.join("\n")).toContain("not in the pull request's own change");
   });
 
-  test("a merge into a file the pull request also changes sends the author's lines, not the base's", () => {
+  test("a merge into a file the pull request also changes sends the author's lines, not the base's", async () => {
     // kaipu-record#483 at 0253fd7: the merge brought main's relocate handler into index.ts, which
     // the pull request also changes, and the author resolved it with one line of their own. compare
     // lists index.ts with the base's lines as added; only the author's line may reach the model.
@@ -1382,7 +1387,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
         ? { ...f, additions: 7, patch: "@@ -1,4 +1,11 @@\n ctx\n+a\n+b\n+c\n+d\n+e\n fromBase1\n fromBase2\n fromBase3\n+ownFix" }
         : f,
     );
-    const r = run({ status: "ahead", old: oldFiles, current, since: merged });
+    const r = await run({ status: "ahead", old: oldFiles, current, since: merged });
     expect(r.provider.requests).toHaveLength(1);
     const diff = r.prompts[0].slice(r.prompts[0].indexOf("<diff>"));
     expect(diff).toContain("+ownFix");
@@ -1397,7 +1402,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     const sameOwn = oldFiles.map((f) =>
       f.filename === MANAGER ? { ...f, patch: "@@ -1,4 +1,4 @@\n ctx\n-older\n+new\n fromBase1\n fromBase2" } : f,
     );
-    const none = run({ status: "ahead", old: edgeOld, current: sameOwn, since: onlyBase });
+    const none = await run({ status: "ahead", old: edgeOld, current: sameOwn, since: onlyBase });
     expect(none.provider.requests).toHaveLength(0);
     expect(none.posted?.body.split("\n")[0]).toBe(
       "👮 **Wachiman** · Brought up to date with the base branch, no new changes since `old1111`.",
@@ -1530,7 +1535,7 @@ describe("call-site evidence reaches the batch", () => {
   const SIBLING = "src/export-status-cards.tsx";
 
   /** `onCall` runs inside the provider call, while the run dir still exists. */
-  const run = (git: Deps["git"], onCall?: (request: ProviderRequest) => void) => {
+  const run = async (git: Deps["git"], onCall?: (request: ProviderRequest) => void) => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     mkdirSync(join(headDir, "src"));
     writeFileSync(
@@ -1555,11 +1560,11 @@ describe("call-site evidence reaches the batch", () => {
       warn: (l) => void warnings.push(l),
       git,
     };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     return { provider, posted, warnings, logs };
   };
 
-  test("evidence.json is written to the run dir and the prompt carries the slice and the comparison task", () => {
+  test("evidence.json is written to the run dir and the prompt carries the slice and the comparison task", async () => {
     const git: Deps["git"] = (args) => {
       expect(args[args.indexOf("-e") + 1]).toBe("startFileDrag");
       return {
@@ -1568,7 +1573,7 @@ describe("call-site evidence reaches the batch", () => {
       };
     };
     let evidenceFile = "";
-    const r = run(git, (request) => {
+    const r = await run(git, (request) => {
       evidenceFile = readFileSync(join(request.addDirs[0], "evidence.json"), "utf8");
     });
     const request = r.provider.requests[0];
@@ -1586,13 +1591,13 @@ describe("call-site evidence reaches the batch", () => {
     // After the file-accounting paragraph, before the rules.
     expect(prompt.indexOf("<evidence")).toBeGreaterThan(prompt.indexOf("Review every file of this part"));
     expect(prompt.indexOf("<evidence")).toBeLessThan(prompt.indexOf("<diff>"));
-    expect(r.logs.some((l) => /^evidence: 1 symbol\(s\) found, 1 call site\(s\), \d+ bytes, \d+ ms, complete$/.test(l))).toBe(true);
+    expect(r.logs.some((l) => /^batch 1\/1: evidence: 1 symbol\(s\) found, 1 call site\(s\), \d+ bytes, \d+ ms, complete$/.test(l))).toBe(true);
     expect(request.allowedTools).toEqual(["read", "glob", "grep"]);
   });
 
-  test("a failing git never fails the review: a warning, an empty file, no evidence in the prompt", () => {
+  test("a failing git never fails the review: a warning, an empty file, no evidence in the prompt", async () => {
     let evidenceFile = "";
-    const r = run(
+    const r = await run(
       () => ({ status: 128, stdout: "", error: "fatal: not a git repository" }),
       (request) => {
         evidenceFile = readFileSync(join(request.addDirs[0], "evidence.json"), "utf8");
@@ -1608,8 +1613,8 @@ describe("call-site evidence reaches the batch", () => {
     expect(request.prompt).not.toContain("sibling call sites");
   });
 
-  test("a git that throws is also survived", () => {
-    const r = run(() => {
+  test("a git that throws is also survived", async () => {
+    const r = await run(() => {
       throw new Error("boom");
     });
     expect(r.posted.review).toBeDefined();
@@ -1617,7 +1622,7 @@ describe("call-site evidence reaches the batch", () => {
     expect(r.provider.requests[0].prompt).not.toContain("<evidence");
   });
 
-  test("a batch with no call-like added lines runs no git at all", () => {
+  test("a batch with no call-like added lines runs no git at all", async () => {
     const quiet = [{ filename: NEW, additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+const a = 1;" }];
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: [NEW], summary: "ok" }) })]);
@@ -1632,7 +1637,7 @@ describe("call-site evidence reaches the batch", () => {
         throw new Error("git must not run");
       },
     };
-    review(deps, "o/r", 7, []);
+    await review(deps, "o/r", 7, []);
     expect(provider.requests[0].prompt).not.toContain("<evidence");
   });
 });
@@ -1650,13 +1655,13 @@ describe("data-path questions reach the batch the added lines select them for", 
     { filename: STYLE, additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+.panel { color: red; }" },
   ];
 
-  const run = (prFilesForRun: typeof files) => {
+  const run = async (prFilesForRun: typeof files) => {
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const logs: string[] = [];
     const provider = new FakeProvider([
       () => ({ structuredOutput: out({ files_reviewed: prFilesForRun.map((f) => f.filename), summary: "ok" }) }),
     ]);
-    review(
+    await review(
       { gh: fakeGh(posted, {}, prFilesForRun), provider, config: loadConfig({}), log: (l) => void logs.push(l), warn: () => {} },
       "o/r",
       7,
@@ -1665,16 +1670,16 @@ describe("data-path questions reach the batch the added lines select them for", 
     return { prompt: provider.requests[0].prompt, logs };
   };
 
-  test("a batch with a destructive call gets that question and logs its id", () => {
-    const r = run(files);
+  test("a batch with a destructive call gets that question and logs its id", async () => {
+    const r = await run(files);
     expect(r.prompt).toContain("## Risks this part's added lines show");
     expect(r.prompt).toContain("### Destructive steps that do not re-verify their target");
     expect(r.prompt).not.toContain("### An unreadable file treated as empty");
     expect(r.logs).toContain("Data-path questions for part 1 of 1: destructive-step");
   });
 
-  test("a batch without any pattern gets no section and logs none", () => {
-    const r = run([files[1]]);
+  test("a batch without any pattern gets no section and logs none", async () => {
+    const r = await run([files[1]]);
     expect(r.prompt).not.toContain("Risks this part's added lines show");
     expect(r.logs).toContain("Data-path questions for part 1 of 1: none");
   });
@@ -1731,7 +1736,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     return { gh, reviews, replies, nodes, state };
   }
 
-  test("complete and marked at once; a re-review lists commits and the total; the reply is unflagged; no second answer", () => {
+  test("complete and marked at once; a re-review lists commits and the total; the reply is unflagged; no second answer", async () => {
     const w = world();
     const prompts: string[] = [];
     const provider = new FakeProvider([
@@ -1765,7 +1770,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     });
 
     // Push 1: the PNG is not expected, so the review is complete and carries the marker.
-    review(deps("opened"), "o/r", 7, []);
+    await review(deps("opened"), "o/r", 7, []);
     expect(w.reviews).toHaveLength(1);
     expect(w.reviews[0].split("\n")[0]).toContain(`all 2 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
     expect(w.reviews[0]).toContain(`wachiman sha=${SHA[0]}`);
@@ -1774,7 +1779,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     // Push 2: the owner answered Wachiman's finding. It is a re-review (incremental), not a full one.
     w.state.head = SHA[1];
     w.nodes.push(THREAD(THREAD_ID, MANAGER));
-    review(deps("synchronize"), "o/r", 7, []);
+    await review(deps("synchronize"), "o/r", 7, []);
     expect(prompts[1]).toContain("only the changes since commit");
     expect(prompts[1]).toContain("threads.json");
     const second = w.reviews[1];
@@ -1789,7 +1794,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     // Push 3: Wachiman answered last, so the thread is not read and not answered again; the total
     // does not count the second run twice ($0.10 + $0.20 + $0.15, over 3 runs).
     w.state.head = SHA[2];
-    review(deps("synchronize"), "o/r", 7, []);
+    await review(deps("synchronize"), "o/r", 7, []);
     expect(prompts[2]).not.toContain("threads.json");
     expect(w.replies).toHaveLength(1);
     expect(w.reviews[2]).toContain("PR so far $0.45 over 3 automatic runs");

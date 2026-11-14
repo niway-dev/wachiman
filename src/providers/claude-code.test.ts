@@ -138,7 +138,7 @@ describe("ClaudeCodeProvider with a stub binary", () => {
     promptViaStdin: true,
   };
 
-  test("preflight reads the version for the footer; run maps the result and strips GitHub tokens", () => {
+  test("preflight reads the version for the footer; run maps the result and strips GitHub tokens", async () => {
     const binary = stubBinary(`
 if [ "$1" = "--version" ]; then echo "2.1.304 (Claude Code)"; exit 0; fi
 stdin=$(cat | tr '\n' ' ')
@@ -147,7 +147,7 @@ printf '{"is_error":false,"subtype":"success","num_turns":3,"total_cost_usd":0.1
     const provider = new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary });
     provider.preflight();
     expect(provider.modelLabel()).toBe("Claude Sonnet 5.5 via Claude Code 2.1.304");
-    const result = provider.run(request);
+    const result = await provider.run(request);
     expect(result).toMatchObject({
       structuredOutput: { ok: true },
       costUsd: 0.12,
@@ -161,28 +161,28 @@ printf '{"is_error":false,"subtype":"success","num_turns":3,"total_cost_usd":0.1
     delete process.env.GH_TOKEN;
   });
 
-  test("run reports the model and the usage object, cache fields included, and degrades to 0 without one", () => {
+  test("run reports the model and the usage object, cache fields included, and degrades to 0 without one", async () => {
     const withUsage = stubBinary(
       `cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":2,"total_cost_usd":0.2,"duration_ms":9,"usage":{"input_tokens":11,"output_tokens":22,"cache_read_input_tokens":3300,"cache_creation_input_tokens":44}}'`,
     );
-    const a = new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: withUsage }).run(request);
+    const a = await new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: withUsage }).run(request);
     expect(a.model).toBe("claude-sonnet-5-5");
     expect(a.usage).toEqual({ input: 11, output: 22, cacheRead: 3300, cacheWrite: 44 });
     const without = stubBinary(
       `cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":2,"total_cost_usd":0.2,"duration_ms":9}'`,
     );
-    const b = new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: without }).run(request);
+    const b = await new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: without }).run(request);
     expect(b.usage).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
   });
 
-  test("starts in an empty scratch directory outside the head, with the head as --add-dir only", () => {
+  test("starts in an empty scratch directory outside the head, with the head as --add-dir only", async () => {
     const head = mkdtempSync(join(tmpdir(), "head-"));
     const scratch = mkdtempSync(join(tmpdir(), "pr-scratch-"));
     const binary = stubBinary(`
 cat >/dev/null
 printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}' "$(pwd -P)" "$(ls -A)" "$*"`);
     const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary });
-    const text = provider.run({ ...request, cwd: head, addDirs: [scratch] }).text ?? "";
+    const text = (await provider.run({ ...request, cwd: head, addDirs: [scratch] })).text ?? "";
     const cwd = text.match(/cwd=(\S+)/)?.[1] ?? "";
     expect(cwd).not.toBe("");
     expect(realpathSync(head).startsWith(cwd)).toBe(false);
@@ -209,21 +209,21 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
     expect(CHILD_ENV_ALLOWLIST as readonly string[]).not.toContain("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
   });
 
-  test("a spend-cap ending is reported as budget", () => {
+  test("a spend-cap ending is reported as budget", async () => {
     const binary = stubBinary(
       `cat >/dev/null; echo '{"is_error":true,"subtype":"error_max_budget_usd","num_turns":9,"total_cost_usd":0.5}'`,
     );
     const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary });
-    expect(provider.run(request)).toMatchObject({ terminalReason: "budget", isError: true });
+    expect(await provider.run(request)).toMatchObject({ terminalReason: "budget", isError: true });
   });
 
-  test("the turn cap reaches the CLI as --max-turns, and its ending is reported as turns", () => {
+  test("the turn cap reaches the CLI as --max-turns, and its ending is reported as turns", async () => {
     // Real shape, observed with Claude Code 2.1.316 and --max-turns 1: num_turns counts one past the cap.
     const binary = stubBinary(
       `cat >/dev/null; echo "{\\"is_error\\":true,\\"subtype\\":\\"error_max_turns\\",\\"terminal_reason\\":\\"max_turns\\",\\"num_turns\\":41,\\"total_cost_usd\\":0.31,\\"duration_ms\\":9,\\"errors\\":[\\"$*\\"]}"`,
     );
     const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary });
-    const result = provider.run({ ...request, maxTurns: 40 });
+    const result = await provider.run({ ...request, maxTurns: 40 });
     expect(result).toMatchObject({ terminalReason: "turns", isError: true, turns: 41, costUsd: 0.31 });
     expect(JSON.stringify(result.raw)).toContain("--max-turns 40");
   });
@@ -238,41 +238,41 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
     expect(terminalReasonOf({ subtype: "success", is_error: true })).toBe("error");
   });
 
-  test("a call that outlives the wall-clock limit is killed and ends as timeout, not as a crash", () => {
+  test("a call that outlives the wall-clock limit is killed and ends as timeout, not as a crash", async () => {
     const binary = stubBinary("cat >/dev/null; sleep 30");
     const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary, timeoutMs: 150 });
     const started = Date.now();
-    const result = provider.run(request);
+    const result = await provider.run(request);
     expect(Date.now() - started).toBeLessThan(10_000);
     expect(result).toMatchObject({ terminalReason: "timeout", isError: true, costUsd: 0, costKnown: false, turns: 0 });
     expect(result.durationMs).toBeGreaterThanOrEqual(100);
   });
 
-  test("only a finite, non-negative total_cost_usd makes the cost known", () => {
+  test("only a finite, non-negative total_cost_usd makes the cost known", async () => {
     const run = (json: string) =>
       new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: stubBinary(`cat >/dev/null; echo '${json}'`) }).run(request);
-    expect(run('{"is_error":true,"subtype":"error_during_execution"}')).toMatchObject({ costKnown: false, costUsd: 0, isError: true });
-    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":-1}')).toMatchObject({ costKnown: false });
-    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":"0.5"}')).toMatchObject({ costKnown: false });
+    expect(await run('{"is_error":true,"subtype":"error_during_execution"}')).toMatchObject({ costKnown: false, costUsd: 0, isError: true });
+    expect(await run('{"is_error":false,"subtype":"success","total_cost_usd":-1}')).toMatchObject({ costKnown: false });
+    expect(await run('{"is_error":false,"subtype":"success","total_cost_usd":"0.5"}')).toMatchObject({ costKnown: false });
     // A real dollar figure stays known without any token counts, and so does a genuine zero.
-    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":0.42}')).toMatchObject({ costKnown: true, costUsd: 0.42 });
-    expect(run('{"is_error":false,"subtype":"success","total_cost_usd":0}')).toMatchObject({ costKnown: true, costUsd: 0 });
+    expect(await run('{"is_error":false,"subtype":"success","total_cost_usd":0.42}')).toMatchObject({ costKnown: true, costUsd: 0.42 });
+    expect(await run('{"is_error":false,"subtype":"success","total_cost_usd":0}')).toMatchObject({ costKnown: true, costUsd: 0 });
   });
 
-  test("the request's timeout wins over the adapter's, and a fast call is not touched", () => {
+  test("the request's timeout wins over the adapter's, and a fast call is not touched", async () => {
     const slow = stubBinary("cat >/dev/null; sleep 30");
     const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: slow, timeoutMs: 60_000 });
-    expect(provider.run({ ...request, timeoutMs: 150 })).toMatchObject({ terminalReason: "timeout" });
+    expect(await provider.run({ ...request, timeoutMs: 150 })).toMatchObject({ terminalReason: "timeout" });
     const fast = stubBinary(`cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":1}'`);
     const quick = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: fast });
-    expect(quick.run({ ...request, timeoutMs: 5_000 })).toMatchObject({ terminalReason: "success" });
+    expect(await quick.run({ ...request, timeoutMs: 5_000 })).toMatchObject({ terminalReason: "success" });
   });
 
-  test("a process that ignores SIGTERM is still ended", () => {
+  test("a process that ignores SIGTERM is still ended", async () => {
     const binary = stubBinary("trap '' TERM; cat >/dev/null; sleep 30");
     const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary, timeoutMs: 150 });
     const started = Date.now();
-    expect(provider.run(request).terminalReason).toBe("timeout");
+    expect((await provider.run(request)).terminalReason).toBe("timeout");
     expect(Date.now() - started).toBeLessThan(10_000);
   });
 
@@ -387,7 +387,7 @@ describe("the child environment", () => {
   // The stub is a POSIX shell script and Windows cannot start it. On Windows the environment rules are
   // covered only by the buildChildEnv tests above; test/local-fake-provider.test.ts spawns a compiled
   // claude.exe there, but its fake does not inspect the environment it receives.
-  test.skipIf(process.platform === "win32")("the spawned child sees none of the poisoned variables", () => {
+  test.skipIf(process.platform === "win32")("the spawned child sees none of the poisoned variables", async () => {
     const binary = stubBinary(`
 if [ "$1" = "--version" ]; then echo "2.1.304 (Claude Code)"; exit 0; fi
 cat >/dev/null
@@ -397,7 +397,7 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
     Object.assign(process.env, poisoned, { PATH: process.env.PATH, HOME: process.env.HOME });
     try {
       const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary });
-      const result = provider.run({
+      const result = await provider.run({
         prompt: "p",
         cwd: process.cwd(),
         addDirs: [],
@@ -424,11 +424,11 @@ describe("ClaudeCodeProvider provider rejections", () => {
   };
   const provider = (binary: string) => new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary });
 
-  test("an is_error result carries the CLI's text, the stderr tail and a billing class", () => {
+  test("an is_error result carries the CLI's text, the stderr tail and a billing class", async () => {
     const binary = stubBinary(
       `cat >/dev/null; echo "wrapper noise" >&2; echo '{"is_error":true,"subtype":"success","num_turns":1,"total_cost_usd":0,"duration_ms":300,"result":"API Error: 400 Your credit balance is too low to access the Anthropic API."}'`,
     );
-    const result = provider(binary).run(request);
+    const result = await provider(binary).run(request);
     expect(result.isError).toBe(true);
     expect(result.terminalReason).toBe("error");
     expect(result.providerError).toBe("billing");
@@ -436,24 +436,24 @@ describe("ClaudeCodeProvider provider rejections", () => {
     expect(result.errorText).toContain("wrapper noise");
   });
 
-  test("an unrecognised error is other, and a success has no error fields", () => {
+  test("an unrecognised error is other, and a success has no error fields", async () => {
     const bad = stubBinary(
       `cat >/dev/null; echo '{"is_error":true,"subtype":"success","num_turns":1,"total_cost_usd":0,"duration_ms":3,"result":"something odd"}'`,
     );
-    expect(provider(bad).run(request).providerError).toBe("other");
+    expect((await provider(bad).run(request)).providerError).toBe("other");
     const ok = stubBinary(
       `cat >/dev/null; echo '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0.1,"duration_ms":3,"result":"fine"}'`,
     );
-    const b = provider(ok).run(request);
+    const b = await provider(ok).run(request);
     expect(b.providerError).toBeUndefined();
     expect(b.errorText).toBeUndefined();
   });
 
-  test("a budget stop is not classified as a provider error", () => {
+  test("a budget stop is not classified as a provider error", async () => {
     const binary = stubBinary(
       `cat >/dev/null; echo '{"is_error":true,"subtype":"error_max_budget_usd","num_turns":9,"total_cost_usd":0.5,"duration_ms":3}'`,
     );
-    const r = provider(binary).run(request);
+    const r = await provider(binary).run(request);
     expect(r.terminalReason).toBe("budget");
     expect(r.providerError).toBeUndefined();
   });
@@ -557,7 +557,7 @@ describe("subscription mode", () => {
     }
   });
 
-  test("the spawned child in subscription mode sees USER and the switches and none of the key names", () => {
+  test("the spawned child in subscription mode sees USER and the switches and none of the key names", async () => {
     const binary = stubBinary(`
 cat >/dev/null
 env | sort > "$(dirname "$0")/env.log"
@@ -576,7 +576,7 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
     Object.assign(process.env, poisoned);
     try {
       const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription", binary });
-      expect(provider.run(request).text).toBe("ok");
+      expect((await provider.run(request)).text).toBe("ok");
     } finally {
       for (const name of Object.keys(poisoned)) delete process.env[name];
       Object.assign(process.env, saved);
@@ -597,7 +597,7 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
     expect(args).toContain("--strict-mcp-config");
   });
 
-  test("the spawned child in subscription mode gets the forced CLAUDE_CONFIG_DIR", () => {
+  test("the spawned child in subscription mode gets the forced CLAUDE_CONFIG_DIR", async () => {
     const binary = stubBinary(`
 cat >/dev/null
 printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"duration_ms":1,"result":"dir=%s"}' "$CLAUDE_CONFIG_DIR"`);
@@ -605,19 +605,19 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
     process.env.CLAUDE_CONFIG_DIR = "/elsewhere";
     try {
       const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription", configDir: "/iso", binary });
-      expect(provider.run(request).text).toBe("dir=/iso");
+      expect((await provider.run(request)).text).toBe("dir=/iso");
     } finally {
       if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
       else process.env.CLAUDE_CONFIG_DIR = saved;
     }
   });
 
-  test("a claude stopped by SIGINT is an interruption locally, and an ordinary failure in api-key mode", () => {
+  test("a claude stopped by SIGINT is an interruption locally, and an ordinary failure in api-key mode", async () => {
     const binary = stubBinary("cat >/dev/null; kill -INT $$");
     const local = new ClaudeCodeProvider({ model: "m", requireApiKey: false, auth: "subscription", binary });
-    expect(() => local.run(request)).toThrow(InterruptedError);
+    await expect(local.run(request)).rejects.toThrow(InterruptedError);
     const ci = new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary });
-    expect(() => ci.run(request)).toThrow("claude did not run");
+    await expect(ci.run(request)).rejects.toThrow("claude did not run");
   });
 
   test("leaksSecret in subscription mode keeps the key-shape check", () => {
@@ -706,18 +706,33 @@ describe("the CI subscription token (CLAUDE_CODE_OAUTH_TOKEN)", () => {
     expect(resolveClaudeAuth({ ANTHROPIC_API_KEY: "sk-ant-x", CLAUDE_CODE_OAUTH_TOKEN: "" })).toBe("api-key");
   });
 
-  const withEnv = (env: Record<string, string | undefined>, fn: () => void) => {
-    const names = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"];
-    const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
-    for (const n of names) delete process.env[n];
+  const ENV_NAMES = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"];
+  const enter = (env: Record<string, string | undefined>) => {
+    const saved = Object.fromEntries(ENV_NAMES.map((n) => [n, process.env[n]]));
+    for (const n of ENV_NAMES) delete process.env[n];
     Object.assign(process.env, env);
-    try {
-      fn();
-    } finally {
-      for (const n of names) {
+    return () => {
+      for (const n of ENV_NAMES) {
         if (saved[n] === undefined) delete process.env[n];
         else process.env[n] = saved[n];
       }
+    };
+  };
+  const withEnv = (env: Record<string, string | undefined>, fn: () => void) => {
+    const restore = enter(env);
+    try {
+      fn();
+    } finally {
+      restore();
+    }
+  };
+  /** For a callback that awaits: the environment is restored only after it settles. */
+  const withEnvAsync = async (env: Record<string, string | undefined>, fn: () => Promise<void>) => {
+    const restore = enter(env);
+    try {
+      await fn();
+    } finally {
+      restore();
     }
   };
   const get = () => getProvider("claude-code", { model: "m", dryRun: false, effort: "high" }) as ClaudeCodeProvider;
@@ -735,13 +750,13 @@ describe("the CI subscription token (CLAUDE_CODE_OAUTH_TOKEN)", () => {
     });
   });
 
-  test("a token run starts without a key and sends the child the token only", () => {
+  test("a token run starts without a key and sends the child the token only", async () => {
     const binary = stubBinary(`cat >/dev/null
 printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0.1,"duration_ms":1,"result":"token=[%s] key=[%s] user=[%s]"}' "$CLAUDE_CODE_OAUTH_TOKEN" "$ANTHROPIC_API_KEY" "$USER"`);
-    withEnv({ CLAUDE_CODE_OAUTH_TOKEN: TOKEN, ANTHROPIC_API_KEY: "sk-ant-api03-both" }, () => {
+    await withEnvAsync({ CLAUDE_CODE_OAUTH_TOKEN: TOKEN, ANTHROPIC_API_KEY: "sk-ant-api03-both" }, async () => {
       const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: true, auth: "oauth-token", binary });
       expect(() => provider.preflight()).not.toThrow();
-      const result = provider.run(request);
+      const result = await provider.run(request);
       expect(result.text).toBe(`token=[${TOKEN}] key=[] user=[]`);
       expect(result.costKnown).toBe(true);
     });

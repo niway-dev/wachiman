@@ -261,7 +261,7 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | `N file(s) left: budget spent` | Files were left out and less than 0.05 USD remained for a retry. |
 | `N file(s) left: the call timed out` | The call was killed at `call_timeout_s` and is not retried. Raise `call_timeout_s` (keep it under the 30 minute job limit) or lower `batch_lines`. |
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
-| `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log of that call has a readable line (`❌ batch 1/1: the Anthropic API refused the call: the account has no credit…`) next to a JSON line with `error_class` and `error`. Fix the account, then re-run. |
+| `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log of that call has a readable line (`❌ batch 1/1: the Anthropic API refused the call: the account has no credit…`) next to a JSON line with `error_class` and `error`. Batches that were already running when the call was refused finish; none starts after it. Fix the account, then re-run. |
 
 If **no** batch produced a review because the provider refused the calls, the job posts one notice ("Not reviewed: the reviewer's Anthropic account has no credit", "...API key was rejected" or "...kept rate-limiting the reviewer"; on a subscription token, the notices of the section above) with the provider's message quoted, and the check passes. Set `on_provider_unavailable: fail` to make it fail instead. A failed check blocks a merge only when the repository's branch rules require `Wachiman review`; otherwise it is only a red mark. The classification matches the CLI's error text against a short list of phrases (`src/providers/errors.ts`). Only the no-credit message (`Credit balance is too low`) is confirmed against a live run; the others are from memory of Anthropic's messages; an error it does not recognise is `other` and always fails the job, with the text in the error message.
 
@@ -511,7 +511,7 @@ available from the command line only; see [providers/codex.md](providers/codex.m
 
 ## Cancelled and timed-out runs
 
-- Each job has a 30-minute limit. Batches run one after another, and the review is posted only
+- Each job has a 30-minute limit. Up to four batches run at once, and the review is posted only
   after the last one, so a timeout or a cancellation during the batches posts nothing, and the
   calls that finished were paid. Cancellation before posting leaves no review; cancellation after
   posting may leave the review and some replies, because the thread replies are separate requests

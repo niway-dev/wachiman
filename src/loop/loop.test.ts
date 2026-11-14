@@ -493,34 +493,34 @@ describe("runLoop with a fake review", () => {
       }) as never,
     };
   }
-  const run = (repo: BranchRepo, fake: ReturnType<typeof fakeReview>, home: string, ...argv: string[]) => {
+  const run = async (repo: BranchRepo, fake: ReturnType<typeof fakeReview>, home: string, ...argv: string[]) => {
     let out = "";
     const err: string[] = [];
-    const code = runLoop(parseLoopArgs(argv), repo.dir, { WACHIMAN_HOME: home, PATH: process.env.PATH }, { stdout: (t) => (out += t), stderr: (l) => err.push(l), engineVersion: "0" }, { review: fake.review });
+    const code = await runLoop(parseLoopArgs(argv), repo.dir, { WACHIMAN_HOME: home, PATH: process.env.PATH }, { stdout: (t) => (out += t), stderr: (l) => err.push(l), engineVersion: "0" }, { review: fake.review });
     return { code, out, err };
   };
 
-  test("a review that fails once is retried once and the round goes on", () => {
+  test("a review that fails once is retried once and the round goes on", async () => {
     const repo = branchRepo();
     for (const first of ["fail", "throw"] as const) {
       const fake = fakeReview(repo, [first, "ok"]);
-      const r = run(repo, fake, temp("wachiman-home-"), "--base", "main");
+      const r = await run(repo, fake, temp("wachiman-home-"), "--base", "main");
       expect(r.code).toBe(0);
       expect(fake.calls).toEqual(["main", "main"]);
       expect(r.err.some((l) => l.includes("trying once more"))).toBe(true);
     }
   }, 30_000);
 
-  test("a review that fails twice stops with review failed after exactly two attempts", () => {
+  test("a review that fails twice stops with review failed after exactly two attempts", async () => {
     const repo = branchRepo();
     const fake = fakeReview(repo, ["fail", "throw", "ok"]);
-    const r = run(repo, fake, temp("wachiman-home-"), "--base", "main", "--format", "json");
+    const r = await run(repo, fake, temp("wachiman-home-"), "--base", "main", "--format", "json");
     expect(r.code).toBe(11);
     expect(fake.calls).toHaveLength(2);
     expect(JSON.parse(r.out).outcome.reason).toBe("review failed");
   }, 30_000);
 
-  test("--base replaces a loop state this version cannot read; a plain call reports it with the instruction", () => {
+  test("--base replaces a loop state this version cannot read; a plain call reports it with the instruction", async () => {
     const repo = branchRepo();
     const home = temp("wachiman-home-");
     const root = historyRoot(wachimanHome({ WACHIMAN_HOME: home }));
@@ -528,10 +528,9 @@ describe("runLoop with a fake review", () => {
     const old = { format: "wachiman.loop-state/0", branch: "feat/x", base: "main" };
     for (const state of [old, { format: "wachiman.loop-state/1", branch: "feat/x", base: "main", status: "open", rounds: [] }]) {
       writeLoopFile(root, key, "feat/x", state);
-      const plain = () => run(repo, fakeReview(repo, ["ok"]), home);
-      expect(plain).toThrow(/start a new loop with `wachiman loop --base <ref>`/);
+      await expect(run(repo, fakeReview(repo, ["ok"]), home)).rejects.toThrow(/start a new loop with `wachiman loop --base <ref>`/);
       const fake = fakeReview(repo, ["ok"]);
-      expect(run(repo, fake, home, "--base", "main").code).toBe(0);
+      expect((await run(repo, fake, home, "--base", "main")).code).toBe(0);
       expect(fake.calls).toEqual(["main"]);
       // The unreadable file was replaced by a state this version reads.
       expect(() => readLoop(root, key, "feat/x")).not.toThrow();
@@ -557,52 +556,52 @@ describe("runLoop with a fake review", () => {
   const SEEDED = { id: "aaaaaaaaaa", path: "src/a.ts", line: 2, severity: "blocker", topic: "bug", title: "Off by ten" };
 
   /** Round 1 reports the seeded Blocker; round 2, after one more commit, reports nothing and returns `entries`. */
-  const refutedRound = (entries: object[]) => {
+  const refutedRound = async (entries: object[]) => {
     const repo = branchRepo();
     const home = temp("wachiman-home-");
     const fake = fakeReview(repo, ["ok", "ok"], [{ findings: [SEEDED] }, { entries }]);
-    expect(run(repo, fake, home, "--base", "main").code).toBe(10);
+    expect((await run(repo, fake, home, "--base", "main")).code).toBe(10);
     commit(repo.dir, { "docs/more.md": "one more commit\n" }, "one more commit");
-    return { fake, second: run(repo, fake, home, "--format", "json") };
+    return { fake, second: await run(repo, fake, home, "--format", "json") };
   };
 
-  test("a Blocker the verifier refuted in a later round, by the same path, topic and title, is released as refuted (exit 0)", () => {
-    const { fake, second } = refutedRound([droppedCandidate({ line: 9 })]);
+  test("a Blocker the verifier refuted in a later round, by the same path, topic and title, is released as refuted (exit 0)", async () => {
+    const { fake, second } = await refutedRound([droppedCandidate({ line: 9 })]);
     expect(fake.calls).toHaveLength(2);
     expect(second.code).toBe(0);
     expect(JSON.parse(second.out).released).toEqual([expect.objectContaining({ path: "src/a.ts", why: "refuted" })]);
   }, 60_000);
 
-  test("a dropped candidate in the same file and topic with another title, on a line with other text, does not release the Blocker (exit 10)", () => {
-    const { second } = refutedRound([droppedCandidate({ line: 4, title: "Unrelated candidate" })]);
+  test("a dropped candidate in the same file and topic with another title, on a line with other text, does not release the Blocker (exit 10)", async () => {
+    const { second } = await refutedRound([droppedCandidate({ line: 4, title: "Unrelated candidate" })]);
     expect(second.code).toBe(10);
     const doc = JSON.parse(second.out);
     expect(doc.released).toEqual([]);
     expect(doc.open).toEqual([expect.objectContaining({ path: "src/a.ts", severity: "blocker" })]);
   }, 60_000);
 
-  test("a refuted candidate in the same topic on the same cited text but with another title does not release the Blocker (exit 10)", () => {
-    const { second } = refutedRound([droppedCandidate({ line: 2, title: "Re-titled candidate" })]);
+  test("a refuted candidate in the same topic on the same cited text but with another title does not release the Blocker (exit 10)", async () => {
+    const { second } = await refutedRound([droppedCandidate({ line: 2, title: "Re-titled candidate" })]);
     expect(second.code).toBe(10);
     expect(JSON.parse(second.out).released).toEqual([]);
   }, 60_000);
 
-  test("a refuted candidate with the same title but another topic does not release the Blocker (exit 10)", () => {
-    const { second } = refutedRound([droppedCandidate({ topic: "security" })]);
+  test("a refuted candidate with the same title but another topic does not release the Blocker (exit 10)", async () => {
+    const { second } = await refutedRound([droppedCandidate({ topic: "security" })]);
     expect(second.code).toBe(10);
     expect(JSON.parse(second.out).released).toEqual([]);
   }, 60_000);
 
-  test("a usage error from the review is not retried", () => {
+  test("a usage error from the review is not retried", async () => {
     const repo = branchRepo();
     let calls = 0;
     const review = (() => {
       calls++;
       throw new UsageError("--base nope is not a commit in this clone.");
     }) as never;
-    expect(() =>
+    await expect(
       runLoop(parseLoopArgs(["--base", "nope"]), repo.dir, { WACHIMAN_HOME: temp("wachiman-home-"), PATH: process.env.PATH }, { stdout: () => {}, stderr: () => {}, engineVersion: "0" }, { review }),
-    ).toThrow(UsageError);
+    ).rejects.toThrow(UsageError);
     expect(calls).toBe(1);
   }, 30_000);
 });

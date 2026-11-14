@@ -30,7 +30,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret(texts: string[]) {
     return texts.some((t) => t.includes("SECRET"));
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
@@ -95,7 +95,7 @@ const partFiles = (prompt: string) =>
   [...prompt.split("This part holds exactly these files")[1].split("\n\n")[0].matchAll(/^- (\S+) \+/gm)].map((m) => m[1]);
 
 describe("reviewChange from a ReviewInput", () => {
-  test("reviews a branch input end to end and never touches gh", () => {
+  test("reviews a branch input end to end and never touches gh", async () => {
     const provider = new FakeProvider([
       () => ({
         costUsd: 0.2,
@@ -114,7 +114,7 @@ describe("reviewChange from a ReviewInput", () => {
     expect("gh" in deps).toBe(false);
     expect(() => (deps as unknown as { gh: unknown }).gh).toThrow("the core reached for deps.gh");
     const input = branchInput();
-    const result = reviewChange(input, options(), deps);
+    const result = await reviewChange(input, options(), deps);
 
     expect(result.format).toBe("wachiman.review-result/2");
     expect(result.coverage).toEqual({
@@ -145,7 +145,7 @@ describe("reviewChange from a ReviewInput", () => {
     expect(provider.requests[0].cwd).toBe(input.headDir);
   });
 
-  test("the result survives JSON and validates against the result schema", () => {
+  test("the result survives JSON and validates against the result schema", async () => {
     const provider = new FakeProvider([
       () => ({
         costUsd: 0.1,
@@ -156,37 +156,37 @@ describe("reviewChange from a ReviewInput", () => {
         }),
       }),
     ]);
-    const result = reviewChange(branchInput(), options(), coreDeps(provider).deps);
+    const result = await reviewChange(branchInput(), options(), coreDeps(provider).deps);
     const written = JSON.parse(JSON.stringify(result));
     expect(written).toEqual(result);
     expect(validate(resultSchema, written)).toEqual([]);
   });
 
-  test("a stop with no output: budget, turns, timeout, error", () => {
-    const stopOf = (answer: Partial<ProviderResult>) => {
+  test("a stop with no output: budget, turns, timeout, error", async () => {
+    const stopOf = async (answer: Partial<ProviderResult>) => {
       const provider = new FakeProvider([() => answer, () => answer]);
-      const result = reviewChange(branchInput(), options(), coreDeps(provider).deps);
+      const result = await reviewChange(branchInput(), options(), coreDeps(provider).deps);
       expect(result.execution.callsWithOutput).toBe(0);
       expect(result.findings).toEqual([]);
       expect(result.execution.calls).toBe(provider.requests.length);
       return result.execution;
     };
-    expect(stopOf({ terminalReason: "budget" }).stop).toBe("budget");
-    expect(stopOf({ terminalReason: "turns" }).stop).toBe("turns");
-    expect(stopOf({ terminalReason: "timeout" }).stop).toBe("timeout");
-    const failed = stopOf({ isError: true, terminalReason: "error", errorText: "boom" });
+    expect((await stopOf({ terminalReason: "budget" })).stop).toBe("budget");
+    expect((await stopOf({ terminalReason: "turns" })).stop).toBe("turns");
+    expect((await stopOf({ terminalReason: "timeout" })).stop).toBe("timeout");
+    const failed = await stopOf({ isError: true, terminalReason: "error", errorText: "boom" });
     expect(failed.stop).toBe("error");
     expect(failed.rejection).toEqual({ kind: "other", text: "boom" });
-    const billing = stopOf({ isError: true, terminalReason: "error", providerError: "billing", errorText: "credit balance too low" });
+    const billing = await stopOf({ isError: true, terminalReason: "error", providerError: "billing", errorText: "credit balance too low" });
     expect(billing.stop).toBe("quota");
     expect(billing.rejection).toEqual({ kind: "billing", text: "credit balance too low" });
     expect(billing.calls).toBe(1);
-    const auth = stopOf({ isError: true, terminalReason: "error", providerError: "auth", errorText: "invalid x-api-key" });
+    const auth = await stopOf({ isError: true, terminalReason: "error", providerError: "auth", errorText: "invalid x-api-key" });
     expect(auth.stop).toBe("error");
     expect(auth.rejection?.kind).toBe("auth");
   });
 
-  test("budget spent after the first batch: the rest is not reached and partial is true", () => {
+  test("budget spent after the first batch: the rest is not reached and partial is true", async () => {
     const input = branchInput({
       files: [
         { filename: "src/a.ts", additions: 2, deletions: 0, patch: "@@ -1,1 +1,3 @@\n const a = 1;\n+const b = 2;\n+const c = 3;" },
@@ -196,7 +196,7 @@ describe("reviewChange from a ReviewInput", () => {
     const provider = new FakeProvider([
       (request) => ({ costUsd: 0.09, structuredOutput: out({ files_reviewed: partFiles(request.prompt), summary: "ok" }) }),
     ]);
-    const result = reviewChange(input, options({ batchLines: 1, totalBudgetUsd: 0.1 }), coreDeps(provider).deps);
+    const result = await reviewChange(input, options({ batchLines: 1, totalBudgetUsd: 0.1 }), coreDeps(provider).deps);
     expect(provider.requests).toHaveLength(1);
     const first = partFiles(provider.requests[0].prompt);
     const second = ["src/a.ts", "src/b.ts"].filter((f) => !first.includes(f));
@@ -207,16 +207,16 @@ describe("reviewChange from a ReviewInput", () => {
     expect(result.execution.stop).toBe("complete");
   });
 
-  test("an unknown format is a usage error before any call", () => {
+  test("an unknown format is a usage error before any call", async () => {
     const provider = new FakeProvider([]);
     const input = { ...branchInput(), format: "wachiman.review-input/3" } as unknown as ReviewInput;
-    expect(() => reviewChange(input, options(), coreDeps(provider).deps)).toThrow(UsageError);
+    await expect(reviewChange(input, options(), coreDeps(provider).deps)).rejects.toThrow(UsageError);
     expect(provider.requests).toEqual([]);
   });
 
-  test("a scope that matches nothing reviews nothing and calls nothing", () => {
+  test("a scope that matches nothing reviews nothing and calls nothing", async () => {
     const provider = new FakeProvider([]);
-    const result = reviewChange(branchInput({ scope: ["nope/"] }), options(), coreDeps(provider).deps);
+    const result = await reviewChange(branchInput({ scope: ["nope/"] }), options(), coreDeps(provider).deps);
     expect(result.coverage.expected).toEqual([]);
     // Out-of-scope files are not counted as excluded: only the exclude globs' drops are.
     expect(result.coverage.excluded).toBe(0);
@@ -224,7 +224,7 @@ describe("reviewChange from a ReviewInput", () => {
     expect(provider.requests).toEqual([]);
   });
 
-  test("conversation ids the model did not get are dropped from threadReplies", () => {
+  test("conversation ids the model did not get are dropped from threadReplies", async () => {
     const thread: Thread = { comment_id: 11, path: "src/a.ts", line: 2, finding: "b is wrong", replies: [] };
     const provider = new FakeProvider([
       () => ({
@@ -238,7 +238,7 @@ describe("reviewChange from a ReviewInput", () => {
         }),
       }),
     ]);
-    const result = reviewChange(branchInput({ conversation: [thread] }), options(), coreDeps(provider).deps);
+    const result = await reviewChange(branchInput({ conversation: [thread] }), options(), coreDeps(provider).deps);
     expect(result.threadReplies).toEqual([{ comment_id: 11, status: "addressed", reply: "Fixed at src/a.ts:2." }]);
     expect(provider.requests[0].prompt).toContain("threads.json");
   });
@@ -253,7 +253,7 @@ describe("the run directory", () => {
     ],
   });
 
-  test("the run directory is removed after the call, on success", () => {
+  test("the run directory is removed after the call, on success", async () => {
     const during: boolean[] = [];
     const provider = new FakeProvider([
       (request) => {
@@ -262,13 +262,13 @@ describe("the run directory", () => {
         return { structuredOutput: out({ files_reviewed: ["src/a.ts"], summary: "ok" }) };
       },
     ]);
-    const result = reviewChange(branchInput(twoFiles()), options(), coreDeps(provider).deps);
+    const result = await reviewChange(branchInput(twoFiles()), options(), coreDeps(provider).deps);
     expect(result.execution.stop).toBe("complete");
     expect(during).toEqual([true]);
     expect(existsSync(provider.requests[0].addDirs[0])).toBe(false);
   });
 
-  test("the run directory is removed when the provider throws", () => {
+  test("the run directory is removed when the provider throws", async () => {
     const during: boolean[] = [];
     const dies = (request: ProviderRequest): Partial<ProviderResult> => {
       during.push(existsSync(request.addDirs[0]));
@@ -276,7 +276,7 @@ describe("the run directory", () => {
     };
     // The first call and its one retry both throw.
     const provider = new FakeProvider([dies, dies]);
-    const result = reviewChange(branchInput(twoFiles()), options(), coreDeps(provider).deps);
+    const result = await reviewChange(branchInput(twoFiles()), options(), coreDeps(provider).deps);
     expect(result.execution).toMatchObject({ calls: 2, callsWithOutput: 0, stop: "error" });
     expect(during).toEqual([true, true]);
     expect(provider.requests).toHaveLength(2);

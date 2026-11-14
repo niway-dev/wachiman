@@ -22,7 +22,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     const files = [...request.prompt.split("This part holds exactly these files")[1].split("\n\n")[0].matchAll(/^- (\S+) \+/gm)].map((m) => m[1]);
     const output: ReviewOutput = { files_reviewed: files, files_skipped: [], findings: [], contracts: [], thread_replies: [], summary: "ok" };
@@ -86,7 +86,7 @@ function world(files: unknown[], comments: Comment[] = []) {
   return { gh, calls, posted, listCalls: () => listed };
 }
 
-function run(w: ReturnType<typeof world>, env: Record<string, string> = {}, words: string[] = []) {
+async function run(w: ReturnType<typeof world>, env: Record<string, string> = {}, words: string[] = []) {
   const provider = new FakeProvider();
   const logs: string[] = [];
   const deps: Deps = {
@@ -99,7 +99,7 @@ function run(w: ReturnType<typeof world>, env: Record<string, string> = {}, word
     lineCounter: () => 100,
     sleep: () => {},
   };
-  review(deps, "o/r", 7, words);
+  await review(deps, "o/r", 7, words);
   return { provider, logs: logs.join("\n") };
 }
 
@@ -108,9 +108,9 @@ const LARGE = Array.from({ length: 30 }, (_, i) => bigFile(i));
 const SMALL = [bigFile(0, 20), bigFile(1, 20)];
 
 describe("a pull request above the size gate is skipped with one comment", () => {
-  test("no model call, one comment with the marker, no review and no review marker", () => {
+  test("no model call, one comment with the marker, no review and no review marker", async () => {
     const w = world(LARGE);
-    const { provider, logs } = run(w);
+    const { provider, logs } = await run(w);
     expect(provider.requests).toHaveLength(0);
     expect(w.posted).toHaveLength(1);
     const [comment] = w.posted;
@@ -122,9 +122,9 @@ describe("a pull request above the size gate is skipped with one comment", () =>
     expect(logs).toContain("size gate");
   });
 
-  test("the comment is exactly this", () => {
+  test("the comment is exactly this", async () => {
     const w = world(LARGE);
-    run(w);
+    await run(w);
     expect(w.posted[0].body).toBe(
       [
         "👮 **Wachiman** · **Not reviewed: this pull request is above the size gate.** Reviewing all of it would cost about **$9.60**, and the gate is **$6.00**, so nothing was sent to a model and nothing was spent.",
@@ -138,78 +138,78 @@ describe("a pull request above the size gate is skipped with one comment", () =>
     );
   });
 
-  test("the comment carries no cost line, so the per-pull-request ceiling does not count it", () => {
+  test("the comment carries no cost line, so the per-pull-request ceiling does not count it", async () => {
     const w = world(LARGE);
-    run(w);
+    await run(w);
     expect(readAutoCost(w.posted[0].body)).toBeNull();
   });
 
-  test("an existing comment of the bot is updated, not duplicated", () => {
+  test("an existing comment of the bot is updated, not duplicated", async () => {
     const w = world(LARGE, [
       { id: 11, user: { login: "github-actions[bot]" }, body: `old\n\n${SIZE_GATE_MARKER}` },
       { id: 12, user: { login: "github-actions[bot]" }, body: `newer\n\n${SIZE_GATE_MARKER}` },
     ]);
-    run(w);
+    await run(w);
     expect(w.posted).toHaveLength(1);
     expect(w.posted[0]).toMatchObject({ kind: "patch", target: 12 });
     expect(w.posted[0].body).toContain("Not reviewed");
     expect(w.posted.filter((p) => p.kind === "comment")).toHaveLength(0);
   });
 
-  test("a marker planted by a person is ignored: the bot posts its own comment", () => {
+  test("a marker planted by a person is ignored: the bot posts its own comment", async () => {
     const w = world(LARGE, [{ id: 5, user: { login: "someone" }, body: `fake\n\n${SIZE_GATE_MARKER}` }]);
-    run(w);
+    await run(w);
     expect(w.posted).toHaveLength(1);
     expect(w.posted[0].kind).toBe("comment");
   });
 
-  test("a dry run logs the comment and calls no write", () => {
+  test("a dry run logs the comment and calls no write", async () => {
     const w = world(LARGE);
-    const { logs } = run(w, { WACHIMAN_DRY_RUN: "1" });
+    const { logs } = await run(w, { WACHIMAN_DRY_RUN: "1" });
     expect(logs).toContain("--- size gate comment ---");
     expect(w.posted).toHaveLength(0);
     expect(w.calls.some((c) => c.includes("/issues/7/comments"))).toBe(false);
   });
 
-  test("a scoped run is estimated on the scoped files only", () => {
+  test("a scoped run is estimated on the scoped files only", async () => {
     const w = world(LARGE);
-    const { provider } = run(w, { WACHIMAN_TRIGGER: "comment" }, ["pkg0/mod.ts"]);
+    const { provider } = await run(w, { WACHIMAN_TRIGGER: "comment" }, ["pkg0/mod.ts"]);
     expect(provider.requests.length).toBeGreaterThan(0);
     expect(w.posted.some((p) => p.body.includes(SIZE_GATE_MARKER))).toBe(false);
   });
 });
 
 describe("the gate lifts", () => {
-  test("a raised WACHIMAN_SIZE_GATE_USD reviews the pull request", () => {
+  test("a raised WACHIMAN_SIZE_GATE_USD reviews the pull request", async () => {
     const w = world(LARGE);
-    const { provider } = run(w, { WACHIMAN_SIZE_GATE_USD: "10" });
+    const { provider } = await run(w, { WACHIMAN_SIZE_GATE_USD: "10" });
     expect(provider.requests.length).toBeGreaterThan(0);
     expect(w.posted.some((p) => p.kind === "review")).toBe(true);
     expect(w.posted.some((p) => p.body.includes(SIZE_GATE_MARKER))).toBe(false);
   });
 
-  test("budget_usd alone lifts the gate for /wachiman review, but not for an automatic run", () => {
+  test("budget_usd alone lifts the gate for /wachiman review, but not for an automatic run", async () => {
     const env = { WACHIMAN_BUDGET_USD: "12" };
     const operator = world(LARGE);
-    const a = run(operator, { ...env, WACHIMAN_TRIGGER: "comment" });
+    const a = await run(operator, { ...env, WACHIMAN_TRIGGER: "comment" });
     expect(a.provider.requests.length).toBeGreaterThan(0);
     expect(operator.posted.some((p) => p.body.includes(SIZE_GATE_MARKER))).toBe(false);
 
     const automatic = world(LARGE);
-    const b = run(automatic, env);
+    const b = await run(automatic, env);
     expect(b.provider.requests).toHaveLength(0);
     expect(automatic.posted.map((p) => p.kind)).toEqual(["comment"]);
 
     const both = world(LARGE);
-    const c = run(both, { ...env, WACHIMAN_AUTO_BUDGET_USD: "12" });
+    const c = await run(both, { ...env, WACHIMAN_AUTO_BUDGET_USD: "12" });
     expect(c.provider.requests.length).toBeGreaterThan(0);
   });
 });
 
 describe("a pull request below the gate is reviewed as before", () => {
-  test("it never lists the issue comments", () => {
+  test("it never lists the issue comments", async () => {
     const w = world(SMALL);
-    const { provider } = run(w);
+    const { provider } = await run(w);
     expect(provider.requests.length).toBeGreaterThan(0);
     expect(w.listCalls()).toBe(0);
     expect(w.posted.some((p) => p.kind === "review")).toBe(true);

@@ -19,7 +19,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     const output: ReviewOutput = {
       files_reviewed: ["src/a.ts"],
@@ -52,7 +52,7 @@ function fakeGh(posts: string[]): GhFn {
   };
 }
 
-function run(env: Record<string, string>) {
+async function run(env: Record<string, string>) {
   const head = mkdtempSync(join(tmpdir(), "full-review-head-"));
   writeFileSync(join(head, "x"), "");
   const provider = new FakeProvider();
@@ -68,19 +68,19 @@ function run(env: Record<string, string>) {
     lineCounter: () => 1,
     sleep: () => {},
   };
-  review(deps, "o/r", 7, []);
+  await review(deps, "o/r", 7, []);
   return { provider, logs: logs.join("\n"), posts };
 }
 
 describe("a dry run that ignores the previous-review marker", () => {
-  test("without the flag, a reviewed head is not reviewed again", () => {
-    const r = run({ WACHIMAN_DRY_RUN: "1" });
+  test("without the flag, a reviewed head is not reviewed again", async () => {
+    const r = await run({ WACHIMAN_DRY_RUN: "1" });
     expect(r.provider.requests).toHaveLength(0);
     expect(r.logs).toContain("Already reviewed");
   });
 
-  test("with WACHIMAN_FULL_REVIEW=1 the head is reviewed in full, printed and not posted", () => {
-    const r = run({ WACHIMAN_DRY_RUN: "1", WACHIMAN_FULL_REVIEW: "1" });
+  test("with WACHIMAN_FULL_REVIEW=1 the head is reviewed in full, printed and not posted", async () => {
+    const r = await run({ WACHIMAN_DRY_RUN: "1", WACHIMAN_FULL_REVIEW: "1" });
     expect(r.provider.requests).toHaveLength(1);
     expect(r.logs).not.toContain("Already reviewed");
     expect(r.logs).toContain(`--- review at ${HEAD.slice(0, 7)} ---`);

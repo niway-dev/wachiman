@@ -327,7 +327,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {
       // No GitHub: no token, no repository, no `gh` function anywhere on this path.
-      return runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
+      return await runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
@@ -335,7 +335,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "loop") {
       // Like `local`: no GitHub token, no `gh` function anywhere on this path.
-      return runLoop(parseLoopArgs(args.slice(1)), repoDir, env, {
+      return await runLoop(parseLoopArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
@@ -343,7 +343,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "ask") {
       // Like `local`: no GitHub token, no `gh` function anywhere on this path.
-      return runAsk(parseAskArgs(args.slice(1)), repoDir, env, {
+      return await runAsk(parseAskArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
@@ -434,9 +434,9 @@ export async function main(argv: string[], env: Record<string, string | undefine
       warn: (line) => console.error(line),
     };
     try {
-      if (effective === "review") review(deps, repo, pr, rest);
-      else if (effective === "threads") threadReplies(deps, repo, pr, env.WACHIMAN_COMMENT_AUTHOR || undefined);
-      else comment(deps, repo, pr, request, env.WACHIMAN_COMMENT_AUTHOR || undefined, commentLine);
+      if (effective === "review") await review(deps, repo, pr, rest);
+      else if (effective === "threads") await threadReplies(deps, repo, pr, env.WACHIMAN_COMMENT_AUTHOR || undefined);
+      else await comment(deps, repo, pr, request, env.WACHIMAN_COMMENT_AUTHOR || undefined, commentLine);
     } finally {
       // Also after a failed run: the calls it made were paid for.
       writeStepSummary(costs, env, undefined, ledgerNotes);

@@ -16,6 +16,7 @@
  *     variable still reached the shell until `shell_snapshot` and `unified_exec` were disabled.
  */
 import { spawnSync } from "node:child_process";
+import { spawnCapture } from "./spawn";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -311,7 +312,7 @@ export class CodexProvider implements ProviderAdapter {
     return leaksKey(texts, process.env.OPENAI_API_KEY ?? "");
   }
 
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     const unknown = request.allowedTools.filter((t) => !READ_TOOLS.includes(t));
     if (unknown.length > 0) throw new Error(`The Codex adapter only grants reads; asked for ${unknown.join(", ")}.`);
     const scratch = mkdtempSync(join(tmpdir(), "wachiman-review-codex-"));
@@ -327,7 +328,7 @@ export class CodexProvider implements ProviderAdapter {
       }
       const lastMessageFile = join(scratch, "last-message.txt");
       const started = Date.now();
-      const run = spawnSync(
+      const run = await spawnCapture(
         this.binary,
         buildCodexArgs({
           model: this.opts.model,
@@ -340,9 +341,8 @@ export class CodexProvider implements ProviderAdapter {
           cwd: workDir,
           input: locatePrompt(request.prompt, request.cwd, request.addDirs),
           env: buildChildEnv(process.env, { home, codexHome }),
-          encoding: "utf8",
           maxBuffer: 256 * 1024 * 1024,
-          timeout: request.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_CALL_TIMEOUT_S * 1000,
+          timeoutMs: request.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_CALL_TIMEOUT_S * 1000,
           killSignal: "SIGKILL",
         },
       );
