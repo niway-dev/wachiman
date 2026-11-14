@@ -358,10 +358,16 @@ export function runFormat(opts: FormatOptions, repoDir: string, io: PrTemplateIo
         if (before.isSymbolicLink()) throw new UsageError(`${opts.file} is a symbolic link; format does not write through links.`);
         if (!before.isFile()) throw new UsageError(`${opts.file} is not a regular file.`);
       }
+      let bytes: Buffer;
       try {
-        text = readFileSync(target, "utf8");
+        bytes = readFileSync(target);
       } catch (err) {
         throw new ToolError(`cannot read ${opts.file}: ${(err as Error).message}`);
+      }
+      text = bytes.toString("utf8");
+      // Decoding turns invalid bytes into U+FFFD, and writing that back would destroy the originals.
+      if (opts.write && !Buffer.from(text, "utf8").equals(bytes)) {
+        throw new UsageError(`${opts.file} is not valid UTF-8; format would change its bytes, so it was not rewritten.`);
       }
     } else {
       try {

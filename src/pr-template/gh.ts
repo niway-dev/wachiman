@@ -19,9 +19,10 @@ export type CommandRunner = (cmd: string[], cwd?: string) => CommandResult;
 export class ToolError extends Error {}
 
 /**
- * Runs the tools with `LC_ALL=C`, so their messages are in English whatever the user's locale. No
- * decision here depends on a message (see `gitFileAt`); this is the second guard, for the text that
- * `check` shows when a tool fails.
+ * Runs the tools with `LC_ALL=C`, so their messages are in English whatever the user's locale. The
+ * git helpers decide nothing from a message (see `gitFileAt`); `ghFileAt` reads the HTTP status
+ * text of `gh api`, which the locale does not change. The setting also keeps the text that `check`
+ * shows when a tool fails in English.
  */
 export const defaultRunner: CommandRunner = (cmd, cwd) => {
   const r = spawnSync(cmd[0]!, cmd.slice(1), { cwd, encoding: "utf8", maxBuffer: 512 * 1024 * 1024, env: { ...process.env, LC_ALL: "C" } });

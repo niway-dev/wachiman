@@ -35,20 +35,22 @@ function guideTexts(catalog: Catalog): Set<string> {
   return texts;
 }
 
-/** The last line before `line` with something on it once comments are blanked, or -1. */
-function previousContentLine(cleanLines: string[], line: number): number {
-  for (let i = line - 1; i >= 0; i--) if (cleanLines[i]!.trim() !== "") return i;
+/** The last line before `line` with something on it, a comment line included, or -1. */
+function previousContentLine(lines: string[], line: number): number {
+  for (let i = line - 1; i >= 0; i--) if (lines[i]!.trim() !== "") return i;
   return -1;
 }
 
-function isGuide(c: DescriptionComment, parsed: ParsedDescription, cleanLines: string[], texts: Set<string>): boolean {
+function isGuide(c: DescriptionComment, parsed: ParsedDescription, texts: Set<string>): boolean {
   if (texts.has(normalise(c.text))) return true;
   if (normalise(c.text).startsWith(normalise(STATUS_GUIDE_LEAD))) return true;
   if (parsed.statusRows.some((r) => r.line === c.startLine)) return true;
   if (parsed.source.slice(parsed.lineStarts[c.startLine], c.start).trim() !== "") return false;
-  const prev = previousContentLine(cleanLines, c.startLine);
+  // Only the first comment after the heading or the summary line is the guide: a comment that
+  // follows another comment is the repository's.
+  const prev = previousContentLine(parsed.lines, c.startLine);
   if (prev === -1) return false;
-  return parsed.headings.some((h) => h.line === prev) || /<\/summary>\s*$/.test(cleanLines[prev]!);
+  return parsed.headings.some((h) => h.line === prev) || /<\/summary>\s*$/.test(parsed.lines[prev]!);
 }
 
 /**
@@ -70,7 +72,6 @@ export function stripDescription(text: string, opts: StripOptions = {}): string 
   const tags = tagEndings(text);
   // The same characters as `parsed.source`, with the original line endings still marked.
   const body = tags?.tagged ?? parsed.source;
-  const cleanLines = parsed.clean.split("\n");
   const texts = opts.all ? new Set<string>() : guideTexts(opts.catalog ?? loadCatalog());
 
   const lineStart = (line: number) => parsed.lineStarts[line] ?? parsed.source.length;
@@ -80,7 +81,7 @@ export function stripDescription(text: string, opts: StripOptions = {}): string 
     if (opts.all) return true;
     if (STAMP.test(c.text)) return true;
     if (c.inBlock) return false;
-    return isGuide(c, parsed, cleanLines, texts);
+    return isGuide(c, parsed, texts);
   };
 
   // Only what a removal touches changes: the comment itself, the spaces it leaves at the end of its
