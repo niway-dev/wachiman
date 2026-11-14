@@ -32,13 +32,15 @@ import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { loadTerminalUi } from "../wizard/load";
 import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
 import { resolveSetupOptions, type RawSetupFlags } from "./options";
-import { promptForSetup, type PendingProfile } from "./prompt";
+import { promptForSetup, setupStepTotal, type PendingProfile } from "./prompt";
 
 export interface SetupDeps extends AccountDeps {
   /** The person already chose local setup in init. */
   fromInit?: boolean;
   /** Both mode has one extra workflow stage before account setup. */
   initMode?: "local" | "both";
+  /** Filled when the run ends with the work saved and one step left: the session then closes with this warning, not "Stopped.". */
+  closing?: { warning?: string };
   /** The commands that bind later; printed when a run started from init ends without saving a binding. */
   unboundHints?: readonly string[];
   streams?: TerminalStreams;
@@ -48,6 +50,9 @@ export interface SetupDeps extends AccountDeps {
   /** An open prompt session (shared with `init`); the caller closes it. */
   prompter?: Prompter;
 }
+
+const ALIAS_NOTE =
+  "If your `claude` is a shell alias or function that sets CLAUDE_CONFIG_DIR, Wachiman does not see it: register that directory with `wachiman profile add <name> --config-dir <dir>` and run `wachiman init` again.";
 
 const defaultInteractiveSpawn: InteractiveSpawn = (binary, args, opts) => spawnSync(binary, args, opts);
 
@@ -168,6 +173,10 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     const signedOut = !status.ok && status.stage === "auth" && status.auth !== undefined && status.auth.exitCode !== 0;
     // True once the user was told the account state in its own words, so the generic warning would repeat it.
     let explained = false;
+    // Whether the sign-in is still the failure after the offer (accepted or not).
+    let signInPending = !status.ok && status.stage === "auth";
+    const signInCommand = found.profile.kind === "default" ? "claude auth login" : `wachiman profile login ${name}`;
+    // Only a Wachiman-managed or registered profile can be signed in from here (`wachiman profile login`); the default one is the person's own claude.
     if (signedOut && found.profile.kind !== "default") {
       io.stderr(status.problem);
       const answer = await prompter.confirm("Sign in now?", true);
@@ -185,19 +194,34 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
           return 130;
         }
         status = await prompter.task("Checking your Claude account", probe, (s) => s.ok);
+        signInPending = !status.ok && status.stage === "auth";
       } else {
-        io.stderr(`not signed in: run \`wachiman profile login ${name}\` before \`wachiman local\`.`);
+        io.stderr(`not signed in: run \`${signInCommand}\` before \`wachiman local\`.`);
         explained = true;
       }
     }
     if (status.ok) io.stderr(`account: signed in (${status.auth.authMethod}; claude ${status.binary.version})`);
     else if (!explained) io.stderr(`warning: ${status.problem} Fix: ${status.fix}`);
 
-    const total = deps.fromInit ? (deps.initMode === "both" ? 7 : 6) : 4;
+    const total = setupStepTotal(deps.fromInit, deps.initMode);
     prompter.step("Checks and next actions", total, total);
-    const code = closeSetup(repoDir, env, io, deps);
+    const result: { failedRequired?: number } = {};
+    const code = closeSetup(repoDir, env, io, deps, result);
     if (flags.json) io.stdout(`${JSON.stringify(projectShow(repoDir, env, deps), null, 2)}\n`);
     outcome = code === 0 ? "done" : code === 130 ? "cancelled" : "failed";
+    // Everything is saved; the sign-in is what is left. That is a warning to act on, not a stop. The exit code stays as the
+    // doctor decided (1: a required check failed), because scripts read it as "this machine is not ready".
+    if (code !== 0 && code !== 130 && signInPending) {
+      const only = result.failedRequired === 1;
+      const warning = only
+        ? `Saved. One step left: sign in to Claude (\`${signInCommand}\`), then run \`wachiman init\` again or \`wachiman doctor\`.`
+        : `Saved. Some checks still need attention, including the Claude sign-in (\`${signInCommand}\`); then run \`wachiman init\` again or \`wachiman doctor\`.`;
+      // Wachiman starts the binary itself, so it never sees a shell alias or function that sets the configuration directory.
+      const text = found.profile.kind === "default" ? `${warning} ${ALIAS_NOTE}` : warning;
+      if (deps.closing) deps.closing.warning = text;
+      else closing = text;
+      outcome = "done";
+    }
     return code;
   } finally {
     if (ownsPrompter) prompter.close(outcome, closing);

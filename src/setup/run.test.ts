@@ -109,9 +109,9 @@ const setup = (w: World, argv: string[], lines: string[], extra: SetupDeps = {})
 const errText = (w: World) => w.err.join("\n");
 
 describe("setup on a terminal", () => {
-  test("lists the registered profiles with the default marked, offers register and create, and shows the binding before saving", async () => {
+  test("lists the registered profiles with the default marked, offers register and create, and says what it saved without a confirm", async () => {
     const w = world({ defaultProfile: "work-b" });
-    const { io, run } = setup(w, [], ["", "2", ""]); // set up? / pick work-a / bind?
+    const { io, run } = setup(w, [], ["", "2"]); // set up? / pick work-a / bind?
     expect(await run).toBe(0);
     const printed = io.printed();
     expect(printed).toMatch(/2\. work-a {2}external/);
@@ -119,25 +119,21 @@ describe("setup on a terminal", () => {
     expect(printed).toMatch(/3\. work-b {2}external {2}.*\(global default\) \(default\)/);
     expect(printed).toContain("5. Register an existing Claude configuration directory (external)");
     expect(printed).toContain("4. Create a new isolated profile (managed)");
-    expect(printed).toContain("Step 1/4  Project");
-    expect(printed).toContain("Step 2/4  Claude account");
-    expect(printed).toContain("Step 3/4  Confirm binding");
-    expect(printed).toContain("Step 4/4  Checks and next actions");
-    // The final summary shows name, kind, directory, binary and the scope, before the question.
-    const summary = printed.slice(printed.indexOf("Bind this repository:"));
-    expect(summary).toContain("profile:    work-a");
-    expect(summary).toContain("kind:       external");
-    expect(summary).toContain(`directory:  ${w.workA}`);
-    expect(summary).toContain("binary:     claude from PATH");
-    expect(summary).toContain("keyed by origin: https://github.com/acme/app");
-    expect(summary).toContain("every clone and worktree of this origin will use it");
-    expect(summary.indexOf("scope:")).toBeLessThan(summary.indexOf("Bind app to work-a?"));
+    expect(printed).toContain("Step 1/3  Project");
+    expect(printed).toContain("Step 2/3  Claude account");
+    expect(printed).toContain("Step 3/3  Checks and next actions");
+    // Picking the account is the confirmation: no summary and no "Bind app to work-a?".
+    expect(printed).not.toContain("Confirm binding");
+    expect(printed).not.toContain("Bind this repository:");
+    expect(printed).not.toMatch(/Bind app to work-a\?/);
+    expect(printed).toContain('local reviews of app (every clone of https://github.com/acme/app) will use the account "work-a"; saved in ');
+    expect(printed).toContain("nothing in the repository");
   });
 
   test("it saves only the binding, then ends with the doctor summary and the local line, and calls no model", async () => {
     const w = world();
     const before = w.config()!;
-    const { run } = setup(w, [], ["", "2", ""]);
+    const { run } = setup(w, [], ["", "2"]);
     expect(await run).toBe(0);
     const after = w.config()!;
     expect(after.profiles).toEqual(before.profiles);
@@ -157,14 +153,14 @@ describe("setup on a terminal", () => {
   test("nothing is written in the repository", async () => {
     const w = world();
     const before = snapshotTree(w.repo);
-    const { run } = setup(w, [], ["", "2", ""]);
+    const { run } = setup(w, [], ["", "2"]);
     await run;
     expect(snapshotTree(w.repo)).toEqual(before);
   });
 
   test("defaults taken by Enter equal the printed defaults: the global default row", async () => {
     const w = world({ defaultProfile: "work-b" });
-    const { io, run } = setup(w, [], ["", "", ""]); // every question: Enter
+    const { io, run } = setup(w, [], ["", ""]); // every question: Enter
     await run;
     expect(io.printed()).toContain("Set up this repository? [Y/n]");
     expect(io.printed()).toMatch(/3\. work-b.*\(default\)/);
@@ -174,10 +170,10 @@ describe("setup on a terminal", () => {
 
   test("defaults by Enter: the current binding wins over the global default, and re-running keeps it", async () => {
     const w = world({ defaultProfile: "work-b" });
-    const first = setup(w, ["--profile", "work-a"], ["", ""]);
+    const first = setup(w, ["--profile", "work-a"], [""]);
     await first.run;
     expect(w.config()!.projects[w.key].profile).toBe("work-a");
-    const again = setup(w, [], ["", "", ""]);
+    const again = setup(w, [], ["", ""]);
     await again.run;
     expect(again.io.printed()).toContain("currently bound to work-a");
     expect(again.io.printed()).toMatch(/2\. work-a.*\(current\).*\(default\)/);
@@ -186,7 +182,7 @@ describe("setup on a terminal", () => {
 
   test("a fresh home uses the current Claude session without registering a profile", async () => {
     const w = world({ profiles: {} });
-    const { io, run } = setup(w, [], ["", "", ""]);
+    const { io, run } = setup(w, [], ["", ""]);
     expect(await run).toBe(0);
     expect(io.printed()).toMatch(/1\. Use my current Claude session.*\(default\)/);
     expect(io.printed()).not.toContain("Configuration directory (absolute");
@@ -196,8 +192,8 @@ describe("setup on a terminal", () => {
 
   test("a binding to default wins over a registered global default", async () => {
     const w = world({ defaultProfile: "work-b" });
-    await setup(w, ["--profile", "default"], ["", ""]).run;
-    const again = setup(w, [], ["", "", ""]);
+    await setup(w, ["--profile", "default"], [""]).run;
+    const again = setup(w, [], ["", ""]);
     expect(await again.run).toBe(0);
     expect(again.io.printed()).toMatch(/1\. Use my current Claude session.*\(current\).*\(default\)/);
     expect(w.config()!.projects[w.key].profile).toBe("default");
@@ -205,20 +201,50 @@ describe("setup on a terminal", () => {
 
   test("a global default session is the printed selection", async () => {
     const w = world({ defaultProfile: "default" });
-    const { io, run } = setup(w, [], ["", "", ""]);
+    const { io, run } = setup(w, [], ["", ""]);
     expect(await run).toBe(0);
     expect(io.printed()).toMatch(/1\. Use my current Claude session.*\(global default\).*\(default\)/);
     expect(w.config()!.projects[w.key].profile).toBe("default");
   });
 
-  test("a signed-out current session keeps its binding and reports repair without choosing another account", async () => {
+  test("a signed-out current session keeps its binding, runs nothing, and closes with a neutral warning and the alias note", async () => {
     const w = world({ profiles: {}, tools: { auth: () => ({ status: 1, stdout: JSON.stringify({ loggedIn: false }) }) } });
-    const { run } = setup(w, [], ["", "", ""]);
-    expect(await run).toBe(1);
+    const closing: { warning?: string } = {};
+    const { io, run } = setup(w, [], ["", ""], { closing });
+    expect(await run).toBe(1); // the doctor summary still says a required check failed: scripts read the exit code
     expect(w.config()!.projects[w.key].profile).toBe("default");
     expect(w.config()!.profiles).toEqual({});
-    expect(errText(w)).toContain("sign in with your own `claude` (run it and use /login)");
+    expect(io.printed()).not.toContain("Sign in");
+    expect(errText(w)).toContain("sign in with your own claude: `claude auth login`");
     expect(w.interactiveCalls).toEqual([]);
+    expect(closing.warning).toContain("Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman init` again or `wachiman doctor`.");
+    expect(closing.warning).toContain("shell alias or function that sets CLAUDE_CONFIG_DIR");
+    expect(closing.warning).toContain("`wachiman profile add <name> --config-dir <dir>`");
+    expect(closing.warning).not.toContain("Stopped");
+  });
+
+  test("a directory ~/.claude-<name> in the home is offered, labelled, and picking it registers it as an external profile and binds it", async () => {
+    const w = world({ profiles: {} });
+    const dir = join(w.userHome, ".claude-personal");
+    mkdirSync(dir);
+    const before = snapshotTree(dir);
+    const { io, run } = setup(w, [], ["", "2"]); // set up? / the detected directory
+    expect(await run).toBe(0);
+    expect(io.printed()).toContain("2. ~/.claude-personal (your own Claude directory, used in place)");
+    expect(w.config()!.profiles.personal).toEqual({ kind: "external", configDir: dir, createdAt: NOW });
+    expect(w.config()!.projects[w.key].profile).toBe("personal");
+    expect(errText(w)).toContain("with the new profile personal");
+    expect(snapshotTree(dir)).toEqual(before);
+  });
+
+  test("a ~/.claude-<name> directory that a profile already registers is not offered again", async () => {
+    const w = world({ profiles: {} });
+    const dir = join(w.userHome, ".claude-personal");
+    mkdirSync(dir);
+    updateConfig({ home: w.home }, (c) => ({ ...c, profiles: { personal: { kind: "external", configDir: dir, createdAt: "t" } } }));
+    const { io, run } = setup(w, [], ["", ""]);
+    await run;
+    expect(io.printed()).not.toContain("your own Claude directory, used in place");
   });
 
   test("answering no to Set up this repository? exits 0 and writes nothing", async () => {
@@ -230,22 +256,37 @@ describe("setup on a terminal", () => {
     expect(errText(w)).toContain("nothing saved");
   });
 
-  test.each([
-    ["declining the binding", "n", 0, "nothing saved: the configuration is unchanged."],
-    ["Escape at the binding", ESC, 130, "cancelled: no configuration changes saved."],
-  ])("started from init, %s still shows how to bind later", async (_n, key, code, said) => {
+  test("started from init, Escape at the account choice still shows how to bind later", async () => {
     const w = world();
     const before = w.configText();
-    const { run } = setup(w, [], ["2", key], { fromInit: true, unboundHints: ["wachiman setup"] });
-    expect(await run).toBe(code);
+    const { run } = setup(w, [], [ESC], { fromInit: true, unboundHints: ["wachiman setup"] });
+    expect(await run).toBe(130);
     expect(w.configText()).toBe(before);
-    expect(errText(w)).toContain(said);
+    expect(errText(w)).toContain("cancelled: no configuration changes saved.");
     expect(errText(w)).toContain("Next, on this machine: wachiman setup");
+  });
+
+  test.each([
+    ["local", 5, 4],
+    ["both", 6, 5],
+  ] as const)("started from init (%s), the choice binds without a confirm and the steps total %i", async (initMode, total, accountStep) => {
+    const w = world();
+    const { io, run } = setup(w, [], ["2"], { fromInit: true, initMode });
+    expect(await run).toBe(0);
+    const printed = io.printed();
+    expect(printed).not.toContain("Confirm binding");
+    expect(printed).not.toContain("Bind this repository:");
+    expect(printed).not.toMatch(/Bind app to work-a\?/);
+    expect(printed).toContain(`Step ${accountStep}/${total}  Claude account`);
+    expect(printed).toContain(`Step ${total}/${total}  Checks and next actions`);
+    expect(printed).toContain('local reviews of app (every clone of https://github.com/acme/app) will use the account "work-a"; saved in ');
+    expect(printed).toContain("nothing in the repository");
+    expect(w.config()!.projects[w.key].profile).toBe("work-a");
   });
 
   test("--profile on a terminal skips the profile question, and an unknown name is exit 2 before any prompt", async () => {
     const w = world();
-    const ok = setup(w, ["--profile", "work-b"], ["", ""]);
+    const ok = setup(w, ["--profile", "work-b"], [""]);
     expect(await ok.run).toBe(0);
     expect(ok.io.printed()).not.toContain("Which account profile");
     expect(w.config()!.projects[w.key].profile).toBe("work-b");
@@ -256,7 +297,7 @@ describe("setup on a terminal", () => {
 
   test("--json prints the project document on stdout alone", async () => {
     const w = world();
-    const { run } = setup(w, ["--json"], ["", "2", ""]);
+    const { run } = setup(w, ["--json"], ["", "2"]);
     await run;
     expect(w.out).toHaveLength(1);
     expect(JSON.parse(w.out[0])).toMatchObject({ format: "wachiman.project/1", binding: { profile: "work-a" } });
@@ -264,7 +305,7 @@ describe("setup on a terminal", () => {
 
   test("a doctor failure after the save still exits 1 and says the binding was written", async () => {
     const w = world({ tools: { git: null } });
-    const { run } = setup(w, ["--profile", "work-a"], ["", ""]);
+    const { run } = setup(w, ["--profile", "work-a"], [""]);
     expect(await run).toBe(1);
     expect(errText(w)).toContain("the binding was written");
     expect(errText(w)).toContain("local: not ready");
@@ -281,10 +322,10 @@ describe("setup: registering an external directory", () => {
     return dir;
   };
 
-  test("registration and binding are saved together, only after the final confirmation; the proposed name is the printed default", async () => {
+  test("registration and binding are saved together once the name is answered; the proposed name is the printed default", async () => {
     const w = world();
     const dir = external(w);
-    const { io, run } = setup(w, [], ["", "5", "~/.claude-client", "", "", ""]); // set up? / register / dir / binary / name / bind?
+    const { io, run } = setup(w, [], ["", "6", "~/.claude-client", "", ""]); // set up? / register / dir / binary / name
     expect(await run).toBe(0);
     expect(io.printed()).toContain("claude binary (leave empty for PATH)");
     expect(io.printed()).toContain("Profile name [claude-client]");
@@ -293,8 +334,7 @@ describe("setup: registering an external directory", () => {
     expect(config.projects[w.key].profile).toBe("claude-client");
     expect(Object.keys(config.profiles).sort()).toEqual(["claude-client", "work-a", "work-b"]);
     expect(errText(w)).toContain("with the new profile claude-client");
-    expect(io.printed()).toContain("will write: ");
-    expect(io.printed()).toContain("registering claude-client and binding app together");
+    expect(io.printed()).toContain(`local reviews of app (every clone of https://github.com/acme/app) will use the account "claude-client", registered from ${dir}; saved in `);
   });
 
   test("a stored binary must be an absolute executable; a bad answer is asked again", async () => {
@@ -303,11 +343,10 @@ describe("setup: registering an external directory", () => {
     const bin = join(temp("fake-bin-"), "claude");
     writeFileSync(bin, "#!/bin/sh\n");
     chmodSync(bin, 0o755);
-    const { io, run } = setup(w, [], ["", "5", "~/.claude-client", "claude", bin, "", ""]);
+    const { io, run } = setup(w, [], ["", "6", "~/.claude-client", "claude", bin, ""]);
     expect(await run).toBe(0);
     expect(io.printed()).toContain("claude is not an absolute path");
     expect(w.config()!.profiles["claude-client"]).toMatchObject({ binary: bin });
-    expect(io.printed()).toContain(`binary:     ${bin}`);
   });
 
   test("a directory that does not exist, is a file, or is under the Wachiman home is refused and asked again", async () => {
@@ -316,7 +355,7 @@ describe("setup: registering an external directory", () => {
     mkdirSync(join(w.home, "inside"), { recursive: true });
     const file = join(w.userHome, "afile");
     writeFileSync(file, "x");
-    const { io, run } = setup(w, [], ["", "5", "relative/dir", join(w.userHome, "missing"), file, join(w.home, "inside"), "~/.claude-client", "", "", ""]);
+    const { io, run } = setup(w, [], ["", "6", "relative/dir", join(w.userHome, "missing"), file, join(w.home, "inside"), "~/.claude-client", "", ""]);
     expect(await run).toBe(0);
     const printed = io.printed();
     expect(printed).toContain("must be an absolute path");
@@ -328,7 +367,7 @@ describe("setup: registering an external directory", () => {
   test("a name that is taken, reserved or malformed is refused and asked again", async () => {
     const w = world();
     external(w);
-    const { io, run } = setup(w, [], ["", "5", "~/.claude-client", "", "work-a", "default", "isolated", "Bad Name", "client", ""]);
+    const { io, run } = setup(w, [], ["", "6", "~/.claude-client", "", "work-a", "default", "isolated", "Bad Name", "client"]);
     expect(await run).toBe(0);
     const printed = io.printed();
     expect(printed).toContain('"work-a" is already registered');
@@ -338,37 +377,12 @@ describe("setup: registering an external directory", () => {
     expect(w.config()!.profiles.client).toBeDefined();
   });
 
-  test.each([
-    ["Escape", ESC],
-    ["Ctrl-C", CTRL_C],
-    ["Ctrl-D (the input ends)", undefined],
-  ])("%s at the final confirmation exits 130 and leaves the config byte for byte unchanged", async (_n, key) => {
-    const w = world();
-    external(w);
-    const before = w.configText();
-    const lines = ["", "5", "~/.claude-client", "", "", ...(key ? [key] : [])];
-    const { run } = setup(w, [], lines);
-    expect(await run).toBe(130);
-    expect(w.configText()).toBe(before);
-    expect(errText(w)).toContain("cancelled: no configuration changes saved.");
-    expect(errText(w)).not.toContain("already happened");
-  });
-
   test("Escape in the middle of the questions changes nothing either", async () => {
     const w = world();
     external(w);
     const before = w.configText();
-    const { run } = setup(w, [], ["", "5", "~/.claude-client", ESC]);
+    const { run } = setup(w, [], ["", "6", "~/.claude-client", ESC]);
     expect(await run).toBe(130);
-    expect(w.configText()).toBe(before);
-  });
-
-  test("answering no to the final question exits 0 and saves nothing", async () => {
-    const w = world();
-    external(w);
-    const before = w.configText();
-    const { run } = setup(w, [], ["", "5", "~/.claude-client", "", "", "n"]);
-    expect(await run).toBe(0);
     expect(w.configText()).toBe(before);
   });
 
@@ -376,7 +390,7 @@ describe("setup: registering an external directory", () => {
     const w = world();
     const dir = external(w);
     let tampered = false;
-    const { run } = setup(w, [], ["", "5", "~/.claude-client", "", "", ""], {
+    const { run } = setup(w, [], ["", "6", "~/.claude-client", "", ""], {
       now: () => {
         if (!tampered) {
           tampered = true;
@@ -394,7 +408,7 @@ describe("setup: registering an external directory", () => {
     const w = world();
     const dir = external(w);
     const before = snapshotTree(dir);
-    const { run } = setup(w, [], ["", "5", "~/.claude-client", "", "", ""]);
+    const { run } = setup(w, [], ["", "6", "~/.claude-client", "", ""]);
     await run;
     expect(snapshotTree(dir)).toEqual(before);
   });
@@ -404,7 +418,7 @@ describe("setup: creating a managed profile", () => {
   test("the directory and the Claude sign-in need their own confirmation, and nothing is registered until the final one", async () => {
     const w = world();
     const dir = join(w.home, "claude-isolated");
-    const { io, run } = setup(w, [], ["", "4", "", "", ""]); // set up? / create / name / create dir? / bind?
+    const { io, run } = setup(w, [], ["", "4", "", ""]); // set up? / create / name / create dir?
     expect(await run).toBe(0);
     expect(io.printed()).toContain("Profile name [isolated]");
     expect(io.printed()).toContain(`Create ${dir} (mode 0700) and open Claude there so you can sign in?`);
@@ -414,30 +428,6 @@ describe("setup: creating a managed profile", () => {
     expect(statSync(dir).mode & 0o777).toBe(0o700);
     expect(w.config()!.profiles.isolated).toMatchObject({ kind: "managed", configDir: dir });
     expect(w.config()!.projects[w.key].profile).toBe("isolated");
-  });
-
-  test("a cancellation after the directory and the sign-in leaves the config unchanged and reports exactly what happened, never a rollback", async () => {
-    const w = world();
-    const dir = join(w.home, "claude-isolated");
-    const before = w.configText();
-    const { run } = setup(w, [], ["", "4", "", "", ESC]);
-    expect(await run).toBe(130);
-    expect(w.configText()).toBe(before);
-    expect(existsSync(dir)).toBe(true);
-    const said = errText(w);
-    expect(said).toContain("cancelled: no configuration changes saved.");
-    expect(said).toContain("These already happened and were not undone:");
-    expect(said).toContain(`created the managed directory ${dir}`);
-    expect(said).toContain(`opened Claude for the sign-in in ${dir}`);
-    expect(said).not.toMatch(/rolled back|removed|deleted/);
-  });
-
-  test("declining the final question after creating reports the same effects and exits 0", async () => {
-    const w = world();
-    const { run } = setup(w, [], ["", "4", "", "", "n"]);
-    expect(await run).toBe(0);
-    expect(errText(w)).toContain("These already happened and were not undone:");
-    expect(w.config()!.profiles.isolated).toBeUndefined();
   });
 
   test("declining the side effect returns to the list: nothing is created or launched", async () => {
@@ -455,7 +445,7 @@ describe("setup: creating a managed profile", () => {
   test("an existing managed directory that is not registered is listed as unregistered and can be bound without creating anything", async () => {
     const w = world();
     mkdirSync(join(w.home, "claude-scratch"));
-    const { io, run } = setup(w, [], ["", "4", ""]);
+    const { io, run } = setup(w, [], ["", "4"]);
     expect(await run).toBe(0);
     expect(io.printed()).toMatch(/4\. scratch {2}managed .*\(unregistered\)/);
     expect(w.interactiveCalls).toEqual([]);
@@ -502,7 +492,7 @@ describe("setup: the account check after the save", () => {
   test("signed out: Sign in now? yes runs profile login and checks again", async () => {
     const w = world();
     const toolchain = signedOutUntilLogin(w);
-    const { io, run } = setup(w, ["--profile", "work-a"], ["", "", "y"], { spawn: (b, a, o) => (a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o)) });
+    const { io, run } = setup(w, ["--profile", "work-a"], ["", "y"], { spawn: (b, a, o) => (a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o)) });
     expect(await run).toBe(0);
     expect(io.printed()).toContain("Sign in now? [Y/n]");
     expect(w.interactiveCalls).toHaveLength(1);
@@ -514,7 +504,7 @@ describe("setup: the account check after the save", () => {
   test("signed out: yes, but the sign-in did not take, still prints the warning", async () => {
     const w = world();
     const toolchain = fakeToolchain({ auth: () => ({ status: 1, stdout: JSON.stringify({ loggedIn: false }) }) });
-    const { run } = setup(w, ["--profile", "work-a"], ["", "", "y"], { spawn: (b, a, o) => (a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o)) });
+    const { run } = setup(w, ["--profile", "work-a"], ["", "y"], { spawn: (b, a, o) => (a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o)) });
     expect(await run).toBe(1);
     expect(w.interactiveCalls).toHaveLength(1);
     expect(errText(w)).toContain("warning:");
@@ -525,7 +515,7 @@ describe("setup: the account check after the save", () => {
     const w = world();
     const toolchain = signedOutUntilLogin(w);
     const log: string[] = [];
-    const io = scripted(["", "", "n"]);
+    const io = scripted(["", "n"]);
     const real = createPrompter(io);
     const prompter = { ...real, suspend: () => (log.push("suspend"), real.suspend()) };
     const spawn: SetupDeps["spawn"] = (b, a, o) => (a[0] === "auth" && a[1] === "status" && log.push("probe"), toolchain.spawn(b, a, o));
@@ -538,7 +528,7 @@ describe("setup: the account check after the save", () => {
   test("signed out: no keeps going with the warning", async () => {
     const w = world();
     const toolchain = signedOutUntilLogin(w);
-    const { run } = setup(w, ["--profile", "work-a"], ["", "", "n"], { spawn: toolchain.spawn });
+    const { run } = setup(w, ["--profile", "work-a"], ["", "n"], { spawn: toolchain.spawn });
     expect(await run).toBe(1); // the doctor summary then fails its auth check
     expect(w.interactiveCalls).toEqual([]);
     expect(errText(w)).toContain("wachiman profile login work-a");
@@ -548,7 +538,7 @@ describe("setup: the account check after the save", () => {
   test("Escape at Sign in now? exits 130 and says the binding was saved", async () => {
     const w = world();
     const toolchain = signedOutUntilLogin(w);
-    const { run } = setup(w, ["--profile", "work-a"], ["", "", ESC], { spawn: toolchain.spawn });
+    const { run } = setup(w, ["--profile", "work-a"], ["", ESC], { spawn: toolchain.spawn });
     expect(await run).toBe(130);
     expect(errText(w)).toContain("the binding of app to work-a was saved and stays");
     expect(w.config()!.projects[w.key].profile).toBe("work-a");

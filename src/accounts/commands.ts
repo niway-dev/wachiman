@@ -379,7 +379,7 @@ function removeProfile(cmd: Extract<ProfileCommand, { kind: "remove" }>, env: Re
 function loginProfile(cmd: Extract<ProfileCommand, { kind: "login" }>, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps) {
   const home = wachimanHome(env);
   if (parseProfileRef(cmd.profile).kind === "default") {
-    throw new UsageError("`default` is your own claude: sign in with your own claude (run it and use /login).");
+    throw new UsageError("`default` is your own claude: sign in with `claude auth login`.");
   }
   if (!(deps.interactive ?? isInteractive(env, { stdin: process.stdin.isTTY === true, stdout: process.stdout.isTTY === true }))) {
     throw new UsageError("profile login needs a terminal: run it yourself in a terminal, not from an agent or a pipe.");
@@ -609,12 +609,13 @@ export function parseSetupArgs(argv: string[], repoDir: string): SetupOptions | 
  * The end of `setup`: the compact doctor summary and the suggested `wachiman local` line, on stderr.
  * Returns the exit code the summary decides (1 when a required check failed; the binding stays written).
  */
-export function closeSetup(repoDir: string, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps = {}): number {
+export function closeSetup(repoDir: string, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps = {}, result?: { failedRequired?: number }): number {
   const report = buildDoctorReport(
     { repoDir, allProfiles: false, json: false, redactPaths: false },
     env,
     { spawn: deps.spawn, git: deps.git, userHome: deps.userHome, ...deps.doctor },
   );
+  if (result) result.failedRequired = report.failedRequired;
   const width = Math.max(...report.checks.map((r) => r.id.length));
   io.stderr(`doctor: ${report.checks.length} checks, ${report.failedRequired} required failed`);
   for (const row of report.checks) if (row.status === "fail" || row.status === "warn") for (const line of renderRow(row, width)) io.stderr(line);

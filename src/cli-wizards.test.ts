@@ -70,10 +70,15 @@ describe("init through the CLI, without a terminal", () => {
     const args = ["init", "--mode", "github", "--operator", "me", "--version", "v1.5.0"];
     expect(m.run(args).code).toBe(0);
     expect(readFileSync(target(m.repo), "utf8")).toContain('operator: "me"\n');
-    const again = m.run(args);
+    // The same run again finds its own output: unchanged, not a conflict.
+    const same = m.run(args);
+    expect(same.code).toBe(0);
+    expect(same.stderr).toContain("is unchanged");
+    const other = ["init", "--mode", "github", "--operator", "someone", "--version", "v1.5.0"];
+    const again = m.run(other);
     expect(again.code).toBe(2);
     expect(again.stderr).toContain("A workflow already exists at .github/workflows/wachiman-review.yml");
-    expect(m.run([...args, "--force"]).code).toBe(0);
+    expect(m.run([...other, "--force"]).code).toBe(0);
     const files = readdirSync(join(m.repo, ".github", "workflows"));
     expect(files.filter((f) => /^wachiman-review\.yml\.bak-\d{8}-\d{6}/.test(f))).toHaveLength(1);
   });

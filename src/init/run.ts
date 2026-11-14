@@ -19,7 +19,7 @@ import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawIni
 import { checkSupplied, promptForInit } from "./prompt";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
-import { inspectTarget, writeWorkflow, type WriteHooks } from "./write";
+import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
 
 export interface InitDeps {
   /** The caller template. Default: `templates/wachiman-review-caller.yml` of this install. */
@@ -37,12 +37,24 @@ export interface InitDeps {
   /** An open prompt session; the caller closes it. Otherwise one is opened over `promptIO` or the terminal. */
   prompter?: Prompter;
   /** What `wachiman setup` means from here: runs the setup wizard in the same process, sharing `prompter`. */
-  bindNow?: (prompter: Prompter, mode: "local" | "both") => Promise<number>;
+  bindNow?: (prompter: Prompter, mode: "local" | "both", closing: SessionClosing) => Promise<number>;
+  /** The login of the signed-in `gh` user, offered as the default operator. Not set: no default. */
+  githubLogin?: () => string | undefined;
   /** The directory a relative `--repo-dir` was resolved against, for the `setup` line. Default: `process.cwd()`. */
   cwd?: string;
   hooks?: WriteHooks;
+  /** Filled by a later stage; read by `runInitCommand` when it closes the session. */
+  closing?: SessionClosing;
   /** The same hook for the settings file, for a test. */
   settingsHooks?: WriteHooks;
+}
+
+/**
+ * What a later stage (setup) wants the session to say when it ends. `warning` closes the session
+ * without the red "Stopped.": the work is saved and one named step is left.
+ */
+export interface SessionClosing {
+  warning?: string;
 }
 
 const TEMPLATE = join(import.meta.dir, "..", "..", "templates", "wachiman-review-caller.yml");
@@ -68,6 +80,7 @@ export async function runInitCommand(flags: RawInitFlags, env: Record<string, st
   const session = ui ? await openSession(deps, env, ui) : undefined;
   if (ui) io = ui.wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env, session?.prompter);
   let outcome: Outcome = "failed";
+  const closing: SessionClosing = {};
   try {
     let answered = flags;
     if (session) {
@@ -77,7 +90,7 @@ export async function runInitCommand(flags: RawInitFlags, env: Record<string, st
       if (!deps.prompter) await session.prompter.intro(deps.version ?? "unknown", "Let's put a watch post on this repo.");
       session.prompter.step("Project", 1);
       session.prompter.say(root, "muted");
-      const asked = await promptForInit(flags, { defaultWorkflowRef }, session.prompter);
+      const asked = await promptForInit(flags, { defaultWorkflowRef, githubLogin: deps.githubLogin }, session.prompter);
       if (asked === null) {
         io.stderr("cancelled: nothing was written.");
         outcome = "cancelled";
@@ -87,11 +100,12 @@ export async function runInitCommand(flags: RawInitFlags, env: Record<string, st
     }
     const resolved = resolveInitOptions(answered, { interactive, defaultWorkflowRef });
     if (!resolved.ok) throw new UsageError(resolved.error);
-    const code = await runInit(resolved.options, io, { ...deps, prompter: session?.prompter });
-    outcome = outcomeOf(code);
+    const code = await runInit(resolved.options, io, { ...deps, prompter: session?.prompter, closing });
+    // A saved run with one step left (a failed sign-in) ends neutrally, not as "Stopped.". The exit code is unchanged.
+    outcome = code !== 0 && code !== 130 && closing.warning !== undefined ? "done" : outcomeOf(code);
     return code;
   } finally {
-    session?.close(outcome);
+    session?.close(outcome, closing.warning);
   }
 }
 
@@ -145,6 +159,29 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     io.stderr(`wrote ${SETTINGS_PATH} (kind: ${settingsToWrite.kind}).`);
   };
 
+  /** The settings file alone, with no workflow to write: shows it, asks what needs asking. Returns an exit code to stop with, or undefined to go on. */
+  const askSettingsAlone = async (): Promise<number | undefined> => {
+    if (!prompter || !settingsToWrite) return undefined;
+    showSettings(settingsToWrite);
+    const changeAnswer = await confirmChange();
+    if (changeAnswer === null) {
+      io.stderr("cancelled: nothing was written.");
+      return 130;
+    }
+    if (settingsToWrite) {
+      const answer = settingsToWrite.action === "create" ? await prompter.confirm(`Write ${SETTINGS_PATH}?`, true) : true;
+      if (answer === null) {
+        io.stderr("cancelled: nothing was written.");
+        return 130;
+      }
+      if (!answer) {
+        io.stderr("not written.");
+        settingsToWrite = undefined;
+      }
+    }
+    return undefined;
+  };
+
   if (github) {
     const now = (deps.now ?? (() => new Date().toISOString()))();
     const rendered = renderCallerWorkflow((deps.readTemplate ?? readDefaultTemplate)(), {
@@ -154,16 +191,26 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     });
     const inspected = inspectTarget(root, github.path);
     const shown = github.path;
+    // A re-run after a failure finds its own earlier output: the same workflow, not a conflict.
+    const unchanged = inspected.exists && sameWorkflow(readFileSync(inspected.target, "utf8"), rendered);
 
     if (github.dryRun) {
-      if (inspected.exists && !github.force) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
+      if (unchanged) io.stderr(`note: ${shown} is unchanged.`);
+      else if (inspected.exists && !github.force && !prompter) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
       io.stdout(rendered);
       return 0;
     }
-    if (inspected.exists && !github.force) {
+    if (inspected.exists && !github.force && !prompter && !unchanged) {
       throw new UsageError(`A workflow already exists at ${shown}. Re-run with --force to replace it (a .bak copy is kept).`);
     }
-    if (prompter) {
+    if (unchanged) {
+      io.stderr(`${shown} is unchanged: it already holds what init would write.`);
+      if (prompter && settingsToWrite) {
+        const code = await askSettingsAlone();
+        if (code !== undefined) return code;
+      }
+      written = shown;
+    } else if (prompter) {
       const preview = rendered.replace(/\n$/, "");
       // On a terminal the preview is a titled note in the session frame; otherwise it is the lines it always was.
       if (prompter.fancy) prompter.note(preview, `${shown} (${inspected.exists ? "would overwrite" : "new"})`);
@@ -177,7 +224,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
         io.stderr("cancelled: nothing was written.");
         return 130;
       }
-      const answer = await prompter.confirm("Write it?", true);
+      // A re-run asks to replace, and the default is yes: the person is running init again on purpose, and the earlier file is kept as a .bak copy.
+      const answer = await prompter.confirm(inspected.exists ? "Replace the existing workflow? A .bak copy is kept." : "Write it?", true);
       if (answer === null) {
         io.stderr("cancelled: nothing was written.");
         return 130;
@@ -191,10 +239,12 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     } else {
       io.stderr(`writing ${shown} (${inspected.exists ? "replacing the existing file; a .bak copy is kept" : "new"}).`);
     }
-    // The workflow first: it is what the run is for. If the settings file then fails, the error says the workflow stays.
-    const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
-    written = shown;
-    io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
+    if (!unchanged) {
+      // The workflow first: it is what the run is for. If the settings file then fails, the error says the workflow stays.
+      const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
+      written = shown;
+      io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
+    }
     try {
       commitSettings();
     } catch (error) {
@@ -221,21 +271,9 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   }
 
   if (!github && settingsToWrite && prompter) {
-    showSettings(settingsToWrite);
-    const changeAnswer = await confirmChange();
-    if (changeAnswer === null) {
-      io.stderr("cancelled: nothing was written.");
-      return 130;
-    }
-    if (settingsToWrite) {
-      const answer = settingsToWrite.action === "create" ? await prompter.confirm(`Write ${SETTINGS_PATH}?`, true) : true;
-      if (answer === null) {
-        io.stderr("cancelled: nothing was written.");
-        return 130;
-      }
-      if (answer) commitSettings();
-      else io.stderr("not written.");
-    }
+    const code = await askSettingsAlone();
+    if (code !== undefined) return code;
+    commitSettings();
   } else if (!github) commitSettings();
   if (!github && settingsWritten) {
     if (prompter?.fancy) prompter.nextAction(`Commit ${SETTINGS_PATH} so the repository kind travels with it. init does not commit.`, [`git add ${SETTINGS_PATH}`, 'git commit -m "Record the repository kind for Wachiman"']);
@@ -248,7 +286,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   }
   if (prompter && deps.bindNow) {
     try {
-      const code = await deps.bindNow(prompter, options.mode);
+      const code = await deps.bindNow(prompter, options.mode, deps.closing ?? {});
       if (code === 130 && written) io.stderr(`${written} was written before setup was cancelled and stays in place.`);
       if (code !== 130 && written) io.stderr(`github: pending; ${written} is written. Secret and workflow submission still require action in GitHub.`);
       return code;

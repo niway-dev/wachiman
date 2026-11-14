@@ -52,6 +52,7 @@ import { wachimanHome } from "./accounts/config";
 import { parseSkillsArgs, runSkills } from "./skills/install";
 import { parseDoctorArgs, runDoctor } from "./doctor/run";
 import { parseInitFlags } from "./init/args";
+import { ghLogin } from "./init/github-login";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
 import { projectCommands } from "./wizard/command";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
@@ -198,8 +199,9 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
   return runInitCommand(flags, env, io, {
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
-    // Choosing local/both already requests setup; keep its final write confirmation.
-    bindNow: (prompter, mode) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, initMode: mode, unboundHints: projectCommands("setup", repoDir, process.cwd()) }),
+    githubLogin: ghLogin,
+    // Choosing local/both already requests setup, which saves the binding without asking again.
+    bindNow: (prompter, mode, closing) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, initMode: mode, unboundHints: projectCommands("setup", repoDir, process.cwd()), closing }),
   });
 }
 

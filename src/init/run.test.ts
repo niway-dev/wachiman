@@ -138,7 +138,7 @@ describe("init --mode github without --dry-run", () => {
     const w = world();
     await init(w, ["--mode", "github", "--operator", "me"]);
     const before = snapshotTree(w.repo);
-    expect(await init(w, ["--mode", "github", "--operator", "me", "--dry-run"])).toBe(0);
+    expect(await init(w, ["--mode", "github", "--operator", "other", "--dry-run"])).toBe(0);
     expect(w.err.join("\n")).toContain("needs --force");
     expect(snapshotTree(w.repo)).toEqual(before);
   });
@@ -278,13 +278,13 @@ describe("init without a terminal", () => {
 });
 
 describe("init with scripted prompts", () => {
-  test.each(["local", "both"])("%s runs the real setup flow with one account choice and one binding confirmation", async (mode) => {
+  test.each(["local", "both"])("%s runs the real setup flow with one account choice and no binding confirmation", async (mode) => {
     const w = world();
     const home = mkdtempSync(join(tmpdir(), "wachiman-init-home-"));
     scratch.push(home);
     const env = { WACHIMAN_HOME: home, PATH: "/usr/bin", USER: "fixture" };
     const tools = fakeToolchain();
-    const promptIO = scripted(["", "", "", ""]); // kind, Write it? (both) or Write .wachiman.yml? (local), account, binding
+    const promptIO = scripted(["", "", ""]); // kind, Write it? (both) or Write .wachiman.yml? (local), account; the binding is not asked
     const code = await runInitCommand({ repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) }, env, w.io, w.deps({
       interactive: true,
       promptIO,
@@ -299,11 +299,13 @@ describe("init with scripted prompts", () => {
     if (config.kind === "ok") expect(Object.values(config.config.projects)[0].profile).toBe("default");
     expect(promptIO.printed()).not.toContain("Set up this repository?");
     expect(promptIO.printed()).not.toContain("Run wachiman setup now");
-    expect(promptIO.printed().match(/Bind .* to default\?/g)).toHaveLength(1);
+    expect(promptIO.printed()).not.toMatch(/Bind .* to default\?/);
+    expect(promptIO.printed()).not.toContain("Confirm binding");
+    expect(promptIO.printed()).toMatch(/local reviews of .* will use the account "default"; saved in .*config\.json, nothing in the repository/);
     expect(existsSync(w.target)).toBe(mode === "both");
     expect(readFileSync(join(w.repo, ".wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
-    expect(promptIO.printed()).toContain(mode === "both" ? "Step 5/7  Claude account" : "Step 4/6  Claude account");
-    expect(promptIO.printed()).toContain(mode === "both" ? "Step 7/7  Checks and next actions" : "Step 6/6  Checks and next actions");
+    expect(promptIO.printed()).toContain(mode === "both" ? "Step 5/6  Claude account" : "Step 4/5  Claude account");
+    expect(promptIO.printed()).toContain(mode === "both" ? "Step 6/6  Checks and next actions" : "Step 5/5  Checks and next actions");
     expect(w.err.join("\n")).toContain("local: ready");
     if (mode === "both") expect(w.err.join("\n").match(/github: pending/g)).toHaveLength(1);
   });
@@ -319,13 +321,14 @@ describe("init with scripted prompts", () => {
 
   test("defaults taken by Enter equal the printed defaults", async () => {
     const w = world();
-    const io = scripted(["", "", "octocat", "", "", ""]); // kind, mode, operator, tag, file, Write it?
+    const io = scripted(["", "", "octocat", ""]); // kind, mode, operator, Write it?
     const code = await init(w, [], { interactive: true, promptIO: io });
     expect(code).toBe(0);
     const printed = io.printed();
     expect(printed).toMatch(/1\. In GitHub Actions on pull requests \(default\)/);
-    expect(printed).toContain("Release tag to pin [v1.5.0]");
-    expect(printed).toContain("Workflow file [.github/workflows/wachiman-review.yml]");
+    // The tag and the workflow path are never asked: the release of this CLI and the standard path are used.
+    expect(printed).not.toContain("Release tag to pin");
+    expect(printed).not.toContain("Workflow file");
     expect(printed).toContain("Write it? [Y/n]");
     expect(printed).toMatch(/1\. Monorepo \(default\)/);
     expect(printed).toContain("3. Distributed repository (coming soon)");
@@ -340,7 +343,7 @@ describe("init with scripted prompts", () => {
 
   test("the preview shows the file and whether it is new before the question", async () => {
     const w = world();
-    const io = scripted(["", "1", "octocat", "", "", "y"]);
+    const io = scripted(["", "1", "octocat", "y"]);
     await init(w, [], { interactive: true, promptIO: io });
     expect(w.err.join("\n")).toContain("--- .github/workflows/wachiman-review.yml (new)");
     expect(w.err.join("\n")).toContain('operator: "octocat"');
@@ -348,7 +351,7 @@ describe("init with scripted prompts", () => {
 
   test("an invalid answer is shown and asked again; flags already given are not asked", async () => {
     const w = world();
-    const io = scripted(["", "bad login", "me", "", "y"]); // kind, operator (twice), file, Write it?
+    const io = scripted(["", "bad login", "me", "y"]); // kind, operator (twice), Write it?
     const code = await init(w, ["--mode", "github", "--version", "v1.5.0"], { interactive: true, promptIO: io });
     expect(code).toBe(0);
     expect(io.printed()).toContain("is not a GitHub login");
@@ -377,7 +380,7 @@ describe("init with scripted prompts", () => {
 
   test("Ctrl-D (the input ends) at the Write it? question exits 130 and writes nothing", async () => {
     const w = world();
-    const io = scripted(["", "1", "me", "", ""]); // kind, mode, operator, tag, file: the input ends at Write it?
+    const io = scripted(["", "1", "me"]); // kind, mode, operator: the input ends at Write it?
     expect(await init(w, [], { interactive: true, promptIO: io })).toBe(130);
     expect(io.printed()).toContain("Write it?");
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
@@ -385,17 +388,75 @@ describe("init with scripted prompts", () => {
 
   test("answering no to Write it? writes nothing and exits 0", async () => {
     const w = world();
-    expect(await init(w, [], { interactive: true, promptIO: scripted(["", "1", "me", "", "", "n"]) })).toBe(0);
+    expect(await init(w, [], { interactive: true, promptIO: scripted(["", "1", "me", "n"]) })).toBe(0);
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
     expect(w.err.join("\n")).toContain("not written");
   });
 
-  test("an existing target without --force is exit 2 before the question", async () => {
+  test("a re-run that would write the same workflow says it is unchanged and asks nothing about it", async () => {
     const w = world();
     await init(w, ["--mode", "github", "--operator", "me"]);
-    const io = scripted(["", "1", "me", "", ""]);
-    expect(await exit2(init(w, [], { interactive: true, promptIO: io }))).toContain("--force");
+    const before = readFileSync(w.target, "utf8");
+    const io = scripted(["", "1", "me", ""]); // kind, mode, operator, Write .wachiman.yml?
+    expect(await init(w, [], { interactive: true, promptIO: io })).toBe(0);
+    expect(w.err.join("\n")).toContain("is unchanged");
+    expect(io.printed()).not.toContain("Replace the existing workflow?");
     expect(io.printed()).not.toContain("Write it?");
+    expect(readFileSync(w.target, "utf8")).toBe(before);
+    expect(readdirSync(join(w.repo, ".github", "workflows"))).toEqual(["wachiman-review.yml"]);
+  });
+
+  test("a re-run that differs shows the new file and asks to replace; yes keeps a .bak copy, no keeps the file", async () => {
+    const w = world();
+    await init(w, ["--mode", "github", "--operator", "me"]);
+    const io = scripted(["", "1", "other", "y"]);
+    expect(await init(w, [], { interactive: true, promptIO: io })).toBe(0);
+    expect(io.printed()).toContain("Replace the existing workflow? A .bak copy is kept. [Y/n]");
+    expect(w.err.join("\n")).toContain("would overwrite");
+    expect(readFileSync(w.target, "utf8")).toBe(expected("other"));
+    expect(readdirSync(join(w.repo, ".github", "workflows")).filter((f) => f.includes(".bak-"))).toHaveLength(1);
+
+    const w2 = world();
+    await init(w2, ["--mode", "github", "--operator", "me"]);
+    expect(await init(w2, [], { interactive: true, promptIO: scripted(["", "1", "other", "n"]) })).toBe(0);
+    expect(readFileSync(w2.target, "utf8")).toBe(expected("me"));
+  });
+
+  test("without a terminal, an existing different workflow still needs --force, and an identical one is unchanged", async () => {
+    const w = world();
+    await init(w, ["--mode", "github", "--operator", "me"]);
+    expect(await exit2(init(w, ["--mode", "github", "--operator", "other"]))).toContain("--force");
+    expect(await init(w, ["--mode", "github", "--operator", "me"])).toBe(0);
+    expect(w.err.join("\n")).toContain("is unchanged");
+  });
+
+  test("the operator defaults to the signed-in gh user, and nothing about the tag or the path is asked", async () => {
+    const w = world();
+    const io = scripted(["", "1", "", ""]); // kind, mode, operator (Enter takes the default), Write it?
+    expect(await init(w, [], { interactive: true, promptIO: io, githubLogin: () => "octocat" })).toBe(0);
+    expect(io.printed()).toContain("Your GitHub username");
+    expect(io.printed()).toContain("[octocat]");
+    expect(io.printed()).not.toContain("Release tag to pin");
+    expect(io.printed()).not.toContain("Workflow file");
+    expect(readFileSync(w.target, "utf8")).toBe(expected("octocat"));
+  });
+
+  test("without gh, or with a login that is not valid, the operator has no default", async () => {
+    for (const githubLogin of [() => undefined, () => "not a login!"]) {
+      const w = world();
+      const io = scripted(["", "1", "me", ""]);
+      expect(await init(w, [], { interactive: true, promptIO: io, githubLogin })).toBe(0);
+      expect(io.printed()).not.toMatch(/octocat|not a login/);
+      expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
+    }
+  });
+
+  test("the tag is asked only when this build has no default release", async () => {
+    const w = world();
+    const io = scripted(["", "1", "me", "v1.6.0", ""]); // kind, mode, operator, tag, Write it?
+    expect(await init(w, [], { interactive: true, promptIO: io, defaultWorkflowRef: undefined })).toBe(0);
+    expect(io.printed()).toContain("Release tag to pin");
+    expect(readFileSync(w.target, "utf8")).toBe(expected("me", "v1.6.0"));
   });
 
   test("local mode enters setup directly without another invitation", async () => {
@@ -416,7 +477,7 @@ describe("init with scripted prompts", () => {
 
   test("both: setup runs in the same process, sharing the prompt session", async () => {
     const w = world();
-    const io = scripted(["", "3", "me", "", "", "", "from-setup"]);
+    const io = scripted(["", "3", "me", "", "from-setup"]);
     let got: string | null | undefined;
     const code = await init(w, [], {
       interactive: true,
@@ -431,9 +492,23 @@ describe("init with scripted prompts", () => {
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
   });
 
+  test("both: setup hands the session a closing slot, and a failed sign-in keeps the exit code 1", async () => {
+    const w = world();
+    const io = scripted(["", "3", "me", ""]);
+    let slot: { warning?: string } | undefined;
+    const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async (_p, _m, closing) => {
+      slot = closing;
+      closing.warning = "Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman init` again or `wachiman doctor`.";
+      return 1;
+    } });
+    expect(code).toBe(1);
+    expect(slot?.warning).toContain("One step left");
+    expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
+  });
+
   test("both: cancelling during setup leaves the confirmed workflow in place and says so", async () => {
     const w = world();
-    const io = scripted(["", "3", "me", "", "", ""]);
+    const io = scripted(["", "3", "me", ""]);
     const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async () => 130 });
     expect(code).toBe(130);
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
@@ -442,7 +517,7 @@ describe("init with scripted prompts", () => {
 
   test("both: a setup failure reports the completed workflow write", async () => {
     const w = world();
-    const io = scripted(["", "3", "me", "", "", ""]);
+    const io = scripted(["", "3", "me", ""]);
     const code = await exit2(init(w, [], { interactive: true, promptIO: io, bindNow: async () => { throw new UsageError("setup failed"); } }));
     expect(code).toContain("setup failed");
     expect(existsSync(w.target)).toBe(true);
@@ -635,7 +710,7 @@ describe("the repository settings file .wachiman.yml", () => {
       const w = world();
       mkdirSync(join(w.repo, ".github"));
       writeFileSync(settingsFile(w), "kind: monorepo\n");
-      const io = scripted(["2", "", "n", "y"]); // kind single, workflow file (default), change? no, Write it? yes
+      const io = scripted(["2", "n", "y"]); // kind single, change? no, Write it? yes
       expect(await init(w, [...baseArgs], { interactive: true, promptIO: io })).toBe(0);
       expect(readFileSync(settingsFile(w), "utf8")).toBe("kind: monorepo\n");
       expect(existsSync(w.target)).toBe(true);
@@ -644,11 +719,11 @@ describe("the repository settings file .wachiman.yml", () => {
 
     test("github: one Write it? covers the workflow and the new settings file; Ctrl-D there writes neither", async () => {
       const w = world();
-      expect(await init(w, [...baseArgs], { interactive: true, promptIO: scripted(["1", ""]) })).toBe(130);
+      expect(await init(w, [...baseArgs], { interactive: true, promptIO: scripted(["1"]) })).toBe(130);
       expect(existsSync(join(w.repo, ".github"))).toBe(false);
       expect(w.err.join("\n")).toContain("cancelled: nothing was written");
       const w2 = world();
-      expect(await init(w2, [...baseArgs], { interactive: true, promptIO: scripted(["1", "", "y"]) })).toBe(0);
+      expect(await init(w2, [...baseArgs], { interactive: true, promptIO: scripted(["1", "y"]) })).toBe(0);
       expect(existsSync(settingsFile(w2))).toBe(true);
       expect(existsSync(w2.target)).toBe(true);
     });
