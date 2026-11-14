@@ -232,7 +232,8 @@ describe("runUpgrade", () => {
     const r = rig({ "a.yml": a });
     expect(r.go({}, { run: () => 1 })).toBe(1);
     expect(r.read("a.yml")).toBe(a);
-    expect(r.out.join("")).toContain("not touched");
+    expect(r.out.join("")).toContain("The repository pin was not touched: installing v1.3.0 failed.");
+    expect(r.out.join("")).not.toContain("no new version");
   });
 
   test("a failed install with --to does not move the pins and says why; --repo-only --to still does", () => {

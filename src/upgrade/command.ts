@@ -200,13 +200,13 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
           io.stdout(`The CLI is now v${found}.\n`);
         } else {
           io.stderr(`wachiman: ${shown} ${status === null ? "could not start" : `failed with exit ${status}`}; the CLI is unchanged.`);
-          code = 1;
+          // The pins would name a release the CLI could not install (with --to it may not exist).
           if (opts.to !== undefined) {
-            // The pins would name a release the CLI could not install (it may not exist).
-            target = undefined;
             io.stdout(`The repository pin was not touched: installing ${opts.to} failed. Use \`wachiman upgrade --repo-only --to ${opts.to}\` to pin it without installing.\n`);
-            return code;
+          } else {
+            io.stdout(`The repository pin was not touched: installing v${found} failed. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`.\n`);
           }
+          return 1;
         }
       }
     }
