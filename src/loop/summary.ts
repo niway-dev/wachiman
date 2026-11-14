@@ -232,7 +232,7 @@ export function renderSummary({ state, findings, agent }: SummaryInput): string 
   const last = rounds.at(-1);
   const outcome = outcomes(findings);
   const open = findings.filter((f) => outcome.get(f.id)!.kind === "open");
-  const stopped = state.status !== "converged" && state.maxRounds !== undefined && rounds.length >= state.maxRounds;
+  const stopped = state.status !== "converged" && open.length > 0 && state.maxRounds !== undefined && rounds.length >= state.maxRounds;
   const budget =
     state.maxRounds === undefined
       ? ""

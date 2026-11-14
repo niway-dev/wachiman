@@ -156,6 +156,13 @@ describe("the summary's shape", () => {
     expect(out).toContain("`src/a.ts:2` a ` b &lt;i&gt; \\| c |");
   });
 
+  test("it never says it stopped at the budget with no finding open", () => {
+    const input = { state: state([round(1), round(2), round(3)], { status: "stopped", maxRounds: 3 }), findings: [finding("g1", { verdict: wrong("not a defect") })] };
+    const out = renderSummary(input);
+    expect(out).toContain("budget 3)");
+    expect(out).not.toContain("stopped at the budget");
+  });
+
   test("no findings table and Findings is 0 when nothing was found", () => {
     const out = renderSummary(CASES["no-findings"]);
     expect(out).toContain("| **Findings** | 0 |");
