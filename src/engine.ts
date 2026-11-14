@@ -3147,7 +3147,9 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     // After a wall-clock kill the same files would likely run into the same limit, and another
     // full timeout could exhaust the job's own limit: they are reported as not reviewed instead.
     // A refused call (no credit, bad key) would be refused again: no retry.
-    const grant = gaps.length > 0 && first.stopped !== "timeout" && !rejection ? await acquire(i, false) : undefined;
+    // Only this batch's own refusal explains its gaps; another batch's refusal only stops new calls.
+    const ownRefusal = first.rejection !== undefined && first.rejection.kind !== "other";
+    const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal ? await acquire(i, false) : undefined;
     if (gaps.length > 0 && grant && "usd" in grant) {
       const retry = await reviewBatchBackingOff(
         core,
@@ -3175,13 +3177,18 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       status =
         left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
     } else if (gaps.length > 0) {
-      status = rejection
+      // The files are blamed on a refusal when this batch's own call was refused, or when another
+      // batch's refusal stopped the retry of a call that had no cause of its own (a budget or a limit).
+      const refused =
+        ownRefusal ||
+        (grant !== undefined && "why" in grant && grant.why === "rejected" && !first.budget && !first.stopped);
+      status = refused
         ? `${gaps.length} file(s) left: the provider rejected the call`
         : first.stopped === "timeout"
           ? `${gaps.length} file(s) left: the call timed out`
           : `${gaps.length} file(s) left: budget spent`;
       // A refused call or a spent budget is not the files' doing; a timeout may be, so it stays unexplained.
-      if (rejection) out.rejectedFiles.push(...gaps.map((f) => f.filename));
+      if (refused) out.rejectedFiles.push(...gaps.map((f) => f.filename));
       else if (first.stopped !== "timeout") out.budgetCut.push(...gaps.map((f) => f.filename));
     }
     out.report = { ...out.report, status, turns, costUsd: cost };

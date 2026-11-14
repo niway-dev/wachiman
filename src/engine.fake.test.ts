@@ -30,8 +30,8 @@ class FakeProvider implements ProviderAdapter {
   auth: ProviderAuth | undefined;
   /** Off for a test that is not about the prompt, so it adds nothing to the pinned golden prompts. */
   record = true;
-  /** A macrotask pause per call, so the batches launched together all start before any of them finishes. */
-  latencyMs = 0;
+  /** A macrotask pause per call (by call number, from 1), so the batches launched together all start before any finishes. */
+  latencyMs: number | ((call: number) => number) = 0;
   constructor(private readonly script: ((request: ProviderRequest) => Partial<ProviderResult>)[]) {}
   preflight() {}
   modelLabel() {
@@ -45,7 +45,8 @@ class FakeProvider implements ProviderAdapter {
     if (this.record) recordPrompt("engine.fake", request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
-    if (this.latencyMs > 0) await new Promise((resolve) => setTimeout(resolve, this.latencyMs));
+    const pause = typeof this.latencyMs === "function" ? this.latencyMs(this.requests.length) : this.latencyMs;
+    if (pause > 0) await new Promise((resolve) => setTimeout(resolve, pause));
     return {
       costUsd: 0,
       turns: 1,
@@ -168,7 +169,8 @@ describe("the batch loop against a fake provider", () => {
         structuredOutput: out({ files_reviewed: [STORE], summary: "Store fine." }),
       }),
     ]);
-    provider.latencyMs = 5;
+    // Batch 2 outlasts batch 1's first call, so its reservation is still held when batch 1's retry starts.
+    provider.latencyMs = (call) => (call === 2 ? 40 : 5);
     const deps: Deps = {
       gh: fakeGh(posted),
       provider,
@@ -384,6 +386,7 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     // Both batches start together, so the second is already in flight when the first is refused;
     // the refused one gets no retry.
     const t = setup([rejected("billing", CREDIT), rejected("billing", CREDIT)], TWO_BATCHES);
+    t.provider.latencyMs = 5;
     await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(2);
     const body = t.posted.review?.body ?? "";
@@ -485,6 +488,7 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     // Two batches in flight, each retried once after its backoff: four calls, all limited.
     const limited = rejected("rate_limit", "API Error: 429 rate_limit_error");
     const t = setup([limited, limited, limited, limited], TWO_BATCHES);
+    t.provider.latencyMs = 5;
     await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(4);
     expect(t.posted.review?.body).toContain("kept rate-limiting the reviewer");

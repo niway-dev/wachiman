@@ -42,6 +42,10 @@ interface Plan {
   /** What it costs; by default the cap it was given, which is the worst case for a budget. */
   costUsd?: (request: ProviderRequest) => number;
   rejected?: boolean;
+  /** The call stops on its budget with no review. */
+  budget?: boolean;
+  /** The first call lists no file as reviewed; the retry (a "second pass" prompt) reviews it. */
+  leaveFirstPassUnreviewed?: boolean;
   /** What a rejected call says; by default the same text for every batch. */
   errorText?: string;
 }
@@ -86,8 +90,10 @@ class TimedProvider implements ProviderAdapter {
         errorText: plan.errorText ?? "API Error: 400 Your credit balance is too low to access the Anthropic API.",
         providerError: "billing",
       };
+    if (plan.budget) return { ...base, isError: true, terminalReason: "budget" };
+    const secondPass = request.prompt.includes("second pass");
     const output: ReviewOutput = {
-      files_reviewed: [file],
+      files_reviewed: plan.leaveFirstPassUnreviewed && !secondPass ? [] : [file],
       files_skipped: [],
       findings: [],
       thread_replies: [],
@@ -97,14 +103,17 @@ class TimedProvider implements ProviderAdapter {
   }
 }
 
-function run(count: number, provider: TimedProvider, env: Record<string, string> = {}) {
+function run(count: number, provider: TimedProvider, env: Record<string, string> = {}, onLog?: (line: string) => void) {
   const posted: { review?: { body: string; comments: unknown[] } } = {};
   const logs: string[] = [];
   const deps: Deps = {
     gh: fakeGh(filesOf(count), posted),
     provider,
     config: loadConfig({ ...ONE_FILE_EACH, ...env }),
-    log: (line) => logs.push(line),
+    log: (line) => {
+      onLog?.(line);
+      logs.push(line);
+    },
     warn: () => {},
   };
   return { posted, logs, done: review(deps, "o/r", 7, []) };
@@ -198,5 +207,56 @@ describe("batches run side by side", () => {
     const body = r.posted.review?.body ?? "";
     expect(body).toContain("from batch ONE");
     expect(body).not.toContain("from batch TWO");
+  });
+
+  test("a batch's gaps are blamed on its own cause, not on another batch's refusal", async () => {
+    // Batch 2 is refused first. Batch 1, still in flight, then stops on its budget with no review.
+    // Batch 3 is reviewed, so the posted review has a coverage table.
+    const provider = new TimedProvider((file) =>
+      file === fileName(1)
+        ? { delayMs: 60, budget: true }
+        : file === fileName(2)
+          ? { delayMs: 10, rejected: true }
+          : { delayMs: 10 },
+    );
+    const r = run(3, provider);
+    await r.done;
+    const body = r.posted.review?.body ?? "";
+    expect(body).toMatch(/\| Batch 1 of 3 \|[^\n]*budget spent/);
+    expect(body).toMatch(/\| Batch 2 of 3 \|[^\n]*provider rejected the call/);
+  });
+
+  test("a retry waits in its own slot for money another running batch reserved", async () => {
+    // Total 0.60, per call 0.50: batch 1 reserves 0.50 and batch 2 the 0.10 left. Batch 1 spends all
+    // of its cap and leaves its file unreviewed, so its retry finds nothing until batch 2 finishes
+    // and gives back what it did not use.
+    const provider = new TimedProvider((file) =>
+      file === fileName(1)
+        ? { delayMs: 10, costUsd: (q) => q.maxBudgetUsd ?? 0, leaveFirstPassUnreviewed: true }
+        : { delayMs: 50, costUsd: () => 0.02 },
+    );
+    const r = run(2, provider, { WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "0.6" });
+    await r.done;
+    expect(provider.requests).toHaveLength(3);
+    // Batch 1's first call, batch 2, then batch 1's retry only after batch 2 finished.
+    expect(provider.finished).toEqual([fileName(1), fileName(2), fileName(1)]);
+    expect(provider.requests[2].prompt).toContain("second pass");
+    expect(provider.requests[2].maxBudgetUsd).toBeCloseTo(0.08, 5);
+    // The retry used batch 1's slot: two batches, never more than two calls at once.
+    expect(provider.maxInFlight).toBe(2);
+    expect(r.posted.review?.body).toContain("reviewed after a retry");
+  });
+
+  test("a batch that throws ends the review after the running batches finish, and starts no more", async () => {
+    // Writing the log line of batch 2 fails: an error outside any provider call.
+    const provider = new TimedProvider(() => ({ delayMs: 40 }));
+    const r = run(8, provider, {}, (line) => {
+      if (line.startsWith("batch 2/8: started")) throw new Error("the log sink broke");
+    });
+    await expect(r.done).rejects.toThrow("the log sink broke");
+    // Batches already in flight were not abandoned, and nothing was left running.
+    expect(provider.inFlight).toBe(0);
+    expect(provider.requests.length).toBeLessThanOrEqual(BATCH_CONCURRENCY);
+    expect(r.posted.review).toBeUndefined();
   });
 });
