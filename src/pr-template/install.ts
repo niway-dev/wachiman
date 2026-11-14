@@ -233,7 +233,7 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
     const merged = mergeAdoption(choiceText === null ? null : (JSON.parse(choiceText) as Record<string, unknown>), adoption);
     const contributes = adoption.custom.length > 0 || adoption.preamble.length > 0 || adoption.add.length > 0;
     if (choiceText !== null || contributes) choiceText = `${JSON.stringify(merged, null, 2)}\n`;
-    notes.push(`adopting the unmanaged ${TEMPLATE_FILE}; the old file is kept as a backup under .git/wachiman/backups.`, ...adoption.report.map((l) => `  ${l}`));
+    notes.push(`adopting the unmanaged ${TEMPLATE_FILE}; the old file is kept as a backup (the path is printed when it is written).`, ...adoption.report.map((l) => `  ${l}`));
     backupTemplate = true;
   }
 

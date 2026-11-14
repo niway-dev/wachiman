@@ -93,7 +93,13 @@ export function writeManagedFile(p: {
   if (inspected.exists && p.backup) {
     const stamp = backupStamp(p.now);
     const base = p.backupDir === undefined ? `${inspected.target}.bak-` : join(p.backupDir, `${p.relativePath}.`);
-    if (p.backupDir !== undefined) mkdirSync(dirname(base), { recursive: true });
+    if (p.backupDir !== undefined) {
+      try {
+        mkdirSync(dirname(base), { recursive: true });
+      } catch (error) {
+        throw new UsageError(`Cannot create the backup directory ${dirname(base)} (${(error as NodeJS.ErrnoException).code ?? "error"}); nothing was written.`);
+      }
+    }
     for (let n = 1; backup === undefined; n++) {
       const candidate = `${base}${stamp}${n === 1 ? "" : `-${n}`}`;
       try {

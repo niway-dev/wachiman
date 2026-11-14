@@ -311,6 +311,17 @@ describe("install: edited by hand", () => {
     expect(w.ls()).toEqual(["pull_request_template.md", `pull_request_template.md.bak-${STAMP}`]);
   });
 
+  test("a backup directory that cannot be created is a clear refusal and the template is untouched", () => {
+    const w = world();
+    install(w);
+    edit(w);
+    const edited = w.read(TEMPLATE);
+    // A file where the backup directory should go makes the mkdir fail.
+    w.put(".git/wachiman", "not a directory\n");
+    expect(refused(() => install(w, ["--force"]))).toContain("Cannot create the backup directory");
+    expect(w.read(TEMPLATE)).toBe(edited);
+  });
+
   test("--force on a current template does nothing", () => {
     const w = world();
     install(w);

@@ -421,7 +421,7 @@ const prTemplatePageRoot: Page = {
     ], ["wachiman pr-template show", "wachiman pr-template show --from ./pr-template.json"]),
     install: prTemplatePage(installUsage, "Write .github/pull_request_template.md, generated from the catalog and .github/pr-template.json. Files only: it never pushes. An existing template without the Wachiman stamp is adopted and backed up; a hand-edited one is refused.", [
       ["--from <json>", "Copy this definition into .github/pr-template.json before generating"],
-      ["--force", "Replace a hand-edited template, or an existing, different .github/pr-template.json, after a backup under .git/wachiman/backups"],
+      ["--force", "Replace a hand-edited template, or an existing, different .github/pr-template.json, after a backup in the git directory (wachiman/backups)"],
       ["--commit", "Make one commit with only the files written; hooks run, nothing is pushed"],
       REPO_DIR,
     ], ["wachiman pr-template install", "wachiman pr-template install --commit"]),
