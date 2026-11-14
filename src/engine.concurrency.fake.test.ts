@@ -42,6 +42,8 @@ interface Plan {
   /** What it costs; by default the cap it was given, which is the worst case for a budget. */
   costUsd?: (request: ProviderRequest) => number;
   rejected?: boolean;
+  /** What a rejected call says; by default the same text for every batch. */
+  errorText?: string;
 }
 
 /** Answers each call by the file its prompt names, after the time the plan gives it. */
@@ -81,7 +83,7 @@ class TimedProvider implements ProviderAdapter {
         ...base,
         isError: true,
         terminalReason: "error",
-        errorText: "API Error: 400 Your credit balance is too low to access the Anthropic API.",
+        errorText: plan.errorText ?? "API Error: 400 Your credit balance is too low to access the Anthropic API.",
         providerError: "billing",
       };
     const output: ReviewOutput = {
@@ -181,5 +183,20 @@ describe("batches run side by side", () => {
     expect(body).toContain("| Batch 5 of 6 |");
     expect(body.match(/not run: provider rejected the call/g)?.length).toBe(2);
     expect(r.logs.filter((l) => /^batch [56]\/6: started/.test(l))).toHaveLength(0);
+  });
+
+  test("when two batches are refused, the report names the first batch's refusal, not the first to finish", async () => {
+    // Batch 2 is refused first, batch 1 a moment later.
+    const provider = new TimedProvider((file) =>
+      file === fileName(1)
+        ? { delayMs: 60, rejected: true, errorText: "API Error: 400 Your credit balance is too low (from batch ONE)." }
+        : { delayMs: 10, rejected: true, errorText: "API Error: 400 Your credit balance is too low (from batch TWO)." },
+    );
+    const r = run(2, provider);
+    await r.done;
+    expect(provider.finished).toEqual([fileName(2), fileName(1)]);
+    const body = r.posted.review?.body ?? "";
+    expect(body).toContain("from batch ONE");
+    expect(body).not.toContain("from batch TWO");
   });
 });

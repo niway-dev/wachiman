@@ -706,18 +706,33 @@ describe("the CI subscription token (CLAUDE_CODE_OAUTH_TOKEN)", () => {
     expect(resolveClaudeAuth({ ANTHROPIC_API_KEY: "sk-ant-x", CLAUDE_CODE_OAUTH_TOKEN: "" })).toBe("api-key");
   });
 
-  const withEnv = (env: Record<string, string | undefined>, fn: () => void) => {
-    const names = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"];
-    const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
-    for (const n of names) delete process.env[n];
+  const ENV_NAMES = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"];
+  const enter = (env: Record<string, string | undefined>) => {
+    const saved = Object.fromEntries(ENV_NAMES.map((n) => [n, process.env[n]]));
+    for (const n of ENV_NAMES) delete process.env[n];
     Object.assign(process.env, env);
-    try {
-      fn();
-    } finally {
-      for (const n of names) {
+    return () => {
+      for (const n of ENV_NAMES) {
         if (saved[n] === undefined) delete process.env[n];
         else process.env[n] = saved[n];
       }
+    };
+  };
+  const withEnv = (env: Record<string, string | undefined>, fn: () => void) => {
+    const restore = enter(env);
+    try {
+      fn();
+    } finally {
+      restore();
+    }
+  };
+  /** For a callback that awaits: the environment is restored only after it settles. */
+  const withEnvAsync = async (env: Record<string, string | undefined>, fn: () => Promise<void>) => {
+    const restore = enter(env);
+    try {
+      await fn();
+    } finally {
+      restore();
     }
   };
   const get = () => getProvider("claude-code", { model: "m", dryRun: false, effort: "high" }) as ClaudeCodeProvider;
@@ -735,10 +750,10 @@ describe("the CI subscription token (CLAUDE_CODE_OAUTH_TOKEN)", () => {
     });
   });
 
-  test("a token run starts without a key and sends the child the token only", () => {
+  test("a token run starts without a key and sends the child the token only", async () => {
     const binary = stubBinary(`cat >/dev/null
 printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0.1,"duration_ms":1,"result":"token=[%s] key=[%s] user=[%s]"}' "$CLAUDE_CODE_OAUTH_TOKEN" "$ANTHROPIC_API_KEY" "$USER"`);
-    withEnv({ CLAUDE_CODE_OAUTH_TOKEN: TOKEN, ANTHROPIC_API_KEY: "sk-ant-api03-both" }, async () => {
+    await withEnvAsync({ CLAUDE_CODE_OAUTH_TOKEN: TOKEN, ANTHROPIC_API_KEY: "sk-ant-api03-both" }, async () => {
       const provider = new ClaudeCodeProvider({ model: "m", requireApiKey: true, auth: "oauth-token", binary });
       expect(() => provider.preflight()).not.toThrow();
       const result = await provider.run(request);

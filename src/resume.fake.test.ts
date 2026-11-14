@@ -199,7 +199,7 @@ async function afterPartialReview() {
 describe("a push after a partial review resumes with the files it did not reach", () => {
   test("the setup is the observed one: 12 of 16 files, the last two batches stopped on the money left", async () => {
     const { first, r } = await afterPartialReview();
-    // Batches 7 and 8 both start, each with the 0.15 that is left; both stop on it.
+    // Batches 7 and 8 both start, so there are eight calls, and both stop on their budget.
     expect(first.requests).toHaveLength(8);
     expect(r.posted).toHaveLength(1);
     expect(r.posted[0]).toContain("⚠️ **Partial review**");

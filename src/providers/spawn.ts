@@ -1,7 +1,7 @@
 /**
  * Runs an agent CLI to completion without blocking the process, so several calls can be in flight
  * at once (the batches of one review). It keeps what `spawnSync` gave the adapters: the whole
- * output as text, a hard kill at the time limit, a cap on the output, and the same `error` codes
+ * output as text, a hard kill at the time limit, a cap on each stream's output, and the same `error` codes
  * (`ETIMEDOUT` for the kill, `ENOBUFS` for an output past the cap, `ENOENT` for a missing binary).
  */
 import { spawn } from "node:child_process";
@@ -34,7 +34,8 @@ export function spawnCapture(
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
-    let bytes = 0;
+    // Counted per stream, as `spawnSync`'s `maxBuffer` was.
+    const bytes = { stdout: 0, stderr: 0 };
     let error: NodeJS.ErrnoException | undefined;
     let settled = false;
     const child = spawn(binary, args, { cwd: opts.cwd, env: opts.env, stdio: ["pipe", "pipe", "pipe"] });
@@ -60,8 +61,8 @@ export function spawnCapture(
       resolve({ stdout, stderr, status, signal, ...(error ? { error } : {}) });
     };
     const collect = (sink: "stdout" | "stderr") => (chunk: string) => {
-      bytes += Buffer.byteLength(chunk);
-      if (bytes > opts.maxBuffer) {
+      bytes[sink] += Buffer.byteLength(chunk);
+      if (bytes[sink] > opts.maxBuffer) {
         fail("ENOBUFS");
         return;
       }

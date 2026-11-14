@@ -3056,6 +3056,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     budgetError: boolean;
     stopped?: "turns" | "timeout";
     anyLimit: boolean;
+    /** What the provider refused or failed with, to be reported in batch order, not in finish order. */
+    rejections: NonNullable<BatchResult["rejection"]>[];
   }
   const outcomes: (BatchOutcome | undefined)[] = new Array(batches.length).fill(undefined);
   // Money the batches in flight may still spend: what each reserved, until its cost is known.
@@ -3100,6 +3102,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       usage: NO_USAGE,
       budgetError: false,
       anyLimit: false,
+      rejections: [],
     };
     core.log(`batch ${i + 1}/${batches.length}: started (${inFlight} of ${BATCH_CONCURRENCY} running, $${firstBudget.toFixed(2)} reserved)`);
     const first = await reviewBatchBackingOff(
@@ -3118,6 +3121,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     out.costUsd += first.costUsd;
     out.usage = addUsage(out.usage, first.usage);
     noteRejection(first.rejection);
+    if (first.rejection) out.rejections.push(first.rejection);
     if (first.output) out.parts.push({ label, output: first.output });
     if (first.budget) out.budgetError = true;
     if (first.stopped) out.stopped = first.stopped;
@@ -3162,6 +3166,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       turns += retry.turns;
       cost += retry.costUsd;
       noteRejection(retry.rejection);
+      if (retry.rejection) out.rejections.push(retry.rejection);
       if (retry.budget || retry.stopped) out.anyLimit = true;
       if (retry.output) out.parts.push({ label: `${label}, retry`, output: retry.output });
       const left = batchGaps(gaps, retry.output);
@@ -3196,6 +3201,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       usage: NO_USAGE,
       budgetError: false,
       anyLimit: false,
+      rejections: [],
     });
     const granted = await acquire(i, true);
     if ("why" in granted) {
@@ -3226,9 +3232,13 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   // after the ones in flight finished and were counted.
   if (fatal) throw fatal.error;
 
-  // In batch order, whatever order they finished in.
+  // In batch order, whatever order they finished in. The refusal that stopped new batches was noted
+  // as it came; the one that is reported is the first in batch order, as in a sequential run.
+  rejection = undefined;
+  otherError = undefined;
   for (const outcome of outcomes) {
     if (!outcome) continue;
+    outcome.rejections.forEach(noteRejection);
     reports.push(outcome.report);
     parts.push(...outcome.parts);
     notRun.push(...outcome.notRun);
@@ -3239,6 +3249,10 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     if (outcome.stopped) limitError = outcome.stopped;
     if (outcome.anyLimit) anyLimit = true;
   }
+
+  // Set by the callbacks above, which the compiler does not follow.
+  const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
+  const other = otherError as string | undefined;
 
   const merged: ReviewOutput =
     parts.length > 0
@@ -3262,7 +3276,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   let verification: ResultVerificationV2 | undefined;
   let checked: VerifiedFinding[];
   if (options.verify && parts.length > 0) {
-    const verified = await verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0), rejection?.text);
+    const verified = await verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0), refused?.text);
     spent += verified.record.costUsd;
     usage = addUsage(usage, verified.usage);
     checked = verified.findings;
@@ -3291,9 +3305,6 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const known = new Set(threads.map((t) => t.comment_id));
   const threadReplies = merged.thread_replies.filter((r) => known.has(r.comment_id));
 
-  // Assigned inside the loop's callbacks, which the compiler does not follow.
-  const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
-  const other = otherError as string | undefined;
   const firstRejection = refused ?? (other !== undefined ? { kind: "other" as const, text: other } : undefined);
   // In today's precedence: a refused account stops everything; a review with output, or nothing
   // to review, is complete (coverage says whether it is partial); otherwise the limit that ended
