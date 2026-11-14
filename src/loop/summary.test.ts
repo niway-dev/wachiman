@@ -141,6 +141,21 @@ describe("the summary's shape", () => {
     expect(renderSummary(CASES["v1-state"])).toContain("| **Wachiman cost** | not recorded |");
   });
 
+  test("a code span in a title keeps its angle brackets; the text around it is still escaped", () => {
+    const out = renderSummary({ state: state([round(1)]), findings: [finding("f1", { title: "`gh pr list --head <branch>` matches a | b and @user <b>" })] });
+    expect(out).toContain("| `src/a.ts:2` `gh pr list --head <branch>` matches a \\| b and @&#8203;user &lt;b&gt; |");
+    expect(out).not.toContain("&lt;branch&gt;");
+  });
+
+  test("a pipe inside a code span is escaped for the table, and an unclosed backtick leaves plain escaped text", () => {
+    const out = renderSummary({
+      state: state([round(1)]),
+      findings: [finding("f1", { title: "`a | b` ok" }), finding("f2", { title: "a ` b <i> | c" })],
+    });
+    expect(out).toContain("`src/a.ts:2` `a \\| b` ok |");
+    expect(out).toContain("`src/a.ts:2` a ` b &lt;i&gt; \\| c |");
+  });
+
   test("no findings table and Findings is 0 when nothing was found", () => {
     const out = renderSummary(CASES["no-findings"]);
     expect(out).toContain("| **Findings** | 0 |");

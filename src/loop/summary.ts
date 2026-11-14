@@ -48,9 +48,30 @@ const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
 /**
  * Text a model or a person wrote, safe inside a table cell or a list line: no tag (so no comment),
  * no mention and no pipe. `<` and `>` become entities, which also defuses `<!--` and `-->`.
+ * Inside a backtick code span GitHub shows entities literally, so the span is kept as written and only
+ * its pipes are escaped (GFM tables honour `\|` there).
  */
-const safe = (text: string) =>
-  oneLine(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("|", "\\|").replace(/@(?=\w)/g, "@&#8203;");
+const safe = (text: string) => {
+  const plain = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("|", "\\|").replace(/@(?=\w)/g, "@&#8203;");
+  const line = oneLine(text);
+  let out = "";
+  let at = 0;
+  while (at < line.length) {
+    const open = /`+/g;
+    open.lastIndex = at;
+    const start = open.exec(line);
+    if (!start) break;
+    // A code span ends at the next backtick run of the same length; without one, the rest is plain text.
+    const close = new RegExp(`(?<!\`)${start[0]}(?!\`)`, "g");
+    close.lastIndex = start.index + start[0].length;
+    const end = close.exec(line);
+    if (!end) break;
+    const stop = end.index + start[0].length;
+    out += plain(line.slice(at, start.index)) + line.slice(start.index, stop).replaceAll("|", "\\|");
+    at = stop;
+  }
+  return out + plain(line.slice(at));
+};
 
 /** The cited place as code. In a table a pipe in the path would end the cell, so it is escaped there. */
 const where = (f: LoopFinding, inTable: boolean) => `\`${inTable ? location(f).replaceAll("|", "\\|") : location(f)}\``;
