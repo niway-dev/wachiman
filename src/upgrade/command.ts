@@ -91,6 +91,9 @@ const realFs = {
 /** The command that installs the latest release for this layout, or why it is not upgraded here. */
 export type CliPlan = { kind: "command"; manager: "bun" | "npm"; command: string; args: string[] } | { kind: "refused"; reason: string };
 
+/** A `wachiman-dev` build carries `-dev-<commit>` in its version (scripts/dev-build.sh). */
+const isDevBuild = (version: string) => /-dev-/.test(version);
+
 const slashes = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/, "");
 
 export function planCliUpgrade(install: InstallKind, spec = "latest", env: Record<string, string | undefined> = {}): CliPlan {
@@ -139,7 +142,11 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
       return 1;
     }
   } else {
-    const plan = planCliUpgrade(install, opts.to === undefined ? "latest" : opts.to.slice(1), deps.env ?? process.env);
+    // dev-build.sh stamps `<version>-dev-<commit>` and installs with npm into a prefix of its own, so the
+    // install kind looks like a normal npm install; the version is the reliable marker.
+    const plan: CliPlan = isDevBuild(deps.version)
+      ? { kind: "refused", reason: "a development build: update it with scripts/dev-build.sh" }
+      : planCliUpgrade(install, opts.to === undefined ? "latest" : opts.to.slice(1), deps.env ?? process.env);
     if (plan.kind === "refused") {
       io.stdout(`The CLI is not upgraded: ${plan.reason}.\n`);
     } else {
@@ -201,16 +208,21 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
   }
   const changed: string[] = [];
   const left: string[] = [];
+  const failed: string[] = [];
   for (const { file } of files) {
     const path = `${root}/${file}`;
-    const result = rewritePins(fs.read(path), target);
-    if (result.outcomes.some((o) => o.kind === "rewritten")) {
-      fs.write(path, result.text);
-      changed.push(file);
-    }
-    for (const o of result.outcomes) {
-      const why = leftReason(o, target);
-      if (why !== undefined) left.push(`  ${file}: ${why}`);
+    try {
+      const result = rewritePins(fs.read(path), target);
+      if (result.outcomes.some((o) => o.kind === "rewritten")) {
+        fs.write(path, result.text);
+        changed.push(file);
+      }
+      for (const o of result.outcomes) {
+        const why = leftReason(o, target);
+        if (why !== undefined) left.push(`  ${file}: ${why}`);
+      }
+    } catch (error) {
+      failed.push(`  ${file}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   if (changed.length > 0) {
@@ -222,7 +234,8 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
   if (changed.length > 0) {
     io.stdout(`\nNothing is committed. To commit it:\n  git add ${changed.join(" ")}\n  git commit -m "chore: pin Wachiman to ${target}"\n`);
   }
-  return warnUnreadable();
+  if (failed.length > 0) io.stderr(`wachiman: could not rewrite, so these were not changed:\n${failed.join("\n")}`);
+  return warnUnreadable() || (failed.length > 0 ? 1 : 0);
 }
 
 function leftReason(o: PinOutcome, target: string): string | undefined {

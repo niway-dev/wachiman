@@ -178,7 +178,18 @@ describe("runUpgrade", () => {
     expect(r.read("a.yml")).toContain("@v1.1.0");
   });
 
-  test("a failed install exits 1 and skips the pins, or uses --to", () => {
+  test("a development build is refused even when it looks like an npm install", () => {
+    const a = caller("v1.0.0");
+    const r = rig({ "a.yml": a });
+    const npm = { install: { kind: "npm", root: "/home/u/.local/share/wachiman-dev/prefix/lib/node_modules/wachiman" } as InstallKind, version: "1.15.0-dev-abc1234" };
+    expect(r.go({}, npm)).toBe(0);
+    expect(r.runs).toEqual([]);
+    expect(r.latestCalls).toBe(0);
+    expect(r.read("a.yml")).toBe(a);
+    expect(r.out.join("")).toContain("a development build: update it with scripts/dev-build.sh");
+  });
+
+  test("a failed install exits 1 and leaves the pins alone", () => {
     const a = caller("v1.0.0");
     const r = rig({ "a.yml": a });
     expect(r.go({}, { run: () => 1 })).toBe(1);
@@ -218,6 +229,23 @@ describe("runUpgrade", () => {
     expect(r.read("a.yml")).toContain("@v1.3.0");
     expect(r.read("b.yml")).toContain("@v1.0.0");
     expect(r.err.join("\n")).toContain(".github/workflows/b.yml");
+  });
+
+  test("a write that fails partway still reports what was rewritten and exits 1", () => {
+    const r = rig({ "a.yml": caller("v1.0.0"), "b.yml": caller("v1.0.0") });
+    const fs = {
+      list: (p: string) => readdirSync(p),
+      read: (p: string) => readFileSync(p, "utf8"),
+      write: (p: string, t: string) => {
+        if (p.endsWith("b.yml")) throw new Error("EROFS");
+        writeFileSync(p, t);
+      },
+    };
+    expect(r.go({}, { fs })).toBe(1);
+    expect(r.read("a.yml")).toContain("@v1.3.0");
+    expect(r.read("b.yml")).toContain("@v1.0.0");
+    expect(r.out.join("")).toContain(".github/workflows/a.yml");
+    expect(r.err.join("\n")).toContain("b.yml: EROFS");
   });
 
   test("an unreadable workflows directory is reported and exits 1", () => {

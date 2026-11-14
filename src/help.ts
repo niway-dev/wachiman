@@ -332,11 +332,11 @@ const upgradePage: Page = {
   options: [
     ["--check", "Print the installed and the latest version and change nothing"],
     ["--repo-only", "Rewrite the pins to the installed version (or --to) and leave the CLI alone"],
-    ["--to <version>", "Install this release (v1.2.3) and pin it. If the CLI step is skipped or fails, the pins still move to it"],
+    ["--to <version>", "Install this release (v1.2.3) and pin it. It never downgrades the CLI: when the CLI is already on that version or newer, nothing is installed and the pins move. If the install fails the pins stay and the exit is 1; with --repo-only no install is attempted"],
     REPO_DIR,
   ],
   env: [HOME_ENV],
-  exit: [["0", "Done, nothing to do, or the CLI is a clone and was not upgraded"], ["1", "The package manager failed, or a version could not be read"], ["2", "Usage error"]],
+  exit: [["0", "Done, nothing to do, or the CLI is a clone or a dev build and was not upgraded"], ["1", "The package manager failed, a version could not be read, or a workflow file could not be read or written"], ["2", "Usage error"]],
   examples: ["wachiman upgrade --check", "wachiman upgrade", "wachiman upgrade --repo-only"],
   docs: `${DOCS}/cli.md#upgrade`,
 };
