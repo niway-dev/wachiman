@@ -16,6 +16,7 @@ import { repositoryKey } from "../history/store";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { loadTerminalUi } from "../wizard/load";
 import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
+import type { Ui } from "../wizard/ui";
 import { projectCommands, quoteArgument } from "../wizard/command";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
@@ -36,6 +37,8 @@ export interface InitDeps {
   interactive?: boolean;
   streams?: TerminalStreams;
   promptIO?: PromptIO;
+  /** A scripted terminal `Ui`, for a test of the terminal session. Not set: Clack, on a terminal. */
+  ui?: Ui;
   /** An open prompt session; the caller closes it. Otherwise one is opened over `promptIO` or the terminal. */
   prompter?: Prompter;
   /** What `wachiman setup` means from here: runs the setup wizard in the same process, sharing `prompter`. */
@@ -63,9 +66,10 @@ const TEMPLATE = join(import.meta.dir, "..", "..", "templates", "wachiman-review
 const readDefaultTemplate = () => readFileSync(TEMPLATE, "utf8");
 
 const openSession = async (deps: InitDeps, env: Record<string, string | undefined>, ui: Awaited<ReturnType<typeof loadTerminalUi>>) => {
-  if (deps.prompter) return { prompter: deps.prompter, close: (_outcome: Outcome) => {} };
-  const prompter = await ui.openPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env);
-  return { prompter, close: (outcome: Outcome) => prompter.close(outcome) };
+  if (deps.prompter) return { prompter: deps.prompter, close: (_outcome: Outcome, _message?: string) => {} };
+  const prompter = await ui.openPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env, deps.ui ? { ui: deps.ui } : undefined);
+  // The message is the last line of the session: without it a saved run with one step left would end as "Stopped.".
+  return { prompter, close: (outcome: Outcome, message?: string) => prompter.close(outcome, message) };
 };
 
 /** How a finished run ends the session: 0 is done, 130 a cancel, anything else a stop. */

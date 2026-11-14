@@ -1,9 +1,11 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { PassThrough } from "node:stream";
 import { join } from "node:path";
 import { CTRL_C, ESC, scripted } from "../../test/support/scripted-prompt";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
+import { fakeUi } from "../../test/support/fake-ui";
 import { snapshotTree } from "../../test/support/tree-snapshot";
 import { UsageError } from "../config";
 import { parseInitFlags } from "./args";
@@ -505,6 +507,26 @@ describe("init with scripted prompts", () => {
     expect(code).toBe(1);
     expect(slot?.warning).toContain("One step left");
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
+  });
+
+  test.each(["both", "local"] as const)("%s: a terminal session ends on the neutral warning, never on \"Stopped.\"", async (mode) => {
+    const w = world();
+    const ui = fakeUi([0, true, true, true]); // project kind, then the confirmations (workflow, settings)
+    const warning = "Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman init` again or `wachiman doctor`.";
+    const code = await runInitCommand(
+      { repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) },
+      { WACHIMAN_INTRO_DONE: "1" },
+      w.io,
+      w.deps({ interactive: true, promptIO: { input: new PassThrough(), output: new PassThrough() }, ui, bindNow: async (_p, _m, closing) => {
+        closing.warning = warning;
+        return 1;
+      } }),
+    );
+    expect(code).toBe(1);
+    // What the session finally drew: the neutral text is the last event, as an outro, and nothing says "Stopped.".
+    expect(ui.events.at(-1)).toEqual({ kind: "outro", message: warning });
+    expect(ui.of("cancel")).toEqual([]);
+    expect(JSON.stringify(ui.events)).not.toContain("Stopped.");
   });
 
   test("both: cancelling during setup leaves the confirmed workflow in place and says so", async () => {

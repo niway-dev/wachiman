@@ -57,9 +57,10 @@ export async function promptForInit(flags: RawInitFlags, ctx: { defaultWorkflowR
   prompter.step("GitHub workflow", 4, mode === "both" ? 6 : 5);
 
   // The signed-in `gh` user is the likely answer; a login that fails the same rule is not offered.
-  const guess = ctx.githubLogin?.();
+  // `gh` is only spawned when the operator is going to be asked: `--operator` makes the guess useless.
+  const guess = flags.operator === undefined ? ctx.githubLogin?.() : undefined;
   const suggested = guess !== undefined && operatorProblem(guess) === undefined ? guess : undefined;
-  if (suggested !== undefined && flags.operator === undefined) prompter.say(`Signed in to GitHub as https://github.com/${suggested}; press Enter to use it.`, "muted");
+  if (suggested !== undefined) prompter.say(`Signed in to GitHub as https://github.com/${suggested}; press Enter to use it.`, "muted");
   const operator =
     flags.operator ??
     (await prompter.text("Your GitHub username, as in https://github.com/<username>: only this person's /wachiman comments start a paid run", suggested, (v) => operatorProblem(v)));

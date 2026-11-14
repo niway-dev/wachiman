@@ -51,8 +51,8 @@ export interface SetupDeps extends AccountDeps {
   prompter?: Prompter;
 }
 
-const ALIAS_NOTE =
-  "If your `claude` is a shell alias or function that sets CLAUDE_CONFIG_DIR, Wachiman does not see it: register that directory with `wachiman profile add <name> --config-dir <dir>` and run `wachiman init` again.";
+const aliasNote = (again: string) =>
+  `If your \`claude\` is a shell alias or function that sets CLAUDE_CONFIG_DIR, Wachiman does not see it: register that directory with \`wachiman profile add <name> --config-dir <dir>\` and run \`${again}\` again.`;
 
 const defaultInteractiveSpawn: InteractiveSpawn = (binary, args, opts) => spawnSync(binary, args, opts);
 
@@ -212,11 +212,13 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     // doctor decided (1: a required check failed), because scripts read it as "this machine is not ready".
     if (code !== 0 && code !== 130 && signInPending) {
       const only = result.failedRequired === 1;
+      // Say the command the person actually ran: init chained into setup, or setup alone.
+      const again = deps.fromInit ? "wachiman init" : "wachiman setup";
       const warning = only
-        ? `Saved. One step left: sign in to Claude (\`${signInCommand}\`), then run \`wachiman init\` again or \`wachiman doctor\`.`
-        : `Saved. Some checks still need attention, including the Claude sign-in (\`${signInCommand}\`); then run \`wachiman init\` again or \`wachiman doctor\`.`;
+        ? `Saved. One step left: sign in to Claude (\`${signInCommand}\`), then run \`${again}\` again or \`wachiman doctor\`.`
+        : `Saved. Some checks still need attention, including the Claude sign-in (\`${signInCommand}\`); then run \`${again}\` again or \`wachiman doctor\`.`;
       // Wachiman starts the binary itself, so it never sees a shell alias or function that sets the configuration directory.
-      const text = found.profile.kind === "default" ? `${warning} ${ALIAS_NOTE}` : warning;
+      const text = found.profile.kind === "default" ? `${warning} ${aliasNote(again)}` : warning;
       if (deps.closing) deps.closing.warning = text;
       else closing = text;
       outcome = "done";

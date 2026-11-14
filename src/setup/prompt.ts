@@ -55,13 +55,6 @@ interface DetectedPick {
  */
 export const setupStepTotal = (fromInit: boolean | undefined, initMode: "local" | "both" | undefined) => (fromInit ? (initMode === "both" ? 6 : 5) : 3);
 
-/** The scope sentence: what the binding covers. */
-export const scopeSentence = (repo: HistoryRepository) =>
-  repo.keyedBy === "remote" ? "every clone and worktree of this origin will use it" : "this repository and its worktrees will use it";
-
-export const identityLine = (repo: HistoryRepository) =>
-  repo.keyedBy === "remote" ? `keyed by origin: ${repo.remote ?? "(unparsed)"}` : `keyed by path: ${repo.path}`;
-
 /** A profile name proposed from a directory: `.claude-work` becomes `claude-work`; taken or reserved names get a number. */
 export function suggestProfileName(configDir: string, taken: (name: string) => boolean) {
   const base =

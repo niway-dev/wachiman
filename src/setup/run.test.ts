@@ -232,10 +232,19 @@ describe("setup on a terminal", () => {
     expect(io.printed()).not.toContain("Sign in");
     expect(errText(w)).toContain("sign in with your own claude: `claude auth login`");
     expect(w.interactiveCalls).toEqual([]);
-    expect(closing.warning).toContain("Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman init` again or `wachiman doctor`.");
+    expect(closing.warning).toContain("Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman setup` again or `wachiman doctor`.");
     expect(closing.warning).toContain("shell alias or function that sets CLAUDE_CONFIG_DIR");
     expect(closing.warning).toContain("`wachiman profile add <name> --config-dir <dir>`");
     expect(closing.warning).not.toContain("Stopped");
+  });
+
+  test("the closing advice names the command that was run: init when setup was chained from it", async () => {
+    const w = world({ profiles: {}, tools: { auth: () => ({ status: 1, stdout: JSON.stringify({ loggedIn: false }) }) } });
+    const closing: { warning?: string } = {};
+    const { run } = setup(w, [], ["", ""], { closing, fromInit: true, initMode: "local" });
+    expect(await run).toBe(1);
+    expect(closing.warning).toContain("then run `wachiman init` again or `wachiman doctor`.");
+    expect(closing.warning).toContain("and run `wachiman init` again.");
   });
 
   test("a directory ~/.claude-<name> in the home is offered, labelled, and picking it registers it as an external profile and binds it", async () => {
