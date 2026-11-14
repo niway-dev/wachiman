@@ -49,8 +49,8 @@ export function runPrTemplate(argv: string[], repoDir: string, io: PrTemplateIo,
   // `risk` already asks git, so it keeps the directory it was given.
   const root = first === "risk" || first === "strip" ? repoDir : repositoryRoot(repoDir);
   // `check` reads a relative file argument from `fileBase`, by default the directory the command was given
-  // (`--repo-dir`), and runs `gh` and `git` there unless a caller passes its own runner; the repository root is
-  // only for `.github/` and git. `strip` and `format` take their file against the directory or root they are given.
+  // (`--repo-dir`). Unless a caller passes its own runner, `gh` and `git` run at the repository root, which is
+  // also where `.github/` is read. `strip` and `format` take their file against the directory or root they are given.
   const check: PrTemplateDeps = { ...deps.check, fileBase: deps.check?.fileBase ?? repoDir, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? root)) };
   const help = () => (io.stdout(commandHelp(["pr-template", first])!), 0);
   switch (first) {
