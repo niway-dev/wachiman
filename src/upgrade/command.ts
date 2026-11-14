@@ -53,18 +53,30 @@ export interface UpgradeDeps {
   latest?: () => string | undefined;
   git?: GitRunner;
   fs?: PinFs & { write: (path: string, text: string) => void };
+  /** `process.env`, for `BUN_INSTALL`. */
+  env?: Record<string, string | undefined>;
 }
 
-const defaultRun = (command: string, args: string[]) => spawnSync(command, args, { stdio: "inherit" }).status;
+/** npm and bun are `npm.cmd` and `bun.cmd` shims on Windows, which `spawn` finds only through a shell. */
+export const spawnShell = (platform: NodeJS.Platform): { shell?: true } => (platform === "win32" ? { shell: true } : {});
+
+type Spawn = (command: string, args: string[], options: Record<string, unknown>) => { status: number | null; stdout?: unknown };
+
+export function makeRun(platform: NodeJS.Platform = process.platform, spawn: Spawn = spawnSync as unknown as Spawn) {
+  return (command: string, args: string[]): number | null => spawn(command, args, { stdio: "inherit", ...spawnShell(platform) }).status;
+}
+
+const defaultRun = makeRun();
 
 /** `npm view wachiman version`; the one network request of `--check` and the first step. */
 const defaultLatest = () => {
-  const run = spawnSync("npm", ["view", "wachiman", "version"], { encoding: "utf8", timeout: 30_000 });
-  const version = run.status === 0 ? run.stdout.trim() : "";
+  const run = spawnSync("npm", ["view", "wachiman", "version"], { encoding: "utf8", timeout: 30_000, ...spawnShell(process.platform) });
+  const version = run.status === 0 ? String(run.stdout).trim() : "";
   return parseTag(version) ? version : undefined;
 };
 
 const realFs = {
+  listStrict: (path: string) => readdirSync(path),
   list: (path: string) => {
     try {
       return readdirSync(path);
@@ -79,12 +91,15 @@ const realFs = {
 /** The command that installs the latest release for this layout, or why it is not upgraded here. */
 export type CliPlan = { kind: "command"; manager: "bun" | "npm"; command: string; args: string[] } | { kind: "refused"; reason: string };
 
-export function planCliUpgrade(install: InstallKind, spec = "latest"): CliPlan {
+const slashes = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/, "");
+
+export function planCliUpgrade(install: InstallKind, spec = "latest", env: Record<string, string | undefined> = {}): CliPlan {
   if (install.kind === "source") {
     return { kind: "refused", reason: "this is a clone or a development build (wachiman-dev); update a clone with `git pull` (then `bun install`), and rebuild a dev build with scripts/dev-build.sh" };
   }
   if (install.kind === "exe") return { kind: "refused", reason: "this is a standalone executable; download the newer one" };
-  const bun = /[\\/]\.bun[\\/]install[\\/]global[\\/]/.test(install.root);
+  const custom = env.BUN_INSTALL ? `${slashes(env.BUN_INSTALL)}/install/global/` : undefined;
+  const bun = /[\\/]\.bun[\\/]install[\\/]global[\\/]/.test(install.root) || (custom !== undefined && `${slashes(install.root)}/`.startsWith(custom));
   return bun
     ? { kind: "command", manager: "bun", command: "bun", args: ["add", "-g", `wachiman@${spec}`] }
     : { kind: "command", manager: "npm", command: "npm", args: ["install", "-g", `wachiman@${spec}`] };
@@ -104,7 +119,11 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
       io.stderr("wachiman: could not read the latest version from the npm registry.");
       return 1;
     }
-    const newer = current !== undefined && compareVersions(parseTag(found)!, current) > 0;
+    if (current === undefined) {
+      io.stdout(`Latest:    v${found}\nThe installed version "${deps.version}" is not a release version, so it cannot be compared with v${found}.\n`);
+      return 0;
+    }
+    const newer = compareVersions(parseTag(found)!, current) > 0;
     io.stdout(`Latest:    v${found}\n${newer ? "Run `wachiman upgrade` to update.\n" : "You are up to date.\n"}`);
     return 0;
   }
@@ -120,7 +139,7 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
       return 1;
     }
   } else {
-    const plan = planCliUpgrade(install, opts.to === undefined ? "latest" : opts.to.slice(1));
+    const plan = planCliUpgrade(install, opts.to === undefined ? "latest" : opts.to.slice(1), deps.env ?? process.env);
     if (plan.kind === "refused") {
       io.stdout(`The CLI is not upgraded: ${plan.reason}.\n`);
     } else {
@@ -142,6 +161,12 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
         } else {
           io.stderr(`wachiman: ${shown} ${status === null ? "could not start" : `failed with exit ${status}`}; the CLI is unchanged.`);
           code = 1;
+          if (opts.to !== undefined) {
+            // The pins would name a release the CLI could not install (it may not exist).
+            target = undefined;
+            io.stdout(`The repository pin was not touched: installing ${opts.to} failed. Use \`wachiman upgrade --repo-only --to ${opts.to}\` to pin it without installing.\n`);
+            return code;
+          }
         }
       }
     }
@@ -162,10 +187,17 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
     io.stdout(`The repository pin was not touched: ${opts.repoDir} is not a git repository.\n`);
     return 0;
   }
-  const files = scanWorkflows(root, fs);
+  const scan = scanWorkflows(root, fs);
+  const files = scan.files;
+  const unreadable = [...(scan.unreadableDir ? [`${scan.unreadableDir} (the directory could not be listed)`] : []), ...scan.unreadable];
+  const warnUnreadable = () => {
+    if (unreadable.length === 0) return 0;
+    io.stderr(`wachiman: could not read, so their pins were not checked or changed:\n${unreadable.map((f) => `  ${f}`).join("\n")}`);
+    return 1;
+  };
   if (files.length === 0) {
-    io.stdout("No workflow in .github/workflows calls a Wachiman reusable workflow; nothing to pin.\n");
-    return 0;
+    io.stdout(`No ${unreadable.length > 0 ? "readable " : ""}workflow in .github/workflows calls a Wachiman reusable workflow; nothing to pin.\n`);
+    return warnUnreadable();
   }
   const changed: string[] = [];
   const left: string[] = [];
@@ -190,7 +222,7 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
   if (changed.length > 0) {
     io.stdout(`\nNothing is committed. To commit it:\n  git add ${changed.join(" ")}\n  git commit -m "chore: pin Wachiman to ${target}"\n`);
   }
-  return 0;
+  return warnUnreadable();
 }
 
 function leftReason(o: PinOutcome, target: string): string | undefined {

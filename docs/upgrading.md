@@ -3,9 +3,21 @@
 This page is for repositories that call the reusable workflow. If you copied the files into your
 repository instead, the copy never updates by itself: see [setup-copy.md](setup-copy.md).
 
-There is no upgrade command and no uninstall command. Wachiman has two commands, `review` and
-`comment` ([cli.md](cli.md)), and both run inside a workflow you own. The version that runs with
-your key is whatever your caller file names.
+`wachiman upgrade` ([cli.md](cli.md#upgrade)) updates the CLI on your machine and moves the pin in your
+caller file to that release. It never commits, and it leaves a pin that is a commit SHA, a branch, a
+floating tag or a pre-release for you to change by hand. There is no uninstall command. The version
+that runs with your key in Actions is whatever your caller file names, so the pin is what decides it.
+`wachiman doctor` has a `workflow-pin` row that warns when a pin is older than the installed CLI.
+
+```sh
+wachiman upgrade --check        # compare the installed and the latest version, change nothing
+wachiman upgrade                # install the latest CLI, then move the pins and print the commit commands
+wachiman upgrade --repo-only    # only move the pins, to the installed version
+```
+
+If a workflow file cannot be read, `upgrade` names it and exits 1, because that file keeps its old pin.
+The steps below are the manual route, and the way to review what a new release changes before you commit
+the pin.
 
 ## What chooses the code that runs
 
@@ -46,9 +58,11 @@ the floating `v1` tag ([releasing.md](releasing.md)). So:
 - An exact tag stays where it is only while the ruleset holds and no admin uses the bypass. You
   cannot enforce that from your repository. A commit SHA does not rely on it, which makes it the
   stronger pin against a moved tag.
-- Pinning the workflow does not pin everything it uses. `claude_code_version`, `bun_version` and
-  `model` have defaults inside the workflow at that tag, so a new tag can change them. If you pass
-  one of those inputs yourself, your value wins at any tag.
+- Pinning the workflow does not pin everything it uses. `claude_code_version` and `bun_version`
+  have defaults inside the workflow at that tag, so a new tag can change them. `model` and `effort`
+  default to empty in the workflow, which means "not set here": the value in `.wachiman.yml` at the
+  pull request's base commit applies, and without one the engine's built-in default, which a new tag
+  can also change. If you pass any of these inputs yourself, your value wins at any tag.
 - Claude Code is downloaded when the job runs. The installer checks it against a SHA-256 taken from
   the publisher's manifest, which proves the download is intact but comes from the same place as the
   binary. Pass `claude_code_sha256` to pin the hash yourself

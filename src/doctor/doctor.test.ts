@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
@@ -8,7 +8,7 @@ import { fakeToolchain, signedIn, type RecordedCall, type Tools } from "../../te
 import { emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
 import { buildDoctorReport, parseDoctorArgs, runDoctor, type DoctorDeps } from "./run";
 import { redactReport, renderJson, renderText } from "./render";
-import { tierOf, type DoctorReport, type DoctorRow } from "./checks";
+import { realDoctorFs, tierOf, type DoctorReport, type DoctorRow } from "./checks";
 
 const scratch: string[] = [];
 const temp = (prefix: string) => {
@@ -498,6 +498,23 @@ describe("workflow-pin row", () => {
     expect(pinRow({ "w.yml": wf("a".repeat(40)) }).status).toBe("skip");
     expect(pinRow({ "w.yml": wf("main") }).status).toBe("skip");
     expect(pinRow({ "w.yml": wf("main"), "x.yml": wf("v1.0.0") }).status).toBe("warn");
+  });
+
+  test("a workflow it cannot read is named in a warning", () => {
+    const repo = emptyRepo();
+    write(repo, { ".github/workflows/w.yml": wf("v1.9.0"), ".github/workflows/x.yml": wf("v1.9.0") });
+    const m = machine({}, {
+      fs: {
+        ...realDoctorFs,
+        read: (p: string) => {
+          if (p.endsWith("x.yml")) throw new Error("EACCES");
+          return readFileSync(p, "utf8");
+        },
+      },
+    });
+    const r = row(m.report({ repoDir: repo }), "workflow-pin");
+    expect(r.status).toBe("warn");
+    expect(r.evidence).toContain(".github/workflows/x.yml");
   });
 
   test("it never fails the run", () => {

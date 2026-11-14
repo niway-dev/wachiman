@@ -1,11 +1,11 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import type { GitRunner } from "../evidence";
 import type { InstallKind } from "../install-kind";
-import { parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
+import { makeRun, parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
 import { classifyRef, rewritePins } from "./pin";
 
 const scratch: string[] = [];
@@ -69,6 +69,19 @@ describe("planCliUpgrade", () => {
   });
 });
 
+describe("makeRun", () => {
+  test("asks for a shell on win32 only, so npm.cmd and bun.cmd resolve", () => {
+    const seen: Record<string, unknown>[] = [];
+    const spawn = (_c: string, _a: string[], o: Record<string, unknown>) => (seen.push(o), { status: 0 });
+    expect(makeRun("win32", spawn)("npm", ["install"])).toBe(0);
+    makeRun("darwin", spawn)("npm", ["install"]);
+    makeRun("linux", spawn)("bun", ["add"]);
+    expect(seen[0]).toMatchObject({ shell: true, stdio: "inherit" });
+    expect(seen[1]).not.toHaveProperty("shell");
+    expect(seen[2]).not.toHaveProperty("shell");
+  });
+});
+
 interface Rig {
   repo: string;
   out: string[];
@@ -125,6 +138,14 @@ describe("runUpgrade", () => {
     expect(r.runs).toEqual(["bun add -g wachiman@latest"]);
   });
 
+  test("a custom $BUN_INSTALL home runs bun, with either slash style", () => {
+    const at = (root: string): InstallKind => ({ kind: "npm", root });
+    expect(planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" })).toMatchObject({ command: "bun" });
+    expect(planCliUpgrade(at("D:\\tools\\bun\\install\\global\\node_modules\\wachiman"), "latest", { BUN_INSTALL: "D:\\tools\\bun\\" })).toMatchObject({ command: "bun" });
+    expect(planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", {})).toMatchObject({ command: "npm" });
+    expect(planCliUpgrade(at("/usr/lib/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" })).toMatchObject({ command: "npm" });
+  });
+
   test("--check reports both versions, installs nothing and writes nothing", () => {
     const a = caller("v1.2.0");
     const r = rig({ "a.yml": a });
@@ -163,8 +184,60 @@ describe("runUpgrade", () => {
     expect(r.go({}, { run: () => 1 })).toBe(1);
     expect(r.read("a.yml")).toBe(a);
     expect(r.out.join("")).toContain("not touched");
-    expect(r.go({ to: "v1.3.0" }, { run: () => 1 })).toBe(1);
+  });
+
+  test("a failed install with --to does not move the pins and says why; --repo-only --to still does", () => {
+    const a = caller("v1.0.0");
+    const r = rig({ "a.yml": a });
+    expect(r.go({ to: "v9.9.9" }, { run: () => 1 })).toBe(1);
+    expect(r.read("a.yml")).toBe(a);
+    expect(r.out.join("")).toContain("installing v9.9.9 failed");
+    expect(r.go({ to: "v1.3.0", repoOnly: true }, { run: () => 1 })).toBe(0);
     expect(r.read("a.yml")).toContain("@v1.3.0");
+  });
+
+  test("--check says an unparsable installed version cannot be compared", () => {
+    const r = rig({});
+    expect(r.go({ check: true }, { version: "dev" })).toBe(0);
+    const text = r.out.join("");
+    expect(text).toContain("cannot be compared");
+    expect(text).not.toContain("up to date");
+  });
+
+  test("an unreadable workflow file is named on stderr and makes the exit code 1, while readable files are still pinned", () => {
+    const r = rig({ "a.yml": caller("v1.0.0"), "b.yml": caller("v1.0.0") });
+    const fs = {
+      list: (p: string) => readdirSync(p),
+      read: (p: string) => {
+        if (p.endsWith("b.yml")) throw new Error("EACCES");
+        return readFileSync(p, "utf8");
+      },
+      write: (p: string, t: string) => writeFileSync(p, t),
+    };
+    expect(r.go({}, { fs })).toBe(1);
+    expect(r.read("a.yml")).toContain("@v1.3.0");
+    expect(r.read("b.yml")).toContain("@v1.0.0");
+    expect(r.err.join("\n")).toContain(".github/workflows/b.yml");
+  });
+
+  test("an unreadable workflows directory is reported and exits 1", () => {
+    const r = rig({ "a.yml": caller("v1.0.0") });
+    const fs = {
+      list: () => [],
+      listStrict: () => {
+        throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+      },
+      read: (p: string) => readFileSync(p, "utf8"),
+      write: () => {},
+    };
+    expect(r.go({}, { fs })).toBe(1);
+    expect(r.err.join("\n")).toContain(".github/workflows");
+  });
+
+  test("a missing workflows directory is not an error", () => {
+    const r = rig({});
+    rmSync(join(r.repo, ".github"), { recursive: true, force: true });
+    expect(r.go({})).toBe(0);
   });
 
   test("no registry answer and no --to changes nothing", () => {

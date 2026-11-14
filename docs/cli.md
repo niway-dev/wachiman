@@ -383,7 +383,7 @@ and confirmations to stderr; `--json` prints the document named below.
 | `project show [--json] [--repo-dir <dir>]` | The repository's key, its binding, and what `local` would use here now, with the rule and any ignored values. `--json` prints `wachiman.project/1` |
 | `project unbind [--repo-dir <dir>] [--yes]` | Removes this repository's binding |
 | `setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to a profile, prints exactly what it will write, asks `Bind <repo> to <name>?` (only on a terminal), then runs the `doctor` summary. On a terminal without `--profile` it is a wizard: see below |
-| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `settings`, `workflow-pin`, `history`, `skills`, `isolation`. The `workflow-pin` row reads the `uses: niway-dev/wachiman/.github/workflows/<name>.yml@<ref>` lines in `.github/workflows` (read-only): a release tag older than the installed CLI is a warning with the fix `wachiman upgrade --repo-only`, a tag that is not older is ok, a commit SHA or a branch is shown and never compared, and no Wachiman workflow (or no git repository) is skipped. It is optional. The `settings` row reads `.wachiman.yml` in the working tree (read-only: it never writes or moves anything) and reports its `kind`, `model` and `effort` and where the effective model and effort of a run come from (the environment, the file or the default); an invalid working copy is a required failure (runs read the file at the base commit or merge-base and ignore a broken one with a warning, so the fix takes effect once committed and merged), and an old `.github/wachiman.yml` is a warning: its fix is `mv .github/wachiman.yml .wachiman.yml`, or, when a root `.wachiman.yml` also exists, to merge the old file into it and remove the old one. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
+| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `settings`, `workflow-pin`, `history`, `skills`, `isolation`. The `workflow-pin` row reads the `uses: niway-dev/wachiman/.github/workflows/<name>.yml@<ref>` lines in `.github/workflows` (read-only): a release tag older than the installed CLI is a warning with the fix `wachiman upgrade --repo-only`, a tag that is not older is ok, a commit SHA or a branch is shown and never compared, a workflow file it cannot read is named in a warning, and no Wachiman workflow (or no git repository) is skipped. It is optional. The `settings` row reads `.wachiman.yml` in the working tree (read-only: it never writes or moves anything) and reports its `kind`, `model` and `effort` and where the effective model and effort of a run come from (the environment, the file or the default); an invalid working copy is a required failure (runs read the file at the base commit or merge-base and ignore a broken one with a warning, so the fix takes effect once committed and merged), and an old `.github/wachiman.yml` is a warning: its fix is `mv .github/wachiman.yml .wachiman.yml`, or, when a root `.wachiman.yml` also exists, to merge the old file into it and remove the old one. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
 
 `remove` and `unbind` ask before writing. Without a terminal (or with `CI` set) they need `--yes`;
 without it they exit 2. `setup` needs `--profile <name>` when it cannot ask (no terminal, `CI` is `true` or `1`
@@ -533,7 +533,8 @@ so a new release never reaches CI without a change you review. `upgrade` makes t
 
 1. **The CLI.** It reads the latest version with `npm view wachiman version`, then installs it with the package manager
    that owns the global install: `bun add -g wachiman@latest` when the package sits under `~/.bun/install/global`,
-   `npm install -g wachiman@latest` otherwise. The package manager runs with your terminal. A clone or a `wachiman-dev`
+   `npm install -g wachiman@latest` otherwise. A custom Bun home (`$BUN_INSTALL/install/global`) counts as bun. On
+   Windows the package manager is started through a shell so that `npm.cmd` and `bun.cmd` are found. The package manager runs with your terminal. A clone or a `wachiman-dev`
    build is never upgraded: the command says to `git pull` or run `scripts/dev-build.sh`. A CLI that is already on the
    latest version installs nothing.
 2. **The repository.** In the current git repository it rewrites the `@<tag>` of every such `uses:` line in
@@ -547,10 +548,18 @@ If step 1 is skipped (a clone) or fails, step 2 runs only when you pass `--to`; 
 - `--check` prints the installed and the latest version and changes nothing.
 - `--repo-only` skips step 1 and pins the installed version (or `--to`); use it after upgrading the CLI another way, or
   when `wachiman doctor` reports the `workflow-pin` row as older than the CLI.
-- `--to <version>` (`v1.2.3`) installs that release instead of the latest and pins it.
+- `--to <version>` (`v1.2.3`) installs that release instead of the latest and pins it. It never downgrades the
+  CLI: when the installed version is the same or newer, nothing is installed and only the pins move to the version
+  you named (a pin newer than it is still never moved down). If the install fails, for example for a version that
+  does not exist, the pins stay where they were and the exit code is 1; with `--repo-only --to` no install is
+  attempted and the pins move.
 
-Exit codes: 0 done, nothing to do, or a clone that was not upgraded; 1 the package manager failed or a version could not
-be read; 2 a usage error.
+A workflow file that cannot be read, or an unreadable `.github/workflows` directory, is listed on stderr and gives exit
+code 1, because its pin was not checked. `--check` says so when the installed version is not a release version and
+cannot be compared.
+
+Exit codes: 0 done, nothing to do, or a clone that was not upgraded; 1 the package manager failed, a version could not
+be read, or a workflow file could not be read; 2 a usage error.
 
 ### `skills`
 

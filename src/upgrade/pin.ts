@@ -61,9 +61,12 @@ export function rewritePins(text: string, target: string): { text: string; outco
   return { text: next, outcomes };
 }
 
-/** The slice of a file system the scan needs; `DoctorFs` has both functions. */
+/** The slice of a file system the scan needs; `DoctorFs` has all of it. */
 export interface PinFs {
+  /** Names in a directory; empty when it cannot be listed. */
   list: (path: string) => string[];
+  /** Like `list`, but throws when the directory exists and cannot be read; a missing one still throws ENOENT. */
+  listStrict?: (path: string) => string[];
   read: (path: string) => string;
 }
 
@@ -73,19 +76,37 @@ export interface FilePins {
   refs: string[];
 }
 
+export interface WorkflowScan {
+  files: FilePins[];
+  /** Workflow files that exist but could not be read; their pins are unknown. */
+  unreadable: string[];
+  /** Set when `.github/workflows` exists but could not be listed. */
+  unreadableDir?: string;
+}
+
 /** Workflow files at the top of `.github/workflows` that call a Wachiman reusable workflow. */
-export function scanWorkflows(root: string, fs: PinFs): FilePins[] {
+export function scanWorkflows(root: string, fs: PinFs): WorkflowScan {
   const dir = `${root.replace(/[\\/]+$/, "")}/${WORKFLOWS_DIR}`;
-  const found: FilePins[] = [];
-  for (const name of fs.list(dir).filter((n) => /\.ya?ml$/.test(n)).sort()) {
+  const files: FilePins[] = [];
+  const unreadable: string[] = [];
+  let names: string[];
+  try {
+    names = (fs.listStrict ?? fs.list)(dir);
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return { files, unreadable };
+    return { files, unreadable, unreadableDir: WORKFLOWS_DIR };
+  }
+  for (const name of names.filter((n) => /\.ya?ml$/.test(n)).sort()) {
     let text: string;
     try {
       text = fs.read(`${dir}/${name}`);
     } catch {
+      unreadable.push(`${WORKFLOWS_DIR}/${name}`);
       continue;
     }
     const refs = readPins(text);
-    if (refs.length > 0) found.push({ file: `${WORKFLOWS_DIR}/${name}`, refs });
+    if (refs.length > 0) files.push({ file: `${WORKFLOWS_DIR}/${name}`, refs });
   }
-  return found;
+  return { files, unreadable };
 }
