@@ -454,6 +454,16 @@ describe("setup: creating a managed profile", () => {
     expect(w.config()!.projects[w.key].profile).toBe("isolated");
   });
 
+  test("a name typed with the claude- prefix is refused with the name to type, so the directory is never claude-claude-<name>", async () => {
+    const w = world();
+    const dir = join(w.home, "claude-isolated");
+    const { io, run } = setup(w, [], ["", "4", "claude-isolated", "isolated", ""]); // set up? / create / name (refused) / name / create dir?
+    expect(await run).toBe(0);
+    expect(io.printed()).toContain(`type "isolated" for ${dir}`);
+    expect(w.config()!.profiles.isolated).toMatchObject({ kind: "managed", configDir: dir });
+    expect(io.printed()).not.toContain("claude-claude-");
+  });
+
   test("declining the side effect returns to the list: nothing is created or launched", async () => {
     const w = world();
     const before = w.configText();
