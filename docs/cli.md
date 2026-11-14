@@ -291,13 +291,20 @@ history turned on, result `/2` and a stop rule. The CLI never edits code: an age
 wachiman loop --base main --repo-dir ~/src/app   # starts a loop; round 1 reviews the whole range
 wachiman loop --repo-dir ~/src/app               # continues it: reviews only the commits since the last round
 wachiman loop --max-rounds 5 --format json
+wachiman loop --format markdown                  # the round runs, then the summary comment is printed
+wachiman loop --summary                          # prints the summary of the open loop; no round, no model call
+wachiman loop --summary --publish --agent "Claude Code"   # posts it on the branch's pull request
 ```
 
 - **State** is kept per branch beside the history (`~/.wachiman/history/<repo>/loops/`): the base,
-  the head of each round and the findings seen. `--base` always starts a new loop; `--history
-  --forget` removes the state with the history.
-- **Flags:** `--base`, `--max-rounds <n>` (default 3), `--max-depth`, `--format terminal|json`,
-  `--profile`, `--verify|--no-verify`, `--repo-dir`. It takes no paths, `--commit` or `--from`.
+  the head of each round, the findings seen, and per round what its review reported about itself
+  (the range it read, the Wachiman version, the reviewer and verifier models, the API-equivalent
+  cost, the time and the number of findings). The format is `wachiman.loop-state/2`; a `/1` state
+  still reads, its rounds show `not recorded`, and the next round writes it back as `/2`. `--base`
+  always starts a new loop; `--history --forget` removes the state with the history.
+- **Flags:** `--base`, `--max-rounds <n>` (default 3), `--max-depth`, `--format terminal|json|markdown`,
+  `--profile`, `--verify|--no-verify`, `--repo-dir`, and the summary flags below. It takes no paths,
+  `--commit` or `--from`.
 - **The loop stays open** while a 🔴 Blocker or 🟠 Fix is new, open or not-repeated, not refuted by
   the verifier and not judged `wrong` with a reason (`wachiman history --verdict <id> wrong
   --reason "<why>"`). The loop decides from each round's own result and the code, not from the
@@ -312,6 +319,27 @@ wachiman loop --max-rounds 5 --format json
   `wachiman.loop-round/1`.
 - A converged loop has read the whole range once and the fix commits after it; the outcome says so.
   A stop is never an approval.
+- **The summary comment** ([ADR 0054](adr/0054-the-loop-records-each-round-and-renders-a-review-summary-comment-from-code.md)):
+  a "Review summary — local" table (reviewer versions, models, rounds against the budget, findings
+  fixed / declined / open, the range reviewed, the cost and time), the findings that need a person's
+  judgment, and a collapsed list of every round and finding. Code writes it, never an agent, so
+  the numbers and ranges are exactly what the state holds. It starts with the marker
+  `<!-- wachiman-review-summary:local -->`.
+  - `--format markdown` runs the round and prints the summary instead of the round report; the
+    outcome line goes to stderr and the exit code is the round's.
+  - `--summary` prints the summary of the open (or converged) loop and runs no round, no model call
+    and writes nothing. It takes no `--base`, `--max-rounds`, `--max-depth`, `--profile` or
+    `--verify`.
+  - `--agent <name>` (or `WACHIMAN_AGENT`) says an agent posts it: `Posted by an agent (<name>)`;
+    without it the row reads `Posted by the user`.
+  - **Nothing is published by default.** `--publish` finds the open pull request whose head is the
+    current branch with `gh`, then creates the summary comment, or edits in place the comment the
+    signed-in account already posted with the marker. It acts as whichever account `gh` is
+    signed in with. A failure is said on stderr and never changes the round's exit code (with
+    `--summary` it is exit 1). `--no-publish` turns a configured publish off for one call.
+  - To publish after every call, set `publishLoopSummary: true` in
+    [`.wachiman.yml`](configuration.md#the-settings-file-wachimanyml). It is read at the merge-base
+    of the loop's `--base`, never from the branch under review.
 
 Exit codes: 0 converged; 10 findings still open; 11 stopped without converging (`round cap`, or
 `review failed` after the review call failed twice); 2 a usage error (no loop open, detached HEAD, an

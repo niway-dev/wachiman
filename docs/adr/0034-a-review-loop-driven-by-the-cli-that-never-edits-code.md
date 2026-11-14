@@ -9,6 +9,8 @@
   [ADR 0030](0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)
   (result `/2`).
 - **Date:** 2026-11-11
+- **Amended by:** [ADR 0054](0054-the-loop-records-each-round-and-renders-a-review-summary-comment-from-code.md)
+  (per-round data in the state, state format `/2`, the summary comment and its opt-in publishing).
 - **Spec:** [PR Confidence, a review loop and a local store](../specs/2026-11-11-pr-confidence-review-loop-and-local-store-design.md)
 - **Issue:** #181
 - **Numbering:** see ADR 0033.

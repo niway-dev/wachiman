@@ -26,6 +26,30 @@ env -u ANTHROPIC_API_KEY wachiman loop --repo-dir <clone> --base <ref> --format 
   commits made since the previous round. **Commit your fix first**; uncommitted work is not reviewed.
 - Three rounds by default. Raise `--max-rounds` only when the developer says so.
 
+## The summary comment
+
+The CLI writes the "Review summary — local" comment from its own record of each round (range,
+version, models, cost, findings). **You never write or edit that table by hand**: a hand-kept table
+drifts (a loop run by hand once used fix commits as round bases and left its fixes unreviewed). You
+only ask the CLI to publish it, and say which agent you are:
+
+```sh
+env -u ANTHROPIC_API_KEY wachiman loop --repo-dir <clone> --summary --publish --agent "<your name>"
+```
+
+- **Run the loop before you open the pull request**, so the review is behind the branch from its first push.
+- **Right after the pull request opens, publish the summary** with the command above, so it is the pull
+  request's first comment. `--publish` needs an open pull request whose head is the branch.
+- **After each later round, publish again.** The same command edits that comment in place; it never
+  adds a second one. (`--publish` also works on a round call: `wachiman loop --publish --agent "<name>"`.)
+- `--summary` alone, or `--format markdown`, only prints it. Use that to show the developer the
+  summary before anything is posted if they ask.
+- If the repository's `.wachiman.yml` sets `publishLoopSummary: true`, Wachiman publishes after every
+  call by itself: do not publish again by hand.
+- The comment is posted as the account `gh` is signed in with. If `gh` is not signed in, or the
+  publish fails, stderr says why and the exit code of the round is unchanged: report it to the developer
+  and do not work around it with `gh pr comment`.
+
 ## Read the exit code first
 
 | Exit | Meaning | You do |
@@ -77,6 +101,8 @@ Tell the developer, in this order:
    you. Also name the findings released as `probably-fixed`: that is inferred from the code
    changing, not proved.
 4. The `notes[]`, one line each, as optional.
+5. Whether the summary comment was published (the URL is on stderr, `loop: summary created on ...`) or
+   not, and why not.
 
 ## Never
 
@@ -85,7 +111,8 @@ Tell the developer, in this order:
 | Editing code inside the CLI, or asking it to apply a fix | You edit and commit; the CLI only reviews |
 | Marking findings `wrong` until exit 0 | Fix the true ones; give a checked reason for the false ones; ask when unsure |
 | Calling again after exit 11 to "try once more" | Report the stop; the developer decides |
-| Running `wachiman review <pr>`, `gh` or a GitHub token | `loop` is local; nothing is posted |
+| Running `wachiman review <pr>`, `gh` or a GitHub token | `loop` is local; nothing is posted unless you ask for `--publish` |
+| Writing the summary table yourself, or posting it with `gh pr comment` | `wachiman loop --summary --publish`; the CLI writes it and edits it in place |
 | Running with `ANTHROPIC_API_KEY` set | `env -u ANTHROPIC_API_KEY wachiman loop ...`; the subscription pays |
 | Editing files under `~/.wachiman` to reset or close a loop | `--base <ref>` starts a new loop |
 | Claiming the branch is approved or safe | Report the outcome and its limits |
