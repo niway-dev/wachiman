@@ -35,7 +35,7 @@ picks which optional sections it uses and may add its own, within limits Wachima
    ones, add custom sections, and a `preamble` of its own lines. Without the file it gets the
    default.
 4. **Some sections are locked**: the Risk status row, `## Needs you`, the Wachiman block and the
-   footer. A repository JSON that drops one is rejected.
+   footer. A repository JSON that drops one is a configuration error (exit 2) in every command.
 5. **The checker is a TypeScript port of the Python one.** Its fixed lists become catalog entries,
    its rule codes stay, and its test cases become fixtures the port must pass. Its risk rules are
    ported literally, including `.github/pr-risk.toml`; the engine's `RISK_RULES` stay as they are.

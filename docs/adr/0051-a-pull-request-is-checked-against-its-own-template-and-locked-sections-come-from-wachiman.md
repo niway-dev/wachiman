@@ -30,7 +30,9 @@ in PRs opened after the merge
    row, `## Needs you`, the Wachiman block and the footer are required whatever the JSON says, and
    the risk floor is computed by Wachiman's rules plus `.github/pr-risk.toml` from the base commit,
    where patterns can only raise the level.
-3. **When the PR changes `.github/pr-template.json`, the output says so** in its first line:
+3. **An invalid head JSON fails the check** with exit 2: one that does not parse, names an unknown
+   section, or drops a locked one. The check never falls back to the base or the default.
+4. **When the PR changes `.github/pr-template.json`, the output says so** in its first line:
    `checked against the template in this pull request`, followed by what the base version would
    have reported differently.
 
@@ -51,8 +53,8 @@ in PRs opened after the merge
 
 ## Non-goals
 
-- Model, effort or spend settings. Those keep the base-commit rule (ADR 0006 and the settings-file
-  work in open PR [#234](https://github.com/niway-dev/wachiman/pull/234)).
+- Model, effort or spend settings. Those keep the base-commit rule (ADR 0006, and ADR 0049 in open
+  PR [#234](https://github.com/niway-dev/wachiman/pull/234)).
 
 ## Reopen if
 
