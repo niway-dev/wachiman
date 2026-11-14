@@ -97,7 +97,7 @@ export function writeManagedFile(p: {
       try {
         mkdirSync(dirname(base), { recursive: true });
       } catch (error) {
-        throw new UsageError(`Cannot create the backup directory ${dirname(base)} (${(error as NodeJS.ErrnoException).code ?? "error"}); nothing was written.`);
+        throw new UsageError(`Cannot create the backup directory ${dirname(base)} (${(error as NodeJS.ErrnoException).code ?? "error"}); the template was not replaced.`);
       }
     }
     for (let n = 1; backup === undefined; n++) {
