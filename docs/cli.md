@@ -592,7 +592,7 @@ code 1, because its pin was not checked. `--check` says so when the installed ve
 cannot be compared.
 
 Exit codes: 0 done, nothing to do, or a clone that was not upgraded; 1 the package manager failed, a version could not
-be read, or a workflow file could not be read; 2 a usage error.
+be read, or a workflow file could not be read or written; 2 a usage error.
 
 ### `skills`
 
