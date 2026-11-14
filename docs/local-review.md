@@ -429,7 +429,7 @@ of those rows is unconfirmed.
 | You see | Why, and what to do |
 | --- | --- |
 | `ANTHROPIC_API_KEY is set. The local review runs on your signed-in claude; …` (exit 2) | The key would bill instead of your subscription. `unset ANTHROPIC_API_KEY` for the run, or use the GitHub mode |
-| `stop: error — the provider refused the call (auth): Not logged in · Please run /login` (exit 1) | The profile is not signed in. Run `claude` and `/login` for `default`, or `wachiman profile login <name>` for another profile; `wachiman doctor` shows which one is in use |
+| `stop: error — the provider refused the call (auth): Not logged in · Please run /login` (exit 1) | The profile is not signed in. Run `claude auth login` for `default` (if your `claude` is a shell alias or function that sets `CLAUDE_CONFIG_DIR`, register that directory with `wachiman profile add <name> --config-dir <dir>`), or `wachiman profile login <name>` for another profile; `wachiman doctor` shows which one is in use |
 | `` `main` and HEAD have no common ancestor `` (exit 2) | The base is unrelated history. Pass the right `--base` |
 | `No base branch found; pass --base <ref>` (exit 2) | No `origin/HEAD` and no `main`. Pass `--base`, or run `git remote set-head origin --auto` |
 | `HEAD is on main, which is the base: there is no branch to review. …` (exit 2) | You are on the base branch, or on a branch with no commit past it. Check out your branch, or pass `--base <commit>` to review from that commit |
