@@ -25,7 +25,7 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
 | --- | --- | --- | --- |
 | 1 | A detector reads the repository's formatter and linter configs and where they are enforced (hooks, scripts, CI) | Both later steps need the same facts; reading files is free and deterministic | — |
 | 2 | `wachiman local` runs the detected tools in check mode on the changed files, from the checkout's root with its own `node_modules/.bin`; nothing is fetched | A real check is the only reliable answer; no network, no new dependency | 0053 (new) |
-| 3 | Tools run by default only on the developer's own work: a working-tree review, or a range whose commits are all authored by the configured `user.email`. Otherwise `--run-tooling` is needed | Running a repository's tools runs its code (configs, plugins, local rules); that is consent the developer gives for their own branch, not for someone else's | 0053 (new) |
+| 3 | Tools run by default only on the developer's own work: every commit between the base and `HEAD` authored by the configured `user.email`, for ranges and working-tree reviews alike. Otherwise `--run-tooling` is needed | Running a repository's tools runs its code (configs, plugins, local rules); that is consent the developer gives for their own branch, not for someone else's | 0053 (new) |
 | 4 | A formatter failure is a `fix` finding, topic `rules`, on line 0 of the file, with the exact fix command; linters report errors only, and only on lines the change added | It breaks the hook or CI, so it is not style; old warnings are not the change's fault | — |
 | 5 | `--fix-format` runs the formatter's write mode on the files that failed, in the working tree, and never commits; linters are never auto-fixed; `loop` never sets it | The owner asked for a self-fix; formatter output is mechanical and safe to apply, linter fixes can change behaviour | 0053 (new) |
 | 6 | Actions: the prompt gets an "enforced tooling" section, and the rule becomes "skip what the formatter fixes silently; report a file the enforced formatter would reject" | The model cannot run the tool there, but it can know the tool exists | — |
@@ -156,8 +156,8 @@ Running a repository's formatter or linter runs code from that repository: ESLin
 JavaScript, a JSON `.prettierrc` or `.oxlintrc.json` can name plugins that load JavaScript, and a
 JavaScript config can import any local rule file. A rule keyed on "the config file did not change"
 misses a changed plugin or rule file it imports, so this spec does not try to decide which files are
-code. It keys on whose work it is instead. On the developer's own commits, or their uncommitted
-edits, the tools are the ones their hooks already run on commit and push. A range with commits by
+code. It keys on whose work it is instead. On a branch whose commits are all the developer's own, the
+tools are the ones their hooks already run on commit and push. A range with commits by
 anyone else needs `--run-tooling`, a deliberate choice the summary names. Authorship comes from
 the commits' author email, which a hostile branch can forge; the rule protects against reviewing a
 colleague's branch by accident, not against a forged author, and the docs page says so.
