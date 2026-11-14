@@ -393,7 +393,8 @@ export const CHECKS: DoctorCheck[] = [
         }
       }
       const effective = effectiveSettings(env, settings);
-      const from = (s: { value: string; source: string }) => `${s.value} (${s.source === "file" ? `from ${SETTINGS_PATH}` : s.source === "env" ? "from the environment" : "default"})`;
+      const from = (s: { value: string; source: string; skipped?: string }) =>
+        `${s.value} (${s.source === "file" ? `from ${SETTINGS_PATH}` : s.source === "env" ? "from the environment" : s.skipped !== undefined ? `default; the model "${settings?.model}" in ${SETTINGS_PATH} is skipped: ${s.skipped}` : "default"})`;
       const read = hasFile ? `${SETTINGS_PATH}: kind ${settings?.kind ?? "not set"}, model ${settings?.model ?? "not set"}, effort ${settings?.effort ?? "not set"}` : `no ${SETTINGS_PATH}`;
       const detail = {
         file: hasFile ? file : null,
@@ -403,6 +404,7 @@ export const CHECKS: DoctorCheck[] = [
         effort: settings?.effort ?? null,
         effectiveModel: effective.model.value,
         modelFrom: effective.model.source,
+        modelSkipped: effective.model.skipped ?? null,
         effectiveEffort: effective.effort.value,
         effortFrom: effective.effort.source,
         uncommitted: settingsUncommitted === true,

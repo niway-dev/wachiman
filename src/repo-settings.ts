@@ -72,8 +72,21 @@ export const ignoredSettingsNote = (reason: string, where: string) => `ignored $
 
 const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 200);
 
-/** Whether Wachiman knows `model` as a Claude one: its id names a family in the measured cost table (`PER_BATCH_USD`). */
-export const isKnownClaudeModel = (model: string) => Object.keys(PER_BATCH_USD).some((family) => model.toLowerCase().includes(family));
+const FAMILIES = Object.keys(PER_BATCH_USD);
+const CLAUDE_ID = new RegExp(`^(claude-)?(${FAMILIES.join("|")})(-|$)`);
+
+/**
+ * Whether Wachiman knows `model` as a Claude one: its id has the shape of Claude's own
+ * (`claude-sonnet-5-5`) or is a bare family alias (`sonnet`), for a family in the measured cost
+ * table (`PER_BATCH_USD`). A substring would let `my-sonnet-proxy` through.
+ */
+export const isKnownClaudeModel = (model: string) => CLAUDE_ID.test(model.toLowerCase());
+
+/** Why a file model is skipped on this provider, or undefined when it applies. Shared by runs and `wachiman doctor`. */
+export function skippedFileModel(provider: string, model: string): string | undefined {
+  if (provider !== "claude-code" || isKnownClaudeModel(model)) return undefined;
+  return `not a Claude model Wachiman knows (its id is not claude-<${FAMILIES.join("|")}>-...)`;
+}
 
 /**
  * `config` with the file's `model` and `effort` where nothing explicit set them: a value that came
@@ -85,8 +98,9 @@ export const isKnownClaudeModel = (model: string) => Object.keys(PER_BATCH_USD).
 export function applyRepoSettings(config: EngineConfig, settings: RepoSettings, opts: { where: string; warn: (line: string) => void }): EngineConfig {
   const next = { ...config };
   if (config.modelSource === "default" && settings.model !== undefined) {
-    if (config.provider === "claude-code" && !isKnownClaudeModel(settings.model)) {
-      opts.warn(`ignored model "${settings.model}" from ${SETTINGS_PATH} at ${opts.where}: not a Claude model Wachiman knows (its id names none of ${Object.keys(PER_BATCH_USD).join(", ")}); using ${config.model}`);
+    const skipped = skippedFileModel(config.provider, settings.model);
+    if (skipped !== undefined) {
+      opts.warn(`ignored model "${settings.model}" from ${SETTINGS_PATH} at ${opts.where}: ${skipped}; using ${config.model}`);
     } else {
       next.model = settings.model;
       next.modelSource = "file";
@@ -115,6 +129,8 @@ export function fileSettingsNote(config: Pick<EngineConfig, "model" | "modelSour
 export interface EffectiveSetting {
   value: string;
   source: SettingSource;
+  /** Set when the file's model was skipped (a run would ignore it); `value` is then the default. */
+  skipped?: string;
 }
 
 /**
@@ -130,8 +146,14 @@ export function effectiveSettings(
   const model = first("WACHIMAN_MODEL", "CLAUDE_REVIEW_MODEL");
   const effort = first("WACHIMAN_EFFORT", "CLAUDE_REVIEW_EFFORT", "WACHIMAN_REASONING_EFFORT", "CLAUDE_REVIEW_REASONING_EFFORT");
   const defaultModel = DEFAULT_MODELS[provider as keyof typeof DEFAULT_MODELS] ?? DEFAULT_MODELS["claude-code"];
+  const skipped = settings?.model !== undefined ? skippedFileModel(provider, settings.model) : undefined;
   return {
-    model: model !== undefined ? { value: model, source: "env" } : settings?.model !== undefined ? { value: settings.model, source: "file" } : { value: defaultModel, source: "default" },
+    model:
+      model !== undefined
+        ? { value: model, source: "env" }
+        : settings?.model !== undefined && skipped === undefined
+          ? { value: settings.model, source: "file" }
+          : { value: defaultModel, source: "default", ...(skipped !== undefined ? { skipped } : {}) },
     effort: effort !== undefined ? { value: effort, source: "env" } : settings?.effort !== undefined ? { value: settings.effort, source: "file" } : { value: DEFAULT_EFFORT, source: "default" },
   };
 }

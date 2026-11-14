@@ -44,35 +44,76 @@ describe("parseRepoSettings", () => {
   });
 });
 
+const warnings: string[] = [];
+const opts = () => {
+  warnings.length = 0;
+  return { where: "the base commit bbbbbbb", warn: (line: string) => void warnings.push(line) };
+};
+
+describe("an unknown model on Claude Code", () => {
+  test("a known Claude model is applied", () => {
+    const config = applyRepoSettings(loadConfig({}), { model: "claude-haiku-5-5" }, opts());
+    expect(config).toMatchObject({ model: "claude-haiku-5-5", modelSource: "file" });
+    expect(warnings).toEqual([]);
+  });
+
+  test.each(["my-sonnet-proxy", "gpt-6.1-sol", "llama-3"])("%p is skipped with a warning and the default stays", (model) => {
+    const config = applyRepoSettings(loadConfig({}), { model, effort: "low" }, opts());
+    expect(config).toMatchObject({ model: "claude-sonnet-5-5", modelSource: "default", effort: "low", effortSource: "file" });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(`ignored model "${model}" from .wachiman.yml at the base commit bbbbbbb`);
+    expect(warnings[0]).toContain("using claude-sonnet-5-5");
+  });
+
+  test("an explicit model is untouched and nothing is warned", () => {
+    const config = applyRepoSettings(loadConfig({ WACHIMAN_MODEL: "my-proxy" }), { model: "llama-3" }, opts());
+    expect(config).toMatchObject({ model: "my-proxy", modelSource: "env" });
+    expect(warnings).toEqual([]);
+  });
+
+  test("on Codex the file model is applied; its own preflight checks it", () => {
+    const config = applyRepoSettings(loadConfig({ WACHIMAN_PROVIDER: "codex" }), { model: "gpt-6.1-sol" }, opts());
+    expect(config).toMatchObject({ model: "gpt-6.1-sol" });
+    expect(warnings).toEqual([]);
+  });
+
+  test("doctor reports the default, with the reason, for the same skipped model", () => {
+    expect(effectiveSettings({}, { model: "my-sonnet-proxy" }).model).toMatchObject({ value: "claude-sonnet-5-5", source: "default" });
+    expect(effectiveSettings({}, { model: "my-sonnet-proxy" }).model.skipped).toContain("not a Claude model");
+    expect(effectiveSettings({}, { model: "claude-opus-5-5" }).model).toEqual({ value: "claude-opus-5-5", source: "file" });
+    expect(effectiveSettings({ WACHIMAN_PROVIDER: "codex" }, { model: "gpt-x" }).model).toEqual({ value: "gpt-x", source: "file" });
+  });
+});
+
 describe("precedence: an explicit value beats the file, the file beats the default", () => {
   const file = { model: "claude-opus-5-5", effort: "low" as const };
 
   test("nothing explicit: the file's values apply and are marked as from the file", () => {
-    const config = applyRepoSettings(loadConfig({}), file);
+    const config = applyRepoSettings(loadConfig({}), file, opts());
     expect(config).toMatchObject({ model: "claude-opus-5-5", modelSource: "file", effort: "low", effortSource: "file" });
     expect(fileSettingsNote(config, "the base commit bbbbbbb")).toBe("model claude-opus-5-5, effort low from .wachiman.yml at the base commit bbbbbbb");
   });
 
   test("an explicit WACHIMAN_MODEL and WACHIMAN_EFFORT win over the file", () => {
-    const config = applyRepoSettings(loadConfig({ WACHIMAN_MODEL: "claude-haiku-5-5", WACHIMAN_EFFORT: "max" }), file);
+    const config = applyRepoSettings(loadConfig({ WACHIMAN_MODEL: "claude-haiku-5-5", WACHIMAN_EFFORT: "max" }), file, opts());
     expect(config).toMatchObject({ model: "claude-haiku-5-5", modelSource: "env", effort: "max", effortSource: "env" });
     expect(fileSettingsNote(config, "x")).toBeUndefined();
     expect(wantsRepoSettings(config)).toBe(false);
   });
 
   test("each setting is decided on its own", () => {
-    const config = applyRepoSettings(loadConfig({ WACHIMAN_EFFORT: "medium" }), file);
+    const config = applyRepoSettings(loadConfig({ WACHIMAN_EFFORT: "medium" }), file, opts());
     expect(config).toMatchObject({ model: "claude-opus-5-5", modelSource: "file", effort: "medium", effortSource: "env" });
   });
 
   test("an empty workflow input counts as not set, so the file applies", () => {
     const loaded = loadConfig({ WACHIMAN_MODEL: "", WACHIMAN_EFFORT: "" });
     expect(loaded).toMatchObject({ modelSource: "default", effortSource: "default", model: "claude-sonnet-5-5", effort: "high" });
-    expect(applyRepoSettings(loaded, file)).toMatchObject({ model: "claude-opus-5-5", effort: "low" });
+    expect(applyRepoSettings(loaded, file, opts())).toMatchObject({ model: "claude-opus-5-5", effort: "low" });
   });
 
   test("a file with no model or effort leaves the defaults, marked as defaults", () => {
-    expect(applyRepoSettings(loadConfig({}), { kind: "single" })).toMatchObject({ model: "claude-sonnet-5-5", modelSource: "default", effort: "high", effortSource: "default" });
+    expect(applyRepoSettings(loadConfig({}), { kind: "single" }, opts())).toMatchObject({ model: "claude-sonnet-5-5", modelSource: "default", effort: "high", effortSource: "default" });
   });
 
   test("doctor's view of the same rule", () => {

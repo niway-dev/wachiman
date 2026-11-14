@@ -39,15 +39,19 @@ effort is a larger bill on the owner's key, and a pull request can edit any file
    the merge-base (local), is ignored with one warning in the job log or on stderr (`ignored
    .wachiman.yml at the base commit <sha>: <reason>; using defaults`), and the run continues on the
    environment and the built-in defaults. The pull request that fixes the file is itself reviewed
-   under the defaults, never stopped by the file it fixes. `wachiman doctor` is where the broken
-   file is a failure. A missing file is not an error. When both values are already explicit the
+   under the defaults, never stopped by the file it fixes. `wachiman doctor` warns about a broken
+   working copy and never fails because of it. On Claude Code a `model` that is not a Claude id
+   (`claude-sonnet-…`, `claude-opus-…`, `claude-haiku-…`, or a bare family alias) is skipped the same
+   way, with a warning, because Claude Code's preflight never checks the model and every batch would
+   fail; Codex checks its own price table. A missing file is not an error. When both values are already explicit the
    file is not read at all.
 6. **The run says where a value came from.** One log line in Actions (`settings: model …, effort …
    from .wachiman.yml at the base commit …`), one on stderr locally, and `(from .wachiman.yml)` in the
    last line of a local terminal or Markdown report. The posted review footer is unchanged.
 7. **`wachiman doctor` gets a read-only `settings` row**: the file's `kind`, `model` and `effort`,
-   where the effective model and effort would come from, and a required failure when the working
-   copy of the file is invalid (it says runs read the file at the base commit or merge-base, so the
+   where the effective model and effort would come from (the default, with the reason, when the
+   model is skipped as unknown), and an optional warning, never a failure, when the working copy
+   of the file is invalid (it says runs read the file at the base commit or merge-base, so the
    fix takes effect once committed and merged). It also warns about an old `.github/wachiman.yml`:
    when no root `.wachiman.yml` exists the fix is `mv .github/wachiman.yml .wachiman.yml`; when
    both exist the fix is to merge the old file into the root one, then remove it. Doctor never
@@ -84,7 +88,7 @@ effort is a larger bill on the owner's key, and a pull request can edit any file
 - A bad `.wachiman.yml` at the base does not stop anything: runs warn, use the defaults and carry
   on, so the fixing pull request is reviewable. The cost is that a typo in `effort` is only a
   warning in a log nobody may read, and the repository reviews under the defaults until the fix
-  merges; `doctor` reports the working copy as a failure.
+  merges; `doctor` warns about the working copy.
 
 ## Non-goals
 
