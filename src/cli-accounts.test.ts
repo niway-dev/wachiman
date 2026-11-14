@@ -116,7 +116,7 @@ describe("account commands through the CLI", () => {
     expect(ok.code).toBe(0);
     const report = JSON.parse(ok.stdout);
     expect(report.checks.map((r: { id: string }) => r.id)).toEqual([
-      "wachiman", "bun", "git", "tar", "config", "profile", "auth", "environment", "project", "settings", "history", "skills", "isolation",
+      "wachiman", "bun", "git", "tar", "config", "profile", "auth", "environment", "project", "settings", "workflow-pin", "history", "skills", "isolation",
     ]);
     expect(report.checks.find((r: { id: string }) => r.id === "auth")).toMatchObject({ status: "ok", detail: { networkObserved: "unknown" } });
     expect(report).toMatchObject({ format: "wachiman.doctor/1", exitCode: 0, failedRequired: 0 });

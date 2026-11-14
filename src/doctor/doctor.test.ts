@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
@@ -8,7 +8,7 @@ import { fakeToolchain, signedIn, type RecordedCall, type Tools } from "../../te
 import { emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
 import { buildDoctorReport, parseDoctorArgs, runDoctor, type DoctorDeps } from "./run";
 import { redactReport, renderJson, renderText } from "./render";
-import { tierOf, type DoctorReport, type DoctorRow } from "./checks";
+import { realDoctorFs, tierOf, type DoctorReport, type DoctorRow } from "./checks";
 
 const scratch: string[] = [];
 const temp = (prefix: string) => {
@@ -21,7 +21,7 @@ afterAll(() => {
   removeTempRepos();
 });
 
-const ROWS = ["wachiman", "bun", "git", "tar", "config", "profile", "auth", "environment", "project", "settings", "history", "skills", "isolation"];
+const ROWS = ["wachiman", "bun", "git", "tar", "config", "profile", "auth", "environment", "project", "settings", "workflow-pin", "history", "skills", "isolation"];
 
 interface Machine {
   home: string;
@@ -471,5 +471,56 @@ describe("tiers and text output", () => {
     const parsed = JSON.parse(out.join(""));
     expect(parsed.exitCode).toBe(1);
     expect(parsed.checks.map((r: DoctorRow) => r.id)).toEqual(ROWS);
+  });
+});
+
+describe("workflow-pin row", () => {
+  const wf = (ref: string) => `jobs:\n  r:\n    uses: niway-dev/wachiman/.github/workflows/review.yml@${ref}\n`;
+  const pinRow = (files: Record<string, string> | undefined) => {
+    const m = machine();
+    const repo = files ? emptyRepo() : temp("wachiman-nogit-");
+    if (files) write(repo, Object.fromEntries(Object.entries(files).map(([n, t]) => [`.github/workflows/${n}`, t])));
+    return row(m.report({ repoDir: repo }), "workflow-pin");
+  };
+
+  test("skips outside a repository and when no workflow calls Wachiman", () => {
+    expect(pinRow(undefined)).toMatchObject({ level: "optional", status: "skip" });
+    expect(pinRow({ "ci.yml": "name: ci\n" }).status).toBe("skip");
+  });
+
+  test("an older tag warns with the repo-only fix; equal and newer are ok", () => {
+    expect(pinRow({ "w.yml": wf("v1.8.0") })).toMatchObject({ status: "warn", fix: "wachiman upgrade --repo-only" });
+    expect(pinRow({ "w.yml": wf("v1.9.0") }).status).toBe("ok");
+    expect(pinRow({ "w.yml": wf("v1.10.0") }).status).toBe("ok");
+  });
+
+  test("a SHA or branch alone is informational; beside an older tag the warning stays", () => {
+    expect(pinRow({ "w.yml": wf("a".repeat(40)) }).status).toBe("skip");
+    expect(pinRow({ "w.yml": wf("main") }).status).toBe("skip");
+    expect(pinRow({ "w.yml": wf("main"), "x.yml": wf("v1.0.0") }).status).toBe("warn");
+  });
+
+  test("a workflow it cannot read is named in a warning", () => {
+    const repo = emptyRepo();
+    write(repo, { ".github/workflows/w.yml": wf("v1.9.0"), ".github/workflows/x.yml": wf("v1.9.0") });
+    const m = machine({}, {
+      fs: {
+        ...realDoctorFs,
+        read: (p: string) => {
+          if (p.endsWith("x.yml")) throw new Error("EACCES");
+          return readFileSync(p, "utf8");
+        },
+      },
+    });
+    const r = row(m.report({ repoDir: repo }), "workflow-pin");
+    expect(r.status).toBe("warn");
+    expect(r.evidence).toContain(".github/workflows/x.yml");
+  });
+
+  test("it never fails the run", () => {
+    const m = machine();
+    const repo = emptyRepo();
+    write(repo, { ".github/workflows/w.yml": wf("v0.1.0") });
+    expect(m.report({ repoDir: repo }).exitCode).toBe(0);
   });
 });
