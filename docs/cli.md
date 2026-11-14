@@ -535,8 +535,9 @@ A slow check (the account probe of `setup`) runs behind a spinner and never free
 terminal the menus are numbered lists and the prompts read lines, exactly as before.
 
 On a terminal, `init`, `setup` and the launcher open with Wachi, the guard: a ` wachiman ` chip with
-"On watch." and the version, a small rounded face under a peaked cap, and a line typed next to it
-(for example `Wachi: Shift started. Let's watch this repo.`). The typing takes under a second and any
+"On watch." and the version, a small rounded face under a peaked cap, with the name `Wachi:` beside the cap and a line typed
+beside the eyes (for example `Shift started. Let's watch this repo.`); on a narrow terminal the name
+and the line go under the face. The typing takes under a second and any
 key skips it; Ctrl-C ends the session. The same scene is printed at once, with nothing typed, when
 stdin or stderr is not a terminal, `NO_COLOR` is non-empty, `CI` is set, `TERM=dumb`, the terminal
 is narrower than 40 columns, or `WACHIMAN_NO_ANIMATION` is set. With `NO_COLOR` or `TERM=dumb` the

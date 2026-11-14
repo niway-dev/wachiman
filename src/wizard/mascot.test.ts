@@ -52,6 +52,10 @@ describe("the scene", () => {
     for (const ascii of [false, true]) {
       const s = mascotScene({ paint: plain, ascii, columns: 10, message: "x" });
       expect(new Set(s.top.map((row) => [...row].length))).toEqual(new Set([FACE_INSIDE + 2]));
+      // Side by side: the cap carries the name, the eyes rows carry the gap before the line.
+      const wide = mascotScene({ paint: plain, ascii, columns: 100, message: "x" });
+      const rows = [wide.top[0].slice(0, -`  ${NAME}:`.length), ...Object.values(wide.leads!).map((lead) => lead.slice(0, -2)), ...wide.bottom];
+      expect(new Set(rows.map((row) => [...row].length))).toEqual(new Set([FACE_INSIDE + 2]));
     }
   });
 
