@@ -3221,6 +3221,11 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
           : skipped("not run: budget spent", files);
       continue;
     }
+    // A batch that threw while this one waited for its slot: give the money back and start nothing.
+    if (fatal) {
+      reserved.delete(i);
+      break;
+    }
     inFlight++;
     const task: Promise<void> = runBatch(i, batch, granted.usd)
       .then(

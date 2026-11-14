@@ -1591,7 +1591,7 @@ describe("call-site evidence reaches the batch", () => {
     // After the file-accounting paragraph, before the rules.
     expect(prompt.indexOf("<evidence")).toBeGreaterThan(prompt.indexOf("Review every file of this part"));
     expect(prompt.indexOf("<evidence")).toBeLessThan(prompt.indexOf("<diff>"));
-    expect(r.logs.some((l) => /^(batch 1\/1: )?evidence: 1 symbol\(s\) found, 1 call site\(s\), \d+ bytes, \d+ ms, complete$/.test(l))).toBe(true);
+    expect(r.logs.some((l) => /^batch 1\/1: evidence: 1 symbol\(s\) found, 1 call site\(s\), \d+ bytes, \d+ ms, complete$/.test(l))).toBe(true);
     expect(request.allowedTools).toEqual(["read", "glob", "grep"]);
   });
 

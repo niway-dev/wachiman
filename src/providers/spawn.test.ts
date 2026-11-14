@@ -53,4 +53,12 @@ describe("spawnCapture", () => {
     await Promise.all([1, 2, 3, 4].map(() => spawnCapture("sh", ["-c", "sleep 0.5"], opts)));
     expect(Date.now() - started).toBeLessThan(1_500);
   });
+
+  test("a child that exited by itself is not reported as timed out while its pipes drain", async () => {
+    // The limit (300 ms) falls inside the 2 s the pipes get to close after the exit.
+    const r = await spawnCapture("sh", ["-c", "sleep 30 & echo done"], { ...opts, timeoutMs: 300 });
+    expect(r.error).toBeUndefined();
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("done\n");
+  }, 10_000);
 });

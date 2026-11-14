@@ -256,7 +256,8 @@ describe("batches run side by side", () => {
     await expect(r.done).rejects.toThrow("the log sink broke");
     // Batches already in flight were not abandoned, and nothing was left running.
     expect(provider.inFlight).toBe(0);
-    expect(provider.requests.length).toBeLessThanOrEqual(BATCH_CONCURRENCY);
+    // Only batch 1 reached the provider: batch 2 threw before its call, and no batch started after it.
+    expect(provider.requests).toHaveLength(1);
     expect(r.posted.review).toBeUndefined();
   });
 });

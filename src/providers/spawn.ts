@@ -84,7 +84,11 @@ export function spawnCapture(
     // the child's exit is the answer; otherwise a lingering holder gets a moment to let go.
     child.on("exit", (status, signal) => {
       if (error) finish(status, signal);
-      else setTimeout(() => finish(status, signal), PIPE_GRACE_MS).unref();
+      else {
+        // It exited by itself: the time limit no longer applies to what is only a pipe being drained.
+        clearTimeout(timer);
+        setTimeout(() => finish(status, signal), PIPE_GRACE_MS).unref();
+      }
     });
     child.stdin.end(opts.input);
   });
