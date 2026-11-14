@@ -5,6 +5,7 @@
  * command's page; `<subcommand> --help` prints that subcommand's page. An unknown subcommand is a
  * usage error (exit 2), like every configuration problem the subcommands throw.
  */
+import { resolve } from "node:path";
 import { UsageError } from "../config";
 import { commandHelp } from "../help";
 import { parseCheckArgs, parseRiskArgs, parseStripArgs, runCheck, runRisk, runStrip, type PrTemplateDeps, type PrTemplateIo } from "./check-run";
@@ -48,7 +49,8 @@ export function runPrTemplate(argv: string[], repoDir: string, io: PrTemplateIo,
   // `risk` already asks git, so it keeps the directory it was given.
   const root = first === "risk" || first === "strip" ? repoDir : repositoryRoot(repoDir);
   // `gh` and `git` run in the repository the command was pointed at (`--repo-dir`), not in wherever the shell is.
-  const check: PrTemplateDeps = { ...deps.check, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? root)) };
+  // A relative file argument belongs to where the command was run (or `--repo-dir`); the root is only for `.github/` and git.
+  const check: PrTemplateDeps = { ...deps.check, fileBase: repoDir, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? root)) };
   const help = () => (io.stdout(commandHelp(["pr-template", first])!), 0);
   switch (first) {
     case "show": {
@@ -69,7 +71,9 @@ export function runPrTemplate(argv: string[], repoDir: string, io: PrTemplateIo,
     }
     case "format": {
       const parsed = parseFormatArgs(rest);
-      return "help" in parsed ? help() : runFormat(parsed, root, io, deps.format);
+      if ("help" in parsed) return help();
+      // format.ts resolves its file against the root it is given, so the argument is made absolute here.
+      return runFormat(parsed.file !== undefined ? { ...parsed, file: resolve(repoDir, parsed.file) } : parsed, root, io, deps.format);
     }
     case "risk": {
       const parsed = parseRiskArgs(rest);

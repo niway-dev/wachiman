@@ -32,7 +32,7 @@ describe("init on a terminal session", () => {
     expect(note.title).toBe(".github/workflows/wachiman-review.yml (new)");
     expect(note.message).toContain('operator: "octocat"');
     expect(w.ui.of("confirm").map((e) => e.message)).toEqual([
-      "Also install the PR description template (.github/pull_request_template.md)? Nothing is committed.",
+      "Also install the PR description template? An existing .github/pull_request_template.md is adopted and replaced (a .bak copy is kept); nothing is committed.",
       "Write it?",
     ]);
     expect(readFileSync(w.target, "utf8")).toContain('operator: "octocat"');

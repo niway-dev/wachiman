@@ -81,6 +81,7 @@ describe("catalog validation", () => {
       ["footer with <sha>", minimal([row, block, { ...footer, text: "Describes commit <sha>." }]), /placeholder|{sha}/],
       ["footer not last", minimal([row, footer, block]), /footer must be the last/],
       ["no risk row", minimal([{ id: "type", kind: "status-row", label: "Type" }, block, footer]), /risk-floor/],
+      ["risk row not locked", minimal([{ ...row, locked: false }, block, footer]), /must have a locked status row with the risk-floor rule/],
       ["locked but not default", minimal([{ ...row, default: false }, block, footer]), /locked/],
       ["guide closes the comment", minimal([{ ...row, guide: "x --> y" }, block, footer]), /must not contain/],
       ["pipe in a row guide", minimal([{ ...row, guide: "a | b" }, block, footer]), /one line/],
@@ -205,5 +206,13 @@ describe("repository choice", () => {
 
   test("a preamble line must not carry a Wachiman marker", () => {
     rejects({ preamble: ["<!-- wachiman:confidence:start -->"] }, /Wachiman marker/);
+  });
+
+  test("a preamble entry must not open a comment it does not close, or close one it did not open", () => {
+    rejects({ preamble: ["fine", "<!-- never closed"] }, /preamble\[1\] opens a comment/);
+    rejects({ preamble: ["text --> more"] }, /preamble\[0\] contains a stray "-->"/);
+    rejects({ preamble: ["--> <!-- a -->"] }, /stray "-->"/);
+    rejects({ preamble: ["<!-- a --> then <!-- b"] }, /opens a comment/);
+    expect(choice({ preamble: ["<!-- a --> b <!-- c -->", "<!--\nmulti\n-->"] }).preamble).toHaveLength(2);
   });
 });

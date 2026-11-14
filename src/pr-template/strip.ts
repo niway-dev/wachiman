@@ -4,6 +4,10 @@
  * block (the digest comment among it), stay, and so does every comment that is the repository's
  * own (a CLA reminder at the top, a note in a custom section).
  *
+ * Strip changes only what it removes: the comment, the spaces a removal leaves at the end of its line
+ * and the run of blank lines around it. Trailing spaces, tabs and blank lines anywhere else, fenced
+ * code included, come back byte for byte.
+ *
  * A comment is a guide comment when its text is one of the catalog's guides or intro, when it starts
  * with the lead of the status table's guidance (the one comment above the table that lists every
  * row's guide), when it sits in a status row's value cell (the older layout), or when it directly follows a `##` heading or a `<summary>` line,
@@ -62,8 +66,11 @@ export function stripDescription(text: string, opts: StripOptions = {}): string 
     return isGuide(c, parsed, cleanLines, texts);
   };
 
+  // Only what a removal touches changes: the comment itself, the spaces it leaves at the end of its
+  // line, and the blank lines around it. Everything else is the author's text, byte for byte.
   let out = "";
   let at = 0;
+  const marks: number[] = [];
   for (const c of parsed.comments) {
     if (!drop(c)) continue;
     let from = c.start;
@@ -74,10 +81,58 @@ export function stripDescription(text: string, opts: StripOptions = {}): string 
     }
     if (from < at) continue;
     out += parsed.source.slice(at, from);
+    if (!c.wholeLine && (to >= parsed.source.length || parsed.source[to] === "\n")) out = out.replace(/[ \t]+$/, "");
+    marks.push(out.length);
     at = to;
   }
   out += parsed.source.slice(at);
+  return collapseAround(out, marks);
+}
 
-  out = out.replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n");
-  return `${out.replace(/^\n+|\n+$/g, "")}\n`;
+const isBlank = (line: string) => line.trim() === "";
+
+/**
+ * Collapses each run of blank lines that touches a removal point (`marks` are offsets in `text`) to
+ * one blank line, or to none at the start of the text; at the end it leaves just the final newline.
+ */
+function collapseAround(text: string, marks: number[]): string {
+  if (marks.length === 0) return text;
+  const lines = text.split("\n");
+  const starts: number[] = [];
+  {
+    let offset = 0;
+    for (const line of lines) {
+      starts.push(offset);
+      offset += line.length + 1;
+    }
+  }
+  const touched = new Set<number>();
+  for (const mark of marks) {
+    let lo = 0;
+    let hi = lines.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (starts[mid]! <= mark) lo = mid;
+      else hi = mid - 1;
+    }
+    touched.add(lo);
+    touched.add(lo - 1);
+  }
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; ) {
+    if (!isBlank(lines[i]!)) {
+      out.push(lines[i]!);
+      i += 1;
+      continue;
+    }
+    let end = i;
+    while (end + 1 < lines.length && isBlank(lines[end + 1]!)) end += 1;
+    let hit = false;
+    for (let k = i; k <= end; k++) if (touched.has(k)) hit = true;
+    if (!hit) out.push(...lines.slice(i, end + 1));
+    else if (end === lines.length - 1) out.push("");
+    else if (i > 0) out.push("");
+    i = end + 1;
+  }
+  return out.join("\n");
 }

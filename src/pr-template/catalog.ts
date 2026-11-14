@@ -259,7 +259,7 @@ function validateLayout(entries: CatalogEntry[]) {
   if (kinds.filter((k) => k === "footer").length !== 1) throw new PrTemplateConfigError(`${here} must have exactly one footer.`);
   if (kinds[kinds.length - 1] !== "footer") throw new PrTemplateConfigError(`${here}: the footer must be the last entry.`);
   if (kinds[kinds.length - 2] !== "block") throw new PrTemplateConfigError(`${here}: the marked block must come right before the footer.`);
-  const hasRisk = entries.some((e) => e.kind === "status-row" && e.rule === "risk-floor");
+  const hasRisk = entries.some((e) => e.kind === "status-row" && e.locked && e.rule === "risk-floor");
   if (!hasRisk) throw new PrTemplateConfigError(`${here} must have a locked status row with the risk-floor rule.`);
 }
 
@@ -278,7 +278,7 @@ function validateNames(entries: CatalogEntry[]) {
 
 // ------------------------------------------------------------------ the repository's choice
 
-const CUSTOM_NAME_KEY: Record<CustomKind, string> = { "status-row": "label", section: "heading", details: "summary" };
+export const CUSTOM_NAME_KEY: Record<CustomKind, string> = { "status-row": "label", section: "heading", details: "summary" };
 
 export const MAX_NAME_LENGTH = 80;
 const LINE_BREAKING_OR_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
@@ -289,7 +289,7 @@ const LINE_BREAKING_OR_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
  * in a status row (a second cell), no `<` or `>` (an HTML tag) and no `-->` (it would close the
  * comment around a guide). The check applies to the name as written; nothing is repaired.
  */
-function checkCustomName(name: string, nameKey: string, kind: CustomKind, where: string) {
+export function checkCustomName(name: string, nameKey: string, kind: CustomKind, where: string) {
   if (name.trim() === "") throw new PrTemplateConfigError(`${where}: the ${nameKey} must not be empty.`);
   if (LINE_BREAKING_OR_CONTROL.test(name)) throw new PrTemplateConfigError(`${where}: the ${nameKey} must be one line without control characters.`);
   if (name.length > MAX_NAME_LENGTH) {
@@ -298,6 +298,23 @@ function checkCustomName(name: string, nameKey: string, kind: CustomKind, where:
   if (kind === "status-row" && name.includes("|")) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "|"; it is a table cell.`);
   if (name.includes("-->")) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "-->".`);
   if (/[<>]/.test(name)) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "<" or ">".`);
+}
+
+/**
+ * What is wrong with the HTML comments of one preamble entry: it opens a comment it does not close
+ * (GitHub would hide everything after it) or closes one it did not open. Undefined when balanced.
+ */
+export function commentProblem(text: string): string | undefined {
+  let at = 0;
+  for (;;) {
+    const open = text.indexOf("<!--", at);
+    const close = text.indexOf("-->", at);
+    if (open === -1) return close === -1 ? undefined : 'contains a stray "-->"';
+    if (close !== -1 && close < open) return 'contains a stray "-->"';
+    const end = text.indexOf("-->", open + 4);
+    if (end === -1) return 'opens a comment ("<!--") it does not close';
+    at = end + 3;
+  }
 }
 
 /**
@@ -379,10 +396,12 @@ export function loadRepoChoice(text: string, catalog: Catalog = loadCatalog()): 
     custom.push(entry);
   });
 
-  for (const line of preamble) {
+  preamble.forEach((line, i) => {
     if (/wachiman:confidence:|wachiman:pr-template/.test(line)) {
       throw new PrTemplateConfigError(`${here}: a preamble line must not contain a Wachiman marker.`);
     }
-  }
+    const problem = commentProblem(line);
+    if (problem !== undefined) throw new PrTemplateConfigError(`${here}: preamble[${i}] ${problem}; the rest of the template would be hidden or broken.`);
+  });
   return { base: "default", add, drop, custom, preamble };
 }

@@ -26,15 +26,13 @@ Users could not find the export.
 
 Checked on the preview.
 
-    ## Rollout plan
-
+## Rollout plan
 Ship on Tuesday.
 
 - first the preview
 - then everyone
 
-    ## Open questions
-
+## Open questions
 Does the French label fit?
 
 </details>

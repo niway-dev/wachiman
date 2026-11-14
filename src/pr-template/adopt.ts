@@ -9,10 +9,16 @@
  * - an unknown status row, `##` section or `<details>` block becomes a `custom` entry;
  * - any other block goes to `preamble`, in order.
  *
+ * What the loader (`loadRepoChoice`) would reject never reaches the output: a name it refuses stays
+ * in the preamble as ordinary lines, a Wachiman marker is dropped (the catalog writes its own), and
+ * a comment that is opened and never closed (or closed and never opened) refuses the adoption with
+ * a `UsageError`, before anything is written.
+ *
  * The report lists every block that moved and every comment taken for a guide, so a repository
  * comment misread as guidance is visible (and still in the backup).
  */
-import { entryName, type Catalog, type CatalogEntry, type CustomEntry, type CustomKind } from "./catalog";
+import { UsageError } from "../config";
+import { checkCustomName, commentProblem, CUSTOM_NAME_KEY, entryName, type Catalog, type CatalogEntry, type CustomEntry, type CustomKind } from "./catalog";
 import { LEGACY_HEADER_PREFIX, collapseSpace, isLegacyGuide } from "./legacy-guides";
 import { STATUS_GUIDE_LEAD, normalizeForStamp } from "./render";
 
@@ -33,6 +39,7 @@ const DETAILS_OPEN = /^\s*<details\b[^>]*>\s*<summary>(.*?)<\/summary>\s*$/i;
 const STATUS_ROW = /^\|\s*\*\*(.+?)\*\*\s*\|(.*)\|\s*$/;
 const TABLE_HEADER = /^\|\s*\|\s*\|\s*$/;
 const TABLE_SEPARATOR = /^\|(\s*:?-+:?\s*\|)+\s*$/;
+const WACHIMAN_MARKER = /wachiman:confidence:|wachiman:pr-template/i;
 const FOOTER = /^<sub>(.*)<\/sub>\s*$/;
 
 /** Whether `line` starts a block of its own, so a text run ends before it. */
@@ -89,11 +96,27 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
   const toPreamble = (blockLines: string[], start: number, end: number) => {
     const items: string[] = [];
     for (const raw of blockLines) {
-      const line = raw.replace(/<(model|sha)>/gi, (_m, tag: string) => `{${tag.toLowerCase()}}`);
+      let line = raw.replace(/<(model|sha)>/gi, (_m, tag: string) => `{${tag.toLowerCase()}}`);
       if (line !== raw) report("rewrote a <model> or <sha> tag as a {model} or {sha} placeholder; GitHub hides HTML tags.");
+      // The catalog writes the Wachiman markers itself, and the loader refuses them in the preamble.
+      if (WACHIMAN_MARKER.test(line)) {
+        const cleaned = line.replace(/<!--\s*wachiman:(?:confidence:|pr-template)[^]*?-->/gi, "");
+        report(`dropped a Wachiman marker from a line that was kept: ${clip(line.trim())}`);
+        if (WACHIMAN_MARKER.test(cleaned) || cleaned.trim() === "") continue;
+        line = cleaned.trimEnd();
+      }
       if (items.length === 0 || LIST_ITEM.test(line)) items.push(line);
       else items[items.length - 1] += `\n${line}`;
     }
+    for (const item of items) {
+      const problem = commentProblem(item);
+      if (problem !== undefined) {
+        throw new UsageError(
+          `The old template ${problem} near "${clip(item.trim(), 60)}", which would hide or break the generated template. Close the comment with "-->" (or remove it) in the old file and run install again; nothing was written.`,
+        );
+      }
+    }
+    if (items.length === 0) return;
     if (result.preamble.length > 0 && lastPreambleEnd !== start) result.preamble.push("");
     result.preamble.push(...items);
     lastPreambleEnd = end;
@@ -102,6 +125,14 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
 
   const newCustom = (kind: CustomKind, name: string): CustomEntry | null => {
     if (lockedNames.some((n) => same(n, name))) return null;
+    // The loader checks the name as it is stored; an entry it would refuse stays as ordinary lines in the preamble.
+    try {
+      checkCustomName(name.trim(), CUSTOM_NAME_KEY[kind], kind, "");
+    } catch (err) {
+      const kindName = kind === "status-row" ? "status row" : kind === "section" ? "section" : "collapsed block";
+      report(`"${clip(name.trim(), 40)}" cannot be a custom ${kindName} (${(err as Error).message.replace(/^:\s*/, "")}); its lines stay in the preamble as they are.`);
+      return null;
+    }
     if (result.custom.some((c) => c.kind === kind && same(c.name, name))) return null;
     const existing = existingCustom.find((c) => c.kind === kind && same(c.name, name));
     if (existing) {
@@ -155,9 +186,8 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
             i = k + 1;
             continue;
           }
-          // No end marker: nothing says where the block stops, so the marker is an ordinary line and everything after it is kept.
-          report("a Wachiman start marker has no end marker; it is kept as an ordinary line and nothing after it was dropped.");
-          toPreamble(raw, i, j + 1);
+          // No end marker: nothing says where the block stops, so only the marker line goes (the catalog writes its own) and everything after it is kept.
+          report("a Wachiman start marker has no end marker; the marker line was dropped (the catalog writes its own) and everything after it was kept.");
           ctx = null;
           afterKnown = false;
           i = j + 1;
@@ -172,7 +202,7 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
         const isHeader = raw[0]!.trimStart().startsWith(LEGACY_HEADER_PREFIX);
         const matches = isHeader || isLegacyGuide(inner) || catalogGuides.has(inner) || inner.startsWith(collapseSpace(STATUS_GUIDE_LEAD));
         if (isHeader || matches || afterKnown) {
-          if (!isHeader && ctx !== null && "custom" in ctx && !matches && ctx.custom.guide === undefined && !/<!--|-->/.test(inner) && !(ctx.custom.kind === "status-row" && /[|\r\n]/.test(inner))) {
+          if (!isHeader && ctx !== null && "custom" in ctx && !matches && ctx.custom.guide === undefined && !/<!--|-->/.test(inner)) {
             if (result.custom.includes(ctx.custom)) {
               ctx.custom.guide = inner;
               report(`kept the comment under "${ctx.custom.name}" as its guide: ${clip(inner)}`);

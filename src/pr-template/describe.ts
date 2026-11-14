@@ -129,7 +129,7 @@ const COMMENT = /<!--[\s\S]*?-->/g;
 const HEADING = /^ {0,3}##(?!#)\s+(.*?)\s*$/;
 const STATUS_ROW = /^\s*\|\s*\*\*([^*|]+?)\*\*\s*\|(.*?)\|?\s*$/;
 /** The opening tag may carry attributes (`<details open>`); the summary rules are unchanged. */
-const DETAILS = /<details(?:\s[^>]*)?>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g;
+const DETAILS = /<details(?:\s[^>]*)?>\s*<summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/dg;
 const SUB = /<sub>([\s\S]*?)<\/sub>/g;
 const FENCE_OPEN = /^(```+|~~~+)/;
 
@@ -225,25 +225,54 @@ export function parseDescription(input: string): ParsedDescription {
   const structural = blank(source, [...comments, ...blocks]);
   const structuralLines = structural.split("\n");
 
-  // headings outside fenced code
-  const headings: DescriptionHeading[] = [];
+  // Fenced code is never structure: a heading, `<details>` or `<sub>` written inside a fence is text.
+  const fenced: boolean[] = [];
   {
     let fence: string | null = null;
     structuralLines.forEach((line, i) => {
       const s = line.trim();
       if (fence !== null) {
+        fenced[i] = true;
         if (s.startsWith(fence)) fence = null;
         return;
       }
       const open = FENCE_OPEN.exec(s);
       if (open) {
         fence = open[1]!.slice(0, 3);
+        fenced[i] = true;
         return;
       }
-      const h = HEADING.exec(line);
-      if (h) headings.push({ name: h[1]!.replace(/\s*#+$/, "").trim(), line: i, raw: lines[i]! });
+      fenced[i] = false;
     });
   }
+  /** `structural` with the fenced lines blanked: what `<details>` and `<sub>` are looked for in. Same length, same offsets. */
+  const outsideFences = structuralLines.map((line, i) => (fenced[i] ? line.replace(/[^\n]/g, " ") : line)).join("\n");
+
+  const details: DescriptionDetails[] = [];
+  for (const m of outsideFences.matchAll(DETAILS)) {
+    const start = m.index!;
+    const end = start + m[0].length;
+    const [sumFrom, sumTo] = m.indices![1]!;
+    const [bodyFrom, bodyTo] = m.indices![2]!;
+    const summary = structural.slice(sumFrom, sumTo);
+    const bold = /^\s*<b>([\s\S]*?)<\/b>/.exec(summary);
+    details.push({
+      name: bold ? bold[1]!.trim() : null,
+      summary,
+      startLine: lineOf(start),
+      endLine: lastLineOf(end),
+      clean: structural.slice(bodyFrom, bodyTo),
+      raw: source.slice(start, end),
+    });
+  }
+
+  // headings outside fenced code and outside every details block: a heading inside a block is the block's text
+  const headings: DescriptionHeading[] = [];
+  structuralLines.forEach((line, i) => {
+    if (fenced[i] || details.some((d) => i > d.startLine && i <= d.endLine)) return;
+    const h = HEADING.exec(line);
+    if (h) headings.push({ name: h[1]!.replace(/\s*#+$/, "").trim(), line: i, raw: lines[i]! });
+  });
   const headerEndLine = headings[0]?.line ?? lines.length;
 
   const statusRows: DescriptionStatusRow[] = [];
@@ -252,23 +281,8 @@ export function parseDescription(input: string): ParsedDescription {
     if (m) statusRows.push({ label: m[1]!.trim(), value: m[2]!.trim(), line: i, raw: lines[i]! });
   }
 
-  const details: DescriptionDetails[] = [];
-  for (const m of structural.matchAll(DETAILS)) {
-    const start = m.index!;
-    const end = start + m[0].length;
-    const bold = /^\s*<b>([\s\S]*?)<\/b>/.exec(m[1]!);
-    details.push({
-      name: bold ? bold[1]!.trim() : null,
-      summary: m[1]!,
-      startLine: lineOf(start),
-      endLine: lastLineOf(end),
-      clean: m[2]!,
-      raw: source.slice(start, end),
-    });
-  }
-
   const subs: DescriptionSub[] = [];
-  for (const m of structural.matchAll(SUB)) {
+  for (const m of outsideFences.matchAll(SUB)) {
     const start = m.index!;
     subs.push({ text: m[1]!, startLine: lineOf(start), endLine: lastLineOf(start + m[0].length) });
   }

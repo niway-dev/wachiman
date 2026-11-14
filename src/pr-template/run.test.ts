@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
@@ -89,6 +89,23 @@ describe("runPrTemplate", () => {
     expect(existsSync(join(w.repo, ".github", "pull_request_template.md"))).toBe(true);
     expect(existsSync(join(sub, ".github"))).toBe(false);
     expect(runPrTemplate(["status"], sub, w.io)).toBe(0);
+  });
+
+  test("a relative file argument resolves against the directory the command was given, not the git top level", () => {
+    const w = world();
+    const sub = join(w.repo, "packages", "app");
+    mkdirSync(sub, { recursive: true });
+    writeFileSync(join(sub, "desc.md"), "## Summary\n\nhello\n");
+    // Only the subdirectory has desc.md; the top level does not.
+    for (const argv of [["check", "desc.md", "--title", "feat: x"], ["format", "desc.md"], ["strip", "desc.md"]]) {
+      const run = world();
+      runPrTemplate(argv, sub, run.io);
+      expect(run.err.join("\n")).not.toMatch(/cannot read/);
+    }
+    // And the status is not 2 for a file that exists where the command was run.
+    const f = world();
+    expect(runPrTemplate(["format", "desc.md"], sub, f.io)).toBe(0);
+    expect(f.out.join("")).toContain("hello");
   });
 
   test("a directory that is not a git repository is used as it is", () => {

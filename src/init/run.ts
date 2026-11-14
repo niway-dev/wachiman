@@ -1,10 +1,12 @@
 /**
  * `wachiman init` (command contract section 5.5): parse, prompt, resolve, then the one impure
- * half. It writes only the chosen workflow file and its `.bak` copy, after the person has seen
- * what will be written (or named `--yes` or no terminal with every mandatory flag). With
+ * half. It writes the chosen workflow file and its `.bak` copy, after the person has seen what
+ * will be written (or named `--yes` or no terminal with every mandatory flag). With
  * `--pr-template` (or a yes to the question) it also installs the PR description template, files
- * only, as `wachiman pr-template install` does; a refusal there is reported and does not fail the
- * rest of init. It never commits, pushes, opens a pull request or creates a secret, and it makes no network request.
+ * only, as `wachiman pr-template install` does: `.github/pull_request_template.md` and, when there
+ * is something to keep, `.github/pr-template.json`. An existing unmanaged template is adopted and
+ * replaced (a `.bak` copy is kept). A refusal or failure there is reported, saying what was and
+ * was not written, and does not fail the rest of init. It never commits, pushes, opens a pull request or creates a secret, and it makes no network request.
  */
 import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -17,10 +19,14 @@ import { loadTerminalUi } from "../wizard/load";
 import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
 import { projectCommands, quoteArgument } from "../wizard/command";
 import { runInstall, type Deps as PrTemplateDeps } from "../pr-template/install";
+import { CHOICE_FILE } from "../pr-template/catalog";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, writeWorkflow, type WriteHooks } from "./write";
+
+/** What `pr-template install` can write; the report names the ones a failed install did not reach. */
+const PR_TEMPLATE_FILES = [CHOICE_FILE, ".github/pull_request_template.md"];
 
 export interface InitDeps {
   /** The caller template. Default: `templates/wachiman-review-caller.yml` of this install. */
@@ -111,12 +117,29 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (!options.prTemplate) return false;
     if (templateDone) return templateInstalled;
     templateDone = true;
+    // `install` says "wrote <file>" for each file it writes; listening to it tells a failure that wrote nothing from one that stopped halfway.
+    const wrote: string[] = [];
+    const watching = {
+      stdout: (text: string) => io.stdout(text),
+      stderr: (line: string) => {
+        const file = /^wrote (.+?)(?:;|\.$)/.exec(line)?.[1];
+        if (file !== undefined) wrote.push(file);
+        io.stderr(line);
+      },
+    };
     try {
       // Same semantics as `pr-template install` with no --force and no --commit: init never commits.
-      runInstall({ force: false, commit: false }, root, io, deps.prTemplate);
+      runInstall({ force: false, commit: false }, root, watching, deps.prTemplate);
       templateInstalled = true;
     } catch (error) {
-      io.stderr(`pr-template: not installed: ${error instanceof Error ? error.message : String(error)}`);
+      const reason = error instanceof Error ? error.message : String(error);
+      if (wrote.length === 0) {
+        io.stderr(`pr-template: not installed: ${reason}`);
+      } else {
+        const missing = PR_TEMPLATE_FILES.filter((f) => !wrote.includes(f));
+        io.stderr(`pr-template: only part of the install was done: ${reason}`);
+        io.stderr(`pr-template: written: ${wrote.join(", ")}; not written: ${missing.length > 0 ? missing.join(", ") : "nothing else"}.`);
+      }
       io.stderr("The rest of init is unaffected. See `wachiman pr-template status`.");
     }
     return templateInstalled;

@@ -24,8 +24,7 @@ Users could not find the export.
 
 <details><summary><b>Notes</b></summary>
 
-    ## Follow-ups
-
+## Follow-ups
 Rename the file later.
 
 </details>

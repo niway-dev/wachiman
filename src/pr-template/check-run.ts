@@ -50,6 +50,8 @@ export interface PrTemplateDeps {
   run?: CommandRunner;
   /** The catalog. Default: the shipped one. */
   catalog?: Catalog;
+  /** Where a relative `<file>` argument resolves: the directory the command was given. Default: the repository directory. */
+  fileBase?: string;
 }
 
 const helpRequested = (argv: string[]) => argv.includes("--help") || argv.includes("-h");
@@ -168,7 +170,7 @@ function checkFile(opts: CheckOptions, repoDir: string, io: PrTemplateIo, deps: 
   const catalog = deps.catalog ?? loadCatalog();
   const warn = (line: string) => io.stderr(`${PREFIX}: warning: ${line}`);
 
-  const file = resolve(repoDir, opts.file!);
+  const file = resolve(deps.fileBase ?? repoDir, opts.file!);
   let body: string;
   try {
     body = readFileSync(file, "utf8");
@@ -216,6 +218,7 @@ function checkFile(opts: CheckOptions, repoDir: string, io: PrTemplateIo, deps: 
       ...(riskError !== undefined ? { riskError } : {}),
       commitMessages,
       allowBreaking: opts.allowBreaking,
+      warn,
     }),
     io,
   );
@@ -257,7 +260,7 @@ function checkPr(number: number, opts: CheckOptions, io: PrTemplateIo, deps: PrT
     commitMessages: pr.commitMessages,
     allowBreaking: opts.allowBreaking,
   };
-  const result = checkDescription({ ...common, template });
+  const result = checkDescription({ ...common, template, warn });
 
   const changesTemplate = pr.paths.includes(CHOICE_FILE) || (files ?? []).some((f) => f.path === CHOICE_FILE);
   if (changesTemplate) {
@@ -315,7 +318,9 @@ export function runRisk(opts: RiskOptions, repoDir: string, io: PrTemplateIo, de
     return 0;
   } catch (err) {
     if (err instanceof ToolError) {
-      io.stderr(`${PREFIX}: error: ${err.message} (pass --base <ref> if ${opts.base} does not exist)`);
+      // Only a failure to find the merge base says the base ref is the problem; any other git or gh failure is not about it.
+      const aboutBase = /^git merge-base failed/.test(err.message);
+      io.stderr(`${PREFIX}: error: ${err.message}${aboutBase ? ` (pass --base <ref> if ${opts.base} does not exist)` : ""}`);
       return 2;
     }
     throw err;

@@ -438,3 +438,34 @@ describe("the Wachiman block", () => {
     expect(codes(body)).toEqual(["heading-unknown"]);
   });
 });
+
+describe("the risk floor warnings", () => {
+  const files = [{ path: "src/a.py", status: "M", patch: "" }];
+  const run = (warn?: (line: string) => void, riskExtension: Record<string, unknown> = { high: { paths: ["("] } }) =>
+    checkDescription({ body: validBody(), title: TITLE, head: HEAD, template: defaultTemplate, catalog, files, riskExtension, ...(warn ? { warn } : {}) });
+
+  test("an invalid regex in the extension file is reported through warn", () => {
+    const warnings: string[] = [];
+    const result = run((line) => warnings.push(line));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("ignoring invalid regex");
+    expect(warnings[0]).toContain(".github/pr-risk.toml");
+    expect(result.findings.map((f) => f.code)).not.toContain("risk-below-floor");
+  });
+
+  test("without warn nothing is printed and the check still runs", () => {
+    expect(() => run()).not.toThrow();
+  });
+
+  test("a valid extension warns about nothing", () => {
+    const warnings: string[] = [];
+    run((line) => warnings.push(line), { high: { paths: ["^vault/"] } });
+    expect(warnings).toEqual([]);
+  });
+
+  test("a floor given as a level skips the computation, so there is nothing to warn about", () => {
+    const warnings: string[] = [];
+    checkDescription({ body: validBody(), title: TITLE, head: HEAD, template: defaultTemplate, catalog, risk: LOW, files, riskExtension: { high: { paths: ["("] } }, warn: (l) => warnings.push(l) });
+    expect(warnings).toEqual([]);
+  });
+});

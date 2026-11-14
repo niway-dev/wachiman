@@ -30,13 +30,12 @@ const CASES: { name: string; template: typeof defaultTemplate; changes: boolean 
   { name: "custom-template", template: customTemplate, changes: true },
 ];
 
-/** Every non-empty line of `input` (trimmed) must be in `output` at least as many times. */
+/** Every non-blank line of `input`, exactly as written, must be in `output` at least as many times. */
 function lostLines(input: string, output: string): string[] {
   const count = (text: string) => {
     const m = new Map<string, number>();
-    for (const raw of text.split(/\r\n|\r|\n/)) {
-      const line = raw.trim();
-      if (line !== "") m.set(line, (m.get(line) ?? 0) + 1);
+    for (const line of text.split(/\r\n|\r|\n/)) {
+      if (line.trim() !== "") m.set(line, (m.get(line) ?? 0) + 1);
     }
     return m;
   };
@@ -107,6 +106,31 @@ describe("formatDescription on the fixtures", () => {
     expect(moved.details.map((d) => d.name)).toEqual(["Notes"]);
     const kept = parseDescription(formatDescription(read("unknown-details.md"), defaultTemplate));
     expect(kept.details.map((d) => d.name)).toEqual(["How to test", "Timings"]);
+  });
+
+  test("a moved section keeps its heading line exactly as written, indent and trailing space included", () => {
+    const input = read("unknown-section.md").replace("## Rollout plan\n", "  ## Rollout plan  \n");
+    expect(input).toContain("  ## Rollout plan  \n");
+    const out = formatDescription(input, defaultTemplate);
+    expect(out.split("\n")).toContain("  ## Rollout plan  ");
+    expect(lostLines(input, out)).toEqual([]);
+    expect(out).not.toContain("    ##");
+    expect(formatDescription(out, defaultTemplate)).toBe(out);
+    expect(parseDescription(out).headings.map((h) => h.name)).toEqual(["Needs you", "What", "Why", "Evidence"]);
+    expect(checkDescription({ body: out, title: "fix: label", template: defaultTemplate, catalog }).findings.map((f) => f.code)).not.toContain("heading-unknown");
+  });
+
+  test("a ## heading already inside a details block is not moved, and check does not count it as a section", () => {
+    const input = read("in-order.md").replace(
+      "<details><summary><b>Notes</b></summary>\n",
+      "<details><summary><b>Notes</b></summary>\n\n## Inside notes\n\nkept here\n",
+    );
+    expect(input).toContain("## Inside notes");
+    expect(formatDescription(input, defaultTemplate)).toBe(input);
+    expect(parseDescription(input).headings.map((h) => h.name)).not.toContain("Inside notes");
+    const codes = checkDescription({ body: input, title: "fix: label", template: defaultTemplate, catalog }).findings.map((f) => f.code);
+    expect(codes).not.toContain("heading-unknown");
+    expect(codes).not.toContain("heading-order");
   });
 
   test("a missing required status row is added with an empty value, a missing section with an empty body", () => {

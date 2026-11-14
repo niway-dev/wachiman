@@ -154,7 +154,7 @@ describe("CliTest: check a file", () => {
     const answers: Record<string, CommandResult> = {
       "git -c core.quotepath=false merge-base": ok("0123abc\n"),
       "git -c core.quotepath=false diff": ok("diff --git a/db/migrations/1.sql b/db/migrations/1.sql\n@@ -0,0 +1 @@\n+x\n"),
-      "git show 0123abc:.github/pr-risk.toml": fail("fatal: path '.github/pr-risk.toml' does not exist in '0123abc'"),
+      "git ls-tree -z --full-tree 0123abc -- .github/pr-risk.toml": ok(""),
       "git -c core.quotepath=false log": fail("fatal: ambiguous argument 'no-such-ref..HEAD'"),
     };
     const got = run(tmp(), validBody(), answers);
@@ -255,6 +255,13 @@ describe("check a file against a real git repository", () => {
     expect([raised.status, raised.out]).toEqual([0, "ok\n"]);
   });
 
+  test("an invalid regex in .github/pr-risk.toml is reported as a warning by check, not dropped silently", () => {
+    const got = check(repo('[high]\npaths = ["(unclosed", "^vault/"]\n', "vault/a.py"), validBody());
+    expect(got.err).toContain('warning: ignoring invalid regex "(unclosed" in .github/pr-risk.toml');
+    // the valid pattern of the same file still applies
+    expect(got.err).toContain("risk-below-floor");
+  });
+
   test("risk prints the line and reads the extension from the base", () => {
     const dir = repo('[medium]\npaths = ["^widgets/"]\n', "widgets/a.py");
     const c = capture();
@@ -273,6 +280,19 @@ describe("check a file against a real git repository", () => {
     expect(c.err()).toContain("git merge-base failed");
     expect(c.err()).not.toContain("core.quotepath");
     expect(c.out()).toBe("");
+  });
+
+  test("risk adds the --base hint only when the base ref is what failed", () => {
+    // The merge base resolves, then the diff itself fails: the base is fine, so no hint about it.
+    const c = capture();
+    const { run } = fake({ "merge-base": ok("abc123\n"), "git -c core.quotepath=false diff": fail("fatal: unable to read tree") });
+    expect(runRisk({ base: "origin/main" }, tmp(), c.io, { run })).toBe(2);
+    expect(c.err()).toContain("git diff failed");
+    expect(c.err()).not.toContain("--base");
+    // An unknown base keeps it.
+    const d = capture();
+    expect(runRisk({ base: "origin/main" }, tmp(), d.io, fake({ "merge-base": fail("fatal: Not a valid object name origin/main") }))).toBe(2);
+    expect(d.err()).toContain("pass --base <ref> if origin/main does not exist");
   });
 
   test("risk and strip never read .github/pr-template.json", () => {

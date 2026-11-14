@@ -324,7 +324,7 @@ describe("init with scripted prompts", () => {
     expect(printed).toMatch(/1\. In GitHub Actions on pull requests \(default\)/);
     expect(printed).toContain("Release tag to pin [v1.5.0]");
     expect(printed).toContain("Workflow file [.github/workflows/wachiman-review.yml]");
-    expect(printed).toContain("(.github/pull_request_template.md)? Nothing is committed. [Y/n]");
+    expect(printed).toContain("is adopted and replaced (a .bak copy is kept); nothing is committed. [Y/n]");
     expect(printed).toContain("Write it? [Y/n]");
     expect(printed).toContain("Step 3/4  GitHub workflow");
     expect(printed).toContain("Step 4/4  Checks and next actions");
@@ -379,6 +379,27 @@ describe("init with scripted prompts", () => {
     expect(await init(w, [], { interactive: true, promptIO: io })).toBe(130);
     expect(io.printed()).toContain("Write it?");
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
+  });
+
+  test.each([
+    ["Escape", ESC],
+    ["Ctrl-C", CTRL_C],
+  ])("%s at the PR template question exits 130 and writes nothing, after the mode and the workflow answers", async (_n, key) => {
+    const w = world();
+    const before = snapshotTree(w.repo);
+    const io = scripted(["1", "me", "", "", key]); // mode, operator, tag, file, PR template (cancelled)
+    expect(await init(w, [], { interactive: true, promptIO: io })).toBe(130);
+    expect(io.printed()).toContain("PR description template");
+    expect(io.printed()).not.toContain("Write it?");
+    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(w.err.join("\n")).toContain("cancelled: nothing was written");
+  });
+
+  test("Escape at the PR template question in local mode exits 130 and writes nothing", async () => {
+    const w = world();
+    const before = snapshotTree(w.repo);
+    expect(await init(w, [], { interactive: true, promptIO: scripted(["2", ESC]) })).toBe(130);
+    expect(snapshotTree(w.repo)).toEqual(before);
   });
 
   test("answering no to Write it? writes nothing and exits 0", async () => {
@@ -479,6 +500,9 @@ describe("init and the PR description template", () => {
     expect(await init(w, ["--mode", "github", "--operator", "me"])).toBe(0);
     expect(existsSync(join(w.repo, TEMPLATE))).toBe(false);
     expect(w.err.join("\n")).not.toContain("pull_request_template");
+    // Nothing but the workflow was created: no template, no pr-template.json, no backup.
+    expect(readdirSync(join(w.repo, ".github")).sort()).toEqual(["workflows"]);
+    expect(readdirSync(join(w.repo, ".github", "workflows")).sort()).toEqual(["wachiman-review.yml"]);
   });
 
   test("--no-pr-template is the same as saying nothing", async () => {
@@ -539,6 +563,26 @@ describe("init and the PR description template", () => {
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
     expect(w.err.join("\n")).toContain("pr-template: not installed: disk went away");
     expect(w.err.join("\n")).toContain("github: pending;");
+  });
+
+  test("when only part of the install failed, the report says what was written and what was not", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, ".github"), { recursive: true });
+    writeFileSync(join(w.repo, TEMPLATE), "- [ ] I read the contributing guide.\n");
+    let writes = 0;
+    const hooks = {
+      beforeCommit: () => {
+        if (++writes === 2) throw new Error("disk went away");
+      },
+    };
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--pr-template"], { prTemplate: { hooks } })).toBe(0);
+    const said = w.err.join("\n");
+    expect(existsSync(join(w.repo, ".github", "pr-template.json"))).toBe(true);
+    expect(said).not.toContain("pr-template: not installed:");
+    expect(said).toContain("pr-template: only part of the install was done: disk went away");
+    expect(said).toContain("written: .github/pr-template.json");
+    expect(said).toContain("not written: .github/pull_request_template.md");
+    expect(said).toContain("github: pending;");
   });
 
   test("--dry-run installs nothing and says why", async () => {

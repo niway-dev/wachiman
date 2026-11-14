@@ -108,3 +108,39 @@ describe("what strip keeps that the earlier checker removed", () => {
     expect(stripDescription(filled).split("\n").filter((l) => l.trim() !== "")).toEqual(filled.split("\n").filter((l) => l.trim() !== ""));
   });
 });
+
+describe("strip changes only what it removes", () => {
+  const fence = "```text\nkeep  \n\n\n\nindented\t\n  trailing   \n```";
+
+  test("whitespace inside a fenced code block stays byte for byte", () => {
+    const text = `## What\n<!-- Anything that fits no section -->\n${fence}\n\nafter\n`;
+    const out = stripDescription(text, { all: true });
+    expect(out).toBe(`## What\n${fence}\n\nafter\n`);
+    expect(out).toContain("keep  \n\n\n\nindented\t\n  trailing   \n");
+  });
+
+  test("a comment removed next to a fence does not touch the fence", () => {
+    expect(stripDescription(`${fence}\n\n<!-- x -->\n\n${fence}\n`, { all: true })).toBe(`${fence}\n\n${fence}\n`);
+  });
+
+  test("trailing spaces and runs of blank lines in the author's text stay", () => {
+    const text = "a  \n\n\n\nb \t\n<!-- gone -->\nc   \n";
+    expect(stripDescription(text, { all: true })).toBe("a  \n\n\n\nb \t\nc   \n");
+  });
+
+  test("no comment, no change: text comes back byte for byte, including a missing final newline", () => {
+    for (const text of ["x  \n\n\n\ny", "\n\nlead\n", "tail  \n\n\n", "```\n  \n\n\n```\n"]) expect(stripDescription(text)).toBe(text);
+  });
+
+  test("the blank run a removal leaves behind collapses, wherever it sits", () => {
+    expect(stripDescription("<!-- x -->\n\n\ntext\n", { all: true })).toBe("text\n");
+    expect(stripDescription("text\n\n\n<!-- x -->\n", { all: true })).toBe("text\n");
+    expect(stripDescription("a\n\n\n<!-- x -->\n\n\nb\n", { all: true })).toBe("a\n\nb\n");
+    expect(stripDescription("a\n\n\nb\n\n\n\n<!-- x -->\nc\n", { all: true })).toBe("a\n\n\nb\n\nc\n");
+  });
+
+  test("the stamp goes and leaves no extra blank line", () => {
+    const stamp = `<!-- wachiman:pr-template version=1 sha256=${"a".repeat(64)} -->`;
+    expect(stripDescription(`${stamp}\n\nbody  \n`)).toBe("body  \n");
+  });
+});

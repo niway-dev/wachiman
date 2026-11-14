@@ -73,6 +73,8 @@ export interface CheckInput {
   commitMessages?: readonly string[];
   /** Pass only when the owner asked for a breaking change. */
   allowBreaking?: boolean;
+  /** Told about a problem in `riskExtension` while the floor is computed from `files`: an invalid regex that is ignored. */
+  warn?: (line: string) => void;
 }
 
 // --------------------------------------------------------------------------- patterns
@@ -254,7 +256,7 @@ export function checkDescription(input: CheckInput): CheckResult {
   // the risk row against the computed floor
   const riskEntry = statusEntries.find((e) => e.rule === "risk-floor");
   let computed: Risk | RiskLevel | null = input.risk === undefined ? null : input.risk;
-  if (input.risk === undefined && input.files !== undefined) computed = computeRisk(input.files, input.riskExtension);
+  if (input.risk === undefined && input.files !== undefined) computed = computeRisk(input.files, input.riskExtension, input.warn);
   if (riskEntry && rows.has(riskEntry.label)) {
     const stated = statedLevel(rows.get(riskEntry.label)!);
     if (stated === null) {

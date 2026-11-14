@@ -28,6 +28,8 @@ export interface ChangedFile {
   status?: string;
   /** The hunk lines of the diff, `+` and `-` prefixed; empty when only the path is known. */
   patch?: string;
+  /** The diff names this file but its path could not be read: `path` is the raw header, and the floor goes to High. */
+  unreadable?: boolean;
 }
 
 export interface Risk {
@@ -282,10 +284,14 @@ function extensionRules(extra: RiskExtension | null | undefined, warn: (line: st
   return rules;
 }
 
+/** The reason given when a diff names a file whose path could not be read. */
+export const UNREADABLE_PATH_RULE = "a changed path that could not be read";
+
 /**
  * The lowest level the diff allows: the highest matching rule, and the first one to match wins a
  * tie. Extension rules can only raise it, because they are tried after the defaults and replace
- * the answer only with a higher level.
+ * the answer only with a higher level. A file whose path could not be read counts as High: it could
+ * have matched any rule, so it is never dropped.
  */
 export function computeRisk(
   changes: readonly ChangedFile[],
@@ -303,24 +309,90 @@ export function computeRisk(
       }
     }
   }
+  if (best.level < HIGH) {
+    const lost = changes.find((c) => c.unreadable);
+    if (lost) best = { level: HIGH, rule: UNREADABLE_PATH_RULE, path: lost.path };
+  }
   return best;
 }
 
 // --------------------------------------------------------------------------- diffs
 
-/** Split a unified diff into one entry per file; `patch` holds the hunk lines only. */
+const ESCAPES: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, "\\": 92 };
+
+/** A name in git's C style, `"..."` with escapes (`\"`, `\\`, `\t`, `\n`, octal bytes), as the text between the quotes; null when malformed. */
+function unquote(text: string): string | null {
+  if (text.length < 2 || text[0] !== '"' || text[text.length - 1] !== '"') return null;
+  const bytes: number[] = [];
+  const body = text.slice(1, -1);
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i]!;
+    if (ch === '"') return null;
+    if (ch !== "\\") {
+      bytes.push(...Buffer.from(ch, "utf8"));
+      continue;
+    }
+    const next = body[i + 1];
+    if (next === undefined) return null;
+    if (/[0-3]/.test(next)) {
+      const octal = body.slice(i + 1, i + 4);
+      if (!/^[0-3][0-7]{2}$/.test(octal)) return null;
+      bytes.push(parseInt(octal, 8));
+      i += 3;
+    } else if (next in ESCAPES) {
+      bytes.push(ESCAPES[next]!);
+      i += 1;
+    } else {
+      return null;
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
+/** A name that is either quoted or plain text; null when it starts with a quote and is malformed. */
+const readName = (text: string): string | null => (text.startsWith('"') ? unquote(text) : text);
+
+/** The name after a `--- ` or `+++ ` marker, without git's trailing tab; `/dev/null` is null and `undefined` means unreadable. */
+function markerPath(text: string, prefix: string): string | null | undefined {
+  const raw = text.startsWith('"') ? text : text.split("\t")[0]!;
+  if (raw === "/dev/null") return null;
+  const name = readName(raw);
+  return name !== null && name.startsWith(prefix) ? name.slice(prefix.length) : undefined;
+}
+
+/**
+ * The path in `diff --git a/<old> b/<new>`. Spaces are not quoted by git, so every split at a
+ * space is tried: the one whose two halves name the same file wins, otherwise the only valid split.
+ */
+function headerPath(rest: string): string | undefined {
+  const valid: { old: string; now: string }[] = [];
+  for (let i = rest.indexOf(" "); i !== -1; i = rest.indexOf(" ", i + 1)) {
+    const old = readName(rest.slice(0, i));
+    const now = readName(rest.slice(i + 1));
+    if (old !== null && now !== null && old.startsWith("a/") && now.startsWith("b/")) valid.push({ old: old.slice(2), now: now.slice(2) });
+  }
+  const same = valid.find((v) => v.old === v.now);
+  if (same) return same.now;
+  return valid.length === 1 ? valid[0]!.now : undefined;
+}
+
+/**
+ * Split a unified diff into one entry per file; `patch` holds the hunk lines only. A file's path
+ * comes from `rename to`, else the `+++` line (or the `---` line when the file is deleted), else the
+ * `diff --git` header; the header alone is used for binary files and mode changes. When none of
+ * them can be read the file is kept with `unreadable: true`, never dropped.
+ */
 export function parsePatch(text: string): ChangedFile[] {
-  interface Current { path: string; status: string; lines: string[] }
-  const changes: Current[] = [];
+  interface Current { header: string; status: string; lines: string[]; renameTo?: string | null; minus?: string | null; plus?: string | null }
+  const done: Current[] = [];
   let cur: Current | null = null;
   let inHunk = false;
   const diffLines = text.split("\n");
   if (diffLines[diffLines.length - 1] === "") diffLines.pop();
   for (const line of diffLines) {
     if (line.startsWith("diff --git ")) {
-      if (cur) changes.push(cur);
-      const m = /^diff --git a\/.* b\/(.*)$/.exec(line);
-      cur = { path: m ? m[1]! : line.split(/\s+/).pop()!, status: "M", lines: [] };
+      if (cur) done.push(cur);
+      cur = { header: line.slice("diff --git ".length), status: "M", lines: [] };
       inHunk = false;
     } else if (cur === null) {
       continue;
@@ -328,11 +400,18 @@ export function parsePatch(text: string): ChangedFile[] {
       if (line.startsWith("new file mode")) cur.status = "A";
       else if (line.startsWith("deleted file mode")) cur.status = "D";
       else if (line.startsWith("rename from")) cur.status = "R";
+      else if (line.startsWith("rename to ")) cur.renameTo = readName(line.slice("rename to ".length));
+      else if (line.startsWith("--- ")) cur.minus = markerPath(line.slice(4), "a/");
+      else if (line.startsWith("+++ ")) cur.plus = markerPath(line.slice(4), "b/");
       else if (line.startsWith("@@")) inHunk = true;
     } else {
       cur.lines.push(line);
     }
   }
-  if (cur) changes.push(cur);
-  return changes.map((c) => ({ path: c.path, status: c.status, patch: c.lines.join("\n") }));
+  if (cur) done.push(cur);
+  return done.map((c): ChangedFile => {
+    const path = c.renameTo || (c.plus === undefined ? undefined : c.plus) || (c.plus === null && c.minus ? c.minus : undefined) || headerPath(c.header);
+    const patch = c.lines.join("\n");
+    return path ? { path, status: c.status, patch } : { path: c.header, status: c.status, patch, unreadable: true };
+  });
 }

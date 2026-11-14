@@ -18,8 +18,13 @@ export type CommandRunner = (cmd: string[], cwd?: string) => CommandResult;
 /** A tool is missing, failed or answered something unreadable. `check` and `risk` exit 2 on it. */
 export class ToolError extends Error {}
 
+/**
+ * Runs the tools with `LC_ALL=C`, so their messages are in English whatever the user's locale. No
+ * decision here depends on a message (see `gitFileAt`); this is the second guard, for the text that
+ * `check` shows when a tool fails.
+ */
 export const defaultRunner: CommandRunner = (cmd, cwd) => {
-  const r = spawnSync(cmd[0]!, cmd.slice(1), { cwd, encoding: "utf8", maxBuffer: 512 * 1024 * 1024 });
+  const r = spawnSync(cmd[0]!, cmd.slice(1), { cwd, encoding: "utf8", maxBuffer: 512 * 1024 * 1024, env: { ...process.env, LC_ALL: "C" } });
   if (r.error) return { code: 127, stdout: "", stderr: `cannot run ${cmd[0]}: ${r.error.message}` };
   return { code: r.status ?? 1, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 };
@@ -53,7 +58,7 @@ export function gitHead(run: CommandRunner, cwd: string): string {
 /** What the branch changed since it left `base`: the diff from the merge base, one entry per file with its hunk lines. */
 export function changesFromGit(run: CommandRunner, cwd: string, base: string): { mergeBase: string; changes: ChangedFile[] } {
   const mergeBase = git(run, cwd, ["merge-base", base, "HEAD"]).trim();
-  const patch = git(run, cwd, ["diff", "-M", "-U0", "--no-color", "--no-ext-diff", mergeBase, "HEAD"]);
+  const patch = git(run, cwd, ["diff", "-M", "-U0", "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", mergeBase, "HEAD"]);
   return { mergeBase, changes: parsePatch(patch) };
 }
 
@@ -63,12 +68,20 @@ export function commitMessagesFromGit(run: CommandRunner, cwd: string, base: str
   return out.split("\0").map((m) => m.trim()).filter((m) => m !== "");
 }
 
-/** A file as it is at `ref`, or null when the commit has no such file. */
+/**
+ * A file as it is at `ref`, or null when the commit has no such file. Absence is decided by the
+ * tree, not by git's error text (which changes with the locale): `git ls-tree` answers an empty
+ * list for a path the commit lacks, and fails for a bad ref or a broken repository. A path that is
+ * a directory or a submodule is not a file, so it is absent too.
+ */
 export function gitFileAt(run: CommandRunner, cwd: string, ref: string, path: string): string | null {
+  const listing = run(["git", "ls-tree", "-z", "--full-tree", ref, "--", path], cwd);
+  if (listing.code !== 0) throw new ToolError(`git ls-tree ${ref} -- ${path} failed: ${firstLine(listing.stderr)}`);
+  const entry = listing.stdout.split("\0").find((e) => e.slice(e.indexOf("\t") + 1) === path && e.includes("\t"));
+  if (entry === undefined || !/^\d+ blob /.test(entry)) return null;
   const r = run(["git", "show", `${ref}:${path}`], cwd);
-  if (r.code === 0) return r.stdout;
-  if (/does not exist|exists on disk, but not in/i.test(r.stderr)) return null;
-  throw new ToolError(`git show ${ref}:${path} failed: ${firstLine(r.stderr)}`);
+  if (r.code !== 0) throw new ToolError(`git show ${ref}:${path} failed: ${firstLine(r.stderr)}`);
+  return r.stdout;
 }
 
 // --------------------------------------------------------------------------- gh

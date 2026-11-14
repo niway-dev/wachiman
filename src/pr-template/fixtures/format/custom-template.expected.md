@@ -30,8 +30,7 @@ No data moves.
 
 None.
 
-    ## Decisions
-
+## Decisions
 | Decision | Why | Record | Your call? |
 |---|---|---|---|
 | Keep the old key | Avoids a migration | None | No |

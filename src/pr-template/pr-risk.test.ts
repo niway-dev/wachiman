@@ -227,6 +227,118 @@ describe("ParsePatchTest", () => {
   test("empty", () => {
     expect(parsePatch("")).toEqual([]);
   });
+
+  const paths = (text: string) => parsePatch(text).map((c) => [c.path, c.status, c.unreadable === true]);
+
+  test("a path with a space, unquoted in the header, is read whole", () => {
+    const diff = [
+      "diff --git a/docs/my notes/auth login.ts b/docs/my notes/auth login.ts",
+      "index 1111111..2222222 100644",
+      "--- a/docs/my notes/auth login.ts\t",
+      "+++ b/docs/my notes/auth login.ts\t",
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+    ].join("\n");
+    expect(paths(diff)).toEqual([["docs/my notes/auth login.ts", "M", false]]);
+  });
+
+  test("a quoted path with a space and an escaped quote", () => {
+    const diff = [
+      String.raw`diff --git "a/src/we \"ird\" name.ts" "b/src/we \"ird\" name.ts"`,
+      "index 1111111..2222222 100644",
+      String.raw`--- "a/src/we \"ird\" name.ts"`,
+      String.raw`+++ "b/src/we \"ird\" name.ts"`,
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+    ].join("\n");
+    expect(paths(diff)).toEqual([['src/we "ird" name.ts', "M", false]]);
+  });
+
+  test("escapes in a quoted path: tab, backslash, newline and octal bytes", () => {
+    const header = (name: string) => `diff --git "a/${name}" "b/${name}"\nnew file mode 100644\nindex 0000000..1111111\n`;
+    expect(paths(header(String.raw`a\tb\\c\nd`))).toEqual([["a\tb\\c\nd", "A", false]]);
+    expect(paths(header(String.raw`caf\303\251.ts`))).toEqual([["café.ts", "A", false]]);
+  });
+
+  test("a rename takes the new path, quoted or not", () => {
+    const plain = ["diff --git a/old name.py b/new name.py", "similarity index 100%", "rename from old name.py", "rename to new name.py"].join("\n");
+    expect(paths(plain)).toEqual([["new name.py", "R", false]]);
+    const quoted = [
+      String.raw`diff --git "a/old.py" "b/new \"q\".py"`,
+      "similarity index 90%",
+      "rename from old.py",
+      String.raw`rename to "new \"q\".py"`,
+      "@@ -1 +1 @@",
+      "-x",
+      "+y",
+    ].join("\n");
+    expect(paths(quoted)).toEqual([['new "q".py', "R", false]]);
+  });
+
+  test("a rename into a protected folder is still seen as that folder", () => {
+    const diff = ["diff --git a/tools/x.ts b/db/migrations/x.ts", "similarity index 100%", "rename from tools/x.ts", "rename to db/migrations/x.ts"].join("\n");
+    expect(computeRisk(parsePatch(diff)).level).toBe(HIGH);
+  });
+
+  test("a deleted file takes its name from the --- line", () => {
+    const diff = [
+      "diff --git a/old dir/gone.py b/old dir/gone.py",
+      "deleted file mode 100644",
+      "index 1111111..0000000",
+      "--- a/old dir/gone.py\t",
+      "+++ /dev/null",
+      "@@ -1 +0,0 @@",
+      "-y = 1",
+    ].join("\n");
+    expect(paths(diff)).toEqual([["old dir/gone.py", "D", false]]);
+  });
+
+  test("a binary file has no --- and +++ lines: the header gives the path", () => {
+    const diff = ["diff --git a/img/logo file.png b/img/logo file.png", "new file mode 100644", "index 0000000..1111111", "Binary files /dev/null and b/img/logo file.png differ"].join("\n");
+    expect(paths(diff)).toEqual([["img/logo file.png", "A", false]]);
+    const quoted = [String.raw`diff --git "a/img/\"x\".png" "b/img/\"x\".png"`, "index 1111111..2222222 100644", String.raw`Binary files "a/img/\"x\".png" and "b/img/\"x\".png" differ`].join("\n");
+    expect(paths(quoted)).toEqual([['img/"x".png', "M", false]]);
+  });
+
+  test("a mode-only change is read from the header", () => {
+    const diff = ["diff --git a/bin/run b/bin/run", "old mode 100644", "new mode 100755"].join("\n");
+    expect(paths(diff)).toEqual([["bin/run", "M", false]]);
+  });
+
+  test("a path that cannot be read is kept, flagged, and raises the floor to High", () => {
+    const diff = [
+      String.raw`diff --git "a/bad\qname" "b/bad\qname"`,
+      "index 1111111..2222222 100644",
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+      "diff --git a/README.md b/README.md",
+      "--- a/README.md",
+      "+++ b/README.md",
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+    ].join("\n");
+    const got = parsePatch(diff);
+    expect(got.map((c) => c.unreadable === true)).toEqual([true, false]);
+    expect(got[1]!.path).toBe("README.md");
+    const risk = computeRisk(got);
+    expect(risk.level).toBe(HIGH);
+    expect(risk.rule).toBe("a changed path that could not be read");
+    expect(formatRisk(risk)).toStartWith("🔴 High: a changed path that could not be read (");
+  });
+
+  test("an unterminated quote and an ambiguous unquoted header are unreadable too", () => {
+    expect(paths(String.raw`diff --git "a/x b/x`)).toEqual([[expect.any(String), "M", true]]);
+    expect(paths("diff --git a/one b/two a/three b/four")).toEqual([[expect.any(String), "M", true]]);
+  });
+
+  test("a readable path leaves the floor to the rules", () => {
+    const diff = ["diff --git a/README.md b/README.md", "--- a/README.md", "+++ b/README.md", "@@ -1 +1 @@", "-a", "+b"].join("\n");
+    expect(computeRisk(parsePatch(diff)).level).toBe(LOW);
+  });
 });
 
 describe("GitRiskTest", () => {

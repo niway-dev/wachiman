@@ -1,10 +1,15 @@
-import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
+import { UsageError } from "../config";
 import { analyzeUnmanaged, mergeAdoption } from "./adopt";
 import { loadCatalog, loadRepoChoice } from "./catalog";
+import { parseInstallArgs, runInstall } from "./install";
 import { renderTemplate } from "./render";
 import { resolveTemplate } from "./resolve";
+
+afterAll(removeTempRepos);
 
 const catalog = loadCatalog();
 const fixture = (name: string) => readFileSync(join(import.meta.dir, "fixtures", "adopt", name), "utf8");
@@ -14,6 +19,16 @@ const generated = (text: string) => {
   const choice = loadRepoChoice(JSON.stringify(merged), catalog);
   return { merged, choice, output: renderTemplate(resolveTemplate(catalog, choice), catalog.version) };
 };
+
+/** Runs `install` on a repository whose only template is `old`; returns the exit code, the log and what was written. */
+function installOver(old: string) {
+  const repo = emptyRepo();
+  commit(repo, { "README.md": "hello\n", ".github/pull_request_template.md": old }, "init");
+  const err: string[] = [];
+  const code = runInstall(parseInstallArgs([]) as Parameters<typeof runInstall>[0], repo, { stdout: () => {}, stderr: (l: string) => void err.push(l) }, { now: () => "2026-11-14T10:00:00.000Z" });
+  const choicePath = join(repo, ".github", "pr-template.json");
+  return { code, log: err.join("\n"), choice: existsSync(choicePath) ? (JSON.parse(readFileSync(choicePath, "utf8")) as Record<string, unknown>) : null, template: readFileSync(join(repo, ".github", "pull_request_template.md"), "utf8") };
+}
 
 describe("the earlier hand-copied template (version 0)", () => {
   const text = fixture("version-0.md");
@@ -160,13 +175,55 @@ describe("block recognition", () => {
     expect((kept.match(/<details\b/gi) ?? []).length).toBe((kept.match(/<\/details>/gi) ?? []).length);
   });
 
-  test("a Wachiman start marker with no end marker loses nothing after it", () => {
-    const a = adopt("<!-- wachiman:confidence:start -->\n- [ ] keep me\n\n## Why\n<!-- g -->\nafter the why\n");
+  test("a Wachiman start marker with no end marker is dropped and reported, everything after it is kept, and install succeeds", () => {
+    const old = "<!-- wachiman:confidence:start -->\n- [ ] keep me\n\n## Why\n<!-- g -->\nafter the why\n";
+    const a = adopt(old);
     const kept = a.preamble.join("\n");
-    expect(kept).toContain("<!-- wachiman:confidence:start -->");
+    expect(kept).not.toContain("wachiman:confidence");
     expect(kept).toContain("- [ ] keep me");
     expect(kept).toContain("after the why");
+    expect(a.report.join("\n")).toMatch(/start marker has no end marker; the marker line was dropped/);
     expect(a.report.join("\n")).not.toContain("replaced the Wachiman block");
+    expect(() => generated(old)).not.toThrow();
+    const done = installOver(old);
+    expect(done.code).toBe(0);
+    expect((done.choice!.preamble as string[]).join("\n")).toContain("after the why");
+  });
+
+  test("a Wachiman marker inside a line of text is dropped from the preamble too", () => {
+    const old = "- [ ] keep <!-- wachiman:confidence:end --> this\n";
+    expect(() => generated(old)).not.toThrow();
+    expect(adopt(old).report.join("\n")).toMatch(/Wachiman marker/);
+  });
+
+  test("a name the loader would reject is not a custom entry: its lines stay in the preamble, balanced and reported, and install succeeds", () => {
+    const longHeading = `## ${"Very long heading ".repeat(8)}`.trimEnd();
+    const old = `${longHeading}\n<!-- g -->\nbody of the long one\n\n| | |\n|---|---|\n| **Owner | Team** | <!-- who --> |\n| **Ticket** | <!-- id --> |\n\n## Fine heading <b>\n\n<details><summary><b>Has > sign</b></summary>\ninside\n</details>\n`;
+    const a = adopt(old);
+    expect(a.custom.map((c) => c.name)).toEqual(["Ticket"]);
+    const kept = a.preamble.join("\n");
+    expect(kept).toContain(longHeading);
+    expect(kept).toContain("| **Owner | Team** |");
+    expect(kept).toContain("## Fine heading <b>");
+    expect(kept).toContain("Has > sign");
+    expect(kept).toContain("</details>");
+    expect(a.report.join("\n")).toMatch(/cannot be a custom section.*heading is \d+ characters/);
+    expect(a.report.join("\n")).toMatch(/cannot be a custom status row.*must not contain "\|"/);
+    expect(() => generated(old)).not.toThrow();
+    const done = installOver(old);
+    expect(done.code).toBe(0);
+    expect((done.choice!.preamble as string[]).join("\n")).toContain("| **Owner | Team** |");
+  });
+
+  test("a comment opened and never closed refuses the adoption before anything is written", () => {
+    for (const old of ["- [ ] ok\n\nsee <!-- note\nmore text\n", "<!-- opened here\n- [ ] ok\n", "an arrow --> here\n"]) {
+      expect(() => adopt(old)).toThrow(UsageError);
+      expect(() => adopt(old)).toThrow(/comment|-->/);
+    }
+    const repo = emptyRepo();
+    commit(repo, { "README.md": "x\n", ".github/pull_request_template.md": "see <!-- note\n- [ ] ok\n" }, "init");
+    expect(() => runInstall(parseInstallArgs([]) as Parameters<typeof runInstall>[0], repo, { stdout: () => {}, stderr: () => {} }, { now: () => "2026-11-14T10:00:00.000Z" })).toThrow(/close|unclosed|never closed/);
+    expect(existsSync(join(repo, ".github", "pr-template.json"))).toBe(false);
   });
 
   test("a start marker with its end marker is still replaced by the catalog's block", () => {

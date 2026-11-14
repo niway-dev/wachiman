@@ -2,8 +2,8 @@
  * `wachiman pr-template format`: print a description in the template's order. Status rows, `##`
  * sections and `<details>` blocks follow the template, missing required ones are added empty, the
  * Wachiman block and the footer go last. It never deletes or rewrites text it does not
- * recognise: every non-empty line of the input is in the output, and a description that is already
- * in order comes back byte for byte.
+ * recognise: every non-blank line of the input is in the output exactly as written (not trimmed,
+ * not re-indented), and a description that is already in order comes back byte for byte.
  *
  * The description is cut into units with `parseDescription`'s segments: the preface (everything
  * before the first structural element, which holds the status table), then one unit per `##`
@@ -12,10 +12,11 @@
  *
  * - Status rows are reordered inside the table, and a missing required row is added with an empty
  *   value.
- * - An unknown `##` section goes into the Notes block, under what Notes already says. Its heading
- *   keeps its line but is indented four spaces, because a `##` inside Notes would still be an
- *   unknown heading for `check`. When the template has no Notes block, or the Notes block cannot
- *   take text without rewriting its closing line, the section stays as it is, after the known ones.
+ * - An unknown `##` section goes into the Notes block, under what Notes already says, every line
+ *   as written, its heading included: `describe.ts` reads a heading inside a `<details>` block as
+ *   the block's text, so `check` no longer sees it as a heading and Markdown still renders it as
+ *   one. When the template has no Notes block, or the Notes block cannot take text without
+ *   rewriting its closing line, the section stays as it is, after the known ones.
  * - An unknown `<details>` block stays whole, after the known ones: `<details>` does not nest in
  *   what `describe.ts` reads, and moving it in would mean rewriting its summary line.
  */
@@ -180,11 +181,11 @@ function arrangeRows(lines: string[], first: number, rows: ParsedDescription["st
   return [...base, ...(base.length > 0 ? [""] : []), "| | |", "|---|---|", ...items.map((i) => i.text)];
 }
 
+/** How many times each non-blank line occurs, as written: a changed indent or trailing space is a different line. */
 function lineCounts(text: string): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const raw of text.split(/\r\n|\r|\n/)) {
-    const line = raw.trim();
-    if (line !== "") counts.set(line, (counts.get(line) ?? 0) + 1);
+  for (const line of text.split(/\r\n|\r|\n/)) {
+    if (line.trim() !== "") counts.set(line, (counts.get(line) ?? 0) + 1);
   }
   return counts;
 }
@@ -225,11 +226,8 @@ export function formatDescription(text: string, template: ResolvedTemplate): str
   const floaters = unknown.filter((u) => !moved.includes(u));
   const movedLines: string[] = [];
   for (const u of moved) {
-    const ls = trimEnd(slice(u));
     if (movedLines.length > 0) movedLines.push("");
-    movedLines.push(`    ${ls[0]!.trimStart()}`);
-    if (ls.length > 1 && ls[1]!.trim() !== "") movedLines.push("");
-    movedLines.push(...ls.slice(1));
+    movedLines.push(...trimEnd(slice(u)));
   }
 
   const seq: Item[] = [];

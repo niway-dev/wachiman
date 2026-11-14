@@ -65,6 +65,38 @@ describe("parseDescription", () => {
     expect(p.details).toHaveLength(0);
   });
 
+  test("details and footers inside fenced code are not structure, like headings", () => {
+    const text = "## What\n```html\n<details><summary><b>Notes</b></summary>\nx\n</details>\n<sub>Describes commit abc1234.</sub>\n```\n~~~\n<sub>tilde</sub>\n~~~\n";
+    const p = parseDescription(text);
+    expect(p.details).toHaveLength(0);
+    expect(p.subs).toHaveLength(0);
+    expect(p.segments.map((s) => s.kind)).toEqual(["section"]);
+    const real = parseDescription(`${text}<details><summary><b>Notes</b></summary>\n\ny\n\n</details>\n<sub>Describes commit abc1234.</sub>\n`);
+    expect(real.details.map((d) => d.name)).toEqual(["Notes"]);
+    expect(real.subs).toHaveLength(1);
+  });
+
+  test("a details block's text keeps its fences while the matching ignores them", () => {
+    const p = parseDescription("<details><summary><b>Notes</b></summary>\n\n```\nsome code\n```\n\n</details>\n");
+    expect(p.details[0]!.clean).toContain("some code");
+  });
+
+  test("a ## heading inside a details block is content of the block, not a section", () => {
+    const text = "## What\ntext\n<details><summary><b>Notes</b></summary>\n\n## Inner\n\nmore\n\n</details>\n## Why\nbecause\n";
+    const p = parseDescription(text);
+    expect(p.headings.map((h) => h.name)).toEqual(["What", "Why"]);
+    expect(p.sections.map((s) => s.name)).toEqual(["What", "Why"]);
+    expect(p.details.map((d) => d.name)).toEqual(["Notes"]);
+    expect(p.details[0]!.clean).toContain("## Inner");
+    expect(p.segments.map((s) => s.kind)).toEqual(["section", "details", "section"]);
+  });
+
+  test("a details block that is never closed is not a block, so what follows keeps its structure", () => {
+    const p = parseDescription("## What\n<details><summary><b>Notes</b></summary>\n\n## Why\n");
+    expect(p.details).toHaveLength(0);
+    expect(p.headings.map((h) => h.name)).toEqual(["What", "Why"]);
+  });
+
   test("a marker with no partner is only a comment", () => {
     const p = parseDescription("<!-- wachiman:confidence:start -->\n## What\n");
     expect(p.blocks).toHaveLength(0);
