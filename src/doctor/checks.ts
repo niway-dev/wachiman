@@ -384,8 +384,8 @@ export const CHECKS: DoctorCheck[] = [
           const why = error instanceof UsageError ? error.message : `${SETTINGS_PATH} cannot be read (${error instanceof Error ? error.message : error})`;
           return {
             id: "settings",
-            level: "required",
-            status: "fail",
+            level: "optional",
+            status: "warn",
             evidence: `the working copy of ${SETTINGS_PATH} is invalid: ${why} Runs read it at the base commit (Actions) or the merge-base (local), so it takes effect once committed and merged; a run with a broken file at that commit ignores it with a warning and uses the defaults.`,
             fix: `fix ${SETTINGS_PATH} (effort is low, medium, high, xhigh or max; model is a model name), or remove it to use the defaults`,
             detail: { file, valid: false },

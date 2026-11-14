@@ -13,6 +13,7 @@
  * built-in defaults.
  */
 import { UsageError, type EngineConfig, type SettingSource } from "./config";
+import { PER_BATCH_USD } from "./estimate";
 import { DEFAULT_MODELS } from "./providers";
 import { DEFAULT_EFFORT, EFFORTS, type Effort } from "./providers/types";
 
@@ -71,15 +72,25 @@ export const ignoredSettingsNote = (reason: string, where: string) => `ignored $
 
 const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 200);
 
+/** Whether Wachiman knows `model` as a Claude one: its id names a family in the measured cost table (`PER_BATCH_USD`). */
+export const isKnownClaudeModel = (model: string) => Object.keys(PER_BATCH_USD).some((family) => model.toLowerCase().includes(family));
+
 /**
  * `config` with the file's `model` and `effort` where nothing explicit set them: a value that came
- * from the environment is never replaced, and a default always is.
+ * from the environment is never replaced, and a default always is. On Claude Code a file model
+ * that is not a known Claude model is skipped with a warning naming `where` (Claude Code's
+ * preflight never checks the model, so it would fail every batch, including the pull request that
+ * fixes the file); Codex checks its own price table in preflight.
  */
-export function applyRepoSettings(config: EngineConfig, settings: RepoSettings): EngineConfig {
+export function applyRepoSettings(config: EngineConfig, settings: RepoSettings, opts: { where: string; warn: (line: string) => void }): EngineConfig {
   const next = { ...config };
   if (config.modelSource === "default" && settings.model !== undefined) {
-    next.model = settings.model;
-    next.modelSource = "file";
+    if (config.provider === "claude-code" && !isKnownClaudeModel(settings.model)) {
+      opts.warn(`ignored model "${settings.model}" from ${SETTINGS_PATH} at ${opts.where}: not a Claude model Wachiman knows (its id names none of ${Object.keys(PER_BATCH_USD).join(", ")}); using ${config.model}`);
+    } else {
+      next.model = settings.model;
+      next.modelSource = "file";
+    }
   }
   if (config.effortSource === "default" && settings.effort !== undefined) {
     next.effort = settings.effort;

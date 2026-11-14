@@ -1718,8 +1718,9 @@ export function withBaseSettings(
     return config;
   }
   if (!settings) return config;
-  const next = applyRepoSettings(config, settings);
-  const note = fileSettingsNote(next, `the base commit ${sha.slice(0, 7)}`);
+  const where = `the base commit ${sha.slice(0, 7)}`;
+  const next = applyRepoSettings(config, settings, { where, warn });
+  const note = fileSettingsNote(next, where);
   if (note) log(`settings: ${note}`);
   return next;
 }

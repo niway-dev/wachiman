@@ -214,19 +214,19 @@ describe("settings row: the repository's .wachiman.yml", () => {
     expect(r.detail).toMatchObject({ effectiveModel: "claude-haiku-5-5", modelFrom: "env", effectiveEffort: "max", effortFrom: "env", model: "claude-opus-5-5" });
   });
 
-  test("an invalid file is a required failure with the fix, and the exit code is 1", () => {
+  test("an invalid file is a warning with the fix, and the exit code stays 0", () => {
     const repo = emptyRepo();
     write(repo, { ".wachiman.yml": "effort: turbo\n" });
     const m = machine();
     const report = m.report({ repoDir: repo });
-    expect(row(report, "settings")).toMatchObject({ level: "required", status: "fail", detail: { valid: false } });
+    expect(row(report, "settings")).toMatchObject({ level: "optional", status: "warn", detail: { valid: false } });
     expect(row(report, "settings").evidence).toContain('got "turbo"');
     expect(row(report, "settings").fix).toContain("remove it");
     expect(row(report, "settings").evidence).toContain("the working copy of .wachiman.yml is invalid");
     expect(row(report, "settings").evidence).toContain("takes effect once committed and merged");
     expect(row(report, "settings").evidence).not.toContain("stops");
-    expect(report.failedRequired).toBe(1);
-    expect(report.exitCode).toBe(1);
+    expect(report.failedRequired).toBe(0);
+    expect(report.exitCode).toBe(0);
   });
 
   test("the old .github/wachiman.yml is a warning whose fix is mv (it works whether the file is tracked or not), and nothing is moved", () => {

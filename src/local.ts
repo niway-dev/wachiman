@@ -307,7 +307,7 @@ export function withLocalSettings(config: EngineConfig, repoDir: string, scope: 
     return config;
   }
   if (!settings) return config;
-  const next = applyRepoSettings(config, settings);
+  const next = applyRepoSettings(config, settings, { where, warn: stderr });
   const note = fileSettingsNote(next, where);
   if (note) stderr(`settings: ${note}`);
   return next;

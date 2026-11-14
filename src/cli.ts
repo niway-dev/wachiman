@@ -385,12 +385,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // an automatic run's, so it does not spend from the automatic ceiling.
     const effective = routeMode(mode, commentLine, env.REQUEST ?? "", loaded.mention);
     const routed = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
-    const adapters = (c: typeof routed) => ({
-      provider: getProvider(c.provider, c),
-      // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
-      verifier: c.verify && mode !== "threads" ? getProvider(c.provider, { ...c, model: c.verifierModel, effort: "high" }) : undefined,
-    });
-    let { provider, verifier } = adapters(routed);
+    const mainProvider = (c: typeof routed) => getProvider(c.provider, c);
+    // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
+    const verifier = routed.verify && mode !== "threads" ? getProvider(routed.provider, { ...routed, model: routed.verifierModel, effort: "high" }) : undefined;
+    let provider = mainProvider(routed);
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
     const request = effective === "comment" ? required(env, "REQUEST") : "";
@@ -407,15 +405,15 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // call agree. The adapters are rebuilt only when the file changed one of them.
     let config = withBaseSettings(routed, defaultGh, repo, pr, (line) => console.log(line), (line) => console.error(line));
     if (config.model !== routed.model || config.effort !== routed.effort) {
-      const before = { provider, verifier };
-      ({ provider, verifier } = adapters(config));
+      // Settings never change the verifier (own model, effort high), so only the main provider is rebuilt.
+      const before = provider;
+      provider = mainProvider(config);
       try {
         provider.preflight();
-        verifier?.preflight();
       } catch (error) {
         // A value the base file set that this provider cannot use must not block the pull request that fixes it.
         console.error(`wachiman: ignored model/effort from .wachiman.yml at the base commit: ${error instanceof Error ? error.message : error}; using the workflow's values.`);
-        ({ provider, verifier } = before);
+        provider = before;
         config = routed;
       }
     }
