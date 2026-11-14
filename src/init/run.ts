@@ -3,7 +3,9 @@
  * half. It writes only the chosen workflow file and its `.bak` copy, and, when the repository kind
  * is given or answered, the settings file `.wachiman.yml` (ADR 0048), after the person has
  * seen what will be written (or named `--yes` or no terminal with every mandatory flag). It never
- * commits, pushes, opens a pull request or creates a secret, and it makes no network request.
+ * commits, pushes, opens a pull request or creates a secret. Its only network use is one optional
+ * `gh api user` (src/init/github-login.ts, up to 10 s) to suggest the operator, and only on a terminal in
+ * github or both mode; Wachiman itself makes no request (no `fetch`).
  */
 import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";

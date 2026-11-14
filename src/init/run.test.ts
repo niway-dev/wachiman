@@ -26,7 +26,8 @@ const expected = (operator: string, tag = "v1.5.0") => renderCallerWorkflow(temp
 
 const realFetch = globalThis.fetch;
 beforeEach(() => {
-  // No Wachiman-owned network request from init (types spec section 8, invariant 10).
+  // Init makes no Wachiman-owned request (types spec section 8, invariant 10). The one network use is
+  // `gh api user`, a subprocess that only suggests the operator on a terminal; it never goes through fetch.
   globalThis.fetch = (() => {
     throw new Error("init must not use the network");
   }) as unknown as typeof fetch;

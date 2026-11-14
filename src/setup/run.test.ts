@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:tes
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CTRL_C, ESC, scripted } from "../../test/support/scripted-prompt";
+import { ESC, scripted } from "../../test/support/scripted-prompt";
 import { fakeToolchain, signedIn, type RecordedCall, type Tools } from "../../test/support/fake-toolchain";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { snapshotTree } from "../../test/support/tree-snapshot";
@@ -109,9 +109,24 @@ const setup = (w: World, argv: string[], lines: string[], extra: SetupDeps = {})
 const errText = (w: World) => w.err.join("\n");
 
 describe("setup on a terminal", () => {
+  test.each([
+    ["Escape", [ESC]],
+    ["Ctrl-C", ["\u0003"]],
+    ["Ctrl-D (the stream ends)", []],
+  ])("%s at the account choice exits 130 and saves nothing", async (_key, keys) => {
+    const w = world();
+    const before = w.configText();
+    const { io, run } = setup(w, [], ["", ...keys]); // set up? / key at the account choice
+    expect(await run).toBe(130);
+    expect(io.printed()).toContain("Which account profile should this repository use?");
+    expect(w.configText()).toBe(before);
+    expect(w.config()?.projects ?? {}).toEqual({});
+    expect(errText(w)).toContain("cancelled: no configuration changes saved.");
+  });
+
   test("lists the registered profiles with the default marked, offers register and create, and says what it saved without a confirm", async () => {
     const w = world({ defaultProfile: "work-b" });
-    const { io, run } = setup(w, [], ["", "2"]); // set up? / pick work-a / bind?
+    const { io, run } = setup(w, [], ["", "2"]); // set up? / pick work-a
     expect(await run).toBe(0);
     const printed = io.printed();
     expect(printed).toMatch(/2\. work-a {2}external/);
@@ -415,7 +430,7 @@ describe("setup: registering an external directory", () => {
 });
 
 describe("setup: creating a managed profile", () => {
-  test("the directory and the Claude sign-in need their own confirmation, and nothing is registered until the final one", async () => {
+  test("the directory and the Claude sign-in need their own confirmation, and the profile is registered together with the binding", async () => {
     const w = world();
     const dir = join(w.home, "claude-isolated");
     const { io, run } = setup(w, [], ["", "4", "", ""]); // set up? / create / name / create dir?

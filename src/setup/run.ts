@@ -132,15 +132,14 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
       throw error;
     }
     if (answers.kind === "cancelled") {
+      // Unreachable with effects: the only step that touches disk or Claude (the managed sign-in) is the last prompt.
       io.stderr("cancelled: no configuration changes saved.");
-      reportEffects();
       for (const hint of deps.unboundHints ?? []) io.stderr(`Next, on this machine: ${hint}   (binds this repository to a Claude account)`);
       outcome = "cancelled";
       return 130;
     }
     if (answers.kind === "declined") {
       io.stderr("nothing saved: the configuration is unchanged.");
-      reportEffects();
       for (const hint of deps.unboundHints ?? []) io.stderr(`Next, on this machine: ${hint}   (binds this repository to a Claude account)`);
       outcome = "done";
       closing = "Nothing was saved.";
