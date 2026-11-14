@@ -13,8 +13,8 @@ const run = (args: string[], env: Record<string, string> = {}) => {
 describe("root help", () => {
   test("is short, names every public command and hides the CI commands and --setup-profile", () => {
     const text = rootHelp();
-    expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(25);
-    for (const name of ["local", "loop", "ask", "history", "status", "dashboard", "ledger", "setup", "init", "doctor", "profile", "project", "skills"]) {
+    expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(26);
+    for (const name of ["local", "loop", "ask", "history", "status", "dashboard", "ledger", "setup", "init", "doctor", "profile", "project", "skills", "pr-template"]) {
       expect(text).toContain(`  ${name} `);
     }
     for (const name of CI_COMMANDS) expect(text).not.toMatch(new RegExp(`^  ${name} `, "m"));
@@ -51,7 +51,7 @@ describe("a page per command", () => {
 
   test("--help exits 0 on stdout alone, with an empty environment and a Wachiman home that does not exist", () => {
     const home = join(mkdtempSync(join(tmpdir(), "help-home-")), "missing");
-    for (const name of ["local", "ask", "loop", "review", "doctor", "setup", "init", "skills", "profile"]) {
+    for (const name of ["local", "ask", "loop", "review", "doctor", "setup", "init", "skills", "profile", "pr-template"]) {
       const out = run([name, "-h"], { WACHIMAN_HOME: home });
       expect(out.code).toBe(0);
       expect(out.stdout).toBe(commandHelp([name]));
@@ -66,7 +66,7 @@ describe("a page per command", () => {
   }, 30_000);
 
   test("nested commands have their own page", () => {
-    for (const words of [["profile", "create"], ["profile", "add"], ["project", "show"], ["skills", "install"], ["skills", "uninstall"], ["ledger", "pull"]]) {
+    for (const words of [["profile", "create"], ["profile", "add"], ["project", "show"], ["skills", "install"], ["skills", "uninstall"], ["ledger", "pull"], ...["show", "install", "status", "check", "format", "risk", "strip"].map((sub) => ["pr-template", sub])]) {
       const page = commandHelp(words)!;
       expect(page).toContain(`Usage\n  wachiman ${words.join(" ")}`);
       expect(helpFor([...words, "--help"])).toEqual({ text: page });
@@ -124,4 +124,31 @@ describe("usage errors", () => {
     expect(helpFor(["local", "--base", "main"])).toBeUndefined();
     expect(helpFor(["--version"])).toBeUndefined();
   });
+});
+
+describe("pr-template", () => {
+  test("its page links the guide and every subcommand has its own", () => {
+    const page = commandHelp(["pr-template"])!;
+    expect(page).toContain("Docs: https://github.com/niway-dev/wachiman/blob/main/docs/pr-template.md");
+    for (const sub of ["show", "install", "status", "check", "format", "risk", "strip"]) {
+      expect(page).toMatch(new RegExp(`\\n  ${sub} `));
+      expect(commandHelp(["pr-template", sub])).toContain("pr-template.md");
+    }
+  });
+
+  test("init's page names the template flags", () => {
+    expect(commandHelp(["init"])).toContain("--pr-template");
+    expect(commandHelp(["init"])).toContain("--no-pr-template");
+  });
+
+  test("an unknown subcommand exits 2 and points at the command's page; --help exits 0", () => {
+    const bad = run(["pr-template", "frobnicate"]);
+    expect(bad.code).toBe(2);
+    expect(bad.stderr).toContain("Unknown pr-template subcommand");
+    expect(bad.stderr).toContain("Run 'wachiman pr-template --help'.");
+    const help = run(["pr-template", "check", "--help"]);
+    expect(help.code).toBe(0);
+    expect(help.stdout).toBe(commandHelp(["pr-template", "check"]));
+    expect(run(["pr-template"]).stdout).toBe(commandHelp(["pr-template"]));
+  }, 30_000);
 });

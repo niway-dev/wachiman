@@ -17,6 +17,12 @@ const rejects = (value: unknown, pattern: RegExp) => {
 };
 
 describe("the shipped catalog", () => {
+  test("the intro agrees with custom sections: headings come from the template, not from a ban on new ones", () => {
+    expect(catalog.intro).not.toMatch(/never add a new heading/i);
+    expect(catalog.intro).toContain(".github/pr-template.json");
+    expect(catalog.intro).toContain("goes in Notes");
+  });
+
   test("is version 1 and lists the sections of the default template in order", () => {
     expect(catalog.version).toBe(1);
     const defaults = catalog.sections.filter((e) => e.default).map((e) => e.id);

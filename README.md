@@ -110,6 +110,7 @@ same material, in this repository:
 | Run the engine from the command line | [docs/cli.md](docs/cli.md) |
 | Review a branch on my laptop, on my own Claude subscription | [docs/local-review.md](docs/local-review.md) |
 | See the spend, findings and loops of my local reviews on one page | [docs/local-dashboard.md](docs/local-dashboard.md) |
+| Give every pull request the same description template, and check it | [docs/pr-template.md](docs/pr-template.md) |
 | See what a provider adapter runs and inherits | [docs/providers/claude-code.md](docs/providers/claude-code.md), [docs/providers/codex.md](docs/providers/codex.md) |
 | Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
 | Understand how a review is built | [docs/architecture.md](docs/architecture.md) |

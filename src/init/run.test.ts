@@ -283,7 +283,7 @@ describe("init with scripted prompts", () => {
     scratch.push(home);
     const env = { WACHIMAN_HOME: home, PATH: "/usr/bin", USER: "fixture" };
     const tools = fakeToolchain();
-    const promptIO = scripted(mode === "both" ? ["", "", ""] : ["", ""]);
+    const promptIO = scripted(mode === "both" ? ["n", "", "", ""] : ["n", "", ""]) // PR template (no), then setup;
     const code = await runInitCommand({ repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) }, env, w.io, w.deps({
       interactive: true,
       promptIO,
@@ -317,23 +317,28 @@ describe("init with scripted prompts", () => {
 
   test("defaults taken by Enter equal the printed defaults", async () => {
     const w = world();
-    const io = scripted(["", "octocat", "", "", ""]); // mode, operator, tag, file, Write it?
+    const io = scripted(["", "octocat", "", "", "", ""]); // mode, operator, tag, file, PR template, Write it?
     const code = await init(w, [], { interactive: true, promptIO: io });
     expect(code).toBe(0);
     const printed = io.printed();
     expect(printed).toMatch(/1\. In GitHub Actions on pull requests \(default\)/);
     expect(printed).toContain("Release tag to pin [v1.5.0]");
     expect(printed).toContain("Workflow file [.github/workflows/wachiman-review.yml]");
+    expect(printed).toContain("(.github/pull_request_template.md)? Nothing is committed. [Y/n]");
     expect(printed).toContain("Write it? [Y/n]");
     expect(printed).toContain("Step 3/4  GitHub workflow");
     expect(printed).toContain("Step 4/4  Checks and next actions");
     // What the printed defaults mean is what was written.
     expect(readFileSync(w.target, "utf8")).toBe(expected("octocat", "v1.5.0"));
+    // The default of the template question is yes, and it writes the file without a commit.
+    expect(existsSync(join(w.repo, ".github", "pull_request_template.md"))).toBe(true);
+    expect(git(w.repo, "status", "--porcelain")).toContain(".github/");
+    expect(git(w.repo, "log", "--oneline").trim().split("\n")).toHaveLength(1);
   });
 
   test("the preview shows the file and whether it is new before the question", async () => {
     const w = world();
-    const io = scripted(["1", "octocat", "", "", "y"]);
+    const io = scripted(["1", "octocat", "", "", "n", "y"]);
     await init(w, [], { interactive: true, promptIO: io });
     expect(w.err.join("\n")).toContain("--- .github/workflows/wachiman-review.yml (new)");
     expect(w.err.join("\n")).toContain('operator: "octocat"');
@@ -341,7 +346,7 @@ describe("init with scripted prompts", () => {
 
   test("an invalid answer is shown and asked again; flags already given are not asked", async () => {
     const w = world();
-    const io = scripted(["bad login", "me", "", "y"]); // operator (twice), file, Write it?
+    const io = scripted(["bad login", "me", "", "n", "y"]); // operator (twice), file, PR template, Write it?
     const code = await init(w, ["--mode", "github", "--version", "v1.5.0"], { interactive: true, promptIO: io });
     expect(code).toBe(0);
     expect(io.printed()).toContain("is not a GitHub login");
@@ -370,7 +375,7 @@ describe("init with scripted prompts", () => {
 
   test("Ctrl-D (the input ends) at the Write it? question exits 130 and writes nothing", async () => {
     const w = world();
-    const io = scripted(["1", "me", "", ""]); // mode, operator, tag, file: the input ends at Write it?
+    const io = scripted(["1", "me", "", "", "n"]); // mode, operator, tag, file, PR template: the input ends at Write it?
     expect(await init(w, [], { interactive: true, promptIO: io })).toBe(130);
     expect(io.printed()).toContain("Write it?");
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
@@ -378,7 +383,7 @@ describe("init with scripted prompts", () => {
 
   test("answering no to Write it? writes nothing and exits 0", async () => {
     const w = world();
-    expect(await init(w, [], { interactive: true, promptIO: scripted(["1", "me", "", "", "n"]) })).toBe(0);
+    expect(await init(w, [], { interactive: true, promptIO: scripted(["1", "me", "", "", "n", "n"]) })).toBe(0);
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
     expect(w.err.join("\n")).toContain("not written");
   });
@@ -386,14 +391,14 @@ describe("init with scripted prompts", () => {
   test("an existing target without --force is exit 2 before the question", async () => {
     const w = world();
     await init(w, ["--mode", "github", "--operator", "me"]);
-    const io = scripted(["1", "me", "", ""]);
+    const io = scripted(["1", "me", "", "", "n"]);
     expect(await exit2(init(w, [], { interactive: true, promptIO: io }))).toContain("--force");
     expect(io.printed()).not.toContain("Write it?");
   });
 
   test("local mode enters setup directly without another invitation", async () => {
     const w = world();
-    const io = scripted(["2", "from-setup"]);
+    const io = scripted(["2", "n", "from-setup"]);
     let got: string | null | undefined;
     const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async (p) => {
       got = await p.text("Setup asks", undefined);
@@ -407,7 +412,7 @@ describe("init with scripted prompts", () => {
 
   test("both: setup runs in the same process, sharing the prompt session", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", "", "from-setup"]);
+    const io = scripted(["3", "me", "", "", "n", "", "from-setup"]);
     let got: string | null | undefined;
     const code = await init(w, [], {
       interactive: true,
@@ -424,7 +429,7 @@ describe("init with scripted prompts", () => {
 
   test("both: cancelling during setup leaves the confirmed workflow in place and says so", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", ""]);
+    const io = scripted(["3", "me", "", "", "n", ""]);
     const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async () => 130 });
     expect(code).toBe(130);
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
@@ -433,7 +438,7 @@ describe("init with scripted prompts", () => {
 
   test("both: a setup failure reports the completed workflow write", async () => {
     const w = world();
-    const io = scripted(["3", "me", "", "", ""]);
+    const io = scripted(["3", "me", "", "", "n", ""]);
     const code = await exit2(init(w, [], { interactive: true, promptIO: io, bindNow: async () => { throw new UsageError("setup failed"); } }));
     expect(code).toContain("setup failed");
     expect(existsSync(w.target)).toBe(true);
@@ -461,5 +466,85 @@ describe("init from a subdirectory of the repository", () => {
     expect(await runInitCommand(parseInitFlags(argv, sub), {}, w.io, w.deps())).toBe(0);
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
     expect(existsSync(join(sub, ".github"))).toBe(false);
+  });
+});
+
+describe("init and the PR description template", () => {
+  const TEMPLATE = ".github/pull_request_template.md";
+  const stamped = (w: World) => readFileSync(join(w.repo, TEMPLATE), "utf8").includes("wachiman:pr-template version=1");
+  const commits = (w: World) => git(w.repo, "log", "--oneline").trim().split("\n").length;
+
+  test("without --pr-template a script gets no template, and no new file beyond the workflow", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "github", "--operator", "me"])).toBe(0);
+    expect(existsSync(join(w.repo, TEMPLATE))).toBe(false);
+    expect(w.err.join("\n")).not.toContain("pull_request_template");
+  });
+
+  test("--no-pr-template is the same as saying nothing", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--no-pr-template"])).toBe(0);
+    expect(existsSync(join(w.repo, TEMPLATE))).toBe(false);
+  });
+
+  test("--pr-template installs it after the workflow and never commits", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--pr-template"])).toBe(0);
+    expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
+    expect(stamped(w)).toBe(true);
+    expect(commits(w)).toBe(1);
+    const said = w.err.join("\n");
+    expect(said.indexOf("wrote .github/workflows/wachiman-review.yml")).toBeLessThan(said.indexOf(`wrote ${TEMPLATE}`));
+    expect(w.out).toEqual([]);
+  });
+
+  test("--mode local --pr-template installs the template and nothing else", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "local", "--pr-template"])).toBe(0);
+    expect(stamped(w)).toBe(true);
+    expect(existsSync(join(w.repo, ".github", "workflows"))).toBe(false);
+    expect(w.err.join("\n")).toContain("wachiman setup");
+  });
+
+  test("a hand-edited template is reported and does not fail the rest of init", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "local", "--pr-template"])).toBe(0);
+    writeFileSync(join(w.repo, TEMPLATE), `${readFileSync(join(w.repo, TEMPLATE), "utf8")}\nedited by hand\n`);
+    w.err.length = 0;
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--pr-template"])).toBe(0);
+    expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
+    expect(readFileSync(join(w.repo, TEMPLATE), "utf8")).toContain("edited by hand");
+    expect(w.err.join("\n")).toContain("pr-template: not installed:");
+    expect(w.err.join("\n")).toContain("was edited by hand");
+  });
+
+  test("an invalid .github/pr-template.json is reported, not fatal", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, ".github"), { recursive: true });
+    writeFileSync(join(w.repo, ".github", "pr-template.json"), "{ not json");
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--pr-template"])).toBe(0);
+    expect(existsSync(w.target)).toBe(true);
+    expect(existsSync(join(w.repo, TEMPLATE))).toBe(false);
+    expect(w.err.join("\n")).toContain("pr-template: not installed:");
+  });
+
+  test("--dry-run installs nothing and says why", async () => {
+    const w = world();
+    const before = snapshotTree(w.repo);
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--dry-run", "--pr-template"])).toBe(0);
+    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(w.err.join("\n")).toContain("PR description template is not installed");
+  });
+
+  test("declining the workflow does not stop an asked-for template", async () => {
+    const w = world();
+    const io = scripted(["1", "me", "", "", "y", "n"]); // mode, operator, tag, file, PR template, Write it?
+    expect(await init(w, [], { interactive: true, promptIO: io })).toBe(0);
+    expect(existsSync(w.target)).toBe(false);
+    expect(stamped(w)).toBe(true);
+  });
+
+  test("the two flags together are exit 2", () => {
+    expect(() => parseInitFlags(["--mode", "local", "--pr-template", "--no-pr-template"], ".")).toThrow(UsageError);
   });
 });

@@ -171,3 +171,22 @@ describe("parseInitFlags: the argument parser", () => {
     expect(() => parse(["--mode"])).toThrow(UsageError);
   });
 });
+
+describe("resolveInitOptions: the PR description template", () => {
+  test("is off unless asked for, in every mode", () => {
+    expect(ok({ mode: "local" }).prTemplate).toBeUndefined();
+    expect(ok({ mode: "github", operator: "me" }).prTemplate).toBeUndefined();
+    expect(ok({ mode: "local", prTemplate: false }).prTemplate).toBeUndefined();
+  });
+
+  test("--pr-template is carried through, with or without a workflow", () => {
+    expect(ok({ mode: "local", prTemplate: true }).prTemplate).toBe(true);
+    expect(ok({ mode: "both", operator: "me", prTemplate: true }).prTemplate).toBe(true);
+  });
+
+  test("the flags parse to true and false, and are absent otherwise", () => {
+    expect(parseInitFlags(["--pr-template"], "/r").prTemplate).toBe(true);
+    expect(parseInitFlags(["--no-pr-template"], "/r").prTemplate).toBe(false);
+    expect("prTemplate" in parseInitFlags([], "/r")).toBe(false);
+  });
+});

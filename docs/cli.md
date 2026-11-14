@@ -88,6 +88,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `doctor` | Reports what a local run would use and what would fail. |
 | `profile …`, `project …` | Manage account profiles and the repository's binding. |
 | `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
+| `pr-template show\|install\|status\|check\|format\|risk\|strip` | Installs the PR description template, reports its state, checks and reorders a description, and computes the risk floor. No model call. See [`pr-template`](#pr-template) and [the guide](pr-template.md). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
 ### Incremental reviews
@@ -428,7 +429,7 @@ listed, never described as undone.
 
 ```sh
 wachiman init [--mode github|local|both] [--operator <login>] [--version <tag>] [--path <file>] \
-  [--force] [--dry-run] [--yes] [--repo-dir <dir>]
+  [--force] [--dry-run] [--pr-template | --no-pr-template] [--yes] [--repo-dir <dir>]
 ```
 
 First-time setup of a repository. `--mode github` writes the maintained caller workflow
@@ -462,6 +463,7 @@ command that binds the repository later.
 | `--path <file>` | Default `.github/workflows/wachiman-review.yml`, relative to the repository top level (also when run from a subdirectory); a `.yml` or `.yaml` file directly in `.github/workflows/` |
 | `--force` | Replaces an existing file after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it an existing file is exit 2 |
 | `--dry-run` | Prints the rendered file to stdout and writes nothing |
+| `--pr-template` / `--no-pr-template` | Also install the [PR description template](pr-template.md) (`wachiman pr-template install`, files only, no commit), in any mode; or do not. On a terminal, without either flag, `init` asks (default yes); a script that gives neither gets no template. A refusal (a hand-edited template, an invalid `.github/pr-template.json`) is reported and does not fail the rest of `init`. `--dry-run` installs nothing |
 | `--yes` | No prompts |
 
 `--mode local` with `--operator`, `--version`, `--path`, `--force` or `--dry-run` is exit 2. A
@@ -540,6 +542,27 @@ always go to stderr.
 
 Exit codes: 0 done (copies left in place are warnings, not failures), 1 a copy could not be written
 or removed, 2 usage error or a refused target.
+
+### `pr-template`
+
+```
+wachiman pr-template show    [--from <json>]
+wachiman pr-template install [--from <json>] [--force] [--commit]
+wachiman pr-template status  [--json]
+wachiman pr-template check   [<file>] [--pr <n>] [--repo <owner/name>] [--title <t>] [--head <sha>] [--base <ref>] [--allow-breaking]
+wachiman pr-template format  [<file>] [--write]
+wachiman pr-template risk    [--base <ref>]
+wachiman pr-template strip   <file>
+```
+
+Generates `.github/pull_request_template.md` from a section catalog and an optional
+`.github/pr-template.json`, then checks and reorders pull request descriptions against it. No model
+call, and no GitHub request except `check --pr`, which uses `gh`. `--repo-dir <dir>` points every
+subcommand at another clone. `install` writes files only and never pushes; `--commit` makes one
+commit of the files it wrote. `wachiman init --pr-template` runs the same install. Exit codes: 0
+done or passing, 1 a finding (`check`) or a state that is not `current` (`status`), 2 a usage or
+configuration error. The whole guide, with the states, the findings and the risk rules, is
+[pr-template.md](pr-template.md).
 
 ### `history`
 

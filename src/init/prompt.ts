@@ -34,7 +34,10 @@ export async function promptForInit(flags: RawInitFlags, ctx: { defaultWorkflowR
     if (picked === null) return null;
     mode = picked;
   }
-  if (mode === "local") return { ...flags, mode };
+  if (mode === "local") {
+    const prTemplate = await askPrTemplate(flags, prompter);
+    return prTemplate === null ? null : { ...flags, mode, prTemplate };
+  }
 
   prompter.step("GitHub workflow", 3, mode === "both" ? 6 : 4);
 
@@ -50,5 +53,14 @@ export async function promptForInit(flags: RawInitFlags, ctx: { defaultWorkflowR
       return p.ok ? undefined : p.problem;
     }));
   if (path === null) return null;
-  return { ...flags, mode, operator, version, path };
+  const prTemplate = await askPrTemplate(flags, prompter);
+  return prTemplate === null ? null : { ...flags, mode, operator, version, path, prTemplate };
+}
+
+/** The flag when it was given; otherwise the question (`null`: cancelled). Asked once, in every mode, because the template belongs to the repository, not to a review mode. */
+async function askPrTemplate(flags: RawInitFlags, prompter: Prompter): Promise<boolean | null> {
+  if (flags.prTemplate !== undefined) return flags.prTemplate;
+  // A dry run writes nothing, so it asks nothing about a file.
+  if (flags.dryRun) return false;
+  return prompter.confirm("Also install the PR description template (.github/pull_request_template.md)? Nothing is committed.", true);
 }

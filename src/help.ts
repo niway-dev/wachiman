@@ -15,6 +15,9 @@ import { localUsage } from "./local";
 import { loopUsage } from "./loop/command";
 import { profileUsage, projectUsage, setupUsage } from "./accounts/commands";
 import { skillsUsage } from "./skills/install";
+import { checkUsage, riskUsage, stripUsage } from "./pr-template/check-run";
+import { formatUsage } from "./pr-template/format";
+import { installUsage, showUsage, statusUsage as prTemplateStatusUsage } from "./pr-template/install";
 import { statusUsage } from "./status/command";
 
 export const DOCS = "https://github.com/niway-dev/wachiman/blob/main/docs";
@@ -291,7 +294,7 @@ const setupPage: Page = {
 
 const initPage: Page = {
   usage: initUsage,
-  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write nothing and hand over to setup.",
+  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write nothing and hand over to setup. It can also install the PR description template.",
   options: [
     ["--mode github|local|both", "What to set up. Required without a terminal"],
     ["--operator <login>", "The GitHub login allowed to command the reviewer. Required for github and both without a terminal"],
@@ -299,6 +302,8 @@ const initPage: Page = {
     ["--path <file>", "Default: .github/workflows/wachiman-review.yml; a .yml or .yaml file directly in .github/workflows/"],
     ["--force", "Replace an existing file after copying it to <file>.bak-<timestamp>"],
     ["--dry-run", "Print the file to stdout and write nothing"],
+    ["--pr-template", "Also install the PR description template (`wachiman pr-template install`, files only, never a commit). A refusal is reported and does not fail init"],
+    ["--no-pr-template", "Do not install it and do not ask. Without either flag a terminal asks (default yes) and a script gets none"],
     ["--yes", "No prompts"],
     REPO_DIR,
   ],
@@ -392,13 +397,71 @@ const skillsPage: Page = {
   },
 };
 
+const PR_TEMPLATE_DOCS = `${DOCS}/pr-template.md`;
+const PR_TEMPLATE_EXIT: readonly Row[] = [
+  ["0", "Done, the description passes, or the template is current"],
+  ["1", "check found a problem; status is anything but current; a git commit made by install --commit failed"],
+  ["2", "Usage or configuration error: an unknown flag or section, an invalid .github/pr-template.json, a refused install, a missing tool"],
+];
+const prTemplatePage = (usage: string, summary: string, options: readonly Row[], examples: string[]): Page => ({
+  usage, summary, options, exit: PR_TEMPLATE_EXIT, examples, docs: PR_TEMPLATE_DOCS,
+});
+
+const prTemplatePageRoot: Page = {
+  usage: "wachiman pr-template <show|install|status|check|format|risk|strip> [options]",
+  summary: "Install the PR description template, report its state, and check, reorder and strip a description. The template is generated from a section catalog plus an optional .github/pr-template.json; no model is called. Run `wachiman pr-template <subcommand> --help` for one of them.",
+  options: [REPO_DIR],
+  exit: PR_TEMPLATE_EXIT,
+  examples: ["wachiman pr-template install", "wachiman pr-template check --pr 42"],
+  docs: PR_TEMPLATE_DOCS,
+  subs: {
+    show: prTemplatePage(showUsage, "Print the template this repository would get: the default, or the one .github/pr-template.json describes. Writes nothing.", [
+      ["--from <json>", "Preview a definition from this file instead of .github/pr-template.json"],
+      REPO_DIR,
+    ], ["wachiman pr-template show", "wachiman pr-template show --from ./pr-template.json"]),
+    install: prTemplatePage(installUsage, "Write .github/pull_request_template.md, generated from the catalog and .github/pr-template.json. Files only: it never pushes. An existing template without the Wachiman stamp is adopted and backed up; a hand-edited one is refused.", [
+      ["--from <json>", "Copy this definition into .github/pr-template.json before generating"],
+      ["--force", "Replace a hand-edited template, or an existing, different .github/pr-template.json, after a .bak-<timestamp> copy"],
+      ["--commit", "Make one commit with only the files written; hooks run, nothing is pushed"],
+      REPO_DIR,
+    ], ["wachiman pr-template install", "wachiman pr-template install --commit"]),
+    status: prTemplatePage(prTemplateStatusUsage, "Print the state of the installed template: missing, current, outdated, edited by hand, unmanaged or invalid. Exits 0 only for current.", [
+      ["--json", "Print {state, version, installedVersion}"],
+      REPO_DIR,
+    ], ["wachiman pr-template status", "wachiman pr-template status --json"]),
+    check: prTemplatePage(checkUsage, "Check a PR description against the template: headings and their order, the status rows, Needs you, the Risk floor, the footer commit, and the breaking-change marker. Findings go to stderr.", [
+      ["<file>", "A description on disk; needs --title. The template is read from the working tree"],
+      ["--pr <n>", "Read title, body, head, commits and files through gh; the template is read at the PR's head commit"],
+      ["--repo <owner/name>", "With --pr: the repository on GitHub. Default: the one gh finds in the directory"],
+      ["--title <t>", "With a file: the pull request title"],
+      ["--head <sha>", "With a file: the commit the footer must name. Default: HEAD"],
+      ["--base <ref>", "With a file: compare with this branch for the Risk floor. Default: origin/main"],
+      ["--allow-breaking", "Allow a breaking-change marker or a `!` title"],
+      REPO_DIR,
+    ], ["wachiman pr-template check body.md --title 'feat: add x'", "wachiman pr-template check --pr 42"]),
+    format: prTemplatePage(formatUsage, "Print a description reordered to the template: sections and status rows in template order, missing required headings added empty, unknown sections moved into Notes. No text is deleted. It never edits a pull request on GitHub.", [
+      ["[<file>]", "The description. Default: standard input"],
+      ["--write", "Rewrite the file instead of printing"],
+      REPO_DIR,
+    ], ["wachiman pr-template format body.md", "wachiman pr-template format body.md --write"]),
+    risk: prTemplatePage(riskUsage, "Compute the risk floor of this branch from the files it changed, as 🟢 Low, 🟡 Medium or 🔴 High. A .github/pr-risk.toml on the base can only raise it.", [
+      ["--base <ref>", "Compare with this branch. Default: origin/main"],
+      REPO_DIR,
+    ], ["wachiman pr-template risk", "wachiman pr-template risk --base origin/develop"]),
+    strip: prTemplatePage(stripUsage, "Print a description without its guide comments and the stamp, keeping the Wachiman block markers. Run it before posting.", [
+      ["<file>", "The description to clean"],
+      REPO_DIR,
+    ], ["wachiman pr-template strip body.md"]),
+  },
+};
+
 /** The commands a GitHub Actions run uses; they are not in the root help. */
 export const CI_COMMANDS = ["review", "comment", "threads", "reset-confidence"] as const;
 
 const PAGES: Readonly<Record<string, Page>> = {
   local: localPage, loop: loopPage, ask: askPage,
   history: historyPage, status: statusPage, dashboard: dashboardPage, ledger: ledgerPageWithSubs,
-  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage,
+  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, "pr-template": prTemplatePageRoot,
   review: reviewPage, comment: commentPage, threads: threadsPage, "reset-confidence": resetConfidencePage,
 };
 
@@ -478,6 +541,7 @@ export function rootHelp(paint: Paint = plain): string {
       ["profile", "List, create, add, log in, remove and default profiles"],
       ["project", "Show or remove this repository's binding"],
       ["skills", "Install or remove the agent skills"],
+      ["pr-template", "Install and check the PR description template"],
     ]),
     "",
     `Help: wachiman <command> --help · wachiman help ci · docs: ${DOCS}/cli.md`,

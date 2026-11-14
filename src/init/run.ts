@@ -1,8 +1,10 @@
 /**
  * `wachiman init` (command contract section 5.5): parse, prompt, resolve, then the one impure
  * half. It writes only the chosen workflow file and its `.bak` copy, after the person has seen
- * what will be written (or named `--yes` or no terminal with every mandatory flag). It never
- * commits, pushes, opens a pull request or creates a secret, and it makes no network request.
+ * what will be written (or named `--yes` or no terminal with every mandatory flag). With
+ * `--pr-template` (or a yes to the question) it also installs the PR description template, files
+ * only, as `wachiman pr-template install` does; a refusal there is reported and does not fail the
+ * rest of init. It never commits, pushes, opens a pull request or creates a secret, and it makes no network request.
  */
 import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -14,6 +16,7 @@ import { isInteractive, type TerminalStreams } from "../wizard/interactive";
 import { loadTerminalUi } from "../wizard/load";
 import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
 import { projectCommands, quoteArgument } from "../wizard/command";
+import { runInstall, type Deps as PrTemplateDeps } from "../pr-template/install";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
 import { callerHeader, renderCallerWorkflow } from "./render";
@@ -39,6 +42,8 @@ export interface InitDeps {
   /** The directory a relative `--repo-dir` was resolved against, for the `setup` line. Default: `process.cwd()`. */
   cwd?: string;
   hooks?: WriteHooks;
+  /** Dependencies of the PR description template install (`wachiman pr-template install`). */
+  prTemplate?: PrTemplateDeps;
 }
 
 const TEMPLATE = join(import.meta.dir, "..", "..", "templates", "wachiman-review-caller.yml");
@@ -99,6 +104,20 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const { github } = options;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
+  let templateDone = false;
+  /** Installs the PR description template once, at the end of the workflow work. A refusal is a report, not a failure. */
+  const installTemplate = () => {
+    if (!options.prTemplate || templateDone) return;
+    templateDone = true;
+    try {
+      // Same semantics as `pr-template install` with no --force and no --commit: init never commits.
+      runInstall({ force: false, commit: false }, root, io, deps.prTemplate);
+    } catch (error) {
+      if (!(error instanceof UsageError)) throw error;
+      io.stderr(`pr-template: not installed: ${error.message}`);
+      io.stderr("The rest of init is unaffected. See `wachiman pr-template status`.");
+    }
+  };
 
   if (github) {
     const now = (deps.now ?? (() => new Date().toISOString()))();
@@ -112,6 +131,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
 
     if (github.dryRun) {
       if (inspected.exists && !github.force) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
+      if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
       io.stdout(rendered);
       return 0;
     }
@@ -133,6 +153,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       }
       if (!answer) {
         io.stderr("not written.");
+        installTemplate();
         // The closing line of a terminal session says what happened, not "All set".
         if (prompter.fancy) prompter.close("done", "Nothing was written.");
         return 0;
@@ -143,6 +164,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
     written = shown;
     io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
+    installTemplate();
     if (options.mode === "github") prompter?.step("Checks and next actions", 4, 4);
     if (prompter?.fancy) {
       // The same two things, as the closing "Next steps" box with the commands to run.
@@ -156,6 +178,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       io.stderr("Local runs use your signed-in claude, never this key.");
     }
   }
+
+  installTemplate();
 
   if (options.mode === "github") {
     io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");

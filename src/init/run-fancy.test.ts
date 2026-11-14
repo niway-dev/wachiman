@@ -26,19 +26,23 @@ function world(answers: (number | string | boolean | null)[]) {
 
 describe("init on a terminal session", () => {
   test("asks through the Ui, shows the workflow as a titled note, and writes the file on confirm", async () => {
-    const w = world(["octocat", "", true]); // operator, file (default), Write it?
+    const w = world(["octocat", "", false, true]); // operator, file (default), PR template (no), Write it?
     expect(await w.run()).toBe(0);
     const note = w.ui.of("note")[0];
     expect(note.title).toBe(".github/workflows/wachiman-review.yml (new)");
     expect(note.message).toContain('operator: "octocat"');
-    expect(w.ui.of("confirm")[0].message).toBe("Write it?");
+    expect(w.ui.of("confirm").map((e) => e.message)).toEqual([
+      "Also install the PR description template (.github/pull_request_template.md)? Nothing is committed.",
+      "Write it?",
+    ]);
     expect(readFileSync(w.target, "utf8")).toContain('operator: "octocat"');
+    expect(existsSync(join(w.repo, ".github", "pull_request_template.md"))).toBe(false);
     // The old `--- path` preview lines are for the plain session only.
     expect(w.err.join("\n")).not.toContain("--- .github/workflows");
   });
 
   test("declining writes nothing and says so inside the frame", async () => {
-    const w = world(["octocat", "", false]);
+    const w = world(["octocat", "", false, false]);
     expect(await w.run()).toBe(0);
     expect(existsSync(w.target)).toBe(false);
     expect(w.ui.of("log").some((e) => e.message === "not written.")).toBe(true);
@@ -47,16 +51,25 @@ describe("init on a terminal session", () => {
   });
 
   test("cancelling the confirmation exits 130 and writes nothing", async () => {
-    const w = world(["octocat", "", null]);
+    const w = world(["octocat", "", false, null]);
     expect(await w.run()).toBe(130);
     expect(existsSync(w.target)).toBe(false);
   });
 
   test("status lines go through the Ui, not loose to stderr", async () => {
-    const w = world(["octocat", "", true]);
+    const w = world(["octocat", "", false, true]);
     await w.run();
     const drawn = w.ui.of("log").map((e) => e.message).join("\n");
     expect(drawn).toContain("wrote ");
     expect(w.err.join("\n")).not.toContain("wrote ");
+  });
+
+  test("a yes to the template question installs it after the workflow, with no commit, and reports it", async () => {
+    const w = world(["octocat", "", true, true]);
+    expect(await w.run()).toBe(0);
+    const template = join(w.repo, ".github", "pull_request_template.md");
+    expect(readFileSync(template, "utf8")).toContain("wachiman:pr-template version=1");
+    expect(w.ui.of("log").map((e) => e.message).join("\n")).toContain("wrote .github/pull_request_template.md");
+    expect(w.out).toEqual([]);
   });
 });

@@ -1,0 +1,69 @@
+/**
+ * `wachiman pr-template <subcommand>`: the one entry that `src/cli.ts` calls. It picks the
+ * subcommand, parses its arguments and runs it; the work is in install.ts (show, install, status),
+ * check-run.ts (check, strip, risk) and format.ts. No subcommand, `--help` and `-h` print the
+ * command's page; `<subcommand> --help` prints that subcommand's page. An unknown subcommand is a
+ * usage error (exit 2), like every configuration problem the subcommands throw.
+ */
+import { UsageError } from "../config";
+import { commandHelp } from "../help";
+import { parseCheckArgs, parseRiskArgs, parseStripArgs, runCheck, runRisk, runStrip, type PrTemplateDeps, type PrTemplateIo } from "./check-run";
+import { defaultRunner } from "./gh";
+import { parseFormatArgs, runFormat } from "./format";
+import { parseInstallArgs, parseShowArgs, parseStatusArgs, runInstall, runShow, runStatus, type Deps as InstallDeps } from "./install";
+
+export const SUBCOMMANDS = ["show", "install", "status", "check", "format", "risk", "strip"] as const;
+type Subcommand = (typeof SUBCOMMANDS)[number];
+
+export interface PrTemplateRunDeps {
+  /** show, install and status. */
+  install?: InstallDeps;
+  /** check, strip and risk. */
+  check?: PrTemplateDeps;
+  /** format. */
+  format?: Parameters<typeof runFormat>[3];
+}
+
+const isSubcommand = (word: string): word is Subcommand => (SUBCOMMANDS as readonly string[]).includes(word);
+
+/** `argv` is what follows `pr-template`. Returns the exit code: 0, 1 findings or a state to act on, 2 usage or configuration. */
+export function runPrTemplate(argv: string[], repoDir: string, io: PrTemplateIo, deps: PrTemplateRunDeps = {}): number {
+  const [first, ...rest] = argv;
+  if (first === undefined || first === "--help" || first === "-h") return (io.stdout(commandHelp(["pr-template"])!), 0);
+  if (!isSubcommand(first)) {
+    throw new UsageError(`Unknown pr-template subcommand "${first}". Use one of: ${SUBCOMMANDS.join(", ")}.`);
+  }
+  // `gh` and `git` run in the repository the command was pointed at (`--repo-dir`), not in wherever the shell is.
+  const check: PrTemplateDeps = { ...deps.check, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? repoDir)) };
+  const help = () => (io.stdout(commandHelp(["pr-template", first])!), 0);
+  switch (first) {
+    case "show": {
+      const parsed = parseShowArgs(rest);
+      return "help" in parsed ? help() : runShow(parsed, repoDir, io, deps.install);
+    }
+    case "install": {
+      const parsed = parseInstallArgs(rest);
+      return "help" in parsed ? help() : runInstall(parsed, repoDir, io, deps.install);
+    }
+    case "status": {
+      const parsed = parseStatusArgs(rest);
+      return "help" in parsed ? help() : runStatus(parsed, repoDir, io, deps.install);
+    }
+    case "check": {
+      const parsed = parseCheckArgs(rest);
+      return "help" in parsed ? help() : runCheck(parsed, repoDir, io, check);
+    }
+    case "format": {
+      const parsed = parseFormatArgs(rest);
+      return "help" in parsed ? help() : runFormat(parsed, repoDir, io, deps.format);
+    }
+    case "risk": {
+      const parsed = parseRiskArgs(rest);
+      return "help" in parsed ? help() : runRisk(parsed, repoDir, io, check);
+    }
+    case "strip": {
+      const parsed = parseStripArgs(rest);
+      return "help" in parsed ? help() : runStrip(parsed, repoDir, io, check);
+    }
+  }
+}
