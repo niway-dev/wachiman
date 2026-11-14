@@ -25,13 +25,15 @@ hash per file and leaves modified files alone (`src/skills/install.ts:151`).
    top of the template.
 3. **Adopting an unmanaged file** works on blocks: the parts the catalog knows (guide comments,
    status rows, sections, collapsed blocks, the Wachiman block, the footer) are replaced by the
-   catalog's; unknown rows, sections and blocks become custom entries; every other line goes to
-   `preamble`. The command prints what moved and drops nothing outside the template's structure.
+   catalog's; unknown rows, sections and blocks become custom entries; every other block goes to
+   `preamble`. A comment counts as a guide comment only beside a known element or when it matches
+   the hand-copied template that preceded the catalog. Adoption keeps a backup, prints what moved
+   and drops nothing outside the template's structure.
 4. **A hand-edited file is never replaced without `--force`**, and `--force` keeps a timestamped
    backup, which `--commit` never stages. A managed file is regenerated without a backup.
 5. **`install` writes files only.** `--commit` is opt-in: one commit containing only the files the
-   command wrote, a default `docs:` message, hooks run, nothing pushed. This is the first command
-   that commits for the user; it touches only template files, never code, so the review loop's
+   command wrote, a default `docs:` message, hooks run, nothing pushed. `init` does not commit
+   (`src/init/run.ts:150`); `--commit` touches only template files, never code, so the review loop's
    rule of never editing code ([ADR 0034](0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md))
    still holds.
 
