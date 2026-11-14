@@ -16,6 +16,7 @@ import { loopUsage } from "./loop/command";
 import { profileUsage, projectUsage, setupUsage } from "./accounts/commands";
 import { skillsUsage } from "./skills/install";
 import { statusUsage } from "./status/command";
+import { upgradeUsage } from "./upgrade/command";
 
 export const DOCS = "https://github.com/niway-dev/wachiman/blob/main/docs";
 
@@ -325,6 +326,21 @@ const doctorPage: Page = {
   docs: `${DOCS}/cli.md#setup-doctor-profile-and-project`,
 };
 
+const upgradePage: Page = {
+  usage: upgradeUsage,
+  summary: "Update the CLI to the latest release, then move the Wachiman workflow pin in this repository to it. Rewrites the files and prints the git commands; it never commits. A clone or a wachiman-dev build is not upgraded.",
+  options: [
+    ["--check", "Print the installed and the latest version and change nothing"],
+    ["--repo-only", "Rewrite the pins to the installed version (or --to) and leave the CLI alone"],
+    ["--to <version>", "Install this release (v1.2.3) and pin it. If the CLI step is skipped or fails, the pins still move to it"],
+    REPO_DIR,
+  ],
+  env: [HOME_ENV],
+  exit: [["0", "Done, nothing to do, or the CLI is a clone and was not upgraded"], ["1", "The package manager failed, or a version could not be read"], ["2", "Usage error"]],
+  examples: ["wachiman upgrade --check", "wachiman upgrade", "wachiman upgrade --repo-only"],
+  docs: `${DOCS}/cli.md#upgrade`,
+};
+
 const ACCOUNT_ENV: readonly Row[] = [HOME_ENV, ["CI", "true or 1 means no terminal: confirmations need --yes"]];
 const accountPage = (usage: string, summary: string, options: readonly Row[], examples: string[]): Page => ({
   usage, summary, options, env: ACCOUNT_ENV, exit: CONFIRMATION_EXIT, examples, docs: `${DOCS}/cli.md#setup-doctor-profile-and-project`,
@@ -399,7 +415,7 @@ export const CI_COMMANDS = ["review", "comment", "threads", "reset-confidence"] 
 const PAGES: Readonly<Record<string, Page>> = {
   local: localPage, loop: loopPage, ask: askPage,
   history: historyPage, status: statusPage, dashboard: dashboardPage, ledger: ledgerPageWithSubs,
-  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage,
+  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, upgrade: upgradePage,
   review: reviewPage, comment: commentPage, threads: threadsPage, "reset-confidence": resetConfidencePage,
 };
 
@@ -479,6 +495,7 @@ export function rootHelp(paint: Paint = plain): string {
       ["profile", "List, create, add, log in, remove and default profiles"],
       ["project", "Show or remove this repository's binding"],
       ["skills", "Install or remove the agent skills"],
+      ["upgrade", "Update the CLI and the workflow pin in this repository"],
     ]),
     "",
     `Help: wachiman <command> --help · wachiman help ci · docs: ${DOCS}/cli.md`,

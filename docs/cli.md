@@ -45,7 +45,7 @@ provider binary are needed for local reviews; GitHub commands also need `gh`.
 
 Argument rules, as implemented:
 
-- The command (`review`, `comment`, `threads`, `reset-confidence`, `local`, `loop`, `ask`, `history`, `status`, `dashboard`, `ledger`, `setup`, `init`, `doctor`, `profile`, `project` or `skills`) must be the first argument. `--help`/`-h`,
+- The command (`review`, `comment`, `threads`, `reset-confidence`, `local`, `loop`, `ask`, `history`, `status`, `dashboard`, `ledger`, `setup`, `init`, `doctor`, `profile`, `project`, `skills` or `upgrade`) must be the first argument. `--help`/`-h`,
   `--version`/`-v`, `help` and `--setup-profile` are recognised only as the first argument too. `--help` or `-h` after a command prints that command's help and exits 0, before any other argument is checked. It is not a request where it is text or a value: after a `--`, as the value of `--reason`, or anywhere but the first argument of `ask`, whose other words are the question.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
@@ -87,6 +87,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `init` | Writes the GitHub caller workflow and the repository settings file, or hands over to `setup`. See [`init`](#init). |
 | `doctor` | Reports what a local run would use and what would fail. |
 | `profile …`, `project …` | Manage account profiles and the repository's binding. |
+| `upgrade [--check] [--repo-only] [--to <version>]` | Updates the CLI, then moves the workflow pin in this repository to the new release. See [`upgrade`](#upgrade). |
 | `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
@@ -382,7 +383,7 @@ and confirmations to stderr; `--json` prints the document named below.
 | `project show [--json] [--repo-dir <dir>]` | The repository's key, its binding, and what `local` would use here now, with the rule and any ignored values. `--json` prints `wachiman.project/1` |
 | `project unbind [--repo-dir <dir>] [--yes]` | Removes this repository's binding |
 | `setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to a profile, prints exactly what it will write, asks `Bind <repo> to <name>?` (only on a terminal), then runs the `doctor` summary. On a terminal without `--profile` it is a wizard: see below |
-| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `settings`, `history`, `skills`, `isolation`. The `settings` row reads `.wachiman.yml` in the working tree (read-only: it never writes or moves anything) and reports its `kind`, `model` and `effort` and where the effective model and effort of a run come from (the environment, the file or the default); an invalid working copy is a required failure (runs read the file at the base commit or merge-base and ignore a broken one with a warning, so the fix takes effect once committed and merged), and an old `.github/wachiman.yml` is a warning: its fix is `mv .github/wachiman.yml .wachiman.yml`, or, when a root `.wachiman.yml` also exists, to merge the old file into it and remove the old one. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
+| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `settings`, `workflow-pin`, `history`, `skills`, `isolation`. The `workflow-pin` row reads the `uses: niway-dev/wachiman/.github/workflows/<name>.yml@<ref>` lines in `.github/workflows` (read-only): a release tag older than the installed CLI is a warning with the fix `wachiman upgrade --repo-only`, a tag that is not older is ok, a commit SHA or a branch is shown and never compared, and no Wachiman workflow (or no git repository) is skipped. It is optional. The `settings` row reads `.wachiman.yml` in the working tree (read-only: it never writes or moves anything) and reports its `kind`, `model` and `effort` and where the effective model and effort of a run come from (the environment, the file or the default); an invalid working copy is a required failure (runs read the file at the base commit or merge-base and ignore a broken one with a warning, so the fix takes effect once committed and merged), and an old `.github/wachiman.yml` is a warning: its fix is `mv .github/wachiman.yml .wachiman.yml`, or, when a root `.wachiman.yml` also exists, to merge the old file into it and remove the old one. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
 
 `remove` and `unbind` ask before writing. Without a terminal (or with `CI` set) they need `--yes`;
 without it they exit 2. `setup` needs `--profile <name>` when it cannot ask (no terminal, `CI` is `true` or `1`
@@ -520,6 +521,36 @@ a terminal. `CI` set (to anything) also keeps the launcher and the animation off
 engine and the GitHub Actions path never load them. A clone that never ran `bun install` runs every
 command; only a terminal screen stops, with a message that names `bun install`, and `--yes` or flags
 skip it.
+
+### `upgrade`
+
+```
+wachiman upgrade [--check] [--repo-only] [--to <version>] [--repo-dir <dir>]
+```
+
+The caller workflow pins an exact release (`uses: niway-dev/wachiman/.github/workflows/review.yml@v1.15.0`),
+so a new release never reaches CI without a change you review. `upgrade` makes that change one command, in two steps.
+
+1. **The CLI.** It reads the latest version with `npm view wachiman version`, then installs it with the package manager
+   that owns the global install: `bun add -g wachiman@latest` when the package sits under `~/.bun/install/global`,
+   `npm install -g wachiman@latest` otherwise. The package manager runs with your terminal. A clone or a `wachiman-dev`
+   build is never upgraded: the command says to `git pull` or run `scripts/dev-build.sh`. A CLI that is already on the
+   latest version installs nothing.
+2. **The repository.** In the current git repository it rewrites the `@<tag>` of every such `uses:` line in
+   `.github/workflows/*.yml` to the new version and prints the files it changed and the commands to commit them
+   (`git add …`, `git commit -m "chore: pin Wachiman to vX.Y.Z"`). The rest of each file stays byte for byte the same,
+   and nothing is committed. A pin that is a commit SHA, a branch, a floating tag or a pre-release is listed and left alone,
+   and a pin newer than the target is never moved down.
+
+If step 1 is skipped (a clone) or fails, step 2 runs only when you pass `--to`; otherwise it is skipped and the output says why.
+
+- `--check` prints the installed and the latest version and changes nothing.
+- `--repo-only` skips step 1 and pins the installed version (or `--to`); use it after upgrading the CLI another way, or
+  when `wachiman doctor` reports the `workflow-pin` row as older than the CLI.
+- `--to <version>` (`v1.2.3`) installs that release instead of the latest and pins it.
+
+Exit codes: 0 done, nothing to do, or a clone that was not upgraded; 1 the package manager failed or a version could not
+be read; 2 a usage error.
 
 ### `skills`
 

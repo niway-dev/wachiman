@@ -25,6 +25,7 @@
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
+ *   wachiman upgrade [--check]     update the CLI, then the workflow pin in this repository (src/upgrade/)
  *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
@@ -50,6 +51,7 @@ import { parseAskArgs, runAsk } from "./local-ask";
 import { parseProfileArgs, parseProjectArgs, runProfile, runProject } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
 import { parseSkillsArgs, runSkills } from "./skills/install";
+import { parseUpgradeArgs, runUpgrade } from "./upgrade/command";
 import { parseDoctorArgs, runDoctor } from "./doctor/run";
 import { parseInitFlags } from "./init/args";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
@@ -349,6 +351,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);
+    }
+    if (mode === "upgrade") {
+      const parsed = parseUpgradeArgs(args.slice(1), repoDir);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["upgrade"])!), 0);
+      return runUpgrade(parsed, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
     }
     if (mode === "setup" || mode === "init") return await runWizard(mode, args.slice(1), repoDir, env);
     if (mode === "status") {

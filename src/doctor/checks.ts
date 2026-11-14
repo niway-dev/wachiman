@@ -18,10 +18,11 @@ import { inspectIsolatedProfile } from "../profiles";
 import { buildChildEnv } from "../providers/claude-code";
 import { effectiveSettings, OLD_SETTINGS_PATH, parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
 import { UsageError } from "../config";
+import { classifyRef, compareVersions, parseTag, scanWorkflows } from "../upgrade/pin";
 
 export type CheckLevel = "required" | "optional";
 export type CheckStatus = "ok" | "fail" | "warn" | "skip";
-export type CheckId = "wachiman" | "bun" | "git" | "tar" | "config" | "profile" | "auth" | "environment" | "project" | "settings" | "history" | "skills" | "isolation";
+export type CheckId = "wachiman" | "bun" | "git" | "tar" | "config" | "profile" | "auth" | "environment" | "project" | "settings" | "workflow-pin" | "history" | "skills" | "isolation";
 
 export interface DoctorRow {
   id: CheckId;
@@ -425,6 +426,32 @@ export const CHECKS: DoctorCheck[] = [
         };
       }
       return { id: "settings", level: "optional", status: "ok", evidence, detail };
+    },
+  },
+  {
+    id: "workflow-pin",
+    level: "optional",
+    run: ({ root, fs, version }) => {
+      const row = (status: CheckStatus, evidence: string, extra: Partial<DoctorRow> = {}): DoctorRow => ({ id: "workflow-pin", level: "optional", status, evidence, ...extra });
+      const installed = parseTag(version);
+      if (root === undefined) return row("skip", "not in a git repository, so no workflow was read");
+      const pins = scanWorkflows(root, fs).flatMap(({ file, refs }) => refs.map((ref) => ({ file, ref })));
+      if (pins.length === 0) return row("skip", "no workflow in .github/workflows calls a Wachiman reusable workflow");
+      if (installed === undefined) return row("skip", `the installed version "${version}" is not a release version, so pins cannot be compared`);
+      const older = pins.filter((p) => classifyRef(p.ref) === "tag" && compareVersions(parseTag(p.ref)!, installed) < 0);
+      const fixed = pins.filter((p) => classifyRef(p.ref) === "tag");
+      const other = pins.filter((p) => classifyRef(p.ref) !== "tag");
+      const list = (items: typeof pins) => items.map((p) => `${p.file} @${classifyRef(p.ref) === "sha" ? p.ref.slice(0, 12) : p.ref}`).join(", ");
+      const detail = { pins: pins.length, older: older.length, notReleaseTag: other.length };
+      if (older.length > 0) {
+        return row("warn", `${list(older)} older than the installed v${version}: reviews in Actions run that older release`, {
+          fix: "wachiman upgrade --repo-only",
+          detail,
+        });
+      }
+      const note = other.length > 0 ? `; ${list(other)} is a commit or branch, which is not compared` : "";
+      if (fixed.length === 0) return row("skip", `${list(other)} is a commit or branch, not a release tag, so it is not compared`, { detail });
+      return row("ok", `${list(fixed)} is not older than the installed v${version}${note}`, { detail });
     },
   },
   {
