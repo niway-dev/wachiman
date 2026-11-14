@@ -25,7 +25,7 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
 | --- | --- | --- | --- |
 | 1 | A detector reads the repository's formatter and linter configs and where they are enforced (hooks, scripts, CI) | Both later steps need the same facts; reading files is free and deterministic | — |
 | 2 | `wachiman local` runs the detected tools in check mode on the changed files, from the checkout's root with its own `node_modules/.bin`; nothing is fetched | A real check is the only reliable answer; no network, no new dependency | 0053 (new) |
-| 3 | Tools run by default only on the developer's own work: every commit between the base and `HEAD` authored by the configured `user.email`, for ranges and working-tree reviews alike. Otherwise `--run-tooling` is needed | Running a repository's tools runs its code (configs, plugins, local rules); that is consent the developer gives for their own branch, not for someone else's | 0053 (new) |
+| 3 | Tools run by default only on the developer's own work: every commit between the base and `HEAD` authored by the configured `user.email`, for the default `--base` range and `--working-tree`. Otherwise `--run-tooling` is needed | Running a repository's tools runs its code (configs, plugins, local rules); that is consent the developer gives for their own branch, not for someone else's | 0053 (new) |
 | 4 | A formatter failure is a `fix` finding, topic `rules`, on line 0 of the file, with the exact fix command; linters report errors only, and only on lines the change added | It breaks the hook or CI, so it is not style; old warnings are not the change's fault | — |
 | 5 | `--fix-format` runs the formatter's write mode on the files that failed, in the working tree, and never commits; linters are never auto-fixed; `loop` never sets it | The owner asked for a self-fix; formatter output is mechanical and safe to apply, linter fixes can change behaviour | 0053 (new) |
 | 6 | Actions: the prompt gets an "enforced tooling" section, and the rule becomes "skip what the formatter fixes silently; report a file the enforced formatter would reject" | The model cannot run the tool there, but it can know the tool exists | — |
@@ -43,8 +43,9 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
 
 - The consumer's CI skipping its own format job on docs-only changes. That is the consumer's
   workflow (kaipu-record NIW2-793); Wachiman does not grade other jobs.
-- Running a tool's full-repository check. Only changed files are checked, so problems already on
-  the base branch are not reported as the change's.
+- Running a tool's full-repository check. Only changed files are checked. A touched file that
+  already failed the formatter on the base is still reported, on purpose: a hook that formats
+  changed files fails on it too. Linter results are limited to added lines.
 - dprint. Its plugins are URLs it downloads on first use, which would break the no-network rule;
   revisit when a consumer uses it.
 - Linter auto-fix, type checkers, test runners.
@@ -116,7 +117,8 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
       from "not checked"; the docs page says to use `--result-version 2` for that.
 - [ ] `--fix-format` runs the write mode of each formatter that failed, on its failed files only,
       in the working tree; prints the changed files; never stages or commits. In an interactive
-      terminal without the flag, the end of the review offers the same action and defaults to no.
+      terminal without the flag, nothing is offered: `local` is called by hooks and agents, and the
+      summary prints the fix command instead.
 - [ ] `loop` does not run the tooling step in this slice: its stop rule keys line-0 findings on
       the file's blob, so any edit would release a formatter finding whether or not it fixed the
       format. The developer runs `wachiman local` (or the hook) for tooling. `loop` never passes
@@ -127,14 +129,15 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
       working tree's head.
 - [ ] Prompt per mode. Actions, and any local review where no tool ran: the "Enforced tooling"
       section and the new sentence below. Local, when a tool ran: the section lists the tools that
-      ran and says their results are already reported, so the model reports none for those
-      files. `loop`: neither the section nor the new sentence; its prompt keeps today's sentence.
-      A model finding on line 0 of a file a tool already rejected is dropped as a duplicate.
-- [ ] When the detector finds tooling, the batch prompt gets an "Enforced
-      tooling" section (tool, config, where enforced, file types covered), and the sentence
-      "Skip praise, style a formatter would catch" becomes "Skip praise and style the enforced
-      formatter fixes silently; a changed file it would reject breaks the hook or CI, so report
-      it". With no tooling detected the prompt is byte-identical to today's (test).
+      ran and says their results are already reported, so the model reports no formatting for
+      those files; tools detected but not run keep the new sentence. `loop`: neither the section
+      nor the new sentence; its prompt keeps today's sentence. Nothing the model reports is
+      dropped by rule: duplicates are left to the prompt.
+- [ ] The "Enforced tooling" section lists tool, config, where enforced and file types covered.
+      The new sentence replaces "Skip praise, style a formatter would catch" with "Skip praise and
+      style the enforced formatter fixes silently; a changed file it would reject breaks the hook
+      or CI, so report it". With no tooling detected the prompt is byte-identical to today's
+      (test).
 - [ ] The table notice: for each changed `.md`/`.mdx` file covered by oxfmt or Prettier whose
       `proseWrap` is not `never`, a table outside fenced code blocks whose separator cells are
       narrower than their column, or whose rows differ in display width (emoji and East Asian
@@ -142,7 +145,9 @@ deterministically: Markdown tables a Prettier-family formatter would rewrite.
       the table's first line, worded the same every time, like `adrNotices`. It is skipped for a
       file the real tool checked in this run (the tool's result wins), for a file matching an
       entry of the tool's ignore list or an `overrides` glob (matched with `Bun.Glob`; a pattern it
-      cannot read skips the notice: a missed notice is cheaper than a false one). Tests: the
+      cannot read skips the notice: a missed notice is cheaper than a false one). A `proseWrap`
+      the detector cannot read statically (a JavaScript config, a shared config named by a
+      string) also skips it. Tests: the
       template file of kaipu-record#617 is flagged; its oxfmt output is not; a table inside a code
       fence is not; a file with `proseWrap: never` is not; a file in `.prettierignore` is not.
 - [ ] Docs: `docs/` gains a page on what is detected, what runs, the consent rule and

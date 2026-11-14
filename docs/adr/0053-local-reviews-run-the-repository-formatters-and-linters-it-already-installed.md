@@ -23,9 +23,9 @@ and deciding whether Prettier would rewrite it is not something a model does rel
    files, from the checkout's root with its own `node_modules/.bin`, configs and plugins. It never
    installs or fetches a tool.
 2. It does so by default only on the developer's own work: every commit between the base and
-   `HEAD` authored by the configured `user.email`, for a range and for a working-tree review alike.
-   An unset `user.email` never passes. Anything else needs `--run-tooling`; `--no-tooling` turns
-   the step off. `loop` does not run the step.
+   `HEAD` authored by the configured `user.email`, for the default `--base` range and for
+   `--working-tree`. An unset `user.email` never passes. Anything else needs `--run-tooling`;
+   `--no-tooling` turns the step off. `--commit`, `--from`, `--input` and `loop` do not run it.
 3. `--fix-format` applies formatter write mode to the files that failed, in the working tree, only
    when the working-tree file equals the reviewed commit. It never commits. Linters are never
    auto-fixed, and `loop` never passes the flag. This is the one exception to ADR 0034's "the CLI
