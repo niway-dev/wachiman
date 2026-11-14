@@ -130,6 +130,24 @@ describe("the local index", () => {
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
   });
 
+  test("a loop state in format /2, with its per-round data, is indexed like a /1 one", () => {
+    const { wachiman, index, root } = fixtureHome();
+    const review = { base: "a".repeat(40), version: "1.15.0", reviewer: { model: "claude-sonnet-5-5", effort: "high" }, costUsd: 0.5, durationMs: 1000, findings: 0, newFindings: 0 };
+    writeLoopFile(root, ALPHA.key, "feat/z", {
+      format: "wachiman.loop-state/2",
+      branch: "feat/z",
+      base: "main",
+      status: "open",
+      maxRounds: 3,
+      rounds: [{ round: 1, head: "b".repeat(40), at: "2026-11-05T11:00:00.000Z", review }],
+      ledger: [],
+    });
+    const lines: string[] = [];
+    refreshIndex(wachiman, (l) => lines.push(l));
+    expect(lines.filter((l) => l.includes("not a loop state"))).toEqual([]);
+    expect(readFigures(index).loops.totals.branches).toBe(3);
+  });
+
   test("a run file written while the index is being built is not lost: the next call rebuilds", () => {
     const { wachiman, index, root } = fixtureHome();
     const [first] = readdirSync(join(root, ALPHA.key, "runs"));

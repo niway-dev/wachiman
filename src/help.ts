@@ -162,12 +162,15 @@ const loopPage: Page = {
     ["--base <ref>", "Start a new loop; round 1 reviews the whole range. Without it, continue the open loop and review only the commits since the last round"],
     ["--max-rounds <n>", "The round cap. Default: 3"],
     ["--max-depth <n>", "The most commits from the start to HEAD. Default: 250"],
-    ["--format terminal|json", "The round as text or wachiman.loop-round/1. Default: terminal"],
+    ["--format terminal|json|markdown", "The round as text, as wachiman.loop-round/1, or as the \"Review summary — local\" comment. Default: terminal"],
+    ["--summary", "Print the summary of the open loop as Markdown; run no round and make no model call"],
+    ["--publish | --no-publish", "Post the summary on the branch's open pull request with gh, or edit the comment in place. Default: print only, unless .wachiman.yml sets publishLoopSummary: true"],
+    ["--agent <name>", "The agent that posts the summary. Default: WACHIMAN_AGENT, else the summary says the user"],
     PROFILE,
     ["--verify | --no-verify", "Verification of each finding. Default: follows WACHIMAN_VERIFY"],
     REPO_DIR,
   ],
-  env: [KEY_ENV, HOME_ENV, PROFILE_ENV, ["WACHIMAN_VERIFY, WACHIMAN_VERIFIER_MODEL", "Turn verification on, and pick the verifier's model"], OTHER_ENV],
+  env: [KEY_ENV, HOME_ENV, PROFILE_ENV, ["WACHIMAN_VERIFY, WACHIMAN_VERIFIER_MODEL", "Turn verification on, and pick the verifier's model"], ["WACHIMAN_AGENT", "The name --agent takes by default"], OTHER_ENV],
   exit: [
     ["0", "Converged: no Blocker or Fix is open"],
     ["10", "Findings are still open"],
@@ -175,7 +178,7 @@ const loopPage: Page = {
     ["2", "Usage error: no loop open, a detached HEAD, an unknown flag"],
     ["130", "Interrupted"],
   ],
-  examples: ["wachiman loop --base main", "wachiman loop --max-rounds 5 --format json"],
+  examples: ["wachiman loop --base main", "wachiman loop --max-rounds 5 --format json", "wachiman loop --summary --publish"],
   docs: `${DOCS}/cli.md#loop`,
 };
 

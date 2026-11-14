@@ -120,6 +120,34 @@ describe("wachiman loop", () => {
     expect(doc.released).toEqual([]);
   }, 60_000);
 
+  test("--format markdown prints the summary with the cost, version and model the real review reported; --summary prints it again without a review call; nothing goes to GitHub", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    const r = s.loop("--base", "main", "--format", "markdown");
+    expect(r.code).toBe(10);
+    expect(r.stdout.split("\n")[0]).toBe("<!-- wachiman-review-summary:local -->");
+    expect(r.stdout).toMatch(/\| \*\*Reviewer\*\* \| Wachiman \d+\.\d+\.\d+ \|/);
+    expect(r.stdout).toMatch(/\| \*\*Model\*\* \| .+ \w+, verifier off \|/);
+    expect(r.stdout).toContain("| **Wachiman cost** | $0.01 API-equivalent, 0 s |");
+    expect(r.stdout).toContain("| **Findings** | 1: 1 open |");
+    expect(r.stdout).toContain("Off by ten");
+    const again = s.loop("--summary");
+    expect(again.code).toBe(0);
+    expect(again.stdout).toBe(r.stdout);
+    expect(s.calls()).toBe(1);
+    expect(s.ghCalled()).toBe(false);
+  }, 60_000);
+
+  test("--publish with a gh that fails says so on stderr and keeps the round's exit code", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    const r = s.loop("--base", "main", "--publish");
+    expect(r.code).toBe(10);
+    expect(r.stderr).toContain("loop: the summary was not published:");
+    expect(r.stdout).toContain("Keeps the loop open (1):");
+    expect(s.ghCalled()).toBe(true);
+  }, 60_000);
+
   test("after a commit that fixes it, the next call reviews only the new commits and exits 0", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
@@ -608,7 +636,7 @@ describe("runLoop with a fake review", () => {
 
 describe("parseLoopArgs", () => {
   test("the defaults and every flag, in both spellings", () => {
-    expect(parseLoopArgs([])).toEqual({ maxRounds: 3, format: "terminal", verify: undefined });
+    expect(parseLoopArgs([])).toEqual({ maxRounds: 3, format: "terminal", verify: undefined, summary: false });
     expect(parseLoopArgs(["--base", "main", "--max-rounds", "5", "--format=json", "--profile", "isolated:work", "--no-verify", "--max-depth=9"])).toEqual({
       base: "main",
       maxRounds: 5,
@@ -616,8 +644,18 @@ describe("parseLoopArgs", () => {
       profile: "isolated:work",
       verify: false,
       maxDepth: 9,
+      summary: false,
     });
     expect(parseLoopArgs(["--max-rounds=2"]).maxRounds).toBe(2);
+  });
+
+  test("the summary flags: markdown, --summary, --publish, --no-publish and --agent", () => {
+    expect(parseLoopArgs(["--format", "markdown"])).toMatchObject({ format: "markdown", summary: false });
+    expect(parseLoopArgs(["--summary"])).toMatchObject({ format: "markdown", summary: true });
+    expect(parseLoopArgs(["--summary", "--format=markdown", "--publish", "--agent", "Claude Code"])).toMatchObject({ summary: true, publish: true, agent: "Claude Code" });
+    expect(parseLoopArgs(["--no-publish"]).publish).toBe(false);
+    expect(parseLoopArgs([]).publish).toBeUndefined();
+    expect(parseLoopArgs(["--agent=Codex"]).agent).toBe("Codex");
   });
 
   test.each([
@@ -625,7 +663,14 @@ describe("parseLoopArgs", () => {
     [["--max-rounds", "x"]],
     [["--max-rounds"]],
     [["--max-rounds", "2", "--max-rounds", "3"]],
-    [["--format", "markdown"]],
+    [["--publish", "--no-publish"]],
+    [["--agent"]],
+    [["--agent", "--summary"]],
+    [["--agent", "a", "--agent", "b"]],
+    [["--summary", "--base", "main"]],
+    [["--summary", "--max-rounds", "2"]],
+    [["--summary", "--no-verify"]],
+    [["--summary", "--format", "json"]],
     [["src/a.ts"]],
     [["--commit", "abc"]],
     [["--from", "abc"]],

@@ -10,6 +10,11 @@
  * prompt and the history are exactly those of `wachiman local`. Round 1 reviews the whole range from
  * `--base`; a later round reviews the commits since the previous round's head, as an ordinary range.
  * A round with no new commit makes no model call: it re-reads the verdicts and reports again.
+ *
+ * Each round records what its review reported about itself (range, version, models, cost, time) in
+ * the loop state, and the state renders as the "Review summary — local" comment (`summary.ts`,
+ * ADR 0054): `--format markdown` prints it after a round, `--summary` prints it without one, and
+ * `--publish` (or `publishLoopSummary: true` in `.wachiman.yml`) posts it on the branch's pull request.
  */
 import { UsageError } from "../config";
 import { neutralise, SEVERITY, TOPIC, type ReviewResult } from "../engine";
@@ -21,23 +26,34 @@ import { replay, type ReplayedFinding } from "../history/match";
 import { historyRoot, readRuns, readVerdicts, repositoryKey } from "../history/store";
 import { LOCAL_FLAGS, parseFlags, runLocal, type LocalArgs, type LocalDeps } from "../local";
 import { location, sha7 } from "../sinks/common";
-import { LOOP_STATE_FORMAT, readLoop, writeLoop, type LedgerEntry, type LoopState } from "./state";
+import { localRepoSettings } from "../connectors/local-git";
+import { ignoredSettingsNote } from "../repo-settings";
+import { publishSummary, spawnGh, type GhRunner } from "./publish";
+import { LOOP_STATE_FORMAT, readLoop, writeLoop, type LedgerEntry, type LoopRound, type LoopState, type RoundReview } from "./state";
+import { renderSummary } from "./summary";
 import { evaluate, isRefutedBy, roundCapReached, type Decision, type LoopFinding, type LoopStatus, type OpenFinding, type Released } from "./stop-rule";
 
 export const LOOP_RESULT_FORMAT = "wachiman.loop-round/1";
 export const DEFAULT_MAX_ROUNDS = 3;
 
 export const loopUsage = `wachiman loop [--base <ref>] [--max-rounds <n>] [--max-depth <n>] [--repo-dir <dir>]
-               [--format terminal|json] [--profile <name>] [--verify | --no-verify]`;
+               [--format terminal|json|markdown] [--profile <name>] [--verify | --no-verify]
+               [--summary] [--publish | --no-publish] [--agent <name>]`;
 
 export interface LoopArgs {
   /** Starts a loop (round 1 reviews the whole range from here). Absent: continue the open loop. */
   base?: string;
   maxRounds: number;
-  format: "terminal" | "json";
+  format: "terminal" | "json" | "markdown";
   profile?: string;
   verify: boolean | undefined;
   maxDepth?: number;
+  /** Print the summary of the open loop and run no round. */
+  summary: boolean;
+  /** Post the summary on the branch's open pull request. Absent: what `.wachiman.yml` says, else no. */
+  publish?: boolean;
+  /** The agent that posts the summary; absent: `WACHIMAN_AGENT`, else the user. */
+  agent?: string;
 }
 
 /** The flags `loop` takes, a subset of `local`'s plus `--max-rounds`. */
@@ -47,34 +63,66 @@ const LOOP_LOCAL_FLAGS = LOCAL_FLAGS.filter((f) => ["--base", "--format", "--pro
 export function parseLoopArgs(argv: string[]): LoopArgs {
   let maxRounds = DEFAULT_MAX_ROUNDS;
   let seenMax = false;
+  let summary = false;
+  let publish: boolean | undefined;
+  let agent: string | undefined;
+  let formatGiven = false;
   const rest: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--max-rounds" || arg.startsWith("--max-rounds=")) {
+    if (arg === "--summary") summary = true;
+    else if (arg === "--publish" || arg === "--no-publish") {
+      if (publish !== undefined) throw new UsageError("--publish and --no-publish take one place; give one of them once.");
+      publish = arg === "--publish";
+    } else if (arg === "--agent" || arg.startsWith("--agent=")) {
+      if (agent !== undefined) throw new UsageError("--agent was given twice.");
+      const v = arg === "--agent" ? argv[++i] : arg.slice("--agent=".length);
+      if (v === undefined || v.trim() === "" || v.startsWith("--")) throw new UsageError("--agent needs the name of the agent.");
+      agent = v.trim();
+    } else if (arg === "--max-rounds" || arg.startsWith("--max-rounds=")) {
       if (seenMax) throw new UsageError("--max-rounds was given twice.");
       seenMax = true;
       const v = arg === "--max-rounds" ? argv[++i] : arg.slice("--max-rounds=".length);
       if (v === undefined || v === "" || v.startsWith("--")) throw new UsageError("--max-rounds needs a value.");
       if (!/^[1-9]\d*$/.test(v) || !Number.isSafeInteger(Number(v))) throw new UsageError(`--max-rounds must be a positive integer, got "${v}".`);
       maxRounds = Number(v);
-    } else rest.push(arg);
+    } else {
+      if (arg === "--format" || arg.startsWith("--format=")) formatGiven = true;
+      rest.push(arg);
+    }
   }
   const local = parseFlags(rest, "loop", LOOP_LOCAL_FLAGS);
   if (local.paths.length > 0) throw new UsageError(`loop takes no path or argument ("${local.paths[0]}"): it reviews the committed branch.`);
-  if (local.format === "markdown") throw new UsageError("--format must be terminal or json for loop.");
+  if (summary) {
+    // The summary reads the loop and runs no round, so a round's options would be silently dropped.
+    const given = [
+      ...(local.base !== undefined ? ["--base"] : []),
+      ...(seenMax ? ["--max-rounds"] : []),
+      ...(local.maxDepth !== undefined ? ["--max-depth"] : []),
+      ...(local.profile !== undefined ? ["--profile"] : []),
+      ...(local.verify !== undefined ? ["--verify/--no-verify"] : []),
+    ];
+    if (given.length > 0) throw new UsageError(`--summary runs no round, so it takes no ${given.join(", ")}.`);
+    if (formatGiven && local.format !== "markdown") throw new UsageError("--summary prints Markdown; leave out --format or give --format markdown.");
+  }
   return {
     ...(local.base !== undefined ? { base: local.base } : {}),
     maxRounds,
-    format: local.format as "terminal" | "json",
+    format: summary ? "markdown" : (local.format as LoopArgs["format"]),
     ...(local.profile !== undefined ? { profile: local.profile } : {}),
     verify: local.verify,
     ...(local.maxDepth !== undefined ? { maxDepth: local.maxDepth } : {}),
+    summary,
+    ...(publish !== undefined ? { publish } : {}),
+    ...(agent !== undefined ? { agent } : {}),
   };
 }
 
 export interface LoopDeps extends LocalDeps {
   /** The review of one round; `runLocal` unless a test says otherwise. */
   review?: typeof runLocal;
+  /** `gh` for `--publish`; the real one unless a test says otherwise. */
+  gh?: GhRunner;
 }
 
 type Why = "round cap" | "review failed";
@@ -201,6 +249,61 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
     if (args.base === undefined || !(error instanceof UsageError)) throw error;
   }
 
+  const verdicts = () => readVerdicts(root, key);
+  const agent = args.agent ?? (env.WACHIMAN_AGENT?.trim() || undefined);
+  const gh = deps.gh ?? spawnGh(repoDir, env);
+  const summaryOf = (st: LoopState) => renderSummary({ state: st, findings: withVerdicts(st.ledger, verdicts()), ...(agent ? { agent } : {}) });
+  /** Whether the summary goes to GitHub: the flag, else the repository's setting read at the merge-base (never from the head under review). */
+  const wantsPublish = (st: LoopState): boolean => {
+    if (args.publish !== undefined) return args.publish;
+    const base = git(repoDir, ["merge-base", st.base, head]);
+    if (base.status !== 0 || base.stdout.trim() === "") return false;
+    const where = `the merge-base ${sha7(base.stdout.trim())}`;
+    try {
+      return localRepoSettings(repoDir, base.stdout.trim())?.publishLoopSummary === true;
+    } catch (error) {
+      if (!(error instanceof UsageError)) throw error;
+      io.stderr(ignoredSettingsNote(error.message, where));
+      return false;
+    }
+  };
+  /** Posts the summary when asked. A failure is said on stderr and never changes the round's exit code. Returns whether it failed. */
+  const publish = (st: LoopState, body?: string): boolean => {
+    if (st.rounds.length === 0 || !wantsPublish(st)) return false;
+    try {
+      const done = publishSummary(body ?? summaryOf(st), branch, gh);
+      io.stderr(`loop: summary ${done.action} on ${done.pullRequest}: ${done.url}`);
+      return false;
+    } catch (error) {
+      if (!(error instanceof UsageError)) throw error;
+      io.stderr(`loop: the summary was not published: ${error.message}`);
+      return true;
+    }
+  };
+  /** The round's report, or the summary with `--format markdown`; then the publish, when asked. */
+  const render = (report: RoundReport, st: LoopState) => {
+    if (args.format === "markdown") {
+      // The outcome is not in the summary, so it goes where a script reads it too. A loop with no recorded round has no summary yet.
+      io.stderr(`loop: ${report.outcome.message}`);
+      const body = st.rounds.length > 0 ? summaryOf(st) : undefined;
+      if (body !== undefined) io.stdout(body);
+      publish(st, body);
+    } else {
+      io.stdout(args.format === "json" ? renderJson(report) : renderTerminal(report));
+      publish(st);
+    }
+    return report.exitCode;
+  };
+
+  // `--summary`: the loop as it stands, no round, no model call, nothing written. A converged loop prints too.
+  if (args.summary) {
+    if (!existing) throw new UsageError(`No loop is open on ${branch}; start one with \`wachiman loop --base <ref>\`.`);
+    if (existing.rounds.length === 0) throw new UsageError(`The loop on ${branch} has not recorded a round yet; run \`wachiman loop\` first.`);
+    const body = summaryOf(existing);
+    io.stdout(body);
+    return publish(existing, body) ? 1 : 0;
+  }
+
   let state: LoopState;
   if (args.base !== undefined) {
     if (existing?.status === "open" && existing.rounds.length > 0) io.stderr(`loop: starting over on ${branch}; the open loop had run ${existing.rounds.length} round(s).`);
@@ -211,22 +314,20 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
     throw new UsageError(`The loop on ${branch} converged at round ${existing.rounds.length}; start a new one with \`wachiman loop --base <ref>\`.`);
   } else state = existing;
 
-  const verdicts = () => readVerdicts(root, key);
   const roundsRun = state.rounds.length;
-  const render = (report: RoundReport) => {
-    io.stdout(args.format === "json" ? renderJson(report) : renderTerminal(report));
-    return report.exitCode;
-  };
 
   // Stop before another round when the cap is reached: no model call.
   if (args.base === undefined && roundCapReached(roundsRun, args.maxRounds)) {
     const decision = evaluate(withVerdicts(state.ledger, verdicts()));
+    state = { ...state, maxRounds: args.maxRounds };
+    writeLoop(root, key, state);
     return render(
       report(state, roundsRun, args, head, { kind: "none", head }, decision, 11, {
         status: "stopped",
         reason: "round cap",
         message: `Stopped without converging: round cap. ${roundsRun} round(s) ran (--max-rounds ${args.maxRounds}) and ${plural(decision.open.length, "finding")} still ${decision.open.length === 1 ? "keeps" : "keep"} the loop open. Raise --max-rounds to continue, or start a new loop with --base. A stop is never an approval.`,
       }),
+      state,
     );
   }
 
@@ -237,10 +338,10 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   // No new commit since the last round: nothing to review. The verdicts may have changed.
   if (previous && previous.head === head) {
     const decision = evaluate(withVerdicts(state.ledger, verdicts()));
-    state = { ...state, rounds: [...state.rounds, { round, head, at: now() }], status: decision.converged ? "converged" : "open" };
+    state = { ...state, maxRounds: args.maxRounds, rounds: [...state.rounds, { round, head, at: now() }], status: decision.converged ? "converged" : "open" };
     writeLoop(root, key, state);
     io.stderr(`loop: no commit since round ${previous.round} (${sha7(head)}); nothing was reviewed, the verdicts were read again.`);
-    return render(report(state, round, args, head, { kind: "none", head }, decision, decision.converged ? 0 : 10, finish(decision, round, args)));
+    return render(report(state, round, args, head, { kind: "none", head }, decision, decision.converged ? 0 : 10, finish(decision, round, args)), state);
   }
 
   const dirty = git(repoDir, ["status", "--porcelain", "--untracked-files=no"]);
@@ -274,20 +375,48 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
         reason: "review failed",
         message: `Stopped without converging: review failed. The review call failed twice (${made.why}). Round ${round} was not recorded; run \`wachiman loop\` again to retry it. A stop is never an approval.`,
       }),
+      state,
     );
   }
 
   const { result } = made;
-  const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts());
+  const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts(), round);
+  const recorded = reviewOf(result, decision.fresh);
   state = {
     ...state,
-    rounds: [...state.rounds, { round, head: result.change.head.sha, at: now() }],
+    maxRounds: args.maxRounds,
+    rounds: [...state.rounds, { round, head: result.change.head.sha, at: now(), ...(recorded ? { review: recorded } : {}) }],
     ledger: decision.ledger,
     status: decision.decision.converged ? "converged" : "open",
   };
   writeLoop(root, key, state);
   const range: RoundReport["range"] = previous ? { kind: "since-previous-round", from: previous.head } : { kind: "whole", base: from };
-  return render(report(state, round, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, args)));
+  return render(report(state, round, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, args)), state);
+}
+
+/**
+ * What the round's review reported about itself, copied from its result: the range it read, the
+ * version and models, the API-equivalent cost and the time. Undefined when the result lacks a figure
+ * (the summary then says `not recorded`): nothing here is ever estimated.
+ */
+function reviewOf(result: IdentifiedResult, fresh: number): RoundReview | undefined {
+  const { costUsdEstimate: costUsd, durationMs } = result.execution;
+  const base = result.change.base?.sha;
+  const version = result.engine?.version;
+  const reviewer = result.provider;
+  if (!Number.isFinite(costUsd) || costUsd < 0 || !Number.isFinite(durationMs) || durationMs < 0) return undefined;
+  if (!base || !version || !reviewer?.model || !reviewer.effort) return undefined;
+  const v = result.verification;
+  return {
+    base,
+    version,
+    reviewer: { model: reviewer.model, effort: reviewer.effort },
+    ...(v ? { verifier: { model: v.model, effort: v.effort } } : {}),
+    costUsd,
+    durationMs,
+    findings: result.findings.length,
+    newFindings: fresh,
+  };
 }
 
 /**
@@ -305,7 +434,8 @@ function settle(
   root: string,
   rangeFrom: string,
   verdicts: ReturnType<typeof readVerdicts>,
-): { ledger: LedgerEntry[]; decision: Decision } {
+  round: number,
+): { ledger: LedgerEntry[]; decision: Decision; fresh: number } {
   const head = result.change.head.sha;
   const renames = renamesIn(repoDir, rangeFrom, head);
   const expected = new Set(result.coverage.expected);
@@ -353,7 +483,7 @@ function settle(
   const ledger: LedgerEntry[] = [
     ...prior.map((e): LedgerEntry => {
       const again = reportedBy.get(e.id);
-      if (again) return { ...seen(again), id: e.id };
+      if (again) return { ...seen(again), id: e.id, ...(e.round !== undefined ? { round: e.round } : {}) };
       const refuted =
         e.refuted ||
         droppedKeys.some((d) => isRefutedBy(d, { path: e.path, topic: e.topic, titleKey: titleKey(e.title) }));
@@ -361,9 +491,9 @@ function settle(
       if (!fp || (fp.lineText === undefined && fp.blobSha === undefined)) return { ...e, refuted };
       return { ...e, refuted, linesChanged: undefined, lineText: fp.lineText, blobSha: fp.blobSha, status: regionChanged(repoDir, head, e.path, fp) ? "probably-fixed" : "not-repeated" };
     }),
-    ...fresh.map(seen),
+    ...fresh.map((f) => ({ ...seen(f), round })),
   ];
-  return { ledger, decision: evaluate(withVerdicts(ledger, verdicts)) };
+  return { ledger, decision: evaluate(withVerdicts(ledger, verdicts)), fresh: fresh.length };
 }
 
 function finish(d: Decision, round: number, args: LoopArgs): RoundReport["outcome"] {

@@ -175,7 +175,7 @@ function readLoopRecord(path: string): LoopRecord | undefined | null {
   }
   try {
     const s = JSON.parse(text);
-    if (!s || typeof s !== "object" || s.format !== "wachiman.loop-state/1") return undefined;
+    if (!s || typeof s !== "object" || (s.format !== "wachiman.loop-state/1" && s.format !== "wachiman.loop-state/2")) return undefined;
     if (typeof s.branch !== "string" || typeof s.base !== "string" || (s.status !== "open" && s.status !== "converged")) return undefined;
     if (!Array.isArray(s.rounds) || !s.rounds.every((r: any) => r && typeof r.at === "string")) return undefined;
     const ledger = Array.isArray(s.ledger) ? s.ledger.filter((e: any) => e && typeof e.status === "string") : [];
