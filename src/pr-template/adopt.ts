@@ -14,6 +14,7 @@
  */
 import { entryName, type Catalog, type CatalogEntry, type CustomEntry, type CustomKind } from "./catalog";
 import { LEGACY_HEADER_PREFIX, collapseSpace, isLegacyGuide } from "./legacy-guides";
+import { STATUS_GUIDE_LEAD, normalizeForStamp } from "./render";
 
 export interface Adoption {
   custom: CustomEntry[];
@@ -62,7 +63,9 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
   const knownCount = { rows: 0, sections: 0, details: 0 };
 
   const findKnown = (kind: CatalogEntry["kind"], name: string) => catalog.sections.find((e) => e.kind === kind && entryName(e) !== undefined && same(entryName(e)!, name));
-  const bodyOf = (e: CatalogEntry): Set<string> => new Set(("body" in e ? e.body : []).map((l) => l.trim()).filter((l) => l !== ""));
+  // A table line is compared as a formatter leaves it equal: the padding of a cell and the width of a separator do not count.
+  const canon = (line: string) => normalizeForStamp(line).trim();
+  const bodyOf = (e: CatalogEntry): Set<string> => new Set(("body" in e ? e.body : []).map(canon).filter((l) => l !== ""));
 
   type Ctx = { known: CatalogEntry } | { custom: CustomEntry } | null;
   let ctx: Ctx = null;
@@ -123,7 +126,7 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
   const bodyCovered = (run: string[]) => {
     if (ctx === null || !("known" in ctx)) return false;
     const body = bodyOf(ctx.known);
-    return run.every((l) => l.trim() === "" || body.has(l.trim()));
+    return run.every((l) => l.trim() === "" || body.has(canon(l)));
   };
 
   let i = 0;
@@ -167,7 +170,7 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
           continue;
         }
         const isHeader = raw[0]!.trimStart().startsWith(LEGACY_HEADER_PREFIX);
-        const matches = isHeader || isLegacyGuide(inner) || catalogGuides.has(inner);
+        const matches = isHeader || isLegacyGuide(inner) || catalogGuides.has(inner) || inner.startsWith(collapseSpace(STATUS_GUIDE_LEAD));
         if (isHeader || matches || afterKnown) {
           if (!isHeader && ctx !== null && "custom" in ctx && !matches && ctx.custom.guide === undefined && !/<!--|-->/.test(inner) && !(ctx.custom.kind === "status-row" && /[|\r\n]/.test(inner))) {
             if (result.custom.includes(ctx.custom)) {

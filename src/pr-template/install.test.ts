@@ -9,6 +9,7 @@ import { PrTemplateConfigError, loadCatalog, loadRepoChoice } from "./catalog";
 import { installUsage, parseInstallArgs, parseShowArgs, parseStatusArgs, runInstall, runShow, runStatus, showUsage, statusUsage, type GitRunner } from "./install";
 import { renderTemplate } from "./render";
 import { resolveTemplate } from "./resolve";
+import { golden, reformat } from "./fixtures/golden/load";
 
 const scratch: string[] = [];
 afterAll(() => {
@@ -85,6 +86,7 @@ const refused = (run: () => unknown, type: new (...a: never[]) => Error = UsageE
 const commits = (w: World) => git(w.repo, "log", "--format=%s").trim().split("\n");
 const TEMPLATE = ".github/pull_request_template.md";
 const CHOICE = ".github/pr-template.json";
+const scratchJson = (w: World) => w.scratchFile("custom-choice.json", golden("custom-choice.json"));
 const stampLine = (text: string) => text.split("\n")[0]!;
 
 describe("arguments", () => {
@@ -163,6 +165,47 @@ describe("install: missing, current, outdated", () => {
     w.err.length = 0;
     expect(install(w)).toBe(0);
     expect(w.err.join("\n")).toContain("already current; nothing to do");
+    expect(snapshotTree(w.repo)).toEqual(before);
+  });
+
+  test("a file a repository formatter reformatted is current: status says so and install changes nothing", () => {
+    const w = world();
+    install(w);
+    const at = defaultTemplate.indexOf("\n") + 1;
+    const formatted = defaultTemplate.slice(0, at) + reformat(defaultTemplate.slice(at));
+    expect(formatted).not.toBe(defaultTemplate);
+    w.put(TEMPLATE, formatted);
+    w.out.length = 0;
+    expect(status(w)).toBe(0);
+    expect(w.out.join("")).toContain("current:");
+    const before = snapshotTree(w.repo);
+    w.err.length = 0;
+    expect(install(w)).toBe(0);
+    expect(w.err.join("\n")).toContain("already current; nothing to do");
+    expect(install(w, ["--force"])).toBe(0);
+    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(w.read(TEMPLATE)).toBe(formatted);
+    expect(w.ls()).toEqual(["pull_request_template.md"]);
+  });
+
+  test("a formatted file with a real edit is edited by hand and install refuses it", () => {
+    const w = world();
+    const at = defaultTemplate.indexOf("\n") + 1;
+    w.put(TEMPLATE, defaultTemplate.slice(0, at) + reformat(defaultTemplate.slice(at)).replace("## What", "## Whut"));
+    expect(status(w)).toBe(1);
+    expect(w.out.join("")).toContain("edited by hand:");
+    expect(refused(() => install(w))).toContain("edited by hand");
+  });
+
+  test("the golden custom template installed from its JSON is current, and a formatted copy stays current", () => {
+    const w = world();
+    const json = scratchJson(w);
+    expect(install(w, ["--from", json])).toBe(0);
+    expect(w.read(TEMPLATE)).toBe(golden("custom-template.md"));
+    const at = golden("custom-template.md").indexOf("\n") + 1;
+    w.put(TEMPLATE, golden("custom-template.md").slice(0, at) + reformat(golden("custom-template.md").slice(at)));
+    const before = snapshotTree(w.repo);
+    expect(install(w)).toBe(0);
     expect(snapshotTree(w.repo)).toEqual(before);
   });
 
@@ -275,7 +318,7 @@ describe("install: adopting an unmanaged template", () => {
     const headings = [...out.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
     expect(headings.indexOf("Migration notes")).toBe(headings.indexOf("Why") + 1);
     expect(headings.indexOf("Migration notes")).toBeLessThan(headings.indexOf("Evidence"));
-    expect(out).toContain("| **Ticket** |");
+    expect(out).toMatch(/^\| \*\*Ticket\*\*\s+\|/m);
     w.out.length = 0;
     expect(status(w)).toBe(0);
   });

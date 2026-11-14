@@ -59,7 +59,7 @@
       "locked": true,
       "rule": "not-empty",
       "guide": "Everything only the owner can do or decide: text to read, a decision to accept or veto, a manual step, a secret to set. Checkboxes, with the link or the command. If there is nothing: \"Nothing. Merge when checks are green.\"",
-      "body": ["**Before merge**", "- [ ]", "", "**After merge**", "- [ ]"]
+      "body": ["**Before merge**", "", "- [ ]", "", "**After merge**", "", "- [ ]"]
     },
     {
       "id": "what",

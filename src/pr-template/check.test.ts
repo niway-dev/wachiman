@@ -70,19 +70,19 @@ describe("ValidBodyTest", () => {
   test("a description filled in from the generated template passes", () => {
     let body = renderTemplate(defaultTemplate, catalog.version);
     const row = (label: string, value: string) => {
-      body = body.replace(new RegExp(`(\\| \\*\\*${label}\\*\\* \\| )<!--[\\s\\S]*?-->( \\|)`), (_m, a: string, b: string) => `${a}${value}${b}`);
+      body = body.replace(new RegExp(`(\\| \\*\\*${label}\\*\\*\\s*\\|)\\s*\\|`), (_m, a: string) => `${a} ${value} |`);
     };
     for (const [label, value] of [["Type", "Docs"], ["Issue", "None"], ["Risk", "🟢 Low, docs only"], ["Rollout", "No production effect"], ["Release", "No release"], ["Evidence", "Command output"], ["Decisions", "None"]] as const) {
       row(label, value);
     }
-    body = body.replace("**Before merge**\n- [ ]\n\n**After merge**\n- [ ]\n", "Nothing. Merge when checks are green.\n");
+    body = body.replace("**Before merge**\n\n- [ ]\n\n**After merge**\n\n- [ ]\n", "Nothing. Merge when checks are green.\n");
     const section = (heading: string, text: string) => {
-      body = body.replace(new RegExp(`(## ${heading}\\n<!--[\\s\\S]*?-->\\n)`), (_m, a: string) => `${a}${text}\n`);
+      body = body.replace(new RegExp(`(## ${heading}\\n\\n<!--[\\s\\S]*?-->\\n)`), (_m, a: string) => `${a}\n${text}\n`);
     };
     section("What", "The format is documented.");
     section("Why", "Descriptions had no fixed shape.");
-    body = body.replace("| Criterion | Evidence |\n|---|---|\n", "| Criterion | Evidence |\n|---|---|\n| Format documented | [output](https://example.com/o) |\n");
-    body = body.replace("| Change | Before | After | Where to look |\n|---|---|---|---|\n", "| Change | Before | After | Where to look |\n|---|---|---|---|\n| Template exists | none | one file | docs/format.md |\n");
+    body = body.replace("| Criterion | Evidence |\n| --------- | -------- |\n", "| Criterion | Evidence |\n| --------- | -------- |\n| Format documented | [output](https://example.com/o) |\n");
+    body = body.replace("| Change | Before | After | Where to look |\n| ------ | ------ | ----- | ------------- |\n", "| Change | Before | After | Where to look |\n| ------ | ------ | ----- | ------------- |\n| Template exists | none | one file | docs/format.md |\n");
     body = body.slice(0, body.indexOf("## Decisions")) + body.slice(body.indexOf("<details><summary><b>Changes"));
     body = body.replace("Describes commit {sha}.", `Describes commit ${HEAD.slice(0, 12)}.`);
     expect(codes(body)).toEqual([]);

@@ -56,7 +56,23 @@ someone edited it by hand) `init` says so and finishes the rest.
 ### The stamp and the status
 
 The first line of the installed file is a stamp: the template version and a hash of everything
-below it. The stamp is how Wachiman tells a file it generated from one someone edited.
+below it, taken after a normalization that ignores what a Markdown formatter changes: trailing
+spaces, the padding of table cells, the width of separator rows, runs of blank lines and line
+endings. The stamp is how Wachiman tells a file it generated from one someone edited. A change of
+wording, a deleted line or a changed guide comment is an edit; a formatter run is not.
+
+The guidance for the status table rows is one comment above the table, one labelled line per row
+(`Type: ...`, `Risk: ...`), so no table cell holds a comment. `strip` removes that comment with the
+other guide comments.
+
+### Formatters
+
+The generated file is formatter-stable: it is what Prettier 3 and oxfmt print with their default
+options (padded table columns, a blank line after every heading, comment and table). A repository
+whose pre-commit or pre-push hook formats Markdown accepts it unchanged, so the hook does not
+reject the template. If your formatter is configured differently and does rewrite the file,
+`status` still says `current` and `install` still writes nothing, because the hash ignores the
+rewrite. Only a change of content reads as `edited by hand`.
 
 ```sh
 wachiman pr-template status
@@ -69,9 +85,9 @@ wachiman pr-template status --json
 | State | What it means | What `install` does |
 | --- | --- | --- |
 | `missing` | There is no `.github/pull_request_template.md` | Writes it |
-| `current` | The file matches what this Wachiman generates from your `.github/pr-template.json` | Nothing |
+| `current` | The file matches what this Wachiman generates from your `.github/pr-template.json`, ignoring formatting (see Formatters) | Nothing |
 | `outdated` | The stamp is intact, but regenerating gives a different file: a newer catalog, or you changed `.github/pr-template.json` | Rewrites it, with no backup, because the file can be generated again |
-| `edited by hand` | The file no longer matches its stamp | Refuses. `--force` replaces it and keeps a `.bak-<timestamp>` copy |
+| `edited by hand` | The content of the file no longer matches its stamp (a formatter rewrite does not count) | Refuses. `--force` replaces it and keeps a `.bak-<timestamp>` copy |
 | `unmanaged` | A template with no stamp, written by someone | Adopts it (see below) |
 | `invalid` | `.github/pr-template.json` does not parse or breaks a rule of the catalog | Refuses, and says which rule. Nothing falls back to another version |
 
@@ -275,7 +291,7 @@ exit 2. A script that depends on it should check `wachiman --version` first.
 
 | File | Written by | Edit it? |
 | --- | --- | --- |
-| `.github/pull_request_template.md` | `install` | No. It is generated; `status` reports a change as `edited by hand` |
+| `.github/pull_request_template.md` | `install` | No. It is generated; `status` reports a change of content as `edited by hand`. A formatter may rewrite it |
 | `.github/pr-template.json` | You (or `install` when it adopts a template or copies `--from`) | Yes |
 | `.github/pr-risk.toml` | You | Yes |
 | `.github/pull_request_template.md.bak-<timestamp>` | `install` | A backup. Delete it when you no longer need it |

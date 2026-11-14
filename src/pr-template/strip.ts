@@ -4,13 +4,15 @@
  * block (the digest comment among it), stay, and so does every comment that is the repository's
  * own (a CLA reminder at the top, a note in a custom section).
  *
- * A comment is a guide comment when its text is one of the catalog's guides or intro, when it sits
- * in a status row's value cell, or when it directly follows a `##` heading or a `<summary>` line,
+ * A comment is a guide comment when its text is one of the catalog's guides or intro, when it starts
+ * with the lead of the status table's guidance (the one comment above the table that lists every
+ * row's guide), when it sits in a status row's value cell (the older layout), or when it directly follows a `##` heading or a `<summary>` line,
  * which is where every guide is written. Any other comment is the repository's. `all: true` is
  * the earlier checker's behaviour: every comment goes except the two block markers.
  */
 import { loadCatalog, type Catalog } from "./catalog";
 import { parseDescription, type DescriptionComment, type ParsedDescription } from "./describe";
+import { STATUS_GUIDE_LEAD } from "./render";
 
 export interface StripOptions {
   /** The catalog whose guide texts are recognised. Default: the shipped one. */
@@ -37,6 +39,7 @@ function previousContentLine(cleanLines: string[], line: number): number {
 
 function isGuide(c: DescriptionComment, parsed: ParsedDescription, cleanLines: string[], texts: Set<string>): boolean {
   if (texts.has(normalise(c.text))) return true;
+  if (normalise(c.text).startsWith(normalise(STATUS_GUIDE_LEAD))) return true;
   if (parsed.statusRows.some((r) => r.line === c.startLine)) return true;
   if (parsed.source.slice(parsed.lineStarts[c.startLine], c.start).trim() !== "") return false;
   const prev = previousContentLine(cleanLines, c.startLine);

@@ -46,6 +46,26 @@ hash per file and leaves modified files alone (`src/skills/install.ts:151`).
 - **Opening the PR from the command.** Needs an account, a branch name and a push; the caller's
   tooling already does that.
 
+## The stamp hashes a normalized body
+
+The sha256 covers a normalized form of everything below the stamp line, not the raw bytes. A
+repository's Markdown formatter (a pre-commit or pre-push hook running Prettier or oxfmt) rewrites
+the padding of table cells, the width of separator rows, runs of blank lines and trailing spaces,
+and an editor or a Windows checkout changes line endings. With a raw hash, one formatter run would
+turn `status` into "edited by hand" and make `install` refuse the file, though nobody changed a
+word. The normalization ignores exactly those things (trailing spaces, runs of spaces inside table
+rows, separator dashes and alignment colons, runs of blank lines, CRLF) and nothing else: spaces in
+other text and inside comments count, so a changed word, a deleted line or a changed guide comment
+still reads "edited by hand". The same normalization is used wherever the file is compared with what
+the repository asks for (current against outdated, the no-op check of `install`, adoption).
+
+The generated Markdown is also what Prettier 3 and oxfmt print with default options, so a formatter
+has nothing to rewrite in the first place; the normalization is the second line of defence for a
+repository whose formatter is configured differently.
+
+Consequence: a formatter-only rewrite of the installed file is not an edit. `status` stays `current`
+and `install` writes nothing.
+
 ## Consequences
 
 - One place to change a repository's template: its JSON. `status` reports missing, unmanaged,

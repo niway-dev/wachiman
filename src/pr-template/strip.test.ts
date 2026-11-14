@@ -21,6 +21,23 @@ describe("StripTest", () => {
     expect(out).not.toContain("wachiman:pr-template version");
   });
 
+  test("the status table's guide comment goes, with a custom row's line in it, and the table stays", () => {
+    const out = stripDescription(rendered({ custom: [{ id: "team", kind: "status-row", label: "Team", guide: "Owning team" }] }));
+    expect(out).not.toContain("Status table guide");
+    expect(out).not.toContain("Owning team");
+    expect(out).toMatch(/^\| \*\*Team\*\*\s+\|\s+\|$/m);
+    expect(commentCount(out)).toBe(2);
+  });
+
+  test("a comment of the repository above the status table is kept", () => {
+    const text = rendered({ preamble: ["<!-- Reminder: sign the agreement once. -->"] });
+    expect(stripDescription(text)).toContain("<!-- Reminder: sign the agreement once. -->");
+  });
+
+  test("the older layout, a guide in a status row's cell, still goes", () => {
+    expect(stripDescription("| | |\n|---|---|\n| **Type** | <!-- One of: Feature --> |\n")).toBe("| | |\n|---|---|\n| **Type** |  |\n");
+  });
+
   test("collapses blank runs", () => {
     expect(stripDescription("a\n\n<!-- x -->\n\n<!-- y -->\n\nb\n", { all: true })).toBe("a\n\nb\n");
   });

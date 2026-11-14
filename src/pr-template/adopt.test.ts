@@ -48,6 +48,29 @@ describe("the earlier hand-copied template (version 0)", () => {
   });
 });
 
+describe("the same file after a repository formatter padded its tables and added blank lines", () => {
+  // fixtures/adopt/version-0-formatted.md is fixtures/adopt/version-0.md printed by `bunx prettier@3 --parser markdown` (3.10.1).
+  const plain = adopt(fixture("version-0.md"));
+  const formatted = adopt(fixture("version-0-formatted.md"));
+
+  test("adopts to the same preamble, custom entries and additions, with nothing moved that the catalog generates", () => {
+    expect(formatted.preamble).toEqual(plain.preamble);
+    expect(formatted.custom).toEqual(plain.custom);
+    expect(formatted.add).toEqual(plain.add);
+    expect(formatted.report.filter((l) => l.startsWith("moved to preamble"))).toEqual(plain.report.filter((l) => l.startsWith("moved to preamble")));
+  });
+
+  test("a padded table row of the catalog's own body is structure, not the repository's text", () => {
+    const a = adopt("## Evidence\n\n| Criterion | Evidence   |\n| --------- | ---------- |\n");
+    expect(a.preamble).toEqual([]);
+  });
+
+  test("the status guide comment of a generated file is a guide, not the repository's comment", () => {
+    const a = adopt("<!-- Status table guide, one line per row.\n     Type: One of: Feature, Fix\n     Issue: the link -->\n\n| | |\n|-|-|\n| **Type** | |\n");
+    expect(a.preamble).toEqual([]);
+  });
+});
+
 describe("a team template with its own comment, section and row", () => {
   const text = fixture("team-template.md");
   const { merged, output } = generated(text);
@@ -66,7 +89,7 @@ describe("a team template with its own comment, section and row", () => {
   test("the generated file has them where they were, and no catalog guide of the old wording", () => {
     const headings = [...output.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
     expect(headings.indexOf("Migration notes")).toBe(headings.indexOf("Why") + 1);
-    const rows = [...output.matchAll(/^\| \*\*(.+?)\*\* \|/gm)].map((m) => m[1]);
+    const rows = [...output.matchAll(/^\| \*\*(.+?)\*\*\s+\|/gm)].map((m) => m[1]);
     expect(rows.indexOf("Ticket")).toBe(rows.indexOf("Type") + 1);
     expect(output).not.toContain("Say what changed.");
     expect(output).not.toMatch(/<sha>/);
