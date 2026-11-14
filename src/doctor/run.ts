@@ -79,6 +79,9 @@ export function buildDoctorReport(opts: DoctorOptions, env: Record<string, strin
   // Where `.wachiman.yml` is looked for: the top of the working tree (a linked worktree has its own copy).
   const top = (deps.git ?? spawnGit)(["rev-parse", "--show-toplevel"], { cwd: opts.repoDir, timeoutMs: 15_000 });
   const root = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : undefined;
+  // Runs read the committed file, so an edit not committed yet does not apply to them.
+  const pending = root === undefined ? undefined : (deps.git ?? spawnGit)(["status", "--porcelain", "--", ".wachiman.yml"], { cwd: root, timeoutMs: 15_000 });
+  const settingsUncommitted = pending !== undefined && pending.status === 0 && pending.stdout.trim() !== "";
   const binding =
     repository.ok && accounts && Object.hasOwn(accounts.projects, repository.value.key) ? accounts.projects[repository.value.key] : undefined;
 
@@ -115,6 +118,7 @@ export function buildDoctorReport(opts: DoctorOptions, env: Record<string, strin
     config,
     repository,
     root,
+    settingsUncommitted,
     primary,
   };
 

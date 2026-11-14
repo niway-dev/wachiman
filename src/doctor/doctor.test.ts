@@ -193,6 +193,20 @@ describe("settings row: the repository's .wachiman.yml", () => {
     expect(r.evidence).toContain("from .wachiman.yml");
   });
 
+  test("an uncommitted file is reported as applying once committed, since runs read the committed file", () => {
+    const repo = emptyRepo();
+    write(repo, { ".wachiman.yml": "effort: medium\n" });
+    const pending = settingsRow(machine(), repo);
+    expect(pending.evidence).toContain("has changes that are not committed");
+    expect(pending.evidence).not.toContain("a run here would use");
+    expect(pending.detail).toMatchObject({ uncommitted: true });
+    git(repo, "add", ".wachiman.yml");
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "settings");
+    const committed = settingsRow(machine(), repo);
+    expect(committed.evidence).toContain("a run here would use model claude-sonnet-5-5 (default), effort medium (from .wachiman.yml)");
+    expect(committed.detail).toMatchObject({ uncommitted: false });
+  });
+
   test("an explicit WACHIMAN_MODEL / WACHIMAN_EFFORT wins over the file and is reported as the environment", () => {
     const repo = emptyRepo();
     write(repo, { ".wachiman.yml": "model: claude-opus-5-5\neffort: medium\n" });

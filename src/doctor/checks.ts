@@ -106,6 +106,8 @@ export interface DoctorContext {
   repository: { ok: true; value: HistoryRepository } | { ok: false; reason: string };
   /** The top of the working tree of `--repo-dir` (where `.wachiman.yml` is looked for); undefined when it is not one. */
   root?: string;
+  /** `.wachiman.yml` differs from the last commit (new, edited or deleted): runs do not see the working copy yet. */
+  settingsUncommitted?: boolean;
   /** The profile the full resolution picks (or the one `--profile` names); undefined when it resolves to nothing. */
   primary: ResolvedProfile | undefined;
   /** The profile this pass of `profile`, `auth` and `isolation` looks at. */
@@ -368,7 +370,7 @@ export const CHECKS: DoctorCheck[] = [
     // the base commit) and where the model and the effort of a run would come from. Never writes or moves anything.
     id: "settings",
     level: "optional",
-    run: ({ root, env, fs }) => {
+    run: ({ root, env, fs, settingsUncommitted }) => {
       if (root === undefined) return { id: "settings", level: "optional", status: "skip", evidence: "not in a git working tree: no repository settings to read" };
       const file = join(root, SETTINGS_PATH);
       const old = join(root, OLD_SETTINGS_PATH);
@@ -403,8 +405,13 @@ export const CHECKS: DoctorCheck[] = [
         modelFrom: effective.model.source,
         effectiveEffort: effective.effort.value,
         effortFrom: effective.effort.source,
+        uncommitted: settingsUncommitted === true,
       };
-      const evidence = `${read}; a run here would use model ${from(effective.model)}, effort ${from(effective.effort)}. GitHub Actions reads the file from the base commit of the pull request, not from the head`;
+      // A run reads the committed file, so with uncommitted changes the working copy says what will apply once committed, not now.
+      const runs = settingsUncommitted
+        ? `${SETTINGS_PATH} has changes that are not committed, and runs read the committed file: once committed (and merged, for Actions) a run would use model ${from(effective.model)}, effort ${from(effective.effort)}`
+        : `a run here would use model ${from(effective.model)}, effort ${from(effective.effort)}`;
+      const evidence = `${read}; ${runs}. GitHub Actions reads the file from the base commit of the pull request, not from the head`;
       if (hasOld) {
         return {
           id: "settings",
