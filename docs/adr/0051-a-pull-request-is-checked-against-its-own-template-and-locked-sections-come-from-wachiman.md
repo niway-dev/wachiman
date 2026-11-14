@@ -24,17 +24,18 @@ in PRs opened after the merge
 
 ## Decision
 
-1. **The check uses the PR's own `.github/pr-template.json`.** With a file and no PR, it uses the
-   working tree.
+1. **The check uses the PR's own `.github/pr-template.json`**, read at the PR's head commit, never
+   from the working tree. With a file and no PR, it uses the working tree.
 2. **Locked sections and the risk rules come from Wachiman**, never from the repository: the Risk
    row, `## Needs you`, the Wachiman block and the footer are required whatever the JSON says, and
    the risk floor is computed by Wachiman's rules plus `.github/pr-risk.toml` from the base commit,
-   where patterns can only raise the level.
+   where patterns can only raise the level. The `breaking-change` and `adr-bare-number` checks are
+   not template rules and run on every description.
 3. **An invalid head JSON fails the check** with exit 2: one that does not parse, names an unknown
    section, or drops a locked one. The check never falls back to the base or the default.
 4. **When the PR changes `.github/pr-template.json`, the output says so** in its first line:
-   `checked against the template in this pull request`, followed by what the base version would
-   have reported differently.
+   `checked against the template in this pull request`, followed by what the base version (or
+   the default, when the base has none) would have reported differently.
 
 ## Alternatives rejected
 
