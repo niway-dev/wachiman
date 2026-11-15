@@ -5,6 +5,73 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.16.0](https://github.com/niway-dev/wachiman/compare/v1.15.0...v1.16.0) (2026-11-15)
+
+
+### Features
+
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([38c4546](https://github.com/niway-dev/wachiman/commit/38c4546ecda5898e95aa791019a4ff4df492ce80))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([e7ab617](https://github.com/niway-dev/wachiman/commit/e7ab617c15866d2d375e5c444a41a3369c0294ca))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([d40e1a4](https://github.com/niway-dev/wachiman/commit/d40e1a42f9caa2a1985f4729ccbc4aa19878c8ba))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([2dc4498](https://github.com/niway-dev/wachiman/commit/2dc449862e07207aed8e19692601293dc332375d))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([27078df](https://github.com/niway-dev/wachiman/commit/27078dfbcbd325039c743a6c76db1f2c40d33879))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([87459bb](https://github.com/niway-dev/wachiman/commit/87459bbea5fe20d08a8379bbc5fef0000609f23e))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([1ec37f7](https://github.com/niway-dev/wachiman/commit/1ec37f7e270cb66b6f3072b160202c835a5b0464))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([5c2f4ee](https://github.com/niway-dev/wachiman/commit/5c2f4ee7363395d015446e470b1a35700f8a5ee6))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([f92fe7e](https://github.com/niway-dev/wachiman/commit/f92fe7e867312ca9e0c188e82e5d6ed16491079e))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([86d7149](https://github.com/niway-dev/wachiman/commit/86d7149dcf661cd52f7fda35f275b5980ef49cc6))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([7ab0535](https://github.com/niway-dev/wachiman/commit/7ab0535447e8270d4f7611c9536947f1b1d421a1))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([8f41c1b](https://github.com/niway-dev/wachiman/commit/8f41c1bd0ccff5a9d1ec3e0bac4ba943d142fd3e))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([1ff8d87](https://github.com/niway-dev/wachiman/commit/1ff8d87446fbdb8eb8065158b8d7920612e873f4))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([865ed2b](https://github.com/niway-dev/wachiman/commit/865ed2b6153b362bd98dc0347941a5a88d5f9f28))
+* **cli:** init asks what kind of repository this is and records it in .wachiman.yml ([be1e4ac](https://github.com/niway-dev/wachiman/commit/be1e4ac54e35c3a756a885d8fd63cb2121d011f9))
+* **cli:** wachiman upgrade updates the CLI and the workflow pin ([222f216](https://github.com/niway-dev/wachiman/commit/222f2165792611beb5fb5b77d26a0325662c9e5d))
+* **cli:** wachiman upgrade updates the CLI and the workflow pin ([a5efcb2](https://github.com/niway-dev/wachiman/commit/a5efcb2785a37510d9d5e6e5db99a9dff8d64cd4))
+* **pr-template:** add the section catalog, repository choice and template generator ([6d0be7f](https://github.com/niway-dev/wachiman/commit/6d0be7f15e18cbf190ab2efe74ad76e8509d37ce))
+* **pr-template:** check, strip and risk, a port of the earlier Python checker ([3c83c0e](https://github.com/niway-dev/wachiman/commit/3c83c0e85682a76728b6acf2e072e061e60b3101))
+* **pr-template:** format reorders a description to the template's order ([1b4c263](https://github.com/niway-dev/wachiman/commit/1b4c263a2fb8a0007d8ec669576d07e6cc7cea1d))
+* **pr-template:** generate formatter-canonical Markdown and hash a normalized body ([61d7878](https://github.com/niway-dev/wachiman/commit/61d787881c549c2ff20bee60d1e8fbf4d369a5ec))
+* **pr-template:** install, check and format one generated PR description template ([df9daf3](https://github.com/niway-dev/wachiman/commit/df9daf3a0428665571561111e5211b6d151e5014))
+* **pr-template:** install, status and show, with adoption of an unmanaged template ([2963f87](https://github.com/niway-dev/wachiman/commit/2963f873504ee34e7a7113782f7294e392fe6b93))
+* **pr-template:** register the command, offer it in init and document it ([ce4e7da](https://github.com/niway-dev/wachiman/commit/ce4e7da30fce067f99a2fb9f54c0b174d6645e69))
+
+
+### Bug Fixes
+
+* **cli:** a compact three-row Wachi with the W on its cap and the name beside it ([949e6ff](https://github.com/niway-dev/wachiman/commit/949e6ff241d832091d226e5ac3f23e7f3fc4e8ba))
+* **cli:** a compact three-row Wachi, drawn whole before it types; catch a claude- profile name ([625b2cb](https://github.com/niway-dev/wachiman/commit/625b2cbde61692e881c58f37b9aeca1ce794cfe4))
+* **cli:** a failed upgrade install says it failed, not that there is no new version ([0479313](https://github.com/niway-dev/wachiman/commit/0479313b9b48edbe565a37984c0d2c3802c14fc2))
+* **cli:** a shorter Wachi drawn whole before it types; a profile name typed with claude- is caught ([32faca7](https://github.com/niway-dev/wachiman/commit/32faca7aab30a4bd257fbf32ff80eee4000719d0))
+* **cli:** the claude- hint points to the list when the bare name is registered ([009043d](https://github.com/niway-dev/wachiman/commit/009043dab11eafd542748b29e55eb964865a6c9e))
+* **cli:** the claude- hint suggests only a name the prompt accepts ([21b260f](https://github.com/niway-dev/wachiman/commit/21b260f306cd23a604b0463fec0ae493388f61a5))
+* **cli:** upgrade drives only bun and npm installs it can identify ([4e1f9cc](https://github.com/niway-dev/wachiman/commit/4e1f9ccebe4bb19864519f2805cd6532bdba83fe))
+* **cli:** upgrade refuses a dev build and always reports partial pin rewrites ([e6c1748](https://github.com/niway-dev/wachiman/commit/e6c17485be9a730403ede96128825e9dcf451227))
+* **cli:** upgrade reports unreadable workflows, keeps pins when the install fails, finds custom bun homes and Windows shims ([59885db](https://github.com/niway-dev/wachiman/commit/59885dbffadf9d5056c3d4512462365ffe997e35))
+* **engine:** blame a batch's gaps on its own cause, and pin the pool's edges ([060dccb](https://github.com/niway-dev/wachiman/commit/060dccb55a1774713a364c5a0b27dda6905d4cc9))
+* **engine:** report refusals in batch order and count output per stream ([fb42e60](https://github.com/niway-dev/wachiman/commit/fb42e60d4adc75bee093ae7d48317b3a97e92b1d))
+* **engine:** start nothing after a batch threw, and stop the time limit once the child exited ([4e438de](https://github.com/niway-dev/wachiman/commit/4e438de4f3d330f7ca38fdb07b4161bab30179ab))
+* **pr-template:** address the different-provider review ([5680d37](https://github.com/niway-dev/wachiman/commit/5680d373d160ae9080b3b57a9864b78db6347ee1))
+* **pr-template:** address the fifth review round ([711da9e](https://github.com/niway-dev/wachiman/commit/711da9ee6faf7775d0cbf396674413c8c19c7993))
+* **pr-template:** address the first review round ([e5e54fd](https://github.com/niway-dev/wachiman/commit/e5e54fd0ff0f179d3d829518ff7c0b1447bc874b))
+* **pr-template:** address the second review round ([c756b98](https://github.com/niway-dev/wachiman/commit/c756b988f00c6577bf0925e75395c60fc1c7b668))
+* **pr-template:** address the third review round ([4a11be6](https://github.com/niway-dev/wachiman/commit/4a11be67d286a407ab2a5be268508aa694e89f5f))
+* **pr-template:** do not claim nothing was written when the JSON already was ([96baa54](https://github.com/niway-dev/wachiman/commit/96baa5438b63d7f15a677c0caf10c10724f7708b))
+* **pr-template:** format --write refuses a file that is not valid UTF-8 ([94eafb3](https://github.com/niway-dev/wachiman/commit/94eafb39837924ebacfc1c9282c95896adb19a64))
+* **pr-template:** keep backups out of the working tree and adopt the reformatted shared template ([c3edfe5](https://github.com/niway-dev/wachiman/commit/c3edfe5e5f51d0090c99190ae4397d4865059391))
+* **pr-template:** strip keeps a repository comment that follows a guide ([3fe0506](https://github.com/niway-dev/wachiman/commit/3fe0506b6f222452b1f7b4fca8f15069c5f4df52))
+* **pr-template:** word the backup note generically and refuse an uncreatable backup directory ([c730b98](https://github.com/niway-dev/wachiman/commit/c730b98ffa13eae92d8abcbb994e23f078285bd0))
+
+
+### Performance Improvements
+
+* **engine:** review up to 4 batches at once ([82ef062](https://github.com/niway-dev/wachiman/commit/82ef06293e59cc258c8d909d5083d1c706b34565))
+* **engine:** review up to 4 batches at once ([ea02802](https://github.com/niway-dev/wachiman/commit/ea02802481f659ff9db3274a238cbd41a4a09b32))
+
+
+### Code Refactoring
+
+* **engine:** drop the unused per-batch cost field ([76a706b](https://github.com/niway-dev/wachiman/commit/76a706be3ce97340b3525500d259e11cebf78503))
+
 ## [1.15.0](https://github.com/niway-dev/wachiman/compare/v1.14.0...v1.15.0) (2026-11-13)
 
 
