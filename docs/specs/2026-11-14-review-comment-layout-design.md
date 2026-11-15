@@ -84,8 +84,11 @@ parser round-trip tests instead of more string assertions.
    older engine after a rollback.
 4. `wachiman-benchmarks/scripts/parse.ts` stops reading labels, headings, footer or coverage rows
    (lines 33, 142-146, 278-290, 316), and the comparison with other reviewers breaks silently.
-5. A model-written title with `|`, a newline or a backtick breaks a table row or injects Markdown
-   (`neutralise`, `src/engine.ts`, escapes only HTML comments).
+5. Untrusted text with `|`, a newline or a backtick breaks a table row or injects Markdown
+   (`neutralise`, `src/engine.ts`, escapes only HTML comments). Every table cell that holds text
+   Wachiman did not write is escaped by one shared function: finding titles, file paths, the
+   provider's error text and the needs-a-person text. Today the provider text sits in a blockquote,
+   which tolerates those characters; the notice table does not.
 6. A re-review shows "nothing to fix" while earlier Fix threads are still open (the prompt tells the
    model not to repeat findings with an open thread, `src/engine.ts`).
 7. A partial review, a failed verifier or an inconclusive Blocker reads as reassuring.
@@ -99,12 +102,15 @@ parser round-trip tests instead of more string assertions.
       `src/review-format/fixtures/` byte for byte: first review, re-review with open threads,
       zero findings, many findings, partial, verifier failed, inconclusive Blocker, pre-existing,
       Blocker outside the diff, 422 fallback, size-trimmed body, title containing `|` and a newline,
-      no credit, key rejected, timeout after spending, rebase with no changes.
+      provider error text containing `|` and a backtick, no credit, key rejected, timeout after
+      spending, rebase with no changes.
 - [ ] A round-trip test renders each golden scenario and reads it back: `readAutoCost` returns the
       run cost, `parseLabel` returns severity, topic and confidence, the model reader returns the
-      model, for both the new format and three bodies posted before the change.
+      model, for both the new format and one real body per pattern of the survey's catalogue
+      posted before the change.
 - [ ] The first line of every golden body matches the status precedence of decision 2; no golden
-      body contains "before merge" unless it has a Blocker, and none contains ✅.
+      body contains "before merge" unless it has a Blocker, and none contains ✅; the verifier
+      failed golden body's first line contains "verifier did not finish".
 - [ ] The Findings row's total equals the sum of its parts in every golden body.
 - [ ] In the size-trimmed and 422 golden bodies, the `<sub>` cost line, every hidden marker and
       every Blocker/Fix row survive; in a golden body whose never-dropped slots alone pass the
@@ -117,8 +123,8 @@ parser round-trip tests instead of more string assertions.
       local loop summary.
 - [ ] A no-credit refusal on two consecutive pushes leaves one notice on the pull request; a timeout
       on two consecutive pushes leaves two, and the ceiling counts both.
-- [ ] Screenshots of the four golden scenarios rendered by GitHub are in the Evidence of each build
-      pull request.
+- [ ] Each build pull request's Evidence has a GitHub-rendered screenshot of every golden scenario
+      it changes.
 
 ## Detail
 
@@ -199,7 +205,7 @@ Slots, in order. An empty slot is omitted.
 | 11 | What the change connects to | collapsed | contracts |
 | 12 | What the reviewer checked (batch prose) | collapsed | model |
 | 13 | Coverage by batch | collapsed | computed |
-| 14 | Run details | open question 1 | computed |
+| 14 | Run details | collapsed (provisional, open question 1) | computed |
 | 15 | `<sub>` cost line | yes | computed |
 | 16 | Hidden markers | — | computed |
 
@@ -219,19 +225,28 @@ the markers are always kept.
 
 The 422 fallback creates no inline comment, so no row is "on its line". Each finding is listed once,
 in its slot's table, and the model's body for each row follows in a collapsed "Details of each
-finding" section, numbered like the rows. Size fitting there drops Consider bodies before Fix
-bodies.
+finding" section, numbered like the rows. That section exists only in the 422 body and sits
+between slots 13 and 14. Its drop order there: slot 12, then the Consider and Info bodies of
+"Details", then 11, 13, 14, 10, 9 and 6 as above; the Blocker and Fix bodies go last, and only down
+to their first paragraph. The 422 body is rendered from the same view, so it needs no text split
+point: `moveCommentsToBody`'s split on `### Summary` is replaced by this slot-based fitting.
 
 Status line, built from parts joined by ` · `:
 
 1. The lead, the first that applies: `⛔ Not reviewed: <reason>`, `⚠️ Partial: N of M files not
    reviewed`, `🔴 N blockers before merge`, `🟠 N to fix in this PR`, `Needs investigation: N`,
    `No new findings to fix` (unresolved bot threads remain), `Nothing to fix` (none remain).
-2. A Partial lead under a Blocker or Fix lead: the second one follows the first.
-3. Earlier threads: when unresolved bot threads remain, `N earlier threads open` always follows.
+2. When the lead is Partial and the review also has Blockers or Fixes, their part follows the lead:
+   `⚠️ Partial: 2 of 9 files not reviewed · 🔴 1 blocker before merge · …`. The same holds for a
+   Fix part after a Blocker lead: `🔴 1 blocker before merge · 🟠 2 to fix in this PR · …`.
+3. Doubts that must not read as reassuring follow next, whatever the lead: `⚠️ verifier did not
+   finish: N findings not checked` when the verifier failed or stopped, and `N pre-existing to fix`
+   when slot 9 holds a Blocker or Fix. So a review with no findings and a failed verifier opens
+   `Nothing to fix · ⚠️ verifier did not finish: …`, never a bare `Nothing to fix`.
+4. Earlier threads: when unresolved bot threads remain, `N earlier threads open` always follows.
    So "Nothing to fix" never appears while an earlier bot thread is unresolved.
-4. `🟡 N to consider`, when there are any.
-5. The scope, always last: `whole PR at <sha>` or `changes since <sha> at <sha>`.
+5. `🟡 N to consider`, when there are any.
+6. The scope, always last: `whole PR at <sha>` or `changes since <sha> at <sha>`.
 
 Example, with the real data of wachiman #238 (the version and duration in Run details are
 illustrative):
@@ -323,8 +338,12 @@ or API key, `src/engine.ts`). Timeouts, turn limits and budget stops say what wa
 ```markdown
 👮 **Wachiman** · No new changes to review: the branch was updated from `main` (`9c07227` → `e66e523`). The previous review still applies.
 
-<sub>Wachiman 1.15.0 · PR so far $1.12 · this run $0.00</sub>
+<sub>Wachiman 1.15.0</sub>
 ```
+
+The rebase notice made no model call, so, as today, it carries no cost, no auto flag and no model:
+it is not a counted run for the ceiling, needs no spend lookup, and its `<sub>` line holds only the
+version. Decision 11's footer rule applies to reviews that ran a model.
 
 ### How the format is protected
 

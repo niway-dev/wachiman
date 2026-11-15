@@ -40,8 +40,9 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
    that fit, Blockers first, and say how many more are on their lines.
 3. The first line after the brand is a computed status with a fixed precedence: Not reviewed,
    Partial, Blocker, Fix, Needs investigation, none. "before merge" is said only for blockers.
-   "Nothing to fix" appears only when no earlier bot thread is unresolved. No status uses a check
-   mark.
+   "Nothing to fix" appears only when no earlier bot thread is unresolved, and a verifier that did
+   not finish or a pre-existing Blocker/Fix is always named on the same line. No status uses a
+   check mark.
 4. Counts add up: every severity, Info included, appears in the Findings row with its total;
    pre-existing and inconclusive findings are counted after the total, in their own slots, and a
    slot holding a Blocker or Fix is visible and never dropped.
