@@ -101,7 +101,7 @@ describe("wachiman loop", () => {
     s.script(1, BRANCH_FILES, [BLOCKER]);
     const r = s.loop("--base", "main");
     expect(r.code).toBe(10);
-    expect(r.stdout).toContain("round 1 of 3");
+    expect(r.stdout).toContain("round 1 (1 of 5 in this pass)");
     expect(r.stdout).toContain("Keeps the loop open (1):");
     expect(r.stdout).toMatch(/🔴 Blocker · bug {2}src\/a\.ts:2 {2}Off by ten {2}\(id [0-9a-f]{10}\)/);
     expect(idIn(r.stdout)).toBe(s.historyIds()[0]);
@@ -115,7 +115,7 @@ describe("wachiman loop", () => {
     const r = s.loop("--base", "main", "--format", "json");
     expect(r.code).toBe(10);
     const doc = JSON.parse(r.stdout);
-    expect(doc).toMatchObject({ format: "wachiman.loop-round/1", round: 1, maxRounds: 3, exitCode: 10, outcome: { status: "open" } });
+    expect(doc).toMatchObject({ format: "wachiman.loop-round/1", round: 1, maxRounds: 5, passRound: 1, exitCode: 10, outcome: { status: "open" } });
     expect(doc.open).toEqual([expect.objectContaining({ id: s.historyIds()[0], path: "src/a.ts", line: 2, severity: "blocker", status: "open" })]);
     expect(doc.released).toEqual([]);
   }, 60_000);
@@ -128,7 +128,8 @@ describe("wachiman loop", () => {
     expect(r.stdout.split("\n")[0]).toBe("<!-- wachiman-review-summary:local -->");
     expect(r.stdout).toMatch(/\| \*\*Reviewer\*\* \| Wachiman \d+\.\d+\.\d+ \|/);
     expect(r.stdout).toMatch(/\| \*\*Model\*\* \| .+ \w+, verifier off \|/);
-    expect(r.stdout).toContain("| **Wachiman cost** | $0.01 API-equivalent, 0 s |");
+    // The cost is the fake claude's 0.01; the time is whatever the run took, so only its shape is pinned.
+    expect(r.stdout).toMatch(/\| \*\*Wachiman cost\*\* \| \$0\.01 API-equivalent, \d+ (s|min \d\d s) \|/);
     expect(r.stdout).toContain("| **Findings** | 1: 1 open |");
     expect(r.stdout).toContain("Off by ten");
     const again = s.loop("--summary");
@@ -166,30 +167,33 @@ describe("wachiman loop", () => {
     expect(second).toContain("export const b = 21;");
     expect(second).not.toContain("src/b.ts");
     expect(second).not.toContain("### CLAUDE.md");
-    expect(r.stdout).toContain("round 2 of 3");
+    expect(r.stdout).toContain("round 2 (2 of 5 in this pass)");
     expect(r.stdout).toContain("probably-fixed");
     expect(r.stdout).toContain("Converged on incremental rounds");
     expect(r.stdout).toContain(fix.slice(0, 7));
-    // A converged loop is closed.
+    // A converged loop continues: with no new commit the call is round 3, a new pass, and reads the verdicts again.
     const again = s.loop();
-    expect(again.code).toBe(2);
-    expect(again.stderr).toContain("converged at round 2");
+    expect(again.code).toBe(0);
+    expect(again.stderr).toContain("continuing the loop");
+    expect(again.stderr).toContain("new pass of the budget");
+    expect(again.stdout).toContain("round 3 (1 of 5 in this pass)");
+    expect(s.calls()).toBe(2);
   }, 120_000);
 
   test("with the finding left unfixed, the fourth call exits 11 with the reason round cap and makes no review call", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
-    expect(s.loop("--base", "main").code).toBe(10);
+    expect(s.loop("--base", "main", "--max-rounds", "3").code).toBe(10);
     // Rounds 2 and 3 each follow a commit that leaves the Blocker's line alone and the model repeats it.
     let body = A_HEAD;
     for (const n of [2, 3]) {
       body = `${body}export const extra${n} = ${n};\n`;
       commit(s.repo.dir, { "src/a.ts": body }, `unrelated ${n}`);
       s.script(n, ["src/a.ts"], [BLOCKER]);
-      expect(s.loop().code).toBe(10);
+      expect(s.loop("--max-rounds", "3").code).toBe(10);
     }
     const calls = s.calls();
-    const fourth = s.loop();
+    const fourth = s.loop("--max-rounds", "3");
     expect(fourth.code).toBe(11);
     expect(fourth.stdout).toContain("round cap");
     expect(fourth.stdout).toContain("1 finding still keeps");
@@ -203,15 +207,15 @@ describe("wachiman loop", () => {
   test("calls with no new commit make no review call and still count as rounds: the fourth stops at the cap", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
-    expect(s.loop("--base", "main").code).toBe(10);
+    expect(s.loop("--base", "main", "--max-rounds", "3").code).toBe(10);
     for (const round of [2, 3]) {
-      const r = s.loop();
+      const r = s.loop("--max-rounds", "3");
       expect(r.code).toBe(10);
-      expect(r.stdout).toContain(`round ${round} of 3`);
+      expect(r.stdout).toContain(`round ${round} (${round} of 3 in this pass)`);
       expect(r.stderr).toContain("no commit since round");
     }
     expect(s.calls()).toBe(1);
-    const fourth = s.loop("--format", "json");
+    const fourth = s.loop("--max-rounds", "3", "--format", "json");
     expect(fourth.code).toBe(11);
     expect(JSON.parse(fourth.stdout).outcome).toMatchObject({ status: "stopped", reason: "round cap" });
     expect(s.calls()).toBe(1);
@@ -429,7 +433,7 @@ describe("wachiman loop", () => {
     s.script(failedCalls + 1, BRANCH_FILES, [BLOCKER]);
     const again = s.loop();
     expect(again.code).toBe(10);
-    expect(again.stdout).toContain("round 1 of 3");
+    expect(again.stdout).toContain("round 1 (1 of 5 in this pass)");
   }, 120_000);
 
   test("without --base and no loop open, it is exit 2", () => {
@@ -451,19 +455,89 @@ describe("wachiman loop", () => {
     git(s.repo.dir, "switch", "-q", "feat/x");
     const back = s.loop();
     expect(back.code).toBe(10);
-    expect(back.stdout).toContain("round 2 of 3");
+    expect(back.stdout).toContain("round 2 (2 of 5 in this pass)");
     expect(s.calls()).toBe(1);
   }, 120_000);
 
-  test("--base starts over, even with a loop open", () => {
+  test("--base with the same base continues the open loop instead of dropping its rounds", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
     expect(s.loop("--base", "main").code).toBe(10);
-    s.script(2, BRANCH_FILES, [BLOCKER]);
     const r = s.loop("--base", "main");
     expect(r.code).toBe(10);
-    expect(r.stdout).toContain("round 1 of 3");
-    expect(r.stderr).toContain("starting over");
+    expect(r.stdout).toContain("round 2 (2 of 5 in this pass)");
+    expect(r.stderr).toContain("continuing the loop");
+    expect(s.calls()).toBe(1);
+  }, 120_000);
+
+  test("continuing after convergence: round n+1 reads only the commits since the last round, keeps the ledger and totals every round; the budget counts one pass", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    expect(s.loop("--base", "main", "--max-rounds", "2").code).toBe(10);
+    const fix = commit(s.repo.dir, { "src/a.ts": A_FIXED_LINE2 }, "fix the off by ten");
+    s.script(2, ["src/a.ts"], []);
+    expect(s.loop("--max-rounds", "2").code).toBe(0);
+    // A later commit; the same call a developer types again: --base main, with the first pass already converged.
+    commit(s.repo.dir, { "src/a.ts": `${A_FIXED_LINE2}export const extra = 1;\n` }, "more work");
+    s.script(3, ["src/a.ts"], []);
+    const r = s.loop("--base", "main", "--max-rounds", "2", "--format", "markdown");
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain("continuing the loop");
+    expect(s.calls()).toBe(3);
+    expect(s.prompt(3)).not.toContain("src/b.ts");
+    expect(r.stdout).toContain("| **Rounds** | 3 in total (budget 2 per pass, counted since the loop last converged or started; this pass used 1) |");
+    expect(r.stdout).toContain("| **Findings** | 1: 1 fixed |");
+    expect(r.stdout).toContain(fix.slice(0, 7));
+    const home = historyRoot(wachimanHome({ WACHIMAN_HOME: join(s.home, ".wachiman") }));
+    const state = readLoop(home, repositoryKey(s.repo.dir).key, "feat/x")!;
+    expect(state.rounds.map((x) => x.round)).toEqual([1, 2, 3]);
+    expect(state.passFrom).toBe(2);
+    // Round 3 converged, so round 4 opens a new pass with a budget of 2 of its own: rounds 4 and 5 fit, the next call stops.
+    let body = `${A_FIXED_LINE2}export const extra = 1;\n`;
+    for (const n of [4, 5]) {
+      body = `${body}export const more${n} = ${n};\n`;
+      commit(s.repo.dir, { "src/a.ts": body }, `more work ${n}`);
+      s.script(n, ["src/a.ts"], [{ ...BLOCKER, line: 1, title: "Another" }]);
+      expect(s.loop("--max-rounds", "2").code).toBe(10);
+    }
+    const stop = s.loop("--max-rounds", "2");
+    expect(stop.code).toBe(11);
+    expect(stop.stdout).toContain("round cap");
+    expect(s.calls()).toBe(5);
+  }, 240_000);
+
+  test("history rewritten since the last round: --base starts a fresh loop and says why; without --base it is exit 2", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    expect(s.loop("--base", "main").code).toBe(10);
+    // Replace the branch tip: round 1's head is no longer in the history of HEAD.
+    git(s.repo.dir, "reset", "-q", "--hard", "HEAD~1");
+    commit(s.repo.dir, { "docs/rewritten.md": "x\n" }, "a different tip");
+    const plain = s.loop();
+    expect(plain.code).toBe(2);
+    expect(plain.stderr).toContain("cannot continue");
+    expect(plain.stderr).toContain("not in the history of HEAD any more");
+    s.script(2, ["src/a.ts", "src/b.ts", "docs/rewritten.md"], [BLOCKER]);
+    const fresh = s.loop("--base", "main");
+    expect(fresh.code).toBe(10);
+    expect(fresh.stderr).toContain("starting a fresh loop");
+    expect(fresh.stderr).toContain("not in the history of HEAD any more");
+    expect(fresh.stdout).toContain("round 1 (1 of 5 in this pass)");
+    expect(s.calls()).toBe(2);
+  }, 120_000);
+
+  test("a different base starts a fresh loop and says why, even when the history is intact", () => {
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    expect(s.loop("--base", "main").code).toBe(10);
+    git(s.repo.dir, "branch", "mid", "HEAD~1");
+    s.script(2, BRANCH_FILES, [BLOCKER]);
+    const r = s.loop("--base", "mid");
+    expect(r.code).toBe(10);
+    expect(r.stderr).toContain("starting a fresh loop");
+    expect(r.stderr).toContain("is not the base mid asked for");
+    expect(r.stdout).toContain("round 1 (1 of 5 in this pass)");
+    expect(s.calls()).toBe(2);
   }, 120_000);
 
   test("a loop state file that is not JSON: a plain call exits 2 naming the file, and --base starts the loop again", () => {
@@ -479,7 +553,7 @@ describe("wachiman loop", () => {
     s.script(2, BRANCH_FILES, [BLOCKER]);
     const again = s.loop("--base", "main");
     expect(again.code).toBe(10);
-    expect(again.stdout).toContain("round 1 of 3");
+    expect(again.stdout).toContain("round 1 (1 of 5 in this pass)");
     expect(again.stdout).toContain("Keeps the loop open (1):");
     expect(s.calls()).toBe(2);
   }, 120_000);
@@ -636,7 +710,7 @@ describe("runLoop with a fake review", () => {
 
 describe("parseLoopArgs", () => {
   test("the defaults and every flag, in both spellings", () => {
-    expect(parseLoopArgs([])).toEqual({ maxRounds: 3, format: "terminal", verify: undefined, summary: false });
+    expect(parseLoopArgs([])).toEqual({ maxRounds: 5, format: "terminal", verify: undefined, summary: false });
     expect(parseLoopArgs(["--base", "main", "--max-rounds", "5", "--format=json", "--profile", "isolated:work", "--no-verify", "--max-depth=9"])).toEqual({
       base: "main",
       maxRounds: 5,

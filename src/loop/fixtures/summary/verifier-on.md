@@ -5,7 +5,7 @@
 | **Review** | Local, before push. Posted by the user |
 | **Reviewer** | Wachiman 1.15.0 |
 | **Model** | Claude Haiku 5.5 high, verifier Claude Opus 5.5 high |
-| **Rounds** | 2 (budget 5) |
+| **Rounds** | 2 (budget 5 per pass, counted since the loop last converged or started) |
 | **Findings** | 2: 1 fixed, 1 declined |
 | **Reviewed** | `0000000..0000002` |
 | **Wachiman cost** | $0.95 API-equivalent, 5 min 11 s |

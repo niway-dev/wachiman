@@ -57,7 +57,26 @@ the round ranges and counts in the table were the agent's reading of the history
    `.wachiman.yml` makes every call publish; it is read at the merge-base of the loop's `--base`, never
    from the branch under review, for the reason ADR 0049 gives. A failed publish is said on stderr and
    never changes a round's exit code. `--agent <name>` (or `WACHIMAN_AGENT`) says an agent posts it.
-7. **The shipped `wachiman-loop` skill drives it.** The agent runs the loop before opening the pull
+7. **A call continues the branch's loop** (owner decision, 2026-11-14, found on this pull request: a
+   second `wachiman loop --base main` after a convergence started a fresh loop and dropped the first
+   loop's two rounds, their cost and their fixes from the summary). When a loop state exists for the
+   branch, its base is the same (compared as the commit the branch forked from, so a base that only
+   moved ahead still counts) and its last round's head is an ancestor of `HEAD`, the call is round
+   n+1: it reviews the commits since that head with the ledger and the rounds kept, even when the
+   loop had converged. With a different base, or a head that is no longer an ancestor (a rebase or a
+   forced push), it starts a fresh loop and prints one line on stderr saying why; without `--base`
+   that case is a usage error. This amends ADR 0034's "`--base` always starts a loop" and its
+   "a converged loop is closed"; ADR 0034 itself is accepted and is not edited.
+8. **The budget limits a pass, the summary totals everything.** `--max-rounds` counts the rounds
+   since the loop last converged or started (the state keeps `passFrom`, the number of rounds
+   recorded when the current pass began). The summary's Rounds row gives the total and says in plain
+   words that the budget is per pass. The default budget is **5**, up from 3: a real branch needs a
+   review, a fix round or two and a confirming round, and 3 stopped honest loops. A call that finds
+   the pass at its budget still stops with `round cap` and makes no review call.
+9. **A verifier that did not run is never recorded as the verifier that ran.** A round whose
+   verification was `skipped` or `failed` records `verifierStatus` instead of the verifier model, and
+   the Model row reads `verifier skipped` or `verifier failed`.
+10. **The shipped `wachiman-loop` skill drives it.** The agent runs the loop before opening the pull
    request, publishes the summary right after the pull request opens so it is the first comment, and
    publishes again after each later round, which edits it in place. It never writes the table.
 
@@ -85,9 +104,16 @@ the round ranges and counts in the table were the agent's reading of the history
   a developer with several accounts selects the right one before publishing.
 - Findings the verifier dropped and findings judged wrong appear in the summary as declined, with the
   reason of a judgment, so a person can overrule them.
-- `publishLoopSummary` is one more key that nothing but `wachiman loop` reads.
+- `publishLoopSummary` is one more key that nothing but `wachiman loop` reads. A value that is not
+  true or false does not discard the valid `model` and `effort` beside it: the loop does not publish
+  and says why, and `wachiman doctor` warns.
+- A loop cannot be forced fresh on the same base and the same history; to drop its rounds, remove
+  the state with `wachiman history --forget`.
+- The default budget doubles the worst-case cost of a stalled loop from 3 to 5 review calls.
 
 ## Non-goals
+
+- A `--fresh` flag. Nothing asked for one; the reopen condition below covers it.
 
 - A `remote` summary of a pull request review on GitHub. The marker has room for it; nothing renders it.
 - Publishing from CI, or to anything but the open pull request of the current branch.
@@ -97,6 +123,9 @@ the round ranges and counts in the table were the agent's reading of the history
   today; adding one is a separate decision.
 
 ## Reopen when
+
+- A developer needs a fresh loop on an unchanged base and history and `--history --forget` is too
+  blunt: decide on a `--fresh` flag.
 
 - A `remote` summary is built: decide whether it shares the table and what a pull request shows when
   both exist.

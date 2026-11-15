@@ -5,7 +5,7 @@
 | **Review** | Local, before push. Posted by the user |
 | **Reviewer** | Wachiman 1.15.0 |
 | **Model** | Claude Sonnet 5.5 high, verifier off |
-| **Rounds** | 2 (budget 2; stopped at the budget: 2 findings still keep the loop open) |
+| **Rounds** | 2 (budget 2 per pass, counted since the loop last converged or started; stopped at the budget: 2 findings still keep the loop open) |
 | **Findings** | 2: 2 open |
 | **Reviewed** | `0000000..0000002` |
 | **Wachiman cost** | $0.50 API-equivalent, 2 min 04 s |

@@ -5,7 +5,7 @@
 | **Review** | Local, before push. Posted by an agent (Agent &lt;x&gt; \| y) |
 | **Reviewer** | Wachiman 1.15.0 |
 | **Model** | Claude Sonnet 5.5 high, verifier off |
-| **Rounds** | 1 (budget 5) |
+| **Rounds** | 1 (budget 5 per pass, counted since the loop last converged or started) |
 | **Findings** | 1: 1 open |
 | **Reviewed** | `0000000..0000001` |
 | **Wachiman cost** | $0.25 API-equivalent, 1 min 02 s |

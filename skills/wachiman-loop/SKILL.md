@@ -22,9 +22,13 @@ env -u ANTHROPIC_API_KEY wachiman loop --repo-dir <clone> --base <ref> --format 
 
 - `--base <ref>` **starts** a loop: round 1 reviews the whole branch range from that ref (the
   default branch, unless the developer names another). Run it from a directory outside the clone.
-- The same command **without** `--base` continues the open loop of the branch: it reviews only the
+- The same command **without** `--base` continues the loop of the branch: it reviews only the
   commits made since the previous round. **Commit your fix first**; uncommitted work is not reviewed.
-- Three rounds by default. Raise `--max-rounds` only when the developer says so.
+- A call after a convergence continues the same loop (round n+1, earlier rounds and cost kept) as long
+  as the base is the same and the last round's commit is still in the branch's history. After a
+  rebase or a forced push it starts a fresh loop and says so on stderr.
+- Five rounds per pass by default (a pass runs since the loop last converged or started). Raise
+  `--max-rounds` only when the developer says so.
 
 ## The summary comment
 
@@ -57,7 +61,8 @@ env -u ANTHROPIC_API_KEY wachiman loop --repo-dir <clone> --summary --publish --
 | `0` | Converged: nothing keeps the loop open | Report it as below |
 | `10` | Findings still open | Work through `open[]`, commit, call again |
 | `11` | Stopped without converging (`outcome.reason`: `round cap` or `review failed`) | Stop. Report the reason and what is still open. Do not call again unless the developer says so |
-| `2` | Usage error (no loop open, detached HEAD, bad flag) | Read stderr and fix the call |
+| `1` | Only with `--summary`: the summary printed but the publish failed | Report the stderr reason to the developer; do not work around it with `gh pr comment` |
+| `2` | Usage error (no loop open, a loop that cannot continue, detached HEAD, bad flag) | Read stderr and fix the call |
 
 A stop is never an approval. `0` means the rule found nothing open in the commits reviewed; it is
 not a statement that the branch is safe to merge.

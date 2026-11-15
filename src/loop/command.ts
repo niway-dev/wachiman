@@ -7,6 +7,12 @@
  * `review failed`), 2 usage error, 130 interrupted. With `--summary`, 0 printed (and published when asked),
  * 1 printed but the publish failed.
  *
+ * A call continues the branch's loop (ADR 0054): when the loop has the same base and its last round's
+ * head is an ancestor of HEAD, round n+1 reviews the commits since that head with the ledger and the
+ * rounds kept, even after a convergence. `--max-rounds` limits the rounds of one pass (since the loop
+ * last converged, or started); the summary totals every round. A different base, or history that no
+ * longer contains the last head (a rebase), starts a fresh loop and says why.
+ *
  * The review is `runLocal` itself, asked for result `/2` with history on, so the account rules, the
  * prompt and the history are exactly those of `wachiman local`. Round 1 reviews the whole range from
  * `--base`; a later round reviews the commits since the previous round's head, as an ordinary range.
@@ -35,15 +41,16 @@ import { renderSummary } from "./summary";
 import { evaluate, isRefutedBy, roundCapReached, type Decision, type LoopFinding, type LoopStatus, type OpenFinding, type Released } from "./stop-rule";
 
 export const LOOP_RESULT_FORMAT = "wachiman.loop-round/1";
-export const DEFAULT_MAX_ROUNDS = 3;
+export const DEFAULT_MAX_ROUNDS = 5;
 
 export const loopUsage = `wachiman loop [--base <ref>] [--max-rounds <n>] [--max-depth <n>] [--repo-dir <dir>]
                [--format terminal|json|markdown] [--profile <name>] [--verify | --no-verify]
                [--summary] [--publish | --no-publish] [--agent <name>]`;
 
 export interface LoopArgs {
-  /** Starts a loop (round 1 reviews the whole range from here). Absent: continue the open loop. */
+  /** Starts a loop, or continues the branch's when it has this base and the history still holds its last round. Absent: continue the branch's loop. */
   base?: string;
+  /** The rounds one pass may run: since the loop last converged, or started. */
   maxRounds: number;
   format: "terminal" | "json" | "markdown";
   profile?: string;
@@ -132,6 +139,8 @@ type Why = "round cap" | "review failed";
 export interface RoundReport {
   branch: string;
   round: number;
+  /** This call's place in the budget: the rounds run since the loop last converged or started, this one included. */
+  passRound: number;
   maxRounds: number;
   /** What the round reviewed. */
   range: { kind: "whole"; base: string } | { kind: "since-previous-round"; from: string } | { kind: "none"; head: string };
@@ -264,7 +273,12 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
     }
     const where = `the merge-base ${sha7(base.stdout.trim())}`;
     try {
-      return localRepoSettings(repoDir, base.stdout.trim())?.publishLoopSummary === true;
+      const settings = localRepoSettings(repoDir, base.stdout.trim());
+      if (settings?.publishLoopSummaryError !== undefined) {
+        io.stderr(`loop: ${settings.publishLoopSummaryError.replace(/\.$/, "")} (at ${where}); not publishing. Pass --publish to publish anyway.`);
+        return false;
+      }
+      return settings?.publishLoopSummary === true;
     } catch (error) {
       if (!(error instanceof UsageError)) throw error;
       io.stderr(ignoredSettingsNote(error.message, where));
@@ -275,7 +289,7 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   const publish = (st: LoopState, body?: string): boolean => {
     if (st.rounds.length === 0 || !wantsPublish(st)) return false;
     try {
-      const done = publishSummary(body ?? summaryOf(st), branch, gh);
+      const done = publishSummary(body ?? summaryOf(st), branch, gh, (step) => io.stderr(`loop: publishing the summary: ${step}…`));
       io.stderr(`loop: summary ${done.action} on ${done.pullRequest}: ${done.url}`);
       return false;
     } catch (error) {
@@ -309,27 +323,33 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   }
 
   let state: LoopState;
-  if (args.base !== undefined) {
-    if (existing?.status === "open" && existing.rounds.length > 0) io.stderr(`loop: starting over on ${branch}; the open loop had run ${existing.rounds.length} round(s).`);
+  const resumed = existing ? continuation(repoDir, existing, args.base, head) : undefined;
+  if (existing && resumed && resumed.ok) {
+    state = existing.status === "converged" ? { ...existing, status: "open", passFrom: existing.rounds.length } : existing;
+    const last = existing.rounds.at(-1);
+    io.stderr(`loop: continuing the loop on ${branch}: round ${existing.rounds.length + 1}${last ? `, the commits since round ${last.round} (${sha7(last.head)})` : ""}${existing.status === "converged" ? "; the last pass converged, so this is a new pass of the budget" : ""}.`);
+  } else if (args.base !== undefined) {
+    if (existing && existing.rounds.length > 0) io.stderr(`loop: starting a fresh loop on ${branch}: ${resumed && !resumed.ok ? resumed.why : "the earlier loop could not be read"}; its ${existing.rounds.length} round(s) are not carried over.`);
     state = { format: LOOP_STATE_FORMAT, branch, base: args.base, status: "open", rounds: [], ledger: [] };
   } else if (!existing) {
     throw new UsageError(`No loop is open on ${branch}; start one with \`wachiman loop --base <ref>\`.`);
-  } else if (existing.status === "converged") {
-    throw new UsageError(`The loop on ${branch} converged at round ${existing.rounds.length}; start a new one with \`wachiman loop --base <ref>\`.`);
-  } else state = existing;
+  } else {
+    throw new UsageError(`The loop on ${branch} cannot continue: ${resumed && !resumed.ok ? resumed.why : "it could not be read"}. Start a fresh one with \`wachiman loop --base <ref>\`.`);
+  }
 
   const roundsRun = state.rounds.length;
+  const passRounds = roundsRun - (state.passFrom ?? 0);
 
-  // Stop before another round when the cap is reached: no model call.
-  if (args.base === undefined && roundCapReached(roundsRun, args.maxRounds)) {
+  // Stop before another round when this pass has used its budget: no model call.
+  if (existing && resumed?.ok && roundCapReached(passRounds, args.maxRounds)) {
     const decision = evaluate(withVerdicts(state.ledger, verdicts()));
     state = { ...state, maxRounds: args.maxRounds };
     writeLoop(root, key, state);
     return render(
-      report(state, roundsRun, args, head, { kind: "none", head }, decision, 11, {
+      report(state, roundsRun, passRounds, args, head, { kind: "none", head }, decision, 11, {
         status: "stopped",
         reason: "round cap",
-        message: `Stopped without converging: round cap. ${roundsRun} round(s) ran (--max-rounds ${args.maxRounds}) and ${plural(decision.open.length, "finding")} still ${decision.open.length === 1 ? "keeps" : "keep"} the loop open. Raise --max-rounds to continue, or start a new loop with --base. A stop is never an approval.`,
+        message: `Stopped without converging: round cap. This pass ran ${passRounds} round(s) (--max-rounds ${args.maxRounds}) and ${plural(decision.open.length, "finding")} still ${decision.open.length === 1 ? "keeps" : "keep"} the loop open. Raise --max-rounds to continue, or start a new loop with --base. A stop is never an approval.`,
       }),
       state,
     );
@@ -337,6 +357,7 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
 
   const previous = state.rounds.at(-1);
   const round = roundsRun + 1;
+  const passRound = passRounds + 1;
   const now = () => new Date().toISOString();
 
   // No new commit since the last round: nothing to review. The verdicts may have changed.
@@ -345,7 +366,7 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
     state = { ...state, maxRounds: args.maxRounds, rounds: [...state.rounds, { round, head, at: now() }], status: decision.converged ? "converged" : "open" };
     writeLoop(root, key, state);
     io.stderr(`loop: no commit since round ${previous.round} (${sha7(head)}); nothing was reviewed, the verdicts were read again.`);
-    return render(report(state, round, args, head, { kind: "none", head }, decision, decision.converged ? 0 : 10, finish(decision, round, args)), state);
+    return render(report(state, round, passRound, args, head, { kind: "none", head }, decision, decision.converged ? 0 : 10, finish(decision, round, passRound, args)), state);
   }
 
   const dirty = git(repoDir, ["status", "--porcelain", "--untracked-files=no"]);
@@ -371,10 +392,10 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   if ("interrupted" in made) return 130;
   if (!made.ok) {
     // The round is not recorded; a fresh loop is, so the next call can retry it without --base.
-    if (args.base !== undefined) writeLoop(root, key, state);
+    if (!(existing && resumed?.ok)) writeLoop(root, key, state);
     const decision = evaluate(withVerdicts(state.ledger, verdicts()));
     return render(
-      report(state, round, args, head, { kind: "none", head }, decision, 11, {
+      report(state, round, passRound, args, head, { kind: "none", head }, decision, 11, {
         status: "stopped",
         reason: "review failed",
         message: `Stopped without converging: review failed. The review call failed twice (${made.why}). Round ${round} was not recorded; run \`wachiman loop\` again to retry it. A stop is never an approval.`,
@@ -395,7 +416,32 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   };
   writeLoop(root, key, state);
   const range: RoundReport["range"] = previous ? { kind: "since-previous-round", from: previous.head } : { kind: "whole", base: from };
-  return render(report(state, round, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, args)), state);
+  return render(report(state, round, passRound, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, passRound, args)), state);
+}
+
+/**
+ * Whether a call continues the branch's loop: the loop has the same base and its last round's head
+ * is an ancestor of HEAD. The base is compared as the commit the branch forked from (the merge-base
+ * with the ref), so a base that only moved ahead, with no rebase onto it, still counts as the same.
+ * Otherwise `why` says in one clause what made it start over.
+ */
+function continuation(repoDir: string, existing: LoopState, requested: string | undefined, head: string): { ok: true } | { ok: false; why: string } {
+  const last = existing.rounds.at(-1);
+  // A loop whose first round failed has no round yet: it goes on from its base, unless another base was asked for.
+  if (!last) return requested === undefined || requested === existing.base ? { ok: true } : { ok: false, why: `its base ${existing.base} is not the base ${requested} asked for` };
+  if (git(repoDir, ["merge-base", "--is-ancestor", last.head, head]).status !== 0) {
+    return { ok: false, why: `round ${last.round} (${sha7(last.head)}) is not in the history of HEAD any more (a rebase or a forced push)` };
+  }
+  if (requested !== undefined) {
+    const forkOf = (ref: string, tip: string) => {
+      const out = git(repoDir, ["merge-base", ref, tip]);
+      return out.status === 0 ? out.stdout.trim() : "";
+    };
+    const wanted = forkOf(requested, head);
+    const had = forkOf(existing.base, head);
+    if (wanted === "" || had === "" || wanted !== had) return { ok: false, why: `its base ${existing.base} is not the base ${requested} asked for` };
+  }
+  return { ok: true };
 }
 
 /**
@@ -410,12 +456,15 @@ function reviewOf(result: IdentifiedResult, fresh: number): RoundReview | undefi
   const reviewer = result.provider;
   if (!Number.isFinite(costUsd) || costUsd < 0 || !Number.isFinite(durationMs) || durationMs < 0) return undefined;
   if (!base || !version || !reviewer?.model || !reviewer.effort) return undefined;
+  // A verifier that was skipped or failed made no call that counts: it is never recorded as the verifier that ran.
   const v = result.verification;
+  const ran = v && v.status !== "skipped" && v.status !== "failed";
   return {
     base,
     version,
     reviewer: { model: reviewer.model, effort: reviewer.effort },
-    ...(v ? { verifier: { model: v.model, effort: v.effort } } : {}),
+    ...(v && ran ? { verifier: { model: v.model, effort: v.effort } } : {}),
+    ...(v && !ran ? { verifierStatus: v.status as "skipped" | "failed" } : {}),
     costUsd,
     durationMs,
     findings: result.findings.length,
@@ -500,7 +549,7 @@ function settle(
   return { ledger, decision: evaluate(withVerdicts(ledger, verdicts)), fresh: fresh.length };
 }
 
-function finish(d: Decision, round: number, args: LoopArgs): RoundReport["outcome"] {
+function finish(d: Decision, round: number, passRound: number, args: LoopArgs): RoundReport["outcome"] {
   if (d.converged) {
     return {
       status: "converged",
@@ -510,10 +559,10 @@ function finish(d: Decision, round: number, args: LoopArgs): RoundReport["outcom
           : "Converged on incremental rounds: round 1 reviewed the whole range and later rounds only the commits after the previous round. Interactions between a fix and code outside those commits were not re-read. This is not an approval.",
     };
   }
-  const left = args.maxRounds - round;
+  const left = args.maxRounds - passRound;
   return {
     status: "open",
-    message: `${plural(d.open.length, "finding")} ${d.open.length === 1 ? "keeps" : "keep"} the loop open. Fix each one and commit, or judge it wrong with a reason (wachiman history --verdict <id> wrong --reason "<why>"), then run \`wachiman loop\` again. ${left > 0 ? `${plural(left, "round")} left of ${args.maxRounds}.` : `That was round ${round} of ${args.maxRounds}; the next call stops at the round cap.`}`,
+    message: `${plural(d.open.length, "finding")} ${d.open.length === 1 ? "keeps" : "keep"} the loop open. Fix each one and commit, or judge it wrong with a reason (wachiman history --verdict <id> wrong --reason "<why>"), then run \`wachiman loop\` again. ${left > 0 ? `${plural(left, "round")} left of ${args.maxRounds}.` : `That was round ${passRound} of ${args.maxRounds} in this pass; the next call stops at the round cap.`}`,
   };
 }
 
@@ -522,6 +571,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 function report(
   state: LoopState,
   round: number,
+  passRound: number,
   args: LoopArgs,
   head: string,
   range: RoundReport["range"],
@@ -529,7 +579,7 @@ function report(
   exitCode: 0 | 10 | 11,
   outcome: RoundReport["outcome"],
 ): RoundReport {
-  return { branch: state.branch, round, maxRounds: args.maxRounds, range, head, open: d.open, released: d.released, notes: d.notes, outcome, exitCode };
+  return { branch: state.branch, round, passRound, maxRounds: args.maxRounds, range, head, open: d.open, released: d.released, notes: d.notes, outcome, exitCode };
 }
 
 const cleanFinding = (f: LoopFinding) => ({ id: f.id, path: f.path, line: f.line, severity: f.severity, topic: f.topic, title: f.title, status: f.status });
@@ -539,6 +589,7 @@ export function renderJson(r: RoundReport): string {
     format: LOOP_RESULT_FORMAT,
     branch: r.branch,
     round: r.round,
+    passRound: r.passRound,
     maxRounds: r.maxRounds,
     range: r.range,
     head: r.head,
@@ -560,7 +611,7 @@ export function renderTerminal(r: RoundReport): string {
       : r.range.kind === "since-previous-round"
         ? `the commits since round ${r.round - 1} (${sha7(r.range.from)})`
         : "no review this call";
-  const lines = [`wachiman loop · ${neutralise(r.branch)} · round ${r.round} of ${r.maxRounds} · ${range} → ${sha7(r.head)}`, ""];
+  const lines = [`wachiman loop · ${neutralise(r.branch)} · round ${r.round} (${r.passRound} of ${r.maxRounds} in this pass) · ${range} → ${sha7(r.head)}`, ""];
   lines.push(`Keeps the loop open (${r.open.length}):`);
   for (const f of r.open) lines.push(`  ${row(f)}`, `      history: ${f.status}${f.unreasonedWrong ? " · judged wrong without a reason: still counts" : ""}`);
   if (r.open.length === 0) lines.push("  none");

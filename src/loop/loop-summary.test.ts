@@ -45,7 +45,7 @@ interface Fake {
 const FINDING = { id: "ab12cd34ef", path: "src/a.ts", line: 2, severity: "blocker", topic: "bug", title: "Off by ten" };
 
 /** A review seam whose n-th call reports `findings[n]`, with the version and cost its options give. */
-function fakeReview(dir: string, findings: object[][] = [], over: { version?: string; verifier?: boolean } = {}): Fake {
+function fakeReview(dir: string, findings: object[][] = [], over: { version?: string; verifier?: boolean; verificationStatus?: string } = {}): Fake {
   const calls: string[] = [];
   return {
     calls,
@@ -62,7 +62,7 @@ function fakeReview(dir: string, findings: object[][] = [], over: { version?: st
           coverage: { expected: ["src/a.ts"], reviewed: ["src/a.ts"], partial: false },
           execution: { stop: "complete", costUsdEstimate: 0.5 + n, durationMs: 60_000 * (n + 1) },
           findings: findings[n] ?? [],
-          ...(over.verifier ? { verification: { model: "claude-opus-5-5", effort: "high", entries: [] } } : {}),
+          ...(over.verifier ? { verification: { ...(over.verificationStatus ? { status: over.verificationStatus } : {}), model: "claude-opus-5-5", effort: "high", entries: [] } } : {}),
         }),
       );
       return 0;
@@ -101,6 +101,22 @@ function session(dir: string) {
 }
 
 describe("what a round records", () => {
+  test("a verifier that was skipped or failed is recorded as such, never as the verifier that ran", async () => {
+    for (const status of ["skipped", "failed"]) {
+      const dir = repo();
+      const s = session(dir);
+      await s.run(fakeReview(dir, [[]], { verifier: true, verificationStatus: status }), fakeGh().gh, "--base", "main");
+      const review = s.state().rounds[0].review!;
+      expect(review.verifier).toBeUndefined();
+      expect(review.verifierStatus).toBe(status);
+    }
+    const dir = repo();
+    const s = session(dir);
+    await s.run(fakeReview(dir, [[]], { verifier: true, verificationStatus: "verified" }), fakeGh().gh, "--base", "main");
+    expect(s.state().rounds[0].review!.verifier).toEqual({ model: "claude-opus-5-5", effort: "high" });
+    expect(s.state().rounds[0].review!.verifierStatus).toBeUndefined();
+  }, 30_000);
+
   test("each round keeps its range, version, models, cost, time and findings; the next round starts where the last one ended", async () => {
     const dir = repo();
     const s = session(dir);
@@ -127,7 +143,7 @@ describe("what a round records", () => {
     for (const [i, r] of state.rounds.entries()) if (i > 0) expect(r.review!.base).toBe(state.rounds[i - 1].head);
     expect(state.ledger[0]).toMatchObject({ id: FINDING.id, round: 1 });
     expect(fake.calls).toEqual(["main", first]);
-    expect(state.maxRounds).toBe(3);
+    expect(state.maxRounds).toBe(5);
   }, 60_000);
 
   test("three rounds in a row stay contiguous, and a finding keeps the round that first reported it", async () => {
@@ -264,7 +280,7 @@ describe("--format markdown and --summary", () => {
     await s.run(fake, fakeGh().gh, "--base", "main", "--max-rounds", "1");
     const stop = await s.run(fake, fakeGh().gh, "--max-rounds", "1", "--format", "markdown");
     expect(stop.code).toBe(11);
-    expect(stop.out).toContain("| **Rounds** | 1 (budget 1; stopped at the budget: 1 finding still keeps the loop open) |");
+    expect(stop.out).toContain("| **Rounds** | 1 (budget 1 per pass, counted since the loop last converged or started; stopped at the budget: 1 finding still keeps the loop open) |");
     expect(s.state().maxRounds).toBe(1);
   }, 30_000);
 });
@@ -365,6 +381,6 @@ describe("publishLoopSummary in .wachiman.yml", () => {
     const r = await s.run(fakeReview(dir, [[FINDING]]), g.gh, "--base", "main");
     expect(r.code).toBe(10);
     expect(g.calls).toEqual([]);
-    expect(r.err.some((l) => l.includes("publishLoopSummary must be true or false"))).toBe(true);
+    expect(r.err.some((l) => l.includes("publishLoopSummary must be true or false") && l.includes("not publishing"))).toBe(true);
   }, 30_000);
 });

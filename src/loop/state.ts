@@ -51,8 +51,10 @@ export interface RoundReview {
   /** The Wachiman version that ran the review. */
   version: string;
   reviewer: ModelUse;
-  /** Absent when verification was off. */
+  /** Absent when verification was off, and when the verifier was skipped or failed (see `verifierStatus`). */
   verifier?: ModelUse;
+  /** Only when verification was on but the verifier made no usable call. */
+  verifierStatus?: "skipped" | "failed";
   /** API-equivalent dollars the run reported, the verifier call included. */
   costUsd: number;
   durationMs: number;
@@ -79,6 +81,8 @@ export interface LoopState {
   status: "open" | "converged";
   /** The round cap of the last call that set it. Absent in a `/1` state. */
   maxRounds?: number;
+  /** How many rounds were recorded when the current pass began: 0 or absent from the start, later after a continued convergence. The budget counts rounds since then. */
+  passFrom?: number;
   rounds: LoopRound[];
   ledger: LedgerEntry[];
 }
@@ -96,6 +100,7 @@ function validReview(r: any): boolean {
     text(r.version) &&
     modelUse(r.reviewer) &&
     (r.verifier === undefined || modelUse(r.verifier)) &&
+    (r.verifierStatus === undefined || r.verifierStatus === "skipped" || r.verifierStatus === "failed") &&
     typeof r.costUsd === "number" &&
     r.costUsd >= 0 &&
     typeof r.durationMs === "number" &&
@@ -114,6 +119,7 @@ function valid(s: any, branch: string): s is LoopState {
     typeof s.base === "string" &&
     (s.status === "open" || s.status === "converged") &&
     (s.maxRounds === undefined || (Number.isInteger(s.maxRounds) && s.maxRounds > 0)) &&
+    (s.passFrom === undefined || (Number.isInteger(s.passFrom) && s.passFrom >= 0)) &&
     Array.isArray(s.rounds) &&
     s.rounds.every(
       (r: any) => r && Number.isInteger(r.round) && typeof r.head === "string" && typeof r.at === "string" && (r.review === undefined || validReview(r.review)),

@@ -67,6 +67,20 @@ const CASES: Record<string, Parameters<typeof renderSummary>[0]> = {
     ]),
     findings: [finding("cccc000001"), finding("cccc000002", { refuted: true, status: "open" })],
   },
+  // The verifier was asked for but made no usable call in round 2: the Model row never says it ran.
+  "verifier-skipped": {
+    state: state([
+      round(1, { verifier: { model: "claude-opus-5-5", effort: "high" }, newFindings: 1, findings: 1 }),
+      round(2, { verifierStatus: "skipped" }),
+      round(3, { verifierStatus: "failed" }),
+    ]),
+    findings: [finding("9999000001")],
+  },
+  // Round 3 is the first of a second pass: the loop converged at round 2, then continued.
+  "continued-pass": {
+    state: state([round(1, { newFindings: 1, findings: 1 }), round(2), round(3, { newFindings: 1, findings: 1 })], { status: "open", maxRounds: 5, passFrom: 2 }),
+    findings: [finding("8888000001"), finding("8888000002", { severity: "blocker", status: "open", round: 3 })],
+  },
   "models-differ": {
     state: state([round(1, { newFindings: 1, findings: 1 }), round(2, { reviewer: { model: "claude-opus-5-5", effort: "medium" } })]),
     findings: [finding("dddd000001")],
@@ -159,8 +173,26 @@ describe("the summary's shape", () => {
   test("it never says it stopped at the budget with no finding open", () => {
     const input = { state: state([round(1), round(2), round(3)], { status: "stopped", maxRounds: 3 }), findings: [finding("g1", { verdict: wrong("not a defect") })] };
     const out = renderSummary(input);
-    expect(out).toContain("budget 3)");
+    expect(out).toContain("budget 3 per pass, counted since the loop last converged or started)");
     expect(out).not.toContain("stopped at the budget");
+  });
+
+  test("a backtick in a path cannot end the code span, in the list or in the table", () => {
+    const out = renderSummary({ state: state([round(1, { newFindings: 1, findings: 1 })], { status: "open" }), findings: [finding("h1", { severity: "blocker", status: "open", path: "src/a`b|c.ts" })] });
+    expect(out).toContain("- 🔴 Blocker `` src/a`b|c.ts:2 `` — ");
+    expect(out).toContain("| `h1` | 1 | 🔴 Blocker | `` src/a`b\\|c.ts:2 `` Finding h1 |");
+  });
+
+  test("a model-written link, image or #123 in a title is text: no live link, no picture, no cross-reference", () => {
+    const out = renderSummary({ state: state([round(1)]), findings: [finding("k1", { title: "See [the docs](https://evil.test/x) ![p](https://evil.test/p.png) and #123 or `[kept](x) #4`" })] });
+    expect(out).toContain("See \\[the docs\\](https://evil.test/x) !\\[p\\](https://evil.test/p.png) and #&#8203;123 or `[kept](x) #4`");
+    expect(out).not.toContain("[the docs](");
+    expect(out).not.toContain("![p](");
+  });
+
+  test("the Rounds row says the budget is per pass, and totals every round once a loop continues", () => {
+    expect(renderSummary(CASES["continued-pass"])).toContain("| **Rounds** | 3 in total (budget 5 per pass, counted since the loop last converged or started; this pass used 1) |");
+    expect(renderSummary(CASES["verifier-skipped"])).toContain("Claude Sonnet 5.5 high, verifier skipped (round 2)");
   });
 
   test("no findings table and Findings is 0 when nothing was found", () => {

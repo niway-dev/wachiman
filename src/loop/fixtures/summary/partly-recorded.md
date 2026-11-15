@@ -5,7 +5,7 @@
 | **Review** | Local, before push. Posted by the user |
 | **Reviewer** | Wachiman 1.15.0 (round 3); not recorded for rounds 1-2 |
 | **Model** | Claude Sonnet 5.5 high, verifier off (round 3); not recorded for rounds 1-2 |
-| **Rounds** | 3 (budget 5) |
+| **Rounds** | 3 (budget 5 per pass, counted since the loop last converged or started) |
 | **Findings** | 1: 1 fixed |
 | **Reviewed** | `0000002..0000003` |
 | **Wachiman cost** | $1.50 API-equivalent, 11 min 17 s (not recorded for rounds 1-2) |

@@ -52,7 +52,17 @@ const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
  * its pipes are escaped (GFM tables honour `\|` there).
  */
 const safe = (text: string) => {
-  const plain = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("|", "\\|").replace(/@(?=\w)/g, "@&#8203;");
+  // Brackets stay literal (so a model-written link or image is text, never a live link or a picture to load), and a `#123` keeps GitHub from cross-linking an issue or pull request.
+  const plain = (t: string) =>
+    t
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("|", "\\|")
+      .replaceAll("[", "\\[")
+      .replaceAll("]", "\\]")
+      .replace(/#(?=\d)/g, "#&#8203;")
+      .replace(/@(?=\w)/g, "@&#8203;");
   const line = oneLine(text);
   let out = "";
   let at = 0;
@@ -73,8 +83,17 @@ const safe = (text: string) => {
   return out + plain(line.slice(at));
 };
 
-/** The cited place as code. In a table a pipe in the path would end the cell, so it is escaped there. */
-const where = (f: LoopFinding, inTable: boolean) => `\`${inTable ? location(f).replaceAll("|", "\\|") : location(f)}\``;
+/**
+ * The cited place as code. A path can hold a backtick, which would end a one-backtick span, so the span
+ * opens with a longer run than any inside it (padded with a space, as CommonMark asks). In a table a
+ * pipe in the path would end the cell, so it is escaped there.
+ */
+const where = (f: LoopFinding, inTable: boolean) => {
+  const place = inTable ? location(f).replaceAll("|", "\\|") : location(f);
+  const longest = Math.max(0, ...(place.match(/`+/g) ?? []).map((r) => r.length));
+  const fence = "`".repeat(longest + 1);
+  return longest > 0 ? `${fence} ${place} ${fence}` : `${fence}${place}${fence}`;
+};
 
 /** A reason as the end of a sentence: one line, cut, without its own closing punctuation. */
 const reasonText = (text: string, max: number) => clip(safe(text), max).replace(/[.!?\s]+$/, "");
@@ -149,7 +168,7 @@ function perRound(rounds: LoopRound[], label: (r: LoopRound) => string, prefix =
 
 const modelLabel = (r: LoopRound) => {
   const v = r.review!;
-  const verifier = v.verifier ? `verifier ${modelName(v.verifier.model)} ${v.verifier.effort}` : "verifier off";
+  const verifier = v.verifier ? `verifier ${modelName(v.verifier.model)} ${v.verifier.effort}` : v.verifierStatus ? `verifier ${v.verifierStatus}` : "verifier off";
   return `${modelName(v.reviewer.model)} ${v.reviewer.effort}, ${verifier}`;
 };
 
@@ -232,11 +251,13 @@ export function renderSummary({ state, findings, agent }: SummaryInput): string 
   const last = rounds.at(-1);
   const outcome = outcomes(findings);
   const open = findings.filter((f) => outcome.get(f.id)!.kind === "open");
-  const stopped = state.status !== "converged" && open.length > 0 && state.maxRounds !== undefined && rounds.length >= state.maxRounds;
+  const pass = rounds.length - (state.passFrom ?? 0);
+  const stopped = state.status !== "converged" && open.length > 0 && state.maxRounds !== undefined && pass >= state.maxRounds;
+  // The budget limits one pass: the rounds since the loop last converged, or started. The total counts every round.
   const budget =
     state.maxRounds === undefined
       ? ""
-      : ` (budget ${state.maxRounds}${stopped ? `; stopped at the budget: ${open.length} finding${open.length === 1 ? "" : "s"} still keep${open.length === 1 ? "s" : ""} the loop open` : ""})`;
+      : ` (budget ${state.maxRounds} per pass, counted since the loop last converged or started${state.passFrom ? `; this pass used ${pass}` : ""}${stopped ? `; stopped at the budget: ${open.length} finding${open.length === 1 ? "" : "s"} still keep${open.length === 1 ? "s" : ""} the loop open` : ""})`;
   const first = rounds.find((r) => r.review)?.review;
   const lastReviewed = [...rounds].reverse().find((r) => r.review);
   const reviewed = first && lastReviewed ? `\`${sha7(first.base)}..${sha7(lastReviewed.head)}\`` : NOT_RECORDED;
@@ -245,7 +266,7 @@ export function renderSummary({ state, findings, agent }: SummaryInput): string 
     ["Review", `Local, before push. Posted by ${agent ? `an agent (${safe(agent)})` : "the user"}`],
     ["Reviewer", perRound(rounds, (r) => r.review!.version, "Wachiman ")],
     ["Model", perRound(rounds, modelLabel)],
-    ["Rounds", `${rounds.length}${budget}`],
+    ["Rounds", `${rounds.length}${state.passFrom ? " in total" : ""}${budget}`],
     ["Findings", counts(findings, outcome)],
     ["Reviewed", reviewed],
     ["Wachiman cost", totals(rounds)],

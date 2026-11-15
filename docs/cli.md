@@ -290,7 +290,8 @@ history turned on, result `/2` and a stop rule. The CLI never edits code: an age
 ```sh
 wachiman loop --base main --repo-dir ~/src/app   # starts a loop; round 1 reviews the whole range
 wachiman loop --repo-dir ~/src/app               # continues it: reviews only the commits since the last round
-wachiman loop --max-rounds 5 --format json
+wachiman loop --base main                        # after a convergence, with the same base: round n+1, earlier rounds kept
+wachiman loop --max-rounds 8 --format json
 wachiman loop --format markdown                  # the round runs, then the summary comment is printed
 wachiman loop --summary                          # prints the summary of the open loop; no round, no model call
 wachiman loop --summary --publish --agent "Claude Code"   # posts it on the branch's pull request
@@ -300,9 +301,14 @@ wachiman loop --summary --publish --agent "Claude Code"   # posts it on the bran
   the head of each round, the findings seen, and per round what its review reported about itself
   (the range it read, the Wachiman version, the reviewer and verifier models, the API-equivalent
   cost, the time and the number of findings). The format is `wachiman.loop-state/2`; a `/1` state
-  still reads, its rounds show `not recorded`, and the next round writes it back as `/2`. `--base`
-  always starts a new loop; `--history --forget` removes the state with the history.
-- **Flags:** `--base`, `--max-rounds <n>` (default 3), `--max-depth`, `--format terminal|json|markdown`,
+  still reads, its rounds show `not recorded`, and the next round writes it back as `/2`.
+  **A call continues the branch's loop** when the loop has the same base (the commit the branch
+  forked from) and its last round's head is an ancestor of `HEAD`, even after it converged: it is
+  round n+1, reviews the commits since the last round and keeps the rounds and the ledger, so the
+  summary totals every round and its cost. A different base, or history that no longer holds the
+  last head (a rebase or a forced push), starts a fresh loop, and one line on stderr says why;
+  without `--base` that case is a usage error. `wachiman history --forget` removes the state with the history.
+- **Flags:** `--base`, `--max-rounds <n>` (default 5, the rounds of one pass: since the loop last converged or started), `--max-depth`, `--format terminal|json|markdown`,
   `--profile`, `--verify|--no-verify`, `--repo-dir`, and the summary flags below. It takes no paths,
   `--commit` or `--from`.
 - **The loop stays open** while a 🔴 Blocker or 🟠 Fix is new, open or not-repeated, not refuted by
@@ -342,7 +348,8 @@ wachiman loop --summary --publish --agent "Claude Code"   # posts it on the bran
     of the loop's `--base`, never from the branch under review.
 
 Exit codes: 0 converged; 10 findings still open; 11 stopped without converging (`round cap`, or
-`review failed` after the review call failed twice); 2 a usage error (no loop open, detached HEAD, an
+`review failed` after the review call failed twice); 1 only with `--summary`: the summary printed but
+the publish failed (a round's exit code never becomes 1); 2 a usage error (no loop open, detached HEAD, an
 unknown flag); 130 after Ctrl-C.
 
 ### `ask`
