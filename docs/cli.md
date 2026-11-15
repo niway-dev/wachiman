@@ -1022,7 +1022,7 @@ rest are listed as not reviewed.
 | `2` | Usage error: an unknown option or format, `ANTHROPIC_API_KEY` set, a profile that cannot be resolved or is refused, a corrupt `config.json`, a provider other than `claude-code`, a refused or missing isolated profile, no merge-base, a detached or unborn `HEAD`, a `HEAD` on the base branch, a range deeper than the maximum depth, an `--input` of another format or whose head is not in the clone |
 | `130` | Interrupted with `Ctrl-C`; the snapshot was removed |
 
-`loop` has its own codes: 0 converged, 10 findings still open, 11 stopped without converging, 2 usage error, 130 interrupted.
+`loop` has its own codes: 0 converged, 10 findings still open, 11 stopped without converging, 1 only with `--summary` (printed, but the publish failed), 2 usage error, 130 interrupted.
 
 `setup` and `init` use 0 done (including a "no" answer), 1 for an engine error (also a `setup` whose closing `doctor` summary failed), 2 usage error and 130 cancelled with Escape, Ctrl-C or Ctrl-D.
 

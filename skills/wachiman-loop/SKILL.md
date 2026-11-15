@@ -119,5 +119,5 @@ Tell the developer, in this order:
 | Running `wachiman review <pr>`, `gh` or a GitHub token | `loop` is local; nothing is posted unless you ask for `--publish` |
 | Writing the summary table yourself, or posting it with `gh pr comment` | `wachiman loop --summary --publish`; the CLI writes it and edits it in place |
 | Running with `ANTHROPIC_API_KEY` set | `env -u ANTHROPIC_API_KEY wachiman loop ...`; the subscription pays |
-| Editing files under `~/.wachiman` to reset or close a loop | `--base <ref>` starts a new loop |
+| Editing files under `~/.wachiman` to reset or close a loop | `wachiman history --forget` to drop the loop with its history (`--base <ref>` continues the branch's loop when the base and history match) |
 | Claiming the branch is approved or safe | Report the outcome and its limits |

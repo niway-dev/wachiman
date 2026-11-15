@@ -55,6 +55,7 @@ const safe = (text: string) => {
   // Brackets stay literal (so a model-written link or image is text, never a live link or a picture to load), and a `#123` keeps GitHub from cross-linking an issue or pull request.
   const plain = (t: string) =>
     t
+      .replaceAll("\\", "\\\\")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")

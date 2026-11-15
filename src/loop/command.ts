@@ -456,7 +456,7 @@ function reviewOf(result: IdentifiedResult, fresh: number): RoundReview | undefi
   const reviewer = result.provider;
   if (!Number.isFinite(costUsd) || costUsd < 0 || !Number.isFinite(durationMs) || durationMs < 0) return undefined;
   if (!base || !version || !reviewer?.model || !reviewer.effort) return undefined;
-  // A verifier that was skipped or failed made no call that counts: it is never recorded as the verifier that ran.
+  // A verifier that was skipped or failed did not verify anything (its cost, if any, is already in `costUsd`): it is never recorded as the verifier that ran.
   const v = result.verification;
   const ran = v && v.status !== "skipped" && v.status !== "failed";
   return {

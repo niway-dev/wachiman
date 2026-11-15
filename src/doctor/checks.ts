@@ -396,16 +396,6 @@ export const CHECKS: DoctorCheck[] = [
           };
         }
       }
-      if (settings?.publishLoopSummaryError !== undefined) {
-        return {
-          id: "settings",
-          level: "optional",
-          status: "warn",
-          evidence: `the working copy of ${SETTINGS_PATH} has an invalid publishLoopSummary: ${settings.publishLoopSummaryError} Its model and effort still apply; \`wachiman loop\` does not publish until it is fixed.`,
-          fix: `set publishLoopSummary to true or false in ${SETTINGS_PATH}, or remove the key`,
-          detail: { file, valid: false },
-        };
-      }
       const effective = effectiveSettings(env, settings);
       const from = (s: { value: string; source: string; skipped?: string }) =>
         `${s.value} (${s.source === "file" ? `from ${SETTINGS_PATH}` : s.source === "env" ? "from the environment" : s.skipped !== undefined ? `default; the model "${settings?.model}" in ${SETTINGS_PATH} is skipped: ${s.skipped}` : "default"})`;
@@ -428,6 +418,16 @@ export const CHECKS: DoctorCheck[] = [
         ? `${SETTINGS_PATH} has changes that are not committed, and runs read the committed file: once committed (and merged, for Actions) a run would use model ${from(effective.model)}, effort ${from(effective.effort)}`
         : `a run here would use model ${from(effective.model)}, effort ${from(effective.effort)}`;
       const evidence = `${read}; ${runs}. GitHub Actions reads the file from the base commit of the pull request, not from the head`;
+      if (settings?.publishLoopSummaryError !== undefined) {
+        return {
+          id: "settings",
+          level: "optional",
+          status: "warn",
+          evidence: `${settings.publishLoopSummaryError} \`wachiman loop\` does not publish until it is fixed; the model and effort are unaffected. ${evidence}`,
+          fix: `set publishLoopSummary to true or false in ${SETTINGS_PATH}, or remove the key`,
+          detail: { ...detail, publishLoopSummaryValid: false },
+        };
+      }
       if (hasOld) {
         return {
           id: "settings",

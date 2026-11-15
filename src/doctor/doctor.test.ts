@@ -182,6 +182,15 @@ describe("settings row: the repository's .wachiman.yml", () => {
     expect(r.evidence).toContain("base commit");
   });
 
+  test("a bad publishLoopSummary warns but keeps the file's model and effort in force", () => {
+    const repo = emptyRepo();
+    write(repo, { ".wachiman.yml": "model: claude-opus-5-5\neffort: medium\npublishLoopSummary: maybe\n" });
+    const r = settingsRow(machine(), repo);
+    expect(r).toMatchObject({ status: "warn", detail: { valid: true, effectiveModel: "claude-opus-5-5", effectiveEffort: "medium", publishLoopSummaryValid: false } });
+    expect(r.evidence).toContain("publishLoopSummary must be true or false");
+    expect(r.fix).toContain("publishLoopSummary");
+  });
+
   test("a file with model and effort: they are reported and win over the defaults", () => {
     const repo = emptyRepo();
     write(repo, { ".wachiman.yml": "kind: monorepo\nmodel: claude-opus-5-5\neffort: medium\n" });

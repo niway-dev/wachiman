@@ -190,6 +190,12 @@ describe("the summary's shape", () => {
     expect(out).not.toContain("![p](");
   });
 
+  test("a backslash in model text cannot cancel the bracket escape", () => {
+    const out = renderSummary({ state: state([round(1)]), findings: [finding("k2", { title: "x \\[the docs](https://evil.test) y" })] });
+    expect(out).toContain("x \\\\\\[the docs\\](https://evil.test) y");
+    expect(out).not.toMatch(/[^\\]\[the docs\]\(/);
+  });
+
   test("the Rounds row says the budget is per pass, and totals every round once a loop continues", () => {
     expect(renderSummary(CASES["continued-pass"])).toContain("| **Rounds** | 3 in total (budget 5 per pass, counted since the loop last converged or started; this pass used 1) |");
     expect(renderSummary(CASES["verifier-skipped"])).toContain("Claude Sonnet 5.5 high, verifier skipped (round 2)");
