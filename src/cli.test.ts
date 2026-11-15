@@ -20,7 +20,7 @@ describe("cli", () => {
     expect(out.stdout).toContain("wachiman <command> [options]");
     expect(out.stdout).toContain("wachiman help ci");
     expect(out.stdout).not.toContain("wachiman review <pr>");
-    expect(out.stdout.trimEnd().split("\n").length).toBeLessThanOrEqual(26);
+    expect(out.stdout.trimEnd().split("\n").length).toBeLessThanOrEqual(27);
   });
 
   test("bare wachiman prints the root help and exits 0", () => {

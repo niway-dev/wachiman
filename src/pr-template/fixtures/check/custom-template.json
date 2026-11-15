@@ -1,0 +1,27 @@
+{
+  "drop": ["decisions", "agent-context"],
+  "add": ["screenshots", "rollback"],
+  "custom": [
+    {
+      "id": "migration-notes",
+      "kind": "section",
+      "heading": "Migration notes",
+      "required": true,
+      "after": "evidence"
+    },
+    {
+      "id": "reviewers-note",
+      "kind": "section",
+      "heading": "Reviewer's note",
+      "required": false,
+      "after": "migration-notes"
+    },
+    {
+      "id": "ticket",
+      "kind": "status-row",
+      "label": "Ticket",
+      "required": true
+    }
+  ],
+  "preamble": ["- [ ] **Outside contributors only:** I have read CLA.md and I accept it."]
+}

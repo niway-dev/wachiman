@@ -26,13 +26,17 @@ function world(answers: (number | string | boolean | null)[]) {
 
 describe("init on a terminal session", () => {
   test("asks through the Ui, shows the workflow as a titled note, and writes the file on confirm", async () => {
-    const w = world([0, "octocat", true]); // kind (Monorepo), operator, Write it?
+    const w = world([0, "octocat", false, true]); // kind (Monorepo), operator, PR template (no), Write it?
     expect(await w.run()).toBe(0);
     const note = w.ui.of("note")[0];
     expect(note.title).toBe(".github/workflows/wachiman-review.yml (new)");
     expect(note.message).toContain('operator: "octocat"');
-    expect(w.ui.of("confirm")[0].message).toBe("Write it?");
+    expect(w.ui.of("confirm").map((e) => e.message)).toEqual([
+      "Also install the PR description template? An existing .github/pull_request_template.md is adopted and replaced (a backup is kept); nothing is committed.",
+      "Write it?",
+    ]);
     expect(readFileSync(w.target, "utf8")).toContain('operator: "octocat"');
+    expect(existsSync(join(w.repo, ".github", "pull_request_template.md"))).toBe(false);
     // The settings file is a second titled note, written under the same confirm.
     expect(w.ui.of("note")[1].title).toBe(".wachiman.yml (new)");
     expect(readFileSync(join(w.repo, ".wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
@@ -41,7 +45,7 @@ describe("init on a terminal session", () => {
   });
 
   test("declining writes nothing and says so inside the frame", async () => {
-    const w = world([0, "octocat", false]);
+    const w = world([0, "octocat", false, false]);
     expect(await w.run()).toBe(0);
     expect(existsSync(w.target)).toBe(false);
     expect(w.ui.of("log").some((e) => e.message === "not written.")).toBe(true);
@@ -49,19 +53,35 @@ describe("init on a terminal session", () => {
     expect(w.ui.of("outro").map((e) => e.message)).toEqual(["Nothing was written."]);
   });
 
+  test("declining the workflow but accepting the template installs the template and does not claim nothing was written", async () => {
+    const w = world([0, "octocat", true, false]); // kind, operator, PR template (yes), Write it? (no)
+    expect(await w.run()).toBe(0);
+    expect(existsSync(w.target)).toBe(false);
+    expect(readFileSync(join(w.repo, ".github", "pull_request_template.md"), "utf8")).toContain("wachiman:pr-template version=1");
+    expect(w.ui.of("outro").map((e) => e.message)).toEqual(["The workflow was not written; the PR description template is in place."]);
+  });
+
   test("cancelling the confirmation exits 130 and writes nothing", async () => {
-    const w = world([0, "octocat", null]);
+    const w = world([0, "octocat", false, null]);
     expect(await w.run()).toBe(130);
     expect(existsSync(w.target)).toBe(false);
     expect(existsSync(join(w.repo, ".wachiman.yml"))).toBe(false);
   });
 
   test("status lines go through the Ui, not loose to stderr", async () => {
-    const w = world([0, "octocat", true]);
+    const w = world([0, "octocat", false, true]);
     await w.run();
     const drawn = w.ui.of("log").map((e) => e.message).join("\n");
     expect(drawn).toContain("wrote ");
     expect(w.err.join("\n")).not.toContain("wrote ");
   });
 
+  test("a yes to the template question installs it after the workflow, with no commit, and reports it", async () => {
+    const w = world([0, "octocat", true, true]);
+    expect(await w.run()).toBe(0);
+    const template = join(w.repo, ".github", "pull_request_template.md");
+    expect(readFileSync(template, "utf8")).toContain("wachiman:pr-template version=1");
+    expect(w.ui.of("log").map((e) => e.message).join("\n")).toContain("wrote .github/pull_request_template.md");
+    expect(w.out).toEqual([]);
+  });
 });

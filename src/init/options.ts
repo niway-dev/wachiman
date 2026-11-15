@@ -26,6 +26,8 @@ export interface RawInitFlags {
   force?: boolean;
   dryRun?: boolean;
   yes?: boolean;
+  /** `--pr-template` is true, `--no-pr-template` is false; absent means not given. */
+  prTemplate?: boolean;
   repoDir?: string;
   help?: boolean;
 }
@@ -34,6 +36,8 @@ export interface InitOptions {
   mode: InitMode;
   /** Present iff mode !== "local". */
   github?: { operator: string; tag: string; path: string; force: boolean; dryRun: boolean };
+  /** Install the PR description template after the workflow work. Absent means no: a script that did not ask gets no new file. */
+  prTemplate?: boolean;
   /** Present iff the kind was given (flag or answer); then `.wachiman.yml` is written or checked. `force` allows changing a different `kind:` without asking. */
   settings?: { kind: ProjectKind; force: boolean };
   repoDir: string;
@@ -100,6 +104,7 @@ export function resolveInitOptions(
   if (!initModes.includes(flags.mode as InitMode)) return fail(`--mode must be github, local or both, got "${flags.mode}".`);
   const mode = flags.mode as InitMode;
   const repoDir = flags.repoDir ?? ".";
+  const templateOption = flags.prTemplate === true ? { prTemplate: true } : {};
   if (flags.projectKind !== undefined) {
     const kindError = projectKindProblem(flags.projectKind);
     if (kindError) return fail(kindError);
@@ -111,7 +116,7 @@ export function resolveInitOptions(
     const given = GITHUB_ONLY_FLAGS.filter(([key]) => flags[key] !== undefined && flags[key] !== false && !(key === "force" && settings))
       .map(([, name]) => name);
     if (given.length > 0) return fail(`${given.join(", ")} only apply to a workflow; --mode local writes none. Drop them, or use --mode github or both.`);
-    return { ok: true, options: { mode, ...(settings ? { settings } : {}), repoDir, interactive: ctx.interactive } };
+    return { ok: true, options: { mode, ...templateOption, ...(settings ? { settings } : {}), repoDir, interactive: ctx.interactive } };
   }
 
   if (flags.operator === undefined) return fail(`init --mode ${mode} needs --operator <github login> when it cannot ask: the one person whose /wachiman comments start a run.`);
@@ -138,6 +143,7 @@ export function resolveInitOptions(
     options: {
       mode,
       github: { operator: flags.operator, tag, path: path.path, force: flags.force === true, dryRun: flags.dryRun === true },
+      ...templateOption,
       ...(settings ? { settings } : {}),
       repoDir,
       interactive: ctx.interactive,

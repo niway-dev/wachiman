@@ -1,11 +1,16 @@
 /**
  * `wachiman init` (command contract section 5.5): parse, prompt, resolve, then the one impure
- * half. It writes only the chosen workflow file and its `.bak` copy, and, when the repository kind
- * is given or answered, the settings file `.wachiman.yml` (ADR 0048), after the person has
- * seen what will be written (or named `--yes` or no terminal with every mandatory flag). It never
- * commits, pushes, opens a pull request or creates a secret. Its only network use is one optional
- * `gh api user` (src/init/github-login.ts, up to 10 s) to suggest the operator, and only on a terminal in
- * github or both mode; Wachiman itself makes no request (no `fetch`).
+ * half. It writes the chosen workflow file and its `.bak` copy and, when the repository kind is
+ * given or answered, the settings file `.wachiman.yml` (ADR 0048), after the person has seen what
+ * will be written (or named `--yes` or no terminal with every mandatory flag). With
+ * `--pr-template` (or a yes to the question) it also installs the PR description template, files
+ * only, as `wachiman pr-template install` does: `.github/pull_request_template.md` and, when there
+ * is something to keep, `.github/pr-template.json`. An existing unmanaged template is adopted and
+ * replaced (a `.bak` copy is kept). A refusal or failure there is reported, saying what was and
+ * was not written, and does not fail the rest of init. It never commits, pushes, opens a pull
+ * request or creates a secret. Its only network use is one optional `gh api user`
+ * (src/init/github-login.ts, up to 10 s) to suggest the operator, and only on a terminal in github
+ * or both mode; Wachiman itself makes no request (no `fetch`).
  */
 import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -18,11 +23,16 @@ import { loadTerminalUi } from "../wizard/load";
 import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
 import type { Ui } from "../wizard/ui";
 import { projectCommands, quoteArgument } from "../wizard/command";
+import { runInstall, type Deps as PrTemplateDeps } from "../pr-template/install";
+import { CHOICE_FILE } from "../pr-template/catalog";
 import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
+
+/** What `pr-template install` can write; the report names the ones a failed install did not reach. */
+const PR_TEMPLATE_FILES = [CHOICE_FILE, ".github/pull_request_template.md"];
 
 export interface InitDeps {
   /** The caller template. Default: `templates/wachiman-review-caller.yml` of this install. */
@@ -48,6 +58,8 @@ export interface InitDeps {
   /** The directory a relative `--repo-dir` was resolved against, for the `setup` line. Default: `process.cwd()`. */
   cwd?: string;
   hooks?: WriteHooks;
+  /** Dependencies of the PR description template install (`wachiman pr-template install`). */
+  prTemplate?: PrTemplateDeps;
   /** Filled by a later stage; read by `runInitCommand` when it closes the session. */
   closing?: SessionClosing;
   /** The same hook for the settings file, for a test. */
@@ -123,6 +135,40 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const { github } = options;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
+  let templateDone = false;
+  let templateInstalled = false;
+  /** Installs the PR description template once, at the end of the workflow work. A refusal or a failure is a report, not a failure of init. Returns whether it is in place. */
+  const installTemplate = (): boolean => {
+    if (!options.prTemplate) return false;
+    if (templateDone) return templateInstalled;
+    templateDone = true;
+    // `install` says "wrote <file>" for each file it writes; listening to it tells a failure that wrote nothing from one that stopped halfway.
+    const wrote: string[] = [];
+    const watching = {
+      stdout: (text: string) => io.stdout(text),
+      stderr: (line: string) => {
+        const file = /^wrote (.+?)(?:;|\.$)/.exec(line)?.[1];
+        if (file !== undefined) wrote.push(file);
+        io.stderr(line);
+      },
+    };
+    try {
+      // Same semantics as `pr-template install` with no --force and no --commit: init never commits.
+      runInstall({ force: false, commit: false }, root, watching, deps.prTemplate);
+      templateInstalled = true;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      if (wrote.length === 0) {
+        io.stderr(`pr-template: not installed: ${reason}`);
+      } else {
+        const missing = PR_TEMPLATE_FILES.filter((f) => !wrote.includes(f));
+        io.stderr(`pr-template: only part of the install was done: ${reason}`);
+        io.stderr(`pr-template: written: ${wrote.join(", ")}; not written: ${missing.length > 0 ? missing.join(", ") : "nothing else"}.`);
+      }
+      io.stderr("The rest of init is unaffected. See `wachiman pr-template status`.");
+    }
+    return templateInstalled;
+  };
 
   // The settings file: planned first (a link or a non-file in the way fails before anything is written), written under the same confirm.
   const plan = options.settings ? planSettings(root, options.settings.kind) : undefined;
@@ -203,6 +249,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (github.dryRun) {
       if (unchanged) io.stderr(`note: ${shown} is unchanged.`);
       else if (inspected.exists && !github.force && !prompter) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
+      if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
       io.stdout(rendered);
       return 0;
     }
@@ -238,8 +285,9 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       }
       if (!answer) {
         io.stderr("not written.");
+        const templateIn = installTemplate();
         // The closing line of a terminal session says what happened, not "All set".
-        if (prompter.fancy) prompter.close("done", "Nothing was written.");
+        if (prompter.fancy) prompter.close("done", templateIn ? "The workflow was not written; the PR description template is in place." : "Nothing was written.");
         return 0;
       }
     } else {
@@ -251,6 +299,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       written = shown;
       io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
     }
+    // The template is reported and never fails init, so it goes before the settings file, which can throw.
+    installTemplate();
     try {
       commitSettings();
     } catch (error) {
@@ -285,6 +335,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (prompter?.fancy) prompter.nextAction(`Commit ${SETTINGS_PATH} so the repository kind travels with it. init does not commit.`, [`git add ${SETTINGS_PATH}`, 'git commit -m "Record the repository kind for Wachiman"']);
     else io.stderr(`Commit ${SETTINGS_PATH} like any file; init does not commit.`);
   }
+  installTemplate();
 
   if (options.mode === "github") {
     io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");

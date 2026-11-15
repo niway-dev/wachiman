@@ -27,6 +27,8 @@
  *   wachiman project show|unbind    inspect or remove this repository's binding
  *   wachiman upgrade [--check]     update the CLI, then the workflow pin in this repository (src/upgrade/)
  *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
+ *   wachiman pr-template show|install|status|check|format|risk|strip  the PR description template: install it,
+ *                                       report its state, check and reorder a description, and compute the risk floor
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error; 3 the spend
@@ -51,6 +53,7 @@ import { parseAskArgs, runAsk } from "./local-ask";
 import { parseProfileArgs, parseProjectArgs, runProfile, runProject } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
 import { parseSkillsArgs, runSkills } from "./skills/install";
+import { runPrTemplate } from "./pr-template/run";
 import { parseUpgradeArgs, runUpgrade } from "./upgrade/command";
 import { parseDoctorArgs, runDoctor } from "./doctor/run";
 import { parseInitFlags } from "./init/args";
@@ -350,6 +353,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
       });
+    }
+    if (mode === "pr-template") {
+      // No model, no provider; `check --pr` and `risk` shell out to gh and git in the repository directory.
+      return runPrTemplate(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);
