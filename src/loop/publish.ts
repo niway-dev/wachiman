@@ -49,7 +49,8 @@ export interface Published {
 const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 300);
 
 /** Runs a `gh` call that must succeed, or fails with what `gh` said. */
-function must(gh: GhRunner, what: string, args: string[], input?: string): string {
+function must(gh: GhRunner, say: (step: string) => void, what: string, args: string[], input?: string): string {
+  say(what);
   const out = gh(args, input);
   if (out.status !== 0) {
     const said = oneLine(out.stderr || out.stdout) || (out.status === null ? `gh did not finish within ${GH_TIMEOUT_MS / 1000} seconds or was stopped` : `gh exited ${out.status}`);
@@ -58,10 +59,11 @@ function must(gh: GhRunner, what: string, args: string[], input?: string): strin
   return out.stdout;
 }
 
-export function publishSummary(body: string, branch: string, gh: GhRunner): Published {
+/** `say` is told each step before its `gh` call, which can take up to a minute: five calls, so the command is never silent for long. */
+export function publishSummary(body: string, branch: string, gh: GhRunner, say: (step: string) => void = () => {}): Published {
   if (body.length > MAX_COMMENT_CHARS) throw new UsageError(`the summary is ${body.length} characters; GitHub comments stop at 65,536, so it was not published.`);
 
-  const listed = must(gh, "list the pull requests of this branch", ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url,isCrossRepository", "--limit", "5"]);
+  const listed = must(gh, say, "list the pull requests of this branch", ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url,isCrossRepository", "--limit", "5"]);
   let prs: { number: number; url: string; isCrossRepository?: boolean }[];
   try {
     prs = JSON.parse(listed);
@@ -77,11 +79,11 @@ export function publishSummary(body: string, branch: string, gh: GhRunner): Publ
   if (!target || Number(target[3]) !== pr.number) throw new UsageError("could not tell which repository the pull request is in.");
   const repo = `repos/${target[1]}/${target[2]}`;
 
-  const login = must(gh, "tell which GitHub account gh acts as", ["api", "user", "--jq", ".login"]).trim();
+  const login = must(gh, say, "tell which GitHub account gh acts as", ["api", "user", "--jq", ".login"]).trim();
   if (!/^[\w-]+(\[bot\])?$/.test(login)) throw new UsageError("could not read the GitHub account gh acts as.");
 
   // The oldest comment of this account that starts with the marker: the one this command made, or an earlier run's.
-  const found = must(gh, "list the comments of the pull request", [
+  const found = must(gh, say, "list the comments of the pull request", [
     "api",
     "--paginate",
     `${repo}/issues/${pr.number}/comments?per_page=100`,
@@ -94,7 +96,7 @@ export function publishSummary(body: string, branch: string, gh: GhRunner): Publ
 
   const payload = JSON.stringify({ body });
   const answer = found
-    ? must(gh, "edit the summary comment", ["api", "-X", "PATCH", `${repo}/issues/comments/${found}`, "--input", "-", "--jq", ".html_url"], payload)
-    : must(gh, "create the summary comment", ["api", "-X", "POST", `${repo}/issues/${pr.number}/comments`, "--input", "-", "--jq", ".html_url"], payload);
+    ? must(gh, say, "edit the summary comment", ["api", "-X", "PATCH", `${repo}/issues/comments/${found}`, "--input", "-", "--jq", ".html_url"], payload)
+    : must(gh, say, "create the summary comment", ["api", "-X", "POST", `${repo}/issues/${pr.number}/comments`, "--input", "-", "--jq", ".html_url"], payload);
   return { action: found ? "updated" : "created", url: answer.trim(), pullRequest: pr.url };
 }

@@ -25,6 +25,23 @@ function fakeGh(answers: { prs?: unknown; login?: string; commentIds?: string; f
 }
 
 describe("publishSummary", () => {
+  test("it says each step before its gh call, so a slow gh is never silent", () => {
+    const f = fakeGh({});
+    const said: string[] = [];
+    publishSummary(BODY, "feat/x", (a, i) => {
+      said.push(`say:${said.length}`);
+      return f.gh(a, i);
+    }, (step) => said.push(step));
+    expect(said.filter((x) => !x.startsWith("say:"))).toEqual([
+      "list the pull requests of this branch",
+      "tell which GitHub account gh acts as",
+      "list the comments of the pull request",
+      "create the summary comment",
+    ]);
+    // Each step is said right before its own call.
+    expect(said.slice(0, 2)).toEqual(["list the pull requests of this branch", "say:1"]);
+  });
+
   test("with no summary comment yet, it creates one on the open pull request of the branch", () => {
     const f = fakeGh({});
     const done = publishSummary(BODY, "feat/x", f.gh);
