@@ -22,8 +22,8 @@ parser round-trip tests instead of more string assertions.
 | 2 | The first line is a computed status: Not reviewed > Partial > Blocker > Fix > Needs investigation > none; partial coverage always shows beside it | The answer comes first; a failure never looks like "no findings" | 0055 |
 | 3 | "before merge" is said only for Blocker; Fix is "to fix in this PR"; there is no ✅ | ADR 0003 defines Fix as not blocking; a green check reads as approval, which ADR 0031 point 5 and ADR 0033 reject | reuses 0003, 0031, 0033 |
 | 4 | An "At a glance" two-column table: findings (adds up, Info included), risk with its top reason, needs a person, coverage, earlier threads, read first, how to answer | Two columns stay narrow; every row is a question a reader asks | 0055 |
-| 5 | Blocker and Fix findings are listed in the body as a table, whatever their anchor; Consider too, collapsed above five rows | A skimmer must see what to fix without opening threads | 0055 |
-| 6 | Pre-existing, Needs investigation (inconclusive), PR Confidence and the verifier and instructions notices keep their own visible slots | They carry origin and uncertainty, not severity | reuses 0030, 0033 |
+| 5 | Blocker and Fix findings of this pull request are listed in the body as a table, whatever their anchor; Consider too, collapsed above eight rows | A skimmer must see what to fix without opening threads | 0055 |
+| 6 | Pre-existing and Needs investigation (inconclusive) keep their own slots, routed by origin as the engine does today; a slot holding a Blocker or Fix is visible and never dropped; PR Confidence is a row of the glance table; the verifier and instructions notices keep a visible slot | They carry origin and uncertainty, not severity | reuses 0030, 0033 |
 | 7 | "Where" links to the file and line at the head SHA, never to a thread | Threads do not exist when the body is rendered; on the 422 fallback they never exist | 0055 |
 | 8 | The re-review row uses only computable numbers: new findings, unresolved bot threads, replies that look addressed | The engine has no complete finding ledger; "2 fixed" would be a guess | 0055 |
 | 9 | The risk row never claims a checklist: "Low: no risk facts reported, no risky paths"; no colour on the level; facts stay outside `<details>` | The level is path rules plus facts the model chose to report | reuses 0031 |
@@ -66,26 +66,24 @@ parser round-trip tests instead of more string assertions.
 
 ### Failures this must protect against
 
-Line numbers in this spec refer to `main` at `6b99963`; the symbol names are the stable reference.
-
 1. The spend ceiling stops counting because the cost moved or the last `$` in the `<sub>` line is
-   no longer the run cost (`readAutoCost`, `src/engine.ts:819-830`; ADR 0012).
+   no longer the run cost (`readAutoCost`, `src/engine.ts`; ADR 0012).
 2. Size fitting drops the cost line, the markers or the findings before the prose
-   (`trimMiddle`, `src/engine.ts:1407-1432`; ADR 0036 point 5), or the 422 fallback loses its
-   split point (`moveCommentsToBody`, `src/engine.ts:1353-1388`, splits on `### Summary`).
+   (`trimMiddle`, `src/engine.ts`; ADR 0036 point 5), or the 422 fallback loses its
+   split point (`moveCommentsToBody`, `src/engine.ts`, splits on `### Summary`).
 3. A comment posted before the change can no longer be read by the new code (ceiling, `parseLabel`,
-   the model reader in `src/precision.ts:63-65`), or a comment posted after it cannot be read by an
+   the model reader in `src/precision.ts`), or a comment posted after it cannot be read by an
    older engine after a rollback.
 4. `wachiman-benchmarks/scripts/parse.ts` stops reading labels, headings, footer or coverage rows
    (lines 33, 142-146, 278-290, 316), and the comparison with other reviewers breaks silently.
 5. A model-written title with `|`, a newline or a backtick breaks a table row or injects Markdown
-   (`neutralise`, `src/engine.ts:788-789`, escapes only HTML comments).
+   (`neutralise`, `src/engine.ts`, escapes only HTML comments).
 6. A re-review shows "nothing to fix" while earlier Fix threads are still open (the prompt tells the
-   model not to repeat findings with an open thread, `src/engine.ts:4276-4281`).
+   model not to repeat findings with an open thread, `src/engine.ts`).
 7. A partial review, a failed verifier or an inconclusive Blocker reads as reassuring.
 8. Editing a notice in place erases spend the ceiling must count (`automaticSpend`,
-   `src/engine.ts:2350-2365`) or the head marker a rebase notice must advance
-   (`src/engine.ts:3657-3666`, `3722-3731`).
+   `src/engine.ts`) or the head marker a rebase notice must advance
+   (`src/engine.ts`).
 
 ### Acceptance criteria
 
@@ -181,13 +179,13 @@ Slots, in order. An empty slot is omitted.
 | --- | --- | --- | --- |
 | 1 | Status line (brand first, ADR 0010) | yes | computed |
 | 2 | Instructions-changed notice, verifier notices | yes | computed |
-| 3 | At a glance table | yes | computed + PR Confidence line |
+| 3 | At a glance table, with a PR Confidence row when graded | yes | computed |
 | 4 | To fix (Blocker, Fix) | yes | findings |
 | 5 | Needs investigation (inconclusive Blocker/Fix) | yes | findings |
-| 6 | To consider | collapsed above five rows | findings |
+| 6 | To consider | collapsed above eight rows | findings |
 | 7 | Needs a person (up to three, with the model's why) | yes | risk map |
 | 8 | Risk facts | yes | risk map |
-| 9 | Pre-existing | collapsed | findings |
+| 9 | Pre-existing | visible if it holds a Blocker or Fix, else collapsed | findings |
 | 10 | For your information (Info) | collapsed | findings |
 | 11 | What the change connects to | collapsed | contracts |
 | 12 | What the reviewer checked (batch prose) | collapsed | model |
@@ -196,24 +194,33 @@ Slots, in order. An empty slot is omitted.
 | 15 | `<sub>` cost line | yes | computed |
 | 16 | Hidden markers | — | computed |
 
-Size fitting drops whole slots from a named list, in this order: 12, 11, 13, 14, 10, 9, then 6,
-which shrinks to its count ("13 to consider, on their lines; see Files changed"). There is no link
-to a thread, for the reason of decision 7. Slots 1–5, 7, 8, 15 and 16 are never dropped.
+The Findings row counts this pull request's findings by severity and adds the other origins after
+the total: `… (9) · 2 pre-existing · 1 needs investigation`.
+
+Size fitting drops whole slots from a named list, in this order: 12, 11, 13, 14, 10, 9 (only when
+it holds no Blocker or Fix), then 6. Slot 6 keeps its rows that have no inline thread (outside the
+diff) and shrinks the rest to a count: "11 more to consider, on their lines (see Files changed)".
+There is no link to a thread, for the reason of decision 7. Slots 1–5, 7, 8, 15 and 16 are never
+dropped.
 
 If the never-dropped slots alone pass `MAX_BODY_CHARS`, the To fix and Needs investigation tables
-keep the rows that fit, Blockers first, and end with "and N more, on their lines". The cost line
-and the markers are always kept. The 422 fallback lists each finding once, in its slot's table;
-it never repeats a row under "On their lines".
+keep the rows that fit, Blockers first, and end with "and N more not shown because of GitHub's
+size limit", adding "they are on their lines" only for rows that have a thread. The cost line and
+the markers are always kept.
+
+The 422 fallback creates no inline comment, so no row is "on its line". Each finding is listed once,
+in its slot's table, and the model's body for each row follows in a collapsed "Details of each
+finding" section, numbered like the rows. Size fitting there drops Consider bodies before Fix
+bodies.
 
 Status line, built from parts joined by ` · `:
 
 1. The lead, the first that applies: `⛔ Not reviewed: <reason>`, `⚠️ Partial: N of M files not
    reviewed`, `🔴 N blockers before merge`, `🟠 N to fix in this PR`, `Needs investigation: N`,
-   `No new findings to fix`.
+   `No new findings to fix` (unresolved bot threads remain), `Nothing to fix` (none remain).
 2. A Partial lead under a Blocker or Fix lead: the second one follows the first.
 3. Earlier threads: when unresolved bot threads remain, `N earlier threads open` always follows.
-   "Nothing to fix" is used only when this run has no Blocker, Fix or inconclusive finding **and**
-   no unresolved bot thread remains; otherwise the lead reads `No new findings to fix`.
+   So "Nothing to fix" never appears while an earlier bot thread is unresolved.
 4. `🟡 N to consider`, when there are any.
 5. The scope, always last: `whole PR at <sha>` or `changes since <sha> at <sha>`.
 
@@ -277,8 +284,9 @@ and last words around `…`. The link carries the full path.
 <sub>Confidence medium · answer with `Verdict: correct` or `Verdict: wrong` and why</sub>
 ```
 
-A pre-existing finding adds `Pre-existing ·` after the brand. `parseLabel` reads both this line and
-the old one.
+Pre-existing and inconclusive findings never open an inline thread (the engine routes them to the
+body first); their rows in the body and in the local sinks carry `Pre-existing` or `Needs
+investigation` before the severity. `parseLabel` reads both the new inline line and the old one.
 
 Rollback: an engine older than this change cannot parse the new label, so its verdict statistics
 (`judge` in `src/precision.ts`) skip findings posted by the newer engine. This loss is accepted: it
@@ -301,7 +309,7 @@ as ADR 0010 requires.
 ```
 
 The "Who" and "Fix" rows branch on the auth type the code already distinguishes (subscription token
-or API key, `src/engine.ts:3865-3875`). Timeouts, turn limits and budget stops say what was spent.
+or API key, `src/engine.ts`). Timeouts, turn limits and budget stops say what was spent.
 
 ```markdown
 👮 **Wachiman** · No new changes to review: the branch was updated from `main` (`9c07227` → `e66e523`). The previous review still applies.
@@ -353,7 +361,10 @@ a later re-review reads back from earlier threads. Open questions 3 and 4 would 
 
 - Survey: 618 bot bodies from niway-dev/wachiman and niway-dev/kaipu-record, collected 2026-11-14
   (Sonnet 5.5 medium). Counts above come from it.
-- Code facts: a read of `main` at `6b99963` (Haiku 5.5 high), with file and line references.
+- Code facts: a read of `main` at `6b99963` (Haiku 5.5 high). Code is cited by symbol and file;
+  line numbers drift between branches.
+- Sizes: the largest of the 618 bodies is about 26k characters, and a finding row in the body adds
+  about 200 characters (Opus 5.5 attack, measured on the raw bodies; the row size is an estimate).
 - Attacks on the first proposal: GPT-6.1 Sol medium and Opus 5.5, 2026-11-14. Every point they
   marked BREAKS or MISLEADS is answered by a decision above (2, 3, 6, 7, 8, 9, 10, 11, 13, 14) or
   a failure to protect against.

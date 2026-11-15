@@ -39,9 +39,12 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
    markers are never dropped. When those alone pass the size limit, the finding tables keep the rows
    that fit, Blockers first, and say how many more are on their lines.
 3. The first line after the brand is a computed status with a fixed precedence: Not reviewed,
-   Partial, Blocker, Fix, Needs investigation, none. "before merge" is said only for blockers. No
-   status uses a check mark.
-4. Counts add up: every severity, Info included, appears in the Findings row with its total.
+   Partial, Blocker, Fix, Needs investigation, none. "before merge" is said only for blockers.
+   "Nothing to fix" appears only when no earlier bot thread is unresolved. No status uses a check
+   mark.
+4. Counts add up: every severity, Info included, appears in the Findings row with its total;
+   pre-existing and inconclusive findings are counted after the total, in their own slots, and a
+   slot holding a Blocker or Fix is visible and never dropped.
 5. The re-review row shows only what the engine knows: new findings, unresolved bot threads and the
    replies that look addressed. It never says "fixed".
 6. Locations link to the file and line at the head SHA, not to review threads.
@@ -84,8 +87,8 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
   other reviewers would break.
 - An engine older than this change, after a rollback, cannot parse the new inline label, so its
   verdict statistics skip those findings. Accepted: the spend ceiling is unaffected.
-- Comments get slightly longer (about 200 characters per finding listed in the body); the largest
-  body seen is about 26k characters of the 60k limit.
+- Comments get slightly longer (an estimated 200 characters per finding listed in the body); the
+  largest of 618 posted bodies is about 26k characters of the 60k limit (spec, "Sources").
 
 ## Non-goals
 
