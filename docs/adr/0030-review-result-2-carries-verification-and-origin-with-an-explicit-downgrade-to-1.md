@@ -11,6 +11,9 @@
   lands second must cross-reference the other Status line. Reuses
   [ADR 0003](0003-two-axis-finding-labels.md) and
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md).
+  Decision 7's Nit/Important word on the posted label is amended by
+  [ADR 0055](0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md) (proposed);
+  Pre-existing stays.
 - **Date:** 2026-11-09
 - **Spec:** [canonical design](../specs/2026-11-09-cli-and-verified-reviews-design.md),
   [types §5](../specs/2026-11-09-review-and-config-types.md),

@@ -10,6 +10,8 @@
   boundary) and its trust model (which assumed a CI job holding an API key).
   Working-tree non-goal reopened and implemented by CLI slice 6 (`feat/cli-working-tree`):
   explicit tracked-only `staged|all` snapshots, input/result `/2`, no mutation of the real checkout.
+  The GitHub sink's "unchanged in output" is amended by
+  [ADR 0055](0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md) (proposed).
 - **Date:** 2026-11-03
 - **Spec:** [2026-11-03-local-review-design.md](../specs/2026-11-03-local-review-design.md)
 - **Issue:** [#103](https://github.com/niway-dev/wachiman/issues/103)
