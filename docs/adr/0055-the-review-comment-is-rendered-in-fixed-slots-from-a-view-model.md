@@ -9,7 +9,7 @@
   [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md),
   [ADR 0031](0031-a-risk-map-whose-level-the-engine-computes-from-checked-facts.md),
   [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
-  and the size-gate ADR 0037 intact.
+  and the size-gate [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md) intact.
 - **Date:** 2026-11-14
 - **Spec:** [One fixed layout for the review comment, its inline findings and its notices](../specs/2026-11-14-review-comment-layout-design.md)
 - **Numbering:** 0055 because open pull requests hold up to 0054.

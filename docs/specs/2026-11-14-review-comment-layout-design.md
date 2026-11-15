@@ -90,7 +90,9 @@ parser round-trip tests instead of more string assertions.
    provider's error text and the needs-a-person text. Today the provider text sits in a blockquote,
    which tolerates those characters; the notice table does not.
 6. A re-review shows "nothing to fix" while earlier Fix threads are still open (the prompt tells the
-   model not to repeat findings with an open thread, `src/engine.ts`).
+   model not to repeat findings with an open thread, `src/engine.ts`). `fetchThreads` reads only the
+   first 100 review threads; the build paginates it, and if a page fails the status says "earlier
+   threads not counted" instead of "Nothing to fix".
 7. A partial review, a failed verifier or an inconclusive Blocker reads as reassuring.
 8. Editing a notice in place erases spend the ceiling must count (`automaticSpend`,
    `src/engine.ts`) or the head marker a rebase notice must advance
@@ -218,10 +220,12 @@ diff) and shrinks the rest to a count: "11 more to consider, on their lines (see
 There is no link to a thread, for the reason of decision 7. Slots 1–5, 7, 8, 15 and 16 are never
 dropped.
 
-If the never-dropped slots alone pass `MAX_BODY_CHARS`, the To fix and Needs investigation tables
-keep the rows that fit, Blockers first, and end with "and N more not shown because of GitHub's
-size limit", adding "they are on their lines" only for rows that have a thread. The cost line and
-the markers are always kept.
+If the never-dropped slots alone pass `MAX_BODY_CHARS`, the row tables are cut in this order until
+the body fits: Risk facts (slot 8) keep the facts that set the level, then Pre-existing (slot 9),
+Needs investigation (slot 5) and To fix (slot 4) keep the rows that fit, Blockers first. Each cut
+table ends with "and N more not shown because of GitHub's size limit", adding "they are on their
+lines" only for rows that have a thread. Slot 2's notices are one line each and are never cut. The
+status line, the glance table, the cost line and the markers are always kept.
 
 The 422 fallback creates no inline comment, so no row is "on its line". Each finding is listed once,
 in its slot's table, and the model's body for each row follows in a collapsed "Details of each
@@ -310,7 +314,9 @@ and last words around `…`. The link carries the full path.
 
 Pre-existing and inconclusive findings never open an inline thread (the engine routes them to the
 body first); their rows in the body and in the local sinks carry `Pre-existing` or `Needs
-investigation` before the severity. `parseLabel` reads both the new inline line and the old one.
+investigation` before the severity. `parseLabel` reads both the new inline line and the old one: severity and topic from the first
+line in both, confidence from the trailing `<sub>Confidence …</sub>` line in the new one and from
+`(confidence …)` on the first line in the old one. It stops being a first-line-only reader.
 
 Rollback: an engine older than this change cannot parse the new label, so its verdict statistics
 (`judge` in `src/precision.ts`) skip findings posted by the newer engine. This loss is accepted: it
@@ -341,9 +347,18 @@ or API key, `src/engine.ts`). Timeouts, turn limits and budget stops say what wa
 <sub>Wachiman 1.15.0</sub>
 ```
 
-The rebase notice made no model call, so, as today, it carries no cost, no auto flag and no model:
-it is not a counted run for the ceiling, needs no spend lookup, and its `<sub>` line holds only the
-version. Decision 11's footer rule applies to reviews that ran a model.
+The two wordings posted today ("Brought up to date with the base branch…" and "Rebased onto …")
+become this one. The rebase notice made no model call, so, as today, it carries no cost, no auto
+flag and no model: it is not a counted run for the ceiling and needs no spend lookup. The
+`<sub>Wachiman <version></sub>` line is new; today's notice has no `<sub>` line. Decision 11's
+footer rule applies to reviews that ran a model.
+
+Edit in place: a $0 refusal carries a hidden `<!-- wachi:refusal kind=<billing|auth> -->` marker.
+On the next refusal, the engine lists the pull request's reviews; if the latest bot review carries
+that marker, it replaces that review's body with one `PUT` (the update-review endpoint) instead of
+posting a new review, the way the size gate already updates its own comment by marker (`SIZE_GATE_MARKER`, [ADR 0037](../adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). A `PUT` with the
+same body is idempotent, so the transient-error retry repeats it without the `wachi:attempt` check
+that a `POST` needs. Any other latest item, or a failed `PUT`, falls back to a new review.
 
 ### How the format is protected
 
