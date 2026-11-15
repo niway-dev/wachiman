@@ -6,11 +6,23 @@ import { posix } from "node:path";
 
 export type InitMode = "github" | "local" | "both";
 
+/** The shape of the repository. Metadata only for now: nothing else in Wachiman reads it. */
+export type ProjectKind = "monorepo" | "single";
+export const projectKinds: readonly ProjectKind[] = ["monorepo", "single"];
+
+/** Why `kind` cannot be recorded, or undefined when it can. */
+export function projectKindProblem(kind: string): string | undefined {
+  if (projectKinds.includes(kind as ProjectKind)) return undefined;
+  if (kind === "distributed") return '--project-kind distributed is not available yet; use monorepo or single.';
+  return `--project-kind must be monorepo or single, got "${kind}".`;
+}
+
 export interface RawInitFlags {
   mode?: string;
   operator?: string;
   version?: string;
   path?: string;
+  projectKind?: string;
   force?: boolean;
   dryRun?: boolean;
   yes?: boolean;
@@ -26,6 +38,8 @@ export interface InitOptions {
   github?: { operator: string; tag: string; path: string; force: boolean; dryRun: boolean };
   /** Install the PR description template after the workflow work. Absent means no: a script that did not ask gets no new file. */
   prTemplate?: boolean;
+  /** Present iff the kind was given (flag or answer); then `.wachiman.yml` is written or checked. `force` allows changing a different `kind:` without asking. */
+  settings?: { kind: ProjectKind; force: boolean };
   repoDir: string;
   interactive: boolean;
 }
@@ -91,11 +105,18 @@ export function resolveInitOptions(
   const mode = flags.mode as InitMode;
   const repoDir = flags.repoDir ?? ".";
   const templateOption = flags.prTemplate === true ? { prTemplate: true } : {};
+  if (flags.projectKind !== undefined) {
+    const kindError = projectKindProblem(flags.projectKind);
+    if (kindError) return fail(kindError);
+  }
+  const settings = flags.projectKind === undefined ? undefined : { kind: flags.projectKind as ProjectKind, force: flags.force === true };
 
   if (mode === "local") {
-    const given = GITHUB_ONLY_FLAGS.filter(([key]) => flags[key] !== undefined && flags[key] !== false).map(([, name]) => name);
+    // With a kind, --force means "change a different kind in the settings file", which local mode does write.
+    const given = GITHUB_ONLY_FLAGS.filter(([key]) => flags[key] !== undefined && flags[key] !== false && !(key === "force" && settings))
+      .map(([, name]) => name);
     if (given.length > 0) return fail(`${given.join(", ")} only apply to a workflow; --mode local writes none. Drop them, or use --mode github or both.`);
-    return { ok: true, options: { mode, ...templateOption, repoDir, interactive: ctx.interactive } };
+    return { ok: true, options: { mode, ...templateOption, ...(settings ? { settings } : {}), repoDir, interactive: ctx.interactive } };
   }
 
   if (flags.operator === undefined) return fail(`init --mode ${mode} needs --operator <github login> when it cannot ask: the one person whose /wachiman comments start a run.`);
@@ -123,6 +144,7 @@ export function resolveInitOptions(
       mode,
       github: { operator: flags.operator, tag, path: path.path, force: flags.force === true, dryRun: flags.dryRun === true },
       ...templateOption,
+      ...(settings ? { settings } : {}),
       repoDir,
       interactive: ctx.interactive,
     },

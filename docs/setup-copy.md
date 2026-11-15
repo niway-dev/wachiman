@@ -63,7 +63,7 @@ What changes when you migrate:
 | `WACHIMAN_OPERATOR` and the login in the on-demand `if:` | `operator` (required, set once) |
 | `WACHIMAN_BUDGET_USD`, `WACHIMAN_BATCH_BUDGET_USD`, `WACHIMAN_ANSWER_BUDGET_USD` | `budget_usd`, `batch_budget_usd`, `answer_budget_usd` |
 | `WACHIMAN_BATCH_LINES`, `WACHIMAN_BATCH_CHARS` | `batch_lines`, `batch_chars` |
-| `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER` | `model`, `provider` (the workflow installs Claude Code only; see [providers/codex.md](providers/codex.md)) |
+| `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER` | `model`, `provider` (the workflow installs Claude Code only; see [providers/codex.md](providers/codex.md)). `model` and `effort` default to empty: then `.wachiman.yml` at the base commit, then the built-in default ([configuration.md](configuration.md#the-settings-file-wachimanyml)) |
 | `WACHIMAN_MENTION` | `mention` |
 | `CLAUDE_CODE_VERSION`, `CLAUDE_CODE_SHA256` | `claude_code_version`, `claude_code_sha256` |
 | Bun version in the workflow | `bun_version` |

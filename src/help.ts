@@ -19,6 +19,7 @@ import { checkUsage, riskUsage, stripUsage } from "./pr-template/check-run";
 import { formatUsage } from "./pr-template/format";
 import { installUsage, showUsage, statusUsage as prTemplateStatusUsage } from "./pr-template/install";
 import { statusUsage } from "./status/command";
+import { upgradeUsage } from "./upgrade/command";
 
 export const DOCS = "https://github.com/niway-dev/wachiman/blob/main/docs";
 
@@ -294,13 +295,14 @@ const setupPage: Page = {
 
 const initPage: Page = {
   usage: initUsage,
-  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write nothing and hand over to setup. It can also install the PR description template.",
+  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write no workflow and hand over to setup. With a repository kind, also write .wachiman.yml. It can also install the PR description template.",
   options: [
     ["--mode github|local|both", "What to set up. Required without a terminal"],
     ["--operator <login>", "The GitHub login allowed to command the reviewer. Required for github and both without a terminal"],
     ["--version <tag>", "vX.Y.Z or a 40-character commit SHA written after review.yml@. Default: the release bundled in this build"],
     ["--path <file>", "Default: .github/workflows/wachiman-review.yml; a .yml or .yaml file directly in .github/workflows/"],
-    ["--force", "Replace an existing file after copying it to <file>.bak-<timestamp>"],
+    ["--project-kind monorepo|single", "The kind of repository, recorded in .wachiman.yml (metadata only). Asked on a terminal; without one, the file is left alone"],
+    ["--force", "Replace an existing workflow after copying it to <file>.bak-<timestamp>; with --project-kind, also change a different kind"],
     ["--dry-run", "Print the file to stdout and write nothing"],
     ["--pr-template", "Also install the PR description template (`wachiman pr-template install`, files only, never a commit). A refusal is reported and does not fail init"],
     ["--no-pr-template", "Do not install it and do not ask. Without either flag a terminal asks (default yes) and a script gets none"],
@@ -327,6 +329,21 @@ const doctorPage: Page = {
   exit: [["0", "Every required check passed"], ["1", "A required check failed"], ["2", "Usage error"]],
   examples: ["wachiman doctor", "wachiman doctor --all-profiles --redact-paths"],
   docs: `${DOCS}/cli.md#setup-doctor-profile-and-project`,
+};
+
+const upgradePage: Page = {
+  usage: upgradeUsage,
+  summary: "Update the CLI to the latest release, then move the Wachiman workflow pin in this repository to it. Rewrites the files and prints the git commands; it never commits. A clone or a wachiman-dev build is not upgraded.",
+  options: [
+    ["--check", "Print the installed and the latest version and change nothing"],
+    ["--repo-only", "Rewrite the pins to the installed version (or --to) and leave the CLI alone"],
+    ["--to <version>", "Install this release (v1.2.3) and pin it. It never downgrades the CLI: when the CLI is already on that version or newer, nothing is installed and the pins move. If the install fails the pins stay and the exit is 1; with --repo-only no install is attempted"],
+    REPO_DIR,
+  ],
+  env: [HOME_ENV],
+  exit: [["0", "Done, nothing to do, or the CLI is a clone or a dev build and was not upgraded"], ["1", "The package manager failed, a version could not be read, or a workflow file could not be read or written"], ["2", "Usage error"]],
+  examples: ["wachiman upgrade --check", "wachiman upgrade", "wachiman upgrade --repo-only"],
+  docs: `${DOCS}/cli.md#upgrade`,
 };
 
 const ACCOUNT_ENV: readonly Row[] = [HOME_ENV, ["CI", "true or 1 means no terminal: confirmations need --yes"]];
@@ -462,6 +479,7 @@ const PAGES: Readonly<Record<string, Page>> = {
   local: localPage, loop: loopPage, ask: askPage,
   history: historyPage, status: statusPage, dashboard: dashboardPage, ledger: ledgerPageWithSubs,
   setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, "pr-template": prTemplatePageRoot,
+  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, upgrade: upgradePage,
   review: reviewPage, comment: commentPage, threads: threadsPage, "reset-confidence": resetConfidencePage,
 };
 
@@ -542,6 +560,7 @@ export function rootHelp(paint: Paint = plain): string {
       ["project", "Show or remove this repository's binding"],
       ["skills", "Install or remove the agent skills"],
       ["pr-template", "Install and check the PR description template"],
+      ["upgrade", "Update the CLI and the workflow pin in this repository"],
     ]),
     "",
     `Help: wachiman <command> --help · wachiman help ci · docs: ${DOCS}/cli.md`,

@@ -14,6 +14,9 @@ export type Trigger = string;
 /** Whether a run started by `trigger` spends from the pull request's automatic ceiling. */
 export const isAutomatic = (trigger: Trigger | undefined) => trigger !== undefined && trigger !== "comment";
 
+/** Where a setting's value came from: the environment (a workflow input or `WACHIMAN_*`), the repository's `.wachiman.yml`, or the built-in default. */
+export type SettingSource = "env" | "file" | "default";
+
 export type LimitMode = "fail" | "notice";
 export type LedgerUnavailableMode = "run" | "stop";
 
@@ -64,8 +67,13 @@ export interface EngineConfig {
    * reviewed, without reading the previous-review marker. Only together with `dryRun`.
    */
   fullReview: boolean;
-  /** The provider's default (`DEFAULT_MODELS`) when unset. */
+  /**
+   * `WACHIMAN_MODEL`, else `model` of the repository's `.wachiman.yml` (`applyRepoSettings`), else the
+   * provider's default (`DEFAULT_MODELS`).
+   */
   model: string;
+  /** Where `model` came from. `loadConfig` sets `env` or `default`; `applyRepoSettings` may change `default` to `file`. */
+  modelSource?: SettingSource;
   provider: string;
   /** `WACHIMAN_PRICE_PER_MTOK`: "input,cached_input,output" USD per million tokens, for a Codex model without a built-in price. */
   pricePerMTok?: string;
@@ -74,6 +82,8 @@ export interface EngineConfig {
    * alter reviews. Passed as `--effort` (Claude Code) or `model_reasoning_effort` (Codex).
    */
   effort: Effort;
+  /** Where `effort` came from, as for `modelSource`. */
+  effortSource?: SettingSource;
   /**
    * `WACHIMAN_MAX_TURNS`: the most agent turns one provider call may take. Passed as
    * `--max-turns` (Claude Code); Codex has no equivalent and ignores it.
@@ -149,7 +159,7 @@ export function readSetting(env: Env, name: string, warn: (line: string) => void
  * else the default. An unknown value is a configuration error: a silent fallback would run the
  * review at an effort nobody chose.
  */
-function readEffort(env: Env, warn: (line: string) => void): Effort {
+function readEffort(env: Env, warn: (line: string) => void): { value: Effort; source: SettingSource } {
   const current = readSetting(env, "EFFORT", warn);
   const old = readSetting(env, "REASONING_EFFORT", () => {});
   let name = "WACHIMAN_EFFORT";
@@ -161,11 +171,11 @@ function readEffort(env: Env, warn: (line: string) => void): Effort {
       name = "WACHIMAN_REASONING_EFFORT";
     }
   }
-  if (raw === undefined) return DEFAULT_EFFORT;
+  if (raw === undefined) return { value: DEFAULT_EFFORT, source: "default" };
   if (!(EFFORTS as readonly string[]).includes(raw)) {
     throw new UsageError(`${name} must be one of ${EFFORTS.join(", ")}, got "${raw}".`);
   }
-  return raw as Effort;
+  return { value: raw as Effort, source: "env" };
 }
 
 export function loadConfig(env: Env, warn: (line: string) => void = console.error): EngineConfig {
@@ -185,6 +195,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     throw new UsageError(`WACHIMAN_ON_PROVIDER_UNAVAILABLE must be warn or fail, got "${onProviderUnavailable}".`);
   }
   const provider = get("PROVIDER") ?? "claude-code";
+  const modelFromEnv = get("MODEL");
   const dryRun = get("DRY_RUN") === "1";
   const fullReview = get("FULL_REVIEW") === "1";
   if (fullReview && !dryRun) {
@@ -250,10 +261,12 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     batchChars: number("BATCH_CHARS", 140000, true),
     dryRun,
     fullReview,
-    model: get("MODEL") ?? DEFAULT_MODELS[provider as keyof typeof DEFAULT_MODELS] ?? DEFAULT_MODELS["claude-code"],
+    model: modelFromEnv ?? DEFAULT_MODELS[provider as keyof typeof DEFAULT_MODELS] ?? DEFAULT_MODELS["claude-code"],
+    modelSource: modelFromEnv === undefined ? "default" : "env",
     provider,
     pricePerMTok: get("PRICE_PER_MTOK"),
-    effort,
+    effort: effort.value,
+    effortSource: effort.source,
     maxTurns: number("MAX_TURNS", DEFAULT_MAX_TURNS, true),
     callTimeoutS: number("CALL_TIMEOUT_S", DEFAULT_CALL_TIMEOUT_S, true),
     onProviderUnavailable,

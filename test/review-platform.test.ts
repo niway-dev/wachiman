@@ -94,3 +94,22 @@ describe("review-platform.yml", () => {
     expect(template.split("\n").filter((line) => !/^\s*#/.test(line) && line.includes("review-platform.yml"))).toEqual([]);
   });
 });
+
+describe("model and effort inputs (ADR 0049)", () => {
+  test.each([
+    ["review.yml", review],
+    ["review-platform.yml", platform],
+  ])("%s: both inputs default to empty, so .wachiman.yml can apply, and every job that passes them passes the input as is", (_name, text) => {
+    const inputs = inputsOf(text);
+    expect(inputs.model.default).toBe("");
+    expect(inputs.effort.default).toBe("");
+    const jobs = Object.values(parse(text).jobs);
+    const envs = jobs.flatMap((job) => job.steps ?? []).map((step) => step.env).filter((env): env is Record<string, string> => env?.WACHIMAN_MODEL !== undefined);
+    // review, comment and threads each run the engine with the model and the effort.
+    expect(envs.length).toBeGreaterThanOrEqual(3);
+    for (const env of envs) {
+      expect(env.WACHIMAN_MODEL).toBe("${{ inputs.model }}");
+      expect(env.WACHIMAN_EFFORT).toBe("${{ inputs.effort }}");
+    }
+  });
+});

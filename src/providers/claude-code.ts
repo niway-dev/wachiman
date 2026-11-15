@@ -3,6 +3,7 @@
  * hardening is documented in docs/providers/claude-code.md.
  */
 import { spawnSync } from "node:child_process";
+import { spawnCapture, type SpawnOutcome } from "./spawn";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -349,7 +350,7 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     return leaksKey(texts, process.env.ANTHROPIC_API_KEY ?? "", this.auth === "oauth-token" ? (process.env[OAUTH_TOKEN_VAR] ?? "") : "");
   }
 
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     // The agent never gets a GitHub token, a base URL or a proxy: see CHILD_ENV_ALLOWLIST.
     const childEnv = this.childEnv();
     // The session starts in an empty scratch directory, never in the head: Claude Code discovers
@@ -371,18 +372,16 @@ export class ClaudeCodeProvider implements ProviderAdapter {
     });
     const timeoutMs = request.timeoutMs ?? this.opts.timeoutMs ?? DEFAULT_CALL_TIMEOUT_S * 1000;
     const started = Date.now();
-    let run: ReturnType<typeof spawnSync<string>>;
+    let run: SpawnOutcome;
     try {
-      run = spawnSync(this.binary, args, {
+      run = await spawnCapture(this.binary, args, {
         cwd: workDir,
         input: request.promptViaStdin ? prompt : undefined,
         env: childEnv,
-        encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
-        // The call is synchronous, so the kill cannot wait for a graceful exit and escalate: a
-        // process that ignored SIGTERM would block this call forever. `claude -p` prints its result
-        // only when it ends, so a SIGTERM grace period would save nothing either.
-        timeout: timeoutMs,
+        // The kill is immediate, with no graceful exit to escalate from: `claude -p` prints its
+        // result only when it ends, so a SIGTERM grace period would save nothing.
+        timeoutMs,
         killSignal: "SIGKILL",
       });
     } finally {

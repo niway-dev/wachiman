@@ -16,10 +16,13 @@ import type { HistoryRepository } from "../history/types";
 import { detectInstall, type InstallKind } from "../install-kind";
 import { inspectIsolatedProfile } from "../profiles";
 import { buildChildEnv } from "../providers/claude-code";
+import { effectiveSettings, OLD_SETTINGS_PATH, parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
+import { UsageError } from "../config";
+import { classifyRef, compareVersions, parseTag, scanWorkflows } from "../upgrade/pin";
 
 export type CheckLevel = "required" | "optional";
 export type CheckStatus = "ok" | "fail" | "warn" | "skip";
-export type CheckId = "wachiman" | "bun" | "git" | "tar" | "config" | "profile" | "auth" | "environment" | "project" | "history" | "skills" | "isolation";
+export type CheckId = "wachiman" | "bun" | "git" | "tar" | "config" | "profile" | "auth" | "environment" | "project" | "settings" | "workflow-pin" | "history" | "skills" | "isolation";
 
 export interface DoctorRow {
   id: CheckId;
@@ -49,6 +52,8 @@ export interface DoctorFs {
   isDirectory: (path: string) => boolean;
   /** The names in a directory; empty when it cannot be listed. */
   list: (path: string) => string[];
+  /** Like `list`, but throws when the directory cannot be read (used by the workflow-pin row). */
+  listStrict?: (path: string) => string[];
   /** Permission bits, or undefined where the platform has none. */
   mode: (path: string) => number | undefined;
   /** Used only for a managed profile's `settings.json`. */
@@ -56,6 +61,7 @@ export interface DoctorFs {
 }
 
 export const realDoctorFs: DoctorFs = {
+  listStrict: (p) => readdirSync(p),
   exists: (p) => existsSync(p),
   isDirectory: (p) => {
     try {
@@ -102,6 +108,10 @@ export interface DoctorContext {
   config: ConfigRead;
   /** The repository of `--repo-dir`, or why there is none. */
   repository: { ok: true; value: HistoryRepository } | { ok: false; reason: string };
+  /** The top of the working tree of `--repo-dir` (where `.wachiman.yml` is looked for); undefined when it is not one. */
+  root?: string;
+  /** `.wachiman.yml` differs from the last commit (new, edited or deleted): runs do not see the working copy yet. */
+  settingsUncommitted?: boolean;
   /** The profile the full resolution picks (or the one `--profile` names); undefined when it resolves to nothing. */
   primary: ResolvedProfile | undefined;
   /** The profile this pass of `profile`, `auth` and `isolation` looks at. */
@@ -357,6 +367,101 @@ export const CHECKS: DoctorCheck[] = [
           would,
         detail: { key: repo.key, keyedBy: repo.keyedBy, bound: binding !== undefined, profile: binding?.profile ?? null, ...(repo.remote ? { remote: repo.remote } : {}) },
       };
+    },
+  },
+  {
+    // Read-only: reports the repository's `.wachiman.yml` (the working tree is fine here; a run reads
+    // the base commit) and where the model and the effort of a run would come from. Never writes or moves anything.
+    id: "settings",
+    level: "optional",
+    run: ({ root, env, fs, settingsUncommitted }) => {
+      if (root === undefined) return { id: "settings", level: "optional", status: "skip", evidence: "not in a git working tree: no repository settings to read" };
+      const file = join(root, SETTINGS_PATH);
+      const old = join(root, OLD_SETTINGS_PATH);
+      const hasFile = fs.exists(file);
+      const hasOld = fs.exists(old);
+      let settings: ReturnType<typeof parseRepoSettings> | undefined;
+      if (hasFile) {
+        try {
+          settings = parseRepoSettings(fs.read(file));
+        } catch (error) {
+          const why = error instanceof UsageError ? error.message : `${SETTINGS_PATH} cannot be read (${error instanceof Error ? error.message : error})`;
+          return {
+            id: "settings",
+            level: "optional",
+            status: "warn",
+            evidence: `the working copy of ${SETTINGS_PATH} is invalid: ${why} Runs read it at the base commit (Actions) or the merge-base (local), so it takes effect once committed and merged; a run with a broken file at that commit ignores it with a warning and uses the defaults.`,
+            fix: `fix ${SETTINGS_PATH} (effort is low, medium, high, xhigh or max; model is a model name), or remove it to use the defaults`,
+            detail: { file, valid: false },
+          };
+        }
+      }
+      const effective = effectiveSettings(env, settings);
+      const from = (s: { value: string; source: string; skipped?: string }) =>
+        `${s.value} (${s.source === "file" ? `from ${SETTINGS_PATH}` : s.source === "env" ? "from the environment" : s.skipped !== undefined ? `default; the model "${settings?.model}" in ${SETTINGS_PATH} is skipped: ${s.skipped}` : "default"})`;
+      const read = hasFile ? `${SETTINGS_PATH}: kind ${settings?.kind ?? "not set"}, model ${settings?.model ?? "not set"}, effort ${settings?.effort ?? "not set"}` : `no ${SETTINGS_PATH}`;
+      const detail = {
+        file: hasFile ? file : null,
+        valid: true,
+        kind: settings?.kind ?? null,
+        model: settings?.model ?? null,
+        effort: settings?.effort ?? null,
+        effectiveModel: effective.model.value,
+        modelFrom: effective.model.source,
+        modelSkipped: effective.model.skipped ?? null,
+        effectiveEffort: effective.effort.value,
+        effortFrom: effective.effort.source,
+        uncommitted: settingsUncommitted === true,
+      };
+      // A run reads the committed file, so with uncommitted changes the working copy says what will apply once committed, not now.
+      const runs = settingsUncommitted
+        ? `${SETTINGS_PATH} has changes that are not committed, and runs read the committed file: once committed (and merged, for Actions) a run would use model ${from(effective.model)}, effort ${from(effective.effort)}`
+        : `a run here would use model ${from(effective.model)}, effort ${from(effective.effort)}`;
+      const evidence = `${read}; ${runs}. GitHub Actions reads the file from the base commit of the pull request, not from the head`;
+      if (hasOld) {
+        return {
+          id: "settings",
+          level: "optional",
+          status: "warn",
+          evidence: `${OLD_SETTINGS_PATH} exists and is never read (the settings file is ${SETTINGS_PATH} at the root); ${evidence}`,
+          fix: hasFile ? `merge ${OLD_SETTINGS_PATH} into ${SETTINGS_PATH}, then remove it` : `mv ${OLD_SETTINGS_PATH} ${SETTINGS_PATH}`,
+          detail: { ...detail, oldLocation: old },
+        };
+      }
+      return { id: "settings", level: "optional", status: "ok", evidence, detail };
+    },
+  },
+  {
+    id: "workflow-pin",
+    level: "optional",
+    run: ({ root, fs, version }) => {
+      const row = (status: CheckStatus, evidence: string, extra: Partial<DoctorRow> = {}): DoctorRow => ({ id: "workflow-pin", level: "optional", status, evidence, ...extra });
+      const installed = parseTag(version);
+      if (root === undefined) return row("skip", "not in a git repository, so no workflow was read");
+      const scan = scanWorkflows(root, fs);
+      const unreadable = [...(scan.unreadableDir ? [`${scan.unreadableDir} (directory)`] : []), ...scan.unreadable];
+      const unreadableNote = unreadable.length > 0 ? `; could not read ${unreadable.join(", ")}, so its pins are unknown` : "";
+      const pins = scan.files.flatMap(({ file, refs }) => refs.map((ref) => ({ file, ref })));
+      if (pins.length === 0) {
+        return unreadable.length > 0
+          ? row("warn", `no readable workflow calls a Wachiman reusable workflow${unreadableNote}`, { detail: { unreadable: unreadable.length } })
+          : row("skip", "no workflow in .github/workflows calls a Wachiman reusable workflow");
+      }
+      if (installed === undefined) return row("skip", `the installed version "${version}" is not a release version, so pins cannot be compared`);
+      const older = pins.filter((p) => classifyRef(p.ref) === "tag" && compareVersions(parseTag(p.ref)!, installed) < 0);
+      const fixed = pins.filter((p) => classifyRef(p.ref) === "tag");
+      const other = pins.filter((p) => classifyRef(p.ref) !== "tag");
+      const list = (items: typeof pins) => items.map((p) => `${p.file} @${classifyRef(p.ref) === "sha" ? p.ref.slice(0, 12) : p.ref}`).join(", ");
+      const detail = { pins: pins.length, older: older.length, notReleaseTag: other.length, unreadable: unreadable.length };
+      if (older.length > 0) {
+        return row("warn", `${list(older)} older than the installed v${version}: reviews in Actions run that older release${unreadableNote}`, {
+          fix: "wachiman upgrade --repo-only",
+          detail,
+        });
+      }
+      const note = (other.length > 0 ? `; ${list(other)} is a commit or branch, which is not compared` : "") + unreadableNote;
+      if (fixed.length === 0) return row(unreadable.length > 0 ? "warn" : "skip", `${list(other)} is a commit or branch, not a release tag, so it is not compared${unreadableNote}`, { detail });
+      return row(unreadable.length > 0 ? "warn" : "ok", `${list(fixed)} is not older than the installed v${version}${note}`, { detail });
     },
   },
   {
