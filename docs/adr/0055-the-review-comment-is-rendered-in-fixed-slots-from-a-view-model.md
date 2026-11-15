@@ -2,9 +2,9 @@
 
 - **Status:** proposed 2026-11-14. Not implemented. Amends
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
-  (the GitHub sink's output was to stay unchanged) and
+  (the GitHub sink's output was to stay unchanged). Keeps
   [ADR 0030](0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)
-  decision 7 (the Nit/Important word on the label). Keeps
+  (its Important/Nit/Pre-existing word),
   [ADR 0003](0003-two-axis-finding-labels.md), [ADR 0010](0010-name-wachiman.md),
   [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md),
   [ADR 0031](0031-a-risk-map-whose-level-the-engine-computes-from-checked-facts.md),
@@ -51,9 +51,9 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
 7. The footer is one `<sub>` line that starts with "<model> via" and ends with the run's cost, and
    adds the Wachiman version; the remaining values go to a "Run details" table above it. Readers of
    the old line keep working on old comments.
-8. The inline label is the brand, the severity (emoji and word), the topic (emoji and word, ADR
-   0003) and the title. The Nit/Important word is dropped; Pre-existing stays. Confidence and how
-   to answer move to a `<sub>` line.
+8. The inline label is the brand, the Important/Nit word (ADR 0030 decision 7), the severity
+   (emoji and word), the topic (emoji and word, ADR 0003) and the title. Confidence moves to a
+   `<sub>` line.
 9. A not-reviewed notice states who acts, where, and what this run spent. Only a $0 refusal
    (billing, auth) that is the latest bot notice on the pull request is edited in place; every
    notice that spent money, and every rebase notice, is a new review.
@@ -92,9 +92,9 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
 
 ## Non-goals
 
-- Changing the prompt, the output schema or the number of model calls. A split finding body with
-  suggestion blocks and a one-paragraph summary of the whole pull request are open questions 3 and
-  4 of the spec.
+- Changing the prompt, the output schema or the number of model calls. A format change never
+  moves the model; a split finding body with suggestion blocks and a whole-PR summary were
+  declined (spec, open questions 3 and 4).
 - Commenting on failures that leave no way to comment (GitHub unreachable, rate-limited or failing).
 - Changing the local loop summary.
 

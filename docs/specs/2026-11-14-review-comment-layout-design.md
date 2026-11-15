@@ -1,6 +1,7 @@
 # One fixed layout for the review comment, its inline findings and its notices
 
-- **Status:** draft 2026-11-14, awaiting the owner's choice on open questions 1, 3 and 4.
+- **Status:** draft 2026-11-14. The owner answered open questions 1 to 4 on 2026-11-14; open
+  questions 5 and 6 run on their defaults unless the owner says otherwise.
 - **ADR:** [ADR 0055](../adr/0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md) (new).
 - **Issue:** [NIW2-810](https://linear.app/niway/issue/NIW2-810/wachiman-one-fixed-layout-for-every-comment-on-a-pull-request-summary)
 
@@ -29,29 +30,36 @@ parser round-trip tests instead of more string assertions.
 | 9 | The risk row never claims a checklist: "Low: no risk facts reported, no risky paths"; no colour on the level; facts stay outside `<details>` | The level is path rules plus facts the model chose to report | reuses 0031 |
 | 10 | Model-written prose (the batch summaries) moves into "What the reviewer checked", collapsed | It is per batch, not a summary of the pull request | 0055 |
 | 11 | The footer is one shortened `<sub>` line that keeps "<model> via" first and the run cost last, plus a collapsed "Run details" table above it | Keeps the spend ceiling, the model reader and the benchmark parser working; adds the Wachiman version | 0055, keeps 0012, 0036 |
-| 12 | Inline label: `👮 **Wachiman** · <severity emoji + word> · <topic emoji + word> — <title>`; the Nit/Important word goes, Pre-existing stays; confidence moves to a `<sub>` line with how to answer | One severity signal; the problem reads first | 0055, amends 0030 decision 7 |
+| 12 | Inline label: `👮 **Wachiman** · <Important or Nit> · <severity emoji + word> · <topic emoji + word> — <title>`; confidence moves to a `<sub>` line | The owner keeps the Important/Nit word, the vocabulary of Claude Code's own Code Review; the title reads on the first line | 0055, reuses 0030 decision 7 |
 | 13 | A not-reviewed notice says who acts, where, and what was spent; a $0 refusal (billing, auth) that is the latest bot notice is edited in place, every other notice stays a new review | 68 identical no-credit reviews in three days; notices that spent money must stay separate for the ceiling | 0055, keeps 0012 |
 | 14 | A rebase or base-merge with no new changes stays a new one-line review with one wording | It must advance the head marker; editing an older review would rewrite its marker and its cost | 0055 |
 | 15 | The format is protected by a view model, golden Markdown files and parser round-trip tests, not by string assertions spread over tests | ~280 test lines assert on today's strings; the next change would move them all again | 0055 |
 
 ### Open questions
 
-1. **Run details collapsed or visible?** Recommendation: collapsed, with the `<sub>` line visible
-   (model, Wachiman version, PR so far, this run). Against: the owner asked for the table in view.
-   Default if unanswered: collapsed.
+1. **Run details collapsed or visible?** Answered 2026-11-14, provisionally: collapsed. The owner
+   is not yet sure; the cost amount has always sat in the small footer line, and it still does
+   (the `<sub>` line keeps PR so far and this run). Revisit after the first week of real reviews
+   in the new layout; tracked in Linear.
 2. ~~Keep the topic emoji inline?~~ Answered 2026-11-14: keep it, so ADR 0003 stays intact.
-3. **Split the finding body into what happens / why / fix, with a `suggestion` block when the fix
-   is an exact replacement?** It changes the output schema, moves the golden prompts and needs a
-   Martian check that recall does not drop. Default: a separate phase after the four pull requests.
-4. **A one-paragraph summary of the whole pull request at the top?** It needs one extra model
-   call per review; its cost has not been measured. Default: no; the computed tables lead.
-5. **A rebase-only push: a one-line review or nothing?** Default (the owner did not object):
-   one line.
+3. ~~Split the finding body with `suggestion` blocks?~~ Answered 2026-11-14: no. It changes what
+   the model is asked for, and nothing in this design may move the model; see "Out of scope".
+4. ~~A one-paragraph summary of the whole pull request?~~ Answered 2026-11-14: no, not for now.
+   It needs an extra model call per review.
+5. **A rebase-only push: a one-line review or nothing?** Default: one line. The line advances the
+   head marker, so the next review does not re-read the same changes.
+6. **Where does "how to answer a finding" appear?** The `Verdict: correct` / `Verdict: wrong` reply
+   is the owner's existing convention, read by `src/precision.ts` to measure how often the reviewer
+   is right; no posted comment mentions it today. Default: one row in the review body's glance
+   table, nothing on each inline comment.
 
 ### Out of scope
 
-- Any change to the prompt, the output schema or the number of model calls (open questions 3
-  and 4 are where that would start).
+- Any change to the prompt, the output schema or the number of model calls. The owner's rule
+  (2026-11-14): a format change never moves the model. The model's recall is measured per release
+  on Martian's 50 pull requests ([history](https://github.com/niway-dev/wachiman-benchmarks/blob/main/martian/history.md));
+  a split finding body with `suggestion` blocks or a whole-PR summary would start there, as their
+  own design.
 - Failures that leave no way to comment: GitHub unreachable, GitHub rate limit, GitHub 5xx. They
   fail the job and stay in its log.
 - The local loop summary of [PR #243](https://github.com/niway-dev/wachiman/pull/243) (open; it
@@ -131,7 +139,7 @@ on niway-dev/kaipu-record (618 bodies, 2026-11-14) found:
 4. **A bare risk level.** [wachiman #238](https://github.com/niway-dev/wachiman/pull/238#pullrequestreview-5902349558)
    reads "Risk map / **Low.**" and nothing else about risk.
 5. **Five axes in one inline title.** `Nit · 🟡📝 Consider · docs: <title> (confidence medium)`;
-   Nit/Important repeats the severity
+   the emoji are glued together and the confidence trails the title
    ([example](https://github.com/niway-dev/wachiman/pull/188#discussion_r4545177824)).
 6. **Cost scattered.** In the coverage table, in the footer and in "PR so far"; the footer is
    eleven values in one `<sub>` line, and the Wachiman version is not shown at all.
@@ -158,7 +166,8 @@ Researched 2026-11-14 (GPT-6.1 Terra), first-party sources where available:
   [Sourcery](https://docs.sourcery.ai/reviews/configure/)).
 - Copilot and Cursor Bugbot attach committable fixes or "Fix in" links to inline comments
   ([Copilot](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-code-review?tool=xcode),
-  [Bugbot](https://docs.cursor.com/bugbot)). That is open question 3.
+  [Bugbot](https://docs.cursor.com/bugbot)). Declined for now (open question 3): it changes the
+  model's output.
 - No public convention was found for showing model, cost or version in a comment.
 - Guidance on scannable text: front-load the answer, consistent headings, lists for independent
   items, tables to compare the same fields
@@ -277,11 +286,11 @@ and last words around `…`. The link carries the full path.
 ### Inline finding
 
 ```markdown
-👮 **Wachiman** · 🟡 Consider · 📝 docs — `base` field of `.github/pr-template.json` is shown but never defined
+👮 **Wachiman** · Nit · 🟡 Consider · 📝 docs — `base` field of `.github/pr-template.json` is shown but never defined
 
 <the model's body, unchanged>
 
-<sub>Confidence medium · answer with `Verdict: correct` or `Verdict: wrong` and why</sub>
+<sub>Confidence medium</sub>
 ```
 
 Pre-existing and inconclusive findings never open an inline thread (the engine routes them to the
@@ -326,14 +335,21 @@ grep count, not a run). Every format change moves them. The build replaces that 
    rows per slot, notices, run details, cost line) from the engine's data; a separate
    `renderReview(view)` turns it into Markdown. Behaviour tests assert on the view ("the status is
    Partial", "this Blocker is in To fix"), which does not move when wording changes.
-2. **Golden Markdown files.** One file per scenario of the acceptance criteria, compared byte for
+2. **Golden Markdown files.** One file per scenario, compared byte for
    byte, regenerated with an update flag as the golden prompts already are
    (`WACHI_UPDATE_GOLDEN=1`). A format change is one diff of the golden files, reviewed by eye.
    The local loop summary of PR #243 already works this way (ten golden files).
+   The scenario list starts from the survey's catalogue of the 618 posted bodies: each pattern
+   found there (clean, to fix, partial, 422 fallback, no credit, auth, timeout, turn limit, budget,
+   size gate, rebase, verifier notice, instructions changed) gets one golden file, plus one per
+   acceptance criterion it does not cover. Inputs never seen before get their own files too: an
+   unknown stop reason, a missing cost, empty model text, a title with `|` or a newline. Each
+   renders a safe fallback; none throws, drops a finding or drops the cost line.
 3. **Round-trip contract tests.** Every reader of a posted comment (`readAutoCost`, `parseLabel`,
    the model reader, the partial marker, the benchmarks parser, and the unchanged `readAskCost`,
    ceiling-notice and reply-footer readers) runs against every golden body and
-   against three real bodies posted before the change. This is the test that proves the ceiling and
+   against real bodies posted before the change, one per catalogue pattern (both repositories are
+   public). This is the test that proves the ceiling and
    the benchmark still work, which no amount of string assertions shows.
 
 String assertions that only restate the layout are deleted in the pull request that moves them to
@@ -354,8 +370,8 @@ no existing parser. No figure for the build's agent cost has been measured.
 ### Cost per review
 
 Unchanged. Every slot is rendered from data the engine already returns; the prompt, the output
-schema and the number of model calls stay the same. The shorter inline label slightly reduces what
-a later re-review reads back from earlier threads. Open questions 3 and 4 would change this.
+schema and the number of model calls stay the same. The two ideas that would change this (a split
+finding body, a whole-PR summary) were declined on 2026-11-14.
 
 ## Sources and unverified claims
 
@@ -369,4 +385,4 @@ a later re-review reads back from earlier threads. Open questions 3 and 4 would 
   marked BREAKS or MISLEADS is answered by a decision above (2, 3, 6, 7, 8, 9, 10, 11, 13, 14) or
   a failure to protect against.
 - Unverified: rendering in GitHub email notifications and the mobile app; the agent cost of the
-  build; the cost of open question 4's extra call.
+  build.
