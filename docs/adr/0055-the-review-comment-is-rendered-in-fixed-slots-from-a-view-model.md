@@ -11,7 +11,7 @@
   [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
   and the size-gate ADR 0037 intact.
 - **Date:** 2026-11-14
-- **Spec:** [One fixed layout for every comment Wachiman posts](../specs/2026-11-14-review-comment-layout-design.md)
+- **Spec:** [One fixed layout for the review comment, its inline findings and its notices](../specs/2026-11-14-review-comment-layout-design.md)
 - **Numbering:** 0055 because open pull requests hold up to 0054.
 
 ## Context
@@ -35,8 +35,9 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
    change.
 2. The body has fixed slots in a fixed order (spec, "The review body"). An empty slot is omitted,
    never moved. Size fitting drops slots from a named list; the status line, the glance table, the
-   Blocker and Fix rows, the needs-a-person slot, the cost line and the hidden markers are never
-   dropped.
+   Blocker and Fix rows, the needs-a-person slot, the risk facts, the cost line and the hidden
+   markers are never dropped. When those alone pass the size limit, the finding tables keep the rows
+   that fit, Blockers first, and say how many more are on their lines.
 3. The first line after the brand is a computed status with a fixed precedence: Not reviewed,
    Partial, Blocker, Fix, Needs investigation, none. "before merge" is said only for blockers. No
    status uses a check mark.
@@ -81,6 +82,8 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
   files.
 - The benchmarks repository's parser changes in the same release; until it does, comparisons with
   other reviewers would break.
+- An engine older than this change, after a rollback, cannot parse the new inline label, so its
+  verdict statistics skip those findings. Accepted: the spend ceiling is unaffected.
 - Comments get slightly longer (about 200 characters per finding listed in the body); the largest
   body seen is about 26k characters of the 60k limit.
 

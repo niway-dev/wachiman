@@ -1,4 +1,4 @@
-# One fixed layout for every comment Wachiman posts on a pull request
+# One fixed layout for the review comment, its inline findings and its notices
 
 - **Status:** draft 2026-11-14, awaiting the owner's choice on open questions 1, 3 and 4.
 - **ADR:** [ADR 0055](../adr/0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md) (new).
@@ -8,8 +8,8 @@
 
 Today the review body answers nothing at the top: a count line that does not add up, a risk map
 that can read only "**Low.**", the findings to fix listed only inline, several batch paragraphs,
-and a footer of eleven values in one small line. This spec gives every comment Wachiman posts
-(the review body, inline findings, not-reviewed notices, rebase notices) one fixed order: a
+and a footer of eleven values in one small line. This spec gives the review comment and the
+comments that stand in for it (inline findings, not-reviewed notices, rebase notices) one fixed order: a
 status line, an "At a glance" table, the findings to act on as a table, then optional detail
 collapsed, then a short cost line that stays the machine contract. Everything is still rendered
 by code from data the engine already has. **No prompt, schema or model call changes, so a review
@@ -59,8 +59,14 @@ parser round-trip tests instead of more string assertions.
   change it.
 - The local terminal and Markdown sinks, except the shared label (decision 12), which they render
   too.
+- The other comments the engine posts keep their format: ask answers (`ASK_FOOTER`,
+  `readAskCost`), thread replies (their `<sub>this run … · PR so far …</sub>` line), the ceiling
+  notice (`CEILING_NOTICE`) and the PR Confidence comment. The round-trip tests still run their
+  readers, to prove this change does not break them.
 
 ### Failures this must protect against
+
+Line numbers in this spec refer to `main` at `6b99963`; the symbol names are the stable reference.
 
 1. The spend ceiling stops counting because the cost moved or the last `$` in the `<sub>` line is
    no longer the run cost (`readAutoCost`, `src/engine.ts:819-830`; ADR 0012).
@@ -95,7 +101,10 @@ parser round-trip tests instead of more string assertions.
       body contains "before merge" unless it has a Blocker, and none contains ✅.
 - [ ] The Findings row's total equals the sum of its parts in every golden body.
 - [ ] In the size-trimmed and 422 golden bodies, the `<sub>` cost line, every hidden marker and
-      every Blocker/Fix row survive.
+      every Blocker/Fix row survive; in a golden body whose never-dropped slots alone pass the
+      limit, the To fix table ends with "and N more, on their lines" and the body fits.
+- [ ] A re-review golden body with no new Fix but open earlier bot threads never contains
+      "Nothing to fix".
 - [ ] `wachiman-benchmarks/scripts/parse.ts` reads the new golden bodies and the old raw bodies, in
       a benchmarks pull request merged with the same release.
 - [ ] Every golden body passes `markdownlint-cli2` default rules, with the same disables as the
@@ -187,13 +196,26 @@ Slots, in order. An empty slot is omitted.
 | 15 | `<sub>` cost line | yes | computed |
 | 16 | Hidden markers | — | computed |
 
-Size fitting drops slots from a named list, last first: 12, 11, 13, 10, 9, 6 (to a count and a
-link to the threads). Slots 1–5, 7, 15 and 16 are never dropped.
+Size fitting drops whole slots from a named list, in this order: 12, 11, 13, 14, 10, 9, then 6,
+which shrinks to its count ("13 to consider, on their lines; see Files changed"). There is no link
+to a thread, for the reason of decision 7. Slots 1–5, 7, 8, 15 and 16 are never dropped.
 
-Status line values: `⛔ Not reviewed: <reason>`, `⚠️ Partial: N of M files not reviewed`,
-`🔴 N blockers before merge`, `🟠 N to fix in this PR`, `Needs investigation: N`, `No new findings
-in this push · N earlier threads open`, `Nothing to fix · 🟡 N to consider`. When two apply, the
-higher one leads and the other follows after ` · `.
+If the never-dropped slots alone pass `MAX_BODY_CHARS`, the To fix and Needs investigation tables
+keep the rows that fit, Blockers first, and end with "and N more, on their lines". The cost line
+and the markers are always kept. The 422 fallback lists each finding once, in its slot's table;
+it never repeats a row under "On their lines".
+
+Status line, built from parts joined by ` · `:
+
+1. The lead, the first that applies: `⛔ Not reviewed: <reason>`, `⚠️ Partial: N of M files not
+   reviewed`, `🔴 N blockers before merge`, `🟠 N to fix in this PR`, `Needs investigation: N`,
+   `No new findings to fix`.
+2. A Partial lead under a Blocker or Fix lead: the second one follows the first.
+3. Earlier threads: when unresolved bot threads remain, `N earlier threads open` always follows.
+   "Nothing to fix" is used only when this run has no Blocker, Fix or inconclusive finding **and**
+   no unresolved bot thread remains; otherwise the lead reads `No new findings to fix`.
+4. `🟡 N to consider`, when there are any.
+5. The scope, always last: `whole PR at <sha>` or `changes since <sha> at <sha>`.
 
 Example, with the real data of wachiman #238 (the version and duration in Run details are
 illustrative):
@@ -258,6 +280,11 @@ and last words around `…`. The link carries the full path.
 A pre-existing finding adds `Pre-existing ·` after the brand. `parseLabel` reads both this line and
 the old one.
 
+Rollback: an engine older than this change cannot parse the new label, so its verdict statistics
+(`judge` in `src/precision.ts`) skip findings posted by the newer engine. This loss is accepted: it
+affects only the precision report, never the spend ceiling, and the brand stays first on the line
+as ADR 0010 requires.
+
 ### Not-reviewed and rebase notices
 
 ```markdown
@@ -296,7 +323,8 @@ grep count, not a run). Every format change moves them. The build replaces that 
    (`WACHI_UPDATE_GOLDEN=1`). A format change is one diff of the golden files, reviewed by eye.
    The local loop summary of PR #243 already works this way (ten golden files).
 3. **Round-trip contract tests.** Every reader of a posted comment (`readAutoCost`, `parseLabel`,
-   the model reader, the partial marker, the benchmarks parser) runs against every golden body and
+   the model reader, the partial marker, the benchmarks parser, and the unchanged `readAskCost`,
+   ceiling-notice and reply-footer readers) runs against every golden body and
    against three real bodies posted before the change. This is the test that proves the ceiling and
    the benchmark still work, which no amount of string assertions shows.
 
