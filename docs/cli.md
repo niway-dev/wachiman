@@ -480,6 +480,9 @@ Only that person's `/wachiman` comments start a paid run. The release tag (the v
 `DEFAULT_WORKFLOW_REF`) and the workflow path (`.github/workflows/wachiman-review.yml`) are not asked;
 `--version` and `--path` still override them. The tag is asked only when a build has no bundled release.
 
+In every mode a last question, "Also install the PR description template?" (default yes), is asked unless
+`--pr-template`, `--no-pr-template` or `--dry-run` settles it.
+
 Running `init` again after a failure is safe. If the workflow file already holds what init would
 write (the generated header line, which carries a date, is ignored), init says it is unchanged and
 continues; the same holds without a terminal. If it differs, a terminal shows the new file and asks

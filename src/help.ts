@@ -478,8 +478,7 @@ export const CI_COMMANDS = ["review", "comment", "threads", "reset-confidence"] 
 const PAGES: Readonly<Record<string, Page>> = {
   local: localPage, loop: loopPage, ask: askPage,
   history: historyPage, status: statusPage, dashboard: dashboardPage, ledger: ledgerPageWithSubs,
-  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, "pr-template": prTemplatePageRoot,
-  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, upgrade: upgradePage,
+  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, upgrade: upgradePage, "pr-template": prTemplatePageRoot,
   review: reviewPage, comment: commentPage, threads: threadsPage, "reset-confidence": resetConfidencePage,
 };
 
