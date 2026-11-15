@@ -45,6 +45,8 @@ type Outcome = { kind: "fixed" | "declined" | "open" | "noted"; text: string; ju
 
 const oneLine = (text: string) => text.replace(/\s+/g, " ").trim();
 
+/** An invisible character, as an entity, that keeps GitHub from turning `@name` or `#123` into a mention or a cross-reference. */
+const ZERO_WIDTH = "&#8203;";
 /**
  * Text a model or a person wrote, safe inside a table cell or a list line: no tag (so no comment),
  * no mention and no pipe. `<` and `>` become entities, which also defuses `<!--` and `-->`.
@@ -62,8 +64,8 @@ const safe = (text: string) => {
       .replaceAll("|", "\\|")
       .replaceAll("[", "\\[")
       .replaceAll("]", "\\]")
-      .replace(/#(?=\d)/g, "#&#8203;")
-      .replace(/@(?=\w)/g, "@&#8203;");
+      .replace(/#(?=\d)/g, `#${ZERO_WIDTH}`)
+      .replace(/@(?=\w)/g, `@${ZERO_WIDTH}`);
   const line = oneLine(text);
   let out = "";
   let at = 0;
