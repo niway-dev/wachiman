@@ -17,8 +17,16 @@ describe("parseRepoSettings", () => {
     expect(parseRepoSettings("publishLoopSummary: false\n")).toEqual({ publishLoopSummary: false });
     expect(parseRepoSettings("publishLoopSummary:\n")).toEqual({});
     for (const bad of ["publishLoopSummary: yes please\n", "publishLoopSummary: 1\n", 'publishLoopSummary: "true"\n']) {
-      expect(() => parseRepoSettings(bad)).toThrow(/publishLoopSummary must be true or false/);
+      expect(parseRepoSettings(bad).publishLoopSummaryError).toMatch(/publishLoopSummary must be true or false/);
+      expect(parseRepoSettings(bad).publishLoopSummary).toBeUndefined();
     }
+  });
+
+  test("a bad publishLoopSummary keeps the valid model and effort beside it", () => {
+    const s = parseRepoSettings("model: claude-opus-5-5\neffort: high\npublishLoopSummary: maybe\n");
+    expect(s.model).toBe("claude-opus-5-5");
+    expect(s.effort).toBe("high");
+    expect(s.publishLoopSummaryError).toMatch(/must be true or false/);
   });
 
   test("an empty file, comments only and keys with no value hold nothing", () => {

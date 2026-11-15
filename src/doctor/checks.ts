@@ -396,6 +396,16 @@ export const CHECKS: DoctorCheck[] = [
           };
         }
       }
+      if (settings?.publishLoopSummaryError !== undefined) {
+        return {
+          id: "settings",
+          level: "optional",
+          status: "warn",
+          evidence: `the working copy of ${SETTINGS_PATH} has an invalid publishLoopSummary: ${settings.publishLoopSummaryError} Its model and effort still apply; \`wachiman loop\` does not publish until it is fixed.`,
+          fix: `set publishLoopSummary to true or false in ${SETTINGS_PATH}, or remove the key`,
+          detail: { file, valid: false },
+        };
+      }
       const effective = effectiveSettings(env, settings);
       const from = (s: { value: string; source: string; skipped?: string }) =>
         `${s.value} (${s.source === "file" ? `from ${SETTINGS_PATH}` : s.source === "env" ? "from the environment" : s.skipped !== undefined ? `default; the model "${settings?.model}" in ${SETTINGS_PATH} is skipped: ${s.skipped}` : "default"})`;

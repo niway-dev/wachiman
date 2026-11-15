@@ -30,6 +30,12 @@ export interface RepoSettings {
   effort?: Effort;
   /** `true`: `wachiman loop` posts or updates its summary on the branch's open pull request after every call. */
   publishLoopSummary?: boolean;
+  /**
+   * Set instead of `publishLoopSummary` when it is not true or false. It is the one setting that is
+   * not a review input, so a bad value never costs the valid `model` and `effort` beside it:
+   * `wachiman loop` does not publish and says why, and `wachiman doctor` warns.
+   */
+  publishLoopSummaryError?: string;
 }
 
 /**
@@ -68,8 +74,8 @@ export function parseRepoSettings(content: string): RepoSettings {
   }
   const publish = map.publishLoopSummary;
   if (publish !== undefined && publish !== null) {
-    if (typeof publish !== "boolean") throw new UsageError(`${SETTINGS_PATH}: publishLoopSummary must be true or false, got ${JSON.stringify(publish)}.`);
-    settings.publishLoopSummary = publish;
+    if (typeof publish !== "boolean") settings.publishLoopSummaryError = `${SETTINGS_PATH}: publishLoopSummary must be true or false, got ${JSON.stringify(publish)}.`;
+    else settings.publishLoopSummary = publish;
   }
   return settings;
 }
