@@ -24,7 +24,7 @@ describe("renderCallerWorkflow on the real template", () => {
     expect(body.length).toBe(before.length);
     const changed = before.flatMap((line, i) => (line === body[i] ? [] : [{ before: line, after: body[i] }]));
     expect(changed).toHaveLength(2);
-    expect(changed[0].before).toBe("    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0");
+    expect(changed[0].before).toMatch(/^    uses: niway-dev\/wachiman\/\.github\/workflows\/review\.yml@v\d+\.\d+\.\d+ # x-release-please-version$/);
     expect(changed[0].after).toBe("    uses: niway-dev/wachiman/.github/workflows/review.yml@v2.0.1");
     expect(changed[1].before).toBe("      operator: EDIT-THIS-github-login");
     expect(changed[1].after).toBe('      operator: "octocat"');
@@ -32,7 +32,13 @@ describe("renderCallerWorkflow on the real template", () => {
 
   test("without a header the output is the template with the two lines replaced", () => {
     const out = renderCallerWorkflow(template, { operator: "me", tag: "v1.5.0" });
-    expect(out).toBe(template.replace("EDIT-THIS-github-login", '"me"'));
+    const pinned = template.replace(/@v\d+\.\d+\.\d+ # x-release-please-version/, "@v1.5.0");
+    expect(out).toBe(pinned.replace("EDIT-THIS-github-login", '"me"'));
+  });
+
+  test("the release-please marker on the pin line is not written to the user's file", () => {
+    expect(template).toContain("# x-release-please-version");
+    expect(renderCallerWorkflow(template, { operator: "me", tag: "v1.5.0" })).not.toContain("x-release-please");
   });
 
   test("a commit SHA pins like a tag", () => {
@@ -64,7 +70,7 @@ describe("renderCallerWorkflow throws when a template lacks an anchor", () => {
   });
 
   test("no review.yml pin", () => {
-    const broken = template.replace("review.yml@v1.5.0", "review.yml");
+    const broken = template.replace(/review\.yml@v[\d.]+ # x-release-please-version/, "review.yml");
     expect(() => renderCallerWorkflow(broken, { operator: "me", tag: "v1.5.0" })).toThrow(/review\.yml@/);
   });
 

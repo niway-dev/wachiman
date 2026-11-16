@@ -262,7 +262,7 @@ the effort is in the result's `verification` block, not in the footer.
   CodeRabbit comments ([arXiv 2607.07980](https://arxiv.org/pdf/2607.07980)). Unverified beyond the
   abstract.
 - Anthropic's own review separates finding from verifying (hunters, then a group that votes):
-  [research note](../research/2026-10-26-ideas-from-anthropic-code-review.md) on #90's branch, read
+  research note on #90's branch, read
   through a summary; numbers not quoted here.
 - CodeAnt's "three models, two must agree, 60% fewer false positives" is a vendor claim
   ([page](https://codeant.ai/blogs/ai-code-review-false-positives)); not used for any decision.

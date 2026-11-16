@@ -34,8 +34,9 @@ report and is merged only after its author has accepted the agreement.
   the changelog are generated from them (see the README, "Commit messages").
 - Run `bun test` before you push.
 - Say whether an AI tool wrote part of the change, and confirm you ran it.
-- Do not add a dependency without an issue first. The engine has none on purpose (ADR 0002), and
-  every dependency has to be compatible with the license.
+- Do not add a dependency without an issue first. The review engine has none on purpose (ADR 0002);
+  the only runtime dependencies are `chalk`, `@clack/prompts` and `bun`, the first two for the
+  terminal screens only. Every dependency has to be compatible with the license.
 
 ## Try a change before it is released
 

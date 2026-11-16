@@ -13,7 +13,7 @@
 - **Date:** 2026-11-03
 - **Spec:** [2026-11-03-local-review-design.md](../specs/2026-11-03-local-review-design.md)
 - **Issue:** [#103](https://github.com/niway-dev/wachiman/issues/103)
-- **Evidence:** [research 2026-11-03](../research/2026-11-03-greptile-skills-and-local-review.md)
+- **Evidence:** research 2026-11-03
   (terms, data and telemetry facts; the diff parity probe: `git diff -M --inter-hunk-context=1
   base...head` reproduced GitHub's patches on 1,397 files of 64 pull requests).
 - **Numbering:** 0014 and 0015 are reserved by #80, 0017 and 0018 by #90, so this record is 0019.

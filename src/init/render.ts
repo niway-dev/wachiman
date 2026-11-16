@@ -26,6 +26,8 @@ export function renderCallerWorkflow(template: string, p: { operator: string; ta
   }
   const body = template
     .replace(OPERATOR_ANCHOR, () => `operator: "${p.operator}"`)
-    .replace(PIN_ANCHOR, (_match, prefix: string) => `${prefix}${p.tag}`);
+    .replace(PIN_ANCHOR, (_match, prefix: string) => `${prefix}${p.tag}`)
+    // The template marks its pin for release-please; that marker is not for the file the user gets.
+    .replace(/[ \t]+# x-release-please-version$/m, "");
   return p.header === undefined ? body : `${p.header}\n${body}`;
 }

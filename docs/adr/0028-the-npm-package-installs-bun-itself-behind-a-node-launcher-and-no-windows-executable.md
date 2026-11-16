@@ -3,9 +3,8 @@
 - **Status:** accepted 2026-11-09, amended 2026-11-09 (the Windows executable was tried and
   abandoned; Bun now comes with the package). Decisions 1, 2, 4 and 5 (the npm package, the Node
   launcher with its bundled Bun, the source path, gated publishing) are implemented by the npm
-  packaging slice (branches `feat/npm-package` and `feat/npm-bundled-bun`). Not yet published to
-  npm: the first publish happens when the release workflow runs on a release that contains this
-  slice. **Windows is not tested in CI, and is expected to work wherever Node and Bun run:** the `windows-latest` job was removed
+  packaging slice (branches `feat/npm-package` and `feat/npm-bundled-bun`). Published to
+  npm (the `wachiman` package, version 1.16.0 on 2026-11-15). **Windows is not tested in CI, and is expected to work wherever Node and Bun run:** the `windows-latest` job was removed
   (see Decision 3).
   **Amends** draft
   [ADR 0026 in PR #135](https://github.com/niway-dev/wachiman/pull/135) (PR #135, unmerged): keeps its
