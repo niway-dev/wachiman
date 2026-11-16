@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractRepoDir, runResetConfidence } from "./cli";
+import { UsageError } from "./config";
 import type { GhFn } from "./engine";
 
 const cli = join(import.meta.dir, "cli.ts");
@@ -316,5 +317,16 @@ describe("reset-confidence", () => {
   test("needs a pull request number and refuses an unknown flag", () => {
     expect(() => runResetConfidence([], ENV, fakeGh().gh)).toThrow("pull request number");
     expect(() => runResetConfidence(["7", "--bogus"], ENV, fakeGh().gh)).toThrow("unexpected");
+  });
+
+  test("an unknown flag names the accepted --commit <sha> form", () => {
+    let error: unknown;
+    try {
+      runResetConfidence(["7", "--bogus"], ENV, fakeGh().gh);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(UsageError);
+    expect((error as UsageError).message).toContain("--commit <sha>");
   });
 });
