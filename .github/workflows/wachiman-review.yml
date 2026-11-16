@@ -6,17 +6,20 @@ name: Wachiman review
 # push. Save a `CLAUDE_CODE_OAUTH_TOKEN` repository secret made with `claude setup-token` (the review runs on the Claude subscription).
 # To update, resolve the new tag's SHA and replace it together with the trailing version comment;
 # never use a floating tag.
+# This caller uses `review-platform.yml`, the variant that carries `id-token: write`, so each run asks the spend ledger for room before the review and records what it spent.
+# When the ledger cannot be reached (a network error, a timeout, a 5xx or a 429), the review still runs under its normal budgets; a rejected token or a wrong `ledger_url` stops it instead.
 on:
   pull_request: { types: [opened, ready_for_review] }
   issue_comment: { types: [created] }
-permissions: { contents: read, pull-requests: write, issues: read }
+permissions: { contents: read, pull-requests: write, issues: read, id-token: write }
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@2dd954858c8c0e6fdb61185ec797f38cf7568bf4 # v1.13.0
+    uses: niway-dev/wachiman/.github/workflows/review-platform.yml@bfb1ad1e71c97e7b06c8fbf709ead8a013a31fdb # v1.14.0
     with:
       operator: csdev19
       model: claude-sonnet-5-5
       effort: high
       verify: false
+      ledger_url: https://ledger.wachiman.dev
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
