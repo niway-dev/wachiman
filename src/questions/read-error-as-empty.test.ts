@@ -293,6 +293,50 @@ describe("read-error-as-empty: applies (synthetic, illustrative)", () => {
   });
 });
 
+describe("read-error-as-empty: logging calls are scanned as code", () => {
+  const write = ["await writeFile(path, JSON.stringify(cache));"];
+  const head = ["try {", "  b = await readFile(p);", "} catch (e) {"];
+  const around = (...body: string[]) => [...head, ...body.map((l) => `  ${l}`), "}", ...write];
+
+  test("structured logging that names the error is not handling: the default still selects the question", () => {
+    expect(applies(around("logger.error({ error: error }, 'read failed');", "b = {};"))).toBe(true);
+    expect(applies(around("logger.error({ error: String(e) }, 'read failed');", "b = {};"))).toBe(true);
+  });
+
+  test("logging followed by a throw or an error result is handled", () => {
+    expect(applies(around("logger.error({ error: e }, 'read failed');", "throw e;"))).toBe(false);
+    expect(applies(around("logger.error({ error: e }, 'read failed');", "return { ok: false, error: String(e) };"))).toBe(false);
+  });
+
+  test("a parenthesis inside a string does not swallow the next statement", () => {
+    expect(applies(around('logger.error("read failed (", { error: e }); throw new Error("failed)");'))).toBe(false);
+    expect(applies(around("logger.error('read failed (', { error: e });", "throw e;"))).toBe(false);
+    expect(applies(around("console.warn(`gave up :)`, e);", "throw e;"))).toBe(false);
+    expect(applies(around('logger.error("say \\"(\\" now", e);', "throw e;"))).toBe(false);
+    expect(applies(around("logger.error('read failed (', { error: e });", "b = {};"))).toBe(true);
+  });
+
+  test("a quote inside a regex literal does not open a string", () => {
+    expect(applies(around('logger.error(/"/.test(message), { error: e }); throw new Error("failed)");'))).toBe(false);
+    expect(applies(around("logger.error(/[')]/.test(message), { error: e });", "b = {};"))).toBe(true);
+    expect(applies(around("logger.error(total / 2, { error: e });", "b = {};"))).toBe(true);
+  });
+
+  test("a comment with an apostrophe inside the call does not open a string", () => {
+    expect(applies(around("logger.error(/* don't log secrets */ message, { error: e }); b = {};"))).toBe(true);
+    expect(applies(around("logger.error(/* don't log secrets */ message, { error: e }); throw e;"))).toBe(false);
+  });
+
+  test("nested template literals keep their parentheses and quotes to themselves", () => {
+    expect(applies(around("logger.error(`failed ${fmt(`inner ) ${a} '`)} (`, { error: e });", "throw e;"))).toBe(false);
+    expect(applies(around("logger.error(`failed ${fmt(`inner ) ${a} '`)} (`, { error: e });", "b = {};"))).toBe(true);
+  });
+
+  test("an unclosed call is left alone", () => {
+    expect(applies(around("logger.error('x', { error: e }", "throw e;"))).toBe(false);
+  });
+});
+
 describe("read-error-as-empty: never matches", () => {
   const write = ["await writeFile(path, JSON.stringify(cache));"];
 
