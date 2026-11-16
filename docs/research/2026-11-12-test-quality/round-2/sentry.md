@@ -10,7 +10,7 @@ Pinned commit for repo links: [`57147b0`](https://github.com/getsentry/sentry/tr
 - One required check per area ("Backend", "Frontend"), each an aggregate of many jobs. Master runs the full suite; PRs run selected tests [observed].
 - Flaky tests are quarantined (`it.isKnownFlake()`), reported through a Sentry project and an issue template, never gated by a threshold [observed].
 - The repo tells agents when NOT to add tests: no RTL smoke test for styling, no new test files, no "test plan" in PRs [observed].
-- Agents are everywhere: about 1 in 3 recent master commits carries a `Co-authored-by` trailer for an AI agent or bot [observed, sample of 500].
+- Agents are everywhere: the latest 500 master commits carry 202 AI-agent or bot trailer lines; how many distinct commits that is was not counted [observed, sample of 500].
 
 ## 1. Coverage
 
