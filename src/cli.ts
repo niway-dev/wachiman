@@ -225,7 +225,7 @@ export function runResetConfidence(args: string[], env: Record<string, string | 
   if (!/^\d+$/.test(prArg ?? "") || pr <= 0) throw new UsageError("reset-confidence needs a pull request number.");
   let commit: string | undefined;
   for (let i = 0; i < flags.length; i++) {
-    if (flags[i] !== "--commit" || !flags[i + 1]) throw new UsageError(`reset-confidence: unexpected "${flags[i]}".`);
+    if (flags[i] !== "--commit" || !flags[i + 1]) throw new UsageError(`reset-confidence: unexpected "${flags[i]}". Accepted form: --commit <sha>.`);
     commit = flags[++i];
   }
   const config = loadConfig(env);
