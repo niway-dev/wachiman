@@ -1,6 +1,10 @@
 # ADR 0010: The name Wachiman and a brand line on every comment
 
 - **Status:** accepted. Supersedes decision 1 of [ADR 0005](0005-name-wachi-reviewer.md).
+  The rejected alternative "A GitHub App or bot account so the avatar shows the mascot" is
+  superseded by [ADR 0024](0024-three-modes-one-engine-and-an-identity-only-github-app.md)
+  (proposed 2026-11-07, not implemented), reopened by the owner before its reopen condition was
+  met.
 - **Date:** 2026-10-31
 - **Numbering:** accepted as "ADR 0009" on 2026-10-31. A second record
   ([ADR 0009](0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md)) took the
