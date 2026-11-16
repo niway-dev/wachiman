@@ -4,13 +4,13 @@ Scope: the five Martian benchmark repos (Sentry, Grafana, Cal.com, Discourse, Ke
 
 ## In one minute
 
-- **Tests are growing** (Sentry, Grafana, Discourse, Keycloak; Cap from near zero). Tests outpaced source from 2025 to 2026 in Sentry, Grafana and Keycloak; Discourse's ratio fell over 2024→2026 (0.265 → 0.230) even as its test count grew. Cal.com shrank (616 → 541 files), likely because it removed features [inferred]. The timing matches rising agent use, a correlation only [inferred].
+- **Tests are growing** (Sentry, Grafana, Discourse, Keycloak; Cap from near zero). From 2025 to 2026 the test-to-source ratio rose in all five repos measured at both dates (most in Sentry, Grafana and Keycloak). Over the full 2024→2026 window Discourse's ratio still fell (0.265 → 0.230) even as its test count grew. Cal.com shrank (616 → 541 files), likely because it removed features [inferred]. The timing matches rising agent use, a correlation only [inferred].
 - **No repo treats coverage as a goal** (all six). None enforces a percentage. Grafana runs a non-blocking nightly dashboard; Sentry uses coverage data to select tests; Cal.com's "80%, enforced in CI" is not enforced.
 - **PRs run a subset** (all six). Cal.com adds a label and merge queue for the slow layer; only Keycloak runs full CI on main nightly. No test-gated release found.
 - **Flakes are fixed by cause, rarely quarantined.** Sentry quarantines with `it.isKnownFlake()`; Grafana skips by hand.
 - **Docs from tests means machine contracts, not prose** (Discourse, Grafana, Sentry, Keycloak). Doctests: none.
 - **Cleanups are small and reasoned, never a purge.** Largest net deletion found: 1,841 lines (Cal.com PR 29019); the largest gross removal was 1,969 lines (Sentry PR 127135, 1,329 net).
-- **"Do not test" rules exist in four repos, in agent files** (Sentry, Grafana, Discourse, Keycloak); Cal.com and Cap have none.
+- **"Do not test" rules exist in four repos, in agent files or contributor docs** (Sentry, Grafana, Discourse, Keycloak); Cal.com and Cap have none.
 - **AI is in the tests everywhere**, but only Grafana and Keycloak have rules about AI-written tests.
 
 ## Comparison
@@ -21,7 +21,7 @@ Ratio = test files / source files by path proxy. "Not comparable" means the deno
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | [Sentry](sentry.md) | Python 2,741 ≈ frontend 2,663; acceptance 79 → 54 | 0.37 → 0.40 (proxy) | 66% | Data only; no gate, no figure | README examples type-checked; `tests/apidocs` | #112698 removed assertion-free acceptance tests (−969 lines) | Yes: "Do not add an RTL smoke test merely to accompany a styling change" | 202 agent or bot trailer lines in the last 500 master commits (share of commits unknown) |
 | [Grafana](grafana.md) | Frontend 2,927 > Go 2,321 | 0.35 → 0.52 (rises with repo growth) | 44% | Daily per-team job, non-blocking, no target | Swagger drift check; stories run as a11y tests | Cypress → Playwright; #135525 dropped externalized e2e | Yes: "no slop tests"; skip modules slated for deletion | AI_POLICY: tests must "fail for the right reasons"; 15/100 Claude trailers |
-| [Cal.com](calcom.md) | Vitest unit 418 of 541 | 0.07 → 0.12 (source shrank) | 40% | Not measured; "80%" unenforced | Thin: one example app | April 2026 team/org removal, about 12 `cleanup(test)` PRs | No (not found) | AI "excels" at "comprehensive test suites"; Devin links in 85/400 PRs |
+| [Cal.com](calcom.md) | Vitest unit 418 of 541 | 0.07 → 0.12 (source shrank 2025→2026) | 40% | Not measured; "80%" unenforced | Thin: one example app | April 2026 team/org removal, about 12 `cleanup(test)` PRs | No (not found) | AI "excels" at "comprehensive test suites"; Devin links in 85/400 PRs |
 | [Discourse](discourse.md) | Frontend 984, lib 684; system 126 → 301 | 0.27 → 0.23 (not comparable) | 65% | SimpleCov behind env var only | rswag specs generate OpenAPI | Flakes fixed, not skipped | Yes: "Don't assert that internal methods are or aren't called" | Claude co-author on test-adding commits; no AI rule |
 | [Keycloak](keycloak.md) | New framework 900 > "unit" 675 > Arquillian 533 | 0.24 → 0.34 (not comparable) | 67% | None found; "sufficient test coverage" | `GuideTest` checks docs; approved CLI help | Arquillian deprecated Feb 2026; #47389 deleted "no value" tests | Yes: "Unit tests are avoided" | AI allowed with disclosure; 74/600 commits carry a Copilot or Claude trailer |
 | [Cap](cap.md) | TS/JS 852; Rust `tests/` 61 | 0.006 → 0.32 (not comparable) | 84% | None; "no strict coverage yet" | None | None found (one revert) | No (not found) | Trailers banned; 1/100 "Generated with Claude Code"; Greptile in 95/100 |
@@ -54,7 +54,7 @@ Yes, small and with reasons. Cal.com deleted tests with the features that owned 
 
 ## 6. Written rules for creating, and not creating, tests
 
-Every repo asks for tests with changes except Cap. Not creating: extend an existing file (Sentry), fewest examples (Discourse), no unit tests or mock frameworks (Keycloak), no slop and no tests for code slated for deletion (Grafana). These live in `AGENTS.md` and skills, so they are written for agents.
+Every repo asks for tests with changes except Cap. Not creating: extend an existing file (Sentry), fewest examples (Discourse), no unit tests or mock frameworks (Keycloak), no slop and no tests for code slated for deletion (Grafana). Most live in `AGENTS.md` and skills, written for agents; Keycloak's live in `docs/tests-development.md` and `CONTRIBUTING.md`, partly repeated in `.github/copilot-instructions.md`.
 
 ## AI and tests
 

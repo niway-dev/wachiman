@@ -2,7 +2,7 @@
 
 First pass: [repos/grafana.md](../repos/grafana.md). This round does not repeat it.
 
-Pinned commit for all file links: `d09f100ad0a454468e6e49002808b126f75fc755` (main, 2026-11-16), written as `@d09f100` in paths below: `https://github.com/grafana/grafana/blob/d09f100ad0a454468e6e49002808b126f75fc755/<path>`. Labels: observed / inferred / not found.
+Pinned commit for all file links: `d09f100ad0a454468e6e49002808b126f75fc755` (main, 2026-11-16). Labels: observed / inferred / not found.
 
 ## In one minute
 
