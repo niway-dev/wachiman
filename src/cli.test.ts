@@ -320,7 +320,13 @@ describe("reset-confidence", () => {
   });
 
   test("an unknown flag names the accepted --commit <sha> form", () => {
-    expect(() => runResetConfidence(["7", "--bogus"], ENV, fakeGh().gh)).toThrow("--commit <sha>");
-    expect(() => runResetConfidence(["7", "--bogus"], ENV, fakeGh().gh)).toThrow(UsageError);
+    let error: unknown;
+    try {
+      runResetConfidence(["7", "--bogus"], ENV, fakeGh().gh);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(UsageError);
+    expect((error as UsageError).message).toContain("--commit <sha>");
   });
 });
