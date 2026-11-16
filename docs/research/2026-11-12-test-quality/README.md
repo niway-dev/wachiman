@@ -41,3 +41,14 @@ Each document is one unit of evidence. The synthesis is written last, from these
 | [t3code/05-pipeline-and-test-signal-agent.md](t3code/05-pipeline-and-test-signal-agent.md) | How the purge pipeline and the test-signal agent work, in rebuildable detail | done |
 | [state-of-the-art.md](state-of-the-art.md) | Test linters, smell detectors, mutation testing, configurable reviewer policy | done |
 | [weak-points-judged.md](weak-points-judged.md) | Attack on both recommendations, judged | done |
+
+## Round 2
+
+Added 2026-11-16: the same question across six large repos (the five benchmark repos plus Cap), with
+a qualitative report and an independent metrics report per repo. Start with the README.
+
+| Document | Source | Status |
+| --- | --- | --- |
+| [round-2/README.md](round-2/README.md) | Cross-checked synthesis, comparison table, spot-checks, implications for Wachiman | done |
+| [round-2/sentry.md](round-2/sentry.md), [grafana.md](round-2/grafana.md), [calcom.md](round-2/calcom.md), [discourse.md](round-2/discourse.md), [keycloak.md](round-2/keycloak.md), [cap.md](round-2/cap.md) | Qualitative: coverage, gating, docs from tests, cleanups, written rules, AI | done |
+| [round-2/metrics-sentry-grafana.md](round-2/metrics-sentry-grafana.md), [metrics-calcom-discourse.md](round-2/metrics-calcom-discourse.md), [metrics-keycloak-cap.md](round-2/metrics-keycloak-cap.md) | Quantitative: test files by layer at 2024-11, 2025-11, 2026-11; last 100 PRs; largest deletions | done |
