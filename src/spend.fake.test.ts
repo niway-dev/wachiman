@@ -532,7 +532,7 @@ describe("configuration errors are not outages", () => {
 
       const noPermission = setup({ env });
       noPermission.deps.ledgerEnv = { GITHUB_ACTIONS: "true" };
-      await expect(review(noPermission.deps, "o/r", 7, [])).rejects.toThrow(/review-platform\.yml.*id-token: write/);
+      await expect(review(noPermission.deps, "o/r", 7, [])).rejects.toThrow(/wachiman-platform\.yml.*id-token: write/);
       expect(noPermission.provider.requests).toHaveLength(0);
       expect(noPermission.urls).toEqual([]);
       expect(noPermission.posted).toHaveLength(0);

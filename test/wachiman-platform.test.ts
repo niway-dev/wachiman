@@ -1,14 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { generatePlatformWorkflow } from "../scripts/generate-review-platform";
+import { generateAliasWorkflow, generatePlatformWorkflow } from "../scripts/generate-wachiman-platform";
 
-// review.yml and review-platform.yml are the same review; only the second grants `id-token: write`,
+// review.yml and wachiman-platform.yml are the same review; only the second grants `id-token: write`,
 // because a called workflow cannot hold a permission its caller did not grant.
 const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 const review = read(".github/workflows/review.yml");
-const platform = read(".github/workflows/review-platform.yml");
+const platform = read(".github/workflows/wachiman-platform.yml");
+const alias = read(".github/workflows/review-platform.yml");
 
 type Trigger = { workflow_call: { inputs: Record<string, { type: string; default?: unknown }> } };
 type Workflow = {
@@ -32,8 +33,8 @@ const LEDGER_ENV = [
   "WACHIMAN_LEDGER_UNAVAILABLE",
 ];
 
-describe("review-platform.yml", () => {
-  test("is exactly what scripts/generate-review-platform.ts writes from review.yml", () => {
+describe("wachiman-platform.yml", () => {
+  test("is exactly what scripts/generate-wachiman-platform.ts writes from review.yml", () => {
     expect(platform).toBe(generatePlatformWorkflow(review));
   });
 
@@ -42,7 +43,7 @@ describe("review-platform.yml", () => {
     for (const job of Object.values(parse(review).jobs)) expect(job.permissions).not.toHaveProperty("id-token");
   });
 
-  test("every job of review-platform.yml grants id-token: write and nothing else changed in its permissions", () => {
+  test("every job of wachiman-platform.yml grants id-token: write and nothing else changed in its permissions", () => {
     const plain = parse(review).jobs;
     const enrolled = parse(platform).jobs;
     expect(Object.keys(enrolled)).toEqual(Object.keys(plain));
@@ -86,19 +87,33 @@ describe("review-platform.yml", () => {
     // The enrolled form is words next to the `uses:` line it changes, not a pasteable block above `jobs:`
     // that would leave two `with:` keys or drop `operator`.
     const afterJobs = template.slice(template.indexOf("\njobs:\n"));
-    expect(afterJobs).toMatch(/^\s*#.*review-platform\.yml/m);
+    expect(afterJobs).toMatch(/^\s*#.*wachiman-platform\.yml/m);
     expect(afterJobs).toMatch(/^\s*#.*id-token: write/m);
     expect(afterJobs).toMatch(/^\s*#.*ledger_url/m);
-    expect(template.slice(0, template.indexOf("\njobs:\n"))).not.toMatch(/review-platform\.yml/);
+    expect(template.slice(0, template.indexOf("\njobs:\n"))).not.toMatch(/wachiman-platform\.yml/);
     // No uncommented line mentions the platform workflow.
-    expect(template.split("\n").filter((line) => !/^\s*#/.test(line) && line.includes("review-platform.yml"))).toEqual([]);
+    expect(template.split("\n").filter((line) => !/^\s*#/.test(line) && line.includes("wachiman-platform.yml"))).toEqual([]);
+  });
+});
+
+describe("review-platform.yml, the old name", () => {
+  test("exists, starts with the deprecation comment and is what the generator writes", () => {
+    expect(existsSync(join(root, ".github/workflows/review-platform.yml"))).toBe(true);
+    expect(alias.startsWith("# Deprecated name, kept so existing callers keep working. New callers use wachiman-platform.yml.\n")).toBe(true);
+    expect(alias).toBe(generateAliasWorkflow(review));
+  });
+
+  test("has the same jobs and inputs as wachiman-platform.yml", () => {
+    expect(parse(alias).jobs).toEqual(parse(platform).jobs);
+    expect(inputsOf(alias)).toEqual(inputsOf(platform));
   });
 });
 
 describe("model and effort inputs (ADR 0049)", () => {
   test.each([
     ["review.yml", review],
-    ["review-platform.yml", platform],
+    ["wachiman-platform.yml", platform],
+    ["review-platform.yml", alias],
   ])("%s: both inputs default to empty, so .wachiman.yml can apply, and every job that passes them passes the input as is", (_name, text) => {
     const inputs = inputsOf(text);
     expect(inputs.model.default).toBe("");
