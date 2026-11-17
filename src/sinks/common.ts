@@ -128,9 +128,9 @@ export function costSentence(e: { costUsdEstimate: number; calls: number; turns:
 
 const STOP_REASONS: Record<Exclude<ReviewResult["execution"]["stop"], "complete">, string> = {
   quota: "the account's usage limit ended the run",
-  budget: "the run's estimate guard (AGENT_REVIEW_BUDGET_USD) was spent",
-  turns: "the calls hit the turn limit (AGENT_REVIEW_MAX_TURNS)",
-  timeout: "the calls hit the time limit (AGENT_REVIEW_CALL_TIMEOUT_S)",
+  budget: "the run's estimate guard (WACHIMAN_BUDGET_USD) was spent",
+  turns: "the calls hit the turn limit (WACHIMAN_MAX_TURNS)",
+  timeout: "the calls hit the time limit (WACHIMAN_CALL_TIMEOUT_S)",
   error: "no call returned a review",
 };
 
@@ -149,10 +149,17 @@ export function stopLine(result: ReviewResult) {
   return `stop: ${stop} — ${why}${files}`;
 }
 
-/** The provider, effort, profile and engine version, for the last line. */
-export function providerLine(result: ReviewResult) {
+/** Which of the model and the effort the repository's `.wachiman.yml` chose, so the last line can say so. */
+export interface SettingsFrom {
+  model?: boolean;
+  effort?: boolean;
+}
+
+/** The provider, effort, profile and engine version, for the last line; `from` marks a value that came from `.wachiman.yml`. */
+export function providerLine(result: ReviewResult, from: SettingsFrom = {}) {
   const verified = result.verification ? verificationSegment(result.verification) : undefined;
-  return `${result.provider.label} · effort ${result.provider.effort} · profile ${result.provider.profile} · Wachiman ${result.engine.version}${verified ? ` · ${verified}` : ""}`;
+  const file = " (from .wachiman.yml)";
+  return `${result.provider.label}${from.model ? file : ""} · effort ${result.provider.effort}${from.effort ? file : ""} · profile ${result.provider.profile} · Wachiman ${result.engine.version}${verified ? ` · ${verified}` : ""}`;
 }
 
 /** The note on review-instruction files the change edits, or null. */

@@ -30,8 +30,9 @@ A Team or Enterprise account of your employer is the easier request to approve.
 
 **What leaves the machine:** the diff of the branch, the files the model chooses to read in the
 snapshot (read-only tools only: `Read`, `Glob`, `Grep`), the repository's instruction files
-(`CLAUDE.md`, `AGENTS.md`, `.github/wachiman.md`) at the merge-base, and the prompt. They go to
-`api.anthropic.com` through your `claude`. **What does not:** nothing goes to GitHub, and Wachiman
+(`CLAUDE.md`, `AGENTS.md`, `.github/wachiman.md`) at the merge-base, and the prompt. They go to `api.anthropic.com` through your `claude`. (The
+model and effort can come from `.wachiman.yml`, also read at the merge-base; `WACHIMAN_MODEL` and
+`WACHIMAN_EFFORT` win. See [configuration.md](configuration.md#the-settings-file-wachimanyml).) **What does not:** nothing goes to GitHub, and Wachiman
 itself sends nothing. Claude Code's own metrics, error reports, feedback survey, auto-updater and
 marketplace auto-install are switched off in every call (see section 7 for what is verified).
 
@@ -57,7 +58,9 @@ else, no transcript is kept on disk, and no history unless I turn it on. Can I u
 - Claude Code (`claude` on your `PATH`), signed in. The local mode was exercised with Claude Code
   2.1.311 (see section 7).
 - The engine: the npm package `wachiman` (Node 20 or later runs its launcher) or a clone of this
-  repository. A clone needs no `bun install`: the engine has no dependencies of its own.
+  repository. The engine itself has no dependencies, so every command runs in a clone without `bun install`; only
+  the interactive screens (the launcher menu, `init` and `setup` prompts, colored help) need the packages in
+  `package.json` (`chalk`, `@clack/prompts`), and a clone without them says so and still takes flags.
 
 No `gh`, no `GH_TOKEN`, no `ANTHROPIC_API_KEY`. If `ANTHROPIC_API_KEY` is set in your shell, the
 local mode refuses to start: with a key present `claude -p` would bill the key.
@@ -72,7 +75,9 @@ npm i -g wachiman          # or: bun add -g wachiman; or, without installing: np
 wachiman --version
 ```
 
-The package contains the TypeScript source, the skills and the templates, and one dependency: the
+The package contains the TypeScript source, the skills and the templates, and three dependencies, each pinned to an exact version
+([ADR 0002](adr/0002-typescript-on-bun-zero-dependencies.md), amendment 2026-11-13): `chalk` and `@clack/prompts` for the
+interactive screens (a few small packages, loaded only when a terminal screen opens), and the
 official npm package [`bun`](https://www.npmjs.com/package/bun) (published by oven-sh, maintainers
 jarred and robobun, source [oven-sh/bun](https://github.com/oven-sh/bun)), pinned to an exact
 version. Installing `wachiman` therefore downloads Bun: measured for Bun 1.3.4, 23 MB (macOS arm64)
@@ -109,8 +114,7 @@ Supply chain: Bun's own `postinstall` runs when `bun` is installed and copies th
 from `@oven/bun-<platform>` into place. Wachiman's provenance statement covers Wachiman's files,
 not that binary download. If your policy does not allow it, install with `--ignore-scripts` and use
 a Bun you installed from a source you trust. The package is published by the release workflow
-(see [releasing](releasing.md#publishing-to-npm)). `agent-review` is installed as a second name for
-the same command. Install the optional agent skills separately with `wachiman skills install`; it preserves unmarked or edited copies. See [`skills`](cli.md#skills).
+(see [releasing](releasing.md#publishing-to-npm)). Install the optional agent skills separately with `wachiman skills install`; it preserves unmarked or edited copies. See [`skills`](cli.md#skills).
 
 ### From a clone (unreleased source, and the agent skills)
 
@@ -185,7 +189,7 @@ GitHub or both. GitHub setup leaves secret creation and workflow submission as m
 
 Escape, Ctrl-C or EOF cancels with exit 130. A confirmed directory creation, login, workflow
 write or binding is reported accurately if a later stage is cancelled. Re-running keeps the
-existing binding selected. Use `NO_COLOR=1` for plain output; Windows suggestions name their
+existing binding selected. Use `NO_COLOR=1` for plain output (it also turns off the colors of the interactive screens, and `WACHIMAN_NO_ANIMATION=1` stops the typed line of the intro); Windows suggestions name their
 shell. In scripts use `wachiman setup --profile default --yes` (or a registered profile): no
 prompt is shown, and `--profile` is required.
 
@@ -327,7 +331,7 @@ entry.
 ### Keep a history of your runs (optional)
 
 Off by default: without the switch, `local` neither reads nor creates `~/.wachiman/history`. Turn it
-on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
+on for one run with `--history`, or for every run with `WACHIMAN_HISTORY=1`.
 
 - **What is saved.** One file per run, `~/.wachiman/history/<name>-<hash>/runs/<time>-<sha7>.json`,
   holding the whole result, including the finding text, which quotes your code. It is as sensitive
@@ -352,7 +356,7 @@ on for one run with `--history`, or for every run with `AGENT_REVIEW_HISTORY=1`.
   later reports. It does not change a review: a finding you called wrong is still reported if the
   reviewer repeats it, which is how you see a persistent false positive.
 - **Retention.** 30 days, per repository, pruned when that repository is saved
-  (`AGENT_REVIEW_HISTORY_DAYS=<n>`, `0` keeps everything). A repository you stop reviewing keeps
+  (`WACHIMAN_HISTORY_DAYS=<n>`, `0` keeps everything). A repository you stop reviewing keeps
   its files until you forget them.
 - **Forget.** `wachiman history --forget [--repo-dir <dir>]` deletes one repository's history;
   `--forget --all` deletes `~/.wachiman/history`. Neither touches `~/.wachiman/claude-*`.
@@ -380,13 +384,13 @@ export WACHIMAN_DIR="$PWD"   # in your shell profile
 
 ## 6. Limits
 
-- **Work limits, and the estimate guard.** Each call is bounded by `AGENT_REVIEW_MAX_TURNS` and
-  `AGENT_REVIEW_CALL_TIMEOUT_S`; the run by `AGENT_REVIEW_BUDGET_USD` (default $3), counted in the
+- **Work limits, and the estimate guard.** Each call is bounded by `WACHIMAN_MAX_TURNS` and
+  `WACHIMAN_CALL_TIMEOUT_S`; the run by `WACHIMAN_BUDGET_USD` (default $3), counted in the
   API-equivalent estimate. See [configuration](configuration.md#local-mode).
 - **Size warning, never a refusal.** Before the first call, `local` estimates what reviewing all of
-  the change would cost. When that is above `AGENT_REVIEW_SIZE_GATE_USD` (default $6) and above your
+  the change would cost. When that is above `WACHIMAN_SIZE_GATE_USD` (default $6) and above your
   budget, it prints one warning line on stderr and carries on. The money caps are
-  `AGENT_REVIEW_BUDGET_USD` for the run (default $3) and `AGENT_REVIEW_BATCH_BUDGET_USD` for each
+  `WACHIMAN_BUDGET_USD` for the run (default $3) and `WACHIMAN_BATCH_BUDGET_USD` for each
   call (passed to Claude Code as `--max-budget-usd`, a soft cap); there is no per-pull-request
   ceiling. On a subscription the cost is Claude Code's API-equivalent figure, not a bill. See
   [the size gate](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
@@ -422,7 +426,7 @@ of those rows is unconfirmed.
 | You see | Why, and what to do |
 | --- | --- |
 | `ANTHROPIC_API_KEY is set. The local review runs on your signed-in claude; …` (exit 2) | The key would bill instead of your subscription. `unset ANTHROPIC_API_KEY` for the run, or use the GitHub mode |
-| `stop: error — the provider refused the call (auth): Not logged in · Please run /login` (exit 1) | The profile is not signed in. Run `claude` and `/login` for `default`, or `wachiman profile login <name>` for another profile; `wachiman doctor` shows which one is in use |
+| `stop: error — the provider refused the call (auth): Not logged in · Please run /login` (exit 1) | The profile is not signed in. Run `claude auth login` for `default` (if your `claude` is a shell alias or function that sets `CLAUDE_CONFIG_DIR`, register that directory with `wachiman profile add <name> --config-dir <dir>`), or `wachiman profile login <name>` for another profile; `wachiman doctor` shows which one is in use |
 | `` `main` and HEAD have no common ancestor `` (exit 2) | The base is unrelated history. Pass the right `--base` |
 | `No base branch found; pass --base <ref>` (exit 2) | No `origin/HEAD` and no `main`. Pass `--base`, or run `git remote set-head origin --auto` |
 | `HEAD is on main, which is the base: there is no branch to review. …` (exit 2) | You are on the base branch, or on a branch with no commit past it. Check out your branch, or pass `--base <commit>` to review from that commit |

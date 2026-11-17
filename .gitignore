@@ -2,3 +2,6 @@ node_modules/
 .DS_Store
 .claude/worktrees/
 .evidence/
+
+# Not published to npm (consumers resolve from package.json exact pins).
+bun.lock

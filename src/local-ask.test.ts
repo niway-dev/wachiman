@@ -131,7 +131,7 @@ function run(args: string[], opts: { repo: BranchRepo; home?: string; garbage?: 
     PATH: `${s.bin}:${process.env.PATH ?? ""}`,
     HOME: home,
     USER: "dev",
-    AGENT_REVIEW_VERIFY: "0",
+    WACHIMAN_VERIFY: "0",
     ...opts.extraEnv,
   };
   return { ...runCli([...args, "--repo-dir", opts.repo.dir], env), ...s, home };

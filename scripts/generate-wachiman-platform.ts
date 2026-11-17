@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 /**
- * Writes `.github/workflows/wachiman-platform.yml` from `.github/workflows/review.yml`.
+ * Writes `.github/workflows/wachiman-platform.yml` and its alias `.github/workflows/review-platform.yml`
+ * from `.github/workflows/review.yml`. The alias is the old name, which releases v1.14.0 and later
+ * contain, so callers pinned to it keep working. Both files have identical jobs and inputs.
  *
  * The two workflows are the same review. The platform one also grants `id-token: write` in each job,
  * which the engine needs to ask the spend ledger for a GitHub OIDC token. They are two files because
@@ -8,15 +10,21 @@
  * permission in `review.yml` would break every caller that has not granted it, so only callers that
  * choose `wachiman-platform.yml` grant it.
  *
- *   bun scripts/generate-wachiman-platform.ts          write the file
- *   bun scripts/generate-wachiman-platform.ts --check  exit 1 if the committed file is not what this writes
+ * Folding the two files back into one depends on what GitHub does with a caller that does not grant
+ * `id-token: write`; that is checked on the first real enrolled run, outside this repository.
+ *
+ *   bun scripts/generate-wachiman-platform.ts          write both files
+ *   bun scripts/generate-wachiman-platform.ts --check  exit 1 if a committed file is not what this writes
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
 export const REVIEW_PATH = join(root, ".github", "workflows", "review.yml");
 export const PLATFORM_PATH = join(root, ".github", "workflows", "wachiman-platform.yml");
+export const ALIAS_PATH = join(root, ".github", "workflows", "review-platform.yml");
+
+const ALIAS_NOTICE = "# Deprecated name, kept so existing callers keep working. New callers use wachiman-platform.yml.\n";
 
 const FIRST_LINE = "name: Wachiman review (reusable)\n";
 
@@ -51,13 +59,24 @@ export function generatePlatformWorkflow(review: string): string {
   return `${HEADER}${body}`;
 }
 
+/** The text of the alias file: the platform workflow under its old name, with a deprecation comment on top. */
+export function generateAliasWorkflow(review: string): string {
+  return `${ALIAS_NOTICE}${generatePlatformWorkflow(review)}`;
+}
+
 if (import.meta.main) {
-  const generated = generatePlatformWorkflow(readFileSync(REVIEW_PATH, "utf8"));
+  const review = readFileSync(REVIEW_PATH, "utf8");
+  const outputs: [string, string][] = [
+    [PLATFORM_PATH, generatePlatformWorkflow(review)],
+    [ALIAS_PATH, generateAliasWorkflow(review)],
+  ];
   if (process.argv.includes("--check")) {
-    const same = readFileSync(PLATFORM_PATH, "utf8") === generated;
-    if (!same) console.error("wachiman-platform.yml is not what scripts/generate-wachiman-platform.ts writes. Run: bun scripts/generate-wachiman-platform.ts");
-    process.exit(same ? 0 : 1);
+    const stale = outputs.filter(([path, text]) => !existsSync(path) || readFileSync(path, "utf8") !== text);
+    for (const [path] of stale) console.error(`${path} is not what scripts/generate-wachiman-platform.ts writes. Run: bun scripts/generate-wachiman-platform.ts`);
+    process.exit(stale.length === 0 ? 0 : 1);
   }
-  writeFileSync(PLATFORM_PATH, generated);
-  console.log(`wrote ${PLATFORM_PATH}`);
+  for (const [path, text] of outputs) {
+    writeFileSync(path, text);
+    console.log(`wrote ${path}`);
+  }
 }

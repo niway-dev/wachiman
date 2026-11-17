@@ -117,7 +117,7 @@ describe("prices and cost", () => {
   test("the price override takes an optional fourth field and still takes three", () => {
     expect(parsePrice("2,0.1,10,5")).toEqual({ input: 2, cachedInput: 0.1, output: 10, cacheWrite: 5 });
     expect(parsePrice("2,0.1,10")).toEqual({ input: 2, cachedInput: 0.1, output: 10 });
-    expect(() => parsePrice("1,2,3,4,5")).toThrow("AGENT_REVIEW_PRICE_PER_MTOK");
+    expect(() => parsePrice("1,2,3,4,5")).toThrow("WACHIMAN_PRICE_PER_MTOK");
   });
 
   test("cached input is billed at its own price; reasoning is inside output", () => {
@@ -128,8 +128,8 @@ describe("prices and cost", () => {
 
   test("parses an override and rejects a malformed one", () => {
     expect(parsePrice("1.25, 0.125, 10")).toEqual({ input: 1.25, cachedInput: 0.125, output: 10 });
-    expect(() => parsePrice("1,2")).toThrow("AGENT_REVIEW_PRICE_PER_MTOK");
-    expect(() => parsePrice("a,b,c")).toThrow("AGENT_REVIEW_PRICE_PER_MTOK");
+    expect(() => parsePrice("1,2")).toThrow("WACHIMAN_PRICE_PER_MTOK");
+    expect(() => parsePrice("a,b,c")).toThrow("WACHIMAN_PRICE_PER_MTOK");
   });
 });
 
@@ -220,7 +220,7 @@ describe("CodexProvider with a stub binary", () => {
     promptViaStdin: true,
   };
 
-  test("maps the events and the last message, runs outside the head, and strips GitHub tokens", () => {
+  test("maps the events and the last message, runs outside the head, and strips GitHub tokens", async () => {
     const binary = stubBinary(`
 if [ "$1" = "--version" ]; then echo "codex-cli 0.164.0"; exit 0; fi
 out=$(${flagValue("--output-last-message")})
@@ -234,12 +234,12 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
     const provider = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: true, binary });
     provider.preflight();
     expect(provider.modelLabel()).toBe("GPT-6.1 Sol via Codex 0.164.0");
-    const result = provider.run(request);
+    const result = await provider.run(request);
     const out = result.structuredOutput as Record<string, string>;
     expect(out.located).toBe("yes");
-    expect(out.cwd).toContain("agent-review-codex-");
+    expect(out.cwd).toContain("wachiman-review-codex-");
     expect(out.cwd).not.toBe("/runner/head");
-    expect(out.home).toContain("agent-review-codex-");
+    expect(out.home).toContain("wachiman-review-codex-");
     expect(out.token).toBe("");
     expect(out.key).toBe("sk-proj-test");
     expect(result).toMatchObject({ costUsd: 2, turns: 2, terminalReason: "success", isError: false });
@@ -249,34 +249,34 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
     delete process.env.OPENAI_API_KEY;
   });
 
-  test("an answer that is not the schema's JSON is an error", () => {
+  test("an answer that is not the schema's JSON is an error", async () => {
     const binary = stubBinary(`out=$(${flagValue("--output-last-message")}); cat >/dev/null; echo "not json" > "$out"; echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":1}}'`);
-    const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
+    const result = await new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
     expect(result).toMatchObject({ isError: true, terminalReason: "error", text: "not json\n" });
   });
 
-  test("a call that runs past the time limit ends as timeout", () => {
+  test("a call that runs past the time limit ends as timeout", async () => {
     const binary = stubBinary("cat >/dev/null; sleep 5");
-    const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary, timeoutMs: 200 }).run(request);
+    const result = await new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary, timeoutMs: 200 }).run(request);
     expect(result).toMatchObject({ terminalReason: "timeout", isError: true, costKnown: false });
   });
 
-  test("a stub reporting cache writes reaches the result, and a completed turn has a known cost", () => {
+  test("a stub reporting cache writes reaches the result, and a completed turn has a known cost", async () => {
     const binary = stubBinary(`out=$(${flagValue("--output-last-message")}); cat >/dev/null; echo '{}' > "$out"; echo '{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":200,"cache_write_input_tokens":300,"output_tokens":7}}'`);
-    const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
+    const result = await new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
     expect(result.usage).toEqual({ input: 500, output: 7, cacheRead: 200, cacheWrite: 300 });
     expect(result.costKnown).toBe(true);
   });
 
-  test("a call that exits without any completed turn has an unknown cost", () => {
+  test("a call that exits without any completed turn has an unknown cost", async () => {
     const binary = stubBinary(`cat >/dev/null; echo '{"type":"turn.failed","error":{"message":"boom"}}'; exit 1`);
-    const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
+    const result = await new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
     expect(result).toMatchObject({ isError: true, costKnown: false });
   });
 
-  test("the request's time limit wins over the adapter's, and a turn cap is accepted but unused", () => {
+  test("the request's time limit wins over the adapter's, and a turn cap is accepted but unused", async () => {
     const binary = stubBinary("cat >/dev/null; sleep 5");
-    const result = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary, timeoutMs: 60_000 }).run({
+    const result = await new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary, timeoutMs: 60_000 }).run({
       ...request,
       timeoutMs: 200,
       maxTurns: 3,
@@ -284,15 +284,15 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
     expect(result.terminalReason).toBe("timeout");
   });
 
-  test("refuses any tool beyond reads", () => {
+  test("refuses any tool beyond reads", async () => {
     const provider = new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary: "/bin/false" });
-    expect(() => provider.run({ ...request, allowedTools: ["shell" as never] })).toThrow("only grants reads");
+    await expect(provider.run({ ...request, allowedTools: ["shell" as never] })).rejects.toThrow("only grants reads");
   });
 
   test("preflight needs a price, the binary and the key", () => {
     const binary = stubBinary('echo "codex-cli 0.164.0"');
     expect(() => new CodexProvider({ model: "gpt-unknown", requireApiKey: false, binary }).preflight()).toThrow(
-      "AGENT_REVIEW_PRICE_PER_MTOK",
+      "WACHIMAN_PRICE_PER_MTOK",
     );
     new CodexProvider({ model: "gpt-unknown", requireApiKey: false, binary, priceOverride: "1,0.1,8" }).preflight();
     expect(() => new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary: "/nonexistent/codex" }).preflight()).toThrow(
@@ -309,9 +309,9 @@ describe("selection", () => {
   test("codex is an accepted provider with its own default model", () => {
     expect(PROVIDER_NAMES).toContain("codex");
     expect(getProvider("codex", { model: "gpt-6.1-sol", dryRun: false, effort: "high" }).name).toBe("codex");
-    expect(loadConfig({ AGENT_REVIEW_PROVIDER: "codex" }).model).toBe(DEFAULT_MODELS.codex);
+    expect(loadConfig({ WACHIMAN_PROVIDER: "codex" }).model).toBe(DEFAULT_MODELS.codex);
     expect(loadConfig({}).model).toBe("claude-sonnet-5-5");
-    expect(loadConfig({ AGENT_REVIEW_PROVIDER: "codex", AGENT_REVIEW_MODEL: "gpt-6-sol" }).model).toBe("gpt-6-sol");
+    expect(loadConfig({ WACHIMAN_PROVIDER: "codex", WACHIMAN_MODEL: "gpt-6-sol" }).model).toBe("gpt-6-sol");
   });
 });
 

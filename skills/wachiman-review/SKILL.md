@@ -1,6 +1,6 @@
 ---
 name: wachiman-review
-description: Use when the developer asks to review, audit or "analyse" their own code with Wachiman (or agent-review) on their laptop — a branch, one commit, or a range from a commit — including on employer code that must not reach GitHub, when they ask Wachiman to explain or answer a question about such a change ("explain this change", "ask about this branch"), and when they judge a finding from such a review as right or wrong.
+description: Use when the developer asks to review, audit or "analyse" their own code with Wachiman on their laptop — a branch, one commit, or a range from a commit — including on employer code that must not reach GitHub, when they ask Wachiman to explain or answer a question about such a change ("explain this change", "ask about this branch"), and when they judge a finding from such a review as right or wrong.
 ---
 
 # Review local code with Wachiman
@@ -119,7 +119,7 @@ wachiman history --repo-dir <clone> --verdict <id> correct|partial|wrong --reaso
 
 | Tempting | Instead |
 | --- | --- |
-| `wachiman review <pr>`, `AGENT_REVIEW_DRY_RUN`, `gh`, a GitHub token | `local`: the GitHub modes post to the PR and need the code on GitHub |
+| `wachiman review <pr>`, `WACHIMAN_DRY_RUN`, `gh`, a GitHub token | `local`: the GitHub modes post to the PR and need the code on GitHub |
 | A verdict as a PR comment or `Verdict:` reply | `history --verdict`: it stays on the laptop |
 | Running with `ANTHROPIC_API_KEY` set | `env -u ANTHROPIC_API_KEY wachiman local ...`: `local` refuses a key; the subscription pays |
 | `--max-depth 1000` because "review everything" | A closer start commit, or the number the developer chose |

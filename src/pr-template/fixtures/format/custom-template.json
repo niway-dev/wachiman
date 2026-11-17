@@ -1,0 +1,7 @@
+{
+  "drop": ["decisions", "agent-context"],
+  "custom": [
+    { "id": "migration-notes", "kind": "section", "heading": "Migration notes", "required": true, "after": "evidence" },
+    { "id": "ticket", "kind": "status-row", "label": "Ticket", "required": true }
+  ]
+}

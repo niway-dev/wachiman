@@ -18,7 +18,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     const step = this.script[this.requests.length - 1];
     if (!step) throw new Error("the fake provider has no answer left");
@@ -29,7 +29,7 @@ class FakeProvider implements ProviderAdapter {
 const HEAD = "head1234567";
 const BASE = "b".repeat(40);
 const FINDING = `🟠 **Fix · logic: retry ignores budget**\n\nThe loop does not read the budget.\n\n<!-- wachi:finding -->`;
-const REVIEW = `👮 **Wachiman** · review of the whole pull request, at \`head123\`.\n\n## Risk map\n\nRead first: src/a.ts\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- agent-review sha=${HEAD} -->`;
+const REVIEW = `👮 **Wachiman** · review of the whole pull request, at \`head123\`.\n\n## Risk map\n\nRead first: src/a.ts\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- wachiman sha=${HEAD} -->`;
 
 /** A checkout with one five-line file, which the answer's references are checked against. */
 function checkout() {
@@ -93,7 +93,7 @@ function depsFor(provider: FakeProvider, gh: GhFn, posted: string[], repoDir = c
       return gh(args, input);
     },
     provider,
-    config: loadConfig({ AGENT_REVIEW_OPERATOR: "boss" }),
+    config: loadConfig({ WACHIMAN_OPERATOR: "boss" }),
     repoDir,
     log: () => {},
     warn: () => {},
@@ -120,10 +120,10 @@ function reviewFileOf(request: ProviderRequest) {
 }
 
 describe("the on-demand answer on a pull request", () => {
-  test("reads the latest review and the finding threads, and posts checked, linked references", () => {
+  test("reads the latest review and the finding threads, and posts checked, linked references", async () => {
     const posted: string[] = [];
     const provider = new FakeProvider([() => ({ structuredOutput: ANSWER })]);
-    comment(depsFor(provider, fakeGh([REVIEW]), posted), "o/r", 7, "/wachiman why does the retry ignore the budget?", "boss");
+    await comment(depsFor(provider, fakeGh([REVIEW]), posted), "o/r", 7, "/wachiman why does the retry ignore the budget?", "boss");
 
     const request = provider.requests[0];
     expect(request.prompt).toContain("review.md holds the review Wachiman already ran on this change");
@@ -141,30 +141,30 @@ describe("the on-demand answer on a pull request", () => {
     expect(body).toContain("1 reference could not be checked and was removed.");
   });
 
-  test("with no earlier review the prompt says so, and no review file is written", () => {
+  test("with no earlier review the prompt says so, and no review file is written", async () => {
     const posted: string[] = [];
     const provider = new FakeProvider([() => ({ structuredOutput: ANSWER })]);
-    comment(depsFor(provider, fakeGh([]), posted), "o/r", 7, "@agent-review why is this here?", "boss");
+    await comment(depsFor(provider, fakeGh([]), posted), "o/r", 7, "/wachiman why is this here?", "boss");
     const request = provider.requests[0];
     expect(request.prompt).toContain("No review of this change is available");
     expect(request.prompt).not.toContain("holds the review Wachiman already ran");
     expect(request.addDirs).toHaveLength(1);
   });
 
-  test("a previous review is read only from the engine's own reviews", () => {
+  test("a previous review is read only from the engine's own reviews", async () => {
     const posted: string[] = [];
     const provider = new FakeProvider([() => ({ structuredOutput: ANSWER })]);
     const stranger = "A review by someone else, with no signature.";
-    comment(depsFor(provider, fakeGh([REVIEW, stranger]), posted), "o/r", 7, "@agent-review why?", "boss");
+    await comment(depsFor(provider, fakeGh([REVIEW, stranger]), posted), "o/r", 7, "/wachiman why?", "boss");
     expect(reviewFileOf(provider.requests[0])).toContain("## Risk map");
     expect(reviewFileOf(provider.requests[0])).not.toContain(stranger);
   });
 
-  test("explain, and a bare mention, ask for the walkthrough", () => {
-    for (const request of ["/wachiman explain", "@agent-review"]) {
+  test("explain, and a bare mention, ask for the walkthrough", async () => {
+    for (const request of ["/wachiman explain", "/wachiman"]) {
       const posted: string[] = [];
       const provider = new FakeProvider([() => ({ structuredOutput: ANSWER })]);
-      comment(depsFor(provider, fakeGh([REVIEW]), posted), "o/r", 7, request, "boss");
+      await comment(depsFor(provider, fakeGh([REVIEW]), posted), "o/r", 7, request, "boss");
       const prompt = provider.requests[0].prompt;
       expect(prompt, request).toContain("No question was asked, so explain the change");
       expect(prompt, request).toContain("1. What the change does");
@@ -172,10 +172,10 @@ describe("the on-demand answer on a pull request", () => {
     }
   });
 
-  test("an answer with no sections and no reason is the existing error", () => {
+  test("an answer with no sections and no reason is the existing error", async () => {
     const posted: string[] = [];
     const provider = new FakeProvider([() => ({ structuredOutput: { sections: [], not_answered: "" } })]);
-    expect(() => comment(depsFor(provider, fakeGh([REVIEW]), posted), "o/r", 7, "/wachiman why?", "boss")).toThrow(
+    await expect(comment(depsFor(provider, fakeGh([REVIEW]), posted), "o/r", 7, "/wachiman why?", "boss")).rejects.toThrow(
       "The agent did not answer",
     );
     expect(posted).toHaveLength(0);

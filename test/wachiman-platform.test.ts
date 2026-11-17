@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { generatePlatformWorkflow } from "../scripts/generate-wachiman-platform";
+import { generateAliasWorkflow, generatePlatformWorkflow } from "../scripts/generate-wachiman-platform";
 
 // review.yml and wachiman-platform.yml are the same review; only the second grants `id-token: write`,
 // because a called workflow cannot hold a permission its caller did not grant.
@@ -9,6 +9,7 @@ const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
 const review = read(".github/workflows/review.yml");
 const platform = read(".github/workflows/wachiman-platform.yml");
+const alias = read(".github/workflows/review-platform.yml");
 
 type Trigger = { workflow_call: { inputs: Record<string, { type: string; default?: unknown }> } };
 type Workflow = {
@@ -24,12 +25,12 @@ const inputsOf = (text: string) => {
 };
 
 const LEDGER_ENV = [
-  "AGENT_REVIEW_LEDGER_URL",
-  "AGENT_REVIEW_DAILY_BUDGET_USD",
-  "AGENT_REVIEW_WEEKLY_BUDGET_USD",
-  "AGENT_REVIEW_LIMIT_MODE",
-  "AGENT_REVIEW_LIMIT_BYPASS",
-  "AGENT_REVIEW_LEDGER_UNAVAILABLE",
+  "WACHIMAN_LEDGER_URL",
+  "WACHIMAN_DAILY_BUDGET_USD",
+  "WACHIMAN_WEEKLY_BUDGET_USD",
+  "WACHIMAN_LIMIT_MODE",
+  "WACHIMAN_LIMIT_BYPASS",
+  "WACHIMAN_LEDGER_UNAVAILABLE",
 ];
 
 describe("wachiman-platform.yml", () => {
@@ -67,14 +68,14 @@ describe("wachiman-platform.yml", () => {
   test("the three engine steps of both workflows pass the ledger settings to the engine", () => {
     for (const text of [review, platform]) {
       const steps = Object.values(parse(text).jobs).flatMap((job) => job.steps ?? []);
-      const engine = steps.filter((step) => step.env && "AGENT_REVIEW_OPERATOR" in step.env);
+      const engine = steps.filter((step) => step.env && "WACHIMAN_OPERATOR" in step.env);
       expect(engine).toHaveLength(3);
       for (const step of engine) {
         for (const name of LEDGER_ENV) expect(step.env).toHaveProperty(name);
-        expect(step.env!.AGENT_REVIEW_LEDGER_URL).toBe("${{ inputs.ledger_url }}");
+        expect(step.env!.WACHIMAN_LEDGER_URL).toBe("${{ inputs.ledger_url }}");
         // 0 means unset: the engine gets an empty string, never a limit of zero dollars.
-        expect(step.env!.AGENT_REVIEW_DAILY_BUDGET_USD).toBe("${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}");
-        expect(step.env!.AGENT_REVIEW_WEEKLY_BUDGET_USD).toBe("${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}");
+        expect(step.env!.WACHIMAN_DAILY_BUDGET_USD).toBe("${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}");
+        expect(step.env!.WACHIMAN_WEEKLY_BUDGET_USD).toBe("${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}");
       }
     }
   });
@@ -92,5 +93,38 @@ describe("wachiman-platform.yml", () => {
     expect(template.slice(0, template.indexOf("\njobs:\n"))).not.toMatch(/wachiman-platform\.yml/);
     // No uncommented line mentions the platform workflow.
     expect(template.split("\n").filter((line) => !/^\s*#/.test(line) && line.includes("wachiman-platform.yml"))).toEqual([]);
+  });
+});
+
+describe("review-platform.yml, the old name", () => {
+  test("exists, starts with the deprecation comment and is what the generator writes", () => {
+    expect(existsSync(join(root, ".github/workflows/review-platform.yml"))).toBe(true);
+    expect(alias.startsWith("# Deprecated name, kept so existing callers keep working. New callers use wachiman-platform.yml.\n")).toBe(true);
+    expect(alias).toBe(generateAliasWorkflow(review));
+  });
+
+  test("has the same jobs and inputs as wachiman-platform.yml", () => {
+    expect(parse(alias).jobs).toEqual(parse(platform).jobs);
+    expect(inputsOf(alias)).toEqual(inputsOf(platform));
+  });
+});
+
+describe("model and effort inputs (ADR 0049)", () => {
+  test.each([
+    ["review.yml", review],
+    ["wachiman-platform.yml", platform],
+    ["review-platform.yml", alias],
+  ])("%s: both inputs default to empty, so .wachiman.yml can apply, and every job that passes them passes the input as is", (_name, text) => {
+    const inputs = inputsOf(text);
+    expect(inputs.model.default).toBe("");
+    expect(inputs.effort.default).toBe("");
+    const jobs = Object.values(parse(text).jobs);
+    const envs = jobs.flatMap((job) => job.steps ?? []).map((step) => step.env).filter((env): env is Record<string, string> => env?.WACHIMAN_MODEL !== undefined);
+    // review, comment and threads each run the engine with the model and the effort.
+    expect(envs.length).toBeGreaterThanOrEqual(3);
+    for (const env of envs) {
+      expect(env.WACHIMAN_MODEL).toBe("${{ inputs.model }}");
+      expect(env.WACHIMAN_EFFORT).toBe("${{ inputs.effort }}");
+    }
   });
 });

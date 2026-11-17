@@ -90,10 +90,6 @@ describe("readVersion", () => {
     expect(readVersion(join(layout("a", "wachiman", "2.3.4"), "src"))).toBe("2.3.4");
   });
 
-  test("still accepts the former package name agent-review", () => {
-    expect(readVersion(join(layout("b", "agent-review", "1.9.0"), "src"))).toBe("1.9.0");
-  });
-
   test("a package.json that belongs to someone else is unknown", () => {
     expect(readVersion(join(layout("c", "someone-elses-app", "5.0.0"), "src"))).toBe("unknown");
   });

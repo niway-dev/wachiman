@@ -22,30 +22,37 @@ import {
   type InteractiveSpawn,
 } from "../accounts/commands";
 import { updateConfig, wachimanHome, type ProfileEntry, type ProjectBinding, type WachimanConfigV1 } from "../accounts/config";
-import { confirmProfile } from "../accounts/confirm";
+import { confirmProfile, confirmProfileAsync, type AsyncSpawnFn } from "../accounts/confirm";
 import { managedDir } from "../accounts/profile-list";
 import { lookupProfileRef, profileLine } from "../accounts/resolve";
 import { UsageError } from "../config";
 import { repositoryKey } from "../history/store";
 import { claimManagedProfile, setupProfile } from "../profiles";
 import { isInteractive, type TerminalStreams } from "../wizard/interactive";
-import { createPrompter, type Prompter, type PromptIO } from "../wizard/prompt";
-import { wizardIo } from "../wizard/style";
+import { loadTerminalUi } from "../wizard/load";
+import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
 import { resolveSetupOptions, type RawSetupFlags } from "./options";
-import { promptForSetup, type PendingProfile } from "./prompt";
+import { promptForSetup, setupStepTotal, type PendingProfile } from "./prompt";
 
 export interface SetupDeps extends AccountDeps {
   /** The person already chose local setup in init. */
   fromInit?: boolean;
   /** Both mode has one extra workflow stage before account setup. */
   initMode?: "local" | "both";
+  /** Filled when the run ends with the work saved and one step left: the session then closes with this warning, not "Stopped.". */
+  closing?: { warning?: string };
   /** The commands that bind later; printed when a run started from init ends without saving a binding. */
   unboundHints?: readonly string[];
   streams?: TerminalStreams;
   promptIO?: PromptIO;
+  /** The asynchronous probe of the account, for a test; the default runs `claude` without blocking the terminal. */
+  spawnAsync?: AsyncSpawnFn;
   /** An open prompt session (shared with `init`); the caller closes it. */
   prompter?: Prompter;
 }
+
+const aliasNote = (again: string) =>
+  `If your \`claude\` is a shell alias or function that sets CLAUDE_CONFIG_DIR, Wachiman does not see it: register that directory with \`wachiman profile add <name> --config-dir <dir>\` and run \`${again}\` again.`;
 
 const defaultInteractiveSpawn: InteractiveSpawn = (binary, args, opts) => spawnSync(binary, args, opts);
 
@@ -59,7 +66,6 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
   }
 
   const repoDir = flags.repoDir ?? ".";
-  io = wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env);
   const home = wachimanHome(env);
   const userHome = deps.userHome ?? homedir();
   const now = deps.now ?? (() => new Date().toISOString());
@@ -73,8 +79,11 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (!found.ok) throw new UsageError(found.problem);
   }
 
-  const prompter = deps.prompter ?? createPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env);
+  // The terminal UI (chalk and Clack) is loaded only when questions are asked.
+  const ui = await loadTerminalUi();
+  const prompter = deps.prompter ?? (await ui.openPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env));
   const ownsPrompter = deps.prompter === undefined;
+  io = ui.wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env, prompter);
   /** What already happened on disk or in Claude and cannot be rolled back; reported whenever the run ends early. */
   const effects: string[] = [];
   const reportEffects = () => {
@@ -108,7 +117,12 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     }
   };
 
+  let outcome: Outcome = "failed";
+  let closing: string | undefined;
   try {
+    // Only the command that opened the session plays the intro; `init` already did when it hands over,
+    // and so did the launcher (it marks WACHIMAN_INTRO_DONE, which `prompter.intro` honors).
+    if (ownsPrompter) await prompter.intro(deps.doctor?.version ?? "unknown", "Let's choose which Claude account stands guard.");
     let answers;
     try {
       answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged, fromInit: deps.fromInit, initMode: deps.initMode }, prompter);
@@ -118,15 +132,17 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
       throw error;
     }
     if (answers.kind === "cancelled") {
+      // Unreachable with effects: the only step that touches disk or Claude (the managed sign-in) is the last prompt.
       io.stderr("cancelled: no configuration changes saved.");
-      reportEffects();
       for (const hint of deps.unboundHints ?? []) io.stderr(`Next, on this machine: ${hint}   (binds this repository to a Claude account)`);
+      outcome = "cancelled";
       return 130;
     }
     if (answers.kind === "declined") {
       io.stderr("nothing saved: the configuration is unchanged.");
-      reportEffects();
       for (const hint of deps.unboundHints ?? []) io.stderr(`Next, on this machine: ${hint}   (binds this repository to a Claude account)`);
+      outcome = "done";
+      closing = "Nothing was saved.";
       return 0;
     }
     const resolved = resolveSetupOptions(answers.flags, { interactive: true });
@@ -147,18 +163,25 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (!found.ok) throw new UsageError(found.problem);
     const resolvedProfile = { profile: found.profile, rung: "binding" as const, overridden: [] };
     io.stderr(profileLine(resolvedProfile));
-    const probe = () => confirmProfile(resolvedProfile, env, deps.spawn, deps.doctor?.confirmIo);
-    // The probes block while claude runs; an Enter typed meanwhile must not reach "Sign in now?" through a live readline.
+    // The real probe is asynchronous, so the spinner turns while `claude` runs; a test's fake `spawn` is synchronous and is called as it always was.
+    const probe = () =>
+      deps.spawn ? confirmProfile(resolvedProfile, env, deps.spawn, deps.doctor?.confirmIo) : confirmProfileAsync(resolvedProfile, env, deps.spawnAsync, deps.doctor?.confirmIo);
+    // An Enter typed meanwhile must not reach "Sign in now?" through a live readline.
     prompter.suspend();
-    let status = probe();
+    let status = await prompter.task("Checking your Claude account", probe, (s) => s.ok);
     const signedOut = !status.ok && status.stage === "auth" && status.auth !== undefined && status.auth.exitCode !== 0;
     // True once the user was told the account state in its own words, so the generic warning would repeat it.
     let explained = false;
+    // Whether the sign-in is still the failure after the offer (accepted or not).
+    let signInPending = !status.ok && status.stage === "auth";
+    const signInCommand = found.profile.kind === "default" ? "claude auth login" : `wachiman profile login ${name}`;
+    // Only a Wachiman-managed or registered profile can be signed in from here (`wachiman profile login`); the default one is the person's own claude.
     if (signedOut && found.profile.kind !== "default") {
       io.stderr(status.problem);
       const answer = await prompter.confirm("Sign in now?", true);
       if (answer === null) {
         io.stderr(`cancelled: the binding of ${repo.name} to ${name} was saved and stays; you are not signed in (run \`wachiman profile login ${name}\`).`);
+        outcome = "cancelled";
         return 130;
       }
       if (answer) {
@@ -166,24 +189,43 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
         const code = runProfile({ kind: "login", profile: name }, env, io, { ...deps, interactive: true, interactiveSpawn: deps.interactiveSpawn });
         if (code === 130) {
           io.stderr(`cancelled: the binding of ${repo.name} to ${name} was saved and stays.`);
+          outcome = "cancelled";
           return 130;
         }
-        status = probe();
+        status = await prompter.task("Checking your Claude account", probe, (s) => s.ok);
+        signInPending = !status.ok && status.stage === "auth";
       } else {
-        io.stderr(`not signed in: run \`wachiman profile login ${name}\` before \`wachiman local\`.`);
+        io.stderr(`not signed in: run \`${signInCommand}\` before \`wachiman local\`.`);
         explained = true;
       }
     }
     if (status.ok) io.stderr(`account: signed in (${status.auth.authMethod}; claude ${status.binary.version})`);
     else if (!explained) io.stderr(`warning: ${status.problem} Fix: ${status.fix}`);
 
-    const total = deps.fromInit ? (deps.initMode === "both" ? 6 : 5) : 4;
+    const total = setupStepTotal(deps.fromInit, deps.initMode);
     prompter.step("Checks and next actions", total, total);
-    const code = closeSetup(repoDir, env, io, deps);
+    const result: { failedRequired?: number } = {};
+    const code = closeSetup(repoDir, env, io, deps, result);
     if (flags.json) io.stdout(`${JSON.stringify(projectShow(repoDir, env, deps), null, 2)}\n`);
+    outcome = code === 0 ? "done" : code === 130 ? "cancelled" : "failed";
+    // Everything is saved; the sign-in is what is left. That is a warning to act on, not a stop. The exit code stays as the
+    // doctor decided (1: a required check failed), because scripts read it as "this machine is not ready".
+    if (code !== 0 && code !== 130 && signInPending) {
+      const only = result.failedRequired === 1;
+      // Say the command the person actually ran: init chained into setup, or setup alone.
+      const again = deps.fromInit ? "wachiman init" : "wachiman setup";
+      const warning = only
+        ? `Saved. One step left: sign in to Claude (\`${signInCommand}\`), then run \`${again}\` again or \`wachiman doctor\`.`
+        : `Saved. Some checks still need attention, including the Claude sign-in (\`${signInCommand}\`); then run \`${again}\` again or \`wachiman doctor\`.`;
+      // Wachiman starts the binary itself, so it never sees a shell alias or function that sets the configuration directory.
+      const text = found.profile.kind === "default" ? `${warning} ${aliasNote(again)}` : warning;
+      if (deps.closing) deps.closing.warning = text;
+      else closing = text;
+      outcome = "done";
+    }
     return code;
   } finally {
-    if (ownsPrompter) prompter.close();
+    if (ownsPrompter) prompter.close(outcome, closing);
   }
 }
 

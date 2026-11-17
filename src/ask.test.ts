@@ -183,7 +183,7 @@ describe("isAskAnswer and the schema", () => {
 describe("asksForWalkthrough", () => {
   test("nothing after the mention, or only the word explain, is the walkthrough", () => {
     expect(asksForWalkthrough("/wachiman")).toBe(true);
-    expect(asksForWalkthrough("@agent-review")).toBe(true);
+    expect(asksForWalkthrough("@claude")).toBe(true);
     expect(asksForWalkthrough("/wachiman explain")).toBe(true);
     expect(asksForWalkthrough("/wachiman EXPLAIN")).toBe(true);
   });

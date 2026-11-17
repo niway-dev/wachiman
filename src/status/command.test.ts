@@ -15,7 +15,7 @@ afterAll(() => {
 });
 
 const NOW = new Date("2026-11-10T12:00:00Z");
-const args = (over: Partial<StatusArgs> = {}): StatusArgs => ({ json: false, allRepos: false, by: "day", ...over });
+const args = (over: Partial<StatusArgs> = {}): StatusArgs => ({ json: false, allRepos: false, by: "day", source: "all", refresh: false, ...over });
 
 /** Illustrative run: only the fields `status` reads are filled in. */
 function run(repository: ReturnType<typeof repositoryKey>, savedAt: string, cost: number, model: string, profile: string): HistoryRun {
@@ -63,7 +63,7 @@ describe("parseStatusArgs", () => {
   });
   test("rejects a bad value, an unknown option and a conflicting pair", () => {
     expect(() => parseStatusArgs(["--since", "week"])).toThrow(UsageError);
-    expect(() => parseStatusArgs(["--by", "pr"])).toThrow(UsageError);
+    expect(() => parseStatusArgs(["--by", "hour"])).toThrow(UsageError);
     expect(() => parseStatusArgs(["--nope"])).toThrow(UsageError);
     expect(() => parseStatusArgs(["--repo", "a", "--all-repos"])).toThrow(UsageError);
   });
@@ -137,7 +137,7 @@ describe("status review regressions", () => {
   test.each([0, 7, 30])("retention follows the configured %s days", days => {
     const seed = seeded();
     const {out, io} = capture();
-    runStatus(args({json: true}), seed.repo, {...seed.env, AGENT_REVIEW_HISTORY_DAYS: String(days)}, io);
+    runStatus(args({json: true}), seed.repo, {...seed.env, WACHIMAN_HISTORY_DAYS: String(days)}, io);
     expect(JSON.parse(out.join("")).retentionDays).toBe(days);
   });
   test("repository scopes keep identical names separate and reject ambiguous names", () => {

@@ -69,7 +69,7 @@ sentence says otherwise. If an assumption does not hold for your repository, do 
   setting, retention). The token "can only make model requests", so a leak does not expose the
   account's sign-in, but it can spend the plan's usage until you revoke it. Wachiman never falls back
   from the token to an API key.
-- **Only trusted people can start a run on demand.** Only the operator's `/wachiman` comment (or its `@agent-review` and `@claude` aliases) starts
+- **Only trusted people can start a run on demand.** Only the operator's `/wachiman` comment (or its `@claude` alias) starts
   an on-demand run, and only replies from `OWNER`, `MEMBER` or `COLLABORATOR` reach the agent.
 
 - **Supply chain, and the maintainer.** The ref a consumer pins decides which code runs with

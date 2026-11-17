@@ -4,7 +4,7 @@
  * itself (flags, binary, hardening) lives in `src/providers/`.
  *
  * Every kept file is accounted for: reviewed, retried, or listed with a closed reason. Files
- * nobody reviews (lockfiles, build output, generated code, `AGENT_REVIEW_EXCLUDE` matches) are
+ * nobody reviews (lockfiles, build output, generated code, `WACHIMAN_EXCLUDE` matches) are
  * dropped first and never read. The rest are scored by risk (`riskScore`) and packed into
  * batches of about 1,000 changed lines (`planBatches`), riskiest first; each batch is one provider call with its diff
  * inside the prompt. A batch that leaves files unaccounted for is re-run once with only those
@@ -20,7 +20,7 @@
  * and the operator's replies and answers in each thread. It never resolves one.
  *
  * What to look for beyond the defaults comes from `.github/wachiman.md` when the repository
- * has one (`.github/agent-review.md` and `.github/claude-review.md` are still read, with a notice).
+ * has one (`.github/claude-review.md` is still read, with a notice).
  *
  * The engine holds the GitHub token and posts; the agent only reads and gets no token. The engine
  * throws, posting nothing, when the provider says any text to post holds a credential. That is
@@ -33,7 +33,8 @@ import { closeSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
-import { isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
+import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
+import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parseRepoSettings, wantsRepoSettings, type RepoSettings } from "./repo-settings";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -268,8 +269,8 @@ export const DEFAULT_EXCLUDE = [
   "**/worker-configuration.d.ts",
 ];
 
-// The old marker is still read so repositories reviewed before the rename keep their incremental state.
-const MARKER_SOURCE = "<!-- (?:agent-review|claude-review) sha=([A-Za-z0-9]+) -->";
+// `claude-review` is still read so repositories reviewed under that name keep their incremental state.
+const MARKER_SOURCE = "<!-- (?:wachiman|claude-review) sha=([A-Za-z0-9]+) -->";
 const short = (sha: string) => sha.slice(0, 7);
 /**
  * `Important · 🟠📝 **Fix · docs: stale cell (confidence high)**`: the tier word, both emojis, then
@@ -302,7 +303,7 @@ export const DEFAULT_MENTION = "/wachiman";
  * earlier handles. Only the default is documented. `/wachi` does not match `/wachiman`, since a
  * keyword must end a word, so both are listed.
  */
-export const MENTION_ALIASES = ["/wachiman", "/wachi", "@agent-review", "@claude"];
+export const MENTION_ALIASES = ["/wachiman", "/wachi", "@claude"];
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The keyword or an alias, as a word of its own: "docs/wachi" or "me@claude" is not a mention. */
@@ -430,7 +431,7 @@ export function fileKind(path: string): FileKind {
 /**
  * Path rules for `riskScore`. These are defaults taken from the first consumer (`ipc`, `preload`,
  * `main`, `apps/<name>/src`) and are the owner's to tune; per-repository configuration is planned
- * (https://github.com/niway-dev/agent-review/issues/5).
+ * (https://github.com/niway-dev/wachiman/issues/5).
  * The highest matching weight wins. A test or a document scores its kind's weight whatever its
  * path, so `ipc/foo.test.ts` does not outrank the IPC code it tests.
  */
@@ -701,7 +702,7 @@ export function annotateDiff(files: ReviewFile[]) {
   return out.join("\n");
 }
 
-export const marker = (sha: string) => `<!-- agent-review sha=${sha} -->`;
+export const marker = (sha: string) => `<!-- wachiman sha=${sha} -->`;
 
 /**
  * What the review at `sha` left for the next run (ADR 0036). A complete review leaves nothing
@@ -795,7 +796,7 @@ export const neutralise = (text: string) =>
  *
  *     <!-- wachi:review -->
  *
- *     <!-- agent-review sha=… -->
+ *     <!-- wachiman sha=… -->
  *
  * and the marker is read only as the last line, right after the signature (`postReview` then adds
  * its `<!-- wachi:attempt id=… -->` line after it, which is allowed). A partial, unscoped review
@@ -1223,7 +1224,7 @@ export function buildReview(input: {
       : "";
   if (notReviewed.length > 0) {
     parts.push(
-      branded(`⚠️ **Partial review**: the agent reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}${notReviewable}.${twiceNote} Ask \`${mention} review <paths>\` for the rest.`),
+      branded(`⚠️ **Partial review**: reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}${notReviewable}.${twiceNote} Ask \`${mention} review <paths>\` for the rest.`),
     );
   } else {
     parts.push(
@@ -1610,8 +1611,8 @@ empty list. Cite only lines you read: the engine checks that each cited line exi
 answer is true. When an answer shows a defect, report it as a finding as well.`;
 
 export const FOCUS_PATH = ".github/wachiman.md";
-/** The paths used before the rename, newest first; the first one found is still read, with a notice. */
-export const OLD_FOCUS_PATHS = [".github/agent-review.md", ".github/claude-review.md"] as const;
+/** The path used before the rename; it is still read when the focus file is absent, with a notice. */
+export const OLD_FOCUS_PATHS = [".github/claude-review.md"] as const;
 
 /** Repository rules the engine reads from the pull request's base commit, in prompt order. */
 export const INSTRUCTION_PATHS = [FOCUS_PATH, "CLAUDE.md", "AGENTS.md"] as const;
@@ -1674,6 +1675,54 @@ export function readBaseInstructions(
   warn: (line: string) => void,
 ): BaseInstructions {
   return instructionsFrom(sha, (path) => fileAtBase(gh, repo, path, sha), warn);
+}
+
+/**
+ * `.wachiman.yml` as it is at the pull request's base commit, parsed, or undefined when the base has
+ * none. Like the focus file, never the head's copy: a pull request that edits `model` or `effort`
+ * is reviewed, and paid for, under the base's values. A file the contents API cannot return whole
+ * (over 64 KB) is a usage error rather than a guess. An invalid file is a usage error naming it;
+ * `withBaseSettings` turns that into a warning, so a broken file never blocks a review.
+ */
+export function readBaseSettings(gh: GhFn, repo: string, sha: string): RepoSettings | undefined {
+  const file = fileAtBase(gh, repo, SETTINGS_PATH, sha);
+  if (!file) return undefined;
+  if (file.truncated) throw new UsageError(`${SETTINGS_PATH} at the base commit is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
+  return parseRepoSettings(file.content);
+}
+
+/**
+ * `config` with the model and the effort the base commit's `.wachiman.yml` sets, wherever no
+ * explicit `WACHIMAN_MODEL` / `WACHIMAN_EFFORT` (a workflow input) did. Reads nothing when both
+ * were explicit. Logs one line when the file decided something, so the job log says so. A broken
+ * file at the base (bad YAML, a bad `effort`, too large) is ignored with a warning and the run
+ * continues on the environment and the defaults: the pull request that fixes the file must be
+ * reviewable. Errors from GitHub itself still propagate.
+ */
+export function withBaseSettings(
+  config: EngineConfig,
+  gh: GhFn,
+  repo: string,
+  pr: number,
+  log: (line: string) => void,
+  warn: (line: string) => void = log,
+): EngineConfig {
+  if (!wantsRepoSettings(config)) return config;
+  const sha = baseSha(gh, repo, pr);
+  let settings: RepoSettings | undefined;
+  try {
+    settings = readBaseSettings(gh, repo, sha);
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    warn(ignoredSettingsNote(error.message, `the base commit ${sha.slice(0, 7)}`));
+    return config;
+  }
+  if (!settings) return config;
+  const where = `the base commit ${sha.slice(0, 7)}`;
+  const next = applyRepoSettings(config, settings, { where, warn });
+  const note = fileSettingsNote(next, where);
+  if (note) log(`settings: ${note}`);
+  return next;
 }
 
 /**
@@ -2339,6 +2388,13 @@ export function pendingThreads(threads: RawThread[]) {
 export const MIN_BATCH_USD = 0.05;
 
 /**
+ * How many batches of one review run at the same time. Start at 4 and measure 4 against 6 before
+ * raising it: the subscription documents no concurrency limit per account, and a short-lived
+ * "temporarily limiting requests" throttle exists that Claude Code retries by itself.
+ */
+export const BATCH_CONCURRENCY = 4;
+
+/**
  * What the pull request's automatic runs have spent, and the ceilings the engine already told
  * the owner about. Both come only from the engine's own signed footers (`readAutoCost`,
  * `readCeilingNotice`): `github-actions[bot]` is shared by every workflow of the repository, and
@@ -2544,6 +2600,9 @@ const short200 = (error: unknown) => (error instanceof Error ? error.message : S
 /** The dollars the calls since `grant` cost, for a run that ended before it could say what it spent. */
 export const spentSince = (deps: Deps, grant: SpendGrant) => (deps.costs ?? []).slice(grant.costsFrom).reduce((n, c) => n + c.costUsd, 0);
 
+/** Runs that already said the ledger is skipped, so the line appears once. */
+const skippedLedger = new WeakSet<Deps>();
+
 /**
  * Asks the ledger how much this run may spend, before any model call. With no `ledger_url` there is
  * nothing to ask and the room is unlimited; `limit_bypass` skips the ledger the same way, and the
@@ -2552,11 +2611,22 @@ export const spentSince = (deps: Deps, grant: SpendGrant) => (deps.costs ?? []).
  * accept and a job without an OIDC token are configuration errors: `LedgerStopped`, whatever
  * `ledger_unavailable` says. A ledger that cannot be reached lets the run go on under its normal
  * budgets (`unreached`), or stops it with `LedgerStopped` when `ledger_unavailable` is `stop`.
+ * Outside GitHub Actions (`GITHUB_ACTIONS` is not `true`) nothing is asked: the run goes on and a
+ * line says so.
  */
 export function spendReserve(deps: Deps, repo: string, pr: number, headSha: string, wantedUsd: number, forced: boolean): SpendGrant {
   const { config } = deps;
   const open = { reservationId: null, roomUsd: Number.POSITIVE_INFINITY, costsFrom: deps.costs?.length ?? 0, trigger: config.trigger ?? "cli", pr };
   if (!config.ledgerUrl) return { kind: "none", ...open };
+  // Laptop runs are not counted against the limit: `WACHIMAN_LEDGER_URL` there is the read side's
+  // setting (`wachiman ledger`), not a request to reserve. Only a GitHub Actions job reserves.
+  if ((deps.ledgerEnv ?? process.env).GITHUB_ACTIONS !== "true") {
+    if (!skippedLedger.has(deps)) {
+      skippedLedger.add(deps);
+      deps.warn("The spend ledger is skipped: this is not a GitHub Actions run, and laptop runs are not counted against the limit.");
+    }
+    return { kind: "none", ...open };
+  }
   if (config.limitBypass) {
     deps.log("ledger bypassed");
     ledgerNote(deps, "The spend limit was bypassed for this run (`limit_bypass`); nothing was reserved or recorded.");
@@ -2673,9 +2743,9 @@ function grantTooSmall(deps: Deps, grant: SpendGrant, what: string): boolean {
 }
 
 /** Runs a paid step; if it throws, the ledger still hears what the calls so far cost, then the error goes on. */
-function settledOnError<T>(deps: Deps, grant: SpendGrant, run: () => T): T {
+async function settledOnError<T>(deps: Deps, grant: SpendGrant, run: () => Promise<T>): Promise<T> {
   try {
-    return run();
+    return await run();
   } catch (error) {
     spendSettle(deps, grant, spentSince(deps, grant));
     throw error;
@@ -2860,12 +2930,12 @@ export function postReview(deps: Deps, repo: string, pr: number, headSha: string
  * Runs one call so that its failure does not end the review: the batches that did run still
  * post. A call that died without a result is counted at its cap, since what it spent is unknown.
  */
-export function attempt<T>(
-  run: () => T,
+export async function attempt<T>(
+  run: () => Promise<T> | T,
   capUsd: number,
-): { ok: true; value: T } | { ok: false; error: string; costUsd: number } {
+): Promise<{ ok: true; value: T } | { ok: false; error: string; costUsd: number }> {
   try {
-    return { ok: true, value: run() };
+    return { ok: true, value: await run() };
   } catch (error) {
     return { ok: false, error: String(error).slice(0, 300), costUsd: capUsd };
   }
@@ -2930,7 +3000,7 @@ export function reviewOptionsOf(config: EngineConfig, totalBudgetUsd: number, pr
  * checks, coverage, the one retry, budget arithmetic, merging, the confidence rule, dedupe, the
  * ADR notices, the anchors and the "not reached" skips are here. Posting is not.
  */
-export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: CoreDeps): ReviewResult {
+export async function reviewChange(input: ReviewInput, options: ReviewOptions, deps: CoreDeps): Promise<ReviewResult> {
   assertReviewInputFormat(input);
   const started = Date.now();
   // Every warning the core logs is also a notice of the result; `runProvider` appends one entry
@@ -2994,7 +3064,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   // is spent before the batches, so they cannot overspend the pull request's budget.
   const confidence = change.kind === "pull-request" ? options.confidence : undefined;
   const claimsStep = confidence
-    ? listClaims(core, options, context, Math.min(confidence.budgetUsd, batchTotal / 4))
+    ? await listClaims(core, options, context, Math.min(confidence.budgetUsd, batchTotal / 4))
     : undefined;
   if (claimsStep) {
     spent += claimsStep.costUsd;
@@ -3021,51 +3091,88 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
     else rejection ??= { kind: r.kind, text: r.text };
   };
 
-  batches.forEach((batch, i) => {
+  // Batches run side by side, at most `BATCH_CONCURRENCY` at a time, launched in risk order. Each
+  // one ends in its own outcome; the report, the parts and the file lists are put together in
+  // batch order afterwards, so the finish order does not decide them. Warnings and the cost rows
+  // are recorded as the calls end, and name their batch.
+  interface BatchOutcome {
+    report: BatchReport;
+    parts: { label: string; output: ReviewOutput }[];
+    notRun: string[];
+    rejectedFiles: string[];
+    budgetCut: string[];
+    usage: TokenUsage;
+    budgetError: boolean;
+    stopped?: "turns" | "timeout";
+    anyLimit: boolean;
+    /** What the provider refused or failed with, to be reported in batch order, not in finish order. */
+    rejections: NonNullable<BatchResult["rejection"]>[];
+  }
+  const outcomes: (BatchOutcome | undefined)[] = new Array(batches.length).fill(undefined);
+  // Money the batches in flight may still spend: what each reserved, until its cost is known.
+  const reserved = new Map<number, number>();
+  let inFlight = 0;
+  let fatal: { error: unknown } | undefined;
+  const waiters: (() => void)[] = [];
+  const changed = () => new Promise<void>((resolve) => waiters.push(resolve));
+  const notify = () => waiters.splice(0).forEach((resolve) => resolve());
+  const room = () => batchTotal - spent - [...reserved.values()].reduce((sum, usd) => sum + usd, 0);
+  /**
+   * Reserves `min(batchBudget, room)` for batch `id`, or says why it cannot run. While the room is
+   * below the minimum but money is reserved by batches in flight, it waits: what they do not spend
+   * comes back, and giving up now would skip a batch that a sequential run would have afforded.
+   */
+  const acquire = async (id: number, launching: boolean): Promise<{ usd: number } | { why: "rejected" | "budget" | "failed" }> => {
+    for (;;) {
+      if (fatal) return { why: "failed" };
+      if (rejection) return { why: "rejected" };
+      if (!launching || inFlight < BATCH_CONCURRENCY) {
+        const left = room();
+        if (left >= MIN_BATCH_USD) {
+          const usd = Math.min(batchBudget, left);
+          reserved.set(id, usd);
+          return { usd };
+        }
+        if (reserved.size === 0) return { why: "budget" };
+      }
+      await changed();
+    }
+  };
+
+  const runBatch = async (i: number, batch: Batch, firstBudget: number): Promise<BatchOutcome> => {
     const label = `Batch ${i + 1} of ${batches.length}`;
-    const remaining = () => batchTotal - spent;
-    if (rejection) {
-      rejectedFiles.push(...batch.files.map((f) => f.filename));
-      reports.push({
-        label,
-        files: batch.files.length,
-        lines: batch.lines,
-        maxRisk: batch.maxRisk,
-        status: "not run: provider rejected the call",
-        turns: 0,
-        costUsd: 0,
-      });
-      return;
-    }
-    if (remaining() < MIN_BATCH_USD) {
-      notRun.push(...batch.files.map((f) => f.filename));
-      reports.push({
-        label,
-        files: batch.files.length,
-        lines: batch.lines,
-        maxRisk: batch.maxRisk,
-        status: "not run: budget spent",
-        turns: 0,
-        costUsd: 0,
-      });
-      return;
-    }
-    const first = reviewBatchBackingOff(
+    const out: BatchOutcome = {
+      report: { label, files: batch.files.length, lines: batch.lines, maxRisk: batch.maxRisk, status: "", turns: 0, costUsd: 0 },
+      parts: [],
+      notRun: [],
+      rejectedFiles: [],
+      budgetCut: [],
+      usage: NO_USAGE,
+      budgetError: false,
+      anyLimit: false,
+      rejections: [],
+    };
+    core.log(`batch ${i + 1}/${batches.length}: started (${inFlight} of ${BATCH_CONCURRENCY} running, $${firstBudget.toFixed(2)} reserved)`);
+    const first = await reviewBatchBackingOff(
       core,
       options,
       context,
       batch.files,
       threadsByBatch[i],
       { index: i + 1, total: batches.length },
-      Math.min(batchBudget, remaining()),
+      firstBudget,
     );
+    // The reservation gives way to what the call really cost.
     spent += first.costUsd;
-    usage = addUsage(usage, first.usage);
+    reserved.delete(i);
+    notify();
+    out.usage = addUsage(out.usage, first.usage);
     noteRejection(first.rejection);
-    if (first.output) parts.push({ label, output: first.output });
-    if (first.budget) budgetError = true;
-    if (first.stopped) limitError = first.stopped;
-    if (first.budget || first.stopped) anyLimit = true;
+    if (first.rejection) out.rejections.push(first.rejection);
+    if (first.output) out.parts.push({ label, output: first.output });
+    if (first.budget) out.budgetError = true;
+    if (first.stopped) out.stopped = first.stopped;
+    if (first.budget || first.stopped) out.anyLimit = true;
     let status = first.output
       ? "reviewed"
       : first.budget
@@ -3082,53 +3189,127 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
     let turns = first.turns;
     let cost = first.costUsd;
 
-    // One retry with only the files the first pass left unaccounted for.
+    // One retry with only the files the first pass left unaccounted for, in the same slot.
     const gaps = batchGaps(batch.files, first.output);
     // After a wall-clock kill the same files would likely run into the same limit, and another
     // full timeout could exhaust the job's own limit: they are reported as not reviewed instead.
     // A refused call (no credit, bad key) would be refused again: no retry.
-    if (gaps.length > 0 && first.stopped !== "timeout" && !rejection && remaining() >= MIN_BATCH_USD) {
-      const retry = reviewBatchBackingOff(
+    // Only this batch's own refusal explains its gaps; another batch's refusal only stops new calls.
+    const ownRefusal = first.rejection !== undefined && first.rejection.kind !== "other";
+    const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal ? await acquire(i, false) : undefined;
+    if (gaps.length > 0 && grant && "usd" in grant) {
+      const retry = await reviewBatchBackingOff(
         core,
         options,
         context,
         gaps,
         [],
         { index: i + 1, total: batches.length, retry: true },
-        Math.min(batchBudget, remaining()),
+        grant.usd,
       );
       spent += retry.costUsd;
-      usage = addUsage(usage, retry.usage);
+      reserved.delete(i);
+      notify();
+      out.usage = addUsage(out.usage, retry.usage);
       turns += retry.turns;
       cost += retry.costUsd;
       noteRejection(retry.rejection);
-      if (retry.budget || retry.stopped) anyLimit = true;
-      if (retry.output) parts.push({ label: `${label}, retry`, output: retry.output });
+      if (retry.rejection) out.rejections.push(retry.rejection);
+      if (retry.budget || retry.stopped) out.anyLimit = true;
+      if (retry.output) out.parts.push({ label: `${label}, retry`, output: retry.output });
       const left = batchGaps(gaps, retry.output);
-      if (retry.rejection && retry.rejection.kind !== "other") rejectedFiles.push(...left.map((f) => f.filename));
-      else if (retry.budget) budgetCut.push(...left.map((f) => f.filename));
+      if (retry.rejection && retry.rejection.kind !== "other") out.rejectedFiles.push(...left.map((f) => f.filename));
+      else if (retry.budget) out.budgetCut.push(...left.map((f) => f.filename));
       status =
         left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
     } else if (gaps.length > 0) {
-      status = rejection
+      // The files are blamed on a refusal when this batch's own call was refused, or when another
+      // batch's refusal stopped the retry of a call that had no cause of its own (a budget or a limit).
+      const refused =
+        ownRefusal ||
+        (grant !== undefined && "why" in grant && grant.why === "rejected" && !first.budget && !first.stopped);
+      status = refused
         ? `${gaps.length} file(s) left: the provider rejected the call`
         : first.stopped === "timeout"
           ? `${gaps.length} file(s) left: the call timed out`
           : `${gaps.length} file(s) left: budget spent`;
       // A refused call or a spent budget is not the files' doing; a timeout may be, so it stays unexplained.
-      if (rejection) rejectedFiles.push(...gaps.map((f) => f.filename));
-      else if (first.stopped !== "timeout") budgetCut.push(...gaps.map((f) => f.filename));
+      if (refused) out.rejectedFiles.push(...gaps.map((f) => f.filename));
+      else if (first.stopped !== "timeout") out.budgetCut.push(...gaps.map((f) => f.filename));
     }
-    reports.push({
-      label,
-      files: batch.files.length,
-      lines: batch.lines,
-      maxRisk: batch.maxRisk,
-      status,
-      turns,
-      costUsd: cost,
+    out.report = { ...out.report, status, turns, costUsd: cost };
+    return out;
+  };
+
+  const running = new Set<Promise<void>>();
+  for (const [i, batch] of batches.entries()) {
+    const label = `Batch ${i + 1} of ${batches.length}`;
+    const skipped = (status: string, files: string[]): BatchOutcome => ({
+      report: { label, files: batch.files.length, lines: batch.lines, maxRisk: batch.maxRisk, status, turns: 0, costUsd: 0 },
+      parts: [],
+      notRun: status === "not run: budget spent" ? files : [],
+      rejectedFiles: status === "not run: budget spent" ? [] : files,
+      budgetCut: [],
+      usage: NO_USAGE,
+      budgetError: false,
+      anyLimit: false,
+      rejections: [],
     });
-  });
+    const granted = await acquire(i, true);
+    if ("why" in granted) {
+      if (granted.why === "failed") break;
+      const files = batch.files.map((f) => f.filename);
+      outcomes[i] =
+        granted.why === "rejected"
+          ? skipped("not run: provider rejected the call", files)
+          : skipped("not run: budget spent", files);
+      continue;
+    }
+    // A batch that threw while this one waited for its slot: give the money back and start nothing.
+    if (fatal) {
+      reserved.delete(i);
+      break;
+    }
+    inFlight++;
+    const task: Promise<void> = runBatch(i, batch, granted.usd)
+      .then(
+        (outcome) => void (outcomes[i] = outcome),
+        (error) => void (fatal ??= { error }),
+      )
+      .finally(() => {
+        inFlight--;
+        reserved.delete(i);
+        running.delete(task);
+        notify();
+      });
+    running.add(task);
+  }
+  await Promise.all(running);
+  // A batch that threw (not a failed call: those are outcomes) ends the review as it always did,
+  // after the ones in flight finished and were counted.
+  if (fatal) throw fatal.error;
+
+  // In batch order, whatever order they finished in. The refusal that stopped new batches was noted
+  // as it came; the one that is reported is the first in batch order, as in a sequential run.
+  rejection = undefined;
+  otherError = undefined;
+  for (const outcome of outcomes) {
+    if (!outcome) continue;
+    outcome.rejections.forEach(noteRejection);
+    reports.push(outcome.report);
+    parts.push(...outcome.parts);
+    notRun.push(...outcome.notRun);
+    rejectedFiles.push(...outcome.rejectedFiles);
+    budgetCut.push(...outcome.budgetCut);
+    usage = addUsage(usage, outcome.usage);
+    if (outcome.budgetError) budgetError = true;
+    if (outcome.stopped) limitError = outcome.stopped;
+    if (outcome.anyLimit) anyLimit = true;
+  }
+
+  // Set by the callbacks above, which the compiler does not follow.
+  const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
+  const other = otherError as string | undefined;
 
   const merged: ReviewOutput =
     parts.length > 0
@@ -3152,7 +3333,7 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   let verification: ResultVerificationV2 | undefined;
   let checked: VerifiedFinding[];
   if (options.verify && parts.length > 0) {
-    const verified = verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0), rejection?.text);
+    const verified = await verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0), refused?.text);
     spent += verified.record.costUsd;
     usage = addUsage(usage, verified.usage);
     checked = verified.findings;
@@ -3181,9 +3362,6 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
   const known = new Set(threads.map((t) => t.comment_id));
   const threadReplies = merged.thread_replies.filter((r) => known.has(r.comment_id));
 
-  // Assigned inside the loop's callbacks, which the compiler does not follow.
-  const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
-  const other = otherError as string | undefined;
   const firstRejection = refused ?? (other !== undefined ? { kind: "other" as const, text: other } : undefined);
   // In today's precedence: a refused account stops everything; a review with output, or nothing
   // to review, is complete (coverage says whether it is partial); otherwise the limit that ended
@@ -3296,12 +3474,12 @@ export function reviewChange(input: ReviewInput, options: ReviewOptions, deps: C
  * from the author's text alone (Wachiman's own block stripped). It fails closed: with no list the
  * review still runs, and the grade is `cannot say`. A call that cannot be afforded is not made.
  */
-function listClaims(
+async function listClaims(
   deps: CoreDeps,
   options: ReviewOptions,
   ctx: ReviewContext,
   budgetUsd: number,
-): { claims?: ProposedClaim[]; costUsd: number; usage: TokenUsage; budget: boolean; truncated: boolean } {
+): Promise<{ claims?: ProposedClaim[]; costUsd: number; usage: TokenUsage; budget: boolean; truncated: boolean }> {
   const input = claimsInput(ctx.meta.title ?? "", ctx.meta.body);
   const truncated = claimsTextTruncated(input);
   const none = { costUsd: 0, usage: NO_USAGE, budget: false, truncated };
@@ -3310,7 +3488,7 @@ function listClaims(
     return { ...none, budget: true };
   }
   const prompt = buildClaimsPrompt(input);
-  const call = attempt(
+  const call = await attempt(
     () => runProvider(deps, options, ctx.headDir, { operation: "review", label: "claims", ...ctx.costTags }, prompt, ctx.headDir, budgetUsd, CLAIMS_SCHEMA),
     budgetUsd,
   );
@@ -3356,7 +3534,7 @@ function verdictsOf(structured: unknown): VerifierVerdict[] | undefined {
  * `inconclusive` with the stop as their reason. Findings it left at low confidence go through the
  * confidence rule again.
  */
-function verifyFindings(
+async function verifyFindings(
   deps: CoreDeps,
   options: ReviewOptions & { verify: { model: string; budgetUsd: number } },
   ctx: ReviewContext,
@@ -3364,7 +3542,7 @@ function verifyFindings(
   files: ReviewFile[],
   budgetUsd: number,
   refused?: string,
-): { findings: VerifiedFinding[]; record: ResultVerificationV2; usage: TokenUsage } {
+): Promise<{ findings: VerifiedFinding[]; record: ResultVerificationV2; usage: TokenUsage }> {
   const verifier = deps.verifier ?? deps.provider;
   // Without its own adapter the call runs on the reviewer's, whose model and effort are fixed at construction.
   const ran = deps.verifier ? { model: options.verify.model, effort: "high" } : { model: options.model, effort: options.effort };
@@ -3405,7 +3583,7 @@ function verifyFindings(
     const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files });
     dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
     const runDir = dir;
-    const call = attempt(
+    const call = await attempt(
       () =>
         runProvider(
           { ...deps, provider: verifier },
@@ -3570,7 +3748,7 @@ export function githubReview(
 }
 
 /** `force` (`--force`) counts only for the operator's own run, never an automatic trigger. */
-export function review(deps: Deps, repo: string, pr: number, words: string[], force = false) {
+export async function review(deps: Deps, repo: string, pr: number, words: string[], force = false) {
   const { gh, config } = deps;
   const meta = JSON.parse(
     gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,title,body,author"]),
@@ -3586,7 +3764,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[], fo
   );
   if (ignored.length > 0)
     deps.log(`Not paths in this pull request, ignored: ${ignored.join(" ")}`);
-  // A dry run may ask for the whole pull request again (AGENT_REVIEW_FULL_REVIEW): no marker read.
+  // A dry run may ask for the whole pull request again (WACHIMAN_FULL_REVIEW): no marker read.
   const state = config.fullReview ? null : lastReviewState(gh, repo, pr);
   const last = state?.sha ?? null;
   // What the last review did not reach (ADR 0036), by name. Only an unscoped run carries it over: a
@@ -3812,7 +3990,7 @@ export function review(deps: Deps, repo: string, pr: number, words: string[], fo
     ...reviewOptionsOf(config, totalBudget),
     ...(config.confidence && fullReview ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
   };
-  const result = settledOnError(deps, grant, () => reviewChange(input, options, deps));
+  const result = await settledOnError(deps, grant, () => reviewChange(input, options, deps));
   const { usage, costUsdEstimate: spent } = result.execution;
   const operation: Operation = since ? "re-review" : "review";
   const receiptLine = spendSettle(deps, grant, spent) ?? undefined;
@@ -4038,7 +4216,7 @@ Answer every thread once. Answer no thread that is not in the file.`;
  * It is an automatic run: it counts against the pull request's ceiling. It follows ADR 0008: it
  * reports, it never resolves.
  */
-export function threadReplies(deps: Deps, repo: string, pr: number, author?: string) {
+export async function threadReplies(deps: Deps, repo: string, pr: number, author?: string) {
   const { gh, config } = deps;
   // As in `comment`: before anything is read, so a stranger's reply on a public repository (or a
   // placeholder operator) starts no paid step. The workflow's `if:` checks the same login.
@@ -4083,7 +4261,7 @@ export function threadReplies(deps: Deps, repo: string, pr: number, author?: str
   const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.threadsBudgetUsd, ceiling.room), false);
   const budgetUsd = Math.min(config.threadsBudgetUsd, ceiling.room, grant.roomUsd);
   if (grantTooSmall(deps, grant, "thread replies")) return;
-  const call = settledOnError(deps, grant, () =>
+  const call = await settledOnError(deps, grant, () =>
     runProvider(
       deps,
       config,
@@ -4401,8 +4579,8 @@ function gatherEvidence(deps: CoreDeps, headDir: string, files: ReviewFile[], di
 type CallLimits = Pick<EngineConfig, "maxTurns" | "callTimeoutS" | "model" | "trigger">;
 
 /** One provider call over one batch, with the batch's diff inside the prompt. */
-function reviewBatch(
-  deps: CoreDeps,
+async function reviewBatch(
+  core: CoreDeps,
   limits: CallLimits,
   ctx: ReviewContext,
   files: ReviewFile[],
@@ -4410,7 +4588,9 @@ function reviewBatch(
   part: { index: number; total: number; retry?: boolean },
   budgetUsd: number,
 ) {
-  const dir = mkdtempSync(join(tmpdir(), "agent-review-"));
+  // Batches run side by side, so every line this one prints names it.
+  const deps = attributed(core, part);
+  const dir = mkdtempSync(join(tmpdir(), "wachiman-review-"));
   // The run dir holds the change's text (title, body, threads, evidence): removed once the call
   // is over, whatever happened. Nothing reads it after the provider returns.
   try {
@@ -4440,7 +4620,7 @@ function reviewBatch(
     );
 
     const label = `batch ${part.index}/${part.total}${part.retry ? " retry" : ""}`;
-    const call = attempt(
+    const call = await attempt(
       () =>
         runProvider(
           deps,
@@ -4491,17 +4671,33 @@ function reviewBatch(
 /** Where a rate-limited call waits before its one retry, in ms. Overridable through `Deps` so tests do not sleep. */
 const RATE_LIMIT_BACKOFF_MS = 20_000;
 
-type BatchResult = ReturnType<typeof reviewBatch>;
+type BatchResult = Awaited<ReturnType<typeof reviewBatch>>;
+
+/**
+ * `core` whose log and warning lines each name the batch that printed them (`batch 2/7: ...`),
+ * unless the line already does (the call summary and the cost line carry the label themselves).
+ */
+function attributed(core: CoreDeps, part: { index: number; total: number }): CoreDeps {
+  const mentions = new RegExp(`\\b(batch ${part.index}/${part.total}|batch ${part.index} of ${part.total}|part ${part.index} of ${part.total})\\b`, "i");
+  const tag = (line: string) => (mentions.test(line) ? line : `batch ${part.index}/${part.total}: ${line}`);
+  return { ...core, log: (line) => core.log(tag(line)), warn: (line) => core.warn(tag(line)) };
+}
+
+/** Waits `ms` without blocking the other batches. A test's own `sleep` replaces the wait. */
+async function pause(deps: CoreDeps, ms: number) {
+  if (deps.sleep) deps.sleep(ms);
+  else await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
 
 /** `reviewBatch`, with one retry of the same batch after a backoff when the API rate-limited the call. */
-function reviewBatchBackingOff(...args: Parameters<typeof reviewBatch>): BatchResult {
+async function reviewBatchBackingOff(...args: Parameters<typeof reviewBatch>): Promise<BatchResult> {
   const [deps, , , , , part] = args;
-  const first = reviewBatch(...args);
+  const first = await reviewBatch(...args);
   if (first.rejection?.kind !== "rate_limit") return first;
   const wait = deps.rateLimitBackoffMs ?? RATE_LIMIT_BACKOFF_MS;
   deps.warn(`Batch ${part.index} of ${part.total} was rate-limited; retrying once in ${wait / 1000} s.`);
-  (deps.sleep ?? blockingSleep)(wait);
-  const again = reviewBatch(...args);
+  await pause(deps, wait);
+  const again = await reviewBatch(...args);
   return {
     ...again,
     turns: first.turns + again.turns,
@@ -4511,7 +4707,7 @@ function reviewBatchBackingOff(...args: Parameters<typeof reviewBatch>): BatchRe
 }
 
 /** The prompt goes through stdin: a batch's diff in an argument would hit Linux's 128 KB limit. */
-export function runProvider(
+export async function runProvider(
   deps: CoreDeps,
   limits: CallLimits,
   cwd: string,
@@ -4524,9 +4720,9 @@ export function runProvider(
   extraDirs: string[] = [],
 ) {
   const started = Date.now();
-  let result: ReturnType<ProviderAdapter["run"]>;
+  let result: Awaited<ReturnType<ProviderAdapter["run"]>>;
   try {
-    result = deps.provider.run({
+    result = await deps.provider.run({
       prompt,
       cwd,
       addDirs: [dir, ...extraDirs],
@@ -4560,6 +4756,7 @@ export function runProvider(
   if (result.costKnown === false) result = { ...result, costUsd: budgetUsd };
   deps.log(
     JSON.stringify({
+      label: what.label,
       is_error: result.isError,
       terminal_reason: result.terminalReason,
       turns: result.turns,
@@ -4703,7 +4900,7 @@ function postAnswer(deps: Deps, repo: string, pr: number, body: string, line?: R
  * For someone but the operator, the answer is marked with its cost (`readAskCost`), and a call that
  * fails still posts a note with its cost, so the question ceiling counts what was spent.
  */
-export function answer(deps: Deps, repo: string, pr: number, question: string, options: AnswerOptions = {}) {
+export async function answer(deps: Deps, repo: string, pr: number, question: string, options: AnswerOptions = {}) {
   const { asker, line } = options;
   const dir = mkdtempSync(join(tmpdir(), "agent-answer-"));
   const meta = deps.gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,files,headRefOid"]);
@@ -4740,10 +4937,10 @@ export function answer(deps: Deps, repo: string, pr: number, question: string, o
     else postAnswer(deps, repo, pr, body, line);
     return;
   }
-  let result: ReturnType<typeof runProvider> | undefined;
+  let result: Awaited<ReturnType<typeof runProvider>> | undefined;
   let failure = "";
   try {
-    result = runProvider(
+    result = await runProvider(
       deps,
       deps.config,
       cwd,
@@ -4834,7 +5031,7 @@ function postAskLimit(deps: Deps, repo: string, pr: number, spent: number) {
  * write access, and while the pull request's question ceiling has room (ADR 0032 decision 9).
  * An empty or placeholder operator is an error.
  */
-export function comment(deps: Deps, repo: string, pr: number, request: string, author?: string, line?: ReviewLineComment) {
+export async function comment(deps: Deps, repo: string, pr: number, request: string, author?: string, line?: ReviewLineComment) {
   const { operator, askers } = deps.config;
   // Before anything else: an unset or placeholder operator would let a stranger who registered
   // that login command the tool.
@@ -4849,9 +5046,9 @@ export function comment(deps: Deps, repo: string, pr: number, request: string, a
     if (command?.kind === "review") {
       // With no ledger `--force` means nothing: it stays a word that names no file, as it always did.
       const words = deps.config.ledgerUrl ? command.paths.filter((w) => w !== "--force") : command.paths;
-      review(deps, repo, pr, words, command.force);
+      await review(deps, repo, pr, words, command.force);
     }
-    else if (command) answer(deps, repo, pr, request, { line });
+    else if (command) await answer(deps, repo, pr, request, { line });
     return;
   }
   if (askers !== "write") {
@@ -4859,7 +5056,7 @@ export function comment(deps: Deps, repo: string, pr: number, request: string, a
     return;
   }
   if (author === undefined) {
-    throw new Error("askers is write, but the caller did not say who wrote the comment (AGENT_REVIEW_COMMENT_AUTHOR); not answering.");
+    throw new Error("askers is write, but the caller did not say who wrote the comment (WACHIMAN_COMMENT_AUTHOR); not answering.");
   }
   if (command?.kind !== "answer") {
     deps.warn(`Comment by ${author} is not a question; only the operator starts a review. Nothing to do.`);
@@ -4877,5 +5074,5 @@ export function comment(deps: Deps, repo: string, pr: number, request: string, a
     if (!ledger.latestIsLimit) postAskLimit(deps, repo, pr, ledger.spent);
     return;
   }
-  answer(deps, repo, pr, request, { asker: author, line });
+  await answer(deps, repo, pr, request, { asker: author, line });
 }

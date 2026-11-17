@@ -66,11 +66,9 @@ release commit. That never makes an unreleased version a tag: the tag `vX.Y.Z` i
 same merge that lands the bump. Every other place that names a version is updated by hand (see
 the checklist below).
 
-Renaming `package-name` to `wachiman` changes release-please's branch component (`release-please--branches--main--components--agent-review` becomes `...--wachiman`): merge or close any open release PR before merging this change.
-
 ## Publishing to npm
 
-The package is `wachiman` (`agent-review` is a second command name, not a second package). The
+The package is `wachiman`. The
 `verify` and `publish` jobs live in `release-please.yml` itself and run only when that run created
 a release (`release_created`). They are in the same file because a workflow cannot `needs:` a job
 of another file, and because a tag created with `GITHUB_TOKEN` does not start a workflow on

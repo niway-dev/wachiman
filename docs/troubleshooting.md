@@ -46,7 +46,7 @@ spent on calls that finished before it.
 | `Wachiman review` skipped: the pull request is from a fork | The job requires the head repository to equal your repository. Forks are skipped on purpose. See [Fork pull requests](#fork-pull-requests). | See that section. |
 | `Wachiman review` skipped: the actor is `dependabot[bot]` | Dependabot pull requests are skipped so they cost nothing. | Comment `/wachiman review` if you want one reviewed. The comment path has no Dependabot check. |
 | `Wachiman review` is green, the later steps are skipped, and the log says `Branch <name> matches skipped prefix <prefix>; not reviewing.` | The head branch starts with one of `skip_branch_prefixes` (default `release-please--`). The prefix list applies to the automatic job only. | Change `skip_branch_prefixes`, or comment `/wachiman review`. |
-| `Wachiman on demand` skipped on a comment | One of the gate conditions failed: the comment is on an issue and not a pull request, the author is not `operator`, or the body contains none of the mention, `@agent-review` or `@claude`. | See [My command did nothing](#my-command-did-nothing). |
+| `Wachiman on demand` skipped on a comment | One of the gate conditions failed: the comment is on an issue and not a pull request, the author is not `operator`, or the body contains none of the mention, `/wachi` or `@claude`. | See [My command did nothing](#my-command-did-nothing). |
 | Your first `/wachiman review` does nothing in the pull request that installed the workflow | GitHub runs `issue_comment` workflows from the default branch, which has no caller file yet. | Merge first. Only the automatic review runs in the installing pull request. |
 
 ## My command did nothing
@@ -61,12 +61,12 @@ skips the job without a message. The engine compares the login without regard to
 starts and the author differs, the engine prints `Comment by <author>, not the operator <operator>; nothing to do.` and exits 0.
 
 **2. The workflow gate.** The job starts when the comment body contains your `mention` (default
-`/wachiman`), `/wachi`, `@agent-review` or `@claude`, anywhere in the text.
+`/wachiman`), `/wachi` or `@claude`, anywhere in the text.
 
 - `/wachi` is the short command of releases before ADR 0023. It is still accepted, so a habit or an
   old comment keeps working, but nothing documents it any more.
-- `/wachiman`, `/wachi`, `@agent-review` and `@claude` start a job whatever `mention` is, and the
-  parser reads all four. With a custom `mention` such as `/reviewbot`, both it and `/wachiman`
+- `/wachiman`, `/wachi` and `@claude` start a job whatever `mention` is, and the
+  parser reads all three. With a custom `mention` such as `/reviewbot`, both it and `/wachiman`
   work.
 
 **3. The parser.** Once the job runs, the engine finds the first occurrence of the command in the
@@ -108,7 +108,7 @@ them.
 > Nothing to review at `abc1234`: the N changed file(s) are all lockfiles, build output or generated, or outside the requested paths.
 
 The built-in exclude list (lockfiles, build output, generated files) removed every file, or your
-paths matched only excluded files. `AGENT_REVIEW_EXCLUDE` adds patterns where it can be set. See [configuration.md](configuration.md).
+paths matched only excluded files. `WACHIMAN_EXCLUDE` adds patterns where it can be set. See [configuration.md](configuration.md).
 
 **7. A reply in a review thread got no answer.** Check, in this order: (a) your caller lists
 `pull_request_review_comment: { types: [created] }` (a caller written before ADR 0012 does not, and
@@ -249,7 +249,7 @@ download or something worse, and this page cannot tell which. See
 
 The first line of the review reads, after the brand:
 
-> Partial review: the agent reviewed X of Y files of the whole pull request, at `abc1234`. Not reviewed: ... Ask `/wachiman review <paths>` for the rest.
+> Partial review: reviewed X of Y files of the whole pull request, at `abc1234`. Not reviewed: ... Ask `/wachiman review <paths>` for the rest.
 
 Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 
@@ -261,7 +261,7 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | `N file(s) left: budget spent` | Files were left out and less than 0.05 USD remained for a retry. |
 | `N file(s) left: the call timed out` | The call was killed at `call_timeout_s` and is not retried. Raise `call_timeout_s` (keep it under the 30 minute job limit) or lower `batch_lines`. |
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
-| `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log of that call has a readable line (`❌ batch 1/1: the Anthropic API refused the call: the account has no credit…`) next to a JSON line with `error_class` and `error`. Fix the account, then re-run. |
+| `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log of that call has a readable line (`❌ batch 1/1: the Anthropic API refused the call: the account has no credit…`) next to a JSON line with `error_class` and `error`. Batches that were already running when the call was refused finish; none starts after it. Fix the account, then re-run. |
 
 If **no** batch produced a review because the provider refused the calls, the job posts one notice ("Not reviewed: the reviewer's Anthropic account has no credit", "...API key was rejected" or "...kept rate-limiting the reviewer"; on a subscription token, the notices of the section above) with the provider's message quoted, and the check passes. Set `on_provider_unavailable: fail` to make it fail instead. A failed check blocks a merge only when the repository's branch rules require `Wachiman review`; otherwise it is only a red mark. The classification matches the CLI's error text against a short list of phrases (`src/providers/errors.ts`). Only the no-credit message (`Credit balance is too low`) is confirmed against a live run; the others are from memory of Anthropic's messages; an error it does not recognise is `other` and always fails the job, with the text in the error message.
 
@@ -335,7 +335,9 @@ posted and the job is red. Narrow the question, or raise `answer_budget_usd`.
 
 ## The spend ledger
 
-These apply only when `ledger_url` is set ([costs.md](costs.md#the-spend-limit)).
+These apply only when `ledger_url` is set ([costs.md](costs.md#the-spend-limit)). If you run the
+ledger yourself, [ledger-api.md](ledger-api.md) says which answer the engine reads as a refusal, as an
+outage and as "not a ledger".
 
 ### `Spend limit reached`
 
@@ -376,7 +378,7 @@ ledger's address and start with `https://`. Exit code 3. If the audience is wron
 ledger answers `unauthorized`: `ledger_url` without trailing slashes must equal the service's
 `LEDGER_AUDIENCE` exactly.
 
-### `AGENT_REVIEW_LEDGER_URL must start with https://`
+### `WACHIMAN_LEDGER_URL must start with https://`
 
 A usage error (exit code 2): the job's OIDC token is sent to that address, so a cleartext URL is
 refused. Use an `https://` address (`http://localhost` and `http://127.0.0.1` are accepted for tests).
@@ -460,11 +462,11 @@ in the body instead of on their lines. The job is green.
 
 ### Other warnings
 
-- `.github/agent-review.md is deprecated; rename it to .github/wachiman.md.` (or the same for
-  `.github/claude-review.md`) The old focus file is read only when the new one is missing.
+- `.github/claude-review.md is deprecated; rename it to .github/wachiman.md.` The old focus file is
+  read only when the new one is missing.
 - `<path> at the base commit is over 64 KB: cut.` An instruction file is longer than 64 KiB, and
   the review sees only the first part, with a notice. See [review-policy.md](review-policy.md).
-- `CLAUDE_REVIEW_<NAME> is deprecated; use AGENT_REVIEW_<NAME>.` An old variable name still works.
+- `CLAUDE_REVIEW_<NAME> is deprecated; use WACHIMAN_<NAME>.` An old variable name still works.
   See [upgrading.md](upgrading.md).
 
 ## The job is red but a review is there
@@ -486,10 +488,10 @@ The canonical table is in [cli.md](cli.md). What each code means when you read a
 | --- | --- | --- |
 | 0 | A review or an answer was posted, or there was nothing to do: not a command, not the operator, `Already reviewed`, `Nothing to review`, an all-budget `ran out of its budget` comment. | Green does not mean a review exists. |
 | 1 | An engine error: missing key or binary, a failed `gh` call, `The agent did not return a review for any batch.`, the credential-shaped output refusal, a failed answer. | Not always "nothing posted": see above. |
-| 2 | A usage error: unknown command, bad pull request number, a missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting such as `AGENT_REVIEW_BUDGET_USD must be a positive number, got "0".`, or an unknown provider. | Printed with the usage text. |
+| 2 | A usage error: unknown command, bad pull request number, a missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting such as `WACHIMAN_BUDGET_USD must be a positive number, got "0".`, or an unknown provider. | One line on stderr, then `Run 'wachiman <command> --help'.` |
 | 3 | The spend ledger stopped the run before any model call: a limit with `limit_mode: fail`, a repository the ledger does not know, a rejected identity token, a job without `id-token: write` while `ledger_url` is set, or an unreachable ledger with `ledger_unavailable: stop`. | See [The spend ledger](#the-spend-ledger). A limit with `limit_mode: notice` exits 0. |
 
-One setting breaks that pattern: a malformed `AGENT_REVIEW_PRICE_PER_MTOK` (the Codex price override)
+One setting breaks that pattern: a malformed `WACHIMAN_PRICE_PER_MTOK` (the Codex price override)
 exits 1, not 2. That setting is available only in the CLI.
 
 ## Codex and the reusable workflow
@@ -500,7 +502,7 @@ work: the workflow never installs Codex and never passes `OPENAI_API_KEY`. If yo
 `provider: codex` and leave the default `model`, you get this first:
 
 ```text
-wachiman: No price is known for model "claude-sonnet-5-5". Set AGENT_REVIEW_PRICE_PER_MTOK="input,cached_input,output" (USD per million tokens).
+wachiman: No price is known for model "claude-sonnet-5-5". Set WACHIMAN_PRICE_PER_MTOK="input,cached_input,output" (USD per million tokens).
 ```
 
 That message is correct but misleading here. Setting a price does not fix it. The Codex adapter is
@@ -509,7 +511,7 @@ available from the command line only; see [providers/codex.md](providers/codex.m
 
 ## Cancelled and timed-out runs
 
-- Each job has a 30-minute limit. Batches run one after another, and the review is posted only
+- Each job has a 30-minute limit. Up to four batches run at once, and the review is posted only
   after the last one, so a timeout or a cancellation during the batches posts nothing, and the
   calls that finished were paid. Cancellation before posting leaves no review; cancellation after
   posting may leave the review and some replies, because the thread replies are separate requests

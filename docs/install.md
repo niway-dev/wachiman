@@ -193,9 +193,8 @@ Only the operator's comments count, unless `askers` allows collaborators to ask 
 | `/wachiman` followed by a question | Answers it as one pull request comment. One model call over the diff and the latest review, capped by `answer_budget_usd`. Each file and line reference it makes is checked against the head and linked there. |
 | `/wachiman` alone, or `/wachiman explain` | Explains the change in five fixed sections (what it does, how it is built, what it connects to, open findings, what was not covered). One model call, same cap. |
 
-The command word is the workflow's `mention` input, `/wachiman` by default. The older `/wachi`,
-`@agent-review` and `@claude` still work, so a caller or a habit from before the naming release
-keeps answering. Comment requests need the caller file on the repository's
+The command word is the workflow's `mention` input, `/wachiman` by default. `/wachi` and
+`@claude` also work. Comment requests need the caller file on the repository's
 default branch, because GitHub runs `issue_comment` workflows from there. They work on any open
 pull request from then on, including ones opened earlier.
 
@@ -324,6 +323,11 @@ in one place and without the slash in the other.
 `templates/wachiman-review-caller.yml` carries the same block as a comment. The token is used only
 to authenticate to the ledger; the agent that reads your code never sees it.
 
+The ledger itself is a service, not part of this repository: the hosted ledger's source is not
+published here. What the engine sends it and what it must answer is the contract in
+[ledger-api.md](ledger-api.md). To run a ledger of your own, implement that contract and point
+`ledger_url` at it.
+
 ## Optional: a focus file
 
 Add `.github/wachiman.md` to say what this repository's reviews should look at beyond the
@@ -345,6 +349,10 @@ soft client-side cap, so it can be exceeded ([costs.md](costs.md)).
 
 Releases do not reach your repository by themselves. You change the pin, or you ask a tool to
 propose the change.
+
+- **`wachiman upgrade` changes it on your machine.** It updates the CLI, then rewrites the pin in
+  `.github/workflows` to that release and prints the commit commands; `wachiman upgrade --repo-only` rewrites the
+  pin to the version you already have installed. Nothing is committed for you. See [`upgrade`](cli.md#upgrade).
 
 - **Dependabot is optional, and you turn it on.** Nothing in this repository enables it for
   you. With it enabled for GitHub Actions, it opens a pull request for each new release that

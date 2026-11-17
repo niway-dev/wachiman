@@ -14,8 +14,7 @@ the budgets or the engine's rules.
 | File | Read from | Notes |
 | --- | --- | --- |
 | `.github/wachiman.md` | the base commit | The focus file: what this repository's reviews should look at. Read first. |
-| `.github/agent-review.md` | the base commit | The name before the naming release. Read only when `.github/wachiman.md` does not exist there; the job log says to rename it. |
-| `.github/claude-review.md` | the base commit | The oldest name. Read only when neither file above exists there; the job log says to rename it. |
+| `.github/claude-review.md` | the base commit | The old name. Read only when `.github/wachiman.md` does not exist there; the job log says to rename it. |
 | `CLAUDE.md` | the base commit | Repository root only. |
 | `AGENTS.md` | the base commit | Repository root only. |
 
@@ -170,7 +169,7 @@ which instruction files it read.
   [issue #5](https://github.com/niway-dev/wachiman/issues/5).
 - **Risk order and excluded files are not set here.** Which files are read first, and which are
   dropped (lockfiles, build output, generated files), are fixed in the engine. The reusable
-  workflow has no input for either. `AGENT_REVIEW_EXCLUDE` adds exclusions only in the
+  workflow has no input for either. `WACHIMAN_EXCLUDE` adds exclusions only in the
   copy-the-files install; see [configuration.md](configuration.md) and
   [setup-copy.md](setup-copy.md).
 - **Budgets, the size gate and batch sizes come from the workflow, never from these files.** These instruction

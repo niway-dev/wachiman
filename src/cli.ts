@@ -16,6 +16,7 @@
  *                                       call, no GitHub request, grounded in the stored review (src/local-ask.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
  *   wachiman status                 what the local history kept and its estimated cost; files only
+ *   wachiman ledger connect|disconnect|pull  connect to the spend ledger and download its entries (src/ledger-read/)
  *   wachiman dashboard              spend, findings and loops across every repository in the history, as one
  *                                       static HTML file or JSON, from a rebuildable index (src/store/)
  *   wachiman setup [--profile <name>] bind this repository to an account profile (home config only);
@@ -24,7 +25,10 @@
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
+ *   wachiman upgrade [--check]     update the CLI, then the workflow pin in this repository (src/upgrade/)
  *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
+ *   wachiman pr-template show|install|status|check|format|risk|strip  the PR description template: install it,
+ *                                       report its state, check and reorder a description, and compute the risk floor
  *   wachiman --setup-profile [name] sign in an isolated Claude Code profile under the Wachiman home
  *
  * Exit codes: 0 posted or nothing to do; 1 engine error (nothing posted); 2 usage error; 3 the spend
@@ -37,126 +41,35 @@ import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
-import { historyUsage, parseHistoryArgs, runHistory } from "./history/command";
-import { parseStatusArgs, runStatus, statusUsage } from "./status/command";
-import { dashboardUsage, parseDashboardArgs, runDashboard } from "./store/command";
-import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, type Deps, type GhFn, type ReviewLineComment } from "./engine";
-import { localUsage, parseLocalArgs, runLocal } from "./local";
-import { loopUsage, parseLoopArgs, runLoop } from "./loop/command";
-import { askUsage, parseAskArgs, runAsk } from "./local-ask";
-import { parseProfileArgs, parseProjectArgs, profileUsage, projectUsage, runProfile, runProject, setupUsage } from "./accounts/commands";
+import { parseHistoryArgs, runHistory } from "./history/command";
+import { parseStatusArgs, runStatus } from "./status/command";
+import { parseDashboardArgs, runDashboard } from "./store/command";
+import { parseLedgerArgs, runLedger } from "./ledger-read/command";
+import { pullLedger } from "./ledger-read/pull";
+import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, withBaseSettings, type Deps, type GhFn, type ReviewLineComment } from "./engine";
+import { parseLocalArgs, runLocal } from "./local";
+import { parseLoopArgs, runLoop } from "./loop/command";
+import { parseAskArgs, runAsk } from "./local-ask";
+import { parseProfileArgs, parseProjectArgs, runProfile, runProject } from "./accounts/commands";
 import { wachimanHome } from "./accounts/config";
-import { parseSkillsArgs, runSkills, skillsUsage } from "./skills/install";
-import { doctorUsage, parseDoctorArgs, runDoctor } from "./doctor/run";
-import { initUsage, parseInitFlags } from "./init/args";
+import { parseSkillsArgs, runSkills } from "./skills/install";
+import { runPrTemplate } from "./pr-template/run";
+import { parseUpgradeArgs, runUpgrade } from "./upgrade/command";
+import { parseDoctorArgs, runDoctor } from "./doctor/run";
+import { parseInitFlags } from "./init/args";
+import { ghLogin } from "./init/github-login";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
-import { runInitCommand } from "./init/run";
 import { projectCommands } from "./wizard/command";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
+import { runInitCommand } from "./init/run";
 import { runSetupCommand } from "./setup/run";
-
-export const USAGE = `Usage:
-  wachiman review <pr> [paths…] [--repo-dir <dir>]   Review a pull request (or only the given paths)
-  wachiman comment <pr> [--repo-dir <dir>]           Handle the comment in $REQUEST (a review or an answer)
-  wachiman threads <pr> [--repo-dir <dir>]           Answer the pending Wachiman threads (an automatic run)
-  wachiman reset-confidence <pr> [--commit <sha>]    Write "cannot say" into the PR Confidence block (no model call;
-                                                     the first step of a review run, with AGENT_REVIEW_CONFIDENCE=1)
-  ${localUsage}
-                                                     Review the committed branch of a clone on your
-                                                     signed-in claude, and print it; nothing is posted.
-                                                     --commit: that one commit (<commit>^ → <commit>);
-                                                     --from: that commit forward (<commit>^ → HEAD)
-  ${loopUsage}
-                                                     One round of a review loop on your signed-in claude:
-                                                     --base starts it (round 1 reviews the whole range),
-                                                     a call with a loop open continues it and reviews only
-                                                     the commits since the last round. Fix, or judge a
-                                                     finding wrong with a reason, between calls; the CLI
-                                                     never edits code. Three rounds by default
-  ${askUsage}
-                                                     Answer a question about the change the scope flags
-                                                     select, or explain it when no question is given. One
-                                                     call on your signed-in claude; no GitHub request.
-                                                     Grounded in the stored review of this change when
-                                                     \`local --history\` kept one; never runs a review
-  ${historyUsage}
-                                                     List, judge and forget the findings kept by
-                                                     \`local --history\`; reads files and local git
-                                                     metadata only: no claude, no GitHub
-  ${statusUsage}
-                                                     What this laptop kept of its local runs and their
-                                                     estimated cost, filterable; uses local history. GitHub
-                                                     Actions runs are not counted
-  ${dashboardUsage}
-                                                     Write one static HTML page (or print JSON) with the
-                                                     spend per day and repository, the findings by severity
-                                                     and verdict and the loop rounds of every repository in
-                                                     the local history. Built from an index under the
-                                                     Wachiman home that is rebuilt whenever it is missing or
-                                                     out of date. It writes only that index and, without
-                                                     --json, the page, and, like \`wachiman history\`, moves
-                                                     a damaged run file aside. No claude, no GitHub, no
-                                                     network, no server, no browser. --repo-dir is accepted
-                                                     and unused
-  ${setupUsage}
-                                                     Bind this repository to an account profile; written
-                                                     in the Wachiman home, never in the repository. On a
-                                                     terminal without --profile it asks, and can register
-                                                     or create a profile; without a terminal --profile
-                                                     must name a profile that already exists
-  ${initUsage}
-                                                     Write the GitHub Actions caller workflow
-                                                     (.github/workflows/wachiman-review.yml), or, with
-                                                     --mode local, write nothing and hand over to setup.
-                                                     --dry-run prints the file; --force keeps a .bak copy
-  ${doctorUsage}
-                                                     Explain what a local run would use and what would
-                                                     fail; exit 1 when a required check fails
-  ${profileUsage.split("\n").join("\n  ")}
-                                                     Manage account profiles; a managed profile lives in
-                                                     ~/.wachiman/claude-<name>, an external one is your own
-                                                     Claude configuration directory, used in place
-  ${projectUsage.split("\n").join("\n  ")}
-  ${skillsUsage.split("\n").join("\n  ")}
-                                                     Copy the wachiman-review, wachiman-loop and wachiman-audit agent
-                                                     skills into ~/.agents/skills and each Claude Code
-                                                     config directory; uninstall removes only the copies
-                                                     it marked. Never touches ~/.wachiman
-  wachiman --setup-profile [<name>]                  Sign in an isolated profile, ~/.wachiman/claude-<name>
-                                                     (an alias of \`wachiman profile create\`)
-  wachiman --help | --version
-
-Options:
-  --repo-dir <dir>                   The checked-out pull request head: every file the engine reads
-                                     and the agent's working directory. Default: the current directory.
-                                     For \`local\`: the clone whose branch is reviewed.
-
-Environment:
-  GH_TOKEN, GITHUB_REPOSITORY        required (not read by \`local\`, \`ask\` or \`--setup-profile\`)
-  ANTHROPIC_API_KEY                  the claude-code provider needs this or CLAUDE_CODE_OAUTH_TOKEN
-                                     (not in a dry run); \`local\` and \`ask\` refuse to start when it is set
-  CLAUDE_CODE_OAUTH_TOKEN            a Claude subscription token (\`claude setup-token\`); if set, it is
-                                     used and ANTHROPIC_API_KEY never reaches the agent
-  REQUEST                            the comment text, for \`comment\`
-  AGENT_REVIEW_COMMENT_AUTHOR        the login of the comment's author, for \`comment\` and \`threads\`
-  AGENT_REVIEW_*                     optional settings; see docs/cli.md
-
-Exit codes: 0 posted or nothing to do, 1 engine error, 2 usage error, 3 the spend ledger stopped the run
-(a limit with \`limit_mode: fail\`, an unlinked repository, no OIDC token, or an unreachable ledger with
-\`ledger_unavailable: stop\`); with \`limit_mode: notice\` a limit exits 0.
-\`local\`: 0 a report was printed, 1 no call returned a review, 2 usage error, 130 interrupted.
-\`loop\`: 0 converged, 10 findings still open, 11 stopped without converging (round cap or review failed), 2 usage error, 130 interrupted. A stop is never an approval.
-\`ask\`: 0 an answer was printed (it may say what it could not answer), 1 no answer (the call failed or returned nothing usable), 2 usage error, 130 interrupted.
-\`history\`: 0 listed (or nothing to list), 2 usage error, including an unknown finding id.
-\`status\`: 0 printed (also with no run kept), 2 usage error.
-\`dashboard\`: 0 written or printed (also with no run kept), 2 usage error, 1 the index or the page could not be written.
-\`doctor\`: 0 every required check passed, 1 one failed. \`setup\`: 1 when its closing doctor summary failed.
-\`setup\`, \`init\`: 130 cancelled (Escape, Ctrl-C, Ctrl-D); nothing pending is saved.
-\`skills\`: 0 done (copies left in place are warned about), 1 a copy could not be written, 2 usage error or a refused target.
-Guide: docs/local-review.md`;
+import { commandHelp, helpFor, isCommand, rootHelp } from "./help";
+import { shouldLaunch } from "./wizard/interactive";
+import { isMissingPackage } from "./wizard/load";
+import { plain, type Paint } from "./wizard/tone";
 
 /** package.json sits one level above src/; in a copied layout it may belong to someone else. */
 export function readVersion(dir = import.meta.dir) {
@@ -164,7 +77,7 @@ export function readVersion(dir = import.meta.dir) {
     const path = join(dir, "..", "package.json");
     if (!existsSync(path)) return "unknown";
     const pkg = JSON.parse(readFileSync(path, "utf8"));
-    return pkg.name === "wachiman" || pkg.name === "agent-review" ? String(pkg.version) : "unknown";
+    return pkg.name === "wachiman" ? String(pkg.version) : "unknown";
   } catch {
     return "unknown";
   }
@@ -229,7 +142,7 @@ export function routeMode(mode: string, commentLine: ReviewLineComment | undefin
  * comment's text is `REQUEST`.
  */
 export function readCommentLine(env: Record<string, string | undefined>): ReviewLineComment | undefined {
-  const id = env.AGENT_REVIEW_COMMENT_ID ?? "";
+  const id = env.WACHIMAN_COMMENT_ID ?? "";
   if (id === "") return undefined;
   const number = (name: string) => {
     const raw = env[name] ?? "";
@@ -237,12 +150,12 @@ export function readCommentLine(env: Record<string, string | undefined>): Review
     if (!/^\d+$/.test(raw)) throw new UsageError(`${name} must be a comment id or a line number, got "${raw}".`);
     return Number(raw);
   };
-  if (!/^\d+$/.test(id)) throw new UsageError(`AGENT_REVIEW_COMMENT_ID must be a comment id, got "${id}".`);
+  if (!/^\d+$/.test(id)) throw new UsageError(`WACHIMAN_COMMENT_ID must be a comment id, got "${id}".`);
   return {
     id: Number(id),
-    replyTo: number("AGENT_REVIEW_COMMENT_IN_REPLY_TO"),
-    path: env.AGENT_REVIEW_COMMENT_PATH || null,
-    line: number("AGENT_REVIEW_COMMENT_LINE"),
+    replyTo: number("WACHIMAN_COMMENT_IN_REPLY_TO"),
+    path: env.WACHIMAN_COMMENT_PATH || null,
+    line: number("WACHIMAN_COMMENT_LINE"),
   };
 }
 
@@ -259,8 +172,22 @@ function runAccountCommand(mode: "doctor" | "profile" | "project", args: string[
   if (mode === "profile") return runProfile(parseProfileArgs(args), env, io, deps);
   if (mode === "project") return runProject(parseProjectArgs(args, repoDir), env, io, deps);
   const parsed = parseDoctorArgs(args, repoDir);
-  if ("help" in parsed) return (io.stdout(`${doctorUsage}\n`), 0);
+  if ("help" in parsed) return (io.stdout(commandHelp(["doctor"])!), 0);
   return runDoctor(parsed, env, io, deps.doctor);
+}
+
+/** The colors for help: loaded only when stdout is a terminal, so a run with piped output never loads chalk. */
+async function paintFor(output: { isTTY?: boolean }, env: Record<string, string | undefined>): Promise<Paint> {
+  if (output.isTTY !== true) return plain;
+  // A clone that never ran `bun install` has no chalk: its help is plain text. Any other failure is a bug and shows.
+  const style = await import("./wizard/style").catch(plainWhenMissing);
+  return style?.terminalStyle(output, env) ?? plain;
+}
+
+/** `undefined` for a package that is not installed, the error itself for anything else. */
+function plainWhenMissing(error: unknown): undefined {
+  if (isMissingPackage(error)) return undefined;
+  throw error;
 }
 
 /** `setup` and `init`: asked on a terminal, flags and exit code 2 otherwise. A cancellation is exit 130. */
@@ -269,16 +196,17 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
   const version = readVersion();
   if (mode === "setup") {
     const flags = parseSetupFlags(args, repoDir);
-    if (flags.help) return (io.stdout(`${setupUsage}\n`), 0);
+    if (flags.help) return (io.stdout(commandHelp(["setup"])!), 0);
     return runSetupCommand(flags, env, io, { doctor: { version } });
   }
   const flags = parseInitFlags(args, repoDir);
-  if (flags.help) return (io.stdout(`${initUsage}\n`), 0);
+  if (flags.help) return (io.stdout(commandHelp(["init"])!), 0);
   return runInitCommand(flags, env, io, {
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
-    // Choosing local/both already requests setup; keep its final write confirmation.
-    bindNow: (prompter, mode) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, initMode: mode, unboundHints: projectCommands("setup", repoDir, process.cwd()) }),
+    githubLogin: ghLogin,
+    // Choosing local/both already requests setup, which saves the binding without asking again.
+    bindNow: (prompter, mode, closing) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, initMode: mode, unboundHints: projectCommands("setup", repoDir, process.cwd()), closing }),
   });
 }
 
@@ -288,7 +216,7 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
  * before the push wait, so a run cancelled during it leaves no letter from an older commit. No
  * model, no provider. A failure inside the reset itself (reading or writing the description) is a
  * warning and the exit code stays 0. A usage or configuration error is not: a bad pull request
- * number or flag, an invalid `AGENT_REVIEW_*` value, or a missing `GH_TOKEN` or
+ * number or flag, an invalid `WACHIMAN_*` value, or a missing `GH_TOKEN` or
  * `GITHUB_REPOSITORY` exits non-zero. The workflow steps run it with `continue-on-error`.
  */
 export function runResetConfidence(args: string[], env: Record<string, string | undefined>, gh: GhFn = defaultGh): number {
@@ -297,7 +225,7 @@ export function runResetConfidence(args: string[], env: Record<string, string | 
   if (!/^\d+$/.test(prArg ?? "") || pr <= 0) throw new UsageError("reset-confidence needs a pull request number.");
   let commit: string | undefined;
   for (let i = 0; i < flags.length; i++) {
-    if (flags[i] !== "--commit" || !flags[i + 1]) throw new UsageError(`reset-confidence: unexpected "${flags[i]}".`);
+    if (flags[i] !== "--commit" || !flags[i + 1]) throw new UsageError(`reset-confidence: unexpected "${flags[i]}". Accepted form: --commit <sha>.`);
     commit = flags[++i];
   }
   const config = loadConfig(env);
@@ -313,10 +241,67 @@ export function runResetConfidence(args: string[], env: Record<string, string | 
   return 0;
 }
 
+async function printRootHelp(env: Record<string, string | undefined>): Promise<number> {
+  writeAll(1, rootHelp(await paintFor(process.stdout, env)));
+  return 0;
+}
+
+/**
+ * Bare `wachiman`, with no arguments. On a terminal (stdin, stdout and stderr, no CI) it opens the
+ * interactive launcher; anywhere else it prints the root help, as it always did. This is the one
+ * place that decides what a bare invocation does. A command chosen in the launcher runs through
+ * `main` again, with WACHIMAN_INTRO_DONE set so it does not play the intro a second time.
+ */
+async function runNoArgs(env: Record<string, string | undefined>): Promise<number> {
+  const streams = { stdin: process.stdin, stdout: process.stdout, stderr: process.stderr };
+  // The same test the launcher applies, so a bare `wachiman` outside a terminal never loads the terminal UI.
+  if (shouldLaunch(env, streams)) {
+    // Without the packages (a clone that never ran `bun install`) the launcher does not open: the help is printed.
+    const launcher = await import("./wizard/launcher").catch(plainWhenMissing);
+    const launched = await launcher?.maybeLaunch({ env, version: readVersion(), dispatch: (args) => main(args, { ...env, WACHIMAN_INTRO_DONE: "1" }) });
+    if (launched !== undefined) return launched;
+  }
+  return printRootHelp(env);
+}
+
+/** One short line and where to look; the command's own page is `wachiman <command> --help`. */
+function usageError(message: string, command: string | undefined): number {
+  const hint = isCommand(command) ? `wachiman ${command} --help` : "wachiman --help";
+  console.error(`wachiman: ${message}\nRun '${hint}'.`);
+  return 2;
+}
+
+/** `--refresh`: download the ledger first. A failed download warns and leaves the files already on disk in use. */
+async function refreshLedger(env: Record<string, string | undefined>) {
+  try {
+    const r = await pullLedger(wachimanHome(env), env, undefined);
+    console.error(`wachiman: ledger refreshed (${r.entries} entries, ${r.from} to ${r.to}).`);
+  } catch (error) {
+    if (error instanceof UsageError) throw error;
+    console.error(`wachiman: ledger refresh failed: ${error instanceof Error ? error.message : error}. Showing the entries already downloaded.`);
+  }
+}
+
 export async function main(argv: string[], env: Record<string, string | undefined>): Promise<number> {
   const mode = argv[0];
-  if (mode === "--help" || mode === "-h") {
-    console.log(USAGE);
+  if (argv.length === 0) {
+    // A command picked in the launcher goes through `main` again and handles its own errors; this
+    // catches the launcher's (reading the repository, the config, the terminal) the same way.
+    try {
+      return await runNoArgs(env);
+    } catch (error) {
+      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
+      return 1;
+    }
+  }
+  if (mode === "--help" || mode === "-h") return await printRootHelp(env);
+  // Before extractRepoDir, the configuration, git, authentication and any model: help reads nothing. The
+  // `help` branches of the parsers below only serve direct callers of `parse*`; `helpFor` catches every
+  // `--help` and `-h` first.
+  const help = helpFor(argv, await paintFor(process.stdout, env));
+  if (help !== undefined) {
+    if ("error" in help) return usageError(help.error, "help");
+    writeAll(1, help.text);
     return 0;
   }
   if (mode === "--version" || mode === "-v") {
@@ -335,13 +320,19 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "skills") {
       // Before extractRepoDir: no repository is read, so `--repo-dir` is a usage error here.
       const parsed = parseSkillsArgs(argv.slice(1));
-      if ("help" in parsed) return (writeAll(1, `${skillsUsage}\n`), 0);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["skills"])!), 0);
       return runSkills(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
+    }
+    if (mode === "ledger") {
+      // Before extractRepoDir: no repository is read. The only command that contacts the ledger (ADR 0039).
+      const parsed = parseLedgerArgs(argv.slice(1));
+      if ("help" in parsed) return (writeAll(1, commandHelp(["ledger"])!), 0);
+      return await runLedger(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (text) => void process.stderr.write(text) });
     }
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {
       // No GitHub: no token, no repository, no `gh` function anywhere on this path.
-      return runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
+      return await runLocal(parseLocalArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
@@ -349,7 +340,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "loop") {
       // Like `local`: no GitHub token, no `gh` function anywhere on this path.
-      return runLoop(parseLoopArgs(args.slice(1)), repoDir, env, {
+      return await runLoop(parseLoopArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
@@ -357,24 +348,35 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "ask") {
       // Like `local`: no GitHub token, no `gh` function anywhere on this path.
-      return runAsk(parseAskArgs(args.slice(1)), repoDir, env, {
+      return await runAsk(parseAskArgs(args.slice(1)), repoDir, env, {
         stdout: (text) => writeAll(1, text),
         stderr: (line) => console.error(line),
         engineVersion: readVersion(),
       });
     }
+    if (mode === "pr-template") {
+      // No model, no provider; `check --pr` and `risk` shell out to gh and git in the repository directory.
+      return runPrTemplate(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
+    }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);
+    }
+    if (mode === "upgrade") {
+      const parsed = parseUpgradeArgs(args.slice(1), repoDir);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["upgrade"])!), 0);
+      return runUpgrade(parsed, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
     }
     if (mode === "setup" || mode === "init") return await runWizard(mode, args.slice(1), repoDir, env);
     if (mode === "status") {
       const parsed = parseStatusArgs(args.slice(1));
-      if ("help" in parsed) return (writeAll(1, `${statusUsage}\n`), 0);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["status"])!), 0);
+      if (parsed.refresh) await refreshLedger(env);
       return runStatus(parsed, repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line), version: readVersion() });
     }
     if (mode === "dashboard") {
       const parsed = parseDashboardArgs(args.slice(1));
-      if ("help" in parsed) return (writeAll(1, `${dashboardUsage}\n`), 0);
+      if ("help" in parsed) return (writeAll(1, commandHelp(["dashboard"])!), 0);
+      if (parsed.refresh) await refreshLedger(env);
       return runDashboard(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "history") {
@@ -383,7 +385,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "reset-confidence") return runResetConfidence(args.slice(1), env);
     const [, prArg, ...rest] = args;
     if (mode !== "review" && mode !== "comment" && mode !== "threads") {
-      throw new UsageError(mode ? `Unknown command "${mode}".` : "No command given.");
+      throw new UsageError(`Unknown command "${mode}".`);
     }
     const pr = Number(prArg);
     if (!/^\d+$/.test(prArg ?? "") || pr <= 0) {
@@ -398,13 +400,39 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // decision 4); the rest of the thread-only run is unchanged. Its trigger is the question's, not
     // an automatic run's, so it does not spend from the automatic ceiling.
     const effective = routeMode(mode, commentLine, env.REQUEST ?? "", loaded.mention);
-    const config = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
-    const provider = getProvider(config.provider, config);
+    const routed = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
+    const mainProvider = (c: typeof routed) => getProvider(c.provider, c);
     // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
-    const verifier = config.verify && mode !== "threads" ? getProvider(config.provider, { ...config, model: config.verifierModel, effort: "high" }) : undefined;
+    const verifier = routed.verify && mode !== "threads" ? getProvider(routed.provider, { ...routed, model: routed.verifierModel, effort: "high" }) : undefined;
+    let provider = mainProvider(routed);
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
     const request = effective === "comment" ? required(env, "REQUEST") : "";
+    // Before any call is paid for: a missing binary or settings file would fail every batch.
+    try {
+      provider.preflight();
+      verifier?.preflight();
+    } catch (error) {
+      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
+      return 1;
+    }
+    // Where no workflow input or WACHIMAN_* set them, the model and the effort come from the base
+    // commit's `.wachiman.yml` (never the head's, ADR 0049), so the estimate, the size gate and every
+    // call agree. The adapters are rebuilt only when the file changed one of them.
+    let config = withBaseSettings(routed, defaultGh, repo, pr, (line) => console.log(line), (line) => console.error(line));
+    if (config.model !== routed.model || config.effort !== routed.effort) {
+      // Settings never change the verifier (own model, effort high), so only the main provider is rebuilt.
+      const before = provider;
+      provider = mainProvider(config);
+      try {
+        provider.preflight();
+      } catch (error) {
+        // A value the base file set that this provider cannot use must not block the pull request that fixes it.
+        console.error(`wachiman: ignored model/effort from .wachiman.yml at the base commit: ${error instanceof Error ? error.message : error}; using the workflow's values.`);
+        provider = before;
+        config = routed;
+      }
+    }
     const costs: CallCost[] = [];
     const ledgerNotes: string[] = [];
     const deps: Deps = {
@@ -419,18 +447,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
       log: (line) => console.log(line),
       warn: (line) => console.error(line),
     };
-    // Before any call is paid for: a missing binary or settings file would fail every batch.
     try {
-      provider.preflight();
-      verifier?.preflight();
-    } catch (error) {
-      console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
-      return 1;
-    }
-    try {
-      if (effective === "review") review(deps, repo, pr, rest);
-      else if (effective === "threads") threadReplies(deps, repo, pr, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined);
-      else comment(deps, repo, pr, request, env.AGENT_REVIEW_COMMENT_AUTHOR || undefined, commentLine);
+      if (effective === "review") await review(deps, repo, pr, rest);
+      else if (effective === "threads") await threadReplies(deps, repo, pr, env.WACHIMAN_COMMENT_AUTHOR || undefined);
+      else await comment(deps, repo, pr, request, env.WACHIMAN_COMMENT_AUTHOR || undefined, commentLine);
     } finally {
       // Also after a failed run: the calls it made were paid for.
       writeStepSummary(costs, env, undefined, ledgerNotes);
@@ -438,8 +458,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     return 0;
   } catch (error) {
     if (error instanceof UsageError || error instanceof UnknownProviderError) {
-      console.error(`wachiman: ${error.message}\n\n${USAGE}`);
-      return 2;
+      return usageError(error.message, mode);
     }
     if (error instanceof SpendLimitReached) {
       // The notice is already posted. `notice` mode keeps the job green.

@@ -110,6 +110,7 @@ same material, in this repository:
 | Run the engine from the command line | [docs/cli.md](docs/cli.md) |
 | Review a branch on my laptop, on my own Claude subscription | [docs/local-review.md](docs/local-review.md) |
 | See the spend, findings and loops of my local reviews on one page | [docs/local-dashboard.md](docs/local-dashboard.md) |
+| Give every pull request the same description template, and check it | [docs/pr-template.md](docs/pr-template.md) |
 | See what a provider adapter runs and inherits | [docs/providers/claude-code.md](docs/providers/claude-code.md), [docs/providers/codex.md](docs/providers/codex.md) |
 | Move from a copied installation | [docs/setup-copy.md](docs/setup-copy.md) |
 | Understand how a review is built | [docs/architecture.md](docs/architecture.md) |
@@ -120,7 +121,7 @@ same material, in this repository:
 
 Design decisions are recorded as ADRs in [docs/adr/](docs/adr/), starting with
 [ADR 0001: distribution and trust](docs/adr/0001-distribution-and-trust.md) and
-[ADR 0002: TypeScript on Bun, no runtime dependencies besides Bun itself](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
+[ADR 0002: TypeScript on Bun, no libraries unless the owner asks for one](docs/adr/0002-typescript-on-bun-zero-dependencies.md).
 
 ## What a pull request review looks like
 
@@ -185,7 +186,7 @@ This is not a sandbox. What is enforced, what the tests show and what is still u
 The current release is on [npm](https://www.npmjs.com/package/wachiman) and in
 [CHANGELOG.md](CHANGELOG.md). The command-line contract ([docs/cli.md](docs/cli.md)) and the
 provider adapter boundary are in place. The older `CLAUDE_REVIEW_*` variables,
-`.github/agent-review.md`, `.github/claude-review.md`, `/wachi` and the `@claude` mention are still
+`.github/claude-review.md`, `/wachi` and the `@claude` mention are still
 read with a notice; see [docs/upgrading.md](docs/upgrading.md).
 
 - **Claude Code** (`claude -p`) is the provider the reusable workflow installs and runs, with

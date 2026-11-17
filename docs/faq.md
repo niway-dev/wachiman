@@ -100,7 +100,9 @@ contact@niway.com.
 
 ### Which models can it use?
 
-The default is `claude-sonnet-5-5` at effort high, run through Claude Code. The `model` input is passed to Claude
+The default is `claude-sonnet-5-5` at effort high, run through Claude Code. A repository can set another model
+and effort in `.wachiman.yml` (read from the pull request's base commit; an explicit `model` or `effort` input wins).
+The model is passed to Claude
 Code as given; the engine does not check it, and no other Claude model is documented as tested
 here. The Codex adapter defaults to `gpt-6.1-sol`. See [configuration.md](configuration.md) and
 [providers/claude-code.md](providers/claude-code.md).
@@ -108,7 +110,7 @@ here. The Codex adapter defaults to `gpt-6.1-sol`. See [configuration.md](config
 ### Does it work with Codex or OpenAI models?
 
 From the command line, yes. In the reusable workflow, not yet. The engine has a Codex adapter
-(`AGENT_REVIEW_PROVIDER=codex`, needs `OPENAI_API_KEY` and the `codex` binary), but the reusable
+(`WACHIMAN_PROVIDER=codex`, needs `OPENAI_API_KEY` and the `codex` binary), but the reusable
 workflow installs only Claude Code and passes only `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. The two adapters are
 hardened differently, and the Codex page lists what its hardening does not cover (for example, the
 model can run the branch's code inside Codex's sandbox). See

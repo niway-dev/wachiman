@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { loadConfig as loadConfigWithDefaults } from "./config";
 
 /** These tests script the batches only; the opt-in verifier has its own tests. */
-const loadConfig = (env: Record<string, string | undefined>) => loadConfigWithDefaults({ AGENT_REVIEW_VERIFY: "0", ...env });
+const loadConfig = (env: Record<string, string | undefined>) => loadConfigWithDefaults({ WACHIMAN_VERIFY: "0", ...env });
 import {
   GhError,
   SIGNATURE,
@@ -43,7 +43,7 @@ class FakeProvider implements ProviderAdapter {
   leaksSecret() {
     return false;
   }
-  run(request: ProviderRequest): ProviderResult {
+  async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
     if (this.record) recordPrompt("ceiling.fake", request);
     const step = this.script[this.requests.length - 1];
@@ -279,24 +279,24 @@ describe("review() under the ceiling", () => {
     return { deps, provider, posted, calls, reviews };
   }
 
-  test("an automatic run records its cost and the flag in the footer", () => {
-    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened" } });
-    review(t.deps, "o/r", 7, []);
+  test("an automatic run records its cost and the flag in the footer", async () => {
+    const t = setup({ env: { WACHIMAN_TRIGGER: "opened" } });
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(readAutoCost(t.posted[0])).toBeCloseTo(0.1, 10);
   });
 
   const USAGE = { input: 1200, output: 3400, cacheRead: 560000, cacheWrite: 21000 };
 
-  test("a first review reports its operation, tokens and cost in the footer, the log and the recorded calls", () => {
+  test("a first review reports its operation, tokens and cost in the footer, the log and the recorded calls", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      env: { WACHIMAN_TRIGGER: "opened" },
       script: [() => ({ costUsd: 0.1, model: "claude-sonnet-5-5", usage: USAGE, structuredOutput: out({}) })],
     });
     const logs: string[] = [];
     t.deps.log = (line) => void logs.push(line);
     t.deps.costs = [];
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain(
       "<sub>Fake Model · effort high · review · PR so far $0.10 over 1 automatic run · 1.2k in / 3.4k out / 560k cache read / 21k cache write · $0.10</sub>",
     );
@@ -326,9 +326,9 @@ describe("review() under the ceiling", () => {
     });
   });
 
-  test("a push after a reviewed commit is a re-review, and the retry call is tagged in the recorded calls", () => {
+  test("a push after a reviewed commit is a re-review, and the retry call is tagged in the recorded calls", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize" },
+      env: { WACHIMAN_TRIGGER: "synchronize" },
       reviews: [spentBody(0.2, { marker: "aaa1111" })],
       compare: { status: "ahead", files: [{ filename: "a.ts", patch: FILE.patch }] },
       // The first call leaves a.ts unaccounted for, so the engine retries it once.
@@ -338,7 +338,7 @@ describe("review() under the ceiling", () => {
       ],
     });
     t.deps.costs = [];
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.deps.costs?.map((c) => [c.operation, c.label])).toEqual([
       ["re-review", "batch 1/1"],
       ["re-review", "batch 1/1 retry"],
@@ -350,17 +350,17 @@ describe("review() under the ceiling", () => {
     expect(readAutoCost(t.posted[0])).toBe(0.15);
   });
 
-  test("a provider that reports no tokens or model still yields a footer, a record and a log line", () => {
-    const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened" } });
+  test("a provider that reports no tokens or model still yields a footer, a record and a log line", async () => {
+    const t = setup({ env: { WACHIMAN_TRIGGER: "opened" } });
     t.deps.costs = [];
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain("<sub>Fake Model · effort high · review · PR so far $0.10 over 1 automatic run · $0.10</sub>");
     expect(t.deps.costs?.[0]).toMatchObject({ model: t.deps.config.model, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } });
   });
 
-  test("a call that dies without a result is recorded and logged as an unknown cost, counted at its cap", () => {
+  test("a call that dies without a result is recorded and logged as an unknown cost, counted at its cap", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      env: { WACHIMAN_TRIGGER: "opened" },
       script: [
         () => {
           throw new Error("claude exited with signal SIGKILL");
@@ -371,7 +371,7 @@ describe("review() under the ceiling", () => {
     t.deps.log = (line) => void logs.push(line);
     t.deps.costs = [];
     // No batch returned anything, so the review fails; the dead call is still on the record.
-    expect(() => review(t.deps, "o/r", 7, [])).toThrow("did not return a review");
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow("did not return a review");
     // The engine retries the batch's files once; that call dies too, and is recorded the same way.
     expect(t.deps.costs?.map((c) => [c.label, c.costKnown])).toEqual([
       ["batch 1/1", false],
@@ -388,13 +388,13 @@ describe("review() under the ceiling", () => {
     expect(dead?.costUsd).toBe(t.deps.config.batchBudgetUsd);
   });
 
-  test("a result flagged costKnown false is counted at the request's cap in the footer and the ceiling", () => {
+  test("a result flagged costKnown false is counted at the request's cap in the footer and the ceiling", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "opened" },
+      env: { WACHIMAN_TRIGGER: "opened" },
       script: [() => ({ costUsd: 0, costKnown: false, structuredOutput: out({}) })],
     });
     t.deps.costs = [];
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     const cap = t.deps.config.batchBudgetUsd;
     expect(readAutoCost(t.posted[0])).toBeCloseTo(cap, 2);
     expect(t.deps.costs?.[0]).toMatchObject({ costKnown: false, costUsd: cap });
@@ -409,8 +409,8 @@ describe("review() under the ceiling", () => {
   };
 
   for (const kind of ["claude", "codex"] as const) {
-    test(`a ${kind} call killed at the time limit is an unknown cost counted at the batch cap, with its reason kept`, () => {
-      const t = setup({ env: { AGENT_REVIEW_TRIGGER: "opened", AGENT_REVIEW_CALL_TIMEOUT_S: "1" } });
+    test(`a ${kind} call killed at the time limit is an unknown cost counted at the batch cap, with its reason kept`, async () => {
+      const t = setup({ env: { WACHIMAN_TRIGGER: "opened", WACHIMAN_CALL_TIMEOUT_S: "1" } });
       const binary = hangingBinary(kind);
       t.deps.provider =
         kind === "claude"
@@ -420,7 +420,7 @@ describe("review() under the ceiling", () => {
       t.deps.log = (line) => void logs.push(line);
       t.deps.costs = [];
       try {
-        review(t.deps, "o/r", 7, []);
+        await review(t.deps, "o/r", 7, []);
       } catch {
         // No batch returned a review; the point is what was recorded.
       }
@@ -436,12 +436,12 @@ describe("review() under the ceiling", () => {
     });
   }
 
-  test("at the ceiling the next push posts one notice, starts no batch, and a later push posts nothing", () => {
+  test("at the ceiling the next push posts one notice, starts no batch, and a later push posts nothing", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.5" },
       reviews: [spentBody(0.5)],
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(0);
     expect(t.posted).toHaveLength(1);
     expect(t.posted[0]).toContain("Automatic reviews paused: $0.50 of $0.50 spent on this pull request.");
@@ -449,58 +449,58 @@ describe("review() under the ceiling", () => {
     expect(readCeilingNotice(t.posted[0].trimEnd().replace(/\n\n<!-- wachi:attempt id=[0-9a-f-]+ -->$/, ""))).toBe("0.50");
 
     // The next push: the notice for this ceiling already exists.
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(0);
     expect(t.posted).toHaveLength(1);
   });
 
-  test("raising the ceiling above the spend lets the next push run; a still-lower ceiling gets its own notice", () => {
-    const base = { AGENT_REVIEW_TRIGGER: "synchronize" };
-    const paused = setup({ env: { ...base, AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" }, reviews: [spentBody(0.5)] });
-    review(paused.deps, "o/r", 7, []);
+  test("raising the ceiling above the spend lets the next push run; a still-lower ceiling gets its own notice", async () => {
+    const base = { WACHIMAN_TRIGGER: "synchronize" };
+    const paused = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.5" }, reviews: [spentBody(0.5)] });
+    await review(paused.deps, "o/r", 7, []);
     expect(paused.posted).toHaveLength(1);
     // The same pull request, now with a ceiling of $0.60 and the old $0.50 notice: $0.10 is left, so it runs.
-    const raised = setup({ env: { ...base, AGENT_REVIEW_AUTO_BUDGET_USD: "0.6" }, reviews: paused.reviews });
-    review(raised.deps, "o/r", 7, []);
+    const raised = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.6" }, reviews: paused.reviews });
+    await review(raised.deps, "o/r", 7, []);
     expect(raised.provider.requests).toHaveLength(1);
     // A $0.55 ceiling with $0.60 spent: a notice for that ceiling, not skipped because of the old $0.50 one.
-    const again = setup({ env: { ...base, AGENT_REVIEW_AUTO_BUDGET_USD: "0.55" }, reviews: [...paused.reviews, spentBody(0.1)] });
-    review(again.deps, "o/r", 7, []);
+    const again = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.55" }, reviews: [...paused.reviews, spentBody(0.1)] });
+    await review(again.deps, "o/r", 7, []);
     expect(again.provider.requests).toHaveLength(0);
     expect(again.posted).toHaveLength(1);
     expect(again.posted[0]).toContain("$0.60 of $0.55 spent");
   });
 
-  test("a run starts with at most what is left under the ceiling", () => {
+  test("a run starts with at most what is left under the ceiling", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "2" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "2" },
       reviews: [spentBody(1.2, { marker: "aaa1111" }), spentBody(0.5)],
       comments: [replyBody(0)],
       compare: { status: "ahead", files: [{ filename: "a.ts", patch: FILE.patch }] },
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
     expect(t.provider.requests[0].maxBudgetUsd).toBeCloseTo(0.3, 10);
   });
 
-  test("less than a batch's minimum left counts as the ceiling", () => {
+  test("less than a batch's minimum left counts as the ceiling", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "2" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "2" },
       reviews: [spentBody(1.97)],
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(0);
     expect(t.posted[0]).toContain("$1.97 of $2.00");
   });
 
-  test("the operator's /wachiman review is not limited, and does not even read the spend", () => {
+  test("the operator's /wachiman review is not limited, and does not even read the spend", async () => {
     for (const trigger of [undefined, "comment"]) {
       const t = setup({
-        env: { AGENT_REVIEW_AUTO_BUDGET_USD: "0.5", ...(trigger ? { AGENT_REVIEW_TRIGGER: trigger } : {}) },
+        env: { WACHIMAN_AUTO_BUDGET_USD: "0.5", ...(trigger ? { WACHIMAN_TRIGGER: trigger } : {}) },
         reviews: [spentBody(5)],
       });
       const before = t.calls.length;
-      review(t.deps, "o/r", 7, []);
+      await review(t.deps, "o/r", 7, []);
       expect(t.provider.requests).toHaveLength(1);
       // Its budget is the run's own, not what is left of the ceiling.
       expect(t.provider.requests[0].maxBudgetUsd).toBe(0.75);
@@ -510,13 +510,13 @@ describe("review() under the ceiling", () => {
     }
   });
 
-  test("a push that is only a rebase still moves the marker at the ceiling, and posts no notice", () => {
+  test("a push that is only a rebase still moves the marker at the ceiling, and posts no notice", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.5" },
       reviews: [spentBody(0.5, { marker: "old1111111" })],
       compare: { status: "ahead", files: [] },
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(0);
     expect(t.posted).toHaveLength(1);
     expect(t.posted[0]).toContain("no new changes since");
@@ -524,35 +524,35 @@ describe("review() under the ceiling", () => {
     expect(t.posted[0]).not.toContain("paused");
   });
 
-  test("an automatic run that ends without a review still records what it spent", () => {
+  test("an automatic run that ends without a review still records what it spent", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize" },
+      env: { WACHIMAN_TRIGGER: "synchronize" },
       script: [
         () => ({ costUsd: 0.6, terminalReason: "budget", isError: true }),
         () => ({ costUsd: 0.4, terminalReason: "budget", isError: true }),
       ],
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.posted).toHaveLength(1);
     expect(t.posted[0]).toContain("ran out of its budget");
     expect(readAutoCost(t.posted[0])).toBeGreaterThan(0.5);
     // A manual run in the same situation keeps its old, unsigned notice.
     const manual = setup({ script: [() => ({ costUsd: 0.6, terminalReason: "budget", isError: true }), () => ({ costUsd: 0.4, terminalReason: "budget", isError: true })] });
-    review(manual.deps, "o/r", 7, []);
+    await review(manual.deps, "o/r", 7, []);
     expect(manual.posted[0]).toContain("ran out of its budget");
     expect(manual.posted[0]).not.toContain(SIGNATURE.auto);
   });
 
-  test("a marker-less partial review's spend still counts toward the next automatic run", () => {
+  test("a marker-less partial review's spend still counts toward the next automatic run", async () => {
     const t = setup({
-      env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.3" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.3" },
       script: [() => ({ costUsd: 0.25, structuredOutput: out({ files_reviewed: [] }) }), () => ({ costUsd: 0, structuredOutput: out({ files_reviewed: [] }) })],
     });
-    review(t.deps, "o/r", 7, []);
+    await review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain("Partial review");
-    expect(t.posted[0]).not.toContain("<!-- agent-review sha=");
+    expect(t.posted[0]).not.toContain("<!-- wachiman sha=");
     // The partial review's cost is in its footer: $0.05 is left of $0.30, i.e. a batch can still start.
-    const next = setup({ env: { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.3" }, reviews: t.reviews });
+    const next = setup({ env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.3" }, reviews: t.reviews });
     expect(automaticSpend(next.deps.gh, "o/r", 7).spent).toBeCloseTo(0.25, 10);
   });
 });
@@ -588,15 +588,15 @@ describe("a run on a Claude subscription token", () => {
     const provider = new FakeProvider([() => ({ costUsd: 0.1, structuredOutput: out({}) })]);
     provider.auth = auth;
     provider.record = false;
-    const deps: Deps = { gh, provider, config: loadConfig({ AGENT_REVIEW_TRIGGER: "opened", ...opts.env }), log: (l) => void logs.push(l), warn: () => {}, sleep: () => {} };
+    const deps: Deps = { gh, provider, config: loadConfig({ WACHIMAN_TRIGGER: "opened", ...opts.env }), log: (l) => void logs.push(l), warn: () => {}, sleep: () => {} };
     return { deps, posted, logs };
   }
 
-  test("the footer says the amount is an estimate, and the ceiling reads it exactly like an API-key footer", () => {
+  test("the footer says the amount is an estimate, and the ceiling reads it exactly like an API-key footer", async () => {
     const token = setup("oauth-token");
-    review(token.deps, "o/r", 7, []);
+    await review(token.deps, "o/r", 7, []);
     const keyed = setup("api-key");
-    review(keyed.deps, "o/r", 7, []);
+    await review(keyed.deps, "o/r", 7, []);
     expect(token.posted[0]).toContain(`${NOTE} · $0.10</sub>`);
     expect(keyed.posted[0]).not.toContain("Claude subscription");
     expect(readAutoCost(token.posted[0])).toBeCloseTo(0.1, 10);
@@ -620,23 +620,23 @@ describe("a run on a Claude subscription token", () => {
     expect(runs).toBe(2);
   });
 
-  test("the cost log line of the call carries the credential", () => {
+  test("the cost log line of the call carries the credential", async () => {
     for (const [auth, expected] of [["oauth-token", "oauth-token"], ["api-key", "api-key"], [undefined, "api-key"]] as const) {
       const t = setup(auth);
-      review(t.deps, "o/r", 7, []);
+      await review(t.deps, "o/r", 7, []);
       const line = t.logs.find((l) => l.startsWith("wachiman-cost "));
       expect(JSON.parse((line ?? "").slice("wachiman-cost ".length)).auth).toBe(expected);
     }
   });
 
-  test("the paused notice says its dollars are estimates only on a subscription", () => {
-    const env = { AGENT_REVIEW_TRIGGER: "synchronize", AGENT_REVIEW_AUTO_BUDGET_USD: "0.5" };
+  test("the paused notice says its dollars are estimates only on a subscription", async () => {
+    const env = { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.5" };
     const token = setup("oauth-token", { env, reviews: [spentBody(0.5)] });
-    review(token.deps, "o/r", 7, []);
+    await review(token.deps, "o/r", 7, []);
     expect(token.posted[0]).toContain("Automatic reviews paused: $0.50 of $0.50 spent on this pull request.");
     expect(token.posted[0]).toContain("API-equivalent estimates");
     const keyed = setup("api-key", { env, reviews: [spentBody(0.5)] });
-    review(keyed.deps, "o/r", 7, []);
+    await review(keyed.deps, "o/r", 7, []);
     expect(keyed.posted[0]).not.toContain("estimate");
   });
 });

@@ -1,0 +1,16 @@
+{
+  "base": "default",
+  "add": ["screenshots", "rollback"],
+  "drop": ["decisions"],
+  "custom": [
+    { "id": "team", "kind": "status-row", "label": "Owning team", "required": false, "guide": "The team that answers for this change", "after": "issue" },
+    { "id": "ship", "kind": "status-row", "label": "Ship 🚀", "required": false, "after": "release" },
+    { "id": "owner-cjk", "kind": "status-row", "label": "负责人", "required": false, "guide": "Who to ask", "after": "team" },
+    { "id": "migration-notes", "kind": "section", "heading": "Migration notes", "required": false, "guide": "Steps an operator runs when this is deployed, or None.", "after": "why" },
+    { "id": "support", "kind": "details", "summary": "Support notes", "required": false, "guide": "What support needs to know.", "after": "notes" }
+  ],
+  "preamble": [
+    "- [ ] I said whether an AI tool wrote part of this.",
+    "- [ ] **Outside contributors only:** I accept CLA.md."
+  ]
+}

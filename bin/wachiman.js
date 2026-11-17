@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The npm `bin` for `wachiman` and `agent-review`: finds Bun on PATH and runs this package's
+// The npm `bin` for `wachiman`: finds Bun on PATH and runs this package's
 // TypeScript engine with it. All logic is in ./launcher-args.js.
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";

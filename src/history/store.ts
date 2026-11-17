@@ -44,16 +44,16 @@ export interface HistorySettings {
 }
 
 /**
- * Whether the history is on (`--history` or `AGENT_REVIEW_HISTORY=1`) and how long it is kept.
+ * Whether the history is on (`--history` or `WACHIMAN_HISTORY=1`) and how long it is kept.
  * Read here, not in `loadConfig`: that one rejects `0`, and GitHub mode must not see the variable.
- * A bad `AGENT_REVIEW_HISTORY_DAYS` is checked only when the history is on.
+ * A bad `WACHIMAN_HISTORY_DAYS` is checked only when the history is on.
  */
 export function historySettings(env: Record<string, string | undefined>, flag: boolean): HistorySettings {
-  const enabled = flag || env.AGENT_REVIEW_HISTORY === "1";
-  const raw = env.AGENT_REVIEW_HISTORY_DAYS;
+  const enabled = flag || env.WACHIMAN_HISTORY === "1";
+  const raw = env.WACHIMAN_HISTORY_DAYS;
   if (!enabled || raw === undefined || raw === "") return { enabled, days: DEFAULT_HISTORY_DAYS };
   if (!/^\d+$/.test(raw)) {
-    throw new UsageError(`AGENT_REVIEW_HISTORY_DAYS must be 0 (keep forever) or a whole number of days, got "${raw}".`);
+    throw new UsageError(`WACHIMAN_HISTORY_DAYS must be 0 (keep forever) or a whole number of days, got "${raw}".`);
   }
   return { enabled, days: Number(raw) };
 }

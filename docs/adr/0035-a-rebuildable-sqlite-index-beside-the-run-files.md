@@ -4,7 +4,7 @@
   [ADR 0020](0020-an-opt-in-on-laptop-review-history-with-deterministic-finding-tracking.md)
   without changing it: the run files stay the record. Reuses
   [ADR 0001](0001-distribution-and-trust.md) (no hosted service) and
-  [ADR 0002](0002-typescript-on-bun-zero-dependencies.md) (no runtime dependencies).
+  [ADR 0002](0002-typescript-on-bun-zero-dependencies.md) (no libraries unless the owner asks; the engine has none).
 - **Date:** 2026-11-11
 - **Spec:** [PR Confidence, a review loop and a local store](../specs/2026-11-11-pr-confidence-review-loop-and-local-store-design.md)
 - **Issue:** #181
@@ -52,7 +52,7 @@ every command depends on.
 ## Non-goals
 
 - A query language or a public schema for the index.
-- Sending any figure anywhere.
+- Sending any figure anywhere. (ADR 0039 adds a read of the GitHub-side ledger; it still sends nothing.)
 - Enforcing a spend limit. That is issue #122 and pull request #129.
 
 ## Reopen if

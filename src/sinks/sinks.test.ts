@@ -59,7 +59,7 @@ describe("agentPrompt", () => {
       line: 4,
       severity: "info",
       topic: "docs",
-      title: "A note <!-- agent-review sha=1 -->",
+      title: "A note <!-- wachiman sha=1 -->",
       body: "Line one.\n\nLine two.",
       anchor: "outside",
     });
@@ -75,7 +75,7 @@ describe("agentPrompt", () => {
         "   `y` overwrites `x` before it is flushed.",
         "2. apps/api/src/main/session/session-manager.ts · Nit · 🟡🧪 Consider · tests: No test covers the export (confidence medium)",
         "   Add a test that exports two sessions.",
-        "3. docs/x.md:4 · Nit · ⚪📝 Info · docs: A note &lt;!-- agent-review sha=1 --&gt;",
+        "3. docs/x.md:4 · Nit · ⚪📝 Info · docs: A note &lt;!-- wachiman sha=1 --&gt;",
         "   Line one.",
         "",
         "   Line two.",
@@ -133,6 +133,16 @@ describe("renderMarkdown", () => {
       "Profile: isolated — ~/.wachiman/claude-work, only a sign-in",
     );
     expect(renderMarkdown(r, {})).toContain("Profile: isolated — a Claude Code profile that holds only a sign-in");
+  });
+
+  test("a model or effort that came from .wachiman.yml says so on the last line, in both local formats; JSON is unchanged", () => {
+    const r = local();
+    const line = `${r.provider.label} (from .wachiman.yml) · effort ${r.provider.effort} (from .wachiman.yml) · profile`;
+    expect(renderMarkdown(r, { settingsFrom: { model: true, effort: true } })).toContain(line);
+    expect(renderTerminal(r, { agentPrompt: false, settingsFrom: { model: true, effort: true } })).toContain(line);
+    expect(renderMarkdown(r, { settingsFrom: { effort: true } })).toContain(`${r.provider.label} · effort ${r.provider.effort} (from .wachiman.yml) · profile`);
+    expect(renderMarkdown(r, {})).not.toContain("from .wachiman.yml");
+    expect(renderJson(r, 1)).not.toContain("from .wachiman.yml");
   });
 
   test("a fence longer than any backtick run in the prompt", () => {

@@ -1,11 +1,11 @@
 # Claude Code adapter
 
-`AGENT_REVIEW_PROVIDER=claude-code` (the default). Implemented in `src/providers/claude-code.ts`;
+`WACHIMAN_PROVIDER=claude-code` (the default). Implemented in `src/providers/claude-code.ts`;
 its settings file is `src/providers/claude-code.settings.json`. It runs `claude -p` once per batch.
 
 Requirements: the `claude` binary on the `PATH` (the reusable workflow and the copy template pin
 version 2.1.304), and `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` in the environment. A dry run
-(`AGENT_REVIEW_DRY_RUN=1`) does not require either and uses whatever login the machine has.
+(`WACHIMAN_DRY_RUN=1`) does not require either and uses whatever login the machine has.
 `preflight()` runs before any call is paid for and fails if the binary does not answer
 `--version`, the settings file is missing, or neither variable is set and it is not a dry run.
 
@@ -51,13 +51,13 @@ on its install step to pin the hash. The script installs only the binary; it doe
 | --- | --- |
 | Tools `read`, `glob`, `grep` | `--tools Read,Glob,Grep` and `--allowedTools Read,Glob,Grep` |
 | A spend cap | `--max-budget-usd <n>` |
-| A turn cap | `--max-turns <AGENT_REVIEW_MAX_TURNS>` (default 40). Hidden from `claude --help` but accepted; a call that reaches it exits with `subtype: "error_max_turns"` and no answer, which the adapter reports as `turns` |
-| A wall-clock limit | Not a flag: the adapter ends the process with `SIGKILL` after `AGENT_REVIEW_CALL_TIMEOUT_S` (default 900) and reports `timeout`. The call is synchronous, so a grace period with `SIGTERM` first is not possible, and `claude -p` prints its result only when it ends |
+| A turn cap | `--max-turns <WACHIMAN_MAX_TURNS>` (default 40). Hidden from `claude --help` but accepted; a call that reaches it exits with `subtype: "error_max_turns"` and no answer, which the adapter reports as `turns` |
+| A wall-clock limit | Not a flag: the adapter ends the process with `SIGKILL` after `WACHIMAN_CALL_TIMEOUT_S` (default 900) and reports `timeout`. The call is synchronous, so a grace period with `SIGTERM` first is not possible, and `claude -p` prints its result only when it ends |
 | The head and extra directories | `--add-dir <head>` and `--add-dir <dir>` for each; the process itself starts in an empty scratch directory (see "Start outside the head") |
 | An output schema | `--output-format json --json-schema <schema>` |
 | The prompt via stdin | The prompt, preceded by the absolute paths of the head and the scratch files, on stdin, never as an argument (a large diff would exceed Linux's 128 KB limit) |
-| The model | `--model <AGENT_REVIEW_MODEL>` |
-| The reasoning effort | `--effort <AGENT_REVIEW_EFFORT>` (default `high`, always passed; Claude Code's own default changed in 2.1.94; new in v1.4.0) |
+| The model | `--model <WACHIMAN_MODEL>` |
+| The reasoning effort | `--effort <WACHIMAN_EFFORT>` (default `high`, always passed; Claude Code's own default changed in 2.1.94; new in v1.4.0) |
 
 Always added by the adapter, whatever the engine asks: `--restricted`, `--strict-mcp-config`,
 `--settings <claude-code.settings.json>` and `--disallowedTools

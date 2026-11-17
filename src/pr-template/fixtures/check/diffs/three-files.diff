@@ -1,0 +1,21 @@
+diff --git a/db/migrations/1.sql b/db/migrations/1.sql
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/db/migrations/1.sql
+@@ -0,0 +1 @@
++CREATE TABLE a (id int);
+diff --git a/old.py b/new.py
+similarity index 90%
+rename from old.py
+rename to new.py
+@@ -1 +1 @@
+-x = 1
++x = 2
+diff --git a/gone.py b/gone.py
+deleted file mode 100644
+index 1111111..0000000
+--- a/gone.py
++++ /dev/null
+@@ -1 +0,0 @@
+-y = 1

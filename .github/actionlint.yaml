@@ -9,3 +9,7 @@ paths:
   .github/workflows/wachiman-platform.yml:
     ignore:
       - 'property "workflow_(repository|sha)" is not defined in object type'
+  # The deprecated alias of wachiman-platform.yml, written by the same generator.
+  .github/workflows/review-platform.yml:
+    ignore:
+      - 'property "workflow_(repository|sha)" is not defined in object type'

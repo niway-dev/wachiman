@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/niway-dev/wachiman/docs/formats/dashboard.v1.schema.json",
   "title": "Wachiman dashboard, version 1",
-  "description": "What `wachiman dashboard --json` prints: figures read from the local index, which is rebuilt from the history run files (ADR 0035). Local runs only. A figure the run files do not record is marked `not recorded`, never guessed. Spend is Claude Code's API-equivalent estimate, not a bill.",
+  "description": "What `wachiman dashboard --json` prints: figures read from the local index, which is rebuilt from the history run files (ADR 0035). Local runs only, plus the `usage` section when a ledger is connected or was pulled. A figure the run files do not record is marked `not recorded`, never guessed. Local-run spend is Claude Code's API-equivalent estimate, not a bill; `usage` splits billed (API key) from estimated dollars.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -198,6 +198,22 @@
           "$ref": "#/$defs/PrConfidenceRecorded"
         }
       ]
+    },
+    "usage": {
+      "type": "object",
+      "description": "Present only when a ledger is connected or was pulled (ADR 0039): the one spend report for laptop and GitHub Actions runs (`src/spend/report.ts`). Top-level keys of `report`: `filters`, `coverage`, `pulledAt`, `limits`, `totals`, `aside`, `days`, `weeks`, `groups`, `unknownCostCalls`. Dollars are split by source and by credential; reservations that never settled and runs that were not reserved are reported apart from spend; a period outside the downloaded data is marked `known: false`, never zero.",
+      "required": [
+        "report",
+        "pulled"
+      ],
+      "properties": {
+        "report": {
+          "type": "object"
+        },
+        "pulled": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "$defs": {

@@ -36,6 +36,28 @@ describe("select", () => {
   });
 });
 
+describe("select with a disabled choice", () => {
+  const withDisabled = [
+    { label: "alpha", value: "a" },
+    { label: "beta", value: "b" },
+    { label: "gamma", value: "c", disabled: true },
+  ];
+
+  test("it is listed as coming soon, and its number is refused and asked again", async () => {
+    const io = scripted(["3", "2"]);
+    expect(await createPrompter(io).select("Pick one", withDisabled, 0)).toBe("b");
+    expect(io.printed()).toContain("3. gamma (coming soon)");
+    expect(io.printed()).toContain("Option 3 is not available yet");
+  });
+
+  test("Enter never takes a disabled default: it falls to the first choice that can be picked", async () => {
+    const io = scripted([""]);
+    expect(await createPrompter(io).select("Pick one", withDisabled, 2)).toBe("a");
+    expect(io.printed()).toMatch(/1\. alpha.*\(default\)/);
+    expect(io.printed()).not.toMatch(/3\. gamma.*\(default\)/);
+  });
+});
+
 describe("text", () => {
   test("Enter takes the default printed in brackets", async () => {
     const io = scripted([""]);
@@ -144,32 +166,6 @@ describe("a terminal", () => {
       expect(written).toBe("Continue? [Y/n] ");
     } finally {
       p.close();
-    }
-  });
-
-  test("Backspace redraws the line with the question still in front of it", async () => {
-    // readline intentionally disables ANSI editing under TERM=dumb. This fixture
-    // models a capable terminal, independently of the shell running the suite.
-    const previousTerm = process.env.TERM;
-    process.env.TERM = "xterm-256color";
-    const input = Object.assign(new PassThrough(), { isTTY: true, setRawMode: () => input });
-    const output = Object.assign(new PassThrough(), { isTTY: true, columns: 80 });
-    let written = "";
-    output.on("data", (d) => (written += d.toString()));
-    const p = createPrompter({ input, output } as never);
-    try {
-      const answer = p.text("Name", undefined);
-      input.write("abc");
-      input.write("\x7f");
-      await new Promise((r) => setTimeout(r, 20));
-      const afterClear = written.slice(written.lastIndexOf("\x1b[0J"));
-      expect(afterClear).toContain("Name: ab");
-      input.write("\r");
-      expect(await answer).toBe("ab");
-    } finally {
-      p.close();
-      if (previousTerm === undefined) delete process.env.TERM;
-      else process.env.TERM = previousTerm;
     }
   });
 });

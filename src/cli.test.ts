@@ -3,6 +3,7 @@ import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractRepoDir, runResetConfidence } from "./cli";
+import { UsageError } from "./config";
 import type { GhFn } from "./engine";
 
 const cli = join(import.meta.dir, "cli.ts");
@@ -14,10 +15,19 @@ const run = (args: string[], env: Record<string, string> = {}) => {
 };
 
 describe("cli", () => {
-  test("--help prints the usage and exits 0", () => {
+  test("--help prints the short root help and exits 0", () => {
     const out = run(["--help"]);
     expect(out.code).toBe(0);
-    expect(out.stdout).toContain("wachiman review <pr>");
+    expect(out.stdout).toContain("wachiman <command> [options]");
+    expect(out.stdout).toContain("wachiman help ci");
+    expect(out.stdout).not.toContain("wachiman review <pr>");
+    expect(out.stdout.trimEnd().split("\n").length).toBeLessThanOrEqual(27);
+  });
+
+  test("bare wachiman prints the root help and exits 0", () => {
+    const out = run([]);
+    expect(out.code).toBe(0);
+    expect(out.stdout).toBe(run(["--help"]).stdout);
   });
 
   test("--version prints the package version", () => {
@@ -30,13 +40,12 @@ describe("cli", () => {
     expect(run(["review"]).code).toBe(2);
     expect(run(["review", "abc"]).code).toBe(2);
     expect(run(["frobnicate", "1"]).code).toBe(2);
-    expect(run([]).code).toBe(2);
     expect(run(["review", "1"]).code).toBe(2); // GH_TOKEN is not set
     expect(run(["comment", "1"], { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r" }).code).toBe(2); // no REQUEST
   });
 
   test("threads is a command: it needs a pull request number and takes no paths", () => {
-    expect(run(["--help"]).stdout).toContain("wachiman threads <pr>");
+    expect(run(["help", "ci"]).stdout).toContain("wachiman threads <pr>");
     expect(run(["threads"]).code).toBe(2);
     expect(run(["threads", "abc"]).code).toBe(2);
     expect(run(["threads", "7", "a.ts"]).code).toBe(2);
@@ -44,11 +53,11 @@ describe("cli", () => {
   });
 
   test("a trigger that is not an event action is a usage error", () => {
-    expect(run(["review", "1"], { AGENT_REVIEW_TRIGGER: "Not An Action" }).code).toBe(2);
+    expect(run(["review", "1"], { WACHIMAN_TRIGGER: "Not An Action" }).code).toBe(2);
   });
 
   test("an unknown provider is a usage error naming the accepted values", () => {
-    const out = run(["review", "1"], { AGENT_REVIEW_PROVIDER: "other" });
+    const out = run(["review", "1"], { WACHIMAN_PROVIDER: "other" });
     expect(out.code).toBe(2);
     expect(out.stderr).toContain("claude-code");
   });
@@ -57,7 +66,7 @@ describe("cli", () => {
     const out = run(["review", "1"], {
       GH_TOKEN: "x",
       GITHUB_REPOSITORY: "o/r",
-      AGENT_REVIEW_DRY_RUN: "1",
+      WACHIMAN_DRY_RUN: "1",
       PATH: "/nonexistent",
     });
     expect(out.code).toBe(1);
@@ -72,10 +81,10 @@ describe("cli", () => {
       writeFileSync(join(bin, "claude"), '#!/bin/sh\necho "9.9.9 (Claude Code)"\n');
       writeFileSync(join(bin, "gh"), "#!/bin/sh\nexit 1\n");
       for (const name of ["claude", "gh"]) chmodSync(join(bin, name), 0o755);
-      const env = { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r", AGENT_REVIEW_DRY_RUN: "1", AGENT_REVIEW_HISTORY: "1", AGENT_REVIEW_HISTORY_DAYS: "x", HOME: home };
+      const env = { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r", WACHIMAN_DRY_RUN: "1", WACHIMAN_HISTORY: "1", WACHIMAN_HISTORY_DAYS: "x", HOME: home };
       const started = run(["review", "1"], { ...env, PATH: `${bin}:${process.env.PATH ?? ""}` });
       expect(started.code).toBe(1);
-      expect(started.stderr).not.toContain("AGENT_REVIEW_HISTORY");
+      expect(started.stderr).not.toContain("WACHIMAN_HISTORY");
       const missing = run(["review", "1"], { ...env, PATH: "/nonexistent" });
       expect(missing.code).toBe(1);
       // The variable is ignored outside `local`: no history, no `~/.wachiman`. (macOS may add
@@ -127,9 +136,10 @@ describe("exit code 3: the spend ledger stopped the run", () => {
       PATH: `${bin}:${process.env.PATH ?? ""}`,
       GH_TOKEN: "x",
       GITHUB_REPOSITORY: "o/r",
-      AGENT_REVIEW_DRY_RUN: "1",
-      AGENT_REVIEW_TRIGGER: "opened",
-      AGENT_REVIEW_LEDGER_URL: "https://ledger.test",
+      WACHIMAN_DRY_RUN: "1",
+      WACHIMAN_TRIGGER: "opened",
+      WACHIMAN_LEDGER_URL: "https://ledger.test",
+      GITHUB_ACTIONS: "true",
       ACTIONS_ID_TOKEN_REQUEST_URL: "https://tokens.test/token?api=1",
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer",
       ...extra,
@@ -146,7 +156,7 @@ describe("exit code 3: the spend ledger stopped the run", () => {
       expect(failed.code).toBe(3);
       expect(failed.stderr).toContain("wachiman: spend limit reached:");
       expect(failed.stdout).toContain("Spend limit reached");
-      const quiet = run(["review", "1"], w.env({ LEDGER_STATUS: "402", LEDGER_BODY: LIMIT, AGENT_REVIEW_LIMIT_MODE: "notice" }));
+      const quiet = run(["review", "1"], w.env({ LEDGER_STATUS: "402", LEDGER_BODY: LIMIT, WACHIMAN_LIMIT_MODE: "notice" }));
       expect(quiet.code).toBe(0);
       expect(quiet.stdout).toContain("Spend limit reached");
       expect(w.modelCalled()).toBe(false);
@@ -158,7 +168,7 @@ describe("exit code 3: the spend ledger stopped the run", () => {
   test("an unreachable ledger reviews by default and exits 3 before any model call with ledger_unavailable: stop", () => {
     const w = world();
     try {
-      const stopped = run(["review", "1"], w.env({ CURL_EXIT: "7", AGENT_REVIEW_LEDGER_UNAVAILABLE: "stop" }));
+      const stopped = run(["review", "1"], w.env({ CURL_EXIT: "7", WACHIMAN_LEDGER_UNAVAILABLE: "stop" }));
       expect(stopped.code).toBe(3);
       expect(stopped.stderr).toContain("wachiman: ledger:");
       expect(w.modelCalled()).toBe(false);
@@ -174,7 +184,7 @@ describe("exit code 3: the spend ledger stopped the run", () => {
     const w = world();
     try {
       for (const unavailable of ["run", "stop"]) {
-        const out = run(["review", "1"], w.env({ LEDGER_STATUS: "404", LEDGER_BODY: "Not Found", AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable }));
+        const out = run(["review", "1"], w.env({ LEDGER_STATUS: "404", LEDGER_BODY: "Not Found", WACHIMAN_LEDGER_UNAVAILABLE: unavailable }));
         expect(out.code).toBe(3);
         expect(out.stderr).toContain("`ledger_url` does not look like the spend ledger");
         expect(out.stderr).toContain("HTTP 404");
@@ -186,19 +196,19 @@ describe("exit code 3: the spend ledger stopped the run", () => {
   });
 
   test("a cleartext ledger url is a usage error (exit 2)", () => {
-    const out = run(["review", "1"], { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r", AGENT_REVIEW_LEDGER_URL: "http://ledger.example" });
+    const out = run(["review", "1"], { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r", WACHIMAN_LEDGER_URL: "http://ledger.example" });
     expect(out.code).toBe(2);
-    expect(out.stderr).toContain("AGENT_REVIEW_LEDGER_URL must start with https://");
+    expect(out.stderr).toContain("WACHIMAN_LEDGER_URL must start with https://");
   });
 
   test("an unlinked repository and a job without an OIDC token exit 3 whatever ledger_unavailable says", () => {
     const w = world();
     try {
       for (const unavailable of ["run", "stop"]) {
-        const unlinked = run(["review", "1"], w.env({ LEDGER_STATUS: "403", LEDGER_BODY: JSON.stringify({ reason: "not_linked" }), AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable }));
+        const unlinked = run(["review", "1"], w.env({ LEDGER_STATUS: "403", LEDGER_BODY: JSON.stringify({ reason: "not_linked" }), WACHIMAN_LEDGER_UNAVAILABLE: unavailable }));
         expect(unlinked.code).toBe(3);
         expect(unlinked.stderr).toContain("not linked");
-        const bare = run(["review", "1"], w.env({ ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", AGENT_REVIEW_LEDGER_UNAVAILABLE: unavailable }));
+        const bare = run(["review", "1"], w.env({ ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", WACHIMAN_LEDGER_UNAVAILABLE: unavailable }));
         expect(bare.code).toBe(3);
         expect(bare.stderr).toContain("wachiman-platform.yml");
       }
@@ -208,8 +218,20 @@ describe("exit code 3: the spend ledger stopped the run", () => {
     }
   });
 
-  test("--help lists exit code 3", () => {
-    expect(run(["--help"]).stdout).toContain("3 the spend ledger stopped the run");
+  test("a laptop with the URL set (no GITHUB_ACTIONS, no OIDC variables) reaches the model and is not stopped by the ledger (exit is not 3; the fake claude returns no review)", () => {
+    const w = world();
+    try {
+      const laptop = run(["review", "1"], w.env({ GITHUB_ACTIONS: "", ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", LEDGER_STATUS: "402", LEDGER_BODY: LIMIT }));
+      expect(laptop.code).not.toBe(3);
+      expect(laptop.stderr.match(/not a GitHub Actions run/g)).toHaveLength(1);
+      expect(w.modelCalled()).toBe(true);
+    } finally {
+      rmSync(w.bin, { recursive: true, force: true });
+    }
+  });
+
+  test("help ci lists exit code 3", () => {
+    expect(run(["help", "ci"]).stdout).toMatch(/\n\s+3\s+The spend ledger stopped the run/);
   });
 });
 
@@ -230,7 +252,7 @@ describe("--repo-dir", () => {
 
 describe("reset-confidence", () => {
   const HEAD = "a".repeat(40);
-  const ENV = { AGENT_REVIEW_CONFIDENCE: "1", GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r" };
+  const ENV = { WACHIMAN_CONFIDENCE: "1", GH_TOKEN: "t", GITHUB_REPOSITORY: "o/r" };
 
   /** A pull request whose description holds an old grade; records what is written. */
   function fakeGh(head = HEAD) {
@@ -268,10 +290,10 @@ describe("reset-confidence", () => {
 
   test("does nothing with the flag off, and writes nothing in a dry run", () => {
     const off = fakeGh();
-    expect(runResetConfidence(["7"], { ...ENV, AGENT_REVIEW_CONFIDENCE: "0" }, off.gh)).toBe(0);
+    expect(runResetConfidence(["7"], { ...ENV, WACHIMAN_CONFIDENCE: "0" }, off.gh)).toBe(0);
     expect(off.writes).toEqual([]);
     const dry = fakeGh();
-    expect(runResetConfidence(["7"], { ...ENV, AGENT_REVIEW_DRY_RUN: "1" }, dry.gh)).toBe(0);
+    expect(runResetConfidence(["7"], { ...ENV, WACHIMAN_DRY_RUN: "1" }, dry.gh)).toBe(0);
     expect(dry.writes).toEqual([]);
   });
 
@@ -295,5 +317,16 @@ describe("reset-confidence", () => {
   test("needs a pull request number and refuses an unknown flag", () => {
     expect(() => runResetConfidence([], ENV, fakeGh().gh)).toThrow("pull request number");
     expect(() => runResetConfidence(["7", "--bogus"], ENV, fakeGh().gh)).toThrow("unexpected");
+  });
+
+  test("an unknown flag names the accepted --commit <sha> form", () => {
+    let error: unknown;
+    try {
+      runResetConfidence(["7", "--bogus"], ENV, fakeGh().gh);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(UsageError);
+    expect((error as UsageError).message).toContain("--commit <sha>");
   });
 });

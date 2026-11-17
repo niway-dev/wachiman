@@ -32,7 +32,7 @@ describe("review on push (ADR 0011)", () => {
     expect(condition).toContain("github.event.pull_request.head.repo.full_name == github.repository");
     expect(condition).toContain("github.actor != 'dependabot[bot]'");
     // A burst of pushes runs once: the older run is cancelled, per pull request.
-    expect(job).toMatch(/group: agent-review-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: true/);
+    expect(job).toMatch(/group: wachiman-review-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: true/);
     // The skipped branch prefixes are still checked inside the job.
     expect(job).toContain("skip_branch_prefixes");
   });
@@ -41,7 +41,7 @@ describe("review on push (ADR 0011)", () => {
     const text = read("templates/caller-workflow.yml");
     const job = text.slice(text.indexOf("\n  review:"), text.indexOf("\n  threads:"));
     expect(job).toContain("!startsWith(github.head_ref, 'release-please--')");
-    expect(job).toMatch(/group: agent-review-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: true/);
+    expect(job).toMatch(/group: wachiman-review-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: true/);
   });
 });
 
@@ -72,9 +72,9 @@ describe("push debounce", () => {
     expect(text.match(/Wait for further pushes/g)).toHaveLength(1);
   });
 
-  test("the copy template's review job has the same wait step, driven by AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS (180)", () => {
+  test("the copy template's review job has the same wait step, driven by WACHIMAN_PUSH_DEBOUNCE_SECONDS (180)", () => {
     const copy = read("templates/caller-workflow.yml");
-    expect(copy).toMatch(/AGENT_REVIEW_PUSH_DEBOUNCE_SECONDS: 180\b/);
+    expect(copy).toMatch(/WACHIMAN_PUSH_DEBOUNCE_SECONDS: 180\b/);
     const review = copy.slice(copy.indexOf("\n  review:"), copy.indexOf("\n  threads:"));
     const steps = review.slice(review.indexOf("\n    steps:"));
     const start = steps.indexOf("- name: Wait for further pushes");
@@ -108,7 +108,7 @@ describe("PR Confidence reset before the push wait", () => {
 
   for (const [label, text, command] of [
     ["the reusable workflow", reusable, 'src/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"'],
-    ["the copy template", copy, 'scripts/agent-review/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"'],
+    ["the copy template", copy, 'scripts/wachiman/cli.ts reset-confidence "$PR" --commit "$HEAD_SHA"'],
   ] as const) {
     test(`${label} resets the block before the wait, only for a push, and never blocks the review`, () => {
       const steps = stepsOf(text);
@@ -135,14 +135,14 @@ describe("PR Confidence reset before the push wait", () => {
     expect(input?.[1]).toMatch(/default: false/);
     const steps = stepsOf(reusable);
     expect(stepText(steps, "Reset PR Confidence for this commit")).toContain("inputs.pr_confidence");
-    expect(stepText(steps, "Review the pull request")).toContain("AGENT_REVIEW_CONFIDENCE: ${{ inputs.pr_confidence }}");
+    expect(stepText(steps, "Review the pull request")).toContain("WACHIMAN_CONFIDENCE: ${{ inputs.pr_confidence }}");
   });
 
-  test("the copy template switches it with AGENT_REVIEW_CONFIDENCE, off by default", () => {
-    expect(copy).toMatch(/^ {2}AGENT_REVIEW_CONFIDENCE: 0$/m);
+  test("the copy template switches it with WACHIMAN_CONFIDENCE, off by default", () => {
+    expect(copy).toMatch(/^ {2}WACHIMAN_CONFIDENCE: 0$/m);
     // No gate on the value: the command returns early when the flag is off (the engine accepts 1 and true).
     const reset = stepText(stepsOf(copy), "Reset PR Confidence for this commit");
-    expect(reset).not.toContain("AGENT_REVIEW_CONFIDENCE ==");
+    expect(reset).not.toContain("WACHIMAN_CONFIDENCE ==");
     expect(reset).toContain("github.event.action == 'synchronize'");
   });
 
@@ -180,18 +180,18 @@ describe("thread replies without a push (ADR 0012)", () => {
   test("it has its own concurrency group that never cancels, and the review job's permissions", () => {
     const job = jobOf(workflow, "threads");
     expect(job).toMatch(
-      /group: agent-review-threads-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: false/,
+      /group: wachiman-review-threads-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: false/,
     );
     expect(job).toMatch(/permissions:\n\s+contents: read\n\s+pull-requests: write\n/);
     // The review job's group is another one, so a reply cannot cancel a push review.
-    expect(jobOf(workflow, "review")).toContain("group: agent-review-${{ github.event.pull_request.number }}");
+    expect(jobOf(workflow, "review")).toContain("group: wachiman-review-${{ github.event.pull_request.number }}");
   });
 
   test("it runs the engine's threads command with the head as data and the comment's author", () => {
     const job = jobOf(workflow, "threads");
     expect(job).toContain('src/cli.ts threads "$PR" --repo-dir "$GITHUB_WORKSPACE/head"');
-    expect(job).toContain("AGENT_REVIEW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}");
-    expect(job).toContain("AGENT_REVIEW_TRIGGER: thread");
+    expect(job).toContain("WACHIMAN_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}");
+    expect(job).toContain("WACHIMAN_TRIGGER: thread");
     expect(job).toContain("persist-credentials: false");
   });
 
@@ -200,7 +200,7 @@ describe("thread replies without a push (ADR 0012)", () => {
     expect(job).toContain("github.event.comment.user.type != 'Bot'");
     expect(job).toContain("github.event.comment.in_reply_to_id");
     expect(job).toContain("github.event.pull_request.head.repo.full_name == github.repository");
-    expect(job).toMatch(/group: agent-review-threads-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: false/);
+    expect(job).toMatch(/group: wachiman-review-threads-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: false/);
     expect(job).toContain("cli.ts threads");
   });
 
@@ -210,10 +210,10 @@ describe("thread replies without a push (ADR 0012)", () => {
     expect(input("auto_budget_usd")).toMatch(/default: 6\b/);
     expect(input("threads_budget_usd")).toMatch(/type: number/);
     expect(input("threads_budget_usd")).toMatch(/default: 0\.25\b/);
-    expect(jobOf(workflow, "review")).toContain("AGENT_REVIEW_TRIGGER: ${{ github.event.action }}");
-    expect(jobOf(workflow, "review")).toContain("AGENT_REVIEW_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}");
-    expect(jobOf(workflow, "on-demand")).toContain("AGENT_REVIEW_TRIGGER: comment");
-    expect(jobOf(workflow, "threads")).toContain("AGENT_REVIEW_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}");
-    expect(jobOf(workflow, "threads")).toContain("AGENT_REVIEW_THREADS_BUDGET_USD: ${{ inputs.threads_budget_usd }}");
+    expect(jobOf(workflow, "review")).toContain("WACHIMAN_TRIGGER: ${{ github.event.action }}");
+    expect(jobOf(workflow, "review")).toContain("WACHIMAN_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}");
+    expect(jobOf(workflow, "on-demand")).toContain("WACHIMAN_TRIGGER: comment");
+    expect(jobOf(workflow, "threads")).toContain("WACHIMAN_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}");
+    expect(jobOf(workflow, "threads")).toContain("WACHIMAN_THREADS_BUDGET_USD: ${{ inputs.threads_budget_usd }}");
   });
 });

@@ -4,24 +4,30 @@
  * only the index and, without `--json`, the page; like `wachiman history`, it moves a damaged run
  * file aside. No `claude`, no GitHub, no network, no server, and it never opens a browser.
  */
-import { chmodSync, closeSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { existsSync, chmodSync, closeSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { wachimanHome } from "../accounts/config";
 import { UsageError } from "../config";
 import { readFigures, type Figures } from "./figures";
 import { renderHtml, type DashboardDocument } from "./html";
+import { credentialsPath } from "../ledger-read/credentials";
+import { listLedgerAccounts } from "../ledger-read/files";
+import { buildReport, deriveCoverage } from "../spend/report";
+import { readSpendRows } from "./rows";
 import { refreshIndex } from "./index";
 
 export const DASHBOARD_FORMAT = "wachiman.dashboard/1";
 export const DASHBOARD_FILE = "dashboard.html";
 
-export const dashboardUsage = `wachiman dashboard [--json] [--out <file>] [--repo-dir <dir>]`;
+export const dashboardUsage = `wachiman dashboard [--json] [--out <file>] [--refresh] [--repo-dir <dir>]`;
 
 export const LOCAL_ONLY = "Local runs only: those kept by `wachiman local --history` and `wachiman loop`. Runs by the GitHub Actions workflow are not counted.";
 
 export interface DashboardArgs {
   json: boolean;
   out?: string;
+  /** Download the ledger first (the only request `dashboard` can make). */
+  refresh?: boolean;
 }
 
 /** The arguments after `dashboard` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
@@ -36,6 +42,9 @@ export function parseDashboardArgs(argv: string[]): DashboardArgs | { help: true
     if (name === "--json") {
       if (eq !== -1) throw new UsageError("--json takes no value.");
       args.json = true;
+    } else if (name === "--refresh") {
+      if (eq !== -1) throw new UsageError("--refresh takes no value.");
+      args.refresh = true;
     } else if (name === "--out") {
       const v = eq === -1 ? argv[++i] : arg.slice(eq + 1);
       if (v === undefined || v === "" || (eq === -1 && v.startsWith("--"))) throw new UsageError("--out needs a file name.");
@@ -92,12 +101,20 @@ export interface DashboardIo {
 
 export function runDashboard(args: DashboardArgs, env: Record<string, string | undefined>, io: DashboardIo): number {
   const home = wachimanHome(env);
+  const now = io.now?.() ?? new Date();
   const doc: DashboardDocument = {
     format: DASHBOARD_FORMAT,
-    generatedAt: (io.now?.() ?? new Date()).toISOString(),
+    generatedAt: now.toISOString(),
     scope: LOCAL_ONLY,
     ...loadFigures(home, io.stderr),
   };
+  // A ledger is "connected" when a credentials file exists or a pull left files (nothing is parsed or resolved here: only `--refresh` makes a request, and the CLI does that first); otherwise the page is as before (ADR 0039).
+  if (existsSync(credentialsPath(home)) || listLedgerAccounts(home).length > 0) {
+    const spend = readSpendRows(refreshIndex(home, io.stderr).path);
+    const report = buildReport({ rows: spend.rows, coverage: deriveCoverage(spend.rows, spend.actions, now), limits: spend.limits, pulledAt: spend.pulledAt, now });
+    doc.usage = { report, pulled: spend.pulledAt !== null };
+    doc.scope = "Laptop runs kept by `wachiman local --history` and `wachiman loop`, and GitHub Actions runs downloaded from the ledger.";
+  }
   if (args.json) {
     io.stdout(`${JSON.stringify(doc, null, 2)}\n`);
     return 0;

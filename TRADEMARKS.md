@@ -105,9 +105,9 @@ If you distribute a modified version, or what it publishes reaches anyone outsid
 5. **Keep the license notices** the code license requires. That is the license's rule, not this policy's.
 
 You may keep the technical names that exist so setups keep working: the `/wachi` and `/wachiman`
-commands, the hidden `<!-- wachi:… -->` markers in comments, the `AGENT_REVIEW_*` settings and the
-`agent-review` file names. This includes legacy `agent-review`/`claude-review` state markers and
-compatibility command aliases. They are interfaces, not branding.
+commands, the hidden `<!-- wachi:… -->` markers in comments and the `WACHIMAN_*` settings. This
+includes the legacy `claude-review` state marker and compatibility command aliases. They are
+interfaces, not branding.
 
 If you change the code only for your own team and nobody outside it sees the result, you may leave
 the name as it is.

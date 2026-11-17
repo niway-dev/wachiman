@@ -14,26 +14,39 @@ bun src/cli.ts threads <pr> [--repo-dir <dir>]   # answer the pending Wachiman t
 bun src/cli.ts local [paths…] [--base <ref> | --from <commit> | --commit <commit> | --working-tree staged|all] [--max-depth <n>] [--repo-dir <dir>] [--input <file>] \
   [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
 bun src/cli.ts setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]
-bun src/cli.ts init [--mode github|local|both] [--operator <login>] [--version <tag>] [--path <file>] \
+bun src/cli.ts init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
   [--force] [--dry-run] [--yes] [--repo-dir <dir>]
 bun src/cli.ts doctor [--json] [--profile <name> | --all-profiles] [--repo-dir <dir>] [--redact-paths]
 bun src/cli.ts profile list|create|add|login|remove|default ...
 bun src/cli.ts project show|unbind ...
 bun src/cli.ts --setup-profile [<name>]          # alias of `profile create`
-bun src/cli.ts --help
+bun src/cli.ts --help                            # a short index of the commands (about 25 lines)
+bun src/cli.ts <command> --help                  # or: help <command>; that command's own page
+bun src/cli.ts help ci                           # review, comment, threads, reset-confidence
 bun src/cli.ts --version
 ```
 
-`package.json` installs both `wachiman` and `agent-review` through the Node launcher
+Help is printed from the arguments alone: it loads no configuration and makes no git, GitHub or model
+call, so `wachiman <command> --help` works anywhere. Every command's page has its usage, a
+description, the flags with their defaults, the environment variables that command reads, its exit
+codes and examples; `profile`, `project`, `skills` and `ledger` also have a page per subcommand (`wachiman
+profile create --help`). The four commands that only a GitHub Actions run uses (`review`, `comment`,
+`threads`, `reset-confidence`) are not in the root help; `wachiman help ci` lists them with the GitHub
+variables and exit codes. `--setup-profile` still works and is also left out of the root help. This
+page remains the full reference for the environment variables and exit codes.
+
+A bare `wachiman` with no arguments opens the [launcher](#interactive-launcher-and-intro) on a terminal and prints the root help and exits 0 anywhere else.
+
+`package.json` installs `wachiman` through the Node launcher
 `bin/wachiman.js`. Node 20 or later must be on `PATH`. The package installs Bun as
-its dependency; the launcher uses that binary when usable, otherwise a compatible
+its dependency, with `chalk` and `@clack/prompts` for the terminal screens; the launcher uses that binary when usable, otherwise a compatible
 Bun on `PATH`. Source contributors can still run `bun src/cli.ts`. Git and the
 provider binary are needed for local reviews; GitHub commands also need `gh`.
 
 Argument rules, as implemented:
 
-- The command (`review`, `comment`, `threads`, `local`, `history`, `dashboard`, `setup`, `doctor`, `profile` or `project`) must be the first argument. `--help`/`-h`,
-  `--version`/`-v` and `--setup-profile` are recognised only as the first argument too.
+- The command (`review`, `comment`, `threads`, `reset-confidence`, `local`, `loop`, `ask`, `history`, `status`, `dashboard`, `ledger`, `setup`, `init`, `doctor`, `profile`, `project`, `skills` or `upgrade`) must be the first argument. `--help`/`-h`,
+  `--version`/`-v`, `help` and `--setup-profile` are recognised only as the first argument too. `--help` or `-h` after a command prints that command's help and exits 0, before any other argument is checked. It is not a request where it is text or a value: after a `--`, as the value of `--reason`, or anywhere but the first argument of `ask`, whose other words are the question.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
   rest are read, so it is never taken for a path.
@@ -67,13 +80,16 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `threads <pr>` | Answers the Wachiman threads that wait for an answer, with no review, and only when the pull request's head was already reviewed. See "What `threads` does" below. |
 | `local [paths…]` | Reviews the committed branch of a clone on your own signed-in `claude` and prints the review; no GitHub call, nothing posted. See [`local`](#local) below and [the guide](local-review.md). |
 | `loop [--base <ref>]` | One round of a review loop on your own signed-in `claude`: a review with history on, a comparison with the rounds before it, and an exit code to branch on (`0` converged, `10` findings open, `11` stopped). A coding agent fixes between calls; the CLI never edits code. See [`loop`](#loop) below. |
-| `dashboard [--json] [--out <file>]` | Writes one static HTML page, or prints JSON, with the spend, findings and loop rounds of every repository in the local history, from a rebuildable SQLite index. No network, no model call. See [`dashboard`](#dashboard) and [the guide](local-dashboard.md). |
+| `dashboard [--json] [--out <file>] [--refresh]` | Writes one static HTML page, or prints JSON, with the spend, findings and loop rounds of every repository in the local history, from a rebuildable SQLite index. With a ledger connected it also shows GitHub Actions spend. No model call; a request only with `--refresh`. See [`dashboard`](#dashboard) and [the guide](local-dashboard.md). |
+| `ledger connect <url>`, `ledger disconnect`, `ledger pull [--since <n>d]` | Connect to the spend ledger with a read token, and download its entries to the laptop so `status` and `dashboard` can show Actions runs next to laptop runs. See [`ledger`](#ledger). |
 | `ask [question…]` | Answers one question about the local change (or walks through it when there is no question), on your own signed-in `claude`; no GitHub call, nothing posted. See [`ask`](#ask) below. |
 | `setup [--profile <name>]` | Binds this repository to an account profile; on a terminal without `--profile` it asks. See [`setup`](#setup-doctor-profile-and-project). |
-| `init` | Writes the GitHub caller workflow, or hands over to `setup`. See [`init`](#init). |
+| `init` | Writes the GitHub caller workflow and the repository settings file, or hands over to `setup`. See [`init`](#init). |
 | `doctor` | Reports what a local run would use and what would fail. |
 | `profile …`, `project …` | Manage account profiles and the repository's binding. |
+| `upgrade [--check] [--repo-only] [--to <version>]` | Updates the CLI, then moves the workflow pin in this repository to the new release. See [`upgrade`](#upgrade). |
 | `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
+| `pr-template show\|install\|status\|check\|format\|risk\|strip` | Installs the PR description template, reports its state, checks and reorders a description, and computes the risk floor. No model call. See [`pr-template`](#pr-template) and [the guide](pr-template.md). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
 ### Incremental reviews
@@ -122,17 +138,17 @@ therefore widen a review instead of narrowing it. Details and the exact matching
 
 The checks run in this order:
 
-1. If `AGENT_REVIEW_OPERATOR` is empty or a template placeholder (`EDIT…`, `your-github-login`),
+1. If `WACHIMAN_OPERATOR` is empty or a template placeholder (`EDIT…`, `your-github-login`),
    `comment` fails with exit 1. This is checked before anything else, including before it looks at
    the comment.
-2. If `AGENT_REVIEW_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
-   notice and exits 0 without doing anything, unless `AGENT_REVIEW_ASKERS=write`; then see
+2. If `WACHIMAN_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
+   notice and exits 0 without doing anything, unless `WACHIMAN_ASKERS=write`; then see
    [Questions from collaborators](#questions-from-collaborators). If it is unset, the engine does no
    author check under `askers: operator`: a caller that runs `comment` directly decides who may reach
    it. Under `askers: write` an unset author is an error (exit 1), because nobody can then be trusted
    without a login.
-3. If the comment contains no command word (`AGENT_REVIEW_MENTION`, default `/wachiman`, or the
-   aliases `/wachi`, `@agent-review`, `@claude`), nothing happens and it exits 0.
+3. If the comment contains no command word (`WACHIMAN_MENTION`, default `/wachiman`, or the
+   aliases `/wachi`, `@claude`), nothing happens and it exits 0.
 4. If the first word after the command word is `review`, it runs `review` with the remaining words
    as paths.
 5. Otherwise the whole comment is a question, and one agent call answers it as a pull request
@@ -148,21 +164,21 @@ even a comment that would do nothing needs a working provider binary and credent
 
 ### Questions from collaborators
 
-Only the operator's comments run a review. With `AGENT_REVIEW_ASKERS=write`, a collaborator's
+Only the operator's comments run a review. With `WACHIMAN_ASKERS=write`, a collaborator's
 comment that asks a question is answered too. In the reusable workflow that is the `askers` input
 (default `operator`), and the ceiling in step 4 is the `ask_ceiling_usd` input (default `3`); the
 copy template sets both at the top of its file. After step 1 above, such a comment must pass these
 checks, in this order:
 
-1. It must have an author (`AGENT_REVIEW_COMMENT_AUTHOR`), or the run exits 1.
+1. It must have an author (`WACHIMAN_COMMENT_AUTHOR`), or the run exits 1.
 2. It must be a question or a walkthrough request. Anything else, including `review`, prints a
    notice and exits 0.
 3. GitHub must report the author's permission on the repository as `admin`, `maintain` or `write`
    (or a role named `maintain`), from `repos/{repo}/collaborators/{login}/permission`. Bots, a failed
    lookup and any other permission are refused. A refusal posts nothing; it is a line in the job log.
 4. The question ceiling must have room. Each answer to a collaborator ends with a footer that records
-   its cost. The sum of those footers on the pull request, plus `AGENT_REVIEW_ANSWER_BUDGET_USD`, must
-   not exceed `AGENT_REVIEW_ASK_CEILING_USD` (default `3`). When it would, the engine posts one notice
+   its cost. The sum of those footers on the pull request, plus `WACHIMAN_ANSWER_BUDGET_USD`, must
+   not exceed `WACHIMAN_ASK_CEILING_USD` (default `3`). When it would, the engine posts one notice
    and answers nothing. It does not post the notice again while it is still the latest Wachiman
    comment on the pull request.
 
@@ -171,12 +187,12 @@ A call that fails still posts a note with its cost, so the ceiling counts what w
 
 ### What `threads` does
 
-`threads` is an automatic run (`AGENT_REVIEW_TRIGGER` is forced to `thread`): it counts against
-`AGENT_REVIEW_AUTO_BUDGET_USD` ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)).
+`threads` is an automatic run (`WACHIMAN_TRIGGER` is forced to `thread`): it counts against
+`WACHIMAN_AUTO_BUDGET_USD` ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)).
 The checks run in this order, and each "exits 0" ends the run without a model call:
 
-1. An empty or placeholder `AGENT_REVIEW_OPERATOR` is an error (exit 1).
-2. If `AGENT_REVIEW_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
+1. An empty or placeholder `WACHIMAN_OPERATOR` is an error (exit 1).
+2. If `WACHIMAN_COMMENT_AUTHOR` is set and is not the operator (case-insensitive), it prints a
    notice and exits 0.
 3. If the last reviewed commit (the signed marker) is not the head, it exits 0: the review of that
    push reads the same replies and answers them. The same when no review exists.
@@ -184,7 +200,7 @@ The checks run in this order, and each "exits 0" ends the run without a model ca
    `COLLABORATOR` and where Wachiman has written fewer than two replies. None: exit 0.
 5. If the pull request's automatic spend has reached the ceiling, it posts the one notice for that
    ceiling (never twice) and exits 0.
-6. One provider call, capped by the smaller of `AGENT_REVIEW_THREADS_BUDGET_USD` and what is left
+6. One provider call, capped by the smaller of `WACHIMAN_THREADS_BUDGET_USD` and what is left
    under the ceiling, sees each thread's finding, its replies and the head's lines at the finding.
    Each answer is "appears addressed in `path:line`" or "still applies because …"; every cited
    `path:line` must exist in the head, and a reply whose citation does not is dropped. The engine
@@ -214,10 +230,10 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--output <file>` | stdout | Write the report to a file; its path is printed on stderr |
 | `--agent-prompt` | off | With `terminal`, also print the prompt for your agent (Markdown always has it, JSON never) |
 | `--profile <name>` | see "Which account" below | `default` is your own `claude`; a name is a registered profile (managed or external); `isolated` and `isolated:<name>` name the managed profile `~/.wachiman/claude-<name>` (which must exist and hold nothing but a sign-in) |
-| `--verify` | off (follows `AGENT_REVIEW_VERIFY`); `--verify` forces it on | After the batches, one more call on `AGENT_REVIEW_VERIFIER_MODEL` (default Opus 5.5) tries to refute each finding above `info`. A finding is dropped only when the verifier shows a checked disproof; one it cannot settle stays, marked `inconclusive`; a true bug that predates the change is `supported` with origin `pre-existing`. The verifier can read the base commit as well as the head. The record is `verification` in `--format json --result-version 2` ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md), [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)) |
-| `--no-verify` | — | Turn verification off for this run, even when `AGENT_REVIEW_VERIFY` is on. With `--verify` it is a usage error |
+| `--verify` | off (follows `WACHIMAN_VERIFY`); `--verify` forces it on | After the batches, one more call on `WACHIMAN_VERIFIER_MODEL` (default Opus 5.5) tries to refute each finding above `info`. A finding is dropped only when the verifier shows a checked disproof; one it cannot settle stays, marked `inconclusive`; a true bug that predates the change is `supported` with origin `pre-existing`. The verifier can read the base commit as well as the head. The record is `verification` in `--format json --result-version 2` ([ADR 0027](adr/0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md), [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)) |
+| `--no-verify` | — | Turn verification off for this run, even when `WACHIMAN_VERIFY` is on. With `--verify` it is a usage error |
 | `--result-version 1\|2` | `1` for committed; `2` for working-tree | With `--format json` only (any other use exits 2): which result version to write. `1` is the committed form (`toResultV1`): no `verification` block, and one line in `execution.notices` saying how verification went. `2` is the full result, with each finding's `origin`, `verification` and `tier` |
-| `--history` | off (or `AGENT_REVIEW_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
+| `--history` | off (or `WACHIMAN_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
 merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 250)`, `head: feat/x (…)`); with `--commit` or
@@ -227,13 +243,13 @@ prints, never posts:** the report goes to stdout (or `--output`), so `--format j
 the result alone.
 
 Size never blocks a run. When the estimated cost of the whole review is above the larger of
-`AGENT_REVIEW_SIZE_GATE_USD` and `AGENT_REVIEW_BUDGET_USD`, `local` prints one warning on stderr
-before the first model call and continues. The run is capped by `AGENT_REVIEW_BUDGET_USD` (default $3)
-and each call by `AGENT_REVIEW_BATCH_BUDGET_USD` (passed to Claude Code as `--max-budget-usd`, soft);
-there is no `AGENT_REVIEW_AUTO_BUDGET_USD` ceiling locally. See [the size gate](costs.md#the-size-gate)
+`WACHIMAN_SIZE_GATE_USD` and `WACHIMAN_BUDGET_USD`, `local` prints one warning on stderr
+before the first model call and continues. The run is capped by `WACHIMAN_BUDGET_USD` (default $3)
+and each call by `WACHIMAN_BATCH_BUDGET_USD` (passed to Claude Code as `--max-budget-usd`, soft);
+there is no `WACHIMAN_AUTO_BUDGET_USD` ceiling locally. See [the size gate](costs.md#the-size-gate)
 and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
 
-It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `AGENT_REVIEW_PROVIDER`
+It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `WACHIMAN_PROVIDER`
 is not `claude-code`, for a detached or unborn `HEAD`, a `HEAD` on the base branch without `--base`, a range deeper than `--max-depth`, a base with no merge-base, `--base`, `--from` and `--commit` used together, a `--from` that is not an ancestor of `HEAD`, a `--commit` or `--from` that is not a commit, a refused
 isolated profile, or an `--input` whose format is not `/1` or whose head is not in the clone.
 Each `claude` call runs in subscription mode: no key, `USER` and the no-telemetry switches in its
@@ -367,8 +383,8 @@ and confirmations to stderr; `--json` prints the document named below.
 | `profile default <name> \| --none` | Sets or clears the configured default |
 | `project show [--json] [--repo-dir <dir>]` | The repository's key, its binding, and what `local` would use here now, with the rule and any ignored values. `--json` prints `wachiman.project/1` |
 | `project unbind [--repo-dir <dir>] [--yes]` | Removes this repository's binding |
-| `setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to a profile, prints exactly what it will write, asks `Bind <repo> to <name>?` (only on a terminal), then runs the `doctor` summary. On a terminal without `--profile` it is a wizard: see below |
-| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `history`, `skills`, `isolation`. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
+| `setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]` | Binds this repository to a profile, prints what it saved and where, then runs the `doctor` summary. On a terminal without `--profile` it is a wizard: see below |
+| `doctor [--json] [--profile <name> \| --all-profiles] [--repo-dir <dir>] [--redact-paths]` | One row per check: `wachiman`, `bun`, `git`, `tar`, `config`, `profile`, `auth`, `environment`, `project`, `settings`, `workflow-pin`, `history`, `skills`, `isolation`. The `workflow-pin` row reads the `uses: niway-dev/wachiman/.github/workflows/<name>.yml@<ref>` lines in `.github/workflows` (read-only): a release tag older than the installed CLI is a warning with the fix `wachiman upgrade --repo-only`, a tag that is not older is ok, a commit SHA or a branch is shown and never compared, a workflow file it cannot read is named in a warning, and no Wachiman workflow (or no git repository) is skipped. It is optional. The `settings` row reads `.wachiman.yml` in the working tree (read-only: it never writes or moves anything) and reports its `kind`, `model` and `effort` and where the effective model and effort of a run come from (the environment, the file or the default); an invalid working copy is a warning, never a failure (runs read the file at the base commit or merge-base and ignore a broken one with a warning, so the fix takes effect once committed and merged), and an old `.github/wachiman.yml` is a warning: its fix is `mv .github/wachiman.yml .wachiman.yml`, or, when a root `.wachiman.yml` also exists, to merge the old file into it and remove the old one. `--all-profiles` repeats `profile`, `auth` and `isolation` for every profile. `--redact-paths` swaps paths for `<home-path-N>` and `<external-path-N>` and URLs for `<remote>`, so the output can be shared. `--json` prints `wachiman.doctor/1` |
 
 `remove` and `unbind` ask before writing. Without a terminal (or with `CI` set) they need `--yes`;
 without it they exit 2. `setup` needs `--profile <name>` when it cannot ask (no terminal, `CI` is `true` or `1`
@@ -382,7 +398,7 @@ closing `doctor` summary failed (the binding is already written); `profile` and 
 (including a "no" answer), 2 usage error, 130 cancelled.
 
 **The `setup` wizard** (a terminal, no `--yes`, `CI` neither `true` nor `1`) asks one question at a time, each
-showing its default (numbered lists mark `(default)`, text shows `[value]`, Enter takes it):
+showing its default (on a terminal the highlighted entry and the placeholder; without one, numbered lists mark `(default)`, text shows `[value]`, and Enter takes it):
 
 1. `Set up this repository?` after printing the repository and its current binding.
 2. Which profile: your current Claude session, the registered/discovered profiles (name, kind,
@@ -393,46 +409,92 @@ showing its default (numbered lists mark `(default)`, text shows `[value]`, Ente
    name and then, naming the side effect, whether to create `~/.wachiman/claude-<name>` and open
    Claude there so you can sign in; that directory and sign-in happen at once, and nothing is
    registered yet.
-3. A summary of the profile's name, kind, directory and binary, and the repository's identity and
-   scope, then `Bind <repo> to <profile>?`. Only a yes saves anything, and it saves the pending
-   profile (if any) and the binding in one locked write.
+3. There is no confirm step: picking the profile is the confirmation. Wachiman saves the pending
+   profile (if any) and the binding in one locked write and prints one line, for example
+   `local reviews of app (every clone of <origin>) will use the account "work-a"; saved in ~/.wachiman/config.json, nothing in the repository`.
+   The wizard has three steps (Project, Claude account, Checks); started from `init` it has no
+   Project step of its own and the session totals are in the `init` section.
+
+Wachiman starts the `claude` binary itself, so it cannot see a shell alias or function that points
+`claude` at another configuration directory. The profile list therefore also offers each
+`~/.claude-<name>` directory in your home that no profile registers, labelled
+`~/.claude-<name> (your own Claude directory, used in place)`. Picking one registers it as an
+external profile named `<name>` (the same as `wachiman profile add <name> --config-dir <dir>`) and
+binds it; the directory is not opened or changed.
 
 The selector offers your current Claude session (`default`), registered/discovered profiles,
 creation of an isolated profile, and registration of an existing directory. Enter prefers the
 current binding, then the configured global default, then your current session. The current
 session shares your normal Claude settings; it does not register or copy a profile directory.
 
-Then it checks the account (offering `Sign in now?` for a signed-out managed/external profile)
-and prints the `doctor` summary. Required checks passing produces `local: ready` and a review
+Then it checks the account (offering `Sign in now?` for a signed-out managed/external profile; for
+your current session nothing is offered or run) and prints the `doctor` summary. Required checks passing produces `local: ready` and a review
 command; this does not validate the review range. A required failure produces `local: not ready`,
-exit 1, and a doctor command for this repository. The saved binding remains. Suggested paths are
-shell-quoted; Windows output names PowerShell and Git Bash alternatives. Escape, Ctrl-C or Ctrl-D exits 130; before the final yes no
+exit 1 (scripts read it as "this machine is not ready"), and a doctor command for this repository. The saved binding remains. Suggested paths are
+shell-quoted; Windows output names PowerShell and Git Bash alternatives. Escape, Ctrl-C or Ctrl-D exits 130; before the profile is picked no
 configuration is saved, and a managed directory or a Claude sign-in that already happened is
 listed, never described as undone.
 
 ### `init`
 
 ```sh
-wachiman init [--mode github|local|both] [--operator <login>] [--version <tag>] [--path <file>] \
-  [--force] [--dry-run] [--yes] [--repo-dir <dir>]
+wachiman init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
+  [--force] [--dry-run] [--pr-template | --no-pr-template] [--yes] [--repo-dir <dir>]
 ```
 
 First-time setup of a repository. `--mode github` writes the maintained caller workflow
 (`templates/wachiman-review-caller.yml`) to `.github/workflows/wachiman-review.yml` with your
 `operator:` and the release tag you pin, and a one-line header that says Actions is billed through
 the repository secret `ANTHROPIC_API_KEY` while local runs use your signed-in `claude`. `--mode
-local` writes no workflow; on a terminal it continues directly into account selection and the
-final binding confirmation. `--mode both` writes the workflow and then continues into the same
+local` writes no workflow; on a terminal it continues directly into account selection and saves the
+binding without a second question. `--mode both` writes the workflow and then continues into the same
 account setup. Without prompts, local/both prints the command to run `setup` separately; it does
 not log in or bind an account. Choosing local/both already requests setup, so no second general
 invitation is shown. Standalone `setup` keeps its opening invitation. Init never commits, pushes,
 opens a PR or creates a secret.
 
-The Git worktree is validated before questions. Interactive stages identify the project, review
-mode, configuration, binding confirmation when relevant, and checks/next actions. The route total
-appears once the mode is known. A non-empty `NO_COLOR`, `TERM=dumb` and non-terminal
+`init` also records what kind of repository this is, in `.wachiman.yml` (not under
+`.github/workflows/`, where GitHub would parse it as a workflow). On a terminal it asks "What kind
+of repository is this?" (Monorepo, Single project, or Distributed repository, which is listed as
+coming soon and cannot be picked); `--project-kind monorepo|single` answers it. The kind is
+metadata only, and the file never chooses an account, a profile
+or a binary ([ADR 0048](adr/0048-a-repository-settings-file-at-the-root-wachiman-yml.md)). It applies
+in all three modes. Without a terminal and without `--project-kind` the file is not written or
+changed. A new file holds two comment lines, `kind: monorepo` (or `single`), and `model` and `effort` commented out under a line saying Wachiman's defaults are what its benchmarks measure (`init` never asks for them; see [configuration](configuration.md#the-settings-file-wachimanyml)). The same kind
+leaves it untouched (`.wachiman.yml already says kind: X.`); a different or missing `kind:`
+line is replaced or appended, every other line kept, after a confirmation on a terminal or with
+`--force` without one. `--dry-run` never writes it and prints `would write .wachiman.yml
+(kind: X)` on stderr. Init does not commit it: the closing steps say to add it with the workflow
+(`local` mode: to commit it).
+
+The Git worktree is validated before questions. Interactive stages identify the project, project
+type, review mode, configuration, the Claude account when relevant, and checks/next actions. The route total
+appears once the mode is known: 5 steps for `github` and for `local`, 6 for `both`. A non-empty `NO_COLOR`, `TERM=dumb` and non-terminal
 output disable styling; prompts and status stay on stderr. JSON results and dry-run workflow
-bytes on stdout are unchanged. Existing workflow replacement still requires `--force`.
+bytes on stdout are unchanged.
+
+Questions on a terminal: the repository kind, the review mode, and, for `github` and `both`, your
+GitHub username, prefilled with the account `gh` is signed in as (`gh api user --jq .login`; no
+default when `gh` is missing or fails) and phrased with its profile URL, `https://github.com/<username>`.
+Only that person's `/wachiman` comments start a paid run. The release tag (the version of this CLI,
+`DEFAULT_WORKFLOW_REF`) and the workflow path (`.github/workflows/wachiman-review.yml`) are not asked;
+`--version` and `--path` still override them. The tag is asked only when a build has no bundled release.
+
+In every mode a last question, "Also install the PR description template?" (default yes), is asked unless
+`--pr-template`, `--no-pr-template` or `--dry-run` settles it.
+
+Running `init` again after a failure is safe. If the workflow file already holds what init would
+write (the generated header line, which carries a date, is ignored), init says it is unchanged and
+continues; the same holds without a terminal. If it differs, a terminal shows the new file and asks
+`Replace the existing workflow? A .bak copy is kept.` (default yes: the person is running init again
+on purpose and the earlier file is kept); without a terminal it still needs `--force` and exits 2
+without it.
+
+If the final Claude sign-in check fails, everything is already saved and the session closes with a
+neutral message, not `Stopped.`: `Saved. One step left: sign in to Claude (`claude auth login`), then
+run `wachiman init` again or `wachiman doctor`.` For the current session it adds that a shell alias
+or function that sets `CLAUDE_CONFIG_DIR` is invisible to Wachiman and says how to register that
+directory with `wachiman profile add`. The exit code stays 1.
 
 A written workflow is reported as `github: pending`: add `ANTHROPIC_API_KEY` and submit the workflow
 in GitHub. Init does not check those remote actions. Both mode reports this separately from local
@@ -443,17 +505,100 @@ command that binds the repository later.
 | Flag | Rule |
 | --- | --- |
 | `--mode` | Mandatory without a terminal |
+| `--project-kind <kind>` | `monorepo` or `single`; `distributed` is refused as not available yet. Written to `.wachiman.yml` in every mode. Asked on a terminal when absent; without a terminal and without it, the file is not touched |
 | `--operator <login>` | Mandatory for `github` and `both` without a terminal; a GitHub login |
 | `--version <tag>` | `vX.Y.Z` or a 40-character commit SHA, written after `review.yml@`. Default: the release tag bundled in this build (`DEFAULT_WORKFLOW_REF`, moved by release-please at each release commit); the CLI's own version is never used as a tag |
 | `--path <file>` | Default `.github/workflows/wachiman-review.yml`, relative to the repository top level (also when run from a subdirectory); a `.yml` or `.yaml` file directly in `.github/workflows/` |
-| `--force` | Replaces an existing file after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it an existing file is exit 2 |
+| `--force` | Replaces an existing workflow after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it, an existing file that differs is exit 2 (one that is identical is reported unchanged). With `--project-kind` it also lets a run without a terminal change a different `kind:` in `.wachiman.yml` (no backup; only that line changes), and it is accepted in `--mode local` for that |
 | `--dry-run` | Prints the rendered file to stdout and writes nothing |
+| `--pr-template` / `--no-pr-template` | Also install the [PR description template](pr-template.md) (`wachiman pr-template install`, files only, no commit), in any mode; or do not. On a terminal, without either flag, `init` asks (default yes); a script that gives neither gets no template. A refusal (a hand-edited template, an invalid `.github/pr-template.json`) is reported and does not fail the rest of `init`. `--dry-run` installs nothing |
 | `--yes` | No prompts |
 
-`--mode local` with `--operator`, `--version`, `--path`, `--force` or `--dry-run` is exit 2. A
+`--mode local` with `--operator`, `--version`, `--path`, `--force` (unless a kind is given with `--project-kind` or answered on a terminal) or `--dry-run` is exit 2. A
 `.github`, `workflows` or target that is a symbolic link is refused. On a terminal the file is
 previewed on stderr and `Write it?` is asked first; Escape, Ctrl-C or Ctrl-D exit 130 and write
 nothing.
+
+### Interactive launcher and intro
+
+`wachiman` with no arguments opens a menu when stdin, stdout and stderr are all terminals and `CI`
+is unset. Otherwise it prints the usage as before. The menu offers: Review changes, Ask about
+changes, Review loop, Findings & usage, Configure and Exit. Review and Ask first ask for a scope
+(this branch against the base, one commit, staged changes, or the whole working tree).
+
+Before anything that spends your subscription, the launcher shows the repository, the scope, the
+profile and the exact command it will run, then asks `Run it?`. Declining runs nothing and returns
+to the menu; Escape or Ctrl-C exits 130 with nothing run. The launcher closes its prompt and then
+runs the same command handler you would get by typing the command.
+
+On a terminal the menus are drawn with [Clack](https://bomb.sh/docs/clack/packages/prompts/) (the
+screens of `npm create astro`): arrow keys move the highlight, Enter confirms, Escape or Ctrl-C
+cancels, and the lists of branches and profiles are filterable (type to narrow the list; the last
+entry of the branch list lets you type any other branch or commit). The session is one frame:
+a title line, the questions and their answers, status lines, a "Next steps" note, and a closing line.
+A slow check (the account probe of `setup`) runs behind a spinner and never freezes it. Without a
+terminal the menus are numbered lists and the prompts read lines, exactly as before.
+
+On a terminal, `init`, `setup` and the launcher open with Wachi, the guard: a ` wachiman ` chip with
+"On watch." and the version, a small rounded face under a peaked cap, with the name `Wachi:` beside the cap and a line typed
+beside the eyes (for example `Shift started. Let's watch this repo.`); on a narrow terminal the name
+and the line go under the face. The typing takes under a second and any
+key skips it; Ctrl-C ends the session. The same scene is printed at once, with nothing typed, when
+stdin or stderr is not a terminal, `NO_COLOR` is non-empty, `CI` is set, `TERM=dumb`, the terminal
+is narrower than 40 columns, or `WACHIMAN_NO_ANIMATION` is set. With `NO_COLOR` or `TERM=dumb` the
+scene has no color (and no non-ASCII character on `TERM=dumb`). The cursor is restored on every exit
+path, including Ctrl-C. A command that the launcher starts does not repeat the intro.
+
+Nothing here changes what a command does: the same defaults, files, `--yes`, `--json`, `--dry-run`
+and exit codes apply, prompts and status stay on stderr, and no prompt or animation appears outside
+a terminal. `CI` set (to anything) also keeps the launcher and the animation off, and `init` and `setup` do not ask when `CI` is `true` or `1`. The terminal screens use the packages `chalk` and `@clack/prompts`
+([ADR 0002](adr/0002-typescript-on-bun-zero-dependencies.md), amendment 2026-11-13); the review
+engine and the GitHub Actions path never load them. A clone that never ran `bun install` runs every
+command; only a terminal screen stops, with a message that names `bun install`, and `--yes` or flags
+skip it.
+
+### `upgrade`
+
+```
+wachiman upgrade [--check] [--repo-only] [--to <version>] [--repo-dir <dir>]
+```
+
+The caller workflow pins an exact release (`uses: niway-dev/wachiman/.github/workflows/review.yml@v1.15.0`),
+so a new release never reaches CI without a change you review. `upgrade` makes that change one command, in two steps.
+
+1. **The CLI.** It reads the latest version with `npm view wachiman version`, then installs it with the package manager
+   that owns the global install: `bun add -g wachiman@latest` when the package sits under `~/.bun/install/global`,
+   `npm install -g wachiman@latest` when it sits under npm's global prefix (`npm prefix -g`). A custom Bun home
+   (`$BUN_INSTALL/install/global`) counts as bun. An install made with pnpm, yarn or volta is not driven: the command
+   names the path and says to update it with that tool, then run `wachiman upgrade --repo-only`. On
+   Windows the package manager is started through a shell so that `npm.cmd` and `bun.cmd` are found. The package manager runs with your terminal. A clone or a `wachiman-dev`
+   build is never upgraded: the command says to `git pull` or run `scripts/dev-build.sh`. A CLI that is already on the
+   latest version installs nothing.
+2. **The repository.** In the current git repository it rewrites the `@<tag>` of every such `uses:` line in
+   `.github/workflows/*.yml` to the new version and prints the files it changed and the commands to commit them
+   (`git add …`, `git commit -m "chore: pin Wachiman to vX.Y.Z"`). The rest of each file stays byte for byte the same,
+   and nothing is committed. A pin that is a commit SHA, a branch, a floating tag or a pre-release is listed and left alone,
+   and a pin newer than the target is never moved down.
+
+If step 1 is skipped (a clone, or an install this command does not drive), step 2 runs only when you pass `--to`;
+otherwise it is skipped and the output says why. If step 1 fails, step 2 does not run, even with `--to`: the pins stay.
+When a pin moves across a major version, the output asks you to read the release notes before committing.
+
+- `--check` prints the installed and the latest version and changes nothing.
+- `--repo-only` skips step 1 and pins the installed version (or `--to`); use it after upgrading the CLI another way, or
+  when `wachiman doctor` reports the `workflow-pin` row as older than the CLI.
+- `--to <version>` (`v1.2.3`) installs that release instead of the latest and pins it. It never downgrades the
+  CLI: when the installed version is the same or newer, nothing is installed and only the pins move to the version
+  you named (a pin newer than it is still never moved down). If the install fails, for example for a version that
+  does not exist, the pins stay where they were and the exit code is 1; with `--repo-only --to` no install is
+  attempted and the pins move.
+
+A workflow file that cannot be read, or an unreadable `.github/workflows` directory, is listed on stderr and gives exit
+code 1, because its pin was not checked. `--check` says so when the installed version is not a release version and
+cannot be compared.
+
+Exit codes: 0 done, nothing to do, or a clone that was not upgraded; 1 the package manager failed, a version could not
+be read, or a workflow file could not be read or written; 2 a usage error.
 
 ### `skills`
 
@@ -490,6 +635,27 @@ always go to stderr.
 Exit codes: 0 done (copies left in place are warnings, not failures), 1 a copy could not be written
 or removed, 2 usage error or a refused target.
 
+### `pr-template`
+
+```
+wachiman pr-template show    [--from <json>]
+wachiman pr-template install [--from <json>] [--force] [--commit]
+wachiman pr-template status  [--json]
+wachiman pr-template check   [<file>] [--pr <n>] [--repo <owner/name>] [--title <t>] [--head <sha>] [--base <ref>] [--allow-breaking]
+wachiman pr-template format  [<file>] [--write]
+wachiman pr-template risk    [--base <ref>]
+wachiman pr-template strip   <file>
+```
+
+Generates `.github/pull_request_template.md` from a section catalog and an optional
+`.github/pr-template.json`, then checks and reorders pull request descriptions against it. No model
+call, and no GitHub request except `check --pr`, which uses `gh`. `--repo-dir <dir>` points every
+subcommand at another clone. `install` writes files only and never pushes; `--commit` makes one
+commit of the files it wrote. `wachiman init --pr-template` runs the same install. Exit codes: 0
+done or passing, 1 a finding (`check`) or a state that is not `current` (`status`), 2 a usage or
+configuration error. The whole guide, with the states, the findings and the risk rules, is
+[pr-template.md](pr-template.md).
+
 ### `history`
 
 `wachiman history` lists the findings that `local --history` kept for the repository of
@@ -514,14 +680,15 @@ error, including a `--verdict` id that matches no finding.
 `wachiman status` shows what this laptop kept of its local runs and what they cost, so you can see
 where the spend goes. It reads the history files under `~/.wachiman/history` and, without
 `--all-repos` or `--repo`, runs `git rev-parse` and `git remote get-url` in `--repo-dir` to find the
-repository's key. It runs no `claude`, calls no GitHub and sends nothing. Damaged history files
+repository's key. It runs no `claude`, calls no GitHub and sends nothing; the only request it can make is the explicit `--refresh`, which downloads the spend ledger. Damaged history files
 are moved aside with an `.unreadable-<timestamp>` suffix and a warning on stderr.
 
-**What it covers.** Only runs saved by `wachiman local --history` (or `AGENT_REVIEW_HISTORY=1`).
-Runs made by the GitHub Actions workflow are not in those files and are not counted, so the total is
-the local spend, not Wachiman's whole spend. The cost is Claude Code's `total_cost_usd`: an
+**What it covers.** Runs saved by `wachiman local --history` (or `WACHIMAN_HISTORY=1`) and, once
+you have run [`wachiman ledger pull`](#ledger), the GitHub Actions runs recorded by the spend ledger.
+Without a pulled ledger, Actions runs are not counted, so the total is the local spend, not
+Wachiman's whole spend. The cost is Claude Code's `total_cost_usd`: an
 API-equivalent estimate, not a bill. A new `--history` run deletes runs older than 30 days
-(`AGENT_REVIEW_HISTORY_DAYS`, `0` keeps them all), so the total reaches back at most that far.
+(`WACHIMAN_HISTORY_DAYS`, `0` keeps them all), so the total reaches back at most that far.
 
 | Option | What it does |
 | --- | --- |
@@ -530,13 +697,25 @@ API-equivalent estimate, not a bill. A new `--history` run deletes runs older th
 | `--repo <name\|key>` | One repository by name or key, from any directory; ambiguous names require a key |
 | `--model <text>` | Only runs whose model id contains the text (`sonnet`, `claude-haiku-5-5`) |
 | `--profile <name>` | Only runs made with that named account; older records without an account use the execution profile (`default`, `isolated` or `ci`) |
-| `--by day\|repo\|model\|profile` | How the table groups runs (default `day`); repositories are grouped by their unique key |
-| `--json` | `wachiman.status/1`: the filters, totals, groups and every run with its attributes |
+| `--by day\|week\|repo\|pr\|model\|profile\|source` | How the table groups runs (default `day`); repositories are grouped by their unique key; weeks start on Monday, UTC; `pr` groups ledger runs by pull request and laptop runs by "local branch" |
+| `--source laptop\|actions\|all` | Only laptop runs, only GitHub Actions runs from the pulled ledger, or both (default `all`). `--profile` leaves out Actions runs, which have no profile |
+| `--refresh` | Run [`ledger pull`](#ledger) first (the only request `status` can make); without it no request is made. A failed download warns and keeps the entries already on disk. With no ledger connected it exits 2 |
+| `--json` | `wachiman.status/1`: the filters, totals, groups and every run with its attributes; with a pulled ledger also `report`, the one spend report with every figure split by source and credential, and `limitUse`, the day's and week's figure against the ledger limit. With a ledger `totals.costUsdEstimate` and `groups[].costUsdEstimate` are the sum of billed (API key) and estimated dollars, not an estimate alone: read `report.totals.byCredential` for the split |
 
 Each run in the JSON carries `at`, `repositoryKey`, `repository`, `change`, `head`, `model`,
 `effort`, `profile`, `engineVersion`, `costUsdEstimate`, `tokens` and `findings`, so any other
 cut can be made with a JSON tool. A pull request number is not among them: a local run reviews a
 branch or a commit.
+
+With a pulled ledger the totals line separates billed dollars (API key) from estimated dollars
+(subscription, API-equivalent, not a bill), shows the day's and the week's spend against the ledger
+limits when the ledger reported them, and adds a "Not counted as spend" line for reservations that never settled and runs that were not
+reserved. The limit lines are the whole account's figure (Actions runs only, best-effort, counting
+settled runs, runs recorded without a reservation and dollars still held by reservations) over every
+repository: `--repo`, `--all-repos`, `--model`, `--since`, `--profile` and `--source` never change them.
+A limit period outside the downloaded days says "no data", not zero. `status` reads the downloaded day
+files directly, not the index, so it answers on a read-only home. `--source actions` with no pulled
+ledger exits 2 and says to connect one. Without a pulled ledger the output is the same as before.
 
 Exit codes: 0 printed (with no run kept it prints one line saying how to start, and exits 0); 2
 usage error.
@@ -546,7 +725,7 @@ usage error.
 `wachiman dashboard` shows what this laptop's local runs cost, how many findings they captured and how
 the review loops went, for every repository in `~/.wachiman/history`. It first brings the index at
 `~/.wachiman/index.sqlite` up to date by replaying the history files (a missing, corrupt, old-schema
-or stale index is deleted and rebuilt; no other command reads it), then writes one static HTML file or
+or stale index is deleted and rebuilt; `status` reads the downloaded ledger files, not the index, and no other command reads it), then writes one static HTML file or
 prints JSON. It runs no `claude`, calls no GitHub, starts no server and never opens a browser.
 `--repo-dir` is accepted and not used. What it covers and cannot show: [the guide](local-dashboard.md).
 
@@ -554,9 +733,52 @@ prints JSON. It runs no `claude`, calls no GitHub, starts no server and never op
 | --- | --- |
 | `--json` | Print `wachiman.dashboard/1` on stdout ([schema](formats/dashboard.v1.schema.json)) instead of writing the page |
 | `--out <file>` | Where to write the HTML page; default `~/.wachiman/dashboard.html`. Missing directories are created; the file is `0600`. The path is printed. Not allowed with `--json` |
+| `--refresh` | Run [`ledger pull`](#ledger) first (the only request `dashboard` can make). Without it no request is made, and the credentials file is not even read. A failed download warns and keeps the entries already on disk. With no ledger connected it exits 2 |
+
+With a ledger connected or pulled, the page replaces its spend sections with one view of laptop and
+GitHub Actions runs: a chart of what the ledger counts against its limit per day and per week
+(GitHub Actions runs only, with the limit drawn as a line), a separate chart of spend by source with
+no limit line, tables per repository, pull request and model with runs, calls and
+dollars, every figure split by source and by credential (billed API key, estimated subscription),
+reservations that never settled and runs that were not reserved as their own lines, "no data" for any
+period the downloaded days do not cover, and when the ledger was last pulled. With no ledger the
+page is as before, plus one line saying how to connect one.
 
 Exit codes: 0 written or printed (also with no run kept); 1 a loop file could not be read, or the index or
 the page could not be written; 2 usage error.
+
+### `ledger`
+
+`wachiman ledger` connects the laptop to the spend ledger (the Worker of the daily spend limit) and
+downloads its entries, so `status` and `dashboard` show GitHub Actions runs next to laptop runs
+([ADR 0039](adr/0039-the-laptop-reads-the-ledger-and-one-report-covers-laptop-and-actions-runs.md)).
+The laptop only reads, only when you configured it, and only on an explicit command: local mode
+still sends nothing and makes no GitHub request.
+
+This is the read side and is separate from the workflow's own ledger client. The workflow reserves and
+settles dollars with `ledger_url` (`WACHIMAN_LEDGER_URL`) and a GitHub OIDC identity, and exits 3
+when the ledger stops a run ([configuration.md](configuration.md), `src/ledger.ts`). `ledger connect`
+keeps a different credential, a read token that can call only `GET /v1/entries`, in
+`credentials.json` or `WACHIMAN_LEDGER_TOKEN`. Both clients name the same service with
+`WACHIMAN_LEDGER_URL` (the workflow reads it in Actions, the laptop on a command), but the read token
+is never sent by the workflow and the workflow's identity is never used by the laptop. Outside GitHub Actions the engine's spend client does not use `WACHIMAN_LEDGER_URL`: it does not reserve, settle or record, and a review runs with one stderr line saying the ledger is skipped because this is not a GitHub Actions run.
+
+| Command | What it does |
+| --- | --- |
+| `ledger connect <url>` | Asks for the read token on standard input without echoing it, and writes `~/.wachiman/ledger/credentials.json` (`{url, token}`) at mode `0600`. The URL must be https (http only for loopback: `localhost`, `127.0.0.1` or `[::1]`) |
+| `ledger disconnect` | Deletes that file. Entries already downloaded stay on disk |
+| `ledger pull [--since <n>d]` | Calls `GET /v1/entries` for the last `n` days (default 35, at most 92) and writes one file per UTC day under `~/.wachiman/ledger/<account>/<day>.json`, replacing each day as a whole, so a second pull never stores an entry twice. It also stores the limits the ledger reported. Day files outside the pulled range are kept, and the covered days are the union of all pulls that touch or overlap; a day inside the range for which the ledger returns nothing has its file deleted, and the command prints how many. Stale `*.tmp-<pid>` files left by a crash are removed at the start. This and `--refresh` are the only requests |
+
+`WACHIMAN_LEDGER_URL` and `WACHIMAN_LEDGER_TOKEN` override the file. The token is never printed,
+logged, or written anywhere but the credentials file; it is not in the index or the dashboard page.
+Only the account pulled last is read. Directories of accounts pulled earlier stay on disk (a disconnect
+keeps entries) and are ignored, so figures and limits never mix two accounts.
+
+The dashboard's index (`~/.wachiman/index.sqlite`) is rebuilt from the day files like the rest and
+holds nothing the files do not; `status` does not use it.
+
+Exit codes: 0 done; 1 the ledger could not be reached, refused the token or answered something
+unexpected; 2 usage error, or `pull` with no ledger connected.
 
 ## What it posts
 
@@ -576,7 +798,7 @@ the page could not be written; 2 usage error.
   (at most three places a person must decide) and the files to read first. On a review of one
   push, the level line starts with "This push only."; a change with no facts gets the two-line
   form without a heading.
-- A complete, unscoped review also ends with `<!-- agent-review sha=<head> -->`; the next
+- A complete, unscoped review also ends with `<!-- wachiman sha=<head> -->`; the next
   unscoped review starts from that commit. The older `<!-- claude-review sha=… -->` marker is still
   read, never written (see "Incremental reviews" for the cutoff).
 - `review` when nothing is to be done: a short review body. `Already reviewed at <sha>` when the
@@ -604,7 +826,7 @@ the page could not be written; 2 usage error.
   is not there, or to a line past its end, is removed, and the comment says how many. The others link
   to that line at the head commit. Without an earlier review the answer says so in its first
   section.
-- With `AGENT_REVIEW_DRY_RUN=1` it reads GitHub but prints instead of posting. It still calls the
+- With `WACHIMAN_DRY_RUN=1` it reads GitHub but prints instead of posting. It still calls the
   agent, so it still costs money.
 
 Before posting, the engine refuses to post anything that contains something shaped like a provider
@@ -621,11 +843,11 @@ Required for `review`, `comment` and `threads`:
 | `GH_TOKEN` | Token for `gh`. It is never given to the agent. Not read by `local`, `setup`, `doctor`, `profile` or `project`. |
 | `GITHUB_REPOSITORY` | `owner/name` of the repository. Not read by `local`, `setup`, `doctor`, `profile` or `project`. |
 | `REQUEST` | `comment` only: the comment text. Pass it through the environment, never interpolated into a shell command. |
-| `AGENT_REVIEW_COMMENT_ID` | Optional, for `comment` and `threads` on a review comment: that comment's id. With it, a question is answered in the comment's thread. |
-| `AGENT_REVIEW_COMMENT_IN_REPLY_TO` | Optional: the id of the comment this one replies to. The answer is posted as a reply under the thread's first comment. |
-| `AGENT_REVIEW_COMMENT_PATH`, `AGENT_REVIEW_COMMENT_LINE` | Optional: the file and the line the review comment is on (`line`, or `original_line` when the line moved). The question is about that line first. |
-| `AGENT_REVIEW_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs unless `AGENT_REVIEW_ASKERS=write` (see [Questions from collaborators](#questions-from-collaborators)). |
-| Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token from `claude setup-token`; it wins when both are set, and `local` and `ask` never read it). For `codex`: `OPENAI_API_KEY`. Neither is needed with `AGENT_REVIEW_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
+| `WACHIMAN_COMMENT_ID` | Optional, for `comment` and `threads` on a review comment: that comment's id. With it, a question is answered in the comment's thread. |
+| `WACHIMAN_COMMENT_IN_REPLY_TO` | Optional: the id of the comment this one replies to. The answer is posted as a reply under the thread's first comment. |
+| `WACHIMAN_COMMENT_PATH`, `WACHIMAN_COMMENT_LINE` | Optional: the file and the line the review comment is on (`line`, or `original_line` when the line moved). The question is about that line first. |
+| `WACHIMAN_COMMENT_AUTHOR` | Optional, for `comment` and `threads`: the login of the comment's author. When set and not the operator, nothing runs unless `WACHIMAN_ASKERS=write` (see [Questions from collaborators](#questions-from-collaborators)). |
+| Provider credentials | For `claude-code`: `ANTHROPIC_API_KEY`, or `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token from `claude setup-token`; it wins when both are set, and `local` and `ask` never read it). For `codex`: `OPENAI_API_KEY`. Neither is needed with `WACHIMAN_DRY_RUN=1`, which uses the machine's own login. `local` uses the signed-in `claude` and refuses to start when `ANTHROPIC_API_KEY` is set. |
 
 The `gh` CLI and the provider's binary (`claude` for `claude-code`, `codex` for `codex`) must be on
 the `PATH`.
@@ -637,22 +859,26 @@ Read by the account commands and `local`:
 | `WACHIMAN_HOME` | The Wachiman home, an absolute path. Default `~/.wachiman` |
 | `WACHIMAN_PROFILE` | The profile `local` uses when there is no `--profile` and no project binding |
 
-All optional settings (`AGENT_REVIEW_BUDGET_USD`, `AGENT_REVIEW_MODEL`, `AGENT_REVIEW_PROVIDER`,
-`AGENT_REVIEW_DRY_RUN`, `AGENT_REVIEW_EXCLUDE`, `AGENT_REVIEW_COMMENT_AUTHOR` and the rest) are in
+`WACHIMAN_NO_ANIMATION` (any non-empty value) is read only by the intro of `init`, `setup` and the launcher: it
+turns the typing off and prints Wachi's scene at once. `NO_COLOR` (non-empty) turns every color off in the help,
+the menus and the intro, and `TERM=dumb` also switches to ASCII symbols.
+
+All optional settings (`WACHIMAN_BUDGET_USD`, `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER`,
+`WACHIMAN_DRY_RUN`, `WACHIMAN_EXCLUDE`, `WACHIMAN_COMMENT_AUTHOR` and the rest) are in
 [configuration.md](configuration.md#engine-settings), with their types, defaults, valid values and
 which provider they apply to. Two things hold for every one of them: budgets and sizes must be
 positive numbers (lines and chars, whole numbers), and anything else is a usage error.
 
 ### Deprecated names
 
-`AGENT_REVIEW_X` settings fall back to the old `CLAUDE_REVIEW_X` names, with a notice on stderr.
+`WACHIMAN_X` settings fall back to the old `CLAUDE_REVIEW_X` names, with a notice on stderr.
 Installed copies can migrate one variable at a time; the new name wins when both are set. The
 fallback covers the engine settings only: [configuration.md](configuration.md#deprecated-names).
 
 ### Repository files
 
-The engine reads `.github/wachiman.md` (the review focus), the old `.github/agent-review.md` and
-`.github/claude-review.md` names, `CLAUDE.md` and `AGENTS.md` from the pull request's base commit, so a pull request cannot
+The engine reads `.github/wachiman.md` (the review focus), the old
+`.github/claude-review.md` name, `CLAUDE.md` and `AGENTS.md` from the pull request's base commit, so a pull request cannot
 change the rules it is reviewed under. Details, size limits and what these files cannot do:
 [configuration.md](configuration.md#repository-files). A YAML configuration file is not
 implemented.
@@ -751,16 +977,16 @@ shrunk to what fits, or dropped, before the coverage table and the summary are t
 
 | Code | Meaning |
 | --- | --- |
-| `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help` and `--version` also exit 0. |
+| `0` | A review or answer was posted, or there was nothing to do (no command word, not the operator, nothing to review, already reviewed), or the agent ran out of budget before finishing any batch and a notice was posted. `--help`, `help` and `--version` also exit 0, and so does a bare `wachiman`. |
 | `1` | Engine error. **Not the same as "nothing was posted"**: see below. |
-| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `AGENT_REVIEW_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message and the usage text go to stderr. |
+| `2` | Usage error: unknown command, missing or invalid pull request number, `comment` or `threads` given paths, an `WACHIMAN_TRIGGER` that is not a lowercase word, a `--repo-dir` that is not a directory, missing `GH_TOKEN`, `GITHUB_REPOSITORY` or `REQUEST`, an invalid numeric setting, or an unknown provider. The message is one line on stderr, followed by `Run 'wachiman <command> --help'.` |
 | `3` | The spend ledger stopped the run before any model call: a limit with `limit_mode: fail`, a repository the ledger does not know, a rejected identity token, no OIDC token while `ledger_url` is set, or an unreachable ledger with `ledger_unavailable: stop`. With `limit_mode: notice` a limit exits 0. Only with `ledger_url`; see [costs.md](costs.md#the-spend-limit). |
 
 Exit 1 covers:
 
 - Before any call is paid for: a missing provider binary, settings file or credential, a Codex model
   with no known price, an empty or placeholder operator in `comment`, and a malformed
-  `AGENT_REVIEW_PRICE_PER_MTOK`. The malformed price is raised as an ordinary error, so it exits 1
+  `WACHIMAN_PRICE_PER_MTOK`. The malformed price is raised as an ordinary error, so it exits 1
   although it is a bad setting. Nothing has been posted.
 - During a review: a failed `gh` call, no batch returning a review (when no call hit its cap),
   output refused because it looked like a credential, and an answer the agent did not give.

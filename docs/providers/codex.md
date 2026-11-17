@@ -1,6 +1,6 @@
 # Codex adapter
 
-`AGENT_REVIEW_PROVIDER=codex`. Implemented in `src/providers/codex.ts`. It runs `codex exec` once
+`WACHIMAN_PROVIDER=codex`. Implemented in `src/providers/codex.ts`. It runs `codex exec` once
 per batch, so the review can be done by an OpenAI model such as GPT Sol. Default model:
 `gpt-6.1-sol`. Decision record: ADR 0004.
 
@@ -24,7 +24,7 @@ the reusable workflow needs a Codex install step, an `OPENAI_API_KEY` secret and
 API-key checks listed under "What is not covered"; none of that exists yet.
 
 Requirements: the `codex` binary on the `PATH`, and `OPENAI_API_KEY` in the environment. A dry run
-(`AGENT_REVIEW_DRY_RUN=1`) does not require the key and uses the machine's own Codex login
+(`WACHIMAN_DRY_RUN=1`) does not require the key and uses the machine's own Codex login
 (`$CODEX_HOME`, else `~/.codex`). A dry run is not free: it skips posting to GitHub but still calls
 Codex, so it spends whatever that login is billed for. `preflight()` fails before any call is paid for if the binary does
 not answer `--version`, the key is unset outside a dry run, or the model has no known price.
@@ -46,7 +46,7 @@ enough.
 | Features off | `--disable` for apps, browser use (three), computer use, hooks, image generation, in-app browser, multi-agent, plugins, remote plugins, skill dependency install | Network paths, other agents, and code the branch controls | Flags passed; each feature's effect not tested one by one |
 | No web search | `web_search="disabled"` | Network | Flag passed |
 | No rules or session files | `--ignore-rules`, `--ephemeral`, `--ignore-user-config` | Execpolicy files; transcripts left on the runner | Flags passed |
-| Time limit | `AGENT_REVIEW_CALL_TIMEOUT_S` (default 900 s) per call, then `SIGKILL`; reported as `timeout`. There is no turn cap: `codex exec` has no equivalent of `--max-turns`, so `AGENT_REVIEW_MAX_TURNS` is ignored | A call that never ends; Codex has no spend cap | Unit test |
+| Time limit | `WACHIMAN_CALL_TIMEOUT_S` (default 900 s) per call, then `SIGKILL`; reported as `timeout`. There is no turn cap: `codex exec` has no equivalent of `--max-turns`, so `WACHIMAN_MAX_TURNS` is ignored | A call that never ends; Codex has no spend cap | Unit test |
 | Key in output | `leaksSecret`: the exact key or any `sk-…` shape anywhere in the answer | Posting the key | Unit test |
 
 ### Review instructions
@@ -84,7 +84,7 @@ each call from its `turn.completed` usage: uncached input, cached input and outp
 price per million tokens. Reasoning tokens are counted inside output.
 
 **There is no dollar cap on a Codex call.** The engine passes every provider a cap
-(`AGENT_REVIEW_BATCH_BUDGET_USD`, or what is left of `AGENT_REVIEW_BUDGET_USD`), and this adapter does
+(`WACHIMAN_BATCH_BUDGET_USD`, or what is left of `WACHIMAN_BUDGET_USD`), and this adapter does
 not use it. Two things limit spend: the time limit on each call (15 minutes by default, then `SIGKILL`), and the
 engine's running total, which stops new calls once the total budget is used. A single call can cost
 more than the per-batch figure. Only completed turns are counted, so a call killed by the time limit
@@ -96,7 +96,7 @@ invoice. See [costs.md](../costs.md).
 | `gpt-6.1-sol` | $2 | $0.10 | $10 | Published list price, October 2026 |
 | `gpt-6-sol` | $2 | $0.10 | $10 | Same list price |
 
-Any other model needs `AGENT_REVIEW_PRICE_PER_MTOK="input,cached_input,output"`. These prices are
+Any other model needs `WACHIMAN_PRICE_PER_MTOK="input,cached_input,output"`. These prices are
 what the code holds, not a current quote: check them against OpenAI's pricing page before relying
 on a budget.
 
@@ -106,13 +106,13 @@ with Codex 0.153.4 and a ChatGPT account, `gpt-6.1-sol` and `gpt-6-sol` were ref
 when using Codex with a ChatGPT account"), and `gpt-5.6-sol` worked. An API key is expected to
 serve them; this is part of the CI check above.
 
-`AGENT_REVIEW_EFFORT` sets `model_reasoning_effort`. It is new in v1.4.0 and not in v1.3.0;
+`WACHIMAN_EFFORT` sets `model_reasoning_effort`. It is new in v1.4.0 and not in v1.3.0;
 from v1.4.0, the setting works for both providers,
 defaults to `high` and is always passed, so the model's own default no longer applies. It accepts
 `low`, `medium`, `high`, `xhigh` or `max`, and any other value stops the run at startup. A value
 from that list is still passed through as is: Codex may refuse `xhigh` or `max` for some models, so
-choose one the model accepts. `AGENT_REVIEW_REASONING_EFFORT` is a deprecated alias that logs a
-warning; `AGENT_REVIEW_EFFORT` wins when both are set. Before this change, the old variable was
+choose one the model accepts. `WACHIMAN_REASONING_EFFORT` is a deprecated alias that logs a
+warning; `WACHIMAN_EFFORT` wins when both are set. Before this change, the old variable was
 Codex-only, was not validated, and left the model's default in place when unset.
 
 ## Verified run
@@ -121,8 +121,8 @@ A dry run of the whole engine on a pull request in a consumer repository (6 file
 lines). `<owner>/<repo>` and `<pr>` stand for that repository and pull request:
 
 ```sh
-AGENT_REVIEW_DRY_RUN=1 AGENT_REVIEW_PROVIDER=codex AGENT_REVIEW_MODEL=gpt-5.6-sol \
-AGENT_REVIEW_PRICE_PER_MTOK="2,0.1,10" AGENT_REVIEW_OPERATOR=<login> \
+WACHIMAN_DRY_RUN=1 WACHIMAN_PROVIDER=codex WACHIMAN_MODEL=gpt-5.6-sol \
+WACHIMAN_PRICE_PER_MTOK="2,0.1,10" WACHIMAN_OPERATOR=<login> \
 GH_TOKEN=$(gh auth token) GITHUB_REPOSITORY=<owner>/<repo> \
 bun --no-env-file --config=bunfig.toml src/cli.ts review <pr> --repo-dir <checkout of the head>
 ```

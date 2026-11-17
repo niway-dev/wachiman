@@ -7,6 +7,9 @@
   workflow yet**; whether `pull_request_review_comment` runs get the secrets is unverified until the
   first real install. Amends ADR 0001 decision 5. Builds on ADR 0011 (review every push, #68), merged.
   The spec's part C (fix checks) is not part of this ADR and is not implemented.
+  **Amended** by [ADR 0021](0021-a-daily-spend-limit-kept-by-a-ledger-service.md) (accepted
+  2026-11-12): the non-goal "a server-side spend counter" is superseded for a daily limit across
+  repositories, and `/wachi review` stays outside this ceiling but inside that daily limit.
 - **Spec:** [Re-review on push, thread replies and fix checks](../specs/2026-11-01-re-review-on-push-design.md)
 - **Evidence:** [kaipu-record#475](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-10-31/pr-475.md)
 
