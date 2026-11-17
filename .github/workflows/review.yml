@@ -175,7 +175,7 @@ on:
         description: >-
           Base URL of the spend ledger that keeps a daily and a weekly limit across repositories
           (docs/costs.md). Empty, the default: no ledger call of any kind and nothing changes.
-          Set, the job needs an OIDC token, which only `review-platform.yml` can get (it grants
+          Set, the job needs an OIDC token, which only `wachiman-platform.yml` can get (it grants
           `id-token: write`); here the run stops and says so
         type: string
         default: ""

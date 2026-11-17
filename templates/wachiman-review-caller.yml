@@ -29,11 +29,11 @@ permissions: { contents: read, pull-requests: write, issues: read }
 jobs:
   review:
     # Optional, to enroll in a spend ledger that limits spend per day and per week across repositories
-    # (docs/costs.md): change `review.yml` below to `review-platform.yml`, add `id-token: write` to the
+    # (docs/costs.md): change `review.yml` below to `wachiman-platform.yml`, add `id-token: write` to the
     # `permissions:` line at the top, and add `ledger_url` (and optionally `daily_budget_usd`) to `with:`
-    # next to `operator`. `review-platform.yml` exists from v1.14.0 on,
+    # next to `operator`. `wachiman-platform.yml` exists from v1.17.0 on,
     # so pin that release or later. Leave all of this out and nothing changes.
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.16.1 # x-release-please-version
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.17.0 # x-release-please-version
     with:
       operator: EDIT-THIS-github-login
       # review_on_push: false   # review only on open, ready for review and `/wachiman review`

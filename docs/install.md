@@ -1,7 +1,7 @@
 # Your first advisory review
 
 This tutorial takes a repository with no Wachiman installation to one posted review. It uses the
-reusable workflow, pinned to release **v1.16.1**. You will add one caller file and one secret, <!-- x-release-please-version -->
+reusable workflow, pinned to release **v1.17.0**. You will add one caller file and one secret, <!-- x-release-please-version -->
 open a pull request, and read the review. It takes a few minutes and spends a small amount on
 your own model API key, or on your Claude subscription if you choose that route
 ([below](#review-on-a-claude-subscription)).
@@ -53,7 +53,7 @@ actions in GitHub:
 
 <!-- x-release-please-start-version -->
 ```sh
-wachiman init --mode github --operator <your-github-login> --version v1.16.1
+wachiman init --mode github --operator <your-github-login> --version v1.17.0
 ```
 <!-- x-release-please-end -->
 
@@ -65,7 +65,7 @@ hand, as below, works the same.
 
 1. **Add the caller file.** Copy
    [`templates/wachiman-review-caller.yml`](../templates/wachiman-review-caller.yml) to
-   `.github/workflows/wachiman-review.yml`. Its `uses:` line pins `v1.16.1`. The file is short: <!-- x-release-please-version -->
+   `.github/workflows/wachiman-review.yml`. Its `uses:` line pins `v1.17.0`. The file is short: <!-- x-release-please-version -->
 
    <!-- x-release-please-start-version -->
    ```yaml
@@ -77,7 +77,7 @@ hand, as below, works the same.
    permissions: { contents: read, pull-requests: write, issues: read }
    jobs:
      review:
-       uses: niway-dev/wachiman/.github/workflows/review.yml@v1.16.1
+       uses: niway-dev/wachiman/.github/workflows/review.yml@v1.17.0
        with:
          operator: EDIT-THIS-github-login
        secrets:
@@ -153,7 +153,7 @@ workflow runs from the pull request's own branch.
    **Wachiman review** job. A draft starts it later, when you mark it ready for review.
 2. In the repository's **Actions** tab, open the run named after your workflow (`Wachiman review`).
    The job summary starts with a line such as `Engine niway-dev/wachiman@<sha>`. That is the
-   exact commit of the engine that ran with your key; it should be the commit `v1.16.1` points to <!-- x-release-please-version -->
+   exact commit of the engine that ran with your key; it should be the commit `v1.17.0` points to <!-- x-release-please-version -->
    (see the next section).
 3. The job installs Bun and Claude Code, checks the Claude Code download against a SHA-256, runs
    the review and posts it.
@@ -241,7 +241,7 @@ More on scoping, questions and reading results: [reviews.md](reviews.md).
 
 ## What pinning a version does and does not guarantee
 
-The caller pins the reusable workflow with `@v1.16.1`. The recommendation is an exact release tag <!-- x-release-please-version -->
+The caller pins the reusable workflow with `@v1.17.0`. The recommendation is an exact release tag <!-- x-release-please-version -->
 such as this one, not the floating `v1`.
 
 **What the pin does.** It chooses the workflow file and the engine together. The workflow
@@ -258,7 +258,7 @@ release too. They change when you change the pin or pass an input.
   admin bypass, which the release process needs for the floating alias. Someone with that
   authority could re-point a tag. A full 40-character commit SHA cannot be re-pointed, so it is
   the stronger pin against a moved tag. Read the commit a tag points to with
-  `git ls-remote https://github.com/niway-dev/wachiman refs/tags/v1.16.1`. <!-- x-release-please-version -->
+  `git ls-remote https://github.com/niway-dev/wachiman refs/tags/v1.17.0`. <!-- x-release-please-version -->
   The cost of a SHA is readability: add a trailing comment with the version, as this
   repository's own workflows do, so a person can tell what is pinned.
 - **It does not review the code for you.** A pin selects a release. Reading what it does is
@@ -293,7 +293,7 @@ Enrolling is optional. A repository that does not set `ledger_url` changes nothi
 permission.
 
 A spend ledger keeps a daily and a weekly limit across repositories ([costs.md](costs.md#the-spend-limit)).
-To use one, call `review-platform.yml` instead of `review.yml` and grant `id-token: write` in the
+To use one, call `wachiman-platform.yml` instead of `review.yml` and grant `id-token: write` in the
 caller's job. A called workflow cannot hold a permission its caller did not grant, which is why
 `review.yml` itself never asks for it:
 
@@ -305,14 +305,14 @@ permissions:
   id-token: write      # lets the job ask the ledger for a GitHub OIDC token
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review-platform.yml@vX.Y.Z
+    uses: niway-dev/wachiman/.github/workflows/wachiman-platform.yml@vX.Y.Z
     with:
       operator: your-github-login
       ledger_url: https://your-ledger.example.com
       daily_budget_usd: 5   # optional, stricter than the account's limit
 ```
 
-`vX.Y.Z` is a placeholder for the release you pin. `review-platform.yml` exists only from v1.14.0,
+`vX.Y.Z` is a placeholder for the release you pin. `wachiman-platform.yml` exists only from v1.17.0,
 so an earlier tag, such as `v1.5.0`, has no such file. The release tooling (release-please) keeps
 the pins marked as such in this page and in the caller template current, but it does not rewrite
 the tag in this example or in your caller file, and

@@ -5,7 +5,11 @@ paths:
   .github/workflows/review.yml:
     ignore:
       - 'property "workflow_(repository|sha)" is not defined in object type'
-  # The generated copy of review.yml (scripts/generate-review-platform.ts) has the same lines.
+  # The generated copy of review.yml (scripts/generate-wachiman-platform.ts) has the same lines.
+  .github/workflows/wachiman-platform.yml:
+    ignore:
+      - 'property "workflow_(repository|sha)" is not defined in object type'
+  # The deprecated alias of wachiman-platform.yml, written by the same generator.
   .github/workflows/review-platform.yml:
     ignore:
       - 'property "workflow_(repository|sha)" is not defined in object type'
