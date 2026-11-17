@@ -84,8 +84,8 @@ describe("release pins are kept current by release-please", () => {
     }
   });
 
-  // the release being cut (1.17.0 at the time of writing) are ahead of DEFAULT_WORKFLOW_REF, which names the last release.
-  // the release being cut are one patch ahead of DEFAULT_WORKFLOW_REF, which names the last release.
+  // `src/init/options.ts` is left out on purpose: until a release pull request merges, the pins written for
+  // the release being cut are ahead of DEFAULT_WORKFLOW_REF, which names the last release.
   test("every marked pin in the docs and the template names the same version", () => {
     const versions = new Set<string>();
     for (const f of extra.filter((p) => p.endsWith(".md") || p.endsWith(".yml"))) {
