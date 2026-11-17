@@ -63,8 +63,14 @@ Configuration: `release-please-config.json` and `.release-please-manifest.json`.
 `package.json`, the manifest and `CHANGELOG.md`, release-please edits `DEFAULT_WORKFLOW_REF` in
 `src/init/options.ts` (an `extra-files` generic entry, marked `// x-release-please-version`) at the
 release commit. That never makes an unreleased version a tag: the tag `vX.Y.Z` is created by the
-same merge that lands the bump. Every other place that names a version is updated by hand (see
-the checklist below).
+same merge that lands the bump. The pins a user copies are marked for the same updater, so they move
+in the release pull request too: in `docs/install.md`, `docs/upgrading.md`, `docs/cli.md` and
+`templates/wachiman-review-caller.yml`, a block between `<!-- x-release-please-start-version -->`
+and `<!-- x-release-please-end -->` on lines of their own, or a line that ends with
+`<!-- x-release-please-version -->` (Markdown) or `# x-release-please-version` (YAML). Put the
+start and end markers on their own lines: the updater ignores an end marker on the line of the
+start. `test/version-pins.test.ts` fails on a pin that is neither marked nor allowlisted with a
+reason. Every other place that names a version is updated by hand.
 
 ## Publishing to npm
 
@@ -217,8 +223,8 @@ no maintenance branch: if one is ever needed, add a second release-please config
 
 1. Confirm the release is backward compatible; if not, it is `2.0.0`.
 2. Check that the caller template in `templates/` still matches the workflow's inputs.
-3. Check that the exact tag named in `templates/wachiman-review-caller.yml` and in the install docs
-   is the release you are about to cut. release-please does not edit those files.
+3. Check that the marked pins in `templates/wachiman-review-caller.yml` and in the install docs
+   name the release you are about to cut: release-please rewrites them in the release pull request.
 4. Check that the defaults in `src/config.ts` and the reusable workflow's inputs still agree (the
    workflow always passes its inputs, so the workflow defaults are the ones consumers get), and
    that the docs that quote them ([configuration](configuration.md), [costs](costs.md)) still

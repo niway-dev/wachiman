@@ -42,7 +42,7 @@ git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.16.1'
 ```
 <!-- x-release-please-end -->
 
-The template in this repository may name an older tag than the latest release, so take the tag from
+The template in this repository names the release it was last cut with, so to be sure take the tag from
 the [Releases page](https://github.com/niway-dev/wachiman/releases), not from the template.
 
 ## What each kind of ref gives you

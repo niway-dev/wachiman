@@ -12,8 +12,11 @@ import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "..");
 const PIN = /@v\d+\.\d+\.\d+/;
-const START = "x-release-please-start-version";
-const END = "x-release-please-end";
+const START = "<!-- x-release-please-start-version -->";
+const END = "<!-- x-release-please-end -->";
+/** A marker counts only on a line of its own, as the updater needs; prose that quotes one does not. */
+const isStart = (line: string) => line.trim() === START;
+const isEnd = (line: string) => line.trim() === END;
 const LINE = /(# |<!-- )x-release-please-version( -->)?\s*$/;
 
 /** Pins that are deliberately not updated. `contains` must be found on the line, so a moved line still matches. */
@@ -45,8 +48,8 @@ export function unmanagedPins(text: string): { line: number; text: string }[] {
   const out: { line: number; text: string }[] = [];
   let inBlock = false;
   text.split("\n").forEach((raw, i) => {
-    const opens = raw.includes(START);
-    const closes = raw.includes(END);
+    const opens = isStart(raw);
+    const closes = isEnd(raw);
     const covered = inBlock || opens || LINE.test(raw);
     if (opens && !closes) inBlock = true;
     if (closes) inBlock = false;
@@ -73,7 +76,7 @@ describe("release pins are kept current by release-please", () => {
   test("every file with a marker is listed in extra-files, and the reverse", () => {
     const marked = files().filter((f) => {
       const t = readFileSync(join(ROOT, f), "utf8");
-      return t.includes(START) || /(# |<!-- )x-release-please-version( -->)?\s*$/m.test(t);
+      return t.split("\n").some(isStart) || /(# |<!-- )x-release-please-version( -->)?\s*$/m.test(t);
     });
     for (const f of marked) expect(extra, `${f} has markers but is not in extra-files`).toContain(f);
     for (const f of extra.filter((p) => p !== "src/init/options.ts")) {
@@ -81,10 +84,24 @@ describe("release pins are kept current by release-please", () => {
     }
   });
 
+  test("every marked pin names the same version", () => {
+    const versions = new Set<string>();
+    for (const f of extra.filter((p) => p.endsWith(".md") || p.endsWith(".yml"))) {
+      let inBlock = false;
+      for (const raw of readFileSync(join(ROOT, f), "utf8").split("\n")) {
+        if (isStart(raw)) inBlock = true;
+        else if (isEnd(raw)) inBlock = false;
+        else if (inBlock || LINE.test(raw)) for (const m of raw.matchAll(/@v(\d+\.\d+\.\d+)/g)) versions.add(m[1]);
+      }
+    }
+    expect([...versions], "a hand edit moved one marked pin away from the others").toHaveLength(1);
+  });
+
   test("every start marker has an end marker", () => {
     for (const f of files()) {
       const t = readFileSync(join(ROOT, f), "utf8");
-      expect(t.split(END).length, f).toBe(t.split(START).length);
+      const lines = t.split("\n");
+      expect(lines.filter(isEnd).length, f).toBe(lines.filter(isStart).length);
     }
   });
 
