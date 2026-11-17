@@ -23,30 +23,34 @@ the pin.
 
 One line in your caller file, usually `.github/workflows/wachiman-review.yml`:
 
+<!-- x-release-please-start-version -->
 ```yaml
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.5.0
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.17.0
 ```
+<!-- x-release-please-end -->
 
 The part after `@` is the ref. The reusable workflow checks the engine out at the same commit as
 the workflow file itself (`job.workflow_sha`), so the workflow and the engine always match. Each run
 writes `Engine niway-dev/wachiman@<sha>, run from engine/ ...` into its job summary. To see which
 tag that is, compare the SHA with the tag's commit:
 
+<!-- x-release-please-start-version -->
 ```sh
-git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.5.0'
+git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.17.0'
 ```
+<!-- x-release-please-end -->
 
-The template in this repository may name an older tag than the latest release, so take the tag from
+The template in this repository names the release it was last cut with, so to be sure take the tag from
 the [Releases page](https://github.com/niway-dev/wachiman/releases), not from the template.
 
 ## What each kind of ref gives you
 
 | Ref | What it is | Consequence |
 | --- | --- | --- |
-| Exact tag, `@v1.5.0` | A release tag. The project's recommendation ([install.md](install.md)). | Readable in your file. It changes only when you edit the file. See the limits below. |
-| Full commit SHA, `@<40 characters>` | A commit. GitHub accepts it. | Does not depend on any tag rule. Unreadable by itself, so keep the version in a trailing comment, such as `# v1.5.0`. |
+| Exact tag, `@v1.17.0` | A release tag. The project's recommendation ([install.md](install.md)). | Readable in your file. It changes only when you edit the file. See the limits below. | <!-- x-release-please-version -->
+| Full commit SHA, `@<40 characters>` | A commit. GitHub accepts it. | Does not depend on any tag rule. Unreadable by itself, so keep the version in a trailing comment, such as `# v1.17.0`. | <!-- x-release-please-version -->
 | Floating tag, `@v1` | A tag the maintainer moves to each compatible release. | Not recommended. A release reaches your repository, and runs with your key, before you have read it. |
 
 ### What an exact tag guarantees, and what it does not

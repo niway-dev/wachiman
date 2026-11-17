@@ -20,7 +20,7 @@
   ADR 0003 (labels), ADR 0006 (instructions from the base commit), ADR 0009 (evidence by the
   engine, judgement by the model), ADR 0011 and 0012 (GitHub-only, untouched), ADR 0016 (data-path
   questions, reused unchanged). Composes with #90's `tier` (ADR 0017, draft) as said in decision D5.
-- **Evidence:** [research 2026-11-03](../research/2026-11-03-greptile-skills-and-local-review.md)
+- **Evidence:** research 2026-11-03
   (#102: terms, data and telemetry facts, the diff parity probe); GPT-6.1 Sol's read-only review of
   difficulty and shape (2026-11-03, an input that was spot-checked, not a source of truth); the
   hub's [ports and adapters pattern](https://github.com/csdev19/general-knowledge/blob/main/architecture/domain-layer-contracts.md).

@@ -63,8 +63,14 @@ Configuration: `release-please-config.json` and `.release-please-manifest.json`.
 `package.json`, the manifest and `CHANGELOG.md`, release-please edits `DEFAULT_WORKFLOW_REF` in
 `src/init/options.ts` (an `extra-files` generic entry, marked `// x-release-please-version`) at the
 release commit. That never makes an unreleased version a tag: the tag `vX.Y.Z` is created by the
-same merge that lands the bump. Every other place that names a version is updated by hand (see
-the checklist below).
+same merge that lands the bump. The pins a user copies are marked for the same updater, so they move
+in the release pull request too: in `docs/install.md`, `docs/upgrading.md`, `docs/cli.md` and
+`templates/wachiman-review-caller.yml`, a block between `<!-- x-release-please-start-version -->`
+and `<!-- x-release-please-end -->` on lines of their own, or a line that ends with
+`<!-- x-release-please-version -->` (Markdown) or `# x-release-please-version` (YAML). Put the
+start and end markers on their own lines: the updater ignores an end marker on the line of the
+start. `test/version-pins.test.ts` fails on a pin that is neither marked nor allowlisted with a
+reason. Every other place that names a version is updated by hand.
 
 ## Publishing to npm
 
@@ -90,11 +96,13 @@ One-time setup by the owner, not done by any code in this repository:
 
 1. Create the GitHub environment `npm`. Do not add required reviewers: the job runs on every
    release and would wait for an approval.
-2. Publish the unclaimed name `wachiman` once by hand: this is a manual step the owner runs once
-   (`npm login`, then `npm publish` of the verified tarball from the release, or whatever npm
-   currently requires). The name was unclaimed on 2026-11-09 (the registry answered 404), and
-   npm's trusted-publisher setting lives on a package page, so it cannot be configured before the
-   package exists. The workflow cannot publish the first version before this setup is complete.
+2. Publish the name `wachiman` once by hand. **Done:** the name was unclaimed on 2026-11-09 (the
+   registry answered 404), and the package is now on npm (`npm view wachiman version` answered
+   1.16.0, published 2026-11-15). The instructions stay for the record, and for a repeat on a new
+   registry: the owner ran `npm login`, then `npm publish` of the verified tarball from the release
+   (or whatever npm required). npm's trusted-publisher setting lives on a package page, so it could
+   not be configured before the package existed, and the workflow could not publish the first
+   version before this step was complete.
 
 3. On npmjs.com, in the package's settings, add a trusted publisher: GitHub Actions, repository
    `niway-dev/wachiman`, workflow file `release-please.yml`, environment `npm`.
@@ -215,8 +223,8 @@ no maintenance branch: if one is ever needed, add a second release-please config
 
 1. Confirm the release is backward compatible; if not, it is `2.0.0`.
 2. Check that the caller template in `templates/` still matches the workflow's inputs.
-3. Check that the exact tag named in `templates/wachiman-review-caller.yml` and in the install docs
-   is the release you are about to cut. release-please does not edit those files.
+3. Check that the marked pins in `templates/wachiman-review-caller.yml` and in the install docs
+   name the release you are about to cut: release-please rewrites them in the release pull request.
 4. Check that the defaults in `src/config.ts` and the reusable workflow's inputs still agree (the
    workflow always passes its inputs, so the workflow defaults are the ones consumers get), and
    that the docs that quote them ([configuration](configuration.md), [costs](costs.md)) still

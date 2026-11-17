@@ -22,7 +22,13 @@
     ".": {
       "package-name": "wachiman",
       "changelog-path": "CHANGELOG.md",
-      "extra-files": [{ "type": "generic", "path": "src/init/options.ts" }]
+      "extra-files": [
+        { "type": "generic", "path": "src/init/options.ts" },
+        { "type": "generic", "path": "docs/install.md" },
+        { "type": "generic", "path": "docs/upgrading.md" },
+        { "type": "generic", "path": "docs/cli.md" },
+        { "type": "generic", "path": "templates/wachiman-review-caller.yml" }
+      ]
     }
   }
 }
