@@ -3,13 +3,13 @@
  * and a fake for the GitHub pull-request calls. Nothing here touches a real remote.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { parseMemoryFile } from "./entries";
 import { runMemory } from "./command";
-import { applyCandidate, assertMemoryPaths, type PullRequest, type PullRequests } from "./propose";
+import { applyCandidate, assertMemoryPaths, readMemoryFiles, type PullRequest, type PullRequests } from "./propose";
 import { evidenceLine, newCandidate, renderEntry } from "./candidates";
 
 const temps: string[] = [];
@@ -288,8 +288,91 @@ fi
     expect(r.stderr).toContain("is not a plain directory");
     expect(git(w.bare, "branch", "--list", "wachiman/memory").trim()).toBe("");
     expect(worktrees(d.dir)).toBe(1);
-    expect(readFileSync(join(w.seed, "docs/readme.md"), "utf8")).toBe("hello\n");
+    // The link points at docs/: the remote's default branch still holds the same file and the same head.
+    expect(git(w.bare, "show", "refs/heads/main:docs/readme.md")).toBe("hello\n");
+    expect(git(w.bare, "rev-parse", "refs/heads/main").trim()).toBe(git(w.seed, "rev-parse", "HEAD").trim());
   }, 60_000);
+
+  test("the developer's git hooks do not run in the temporary worktree, and the checkout's own hooks are left alone", () => {
+    const w = world();
+    const d = developer(w, "ana");
+    const marker = join(d.dir, "..", "hook-ran");
+    const hook = (name: string) => {
+      writeFileSync(join(d.dir, ".git", "hooks", name), `#!/bin/sh\necho ${name} >> "${marker}"\nexit 1\n`);
+      chmodSync(join(d.dir, ".git", "hooks", name), 0o755);
+    };
+    for (const name of ["pre-commit", "commit-msg", "pre-push", "post-checkout"]) hook(name);
+    const id = d.add("Prefer named exports.");
+    const r = d.run("propose", id);
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+    expect(existsSync(marker)).toBe(false);
+    expect(remoteLog(w.bare)).toHaveLength(2);
+    // The developer's own commits still run them.
+    expect(existsSync(join(d.dir, ".git", "hooks", "pre-commit"))).toBe(true);
+  }, 60_000);
+
+  test("an entry whose scope matches no file would fail memory check, so it is refused before anything is committed", () => {
+    const w = world();
+    const d = developer(w, "ana");
+    const r = d.run("add", "--kind", "convention", "--scope", "nothing/**", "--rule", "Rule.", "--why", "Because.", "--pr", "1");
+    const id = r.stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+    const out = d.run("propose", id);
+    expect(out.code).toBe(1);
+    expect(out.stderr).toContain("would make `wachiman memory check` fail");
+    expect(out.stderr).toContain("scope `nothing/**` of entry matches no file in the repository");
+    expect(git(w.bare, "branch", "--list", "wachiman/memory").trim()).toBe("");
+    expect(worktrees(d.dir)).toBe(1);
+  }, 60_000);
+
+  test("when only the draft pull request fails the entry stays recorded, the exit is 1, and a re-run opens the pull request without writing again", () => {
+    const w = world();
+    const fake = fakePulls();
+    let failures = 1;
+    const flaky: PullRequests = {
+      list: fake.pulls.list,
+      createDraft: (input, cwd) => {
+        if (failures-- > 0) throw new Error("gh: not logged in");
+        return fake.pulls.createDraft(input, cwd);
+      },
+    };
+    const d = developer(w, "ana", fake);
+    const id = d.add("Prefer named exports.");
+    const run = (...argv: string[]) => {
+      let stdout = "";
+      let stderr = "";
+      const code = runMemory(argv, d.dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: flaky } });
+      return { code, stdout, stderr };
+    };
+    const first = run("propose", id);
+    expect(first.code).toBe(1);
+    expect(first.stdout).toMatch(/^recorded: entry [0-9a-f]{7} on wachiman\/memory \([0-9a-f]{7}\)\.\n$/);
+    expect(first.stderr).toContain("the draft pull request could not be opened (gh: not logged in)");
+    expect(remoteLog(w.bare)).toHaveLength(2);
+    expect(fake.created).toHaveLength(0);
+    expect(d.run("candidates").stdout).toContain("proposed 2026-11-18");
+    const second = run("propose", id);
+    expect(second.code).toBe(0);
+    expect(second.stdout).toMatch(/^already recorded: .*nothing was written\. Draft pull request: https:\/\/example\.test\/pr\/1\n$/);
+    expect(remoteLog(w.bare)).toHaveLength(2);
+    expect(fake.created).toHaveLength(1);
+  }, 60_000);
+});
+
+describe("reading the memory folder", () => {
+  test("only a missing folder is empty; any other failure to read it is reported", () => {
+    const dir = temp("wachiman-readmem-");
+    expect(readMemoryFiles(dir)).toEqual({});
+    mkdirSync(join(dir, ".wachiman", "memory"), { recursive: true });
+    writeFileSync(join(dir, ".wachiman", "memory", "index.md"), "# m\n");
+    expect(readMemoryFiles(dir)).toEqual({ "index.md": "# m\n" });
+    chmodSync(join(dir, ".wachiman"), 0o000);
+    try {
+      expect(() => readMemoryFiles(dir)).toThrow("cannot read .wachiman/memory");
+    } finally {
+      chmodSync(join(dir, ".wachiman"), 0o755);
+    }
+  });
 });
 
 describe("the write rules", () => {
