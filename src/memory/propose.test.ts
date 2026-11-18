@@ -423,12 +423,22 @@ describe("reading the memory folder", () => {
     mkdirSync(join(dir, ".wachiman", "memory"), { recursive: true });
     writeFileSync(join(dir, ".wachiman", "memory", "index.md"), "# m\n");
     expect(readMemoryFiles(dir)).toEqual({ "index.md": "# m\n" });
-    chmodSync(join(dir, ".wachiman"), 0o000);
-    try {
-      expect(() => readMemoryFiles(dir)).toThrow("cannot read .wachiman/memory");
-    } finally {
-      chmodSync(join(dir, ".wachiman"), 0o755);
+    // Root reads through a mode 000 folder, so that check only runs for other users.
+    if (process.getuid?.() !== 0) {
+      chmodSync(join(dir, ".wachiman"), 0o000);
+      try {
+        expect(() => readMemoryFiles(dir)).toThrow("cannot read .wachiman/memory");
+      } finally {
+        chmodSync(join(dir, ".wachiman"), 0o755);
+      }
     }
+  });
+
+  test("a memory folder that is a plain file is refused whoever runs it", () => {
+    const dir = temp("wachiman-readmem-file-");
+    mkdirSync(join(dir, ".wachiman"));
+    writeFileSync(join(dir, ".wachiman", "memory"), "not a folder");
+    expect(() => readMemoryFiles(dir)).toThrow("is not a plain directory");
   });
 });
 

@@ -782,7 +782,11 @@ only after the owner approves it.
 
 - `memory add` stores a *candidate* under the Wachiman home (`<home>/memory-candidates/<repository
   key>/`, keyed like the local history) with its first piece of evidence. The fields come from flags or
-  from `--file <json>` (`kind`, `scope`, `rule`, `why`, `holdsWhile`, `title`). The id is the digest of
+  from `--file <json>` (`kind`, `scope`, `rule`, `why`, `holdsWhile`, `title`; a field that is not a
+  string is refused, flags override the file). Besides the four required flags `--kind`, `--scope`,
+  `--rule` and `--why`, `--holds-while <paths>` names the paths a fact the reason depends on lives in
+  (for an exception), `--title <text>` sets a short heading (default: the start of the rule) and
+  `--branch <name>` names the branch an instruction came from (default: the current branch). The id is the digest of
   kind, scope, rule, why and `holds while`, so adding the same entry again only adds evidence. There
   are three sources. `--source instruction` (the default) is an explicit instruction with a reason, from
   the current branch or `--pr <n>`; it is proposable with one piece of evidence. `--source judged` and

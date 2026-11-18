@@ -163,6 +163,10 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     }
     if (!base || typeof base !== "object" || Array.isArray(base)) throw new UsageError(`--file ${file} must hold a JSON object with kind, scope, rule and why.`);
   }
+  for (const name of ["kind", "scope", "rule", "why", "holdsWhile", "holds while", "title"]) {
+    const v = (base as Record<string, unknown>)[name];
+    if (v !== undefined && typeof v !== "string") throw new UsageError(`--file ${file}: "${name}" must be a string, got ${Array.isArray(v) ? "an array" : v === null ? "null" : typeof v}.`);
+  }
   const field = (flag: string, name: string) => p.values.get(flag) ?? (typeof base[name] === "string" ? base[name] : undefined);
   const sourceText = p.values.get("--source") ?? "instruction";
   if (!(EVIDENCE_SOURCES as readonly string[]).includes(sourceText)) throw new UsageError(`--source must be one of: ${EVIDENCE_SOURCES.join(", ")}. A reaction or silence is never evidence.`);

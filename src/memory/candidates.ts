@@ -101,10 +101,10 @@ export function renderEntry(c: Candidate): string {
 
 /**
  * Characters a terminal acts on or a reader cannot see: control characters (an escape sequence can
- * rewrite what `show` appears to print), zero-width and direction-changing characters. Whitespace is
+ * rewrite what `show` appears to print), zero-width, direction-changing and other format characters (category Cf, line and paragraph separators, variation selectors, filler characters). Whitespace is
  * already folded away by `squash`, so none of these is legitimate in an entry.
  */
-const UNSAFE_CHARACTER = /[\p{Cc}\u200B-\u200F\u202A-\u202E\u2060-\u2069]/u;
+const UNSAFE_CHARACTER = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u034F\u115F\u1160\u3164\uFFA0\uFE00-\uFE0F\u{E0100}-\u{E01EF}]/u;
 
 /**
  * Why `c` cannot be shown and committed as the same bytes, or undefined when it can: a character the
@@ -261,8 +261,14 @@ export function readCandidate(home: string, key: string, id: string): Candidate 
   if (!ID.test(id)) throw new UsageError(`"${id}" is not a memory entry id (seven hex characters).`);
   const path = join(candidatesDir(home, key), `${id}.json`);
   if (!existsSync(path)) return undefined;
+  let text: string;
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    text = readFileSync(path, "utf8");
+  } catch (error) {
+    throw new UsageError(`cannot read ${path} (${error instanceof Error ? error.message : error}); check its permissions.`);
+  }
+  try {
+    const parsed = JSON.parse(text);
     if (validCandidate(parsed) && parsed.id === id) {
       const problem = candidateProblem(parsed);
       if (problem) throw new UsageError(`${path}: ${problem}`);
