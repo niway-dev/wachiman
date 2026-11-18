@@ -33,7 +33,7 @@ import { checkSupplied, promptForInit } from "./prompt";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
-import { describePointer, manualHint, planPointer, type PointerPlan } from "./agents";
+import { describePointer, manualHint, planPointer, pointerBlock, type PointerPlan } from "./agents";
 import { writeManagedFile } from "../pr-template/write";
 
 /** What `pr-template install` can write; the report names the ones a failed install did not reach. */
@@ -283,24 +283,44 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   };
 
   /** The pointer to the wachiman-loop skill, last among the files: a run refused or cancelled above writes none of them. */
-  const writePointer = () => {
-    if (!pointer) return;
+  const writePointer = async (): Promise<number | undefined> => {
+    if (!pointer) return undefined;
     if (pointer.action === "skip") {
       io.stderr(`wachiman pointer not written: ${pointer.reason}`);
-      return;
+      return undefined;
     }
     if (pointer.action === "same") {
       io.stderr(`${pointer.file} already has the wachiman pointer; unchanged.`);
-      return;
+      return undefined;
+    }
+    if (prompter) {
+      // Like every other file init writes: shown first, written only on a yes.
+      const shown = pointerBlock().trimEnd();
+      const title = `${pointer.file} (${pointer.action === "create" ? "new" : "would change"})`;
+      if (prompter.fancy) prompter.note(shown, title);
+      else {
+        io.stderr(`--- ${title}`);
+        io.stderr(shown);
+      }
+      const answer = await prompter.confirm(`Add the wachiman pointer to ${pointer.file}?`, true);
+      if (answer === null) {
+        io.stderr("cancelled: the pointer was not written.");
+        return 130;
+      }
+      if (!answer) {
+        io.stderr("wachiman pointer not written.");
+        return undefined;
+      }
     }
     try {
       writeManagedFile({ repoDir: root, relativePath: pointer.writePath, content: pointer.content, inspected: pointer.inspected, now: (deps.now ?? (() => new Date().toISOString()))(), label: "init", backup: false, hooks: deps.hooks });
     } catch (error) {
       io.stderr(`wachiman pointer not written: ${error instanceof Error ? error.message : String(error)} The rest of init is unaffected. ${manualHint()}`);
-      return;
+      return undefined;
     }
     const how = pointer.action === "create" ? "created" : pointer.action === "append" ? "added to" : "replaced in";
     io.stderr(`wrote the wachiman pointer: ${how} ${pointer.file}${pointer.writePath !== pointer.file ? ` (through the link, to ${pointer.writePath})` : ""}.`);
+    return undefined;
   };
 
   /** The settings file alone, with no workflow to write: shows it, asks what needs asking. Returns an exit code to stop with, or undefined to go on. */
@@ -447,7 +467,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     else io.stderr(`Commit ${SETTINGS_PATH} like any file; init does not commit.`);
   }
   installTemplate();
-  writePointer();
+  const pointerCode = await writePointer();
+  if (pointerCode !== undefined) return pointerCode;
 
   if (options.mode === "github") {
     io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");
