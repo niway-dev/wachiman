@@ -101,6 +101,19 @@ each one `wrong`, `intentional`, `not-important` or no verdict, by reading the d
 verdict then applies to every run that posted that finding. The owner is the judge because the
 author's own replies to these changes do not exist: the commits were reviewed after the fact.
 
+Each run has its own home and its own history, so a verdict is recorded once per run that posted the
+finding, and the id differs from one history to the next. Keep a table of rows `(finding, home, id)`,
+one row per run that posted it (the ids are in `wachiman history --json` for that home). After the
+blind pass, replay each decided verdict into every row's history:
+
+```sh
+WACHIMAN_HOME="$REPLAY/home-<arm>-<n>" wachiman history --repo-dir "$CLONE" \
+  --verdict <id-in-that-home> wrong|intentional|not-important [--reason "<why>"]
+```
+
+A finding with no verdict gets no command. When all six histories are done, `wachiman memory report`
+run under each `WACHIMAN_HOME` gives that run's counts.
+
 ### The spread, and what counts as an effect
 
 For each count and each arm, report the three values, their **min, max and mean**. The run-to-run
