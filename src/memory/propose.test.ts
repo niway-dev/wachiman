@@ -209,6 +209,40 @@ describe("memory propose", () => {
     expect(fake.created).toHaveLength(1);
   }, 60_000);
 
+  test("an entry that is only on the default branch is not reported as on wachiman/memory, and no pull request is opened for it", () => {
+    const w = world();
+    const fake = fakePulls();
+    const d = developer(w, "ana", fake);
+    const id = d.add("Prefer named exports.");
+    expect(d.run("propose", id).code).toBe(0);
+    // The pull request is merged and its branch deleted: the entry now lives on main only.
+    git(w.bare, "update-ref", "refs/heads/main", "refs/heads/wachiman/memory");
+    git(w.bare, "update-ref", "-d", "refs/heads/wachiman/memory");
+    fake.prs.length = 0;
+    const again = d.run("propose", id);
+    expect(again.code).toBe(0);
+    expect(again.stdout).toBe(`already recorded: ${id} is on main with the same evidence; nothing was written and no pull request is needed.\n`);
+    expect(again.stderr).toBe("");
+    expect(fake.created).toHaveLength(1); // only the first proposal's pull request
+    expect(git(w.bare, "branch", "--list", "wachiman/memory").trim()).toBe("");
+  }, 60_000);
+
+  test("a push refused for a reason other than a race is reported once, not retried or blamed on colleagues", () => {
+    const w = world();
+    const d = developer(w, "ana");
+    const id = d.add("Prefer named exports.");
+    writeFileSync(join(w.bare, "hooks", "pre-receive"), `#!/bin/sh\necho "policy: no memory today" >&2\necho x >> "$GIT_DIR/refusals"\nexit 1\n`);
+    chmodSync(join(w.bare, "hooks", "pre-receive"), 0o755);
+    const r = d.run("propose", id);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("the push to wachiman/memory was refused");
+    expect(r.stderr).toContain("policy: no memory today");
+    expect(r.stderr).not.toContain("colleagues");
+    expect(readFileSync(join(w.bare, "refusals"), "utf8").trim().split("\n")).toHaveLength(1);
+    expect(d.run("candidates").stdout).not.toContain("proposed");
+    expect(worktrees(d.dir)).toBe(1);
+  }, 60_000);
+
   test("a push rejected because a colleague pushed first is retried on the new head with the same entry", () => {
     const w = world();
     const d = developer(w, "ana");
