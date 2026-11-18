@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { UsageError } from "../config";
 import { MAX_INSTRUCTION_BYTES } from "../engine";
+import { POLICY_EDIT_RULE } from "../repo-settings";
 import { spawnGit, type GitRunner } from "../evidence";
 import { validate } from "../../test/support/json-schema";
 import { A_HEAD, branchRepo, commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
@@ -392,6 +393,79 @@ describe("snapshotHead", () => {
     expect(snapshot.missing).toEqual([]);
     expect(snapshot.extra).toEqual([]);
     expect(git(snapshot.dir, "ls-files")).toContain("src/a.ts");
+  });
+});
+
+describe("path rules in buildLocalInput", () => {
+  const RULES = 'paths:\n  - match: "src/billing/**"\n    severity: critical\n    reason: charges customers\n';
+  const repoWith = (base: string | undefined, head: string | undefined) => {
+    const dir = emptyRepo();
+    commit(dir, { "src/a.ts": "a\n", ...(base !== undefined ? { ".wachiman.yml": base } : {}) }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    commit(dir, { "src/a.ts": "b\n", ...(head !== undefined ? { ".wachiman.yml": head } : {}) }, "change");
+    return dir;
+  };
+  const build = (dir: string) => {
+    const warnings: string[] = [];
+    const built = buildLocalInput({ repoDir: dir, paths: [], log: () => {}, warn: (l) => warnings.push(l) });
+    snapshots.push(built.snapshotDir);
+    return { input: built.input, warnings };
+  };
+
+  test("the rules at the merge-base reach the input", () => {
+    const { input, warnings } = build(repoWith(RULES, undefined));
+    expect(input.pathRules).toEqual([{ match: "src/billing/**", severity: "critical", reason: "charges customers" }]);
+    expect(warnings).toEqual([]);
+    const schema = JSON.parse(readFileSync(join(import.meta.dir, "../../docs/formats/review-input.v1.schema.json"), "utf8"));
+    const { headDir: _, ...onDisk } = input;
+    expect(validate(schema, JSON.parse(JSON.stringify(onDisk)))).toEqual([]);
+  });
+
+  test("the branch's own copy is never applied: it can neither add nor drop a rule", () => {
+    // An edit of only the effort changes no rule, so nothing is added to the base's.
+    const same = build(repoWith(RULES, `effort: high\n${RULES}`)).input;
+    expect(same.pathRules).toEqual([{ match: "src/billing/**", severity: "critical", reason: "charges customers" }]);
+    expect(same).not.toHaveProperty("pathPolicyChanged");
+    // Rules the branch adds are not applied; the edit is flagged and the settings file is critical.
+    const added = build(repoWith(undefined, RULES)).input;
+    expect(added.pathRules).toEqual([POLICY_EDIT_RULE]);
+    expect(added.pathPolicyChanged).toBe(true);
+    // Rules the branch drops stay applied, after the settings file's own rule.
+    const dropped = build(repoWith(RULES, "effort: high\n")).input;
+    expect(dropped.pathRules).toEqual([{ match: "src/billing/**", severity: "critical", reason: "charges customers" }, POLICY_EDIT_RULE]);
+    expect(dropped.pathPolicyChanged).toBe(true);
+  });
+
+  test("a branch that edits paths is flagged, however the head copy fails or changes", () => {
+    const base = { ".wachiman.yml": RULES };
+    // Lowered to medium, unparseable, deleted: each differs from the base's rules.
+    for (const head of [RULES.replace("critical", "medium"), "paths: [unclosed\n  - : :\n", undefined]) {
+      const dir = emptyRepo();
+      commit(dir, { "src/a.ts": "a\n", ...base }, "base");
+      git(dir, "switch", "-q", "-c", "feat/x");
+      if (head === undefined) git(dir, "rm", "-q", ".wachiman.yml");
+      commit(dir, { "src/a.ts": "b\n", ...(head !== undefined ? { ".wachiman.yml": head } : {}) }, "change");
+      const { input } = build(dir);
+      expect(input.pathPolicyChanged).toBe(true);
+      expect(input.pathRules?.[0]).toEqual({ match: "src/billing/**", severity: "critical", reason: "charges customers" });
+      expect(input.pathRules?.at(-1)).toEqual(POLICY_EDIT_RULE);
+      const schema = JSON.parse(readFileSync(join(import.meta.dir, "../../docs/formats/review-input.v1.schema.json"), "utf8"));
+      const { headDir: _, ...onDisk } = input;
+      expect(validate(schema, JSON.parse(JSON.stringify(onDisk)))).toEqual([]);
+    }
+  });
+
+  test("a broken file at the merge-base is ignored with one warning", () => {
+    const { input, warnings } = build(repoWith('paths:\n  - match: "a"\n    severity: urgent\n    reason: r\n', undefined));
+    expect(input).not.toHaveProperty("pathRules");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('paths[0].severity must be one of critical, high, medium, got "urgent"');
+    expect(warnings[0]).toContain("the merge-base");
+  });
+
+  test("no file and no paths leave the input without the field", () => {
+    expect(build(repoWith(undefined, undefined)).input).not.toHaveProperty("pathRules");
+    expect(build(repoWith("effort: high\n", undefined)).input).not.toHaveProperty("pathRules");
   });
 });
 

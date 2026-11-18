@@ -42,6 +42,8 @@ import {
   planBatches,
   renderContracts,
   riskScore,
+  RISK_RULES,
+  PATH_RULE_SCORE,
   marker,
   moveCommentsToBody,
   openBotThreads,
@@ -60,6 +62,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "./config";
+import type { PathRule } from "./repo-settings";
 import type { Contract } from "./contracts";
 
 // Synthetic pull requests only: these tests never call GitHub or an agent.
@@ -322,6 +325,69 @@ describe("planBatches", () => {
       maxChars: 1000,
     });
     expect(batches).toHaveLength(2);
+  });
+});
+
+describe("path rules in riskScore and planBatches", () => {
+  const limits = { maxLines: 1000, maxChars: 1_000_000 };
+  const rules: PathRule[] = [
+    { match: "docs/billing.md", severity: "medium", reason: "prices" },
+    { match: "src/billing/**", severity: "high", reason: "charges customers" },
+    { match: ".github/workflows/**", severity: "critical", reason: "CI can publish" },
+  ];
+
+  test("a rule scores above every heuristic weight, critical above high above medium", () => {
+    const heuristicMax = Math.max(...RISK_RULES.map((r) => r.weight));
+    const medium = riskScore("docs/billing.md", rules);
+    const high = riskScore("src/billing/charge.ts", rules);
+    const critical = riskScore(".github/workflows/ci.yml", rules);
+    expect(medium).toBeGreaterThan(heuristicMax);
+    expect(high).toBeGreaterThan(medium);
+    expect(critical).toBeGreaterThan(high);
+    expect([medium, high, critical]).toEqual([PATH_RULE_SCORE.medium, PATH_RULE_SCORE.high, PATH_RULE_SCORE.critical]);
+  });
+
+  test("a matched test or document scores by the rule, not by its kind", () => {
+    expect(riskScore("src/billing/charge.test.ts", rules)).toBe(PATH_RULE_SCORE.high);
+    expect(riskScore("docs/billing.md")).toBe(1);
+    expect(riskScore("docs/billing.md", rules)).toBe(PATH_RULE_SCORE.medium);
+  });
+
+  test("with no rules, no match or an empty list the heuristic is unchanged", () => {
+    for (const path of ["scripts/x.sh", "src/a.ts", "src/a.test.ts", "docs/a.md", ".github/workflows/ci.yml"]) {
+      expect(riskScore(path, undefined)).toBe(riskScore(path));
+      expect(riskScore(path, [])).toBe(riskScore(path));
+    }
+    expect(riskScore("scripts/x.sh", rules)).toBe(riskScore("scripts/x.sh"));
+  });
+
+  test("a matched file's module and the file inside it come first", () => {
+    const files = [file("scripts/x.sh", 10), file("docs/billing.md", 5), file("src/other/a.ts", 10)];
+    const plain = planBatches(files, limits).flatMap((b) => b.files.map((f) => f.filename));
+    expect(plain[0]).toBe("scripts/x.sh");
+    const ruled = planBatches(files, limits, rules).flatMap((b) => b.files.map((f) => f.filename));
+    expect(ruled[0]).toBe("docs/billing.md");
+  });
+
+  test("inside one batch a matched document leads, ahead of the code of its module", () => {
+    const files = [file("src/billing/notes.md", 5), file("src/billing/charge.ts", 10), file("src/billing/charge.test.ts", 10)];
+    const only: PathRule[] = [{ match: "src/billing/notes.md", severity: "medium", reason: "prices" }];
+    expect(planBatches(files, limits)[0].files.map((f) => f.filename)).toEqual(["src/billing/charge.ts", "src/billing/charge.test.ts", "src/billing/notes.md"]);
+    expect(planBatches(files, limits, only)[0].files.map((f) => f.filename)).toEqual(["src/billing/notes.md", "src/billing/charge.ts", "src/billing/charge.test.ts"]);
+  });
+
+  test("rule-matched files pack before every other file across modules", () => {
+    const crit: PathRule[] = [{ match: "*/critical.ts", severity: "critical", reason: "money" }];
+    const files = [file("a/ordinary.ts", 10), file("b/critical.ts", 10), file("a/critical.ts", 10)];
+    const order = planBatches(files, { maxLines: 10, maxChars: 1_000_000 }, crit).flatMap((b) => b.files.map((f) => f.filename));
+    expect(order).toEqual(["a/critical.ts", "b/critical.ts", "a/ordinary.ts"]);
+  });
+
+  test("batches keep the same files and maxRisk carries the ordering score", () => {
+    const files = [file("src/other/a.ts", 600), file("src/billing/charge.ts", 600)];
+    const batches = planBatches(files, limits, rules);
+    expect(batches.map((b) => b.files.map((f) => f.filename))).toEqual([["src/billing/charge.ts"], ["src/other/a.ts"]]);
+    expect(batches.map((b) => b.maxRisk)).toEqual([PATH_RULE_SCORE.high, 4]);
   });
 });
 

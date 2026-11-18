@@ -100,11 +100,12 @@ function headWithLogo() {
 /** What the base commit holds, by path; a path that is absent answers 404 like GitHub. */
 type BaseFiles = Record<string, string | Buffer>;
 
-function contentsAnswer(files: BaseFiles, line: string) {
+function contentsAnswer(files: BaseFiles, line: string, head?: BaseFiles) {
   const m = line.match(/contents\/(.+)\?ref=(.+)$/);
   if (!m) return undefined;
-  if (m[2] !== BASE) throw new Error(`read from ${m[2]}, not the base commit`);
-  const file = files[m[1]];
+  // A test serves a head copy only when it asks for one: it is read to compare, never to apply.
+  if (m[2] !== BASE && !(head && m[2] === HEAD)) throw new Error(`read from ${m[2]}, not the base commit`);
+  const file = (m[2] === BASE ? files : head!)[m[1]];
   if (file === undefined) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
   return JSON.stringify({ type: "file", encoding: "base64", content: Buffer.from(file).toString("base64") });
 }
@@ -114,10 +115,11 @@ function fakeGh(
   posted: { review?: { body: string; comments: unknown[] } },
   base: BaseFiles = {},
   files: typeof prFiles = prFiles,
+  head?: BaseFiles,
 ): GhFn {
   return (args, input) => {
     const line = args.join(" ");
-    const contents = contentsAnswer(base, line);
+    const contents = contentsAnswer(base, line, head);
     if (contents !== undefined) return contents;
     if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
     if (line.startsWith("pr view"))
@@ -1798,5 +1800,185 @@ describe("a pull request with a PNG, over three pushes", () => {
     expect(prompts[2]).not.toContain("threads.json");
     expect(w.replies).toHaveLength(1);
     expect(w.reviews[2]).toContain("PR so far $0.45 over 3 automatic runs");
+  });
+});
+
+describe("path rules come from the base commit", () => {
+  const BILLING = "docs/billing.md";
+  const SCRIPT = "scripts/x.sh";
+  const OTHER = "src/other/a.ts";
+  const patch = "@@ -0,0 +1,2 @@\n+a\n+b";
+  const defaultFiles: { filename: string; additions: number; deletions: number; patch: string; previous_filename?: string | null }[] = [SCRIPT, OTHER, BILLING].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
+  const RULES = [
+    "paths:",
+    '  - match: "docs/billing.md"',
+    "    severity: high",
+    "    reason: prices customers see",
+    "",
+  ].join("\n");
+
+  const run = async (base: BaseFiles, env: Record<string, string | undefined> = {}, record = false, files = defaultFiles) => {
+    const headDir = mkdtempSync(join(tmpdir(), "head-"));
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const provider = new FakeProvider([
+      () => ({ structuredOutput: out({ files_reviewed: files.map((f) => f.filename), summary: "ok" }) }),
+    ]);
+    // Only the main acceptance test pins its prompt; the others leave the golden files as they are.
+    provider.record = record;
+    const warnings: string[] = [];
+    const deps: Deps = {
+      gh: fakeGh(posted, base, files),
+      provider,
+      config: loadConfig(env),
+      repoDir: headDir,
+      log: () => {},
+      warn: (l) => void warnings.push(l),
+    };
+    await review(deps, "o/r", 7, []);
+    const prompt = provider.requests[0].prompt;
+    // The part's own list follows "This part holds exactly these files".
+    const part = prompt.split("This part holds exactly these files")[1].split("\n\n")[0];
+    const order = part.split("\n").filter((l) => l.startsWith("- ")).map((l) => l.split(" ")[1]);
+    return { provider, posted, warnings, prompt, order };
+  };
+
+  test("a rule at the base commit puts the file first, in the prompt and the risk map", async () => {
+    const r = await run({ ".wachiman.yml": RULES }, {}, true);
+    // The heuristic alone ranks the script first and the document last.
+    expect(r.order).toEqual([BILLING, SCRIPT, OTHER]);
+    expect(r.prompt).toContain(`${BILLING} +2 −0 — path rule high (docs/billing.md): prices customers see`);
+    expect(r.prompt).not.toContain(`${SCRIPT} +2 −0 — path rule`);
+    const body = r.posted.review!.body;
+    expect(body).toContain(`path rule high ("docs/billing.md"): prices customers see — a person should approve this change`);
+    expect(body).toMatch(/\*\*High\.\*\*/);
+    expect(body).not.toContain("blocks");
+  });
+
+  test("a file renamed out of a rule keeps the rule: ordered first and quoted", async () => {
+    const MOVED = "docs/moved.md";
+    // GitHub sends `previous_filename: null` for every file that was not renamed.
+    const renamed = [SCRIPT, OTHER, MOVED].map((filename) => ({ filename, additions: 2, deletions: 0, patch, previous_filename: filename === MOVED ? BILLING : null }));
+    const r = await run({ ".wachiman.yml": RULES }, {}, false, renamed);
+    expect(r.order).toEqual([MOVED, SCRIPT, OTHER]);
+    expect(r.prompt).toContain(`${MOVED} +2 −0 — path rule high (docs/billing.md): prices customers see`);
+    expect(r.posted.review!.body).toContain(`path rule high ("docs/billing.md"): prices customers see — a person should approve this change`);
+    expect(r.posted.review!.body).toMatch(/\*\*High\.\*\*/);
+  });
+
+  test("without paths the order is the heuristic's and no rule line is written", async () => {
+    for (const base of [{}, { ".wachiman.yml": "effort: high\n" }]) {
+      const r = await run(base);
+      expect(r.order).toEqual([SCRIPT, OTHER, BILLING]);
+      expect(r.prompt).not.toContain("path rule");
+      expect(r.posted.review!.body).not.toContain("path rule");
+    }
+  });
+
+  test("model and effort set by the environment do not stop paths from being read", async () => {
+    const r = await run({ ".wachiman.yml": RULES }, { WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_EFFORT: "high" });
+    expect(r.order[0]).toBe(BILLING);
+    expect(r.prompt).toContain("path rule high (docs/billing.md): prices customers see");
+  });
+
+  test("a broken .wachiman.yml at the base is ignored with a warning and the review runs without rules", async () => {
+    const r = await run({ ".wachiman.yml": 'paths:\n  - match: "docs/billing.md"\n    severity: urgent\n    reason: r\n' }, { WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_EFFORT: "high" });
+    expect(r.order).toEqual([SCRIPT, OTHER, BILLING]);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]).toContain('paths[0].severity must be one of critical, high, medium, got "urgent"');
+    expect(r.warnings[0]).toContain("the base commit bbbbbbb");
+    expect(r.warnings[0]).toContain("using defaults");
+    expect(r.posted.review).toBeDefined();
+  });
+
+  test("a rule's reason is neutralised in the prompt and in the review body", async () => {
+    const r = await run({ ".wachiman.yml": 'paths:\n  - match: "docs/billing.md"\n    severity: medium\n    reason: "see <!-- wachi:review -->"\n' });
+    expect(r.prompt).not.toContain("<!-- wachi:review -->");
+    expect(r.prompt).toContain("see &lt;!-- wachi:review --&gt;");
+    expect(r.posted.review!.body).toContain("path rule medium");
+  });
+});
+
+describe("a pull request that edits paths: cannot weaken its own review", () => {
+  const SETTINGS = ".wachiman.yml";
+  const CHARGE = "src/billing/charge.ts";
+  const OTHER = "src/other/a.ts";
+  const patch = "@@ -0,0 +1,2 @@\n+a\n+b";
+  const files = [OTHER, CHARGE, SETTINGS].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
+  const BASE_RULES = ["paths:", '  - match: "src/billing/**"', "    severity: high", "    reason: charges customers", ""].join("\n");
+  const POLICY = "ℹ️ **Review policy changed**";
+
+  const run = async (base: Record<string, string>, head: Record<string, string>, changed = files) => {
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const provider = new FakeProvider([
+      () => ({ structuredOutput: out({ files_reviewed: changed.map((f) => f.filename), summary: "ok" }) }),
+    ]);
+    // Not about the pinned prompts: the golden files stay as they are.
+    provider.record = false;
+    const deps: Deps = {
+      gh: fakeGh(posted, base, changed, head),
+      provider,
+      config: loadConfig({}),
+      repoDir: mkdtempSync(join(tmpdir(), "head-")),
+      log: () => {},
+      warn: () => {},
+    };
+    await review(deps, "o/r", 7, []);
+    const prompt = provider.requests[0].prompt;
+    const part = prompt.split("This part holds exactly these files")[1].split("\n\n")[0];
+    const order = part.split("\n").filter((l) => l.startsWith("- ")).map((l) => l.split(" ")[1]);
+    return { prompt, order, body: posted.review!.body };
+  };
+
+  test.each([
+    ["removes the rule", "effort: high\n"],
+    ["lowers the rule to medium", BASE_RULES.replace("severity: high", "severity: medium")],
+  ])("a head copy that %s changes nothing for this review, and the notice says so", async (_name, headFile) => {
+    const r = await run({ [SETTINGS]: BASE_RULES }, { [SETTINGS]: headFile });
+    // The synthetic critical rule puts the settings file first; the base's rule keeps billing next.
+    expect(r.order).toEqual([SETTINGS, CHARGE, OTHER]);
+    expect(r.prompt).toContain(`${SETTINGS} +2 −0 — path rule critical (.wachiman.yml): edits the review's path rules`);
+    expect(r.prompt).toContain(`${CHARGE} +2 −0 — path rule high (src/billing/**): charges customers`);
+    expect(r.body).toContain(`path rule high ("src/billing/**"): charges customers — a person should approve this change`);
+    expect(r.body).toContain(`path rule critical (".wachiman.yml"): edits the review's path rules — a person should approve this change`);
+    expect(r.body).toMatch(/\*\*High\.\*\*/);
+    expect(r.body).toContain(`${POLICY}: this pull request edits the path rules in \`.wachiman.yml\`. The review ran under the rules at the base commit \`bbbbbbb\`; the change takes effect after merge.`);
+  });
+
+  test("an edit of only effort is not a policy change", async () => {
+    const r = await run({ [SETTINGS]: `effort: low\n${BASE_RULES}` }, { [SETTINGS]: `effort: high\n${BASE_RULES}` });
+    expect(r.body).not.toContain("Review policy changed");
+    expect(r.order[0]).toBe(CHARGE);
+    expect(r.prompt).not.toContain("edits the review's path rules");
+  });
+
+  test("a head copy that is not valid YAML is a policy change", async () => {
+    const r = await run({ [SETTINGS]: BASE_RULES }, { [SETTINGS]: "paths: [unclosed\n  - : :\n" });
+    expect(r.body).toContain(POLICY);
+    expect(r.order[0]).toBe(SETTINGS);
+  });
+
+  test("a head copy with a rule that does not validate is a policy change", async () => {
+    const r = await run({ [SETTINGS]: BASE_RULES }, { [SETTINGS]: 'paths:\n  - match: "src/**"\n    severity: urgent\n    reason: r\n' });
+    expect(r.body).toContain(POLICY);
+  });
+
+  test("a deleted .wachiman.yml whose base had rules is a policy change; one that had none is not", async () => {
+    expect((await run({ [SETTINGS]: BASE_RULES }, {})).body).toContain(POLICY);
+    expect((await run({}, {})).body).not.toContain("Review policy changed");
+  });
+
+  test("rules added by the head are not applied, and are a policy change", async () => {
+    const r = await run({}, { [SETTINGS]: BASE_RULES });
+    expect(r.body).toContain(POLICY);
+    // The head's billing rule does not apply: the heuristic order holds after the settings file.
+    expect(r.prompt).not.toContain("path rule high (src/billing/**)");
+    expect(r.order[0]).toBe(SETTINGS);
+  });
+
+  test("a pull request that does not touch .wachiman.yml reads no head copy", async () => {
+    const only = files.filter((f) => f.filename !== SETTINGS);
+    const r = await run({ [SETTINGS]: BASE_RULES }, {}, only);
+    expect(r.body).not.toContain("Review policy changed");
+    expect(r.order[0]).toBe(CHARGE);
   });
 });

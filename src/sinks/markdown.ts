@@ -10,6 +10,7 @@ import {
   dollars,
   estimateLine,
   instructionNote,
+  policyNote,
   location,
   notReviewed,
   markdownLabel,
@@ -40,6 +41,8 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
   parts.push(`${sentenceCase(coverageText(result))}.`, `Profile: ${profileText(result, opts.profileNote)}`, countLine(result.findings));
   const note = instructionNote(result);
   if (note) parts.push(note);
+  const policy = policyNote(result);
+  if (policy) parts.push(policy);
   if (result.riskMap) parts.push(renderRiskMap(result.riskMap, "## Risk map"));
   const grouped = sections(result);
   const finding = ({ f, index }: (typeof grouped.main)[number]) => {

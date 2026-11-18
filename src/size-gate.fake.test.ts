@@ -45,7 +45,7 @@ interface Comment {
 }
 
 /** A pull request as GitHub shows it, and every write the engine made to it. */
-function world(files: unknown[], comments: Comment[] = []) {
+function world(files: unknown[], comments: Comment[] = [], base: Record<string, string> = {}) {
   const calls: string[] = [];
   const posted: { kind: "comment" | "patch" | "review"; target?: number; body: string }[] = [];
   let listed = 0;
@@ -78,7 +78,13 @@ function world(files: unknown[], comments: Comment[] = []) {
     if (line.includes("/pulls/7/files")) return files.map((f) => JSON.stringify(f)).join("\n");
     if (line.includes("/pulls/7/reviews") || line.includes("/pulls/7/comments")) return "";
     if (line.startsWith("api graphql")) return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
-    if (line.includes("/contents/")) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
+    if (line.includes("/contents/")) {
+      const m = line.match(/contents\/(.+)\?ref=(.+)$/);
+      if (m && m[2] === BASE && base[m[1]] !== undefined) {
+        return JSON.stringify({ type: "file", encoding: "base64", content: Buffer.from(base[m[1]]).toString("base64") });
+      }
+      throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
+    }
     const compare = line.match(/compare\/(\S+?)\.\.\.(\S+)/);
     if (compare) return JSON.stringify({ status: "ahead", files });
     throw new Error(`unexpected gh call: ${line}`);
@@ -203,6 +209,65 @@ describe("the gate lifts", () => {
     const both = world(LARGE);
     const c = await run(both, { ...env, WACHIMAN_AUTO_BUDGET_USD: "12" });
     expect(c.provider.requests.length).toBeGreaterThan(0);
+  });
+});
+
+describe("a skipped pull request names the critical paths it changes", () => {
+  const rules = (...entries: [string, string, string][]) =>
+    ["paths:", ...entries.flatMap(([match, severity, reason]) => [`  - match: "${match}"`, `    severity: ${severity}`, `    reason: ${reason}`]), ""].join("\n");
+  const THE_COMMENT = "**Critical paths in this change** (from `.wachiman.yml` at the base commit): a person should read these before merging, since nothing was reviewed.";
+
+  test("each changed file a critical rule matches is listed with its reason, after the headline", async () => {
+    const w = world(LARGE, [], { ".wachiman.yml": rules(["pkg3/**", "critical", "holds the payment keys"], ["pkg5/**", "high", "not critical"]) });
+    const { provider } = await run(w);
+    expect(provider.requests).toHaveLength(0);
+    expect(w.posted).toHaveLength(1);
+    const paragraphs = w.posted[0].body.split("\n\n");
+    expect(paragraphs[1]).toBe(`${THE_COMMENT}\n- \`pkg3/mod.ts\`: holds the payment keys`);
+    expect(w.posted[0].body).not.toContain("pkg5/mod.ts");
+    expect(w.posted[0].body).toContain(SIZE_GATE_MARKER);
+  });
+
+  test("a critical match never lifts the gate", async () => {
+    const w = world(LARGE, [], { ".wachiman.yml": rules(["**/mod.ts", "critical", "everything"]) });
+    const { provider } = await run(w);
+    expect(provider.requests).toHaveLength(0);
+    expect(w.posted.map((p) => p.kind)).toEqual(["comment"]);
+  });
+
+  test("the list stops at 20 and says how many more", async () => {
+    const w = world(LARGE, [], { ".wachiman.yml": rules(["**/mod.ts", "critical", "everything"]) });
+    await run(w);
+    const lines = w.posted[0].body.split("\n").filter((l) => l.startsWith("- `pkg"));
+    expect(lines).toHaveLength(20);
+    expect(w.posted[0].body).toContain("\n- and 10 more\n");
+  });
+
+  test("a gated pull request that edits the path rules lists .wachiman.yml with its reason", async () => {
+    const base = rules(["pkg3/**", "critical", "holds the payment keys"]);
+    const settings = { filename: ".wachiman.yml", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-a\n+b" };
+    // The head has no .wachiman.yml, so the rules at the base were removed: a policy change.
+    const w = world([...LARGE, settings], [], { ".wachiman.yml": base });
+    await run(w);
+    expect(w.posted[0].body).toContain("\n- `.wachiman.yml`: edits the review's path rules");
+    expect(w.posted[0].body).toContain("- `pkg3/mod.ts`: holds the payment keys");
+  });
+
+  test("a reason is neutralised", async () => {
+    const w = world(LARGE, [], { ".wachiman.yml": rules(["pkg1/**", "critical", '"see <!-- wachi:size-gate -->"']) });
+    await run(w);
+    expect(w.posted[0].body.split(SIZE_GATE_MARKER)).toHaveLength(2);
+    expect(w.posted[0].body).toContain("see &lt;!-- wachi:size-gate --&gt;");
+  });
+
+  test("with no critical match the comment is the one without a section", async () => {
+    const plain = world(LARGE);
+    await run(plain);
+    for (const base of [{ ".wachiman.yml": rules(["pkg3/**", "high", "r"]) }, { ".wachiman.yml": rules(["nowhere/**", "critical", "r"]) }, { ".wachiman.yml": "effort: high\n" }]) {
+      const w = world(LARGE, [], base);
+      await run(w);
+      expect(w.posted[0].body).toBe(plain.posted[0].body);
+    }
   });
 });
 

@@ -17,9 +17,16 @@ The first row that matches wins.
 | --- | --- |
 | `cannot say` | The run did not finish, a spend ceiling stopped it, files were left unread, the text was too long to read in full, a batch or claims call ended on a turn or time limit (even when it returned usable output), the review of a new commit has not finished, or the title and body changed while the review ran |
 | C | The text makes no checkable claim, a claim is contradicted, or a Blocker finding is open |
-| B | A claim has no cited evidence, a changed file is unexplained, a Fix finding is open, or the risk level is high (a high risk fact such as auth, money, data migration or an irreversible change, or a file on a high-risk path) |
+| B | A claim has no cited evidence, a changed file is unexplained, a Fix finding is open, or the risk level is high (a high risk fact such as auth, money, data migration or an irreversible change, or a file on a high-risk path, or a pull request that edits the repository's path rules) |
 | A- | A medium risk fact, a risk fact the engine dropped, a place that needs a person, or a Consider finding is open. A file on a medium-risk path alone does not: the grade stays A |
 | A | None of the above |
+
+A **high-risk path** is a file that a `critical` or `high` [path rule](configuration.md#path-rules-paths)
+matches or, when no rule matches it, a file the built-in path heuristic scores high. A `medium` rule
+makes a medium-risk path. A rule decides its file's level, so
+it can also lower a file the heuristic would score high. A pull request that edits the path rules is
+reviewed under the rules at its base commit, says "Review policy changed", and counts
+`.wachiman.yml` as a high-risk path, so its grade is at most B.
 
 A file is explained when a confirmed claim covers it, or a fixed rule does: a lockfile, a
 generated file, a formatting-only change, or a test of a confirmed claim. Generated includes the

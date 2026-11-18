@@ -30,7 +30,7 @@ import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, r
 import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
-import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, wantsRepoSettings, type RepoSettings } from "./repo-settings";
+import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parsePathRules, wantsRepoSettings, type RepoSettings } from "./repo-settings";
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
 import { historyRoot, historySettings, saveRun } from "./history";
 import { readConfig, wachimanHome } from "./accounts/config";
@@ -230,6 +230,9 @@ export function readInputFile(path: string): Omit<ReviewInput, "headDir"> {
   if (!instr || !isString(instr.baseSha) || !Array.isArray(instr.files)) problems.push("instructions");
   if (!Array.isArray(input.scope) || input.scope.some((s: unknown) => !isString(s))) problems.push("scope");
   if (problems.length > 0) throw new UsageError(`--input ${path} is missing or mistypes: ${problems.join(", ")}.`);
+  // Optional, and checked as `.wachiman.yml` is: an entry that names no severity is not guessed at.
+  if (input.pathRules !== undefined) input.pathRules = parsePathRules(input.pathRules, `--input ${path}`);
+  if (input.pathPolicyChanged !== undefined && input.pathPolicyChanged !== true) throw new UsageError(`--input ${path}: pathPolicyChanged must be true when present.`);
   // In memory only (docs/formats): the head the agent reads is always the engine's own snapshot.
   if ("headDir" in input) throw new UsageError(`--input ${path} carries headDir, which a review input file never holds.`);
   return input as Omit<ReviewInput, "headDir">;
@@ -558,13 +561,17 @@ export async function runLocal(
       io.stderr(`head: ${short(head)}`);
     }
     const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
-    const batches = planBatches(kept, {
-      maxLines: config.batchLines,
-      maxChars: config.batchChars,
-    });
+    const batches = planBatches(
+      kept,
+      {
+        maxLines: config.batchLines,
+        maxChars: config.batchChars,
+      },
+      input.pathRules,
+    );
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
     io.stderr(`batches: ${batches.length}`);
-    const warning = sizeWarning(estimateFor(kept, config), sizeGate(config, false), config.budgetUsd, config.model);
+    const warning = sizeWarning(estimateFor(kept, config, input.pathRules), sizeGate(config, false), config.budgetUsd, config.model);
     if (warning) io.stderr(warning);
     io.stderr(
       config.verify

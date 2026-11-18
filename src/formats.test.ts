@@ -13,6 +13,7 @@ import {
   type ReviewResultV1,
   type ReviewResultV2,
 } from "./formats";
+import { buildRiskMap } from "./risk";
 import { checkKeywords, validate } from "../test/support/json-schema";
 
 // Spec D15, ADR 0019 decision 9: the review input and result are public, versioned JSON formats.
@@ -67,6 +68,8 @@ describe("review formats", () => {
     expect(() => checkKeywords(resultSchema)).not.toThrow();
     expect(() => checkKeywords(resultSchemaV2)).not.toThrow();
     expect(() => checkKeywords({ type: "object", properties: { a: { pattern: "x" } } })).toThrow('"pattern"');
+    expect(validate({ type: "string", minLength: 1 }, "")).toHaveLength(1);
+    expect(validate({ type: "string", minLength: 1 }, "x")).toEqual([]);
   });
 });
 
@@ -136,6 +139,26 @@ describe("review result /2", () => {
     const v1 = toResultV1(withFidelity);
     expect(v1).not.toHaveProperty("fidelity");
     expect(validate(resultSchema, JSON.parse(JSON.stringify(v1)))).toEqual([]);
+  });
+
+  test("a risk map with a rule-matched file validates against the /2 schema, and an unknown marker does not", () => {
+    const riskMap = buildRiskMap({
+      files: [{ path: "src/billing/a.ts", changedLines: 5 }],
+      facts: [],
+      judgement: [],
+      unreadFiles: 0,
+      lineExists: () => true,
+      pathRules: [{ match: "src/billing/**", severity: "critical", reason: "money" }],
+    });
+    expect(riskMap.pathReasons[0]).toMatchObject({ path: "src/billing/a.ts", rule: true });
+    const withRule = { ...clone(), riskMap };
+    expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(withRule)))).toEqual([]);
+    const badMarker = JSON.parse(JSON.stringify(withRule));
+    badMarker.riskMap.pathReasons[0].rule = false;
+    expect(validate(resultSchemaV2, badMarker).length).toBeGreaterThan(0);
+    badMarker.riskMap.pathReasons[0].rule = true;
+    badMarker.riskMap.pathReasons[0].other = 1;
+    expect(validate(resultSchemaV2, badMarker).length).toBeGreaterThan(0);
   });
 
   test("a /2 result without verification downgrades with no added notice", () => {

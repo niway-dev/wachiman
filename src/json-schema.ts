@@ -9,6 +9,7 @@ const CHECKED = new Set([
   "const",
   "enum",
   "minimum",
+  "minLength",
   "properties",
   "required",
   "additionalProperties",
@@ -69,6 +70,9 @@ export function validate(schema: Schema, value: unknown, rootSchema: Schema = sc
   }
   if (typeof schema.minimum === "number" && typeof value === "number" && value < schema.minimum) {
     problems.push(`${path}: ${value} is below ${schema.minimum}`);
+  }
+  if (typeof schema.minLength === "number" && typeof value === "string" && value.length < schema.minLength) {
+    problems.push(`${path}: is shorter than ${schema.minLength}`);
   }
   if (Array.isArray(schema.oneOf)) {
     const matching = (schema.oneOf as Schema[]).filter((s) => validate(s, value, rootSchema, path).length === 0).length;

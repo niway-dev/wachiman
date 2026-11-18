@@ -717,7 +717,7 @@ describe("the repository settings file .wachiman.yml", () => {
   const settingsFile = (w: World) => join(w.repo, ".wachiman.yml");
   const baseArgs = ["--mode", "github", "--operator", "me", "--version", "v1.5.0"];
 
-  test("a new file has the explanatory comments, the kind, and model and effort commented out, and the next steps name it", async () => {
+  test("a new file has the explanatory comments, the kind, and model, effort and paths commented out, and the next steps name it", async () => {
     const w = world();
     expect(await init(w, [...baseArgs, "--project-kind", "monorepo"])).toBe(0);
     expect(readFileSync(settingsFile(w), "utf8")).toBe(
@@ -729,6 +729,16 @@ describe("the repository settings file .wachiman.yml", () => {
         "# Optional. Wachiman's defaults are what its benchmarks measure; change them knowing that.",
         "# model: claude-sonnet-5-5",
         "# effort: high",
+        "",
+        "# Optional. Path rules: files a rule matches are read first, the review quotes your reason, and for",
+        "# critical and high it says a person should approve the change. Wachiman never approves or blocks.",
+        "# Rules are read from the base branch, so a pull request cannot change its own rules.",
+        "# Inspired by the Claude Code team's review process:",
+        "# https://claude.dev/blog/solving-code-review-at-anthropic/#the-life-of-a-change",
+        "# paths:",
+        '#   - match: ".github/workflows/**"',
+        "#     severity: critical",
+        "#     reason: CI can publish releases and read secrets",
         "",
       ].join("\n"),
     );

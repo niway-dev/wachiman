@@ -40,9 +40,28 @@
       "description": "Open threads for the model to answer.",
       "type": "array",
       "items": { "$ref": "#/$defs/Thread" }
+    },
+    "pathRules": {
+      "description": "The repository's path rules (`paths` in `.wachiman.yml`), read from change.base.sha, never from the head. Optional; absent when the repository has none.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/PathRule" }
+    },
+    "pathPolicyChanged": {
+      "description": "True when the change edits the path rules in `.wachiman.yml`: pathRules then also holds the rule that makes `.wachiman.yml` a critical path for this review, and the review says its policy changed. Optional; absent otherwise.",
+      "const": true
     }
   },
   "$defs": {
+    "PathRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["match", "severity", "reason"],
+      "properties": {
+        "match": { "description": "A glob matched against the repository-relative path.", "type": "string", "minLength": 1 },
+        "severity": { "enum": ["critical", "high", "medium"] },
+        "reason": { "description": "The maintainer's reason, quoted in the prompt and the review.", "type": "string", "minLength": 1 }
+      }
+    },
     "ReviewChange": {
       "type": "object",
       "additionalProperties": false,

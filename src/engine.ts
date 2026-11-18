@@ -34,7 +34,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
-import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parseRepoSettings, wantsRepoSettings, type RepoSettings } from "./repo-settings";
+import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -139,8 +139,8 @@ export interface ReviewFile {
   patch?: string;
   /** The file's blob at the compared commit: equal blobs are equal contents. Absent for a removed file. */
   sha?: string;
-  /** The name before a rename, as GitHub reports it. */
-  previous_filename?: string;
+  /** The name before a rename, as GitHub reports it: `null` for a file that was not renamed. */
+  previous_filename?: string | null;
 }
 
 /** @deprecated The name before the review core; use `ReviewFile`. Removed in the next minor release. */
@@ -430,8 +430,8 @@ export function fileKind(path: string): FileKind {
 
 /**
  * Path rules for `riskScore`. These are defaults taken from the first consumer (`ipc`, `preload`,
- * `main`, `apps/<name>/src`) and are the owner's to tune; per-repository configuration is planned
- * (https://github.com/niway-dev/wachiman/issues/5).
+ * `main`, `apps/<name>/src`) and are the owner's to tune. A repository adds its own through `paths`
+ * in `.wachiman.yml` (`matchPathRule`), which outranks these weights for the files it matches.
  * The highest matching weight wins. A test or a document scores its kind's weight whatever its
  * path, so `ipc/foo.test.ts` does not outrank the IPC code it tests.
  */
@@ -455,7 +455,26 @@ export const RISK_RULES: { glob: string; weight: number; why: string }[] = [
 const KIND_WEIGHT: Record<FileKind, number> = { code: 4, test: 2, docs: 1 };
 const riskGlobs = RISK_RULES.map((r) => ({ ...r, matcher: new Bun.Glob(r.glob) }));
 
-export function riskScore(path: string): number {
+/**
+ * The ordering score of a file a maintainer's path rule matched (ADR 0058): above every heuristic
+ * weight, `critical` above `high` above `medium`. Derived from the tables, so a heavier heuristic
+ * weight added later cannot outrank a rule. Today: medium 9, high 10, critical 11.
+ */
+const HEURISTIC_MAX = Math.max(...Object.values(KIND_WEIGHT), ...RISK_RULES.map((r) => r.weight));
+export const PATH_RULE_SCORE: Record<PathSeverity, number> = {
+  medium: HEURISTIC_MAX + 1,
+  high: HEURISTIC_MAX + 2,
+  critical: HEURISTIC_MAX + 3,
+};
+
+/**
+ * How risky a path is, for ordering. With `rules` (the repository's `paths`, from the base commit),
+ * a file a rule matches scores by the rule, tests and documents included: the maintainer named the
+ * path. Without rules, or with no match, the built-in heuristic decides, unchanged.
+ */
+export function riskScore(path: string, rules?: readonly PathRule[], previous?: string): number {
+  const rule = matchPathRule(path, rules, previous);
+  if (rule) return PATH_RULE_SCORE[rule.severity];
   const kind = fileKind(path);
   if (kind !== "code") return KIND_WEIGHT[kind];
   const weights = riskGlobs.filter((r) => r.matcher.match(path)).map((r) => r.weight);
@@ -490,25 +509,34 @@ const sizeOf = (f: ReviewFile) => f.additions + f.deletions;
 export function planBatches(
   files: ReviewFile[],
   limits: { maxLines: number; maxChars: number },
+  rules?: readonly PathRule[],
 ): Batch[] {
+  const previousOf = new Map(files.flatMap((f) => (f.previous_filename ? [[f.filename, f.previous_filename] as const] : [])));
+  const score = (path: string) => riskScore(path, rules, previousOf.get(path));
+  /** The rule's score for a matched file, 0 for any other. */
+  const ruled = (path: string) => {
+    const rule = matchPathRule(path, rules, previousOf.get(path));
+    return rule ? PATH_RULE_SCORE[rule.severity] : 0;
+  };
+  const byScore = (a: ReviewFile, b: ReviewFile) =>
+    score(b.filename) - score(a.filename) || a.filename.localeCompare(b.filename);
+  // A file a path rule matched leaves its module and packs first, most severe first: the maintainer
+  // named the path, so a spent budget never leaves it unread behind a heuristic-ranked file.
+  const matched = files.filter((f) => ruled(f.filename) > 0).sort((a, b) => ruled(b.filename) - ruled(a.filename) || byScore(a, b));
+  const matchedSet = new Set(matched);
   const modules = new Map<string, ReviewFile[]>();
   for (const f of files) {
+    if (matchedSet.has(f)) continue;
     const key = moduleKey(f.filename);
     modules.set(key, [...(modules.get(key) ?? []), f]);
   }
-  const ordered = [...modules.values()]
-    .map((group) =>
-      group.sort(
-        (a, b) =>
-          riskScore(b.filename) - riskScore(a.filename) || a.filename.localeCompare(b.filename),
-      ),
-    )
-    .sort(
-      (a, b) =>
-        riskScore(b[0].filename) - riskScore(a[0].filename) ||
-        a[0].filename.localeCompare(b[0].filename),
-    )
-    .flat();
+  const ordered = [
+    ...matched,
+    ...[...modules.values()]
+      .map((group) => group.sort(byScore))
+      .sort((a, b) => byScore(a[0], b[0]))
+      .flat(),
+  ];
 
   const batches: ReviewFile[][] = [];
   let current: ReviewFile[] = [];
@@ -533,11 +561,14 @@ export function planBatches(
   if (current.length > 0) batches.push(current);
 
   return batches.map((group) => ({
+    // A file a path rule matched leads its batch, most severe first, tests and documents included:
+    // the maintainer named the path. The rest keep the order of its kind. Without rules this is the
+    // kind order alone.
     files: [...group].sort(
-      (a, b) => KIND_ORDER[fileKind(a.filename)] - KIND_ORDER[fileKind(b.filename)],
+      (a, b) => ruled(b.filename) - ruled(a.filename) || KIND_ORDER[fileKind(a.filename)] - KIND_ORDER[fileKind(b.filename)],
     ),
     lines: group.reduce((n, f) => n + sizeOf(f), 0),
-    maxRisk: Math.max(...group.map((f) => riskScore(f.filename))),
+    maxRisk: Math.max(...group.map((f) => score(f.filename))),
   }));
 }
 
@@ -1136,6 +1167,8 @@ export function buildReview(input: {
   priorSpend?: { spent: number; runs: number };
   /** Review-instruction files this pull request edits, and the base commit they were read from. */
   instructionChanges?: { files: string[]; baseSha: string };
+  /** The pull request edits the path rules in `.wachiman.yml`; the review ran under the base's. */
+  pathPolicyChange?: { baseSha: string };
   /** The verifier's record (ADR 0027): its outcome goes in the footer's cost line. */
   verification?: ResultVerificationV2;
   /** The run is on a Claude subscription: its dollar figures are API-price estimates (ADR 0037). */
@@ -1235,6 +1268,11 @@ export function buildReview(input: {
     const names = input.instructionChanges.files.map((f) => `\`${f}\``).join(", ");
     parts.push(
       `ℹ️ **Review instructions changed**: this pull request edits ${names}. The review ran under the versions at the base commit \`${short(input.instructionChanges.baseSha)}\`; the change takes effect after merge.`,
+    );
+  }
+  if (input.pathPolicyChange) {
+    parts.push(
+      `ℹ️ **Review policy changed**: this pull request edits the path rules in \`${SETTINGS_PATH}\`. The review ran under the rules at the base commit \`${short(input.pathPolicyChange.baseSha)}\`; the change takes effect after merge.`,
     );
   }
   parts.push(
@@ -1689,6 +1727,36 @@ export function readBaseSettings(gh: GhFn, repo: string, sha: string): RepoSetti
   if (!file) return undefined;
   if (file.truncated) throw new UsageError(`${SETTINGS_PATH} at the base commit is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
   return parseRepoSettings(file.content);
+}
+
+/**
+ * The base commit's `paths` rules (ADR 0058), or undefined when it has none. Read on every run,
+ * whether or not `model` and `effort` were set explicitly: the rules are review policy, not a spend
+ * choice. Like `withBaseSettings`, a broken file is ignored with one warning and the run continues
+ * with no rules, so the pull request that fixes the file can be reviewed; errors from GitHub itself
+ * still propagate. When a `.wachiman.yml` read has already warned about the same file, the same
+ * problem is reported once more here: the two reads are independent.
+ */
+export function readBasePathRules(gh: GhFn, repo: string, sha: string, warn: (line: string) => void): PathRule[] | undefined {
+  try {
+    return readBaseSettings(gh, repo, sha)?.paths;
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    warn(ignoredSettingsNote(error.message, `the base commit ${sha.slice(0, 7)}`));
+    return undefined;
+  }
+}
+
+/**
+ * Whether the pull request's head `.wachiman.yml` sets different path rules than the base's
+ * (`baseRules`), read from the contents API at the head sha (ADR 0058 decision 5). Only to tell
+ * the author and the reader: the head's rules are never applied. A head copy that is gone and had
+ * no base rules is no change; one that cannot be parsed, or is over the size limit, is.
+ */
+export function headEditsPathRules(gh: GhFn, repo: string, headSha: string, baseRules: readonly PathRule[] | undefined): boolean {
+  const file = fileAtBase(gh, repo, SETTINGS_PATH, headSha);
+  if (file?.truncated) return true;
+  return pathsEdited(baseRules, file ? file.content : null);
 }
 
 /**
@@ -2753,8 +2821,8 @@ async function settledOnError<T>(deps: Deps, grant: SpendGrant, run: () => Promi
 }
 
 /** The estimate of reviewing `files` with this configuration: the batches `planBatches` makes, priced per batch. */
-export function estimateFor(files: ReviewFile[], config: EngineConfig): ReviewEstimate {
-  const batches = planBatches(files, { maxLines: config.batchLines, maxChars: config.batchChars }).length;
+export function estimateFor(files: ReviewFile[], config: EngineConfig, rules?: readonly PathRule[]): ReviewEstimate {
+  const batches = planBatches(files, { maxLines: config.batchLines, maxChars: config.batchChars }, rules).length;
   return estimateReview(files, { batches, batchBudgetUsd: config.batchBudgetUsd, model: config.model });
 }
 
@@ -2763,6 +2831,33 @@ export const SIZE_GATE_MARKER = "<!-- wachi:size-gate -->";
 
 const usd2 = (n: number) => `$${n.toFixed(2)}`;
 const count = (n: number) => n.toLocaleString("en-US");
+
+/** A changed file a `critical` path rule matches, and the maintainer's reason. */
+export interface CriticalPath {
+  path: string;
+  reason: string;
+}
+
+/** How many critical paths the size-gate comment lists before "and N more". */
+const MAX_CRITICAL_LISTED = 20;
+
+/** The changed files a `critical` rule of `rules` matches, in the order given. Never lifts the gate: it only names. */
+export function criticalPathsOf(files: readonly { filename: string; previous_filename?: string | null }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
+  return files.flatMap((f) => {
+    const rule = matchPathRule(f.filename, rules, f.previous_filename);
+    return rule?.severity === "critical" ? [{ path: f.filename, reason: rule.reason }] : [];
+  });
+}
+
+function criticalPathsSection(critical: readonly CriticalPath[]): string {
+  const listed = critical.slice(0, MAX_CRITICAL_LISTED).map((c) => `- \`${neutralise(c.path)}\`: ${neutralise(c.reason)}`);
+  const more = critical.length - listed.length;
+  return [
+    `**Critical paths in this change** (from \`${SETTINGS_PATH}\` at the base commit): a person should read these before merging, since nothing was reviewed.`,
+    ...listed,
+    ...(more > 0 ? [`- and ${more} more`] : []),
+  ].join("\n");
+}
 
 /**
  * The comment that says a pull request was not reviewed because its estimate is above the size
@@ -2774,6 +2869,8 @@ export function sizeGateBody(o: {
   headSha: string;
   mention: string;
   model: string;
+  /** The changed files a `critical` path rule matches, from the base commit's rules; none by default. */
+  critical?: readonly CriticalPath[];
 }): string {
   const { estimate: e, gate, headSha, mention, model } = o;
   const budget = suggestedBudget(e.usd);
@@ -2781,6 +2878,7 @@ export function sizeGateBody(o: {
     branded(
       `**Not reviewed: this pull request is above the size gate.** Reviewing all of it would cost about **${usd2(e.usd)}**, and the gate is **${usd2(gate)}**, so nothing was sent to a model and nothing was spent.`,
     ),
+    ...(o.critical?.length ? [criticalPathsSection(o.critical)] : []),
     `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines), from the diff alone, before any model call. It can be off by about 40% either way.`,
     `To review the whole pull request, set the run budget in the workflow that calls Wachiman, then comment \`${mention} review\`:`,
     ["```yaml", "    with:", `      budget_usd: ${budget}`, "```"].join("\n"),
@@ -2802,6 +2900,7 @@ export function postSizeGateNotice(
   headSha: string,
   estimate: ReviewEstimate,
   gate: number,
+  critical: readonly CriticalPath[] = [],
 ) {
   const { config } = deps;
   const body = sizeGateBody({
@@ -2810,6 +2909,7 @@ export function postSizeGateNotice(
     headSha,
     mention: config.mention,
     model: config.model,
+    critical,
   });
   if (config.dryRun) {
     deps.log("--- size gate comment ---\n" + body);
@@ -3026,11 +3126,15 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const reserve = options.verify ? Math.min(options.verify.budgetUsd, totalBudget / 2) : 0;
   const batchTotal = totalBudget - reserve;
   const batchBudget = options.batchBudgetUsd;
-  const batches = planBatches(kept, {
-    maxLines: options.batchLines,
-    // About 40k tokens at 3.5 characters a token.
-    maxChars: options.batchChars,
-  });
+  const batches = planBatches(
+    kept,
+    {
+      maxLines: options.batchLines,
+      // About 40k tokens at 3.5 characters a token.
+      maxChars: options.batchChars,
+    },
+    input.pathRules,
+  );
   // The files this run reviews whole because the previous review did not reach them.
   const keptNames = new Set(kept.map((f) => f.filename));
   const carriedHere = (input.since?.carried ?? []).filter((f) => keptNames.has(f));
@@ -3051,6 +3155,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     everyFile,
     meta: { title: change.title, body: change.description, author: change.author },
     instructions: renderInstructions(input.instructions),
+    ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
     costTags: { repo: change.repository.name, ...(number ? { pr: Number(number) } : {}) },
   };
 
@@ -3382,7 +3487,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   // contracts' lines are: the file must be in the review and the line must exist at the head.
   const lineCount = deps.lineCounter ?? repoLineCounter(input.headDir);
   const riskMap = buildRiskMap({
-    files: kept.map((f) => ({ path: f.filename, changedLines: f.additions + f.deletions })),
+    ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
+    files: kept.map((f) => ({ path: f.filename, changedLines: f.additions + f.deletions, ...(f.previous_filename ? { previousPath: f.previous_filename } : {}) })),
     facts: parts.flatMap((p) => wellFormed<RiskFact>(p.output.risk_facts, RISK_KINDS)),
     judgement: parts.flatMap((p) => wellFormed<JudgementItem>(p.output.judgement, JUDGEMENT_KINDS)),
     unreadFiles: expected.filter((f) => !reviewedSet.has(f)).length,
@@ -3453,6 +3559,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       files: changedInstructionFiles(input.files.map((f) => f.filename)),
       baseSha: input.instructions.baseSha,
     },
+    ...(input.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
     execution: {
       costUsdEstimate: spent,
       usage,
@@ -3648,6 +3755,10 @@ export function githubReviewInput(p: {
   /** The files of `files` the previous partial review did not reach (they carry their whole diff). */
   carried?: string[];
   threads: Thread[];
+  /** The base commit's `paths` rules; omitted or empty when the repository has none. */
+  pathRules?: PathRule[];
+  /** The pull request edits the path rules; `pathRules` then ends with the rule for `.wachiman.yml`. */
+  pathPolicyChanged?: boolean;
 }): ReviewInput {
   return {
     format: REVIEW_INPUT_FORMAT,
@@ -3678,6 +3789,8 @@ export function githubReviewInput(p: {
         }
       : {}),
     ...(p.threads.length > 0 ? { conversation: p.threads } : {}),
+    ...(p.pathRules?.length ? { pathRules: p.pathRules } : {}),
+    ...(p.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
   };
 }
 
@@ -3739,6 +3852,7 @@ export function githubReview(
     receiptLine: github.receiptLine,
     mention: github.mention,
     instructionChanges: github.instructionChanges,
+    ...(result.pathPolicyChanged ? { pathPolicyChange: { baseSha: github.instructionChanges.baseSha } } : {}),
     riskMap: result.riskMap,
     ...(result.fidelity ? { fidelity: result.fidelity } : {}),
     pushOnly: github.since !== null,
@@ -3944,11 +4058,19 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   }
   // The size gate: what this run would send, priced before any model call. Nothing is posted as a
   // review and no marker is written, so the next push sees no marker and gates again.
-  const estimate = estimateFor(allBinary.reviewable, config);
+  // The path rules come from the base commit whatever the model and effort inputs say; they reorder
+  // the batches, so the estimate is made with them.
+  const base = baseSha(gh, repo, pr);
+  const baseRules = readBasePathRules(gh, repo, base, deps.warn);
+  // A pull request that edits the rules is reviewed under the base's, and `.wachiman.yml` itself is
+  // a critical path for that review: the head's rules are never applied, only compared.
+  const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
+  const pathRules = pathPolicyChanged ? withPolicyEditRule(baseRules) : baseRules;
+  const estimate = estimateFor(allBinary.reviewable, config, pathRules);
   const gate = sizeGate(config, isAutomatic(config.trigger));
   if (estimate.usd > gate) {
     deps.log(`Estimated $${estimate.usd.toFixed(2)} is above the $${gate.toFixed(2)} size gate; nothing sent to a model.`);
-    postSizeGateNotice(deps, repo, pr, headSha, estimate, gate);
+    postSizeGateNotice(deps, repo, pr, headSha, estimate, gate, criticalPathsOf(allBinary.reviewable, pathRules));
     return;
   }
   // After the rebase exits above (they cost nothing and move the marker) and before any paid step.
@@ -3957,7 +4079,6 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // What the automatic runs before this one cost; an operator's run is not counted and shows none.
   const automatic = isAutomatic(config.trigger);
   const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
-  const base = baseSha(gh, repo, pr);
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
@@ -3978,6 +4099,8 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     commits,
     carried: resumed,
     threads,
+    pathRules,
+    pathPolicyChanged,
   });
   // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
   // part of the change, and "nothing else changed" cannot be said of a part.
@@ -4347,6 +4470,8 @@ export interface ReviewContext {
   meta: { title?: string; body?: string; author?: string };
   /** `renderInstructions` of the base commit's rules. */
   instructions: string;
+  /** The repository's path rules (`paths` in `.wachiman.yml`, from the base commit); a matched file's line in the prompt quotes its rule. */
+  pathRules?: readonly PathRule[];
   /** PR Confidence on: the claims the batches assign their files to, as the claims call listed them. */
   claims?: readonly string[];
   /** How the cost log line names the change; absent for a change with no repository or number. */
@@ -4394,7 +4519,11 @@ export function buildBatchPrompt(
 ) {
   const carried = new Set(ctx.carried ?? []);
   const list = files
-    .map((f) => `- ${f.filename} +${f.additions} −${f.deletions}${carried.has(f.filename) ? " (not reached by the previous review: whole diff)" : ""}`)
+    .map((f) => {
+      const rule = matchPathRule(f.filename, ctx.pathRules, f.previous_filename);
+      const ruleNote = rule ? ` — ${neutralise(`path rule ${rule.severity} (${rule.match}): ${rule.reason}`)}` : "";
+      return `- ${f.filename} +${f.additions} −${f.deletions}${carried.has(f.filename) ? " (not reached by the previous review: whole diff)" : ""}${ruleNote}`;
+    })
     .join("\n");
   const sinceScope = ctx.since
     ? ctx.rebased

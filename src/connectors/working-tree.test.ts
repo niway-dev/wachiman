@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { emptyRepo, commit, git, removeTempRepos } from "../../test/support/temp-repo";
 import { commentableLines, annotateDiff } from "../engine";
 import { addedLinesOf } from "../evidence";
-import { snapshotWorkingTree, workingTreeInput } from "./working-tree";
+import { POLICY_EDIT_RULE } from "../repo-settings";
+import { readSnapshotFile, snapshotWorkingTree, workingTreeInput } from "./working-tree";
 afterAll(removeTempRepos);
 function fixture() {
   const dir = emptyRepo();
@@ -485,4 +486,67 @@ test("all captures a tracked file replaced by a directory as deletion without de
   } finally {
     b.release();
   }
+});
+
+test("working-tree input carries the path rules committed at HEAD, not the working copy's", () => {
+  const dir = emptyRepo();
+  const rules = (severity: string) => `paths:\n  - match: "a.ts"\n    severity: ${severity}\n    reason: why\n`;
+  commit(dir, { "a.ts": "base\n", ".wachiman.yml": rules("high") }, "base");
+  writeFileSync(join(dir, ".wachiman.yml"), rules("medium"));
+  writeFileSync(join(dir, "a.ts"), "edited\n");
+  const warnings: string[] = [];
+  const b = capture(dir, "all", { warn: (l: string) => warnings.push(l) });
+  try {
+    // The working copy lowered the rule; the rule applied is still HEAD's (the edit is flagged apart).
+    expect(b.input.pathRules?.[0]).toEqual({ match: "a.ts", severity: "high", reason: "why" });
+    expect(warnings).toEqual([]);
+  } finally {
+    b.release();
+  }
+});
+
+test("working-tree input has no pathRules field when HEAD's file has no paths", () => {
+  const b = capture(fixture(), "all");
+  try {
+    expect(b.input).not.toHaveProperty("pathRules");
+  } finally {
+    b.release();
+  }
+});
+
+test("working-tree input flags an edit of the path rules and keeps HEAD's rules applied", () => {
+  const dir = emptyRepo();
+  const rules = (severity: string) => `paths:\n  - match: "a.ts"\n    severity: ${severity}\n    reason: why\n`;
+  commit(dir, { "a.ts": "base\n", ".wachiman.yml": rules("high") }, "base");
+  writeFileSync(join(dir, ".wachiman.yml"), rules("medium"));
+  const b = capture(dir, "all");
+  try {
+    expect(b.input.pathPolicyChanged).toBe(true);
+    expect(b.input.pathRules).toEqual([{ match: "a.ts", severity: "high", reason: "why" }, POLICY_EDIT_RULE]);
+  } finally {
+    b.release();
+  }
+});
+
+test("working-tree input does not flag an edit of only the effort", () => {
+  const dir = emptyRepo();
+  const rules = 'paths:\n  - match: "a.ts"\n    severity: high\n    reason: why\n';
+  commit(dir, { "a.ts": "base\n", ".wachiman.yml": rules }, "base");
+  writeFileSync(join(dir, ".wachiman.yml"), `effort: high\n${rules}`);
+  const b = capture(dir, "all");
+  try {
+    expect(b.input).not.toHaveProperty("pathPolicyChanged");
+    expect(b.input.pathRules).toEqual([{ match: "a.ts", severity: "high", reason: "why" }]);
+  } finally {
+    b.release();
+  }
+});
+
+test("a settings path that is a directory in the snapshot reads as absent", () => {
+  const dir = emptyRepo();
+  mkdirSync(join(dir, ".wachiman.yml"));
+  expect(readSnapshotFile(join(dir, ".wachiman.yml"))).toBeNull();
+  expect(readSnapshotFile(join(dir, "missing.yml"))).toBeNull();
+  writeFileSync(join(dir, "ok.yml"), "x\n");
+  expect(readSnapshotFile(join(dir, "ok.yml"))?.toString()).toBe("x\n");
 });

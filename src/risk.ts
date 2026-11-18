@@ -5,6 +5,7 @@
  * directly.
  */
 import { fileKind, JUDGEMENT_KINDS, neutralise, RISK_KINDS, riskScore, RISK_RULES } from "./engine";
+import { matchPathRule, type PathRule, type PathSeverity } from "./repo-settings";
 
 export { JUDGEMENT_KINDS, RISK_KINDS };
 export type RiskKind = (typeof RISK_KINDS)[number];
@@ -50,6 +51,18 @@ const JUDGEMENT_CAP = 3;
 /** At most this many paths are listed under "Read first". */
 const READ_FIRST_CAP = 5;
 
+/** The path level a maintainer's rule sets: `critical` and `high` are high, `medium` is medium (ADR 0058). */
+export const RULE_LEVEL: Record<PathSeverity, RiskLevel> = { critical: "high", high: "high", medium: "medium" };
+
+/**
+ * What the risk map says about a file a path rule matched: the rule as written, then, for
+ * `critical` and `high`, that a person decides. Advisory: never "blocks" or "approves".
+ */
+export function pathRuleWhy(rule: PathRule): string {
+  const quoted = `path rule ${rule.severity} (${JSON.stringify(rule.match)}): ${rule.reason}`;
+  return neutralise(rule.severity === "medium" ? quoted : `${quoted} — a person should approve this change`);
+}
+
 const LEVEL_RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
 const LEVEL_WORD: Record<RiskLevel, string> = { low: "Low", medium: "Medium", high: "High" };
 
@@ -89,8 +102,8 @@ export interface RiskMap {
   facts: RiskFact[];
   /** Kept judgement items, at most three. */
   judgement: JudgementItem[];
-  /** Files whose path rule gives medium or high. */
-  pathReasons: { path: string; why: string }[];
+  /** Files whose heuristic gives medium or high, and every file a maintainer's path rule matched (quoted with its reason). */
+  pathReasons: { path: string; why: string; rule?: true }[];
   /** Up to five paths, most worth reading first. */
   readFirst: string[];
   unreadFiles: number;
@@ -98,12 +111,17 @@ export interface RiskMap {
   droppedFacts: number;
 }
 
+/** How many rule-matched files the rendered risk map lists before "and N more". */
+const MAX_PATH_BULLETS = 20;
+
 export function buildRiskMap(input: {
-  files: { path: string; changedLines: number }[];
+  files: { path: string; changedLines: number; previousPath?: string }[];
   facts: RiskFact[];
   judgement: JudgementItem[];
   unreadFiles: number;
   lineExists: (path: string, line: number) => boolean;
+  /** The repository's path rules; a matched file's level and reason come from its rule, not the heuristic. */
+  pathRules?: readonly PathRule[];
 }): RiskMap {
   const paths = new Set(input.files.map((f) => f.path));
   const anchored = (item: { path: string; line: number }) =>
@@ -136,15 +154,21 @@ export function buildRiskMap(input: {
 
   let level: RiskLevel = "low";
   for (const f of input.files) {
-    const fromPath = pathLevel(riskScore(f.path));
+    const rule = matchPathRule(f.path, input.pathRules, f.previousPath);
+    const fromPath = rule ? RULE_LEVEL[rule.severity] : pathLevel(riskScore(f.path));
     if (LEVEL_RANK[fromPath] > LEVEL_RANK[level]) level = fromPath;
   }
   for (const f of facts) {
     if (LEVEL_RANK[KIND_LEVEL[f.kind]] > LEVEL_RANK[level]) level = KIND_LEVEL[f.kind];
   }
 
-  const pathReasons: { path: string; why: string }[] = [];
+  const pathReasons: { path: string; why: string; rule?: true }[] = [];
   for (const f of input.files) {
+    const pathRule = matchPathRule(f.path, input.pathRules, f.previousPath);
+    if (pathRule) {
+      pathReasons.push({ path: f.path, why: pathRuleWhy(pathRule), rule: true });
+      continue;
+    }
     const rule = matchingRule(f.path);
     if (rule && pathLevel(rule.weight) !== "low") pathReasons.push({ path: f.path, why: rule.why });
   }
@@ -159,7 +183,7 @@ export function buildRiskMap(input: {
     .sort(
       (a, b) =>
         (factRank.get(b.path) ?? -1) - (factRank.get(a.path) ?? -1) ||
-        riskScore(b.path) - riskScore(a.path) ||
+        riskScore(b.path, input.pathRules, b.previousPath) - riskScore(a.path, input.pathRules, a.previousPath) ||
         b.changedLines - a.changedLines ||
         (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
     )
@@ -240,11 +264,16 @@ export function renderRiskMap(
   }
 
   const covered = new Set(map.facts.map((f) => f.path));
+  // A path rule's files come first and are capped; the heuristic reasons are listed whole, as they were
+  // before path rules existed.
+  const ruleReasons = map.pathReasons.filter((r) => r.rule);
+  const heuristicReasons = map.pathReasons.filter((r) => !r.rule && !covered.has(r.path));
+  const bullet = (r: { path: string; why: string }) => `- ${code(r.path)} — ${neutralise(r.why)}`;
   const bullets = [
     ...map.facts.map((f) => `- ${code(f.kind)} · ${code(`${f.path}:${f.line}`)} — ${neutralise(f.why)}`),
-    ...map.pathReasons
-      .filter((r) => !covered.has(r.path))
-      .map((r) => `- ${code(r.path)} — ${neutralise(r.why)}`),
+    ...ruleReasons.slice(0, MAX_PATH_BULLETS).map(bullet),
+    ...(ruleReasons.length > MAX_PATH_BULLETS ? [`- and ${ruleReasons.length - MAX_PATH_BULLETS} more files matched by path rules`] : []),
+    ...heuristicReasons.map(bullet),
   ];
 
   const level = map.floor
