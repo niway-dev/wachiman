@@ -85,7 +85,7 @@ Read the `wachiman.init/1` document it prints (the shape below is illustrative, 
 }
 ```
 
-- `files[].action` is `created`, `replaced`, `unchanged`, `would-create`, `would-replace` or `refused`; a backup path is listed when one was made. A dry run reports `ok: true` even when a file is `refused`: the real run would stop there with exit 2. Report `refused` files to the person; do not retry them with `--force` on your own.
+- `files[].action` is `created`, `replaced`, `unchanged`, `would-create`, `would-replace` or `refused`; a backup path is listed when one was made. A dry run reports `ok: true` even when a file is `refused`. A refused workflow or `.wachiman.yml` means the real run would stop with exit 2; a refused PR template is reported and the run continues. Report `refused` files to the person; do not retry them with `--force` on your own.
 - `local` and `github` each carry a status and a list of pending actions (`not-used` when the mode excludes it). Report them **separately**: local is ready when the account is bound and `doctor` passes; GitHub is ready only after the secret exists and the workflow is merged on the default branch.
 - On a usage error, `ok` is `false`, `error` says which flag is missing, and the exit code is 2. Ask the person, then run again.
 - Running the same command twice is safe: the second run reports `unchanged`.
