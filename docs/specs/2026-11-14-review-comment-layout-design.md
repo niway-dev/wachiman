@@ -74,7 +74,8 @@ parser round-trip tests instead of more string assertions.
   the inline table is for GitHub only.
 - The other comments the engine posts keep their format: ask answers (`ASK_FOOTER`,
   `readAskCost`), thread replies (their `<sub>this run … · PR so far …</sub>` line), the ceiling
-  notice (`CEILING_NOTICE`) and the PR Confidence comment. The round-trip tests still run their
+  notice (`CEILING_NOTICE`) and the PR Confidence block of the pull request description, which is
+  unchanged (only the grade line in the review body becomes a glance-table row). The round-trip tests still run their
   readers, to prove this change does not break them.
 
 ### Failures this must protect against
@@ -221,11 +222,16 @@ Slots, in order. An empty slot is omitted.
 The Findings row counts this pull request's findings by severity and adds the other origins after
 the total: `… (9) · 2 pre-existing · 1 needs investigation`.
 
+The signed spend-ledger receipt (`<!-- wachi:receipt … -->`, with the forced or bypassed marker when it
+applies) sits immediately before slot 15, as it does today. It is never dropped or cut. A notice that
+states a receipt is edited in place with the receipt of the run that replaces it: each receipt covers
+one run's settlement, and an older $0 receipt is superseded by the newer one, not added to.
+
 Size fitting drops whole slots from a named list, in this order: 12, 11, 13, 14, 10, 9 (only when
 it holds no Blocker or Fix), then 6. Slot 6 keeps its rows that have no inline thread (outside the
 diff) and shrinks the rest to a count: "11 more to consider, on their lines (see Files changed)".
-There is no link to a thread, for the reason of decision 7. Slots 1–5, 7, 8, 15 and 16 are never
-dropped.
+There is no link to a thread, for the reason of decision 7. Slots 1–3, 7, 15 and 16 are never dropped. Slots 4, 5, 8 and 9 are never removed as slots; their
+rows are cut when the body is over the limit, as below.
 
 If the never-dropped slots alone pass `MAX_BODY_CHARS`, the row tables are cut in this order until
 the body fits: Risk facts (slot 8) keep the facts that set the level, then Pre-existing (slot 9),
@@ -377,8 +383,9 @@ flag and no model: it is not a counted run for the ceiling and needs no spend lo
 `<sub>Wachiman <version></sub>` line is new; today's notice has no `<sub>` line. Decision 11's
 footer rule applies to reviews that ran a model.
 
-Edit in place: a $0 refusal carries a hidden `<!-- wachi:refusal kind=<billing|auth|rate_limit> -->` marker. A rate-limit refusal is $0 too, and its
-notice says "Re-run later"; a golden scenario covers it.
+Edit in place: a $0 refusal carries a hidden `<!-- wachi:refusal kind=<billing|auth|rate_limit> -->`
+marker. A rate-limit refusal is $0 too, and its notice says "Re-run later"; a golden scenario covers it.
+The edited notice keeps its receipt, as the slot rule above says.
 On the next refusal, the engine lists the pull request's reviews; if the latest bot review carries
 that marker, it replaces that review's body with one `PUT` (the update-review endpoint) instead of
 posting a new review, the way the size gate already updates its own comment by marker (`SIZE_GATE_MARKER`, [ADR 0037](../adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). A `PUT` with the

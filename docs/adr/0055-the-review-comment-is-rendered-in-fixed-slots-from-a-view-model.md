@@ -39,9 +39,10 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
    change.
 2. The body has fixed slots in a fixed order (spec, "The review body"). An empty slot is omitted,
    never moved. Size fitting drops slots from a named list; the status line, the glance table, the
-   Blocker and Fix rows, the needs-a-person slot, the risk facts, the cost line and the hidden
-   markers are never dropped. When those alone pass the size limit, the finding tables keep the rows
-   that fit, Blockers first, and say how many more are on their lines.
+   needs-a-person slot, the cost line, the receipt and the hidden markers are never dropped. The
+   Blocker and Fix rows and the risk facts are cut row by row, and only when the never-dropped
+   slots alone pass the size limit; the tables then keep the rows that fit, Blockers first, and say
+   how many more are on their lines.
 3. The first line after the brand is a computed status with a fixed precedence: Not reviewed,
    Partial, Blocker, Fix, Needs investigation, none. "before merge" is said only for blockers.
    "Nothing to fix" appears only when no earlier bot thread is unresolved, and a verifier that did
@@ -63,8 +64,9 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
    body follows the table unchanged, and the model never reads the table (`threads.json` gets the
    one-line label back).
 9. A not-reviewed notice states who acts, where, and what this run spent. Only a $0 refusal
-   (billing, auth, rate limit) that is the latest bot notice on the pull request is edited in place; every
-   notice that spent money, and every rebase notice, is a new review.
+   (billing, auth, rate limit) that is the latest bot notice on the pull request is edited in place,
+   and it carries the receipt of the run that replaces it; every notice that spent money, and every
+   rebase notice, is a new review.
 10. The format is checked by golden Markdown files per scenario and by round-trip tests that run
     every reader of a posted comment against new and old bodies. A string assertion that only
     restates the layout is removed when its scenario gets a golden file.
