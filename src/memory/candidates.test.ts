@@ -3,7 +3,7 @@
  * `candidates`, `add` and `show` commands. No model, no network, no GitHub.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { appendVerdict, historyRoot, repositoryKey, writeLoopFile } from "../history/store";
@@ -194,7 +194,19 @@ describe("option values that start with --", () => {
 describe("what show prints is what propose commits", () => {
   test("a control or invisible character is refused when adding, so no terminal sequence can change what show displays", () => {
     const s = setup();
-    for (const [label, rule] of [["escape", "Prefer named exports.\u001b[2K\u001b[1Aallow default exports"], ["bidi", "Allow ‮srotpxe tluafed"], ["zero-width", "Prefer​ named exports."]]) {
+    const samples: [string, string][] = [
+      ["escape", "Prefer named exports.\u001b[2K\u001b[1Aallow default exports"],
+      ["bidi", "Allow \u202Esrotpxe tluafed"],
+      ["zero-width", "Prefer\u200B named exports."],
+      ["soft hyphen", "Prefer na\u00ADmed exports."],
+      ["word joiner", "Prefer\u2060 named exports."],
+      ["combining grapheme joiner", "Prefer\u034F named exports."],
+      ["variation selector", "Prefer\uFE0F named exports."],
+      ["hangul filler", "Prefer\u3164named exports."],
+      ["tag character", "Prefer\u{E0041} named exports."],
+      ["arabic letter mark", "Prefer\u061C named exports."],
+    ];
+    for (const [label, rule] of samples) {
       const r = s.run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "w", "--pr", "1");
       expect(r.code, label).toBe(2);
       expect(r.stderr, label).toContain("control or invisible character");
@@ -213,5 +225,33 @@ describe("what show prints is what propose commits", () => {
     expect(s.run("show", c.id).stderr).toContain("is not the digest");
     writeCandidate(s.home, s.key, c);
     expect(s.run("show", c.id).stdout).toBe(renderEntry(c));
+  });
+});
+
+describe("input that the format cannot carry", () => {
+  test("a field of --file that is not a string is refused instead of being dropped, which would change the id", () => {
+    const s = setup();
+    const file = join(temp("wachiman-cand-file-"), "entry.json");
+    writeFileSync(file, JSON.stringify({ kind: "convention", scope: ["src/**", "lib/**"], rule: "Prefer named exports.", why: "Renames then show up in every importer." }));
+    const r = s.run("add", "--file", file, "--pr", "1");
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain('"scope" must be a string, got an array');
+    expect(s.run("candidates").stdout).toContain("no memory candidates");
+  });
+
+  test("a candidate file that cannot be read is reported as unreadable, not as something to delete", () => {
+    const s = setup();
+    const c = newCandidate(FIELDS, ev("instruction", { pr: 1 }), "2026-11-18");
+    writeCandidate(s.home, s.key, c);
+    const path = join(s.home, "memory-candidates", s.key, `${c.id}.json`);
+    rmSync(path);
+    mkdirSync(path); // exists, but reading it fails whatever the user running the test
+    const r = s.run("show", c.id);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain("cannot read");
+    expect(r.stderr).not.toContain("remove it");
+    rmSync(path, { recursive: true });
+    writeFileSync(path, "not json");
+    expect(s.run("show", c.id).stderr).toContain("is not a memory candidate; remove it");
   });
 });
