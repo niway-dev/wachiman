@@ -472,6 +472,16 @@ line is replaced or appended, every other line kept, after a confirmation on a t
 (kind: X)` on stderr, in every mode. Init does not commit it: the closing steps say to add it with the workflow
 (`local` mode: to commit it).
 
+`init` also writes a short pointer to the `wachiman-loop` skill into the repository's agent instruction
+file: `AGENTS.md` when it exists, else `CLAUDE.md` when it exists, else a new `AGENTS.md`. The pointer is
+two lines between the markers `<!-- wachiman:begin -->` and `<!-- wachiman:end -->`. It says that reviews
+run with that skill, which [`skills install`](#skills) puts in place, and that repository memory lives in
+`.wachiman/memory/`. A re-run replaces the block between the markers and never adds a second one; text
+outside the markers is kept as it is. A file whose markers are not one pair, in order, on lines of their
+own is refused before anything is written, and the person fixes it by hand. It is written in every mode,
+after the workflow and the settings file, with no question. `--dry-run` writes nothing and prints what it
+would write on stderr. Init does not commit it.
+
 The Git worktree is validated before questions. Interactive stages identify the project, project
 type, review mode, configuration, the Claude account when relevant, and checks/next actions. The route total
 appears once the mode is known: 5 steps for `github` and for `local`, 6 for `both`. A non-empty `NO_COLOR`, `TERM=dumb` and non-terminal
