@@ -29,6 +29,14 @@ import { proposeCandidate, type ProposeDeps } from "./propose";
 
 export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as const;
 
+/** The options each capture subcommand accepts: the parser below reads this, and the loop skill's commands are tested against it. */
+export const CAPTURE_OPTIONS: Record<(typeof CAPTURE_SUBCOMMANDS)[number], { values: readonly string[]; flags: readonly string[] }> = {
+  candidates: { values: ["--format"], flags: [] },
+  show: { values: [], flags: [] },
+  propose: { values: [], flags: [] },
+  add: { values: ["--file", "--kind", "--scope", "--rule", "--why", "--holds-while", "--title", "--source", "--finding", "--pr", "--branch"], flags: ["--agent"] },
+};
+
 export interface CaptureIo {
   stdout: (text: string) => void;
   stderr: (line: string) => void;
@@ -99,7 +107,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   const { minEvidence } = loadMemorySettings(repoDir, (n) => io.stderr(`note: ${n}`));
 
   if (sub === "candidates") {
-    const p = parseOptions(rest, sub, ["--format"], []);
+    const p = parseOptions(rest, sub, CAPTURE_OPTIONS.candidates.values, CAPTURE_OPTIONS.candidates.flags);
     if (p.positional.length > 0) throw new UsageError(`wachiman memory candidates takes no argument, got "${p.positional[0]}".`);
     const format = p.values.get("--format") ?? "terminal";
     if (format !== "terminal" && format !== "json") throw new UsageError(`--format must be terminal or json, got "${format}".`);
@@ -151,7 +159,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   }
 
   // add
-  const p = parseOptions(rest, sub, ["--file", "--kind", "--scope", "--rule", "--why", "--holds-while", "--title", "--source", "--finding", "--pr", "--branch"], ["--agent"]);
+  const p = parseOptions(rest, sub, CAPTURE_OPTIONS.add.values, CAPTURE_OPTIONS.add.flags);
   if (p.positional.length > 0) throw new UsageError(`wachiman memory add takes no argument, got "${p.positional[0]}".`);
   let base: Record<string, string> = {};
   const file = p.values.get("--file");
