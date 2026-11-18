@@ -127,16 +127,25 @@ export function remember(deps: RememberDeps, repo: string, pr: number, request: 
   if (!result.recorded) return refuse("The write was refused:", errors.join("\n"));
 
   const recorded = block(out.join("\n"));
+  const change = result.change ?? "inserted";
+  const id = `\`${command.id}\``;
+  // What the job did, in the words of what happened: only a new entry was "recorded as shown".
+  const headline = {
+    inserted: `Wachiman: recorded the entry ${id} exactly as shown.`,
+    "evidence-added": `Wachiman: the entry ${id} was already there, so only its evidence was added.`,
+    unchanged: `Wachiman: the entry ${id} is already on the branch \`wachiman/memory\` with the same evidence; nothing new was written.`,
+    "on-default": `Wachiman: the entry ${id} is already on the default branch; nothing was written and no pull request is needed.`,
+  }[change];
   if (result.pullRequestFailed) {
     const note = `The entry is on the branch \`wachiman/memory\`, but the draft pull request could not be opened. A workflow token can open one only when the repository setting "${PULL_REQUEST_SETTING}" is on (Settings, Actions, General). Turn it on, or open the pull request from that branch by hand.`;
     deps.warn(`remember ${command.id}: ${note}`);
-    post([`Wachiman: recorded the entry \`${command.id}\` as shown, without a pull request.`, recorded, note]);
+    post([headline, recorded, note]);
     return 1;
   }
   post([
-    `Wachiman: recorded the entry \`${command.id}\` exactly as shown.`,
+    headline,
     recorded,
-    "It is not active until a person merges the draft pull request. Reviews read the memory from the base commit.",
+    ...(change === "on-default" ? [] : ["It is not active until a person merges the draft pull request. Reviews read the memory from the base commit."]),
   ]);
   return 0;
 }

@@ -10,7 +10,7 @@ import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp
 import { SIGNATURE, type GhFn, type RawThread } from "../engine";
 import { newCandidate, renderEntry } from "./candidates";
 import { proposalsIn, REMEMBER_SIGNATURE, renderProposal } from "./proposal";
-import type { PullRequest, PullRequests } from "./propose";
+import type { ProposeResult, PullRequest, PullRequests } from "./propose";
 import { UsageError } from "../config";
 import { runMemory } from "./command";
 import { remember, type RememberDeps } from "./remember";
@@ -238,6 +238,54 @@ describe("remember: the operator's `/wachiman remember <id>`", () => {
     expect(t.run(COMMAND(CANDIDATE.id))).toBe(0);
     expect(branchLog(t.w.bare)).toHaveLength(2);
     expect(t.posts[1].body).toContain("already recorded");
+  });
+
+  test("the reply says what happened: new entry, evidence only, already on the branch, already on the default branch", () => {
+    const cases: [ProposeResult["change"], RegExp[], RegExp[]][] = [
+      ["inserted", [/recorded the entry/, /exactly as shown/, /not active until/], []],
+      ["evidence-added", [/already there/, /evidence/i, /not active until/], [/exactly as shown/]],
+      ["unchanged", [/already on the branch/, /nothing new was written/i, /not active until/], [/exactly as shown/]],
+      ["on-default", [/already on the default branch/, /nothing was written/i], [/exactly as shown/, /not active until/]],
+    ];
+    for (const [change, has, hasNot] of cases) {
+      const t = setup([thread(FINDING(7), proposalReply())], {}, fakePulls(), (_c, _d, io) => (io.stdout("line"), { recorded: true, change }));
+      expect(t.run(COMMAND(CANDIDATE.id)), String(change)).toBe(0);
+      for (const re of has) expect(t.posts[0].body, `${change} ${re}`).toMatch(re);
+      for (const re of hasNot) expect(t.posts[0].body, `${change} not ${re}`).not.toMatch(re);
+    }
+  });
+
+  test("approving twice: the second reply does not claim a write", () => {
+    const t = setup([thread(FINDING(7), proposalReply())]);
+    t.run(COMMAND(CANDIDATE.id));
+    t.run(COMMAND(CANDIDATE.id));
+    expect(t.posts[1].body).not.toContain("exactly as shown");
+    expect(t.posts[1].body).toMatch(/already on the branch/);
+  });
+
+  test("a write the job refuses (recorded: false) posts what was refused, writes nothing and fails the job", () => {
+    const t = setup([thread(FINDING(7), proposalReply())], {}, fakePulls(), (_c, _d, io) => (io.stderr("memory propose: the push to wachiman/memory was refused: protected"), { recorded: false }));
+    expect(t.run(COMMAND(CANDIDATE.id))).toBe(1);
+    expect(t.posts).toHaveLength(1);
+    expect(t.posts[0].body).toContain(`Nothing was written for \`${CANDIDATE.id}\`. The write was refused:`);
+    expect(t.posts[0].body).toContain("protected");
+    expect(t.posts[0].body).not.toContain("recorded the entry");
+  });
+
+  test("a failed thread reply is a warning: the entry stays recorded and the job still succeeds", () => {
+    const w = world();
+    const logs: string[] = [];
+    const gh: GhFn = (args) => {
+      const line = args.join(" ");
+      if (line.includes("/replies")) throw new Error("HTTP 403 forbidden");
+      if (line.startsWith("api graphql")) return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [thread(FINDING(7), proposalReply())] } } } } });
+      throw new Error(`unexpected gh call: ${line}`);
+    };
+    const pulls = fakePulls();
+    const code = remember({ gh, config: { operator: "owner", mention: "/wachiman", dryRun: false }, log: (l) => logs.push(l), warn: (l) => logs.push(`warn: ${l}`), pulls: pulls.pulls }, "o/r", 7, { body: COMMAND(CANDIDATE.id), author: "owner", replyTo: 7 }, w.repo);
+    expect(code).toBe(0);
+    expect(hasBranch(w.bare)).toBe(true);
+    expect(logs.join("\n")).toContain("could not reply in the thread: HTTP 403 forbidden");
   });
 
   test("a dry run posts nothing to the thread", () => {
