@@ -34,6 +34,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
+import { MEMORY_DIR, loadMemory, type MemoryLoad, type MemorySource } from "./memory/load";
 import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parseRepoSettings, wantsRepoSettings, type RepoSettings } from "./repo-settings";
 import {
   LedgerBadAnswer,
@@ -1689,6 +1690,34 @@ export function readBaseSettings(gh: GhFn, repo: string, sha: string): RepoSetti
   if (!file) return undefined;
   if (file.truncated) throw new UsageError(`${SETTINGS_PATH} at the base commit is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
   return parseRepoSettings(file.content);
+}
+
+/**
+ * The memory folder and `.wachiman.yml` at the pull request's base commit, read through the
+ * contents API. Never the head: a pull request cannot change the memory it is reviewed under.
+ */
+export function githubMemorySource(gh: GhFn, repo: string, sha: string): MemorySource {
+  return {
+    list: () => {
+      let raw: string;
+      try {
+        raw = gh(["api", `repos/${repo}/contents/${MEMORY_DIR}?ref=${sha}`]);
+      } catch (error) {
+        if (error instanceof GhError && error.status === 404) return [];
+        throw error;
+      }
+      const listing = JSON.parse(raw) as unknown;
+      if (!Array.isArray(listing)) return [];
+      return listing.flatMap((e: { type?: string; name?: string }) => (e.type === "file" && typeof e.name === "string" ? [e.name] : []));
+    },
+    read: (name) => fileAtBase(gh, repo, `${MEMORY_DIR}/${name}`, sha)?.content ?? null,
+    settings: () => readBaseSettings(gh, repo, sha),
+  };
+}
+
+/** The memory a review of `changedPaths` loads at the base commit `sha`; undefined without a memory folder. */
+export function readBaseMemory(gh: GhFn, repo: string, sha: string, changedPaths: string[], warn: (line: string) => void): MemoryLoad | undefined {
+  return loadMemory(githubMemorySource(gh, repo, sha), sha, changedPaths, warn);
 }
 
 /**

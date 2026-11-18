@@ -25,6 +25,7 @@ import {
   type ReviewInput,
 } from "../engine";
 import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
+import { MEMORY_DIR, loadMemory, type MemoryLoad, type MemorySource } from "../memory/load";
 import { parseRepoSettings, SETTINGS_PATH, type RepoSettings } from "../repo-settings";
 
 const TIMEOUT_MS = 60_000;
@@ -398,6 +399,38 @@ export function localRepoSettings(repoDir: string, sha: string, git: GitRunner =
   if (!bytes) return undefined;
   if (bytes.length > MAX_INSTRUCTION_BYTES) throw new UsageError(`${SETTINGS_PATH} at ${short(sha)} is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
   return parseRepoSettings(bytes.toString("utf8"));
+}
+
+/**
+ * The memory folder and `.wachiman.yml` at `sha`, read from git's object store: the merge-base for a
+ * branch, never the head, so a branch cannot change the memory it is reviewed under (ADR 0056).
+ * A `sha` that is not in this clone (an `--input` file can name one) has no memory.
+ */
+export function localMemorySource(repoDir: string, sha: string, git: GitRunner = spawnGit): MemorySource {
+  return {
+    list: () => {
+      const out = git(["ls-tree", "-z", sha, "--", `${MEMORY_DIR}/`], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+      if (out.status !== 0) return [];
+      return out.stdout
+        .split("\0")
+        .filter(Boolean)
+        .flatMap((line) => {
+          const [meta, path] = line.split("\t");
+          const [mode, type] = meta.split(" ");
+          return type === "blob" && (mode === "100644" || mode === "100755") && path.startsWith(`${MEMORY_DIR}/`) ? [path.slice(MEMORY_DIR.length + 1)] : [];
+        });
+    },
+    read: (name) => {
+      const bytes = blobAt(repoDir, sha, `${MEMORY_DIR}/${name}`, git);
+      return bytes ? instructionFileOf(name, bytes).content : null;
+    },
+    settings: () => localRepoSettings(repoDir, sha, git),
+  };
+}
+
+/** The memory a local review of `changedPaths` loads at `sha`; undefined without a memory folder. */
+export function localMemory(repoDir: string, sha: string, changedPaths: string[], warn: (line: string) => void, git: GitRunner = spawnGit): MemoryLoad | undefined {
+  return loadMemory(localMemorySource(repoDir, sha, git), sha, changedPaths, warn);
 }
 
 const names = (out: string) => out.split("\0").filter(Boolean);
