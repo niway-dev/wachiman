@@ -79,22 +79,29 @@ export function touchedHolds(entry: MemoryEntry, changedPaths: string[]): string
 export interface ExceptionPlan {
   /** Exceptions that may mute in this review. */
   active: MemoryEntry[];
-  /** Exceptions in scope of the diff whose `holds while` paths the diff touches: they mute nothing here. */
+  /** Every loaded entry, of either kind and in scope or not, whose `holds while` paths the diff touches: each may be out of date. An in-scope exception here mutes nothing. */
   stale: { entry: MemoryEntry; touched: string[] }[];
 }
 
 /**
- * Which exceptions may act on a review: those whose scope the reviewed files reach and whose premise
- * no changed file touches. A finding only exists on a reviewed file, but a premise changes wherever
- * the change touches it, reviewed or not.
+ * Which exceptions may act on a review (those whose scope the reviewed files reach and whose premise
+ * no changed file touches), and which entries the diff may have made out of date (every loaded entry
+ * with a touched `holds while` path, once per id). A finding only exists on a reviewed file, but a
+ * premise changes wherever the change touches it, reviewed or not.
  */
 export function planExceptions(memory: MemoryLoad | undefined, changedPaths: string[], reviewedPaths: string[] = changedPaths): ExceptionPlan {
   const plan: ExceptionPlan = { active: [], stale: [] };
+  const seen = new Set<string>();
+  for (const entry of memory?.entries ?? []) {
+    const touched = touchedHolds(entry, changedPaths);
+    if (touched.length > 0 && !seen.has(entry.id)) {
+      seen.add(entry.id);
+      plan.stale.push({ entry, touched });
+    }
+  }
   for (const entry of exceptionsOf(memory)) {
     if (!reviewedPaths.some((p) => matchesGlob(entry.scope, p))) continue;
-    const touched = touchedHolds(entry, changedPaths);
-    if (touched.length > 0) plan.stale.push({ entry, touched });
-    else plan.active.push(entry);
+    if (touchedHolds(entry, changedPaths).length === 0) plan.active.push(entry);
   }
   return plan;
 }
@@ -234,7 +241,8 @@ export function renderMuting(p: { muted: MutedFinding[]; stale: ExceptionPlan["s
   const parts: string[] = [];
   for (const { entry, touched } of p.stale) {
     const shown = touched.slice(0, 3).map((t) => `\`${t}\``).join(", ");
-    parts.push(`ℹ️ **Memory entry \`${entry.id}\` may be out of date**: its \`holds while\` paths are touched by this diff (${shown}${touched.length > 3 ? ", …" : ""}), so it did not mute anything in this review.`);
+    const effect = entry.kind === "exception" ? " An exception in that state mutes nothing in this review." : "";
+    parts.push(`ℹ️ **Memory entry \`${entry.id}\` may be out of date** ("${oneLine(entry.title, 80)}"): its \`holds while\` paths are touched by this diff (${shown}${touched.length > 3 ? ", …" : ""}).${effect}`);
   }
   if (p.failure) parts.push(`⚠️ **Memory exceptions were not applied**: matching did not run (${oneLine(p.failure)}), so every finding is posted.`);
   if (p.muted.length > 0) {
