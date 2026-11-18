@@ -118,6 +118,7 @@ function comment(kind: string, ref: string, src: Source): { body: string; captio
     created_at?: string;
     user?: { login: string };
   }[];
+  if (src.id === undefined && typeof src.match !== "string") fail(`${kind} source ${ref} needs "id" or "match"`);
   const hit = items.find((c) =>
     src.id !== undefined ? c.id === Number(src.id) : new RegExp(String(src.match)).test(c.body ?? ""),
   );
@@ -211,9 +212,10 @@ function page(m: Manifest, sides: Map<string, { before: Side; after: Side }>, li
   const table = [
     "| Scenario | Before | After |",
     "| --- | --- | --- |",
-    ...m.scenarios.map(
-      (sc) => `| ${sc.name} | ![${sc.name}, before](./${sc.id}-before.png) | ![${sc.name}, after](./${sc.id}-after.png) |`,
-    ),
+    ...m.scenarios.map((sc) => {
+      const name = sc.name.replace(/\|/g, "\\|"); // a pipe would split the table cell
+      return `| ${name} | ![${name}, before](./${sc.id}-before.png) | ![${name}, after](./${sc.id}-after.png) |`;
+    }),
   ].join("\n");
   return `<!doctype html>
 <html lang="en" data-theme="dark" data-layout="side">
@@ -275,7 +277,7 @@ html.capture .side { width:760px; margin:0 0 24px; }
 <main>
 ${rows}
 </main>
-<script type="text/plain" id="evidence-table">${esc(table)}</script>
+<script type="application/json" id="evidence-table">${JSON.stringify(table).replace(/</g, "\\u003c")}</script>
 <script>
 const root = document.documentElement;
 const params = new URLSearchParams(location.search);
@@ -286,7 +288,7 @@ document.querySelector('[data-toggle="layout"]').onclick = () =>
 document.querySelector('[data-toggle="theme"]').onclick = () =>
   root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
 document.querySelector("[data-copy]").onclick = async (e) => {
-  const text = document.getElementById("evidence-table").textContent;
+  const text = JSON.parse(document.getElementById("evidence-table").textContent);
   try { await navigator.clipboard.writeText(text); e.target.textContent = "Copied"; }
   catch { prompt("Copy the evidence table", text); }
 };
@@ -294,6 +296,15 @@ document.querySelector("[data-copy]").onclick = async (e) => {
 </body>
 </html>
 `;
+}
+
+// A crashed or stuck Chrome fails the run instead of hanging it.
+function within<T>(promise: Promise<T>, what: string, ms = 30_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Failure(`Chrome did not answer ${what} within ${ms / 1000} s`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 // Chrome DevTools protocol, just enough to clip one element per PNG.
@@ -334,16 +345,19 @@ async function screenshots(html: string, ids: string[], outDir: string, theme: s
       else events.forEach((f) => f(msg));
     };
     const send = (method: string, params: object = {}) =>
-      new Promise<any>((ok) => {
-        const id = ++next;
-        waiting.set(id, ok);
-        ws.send(JSON.stringify({ id, method, params }));
-      }).then((m) => (m.error ? fail(`${method}: ${m.error.message}`) : m.result));
+      within(
+        new Promise<any>((ok) => {
+          const id = ++next;
+          waiting.set(id, ok);
+          ws.send(JSON.stringify({ id, method, params }));
+        }),
+        method,
+      ).then((m) => (m.error ? fail(`${method}: ${m.error.message}`) : m.result));
     await send("Page.enable");
     await send("Emulation.setDeviceMetricsOverride", { width: 900, height: 900, deviceScaleFactor: 2, mobile: false });
     const loaded = new Promise((ok) => events.push((m) => m.method === "Page.loadEventFired" && ok(null)));
     await send("Page.navigate", { url: `${pathToFileURL(html).href}?capture=1&theme=${theme}` });
-    await loaded;
+    await within(loaded, "page load");
     await send("Runtime.evaluate", { expression: "document.fonts.ready", awaitPromise: true });
     for (const id of ids) {
       const { result } = await send("Runtime.evaluate", {
@@ -365,6 +379,21 @@ async function screenshots(html: string, ids: string[], outDir: string, theme: s
     await chrome?.exited;
     rmSync(profile, { recursive: true, force: true });
   }
+}
+
+function validate(m: Manifest): Manifest {
+  if (typeof m?.title !== "string") fail(`manifest needs a "title"`);
+  if (typeof m.repo !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(m.repo)) fail(`manifest needs "repo": "owner/name"`);
+  if (!Array.isArray(m.scenarios) || m.scenarios.length === 0) fail(`manifest needs a non-empty "scenarios" list`);
+  const ids = new Set<string>();
+  for (const sc of m.scenarios) {
+    if (typeof sc.id !== "string" || !/^[a-z0-9-]+$/.test(sc.id)) fail(`scenario id "${sc.id}" must be lowercase letters, digits and dashes`);
+    if (ids.has(sc.id)) fail(`scenario id "${sc.id}" is used twice`);
+    ids.add(sc.id);
+    if (typeof sc.name !== "string") fail(`scenario "${sc.id}" needs a "name"`);
+    if (typeof sc.before !== "object" || typeof sc.after !== "object") fail(`scenario "${sc.id}" needs "before" and "after"`);
+  }
+  return m;
 }
 
 function parseArgs(argv: string[]) {
@@ -390,7 +419,7 @@ function parseArgs(argv: string[]) {
 
 async function main() {
   const { manifestPath, outDir, png, theme } = parseArgs(process.argv.slice(2));
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
+  const manifest = validate(JSON.parse(readFileSync(manifestPath, "utf8")));
   mkdirSync(outDir, { recursive: true });
 
   const sides = new Map<string, { before: Side; after: Side }>();
