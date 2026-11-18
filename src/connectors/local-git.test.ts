@@ -12,6 +12,8 @@ import {
   buildLocalInput,
   localFiles,
   localInstructions,
+  localMemory,
+  localMemorySource,
   removeSnapshot,
   resolveRefs,
   snapshotHead,
@@ -583,5 +585,40 @@ describe("the commit and from modes", () => {
     } finally {
       removeSnapshot(built.snapshotDir);
     }
+  });
+});
+
+describe("localMemory", () => {
+  const INDEX = "# Memory\n\n| Glob | File |\n| --- | --- |\n| `src/**` | `src.md` |\n";
+
+  test("memory comes from the merge-base: an entry the branch adds or changes has no effect", () => {
+    const dir = emptyRepo();
+    const base = commit(dir, { ".wachiman/memory/index.md": INDEX, ".wachiman/memory/src.md": "BASE RULES\n", "src/a.ts": "a\n" }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    commit(dir, { ".wachiman/memory/index.md": `${INDEX}\nHEAD ADDITION\n`, ".wachiman/memory/src.md": "HEAD RULES\n", ".wachiman/memory/extra.md": "NEW\n", "src/a.ts": "b\n" }, "change memory and code");
+    const source = localMemorySource(dir, base);
+    expect(source.list().sort()).toEqual(["index.md", "src.md"]);
+    expect(source.read("src.md")).toBe("BASE RULES\n");
+    expect(source.read("index.md")).toBe(INDEX);
+    const load = localMemory(dir, base, ["src/a.ts"], () => {})!;
+    expect(load.revision).toBe(base);
+    expect(load.files).toEqual([
+      { path: ".wachiman/memory/index.md", lines: 5 },
+      { path: ".wachiman/memory/src.md", lines: 1 },
+    ]);
+  });
+
+  test("a repository with no memory folder, or a commit that is not in the clone, has no memory", () => {
+    const r = branchRepo();
+    expect(localMemory(r.dir, r.mergeBase, ["src/a.ts"], () => {})).toBeUndefined();
+    expect(localMemory(r.dir, "f".repeat(40), ["src/a.ts"], () => {})).toBeUndefined();
+  });
+
+  test("memory settings come from .wachiman.yml at the merge-base", () => {
+    const dir = emptyRepo();
+    const base = commit(dir, { ".wachiman/memory/index.md": "one\ntwo\nthree\n", ".wachiman.yml": "memory:\n  max_loaded_lines: 2\n" }, "base");
+    const load = localMemory(dir, base, [], () => {})!;
+    expect(load.files).toEqual([{ path: ".wachiman/memory/index.md", lines: 2, truncated: true }]);
+    expect(load.overBudget).toBe(true);
   });
 });
