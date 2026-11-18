@@ -13,6 +13,7 @@ import { commandHelp } from "../help";
 import { parseRepoSettings, resolveMemorySettings, SETTINGS_PATH, type RepoSettings } from "../repo-settings";
 import { parseIndexMap, parseMemoryFile, type MemoryProblem } from "./entries";
 import { CAPTURE_SUBCOMMANDS, runCapture, type CaptureContext } from "./capture";
+import { repositoryRoot } from "./settings";
 import { ARCHIVE_FILE, globsOf, INDEX_FILE, lineCount, matchesGlob, MEMORY_DIR } from "./load";
 
 export const MEMORY_SUBCOMMANDS = ["check", ...CAPTURE_SUBCOMMANDS] as const;
@@ -98,13 +99,6 @@ export function inspectMemory(input: CheckInput): CheckResult {
 
 /** The checked-out tree is untrusted: every git call here has a time limit and the engine's hardened environment. */
 const GIT_TIMEOUT_MS = 30_000;
-
-/** The repository's top level for `dir`, or `dir` when git cannot say. */
-function repositoryRoot(dir: string): string {
-  const r = spawnGit(["rev-parse", "--show-toplevel"], { cwd: dir, timeoutMs: GIT_TIMEOUT_MS });
-  const top = r.status === 0 ? r.stdout.trim() : "";
-  return top === "" ? dir : top;
-}
 
 /** Tracked files plus untracked files that are not ignored; a plain directory walk when `root` is not a git repository. */
 function listRepoFiles(root: string): string[] {
