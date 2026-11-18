@@ -121,16 +121,16 @@ export function requestedRepoDir(argv: string[]): string {
   return resolve(value || ".");
 }
 
-/**
- * Writes all of `text` to a file descriptor before returning. `process.stdout.write` is
- * asynchronous on a pipe, and `process.exit` right after it cuts a long report short.
- */
 /** Asks one question on the terminal and returns the typed answer (Bun's synchronous `prompt`); only used when stdin and stderr are terminals. */
 function askOnTerminal(question: string): string | undefined {
   console.error(question);
   return prompt("Your choice (1 or 2):") ?? undefined;
 }
 
+/**
+ * Writes all of `text` to a file descriptor before returning. `process.stdout.write` is
+ * asynchronous on a pipe, and `process.exit` right after it cuts a long report short.
+ */
 export function writeAll(fd: number, text: string) {
   const bytes = Buffer.from(text);
   let offset = 0;
