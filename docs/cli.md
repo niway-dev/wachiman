@@ -730,7 +730,7 @@ evidence keeps the id. `check` reports an entry whose heading id is not its dige
 merge-base for `local`, the pull request's base commit in Actions, so an entry added or changed by the
 change under review has no effect on it. The review loads `index.md` and the area files its changed
 files select, within `memory.max_loaded_lines` (most specific glob first; files that do not fit are
-left out), and records it: the JSON result carries a `memory` object with the revision (the base commit),
+left out), and records it: the JSON result (format /2; the /1 result has no such field) carries a `memory` object with the revision (the base commit),
 the files loaded, the files left out and whether the memory was over budget. When it was, the summary
 says so and names what was left out. A repository without `.wachiman/memory/` is reviewed exactly as
 before, with no extra field and no extra text. The settings are in
