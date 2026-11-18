@@ -5,10 +5,10 @@
  * matches no file, an index row that names a missing file, an area file the index does not list, and
  * a budget overrun. No model is called and nothing is written. Exit 0 when clean, 1 on problems.
  */
-import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { UsageError } from "../config";
+import { spawnGit } from "../evidence";
 import { commandHelp } from "../help";
 import { parseRepoSettings, resolveMemorySettings, SETTINGS_PATH, type RepoSettings } from "../repo-settings";
 import { parseIndexMap, parseMemoryFile, type MemoryProblem } from "./entries";
@@ -95,16 +95,19 @@ export function inspectMemory(input: CheckInput): CheckResult {
   return { problems, notices: resolved.notices, entries: entryCount };
 }
 
+/** The checked-out tree is untrusted: every git call here has a time limit and the engine's hardened environment. */
+const GIT_TIMEOUT_MS = 30_000;
+
 /** The repository's top level for `dir`, or `dir` when git cannot say. */
 function repositoryRoot(dir: string): string {
-  const r = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: dir, encoding: "utf8" });
+  const r = spawnGit(["rev-parse", "--show-toplevel"], { cwd: dir, timeoutMs: GIT_TIMEOUT_MS });
   const top = r.status === 0 ? r.stdout.trim() : "";
   return top === "" ? dir : top;
 }
 
 /** Tracked files plus untracked files that are not ignored; a plain directory walk when `root` is not a git repository. */
 function listRepoFiles(root: string): string[] {
-  const r = spawnSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  const r = spawnGit(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, timeoutMs: GIT_TIMEOUT_MS, maxBytes: 256 * 1024 * 1024 });
   if (r.status === 0) return r.stdout.split("\0").filter(Boolean);
   const out: string[] = [];
   const walk = (rel: string) => {
