@@ -8,8 +8,12 @@
 - **Supersedes:** the capture mechanism of
   [ADR 0007](0007-learned-memory-by-draft-pr.md) (a batch `learn` over `Verdict:` replies) and
   the `learned/` location in [ADR 0006](0006-repository-review-policy.md). Both were proposed and
-  never built. Their other decisions stand: memory in the consumer's repository, read from the
-  base commit, proposed as a draft pull request, no hosted store.
+  never built. It also narrows their rule that a lesson is only an example with no authority:
+  an `exception` entry may mute a Consider or Info finding, under
+  [ADR 0057](0057-a-memory-exception-is-applied-after-discovery-and-every-muted-finding-is-shown.md).
+  An entry still never changes a severity, disables a check or widens an exclude. What stands
+  unchanged: memory in the consumer's repository, read from the base commit, proposed as a draft
+  pull request, no hosted store.
 
 ## Context
 
@@ -46,17 +50,26 @@ Actions; the memory must not fill with garbage.
    text, and the commit carries the same digest.
 6. The only write path is one commit per entry on the branch `wachiman/memory`, in one draft pull
    request that a person merges. Wachiman never force-pushes that branch, writes only under
-   `.wachiman/memory/`, and reports an entry as recorded only after the push succeeds.
+   `.wachiman/memory/`, and reports an entry as recorded only after the push succeeds. A rejected
+   push is retried by applying the same entry on the branch's new head; an entry whose digest is
+   already on the branch is not written twice.
 7. On the laptop, `wachiman memory propose <id>` writes with the developer's git credentials. In
    Actions, the configured operator's `/wachiman remember` starts a separate job with
    `contents: write` and `pull-requests: write`; the engine writes the file and the model call has
    no credentials. The review job stays `contents: read`.
 8. Loaded memory has a budget set in `.wachiman.yml` (`memory.max_index_lines`, default 150;
    `memory.max_loaded_lines`, default 400). Over it, the review loads the most specific globs
-   first, names the files it left out and says the memory is over budget.
+   first, names the files it left out and says the memory is over budget. `index.md` counts
+   toward the loaded total. An `index.md` over its own budget is still loaded, up to the loaded
+   total, and the review and `wachiman memory check` both report it.
 9. Wachiman suggests and never applies: merging likely duplicates, resolving likely
    contradictions, re-checking an entry whose `holds while` paths a diff touches, and archiving an
    entry not used in `memory.archive_after_days` (default 90).
+10. `.wachiman.yml` accepts one more optional key, `memory`, a map of the four settings above,
+    read from the base commit like `model` and `effort`
+    ([ADR 0049](0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md)). A value
+    that is not a positive whole number is ignored with a notice and the default applies. The
+    only one that changes spend is `max_loaded_lines`, which bounds prompt size.
 
 ## Alternatives rejected
 
@@ -90,8 +103,9 @@ Actions; the memory must not fill with garbage.
   wrote each reply.
 - "Not used in 90 days" finds entries nobody needs, not entries that are wrong. `holds while` is
   the control for those, and it only works when the entry names the right paths.
-- The website's statement that Wachiman keeps no memory of repositories becomes false when this
-  ships and must change in the same release.
+- `docs/faq.md` says there is "no memory of your repositories", and the website says the same.
+  Both become false when layer 2 ships: the FAQ changes in that pull request and the website in
+  the same release.
 
 ## Non-goals
 

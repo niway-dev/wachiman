@@ -7,7 +7,10 @@
 - **Relates to:** [ADR 0056](0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md),
   which defines the entries, and
   [ADR 0027](0027-one-verifier-call-per-pull-request-drops-a-finding-only-with-a-checked-disproof.md),
-  whose rule this follows: a finding is dropped only for a stated, checked reason.
+  which lets the verifier drop a finding only with a checked disproof. Muting is a different
+  removal: it rests on the owner's merged instruction, not on a disproof, and the finding is
+  listed, not dropped. If the verifier call is the one that does the matching, its contract
+  changes and the plan amends that ADR.
 
 ## Context
 
@@ -28,8 +31,9 @@ The owner's rule is that memory never hides a bug and that nothing happens witho
 2. Findings are discovered without exceptions. Then each exception in scope is matched against the
    candidates. A candidate that matches is not posted; it is listed in the review summary under
    "Muted by memory" with its title, its location and the id of the entry that muted it.
-3. The engine, not the model, refuses to mute a finding at a blocking severity or with the
-   security topic. Such a finding is posted, with a note naming the exception that tried to mute
+3. Only a Consider or Info finding can be muted. The engine, not the model, refuses to mute a
+   Blocker or Fix finding, or a finding of any severity with the security topic
+   ([ADR 0003](0003-two-axis-finding-labels.md)). Such a finding is posted, with a note naming the exception that tried to mute
    it.
 4. A match needs a reason tied to the current code. When an exception has a `holds while` line and
    the diff touches one of those paths, the exception does not mute in that review and the summary
