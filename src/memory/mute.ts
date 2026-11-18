@@ -83,11 +83,15 @@ export interface ExceptionPlan {
   stale: { entry: MemoryEntry; touched: string[] }[];
 }
 
-/** Which exceptions may act on a review of `changedPaths`: those whose scope the diff reaches and whose premise it does not touch. */
-export function planExceptions(memory: MemoryLoad | undefined, changedPaths: string[]): ExceptionPlan {
+/**
+ * Which exceptions may act on a review: those whose scope the reviewed files reach and whose premise
+ * no changed file touches. A finding only exists on a reviewed file, but a premise changes wherever
+ * the change touches it, reviewed or not.
+ */
+export function planExceptions(memory: MemoryLoad | undefined, changedPaths: string[], reviewedPaths: string[] = changedPaths): ExceptionPlan {
   const plan: ExceptionPlan = { active: [], stale: [] };
   for (const entry of exceptionsOf(memory)) {
-    if (!changedPaths.some((p) => matchesGlob(entry.scope, p))) continue;
+    if (!reviewedPaths.some((p) => matchesGlob(entry.scope, p))) continue;
     const touched = touchedHolds(entry, changedPaths);
     if (touched.length > 0) plan.stale.push({ entry, touched });
     else plan.active.push(entry);
