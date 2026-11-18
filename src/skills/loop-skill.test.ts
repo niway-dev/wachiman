@@ -17,6 +17,11 @@ describe("the wachiman-loop skill carries the agent instructions (AC12)", () => 
     expect(skill).toMatch(/never propose without the owner's yes/i);
   });
 
+  test("it asks for approval only of proposable candidates and just mentions the others", () => {
+    expect(skill).toContain("wachiman memory candidates");
+    expect(skill).toMatch(/not proposable[^]*do not ask/i);
+  });
+
   test("it says to ask about findings whose fix depends on intent, rather than guess", () => {
     expect(skill).toMatch(/fix depends on what the owner wants/);
     expect(skill).toMatch(/do not guess/i);
