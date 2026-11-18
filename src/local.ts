@@ -610,8 +610,8 @@ export async function runLocal(
       io.stderr("Interrupted: the review stopped and its snapshot was removed.");
       return 130;
     }
-    // The laptop's record of which memory entries a review used (`memory check` suggests archiving the unused). It never leaves the laptop and never fails a review.
-    if (memory) {
+    // The laptop's record of which memory entries a review used (`memory check` suggests archiving the unused). It lives in the history store, so it is written only when history is on (ADR 0020); it never leaves the laptop and never fails a review.
+    if (memory && history.enabled) {
       try {
         recordMemoryUse(home, repositoryKey(repoDir).key, entriesUsed(memory, kept.map((f) => f.filename), result.muted ?? []), new Date().toISOString().slice(0, 10));
       } catch (error) {

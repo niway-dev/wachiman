@@ -1419,10 +1419,17 @@ describe("memory use", () => {
     return { repo: { dir } as BranchRepo, id };
   }
 
-  test("a laptop review records the conventions it used, under the Wachiman home, and nothing else", () => {
+  test("without history a review writes nothing under the Wachiman home (ADR 0020)", () => {
+    const { repo } = repoWithMemory("src/**");
+    const home = temp("wachiman-home-");
+    expect(local("ok", [], { HOME: home }, repo).code).toBe(0);
+    expect(existsSync(join(home, ".wachiman"))).toBe(false);
+  }, 30_000);
+
+  test("a review with history on records the conventions it used, under the Wachiman home, and nothing else", () => {
     const { repo, id } = repoWithMemory("src/**");
     const home = temp("wachiman-home-");
-    const r = local("ok", [], { HOME: home }, repo);
+    const r = local("ok", ["--history"], { HOME: home }, repo);
     expect(r.code).toBe(0);
     const key = repositoryKey(repo.dir).key;
     const used = readMemoryUse(join(home, ".wachiman"), key);
@@ -1433,7 +1440,7 @@ describe("memory use", () => {
   test("a convention whose scope the diff does not reach is not recorded as used, and no memory records nothing", () => {
     const { repo } = repoWithMemory("docs/**");
     const home = temp("wachiman-home-");
-    expect(local("ok", [], { HOME: home }, repo).code).toBe(0);
+    expect(local("ok", ["--history"], { HOME: home }, repo).code).toBe(0);
     expect(readMemoryUse(join(home, ".wachiman"), repositoryKey(repo.dir).key)).toEqual({});
     const plain = temp("wachiman-home-");
     expect(local("ok", [], { HOME: plain }).code).toBe(0);

@@ -810,11 +810,11 @@ problems: they do not change the exit code, and Wachiman never applies one. No m
   none. Only duplicates are found deterministically.
 - *Archive suggestions.* An entry whose last use is more than `memory.archive_after_days` (default 90)
   days before today. An entry with no recorded use is measured from its `added` date. A use is recorded
-  when a laptop review (`wachiman local`) loads memory and an entry was used: a convention whose scope
+  when a laptop review (`wachiman local`) runs with history on (`--history`, ADR 0020), loads memory and an entry was used: a convention whose scope
   matches a file of the diff (it was in the prompt for that diff), or an exception that muted a finding.
   The record is entry id and date, per repository, in `<home>/history/<repository
-  key>/memory-use.json`, written with mode 0600. It exists only on the laptop. **In GitHub Actions
-  nothing persists between runs, so no use is recorded there and `check` makes no archive suggestion
+  key>/memory-use.json`, written with mode 0600. It exists only on the laptop. **With history off, or in GitHub Actions
+  where nothing persists between runs, no use is recorded; archive suggestions need history on, and `check` makes none
   when `GITHUB_ACTIONS` is `true`;** an entry used only in pull request reviews looks unused to
   the laptop. Forgetting the history (`wachiman history --forget`) forgets the record, and every entry
   is then measured from its `added` date again.

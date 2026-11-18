@@ -113,7 +113,7 @@ const plural = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
  * Hygiene suggestions, printed after the problems on stdout. They never change the exit code and
  * nothing is applied. Duplicates are found by the text of two rules; contradictions are not found
  * at all (that needs a model). Archive suggestions need the laptop's record of last use, so they are
- * not made in GitHub Actions, where no record persists.
+ * not made in GitHub Actions, where no record persists, and need history on to be recorded (ADR 0020).
  */
 function printSuggestions(files: Record<string, string>, settings: { archiveAfterDays: number }, root: string, io: MemoryIo, ctx: CaptureContext) {
   const env = ctx.env ?? process.env;
