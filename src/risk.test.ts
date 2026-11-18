@@ -296,4 +296,16 @@ describe("path rule bullets in the rendered risk map", () => {
     expect(map.level).toBe("high");
     expect(map.pathReasons).toHaveLength(1);
   });
+
+  test("a critical rule file with a fact still prints the rule and the approval clause", () => {
+    const map = build({
+      files: [file(".github/workflows/ci.yml")],
+      pathRules: [{ match: ".github/**", severity: "critical", reason: "CI can publish" }],
+      facts: [fact("config-or-ci", ".github/workflows/ci.yml", 3)],
+    });
+    const text = renderRiskMap(map, "### Risk map");
+    expect(text).toContain("config-or-ci");
+    expect(text).toContain("path rule critical");
+    expect(text).toContain("a person should approve this change");
+  });
 });

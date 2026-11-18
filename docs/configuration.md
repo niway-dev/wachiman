@@ -683,8 +683,8 @@ file, the most severe wins; on a tie, the first in the file.
 
 **What a match changes:**
 
-- **Order.** A matched file is read before every file the heuristic ranks, `critical` before `high`
-  before `medium`, tests and documents included: the maintainer named the path. When a budget runs out,
+- **Order.** A matched file is packed before every other file, across modules, not only first in its
+  module: `critical` before `high` before `medium`, tests and documents included: the maintainer named the path. When a budget runs out,
   the lower-ranked files are the ones left unread.
 - **The prompt.** The file's line in the batch's file list carries `path rule <severity> (<match>): <reason>`.
 - **The risk map.** The review lists the matched file with its rule and reason in place of the

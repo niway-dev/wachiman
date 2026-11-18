@@ -103,7 +103,7 @@ export interface RiskMap {
   /** Kept judgement items, at most three. */
   judgement: JudgementItem[];
   /** Files whose heuristic gives medium or high, and every file a maintainer's path rule matched (quoted with its reason). */
-  pathReasons: { path: string; why: string }[];
+  pathReasons: { path: string; why: string; rule?: true }[];
   /** Up to five paths, most worth reading first. */
   readFirst: string[];
   unreadFiles: number;
@@ -162,11 +162,11 @@ export function buildRiskMap(input: {
     if (LEVEL_RANK[KIND_LEVEL[f.kind]] > LEVEL_RANK[level]) level = KIND_LEVEL[f.kind];
   }
 
-  const pathReasons: { path: string; why: string }[] = [];
+  const pathReasons: { path: string; why: string; rule?: true }[] = [];
   for (const f of input.files) {
     const pathRule = matchPathRule(f.path, input.pathRules, f.previousPath);
     if (pathRule) {
-      pathReasons.push({ path: f.path, why: pathRuleWhy(pathRule) });
+      pathReasons.push({ path: f.path, why: pathRuleWhy(pathRule), rule: true });
       continue;
     }
     const rule = matchingRule(f.path);
@@ -264,7 +264,7 @@ export function renderRiskMap(
   }
 
   const covered = new Set(map.facts.map((f) => f.path));
-  const uncovered = map.pathReasons.filter((r) => !covered.has(r.path));
+  const uncovered = map.pathReasons.filter((r) => r.rule || !covered.has(r.path));
   const bullets = [
     ...map.facts.map((f) => `- ${code(f.kind)} · ${code(`${f.path}:${f.line}`)} — ${neutralise(f.why)}`),
     ...uncovered.slice(0, MAX_PATH_BULLETS).map((r) => `- ${code(r.path)} — ${neutralise(r.why)}`),

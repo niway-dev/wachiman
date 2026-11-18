@@ -77,9 +77,11 @@ paths:
 ### What a match changes
 
 1. **Order.** A matched file scores above every heuristic weight, `critical` above `high` above
-   `medium`, so its module and the file inside its module come first in `planBatches`. This holds
-   for tests and documents too: the maintainer named the path. "Full depth" means exactly this:
-   the file is in the earliest batches, so a spent budget leaves lower-risk files unread before it.
+   `medium`. `planBatches` takes matched files out of their modules and packs them before every
+   other file, across modules, most severe first, then by score and filename; the other files pack
+   as before. This holds for tests and documents too: the maintainer named the path. "Full depth"
+   means exactly this: the file is in the earliest batches, so a spent budget leaves lower-risk
+   files unread before it.
 2. **The prompt.** Each matched file's line in the batch's file list carries the rule:
    `path rule <severity> (<match>): <reason>`. The reason is neutralised like other repository text.
 3. **The review body.** The risk map lists each matched file with its rule and reason, in place of

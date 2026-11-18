@@ -376,6 +376,13 @@ describe("path rules in riskScore and planBatches", () => {
     expect(planBatches(files, limits, only)[0].files.map((f) => f.filename)).toEqual(["src/billing/notes.md", "src/billing/charge.ts", "src/billing/charge.test.ts"]);
   });
 
+  test("rule-matched files pack before every other file across modules", () => {
+    const crit: PathRule[] = [{ match: "*/critical.ts", severity: "critical", reason: "money" }];
+    const files = [file("a/ordinary.ts", 10), file("b/critical.ts", 10), file("a/critical.ts", 10)];
+    const order = planBatches(files, { maxLines: 10, maxChars: 1_000_000 }, crit).flatMap((b) => b.files.map((f) => f.filename));
+    expect(order).toEqual(["a/critical.ts", "b/critical.ts", "a/ordinary.ts"]);
+  });
+
   test("batches keep the same files and maxRisk carries the ordering score", () => {
     const files = [file("src/other/a.ts", 600), file("src/billing/charge.ts", 600)];
     const batches = planBatches(files, limits, rules);

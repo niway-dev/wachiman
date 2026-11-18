@@ -518,24 +518,25 @@ export function planBatches(
     const rule = matchPathRule(path, rules, previousOf.get(path));
     return rule ? PATH_RULE_SCORE[rule.severity] : 0;
   };
+  const byScore = (a: ReviewFile, b: ReviewFile) =>
+    score(b.filename) - score(a.filename) || a.filename.localeCompare(b.filename);
+  // A file a path rule matched leaves its module and packs first, most severe first: the maintainer
+  // named the path, so a spent budget never leaves it unread behind a heuristic-ranked file.
+  const matched = files.filter((f) => ruled(f.filename) > 0).sort((a, b) => ruled(b.filename) - ruled(a.filename) || byScore(a, b));
+  const matchedSet = new Set(matched);
   const modules = new Map<string, ReviewFile[]>();
   for (const f of files) {
+    if (matchedSet.has(f)) continue;
     const key = moduleKey(f.filename);
     modules.set(key, [...(modules.get(key) ?? []), f]);
   }
-  const ordered = [...modules.values()]
-    .map((group) =>
-      group.sort(
-        (a, b) =>
-          score(b.filename) - score(a.filename) || a.filename.localeCompare(b.filename),
-      ),
-    )
-    .sort(
-      (a, b) =>
-        score(b[0].filename) - score(a[0].filename) ||
-        a[0].filename.localeCompare(b[0].filename),
-    )
-    .flat();
+  const ordered = [
+    ...matched,
+    ...[...modules.values()]
+      .map((group) => group.sort(byScore))
+      .sort((a, b) => byScore(a[0], b[0]))
+      .flat(),
+  ];
 
   const batches: ReviewFile[][] = [];
   let current: ReviewFile[] = [];

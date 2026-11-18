@@ -6,7 +6,7 @@ import { emptyRepo, commit, git, removeTempRepos } from "../../test/support/temp
 import { commentableLines, annotateDiff } from "../engine";
 import { addedLinesOf } from "../evidence";
 import { POLICY_EDIT_RULE } from "../repo-settings";
-import { snapshotWorkingTree, workingTreeInput } from "./working-tree";
+import { readSnapshotFile, snapshotWorkingTree, workingTreeInput } from "./working-tree";
 afterAll(removeTempRepos);
 function fixture() {
   const dir = emptyRepo();
@@ -540,4 +540,13 @@ test("working-tree input does not flag an edit of only the effort", () => {
   } finally {
     b.release();
   }
+});
+
+test("a settings path that is a directory in the snapshot reads as absent", () => {
+  const dir = emptyRepo();
+  mkdirSync(join(dir, ".wachiman.yml"));
+  expect(readSnapshotFile(join(dir, ".wachiman.yml"))).toBeNull();
+  expect(readSnapshotFile(join(dir, "missing.yml"))).toBeNull();
+  writeFileSync(join(dir, "ok.yml"), "x\n");
+  expect(readSnapshotFile(join(dir, "ok.yml"))?.toString()).toBe("x\n");
 });

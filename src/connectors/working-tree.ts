@@ -3,7 +3,6 @@ import { spawnSync } from "node:child_process";
 import {
   constants,
   closeSync,
-  existsSync,
   fstatSync,
   lstatSync,
   mkdirSync,
@@ -12,6 +11,7 @@ import {
   readFileSync,
   readlinkSync,
   realpathSync,
+  statSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -27,6 +27,15 @@ import { localFiles, localInstructions, localPathPolicy, localPathRules } from "
 
 type Spawn = typeof spawnSync;
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+/** A snapshot file's bytes, or null when the path is absent or not a regular file (a directory is absent, as in a commit). */
+export function readSnapshotFile(file: string): Buffer | null {
+  try {
+    return statSync(file).isFile() ? readFileSync(file) : null;
+  } catch {
+    return null;
+  }
+}
+
 const identity = (s: ReturnType<typeof lstatSync>) => [s.dev, s.ino, s.mode, s.size, s.mtimeMs, s.ctimeMs].join(":");
 const failure = () => new UsageError("The index, HEAD or tracked files changed during capture; retry --working-tree.");
 /** Index the materialized bytes directly; git add would apply repository attributes. */
@@ -270,7 +279,7 @@ export function workingTreeInput(p: {
       () => {
         // The snapshot holds the working tree's blobs as plain files, so a link is its target text.
         const file = join(snapshot, SETTINGS_PATH);
-        return existsSync(file) ? readFileSync(file) : null;
+        return readSnapshotFile(file);
       },
       files,
       localPathRules(top, base, "HEAD", p.warn, git),
