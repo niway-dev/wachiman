@@ -91,6 +91,10 @@ maintained workflow.
 
 ## Documentation
 
+[Engineering principles](docs/principles/README.md) explain the ideas behind the reviewer,
+their external sources, the evidence expected of changes, and the boundary between current
+behavior and proposed review memory.
+
 The guides are published at **[wachiman.dev/docs](https://wachiman.dev/docs/what-it-is/)**. The
 same material, in this repository:
 
