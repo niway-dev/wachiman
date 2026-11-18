@@ -240,6 +240,7 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--no-verify` | — | Turn verification off for this run, even when `WACHIMAN_VERIFY` is on. With `--verify` it is a usage error |
 | `--result-version 1\|2` | `1` for committed; `2` for working-tree | With `--format json` only (any other use exits 2): which result version to write. `1` is the committed form (`toResultV1`): no `verification` block, and one line in `execution.notices` saying how verification went. `2` is the full result, with each finding's `origin`, `verification` and `tier` |
 | `--history` | off (or `WACHIMAN_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
+| `--no-memory` | off | Review as if the repository had no `.wachiman/memory/` folder: nothing is loaded, no conventions reach the prompt, no exception is matched, and the result has no `memory` or `muted` field. Stderr says `memory: off (--no-memory)`. It exists for the control arm of the [memory replay](memory-replay.md); `ask` and the GitHub mode do not take it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
 merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 250)`, `head: feat/x (…)`); with `--commit` or
@@ -712,6 +713,7 @@ configuration error. The whole guide, with the states, the findings and the risk
 ```
 wachiman memory check [--repo-dir <dir>]
 wachiman memory archive <id> [--repo-dir <dir>]
+wachiman memory report [--since <date>] [--format terminal|json] [--repo-dir <dir>]
 wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]
 wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]
 wachiman memory show <id> [--repo-dir <dir>]
@@ -887,6 +889,69 @@ only after the owner approves it.
   `recorded` when only the draft pull request could not be opened (the entry is on the branch; open
   the pull request by hand or run the command again).
 
+**Measuring what memory does (layer 7).** `memory report` prints what the local history says,
+without calling a model and without writing anything:
+
+```
+wachiman memory report [--since <date>] [--format terminal|json] [--repo-dir <dir>]
+```
+
+The default is one row per month (UTC) and a total row. `--since 2026-11-01` keeps the runs saved on
+or after that day. With no history in the window it prints `No review history ...` and exits 0; a
+`--format json` run then prints the document below with `"empty": true` and no periods.
+
+- **Comments by outcome.** A comment is a finding a run posted, counted once, in the month of the
+  run that first saw it, by its outcome today: `wrong`, `intentional` or `not important` when you
+  judged it (`wachiman history --verdict`); else `fixed` when the loop settled it as probably fixed
+  (the cited code changed and the finding did not come back); else `unjudged`. A `correct` or
+  `partial` verdict without a fix stays `unjudged`. A verdict wins over the loop's own settling.
+- **Muted by memory.** The findings an exception muted in the period's runs, and, in the total row,
+  how many each entry id muted.
+- **Memory size.** The files, entries and lines of `.wachiman/memory/` in the working tree now (not
+  per month), and, per month, the lines the month's last review loaded (`-` when none of its runs
+  recorded memory).
+- **Entries never used.** Read from the laptop's record of when each entry was last used (the
+  `memory-use.json` file in the history folder that `memory check` also reads, so the two never
+  disagree): an entry is used when that record has a last-use date for it, on or after `--since` when
+  given. An entry that is used often and wrong is not caught by this; the `holds while` notice is
+  for that.
+
+`--format json` prints `wachiman.memory-report/1`:
+
+```json
+{
+  "format": "wachiman.memory-report/1",
+  "since": null,
+  "empty": false,
+  "periods": [
+    {
+      "period": "2026-11",
+      "comments": 4,
+      "outcomes": { "fixed": 1, "wrong": 1, "intentional": 0, "notImportant": 1, "unjudged": 1 },
+      "muted": { "count": 3, "byEntry": { "4c1e9a2": 2, "0f3a9b1": 1 } },
+      "memoryLoadedLines": 40
+    }
+  ],
+  "total": { "period": "total", "comments": 4, "outcomes": { "...": 0 }, "muted": { "count": 3, "byEntry": {} }, "memoryLoadedLines": 40 },
+  "memory": { "present": true, "files": 3, "entries": 4, "lines": 62 },
+  "neverUsed": [{ "id": "4c1e9a2", "title": "...", "kind": "exception", "scope": "docs/**", "file": "index.md" }]
+}
+```
+
+The figures are illustrative. `since` is a string or `null`; `memoryLoadedLines` is a number or `null`;
+`periods` is oldest first. Keys are only added in a new format version.
+
+**Where outcomes are recorded.** On the laptop, `wachiman local --history` keeps every run, and
+`wachiman history --verdict` keeps your judgement of each finding, under `~/.wachiman/history`; the
+report reads both. Unrun, unjudged or pruned history (`WACHIMAN_HISTORY_DAYS`, 30 by default) simply
+is not counted. In Actions nothing persists between runs, and Wachiman has no hosted store for it, so
+the report cannot be built there. What a single Actions run can tell: the result it produced (`memory`
+and `muted` in its JSON result), and, for threads it followed up, whether the code looks `addressed`
+or the finding is `still_open`. What it cannot record: that a finding was fixed after the run, or
+that you judged it wrong, intentional or not important, unless you reply in the thread, and nothing
+adds a reply's classification across runs. To measure a repository that is reviewed in Actions, run
+the [replay](memory-replay.md) on the laptop.
+
 ### `history`
 
 `wachiman history` lists the findings that `local --history` kept for the repository of
@@ -900,7 +965,7 @@ repository's key. It runs no `claude` and calls no GitHub. With no history, `--j
 | `--since <n>d` | Only findings seen in the last `n` days |
 | `--all-repos` | Every repository in the history, not just this clone's |
 | `--json` | The replayed state as `wachiman.history-state/1` JSON (an internal format, like the files it reads) |
-| `--verdict <id> correct\|partial\|wrong [--reason <text>]` | Record your judgement of a finding (the id is in the report and the listing); the listing shows it |
+| `--verdict <id> correct\|partial\|wrong\|intentional\|not-important [--reason <text>]` | Record your judgement of a finding (the id is in the report and the listing); the listing shows it. `intentional` (the code is meant to be that way) and `not-important` (right, but not worth acting on) feed [`memory report`](#memory); the loop does not release a blocking finding for them, only for `wrong` with a reason. A verdicts file written before these words reads as before |
 | `--forget [--all]` | Delete this repository's history, or all of `~/.wachiman/history`; prints what was removed. It takes no `--all-repos`, `--json` or `--since` (usage error) |
 
 Exit codes: 0 listed, recorded or forgotten (a missing history prints one line and exits 0); 2 usage

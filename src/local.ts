@@ -65,6 +65,8 @@ export interface LocalArgs {
   history: boolean;
   /** `--verify` forces the verifier on, `--no-verify` off; unset follows `WACHIMAN_VERIFY` (off by default, ADR 0027). */
   verify: boolean | undefined;
+  /** `--no-memory`: review as a repository without a `.wachiman/memory/` folder (the control arm of the memory replay). */
+  noMemory?: boolean;
   /** `--result-version`: with `--format json`, which result version to write (default 1 for a committed change). */
   resultVersion?: 1 | 2;
   input?: string;
@@ -72,7 +74,7 @@ export interface LocalArgs {
 
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
-               [--profile <name>] [--agent-prompt] [--history] [--verify | --no-verify]
+               [--profile <name>] [--agent-prompt] [--history] [--verify | --no-verify] [--no-memory]
                [--result-version 1|2] [--working-tree staged|all]`;
 
 /** Every flag `local` takes. `ask` takes the subset it names in `ask-command`. */
@@ -81,6 +83,7 @@ export const LOCAL_FLAGS = [
   "--history",
   "--verify",
   "--no-verify",
+  "--no-memory",
   "--result-version",
   "--working-tree",
   "--base",
@@ -133,6 +136,7 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
     };
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
     else if (name === "--history" && eq === -1) args.history = true;
+    else if (name === "--no-memory" && eq === -1) args.noMemory = true;
     else if (name === "--verify" && eq === -1) {
       args.verify = true;
       sawVerify = true;
@@ -584,7 +588,8 @@ export async function runLocal(
     // The memory of the commit the diff starts at (the merge-base), selected by the files this run reviews, binaries
     // excluded as the Actions path does (ADR 0056).
     const reviewable = splitUnreviewable(kept, input.headDir).reviewable;
-    const memory = localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr);
+    if (args.noMemory) io.stderr("memory: off (--no-memory)");
+    const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr);
     const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}) }, {
       provider,
       ...(verifier ? { verifier } : {}),

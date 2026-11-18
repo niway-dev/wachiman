@@ -136,6 +136,7 @@ const localPage: Page = {
     ["--verify | --no-verify", "One more call tries to refute each finding above info. Default: follows WACHIMAN_VERIFY (off)"],
     ["--result-version 1|2", "With --format json only. Default: 1 for committed changes, 2 for --working-tree"],
     ["--history", "Save the run under ~/.wachiman/history and label each finding new or open. Default: off (or WACHIMAN_HISTORY=1)"],
+    ["--no-memory", "Ignore .wachiman/memory/ for this run, as if the repository had none (the control arm of the memory replay). Default: off"],
     REPO_DIR,
   ],
   env: [
