@@ -102,9 +102,13 @@ lists `memoryCandidates`, or when the owner says a finding should not come back:
    The default `--source instruction` records the owner's instruction. For a finding of the loop,
    `--finding <id> --source judged` (a `wrong` verdict with a reason) or `--source fixed` (a
    convention the loop marked probably fixed) ties the entry to the loop's history instead.
-3. Show the owner the exact text: `wachiman memory show <id> --repo-dir <clone>`. Ask whether to
-   propose it, and say why. Do not paraphrase the text you show.
-4. Only on a yes, run `wachiman memory propose <id> --repo-dir <clone>`. It opens a draft pull
+3. Check whether it can be proposed: `wachiman memory candidates --repo-dir <clone>` prints
+   `proposable` or `not proposable: <reason>` (for example, not enough evidence yet). If it is not
+   proposable, do not ask for approval: tell the owner in one sentence that the candidate is
+   recorded on this laptop and why it cannot be proposed yet, and stop.
+4. If it is proposable, show the owner the exact text: `wachiman memory show <id> --repo-dir <clone>`.
+   Ask whether to propose it, and say why. Do not paraphrase the text you show.
+5. Only on a yes, run `wachiman memory propose <id> --repo-dir <clone>`. It opens a draft pull
    request for a person to merge. On a no, stop; the candidate stays on this laptop.
 
 Never propose without the owner's yes.
