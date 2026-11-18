@@ -220,7 +220,7 @@ export function teamHasMemory(root: string): boolean | undefined {
   try {
     const remote = fetchRemote(root);
     if (remote.memoryHead) return true;
-    const tree = git(root, ["ls-tree", "-d", remote.defaultHead, `${MEMORY_DIR}/`]);
+    const tree = git(root, ["ls-tree", "-d", remote.defaultHead, "--", MEMORY_DIR]);
     return tree.status === 0 ? tree.stdout.trim() !== "" : undefined;
   } catch (error) {
     if (error instanceof Refused) return undefined;
