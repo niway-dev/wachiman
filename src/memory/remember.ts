@@ -49,6 +49,13 @@ const block = (text: string) => {
   return `${fence}text\n${safe}\n${fence}`;
 };
 
+/** What must not reach a public thread even inside a block: a token shaped like GitHub's, and the path of the job's checkout. */
+const scrub = (text: string, repoDir: string) => {
+  const hidden = text.replace(/\b(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{8,}/g, "[redacted]");
+  const dir = repoDir.replace(/\/+$/, "");
+  return dir === "" ? hidden : hidden.split(dir).join("<repo>");
+};
+
 const reply = (lines: string[]) => `${lines.join("\n\n")}\n\n${REMEMBER_SIGNATURE}`;
 
 /** Returns the exit code: 0 when the entry is recorded (or was already), or when the comment is not for this job; 1 when nothing was written or the pull request could not be opened. */
@@ -83,9 +90,11 @@ export function remember(deps: RememberDeps, repo: string, pr: number, request: 
       deps.warn(`could not reply in the thread: ${error instanceof Error ? error.message : error}`);
     }
   };
-  const refuse = (why: string) => {
-    deps.warn(`remember ${command.id}: ${why} Nothing was written.`);
-    post([`Nothing was written for \`${command.id}\`. ${why}`]);
+  // `why` is the engine's own sentence. `detail` is text from git, GitHub or the shown proposal: the log gets it as it is, the
+  // thread gets it scrubbed and only inside `block()`, so error text cannot add markdown, a mention or a marker, or show a token or the checkout's path.
+  const refuse = (why: string, detail?: string) => {
+    deps.warn(`remember ${command.id}: ${why}${detail ? ` ${detail}` : ""} Nothing was written.`);
+    post([`Nothing was written for \`${command.id}\`. ${why}`, ...(detail ? [block(scrub(detail, repoDir))] : [])]);
     return 1;
   };
 
@@ -98,7 +107,7 @@ export function remember(deps: RememberDeps, repo: string, pr: number, request: 
     .at(-1);
   if (!shown) return refuse(`No reply of Wachiman in this thread proposes an entry with the id \`${command.id}\`.`);
   const built = candidateFromShown(shown.text, command.id);
-  if (!built.candidate) return refuse(`The text shown does not match the id: ${built.problem} The id is the digest of the entry text, and only text that hashes to it is written.`);
+  if (!built.candidate) return refuse("The text shown does not match the id. The id is the digest of the entry text, and only text that hashes to it is written. The problem:", built.problem);
 
   if (dryRun) {
     deps.log(`dry run: would record entry ${command.id} on wachiman/memory.`);
@@ -112,10 +121,10 @@ export function remember(deps: RememberDeps, repo: string, pr: number, request: 
   try {
     result = (deps.propose ?? proposeCandidate)(built.candidate, repoDir, { stdout: (text) => void out.push(text.trim()), stderr: (line) => void errors.push(line) }, { pulls: deps.pulls });
   } catch (error) {
-    return refuse(`The write failed: ${error instanceof Error ? error.message : error}`);
+    return refuse("The write failed:", String(error instanceof Error ? error.message : error));
   }
   for (const line of errors) deps.warn(line);
-  if (!result.recorded) return refuse(`The write was refused:\n\n${block(errors.join("\n"))}\n`);
+  if (!result.recorded) return refuse("The write was refused:", errors.join("\n"));
 
   const recorded = block(out.join("\n"));
   if (result.pullRequestFailed) {

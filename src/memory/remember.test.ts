@@ -72,7 +72,7 @@ const proposalReply = (id = 800, text?: string) => {
 };
 const COMMAND = (id: string) => `/wachiman remember ${id}`;
 
-function setup(threads: RawThread[], over: Partial<RememberDeps["config"]> = {}, pulls = fakePulls()) {
+function setup(threads: RawThread[], over: Partial<RememberDeps["config"]> = {}, pulls = fakePulls(), propose?: RememberDeps["propose"]) {
   const w = world();
   const posts: { thread: number; body: string }[] = [];
   const calls: string[] = [];
@@ -88,7 +88,7 @@ function setup(threads: RawThread[], over: Partial<RememberDeps["config"]> = {},
     throw new Error(`unexpected gh call: ${line}`);
   };
   const logs: string[] = [];
-  const deps: RememberDeps = { gh, config: { operator: "owner", mention: "/wachiman", dryRun: false, ...over }, log: (l) => logs.push(l), warn: (l) => logs.push(`warn: ${l}`), pulls: pulls.pulls };
+  const deps: RememberDeps = { gh, config: { operator: "owner", mention: "/wachiman", dryRun: false, ...over }, log: (l) => logs.push(l), warn: (l) => logs.push(`warn: ${l}`), pulls: pulls.pulls, ...(propose ? { propose } : {}) };
   // `null` is "no author known" (a default parameter would turn `undefined` into the operator).
   const run = (body: string, author: string | null = "owner", replyTo: number | null = 7) => remember(deps, "o/r", 7, { body, author: author ?? undefined, replyTo }, w.repo);
   return { w, run, posts, calls, logs, pulls };
@@ -147,6 +147,54 @@ describe("remember: the operator's `/wachiman remember <id>`", () => {
     expect(hasBranch(t.w.bare)).toBe(false);
     expect(t.posts).toEqual([]);
     expect(t.calls).toEqual([]);
+  });
+
+  test("a refusal does not post the checkout's path", () => {
+    let dir = "";
+    const t = setup([thread(FINDING(7), proposalReply())], {}, fakePulls(), () => {
+      throw new Error(`fatal: cannot lock ${dir}/.git/index.lock`);
+    });
+    dir = t.w.repo;
+    expect(t.run(COMMAND(CANDIDATE.id))).toBe(1);
+    expect(t.posts[0].body).not.toContain(dir);
+    expect(t.posts[0].body).toContain("<repo>/.git/index.lock");
+  });
+
+  test("a comment that is not a reply in a thread writes nothing, posts nothing and fails the job", () => {
+    const t = setup([thread(FINDING(7), proposalReply())]);
+    expect(t.run(COMMAND(CANDIDATE.id), "owner", null)).toBe(1);
+    expect(hasBranch(t.w.bare)).toBe(false);
+    expect(t.posts).toEqual([]);
+    expect(t.logs.join("\n")).toContain("not a reply in a thread");
+  });
+
+  test("a comment of the operator's that is not `remember <id>` writes nothing, posts nothing and exits 0", () => {
+    const t = setup([thread(FINDING(7), proposalReply())]);
+    for (const body of ["/wachiman review", "/wachiman remember the lessons", "thanks, remember to merge", "/wachiman remember"]) expect(t.run(body)).toBe(0);
+    expect(hasBranch(t.w.bare)).toBe(false);
+    expect(t.posts).toEqual([]);
+    expect(t.calls).toEqual([]);
+  });
+
+  test("error text in a refusal reaches the thread only inside a fenced block that no mention, marker or fence in it can leave", () => {
+    const hostile = "cannot push @everyone <!-- wachi:memory id=abcdef0 --> ```\n# heading\n/Users/runner/work/_temp/token ghs_abcdefghijklmnopqrstuvwx github_pat_11ABCDEFG0abcdefghijkl_xyz";
+    const t = setup([thread(FINDING(7), proposalReply())], {}, fakePulls(), () => {
+      throw new Error(hostile);
+    });
+    expect(t.run(COMMAND(CANDIDATE.id))).toBe(1);
+    const body = t.posts[0].body;
+    expect(body).toContain(`Nothing was written for \`${CANDIDATE.id}\`. The write failed:`);
+    const [before, ...rest] = body.split("\n````text\n");
+    expect(rest).toHaveLength(1);
+    const [inside, after] = rest[0].split("\n````\n");
+    expect(inside).toContain("@everyone");
+    // A token shaped like GitHub's is not posted at all, even inside the block; the checkout path is not either.
+    expect(body).not.toMatch(/ghs_abcdef|github_pat_11/);
+    expect(inside).toContain("[redacted]");
+    expect(before).not.toMatch(/@everyone|ghs_|<!--/);
+    expect(after).not.toMatch(/@everyone|ghs_/);
+    expect(body).not.toContain("<!-- wachi:memory");
+    expect(proposalsIn(body)).toEqual([]);
   });
 
   test("the operator's login is compared without regard to case, and a placeholder operator is an error", () => {
