@@ -227,6 +227,29 @@ describe("memory propose", () => {
     expect(git(w.bare, "branch", "--list", "wachiman/memory").trim()).toBe("");
   }, 60_000);
 
+  test("evidence added while the push is in flight is kept when the candidate is marked proposed", () => {
+    const w = world();
+    const fake = fakePulls();
+    const d = developer(w, "ana", fake);
+    const id = d.add("Prefer named exports.", ["--pr", "709"]);
+    // The pull request step runs after the push: a second `memory add` of the same entry lands there.
+    const racing: PullRequests = {
+      list: fake.pulls.list,
+      createDraft: (input, cwd) => {
+        d.add("Prefer named exports.", ["--pr", "812"]);
+        return fake.pulls.createDraft(input, cwd);
+      },
+    };
+    expect(d.run("candidates").stdout).not.toContain("proposed");
+    let out = "";
+    const code = runMemory(["propose", id], d.dir, { stdout: (t) => (out += t), stderr: () => {} }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing } });
+    expect(code).toBe(0);
+    const shown = d.run("show", id).stdout;
+    expect(shown).toContain("pull request 709");
+    expect(shown).toContain("pull request 812");
+    expect(d.run("candidates").stdout).toContain("proposed 2026-11-18");
+  }, 60_000);
+
   test("a push refused for a reason other than a race is reported once, not retried or blamed on colleagues", () => {
     const w = world();
     const d = developer(w, "ana");

@@ -142,7 +142,11 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
       return 1;
     }
     const result = proposeCandidate(c, repoDir, io, ctx.deps);
-    if (result.recorded) writeCandidate(home, key, { ...c, proposed: { at: (ctx.now ?? (() => new Date()))().toISOString() } });
+    if (result.recorded) {
+      // Read again: evidence added by `memory add` while the push was in flight must not be overwritten.
+      const latest = readCandidate(home, key, id) ?? c;
+      writeCandidate(home, key, { ...latest, proposed: { at: (ctx.now ?? (() => new Date()))().toISOString() } });
+    }
     return result.recorded ? (result.pullRequestFailed ? 1 : 0) : 1;
   }
 
