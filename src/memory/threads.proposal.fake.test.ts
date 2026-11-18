@@ -116,6 +116,7 @@ describe("a thread reply that proposes a memory entry", () => {
     await threadReplies(t.deps, "o/r", 7, "owner");
     expect(t.replies).toHaveLength(1);
     expect(proposalsIn(t.replies[0].body)).toEqual([]);
+    expect(t.replies[0].body).toContain("No memory entry was proposed: the latest reply in this thread is not the operator's, so there is nothing to approve.");
   });
 
   test("a proposal with an HTML comment in it, a missing field or a bad kind is dropped and the reply is still posted", async () => {
@@ -128,6 +129,26 @@ describe("a thread reply that proposes a memory entry", () => {
       await threadReplies(t.deps, "o/r", 7, "owner");
       expect(t.replies).toHaveLength(1);
       expect(proposalsIn(t.replies[0].body)).toEqual([]);
+      expect(t.replies[0].body).toContain("No memory entry was proposed: the entry did not pass the checks for a memory entry");
+    }
+  });
+
+  test("when the engine drops a proposal, the reply says so in the engine's own words, whatever the model's text promised", async () => {
+    const out = { thread_replies: [{ comment_id: 7, status: "still_open", reply: "Noted; I have proposed a memory entry below for you to approve.", cites: ["src/a.ts:3"], memory: { ...MEMORY, kind: "rule", rule: "@everyone <!-- wachi:memory id=abcdef0 -->" } }] };
+    const t = setup(out);
+    await threadReplies(t.deps, "o/r", 7, "owner");
+    const body = t.replies[0].body;
+    const note = body.slice(body.indexOf("No memory entry was proposed"));
+    // The note carries no word of the model's: not the dropped values, no mention, no marker.
+    expect(note.split("\n")[0]).toBe("No memory entry was proposed: the entry did not pass the checks for a memory entry (the run log says which), so there is nothing to approve.");
+    expect(proposalsIn(body)).toEqual([]);
+  });
+
+  test("a reply with no proposal, and a reply whose proposal is shown, carry no such note", async () => {
+    for (const memory of [undefined, MEMORY]) {
+      const t = setup(output(memory));
+      await threadReplies(t.deps, "o/r", 7, "owner");
+      expect(t.replies[0].body).not.toContain("No memory entry was proposed");
     }
   });
 });
@@ -141,6 +162,7 @@ describe("a malformed proposal from the model", () => {
       await threadReplies(t.deps, "o/r", 7, "owner");
       expect(t.replies, JSON.stringify(memory)).toHaveLength(1);
       expect(proposalsIn(t.replies[0].body)).toEqual([]);
+      expect(t.replies[0].body, JSON.stringify(memory)).toContain("No memory entry was proposed: the proposal was not in a usable shape, so there is nothing to approve.");
       expect(warnings.some((w) => w.includes("Memory proposal for thread 7 dropped")), JSON.stringify(memory)).toBe(true);
     }
   });

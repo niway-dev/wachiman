@@ -4801,6 +4801,9 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
   // A proposal is shown only for a thread whose latest reply is the operator's own (layer 5): a collaborator's
   // words, or a model's idea of them, never become an entry the operator is asked to approve.
   const proposals = new Map<number, Candidate>();
+  // Why a proposal was dropped, in the engine's own words (never the model's): the reply may still talk about
+  // a proposal, so the engine says under it that there is nothing to approve.
+  const dropped = new Map<number, string>();
   if (config.memoryProposals) {
     const date = today(new Date(deps.now?.() ?? Date.now()));
     for (const { reply } of replies) {
@@ -4809,12 +4812,14 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
       // The model's own field: anything but an object is no proposal, never an error that fails a run whose cost is spent.
       if (typeof proposed !== "object" || proposed === null || Array.isArray(proposed)) {
         deps.warn(`Memory proposal for thread ${reply.comment_id} dropped: it is not an object.`);
+        dropped.set(reply.comment_id, "the proposal was not in a usable shape");
         continue;
       }
       const fields = proposed as NonNullable<typeof reply.memory>;
       const latest = pending.find((t) => t.comment_id === reply.comment_id)?.replies.at(-1);
       if (latest?.author.toLowerCase() !== config.operator.trim().toLowerCase()) {
         deps.warn(`Memory proposal for thread ${reply.comment_id} dropped: the latest reply there is not the operator's.`);
+        dropped.set(reply.comment_id, "the latest reply in this thread is not the operator's");
         continue;
       }
       try {
@@ -4828,6 +4833,7 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
       } catch (error) {
         if (!(error instanceof UsageError)) throw error;
         deps.warn(`Memory proposal for thread ${reply.comment_id} dropped: ${error.message}`);
+        dropped.set(reply.comment_id, "the entry did not pass the checks for a memory entry (the run log says which)");
       }
     }
   }
@@ -4854,7 +4860,8 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
         ? `${receiptLine ? `\n\n${receiptLine}` : ""}\n\n${costLine({ modelLabel: deps.provider.modelLabel(), effort: config.effort, operation: "reply", extra: [`answers ${toPost.length} thread(s)`, prSoFar(prior, call.costUsd)], usage: call.usage, estimate: onSubscription(deps), costUsd: call.costUsd })}\n\n${SIGNATURE.auto}`
         : `\n\n<sub>this run $${call.costUsd.toFixed(2)} · ${prSoFar(prior, call.costUsd)}${estimateTail(onSubscription(deps))}</sub>`;
     const proposal = proposals.get(reply.comment_id);
-    const proposed = proposal ? `\n\n${renderProposal(proposal, config.mention)}` : "";
+    const why = dropped.get(reply.comment_id);
+    const proposed = proposal ? `\n\n${renderProposal(proposal, config.mention)}` : why ? `\n\nNo memory entry was proposed: ${why}, so there is nothing to approve.` : "";
     const body = `${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(reply.reply)}${proposed}${cost}\n\n${SIGNATURE.reply}`;
     if (config.dryRun) {
       deps.log(`--- reply to ${reply.comment_id}: ${label} ---\n${body}`);
