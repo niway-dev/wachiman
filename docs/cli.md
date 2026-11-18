@@ -1038,9 +1038,15 @@ Three things to know before you rely on it:
   was already reviewed shows a proposal. Without the caller above, a proposal can be shown but the
   approving comment records nothing; `wachiman memory propose <id>` on a laptop still works.
 
-The command is `wachiman memory remember <pr>`. It reads `REQUEST` (the comment), `WACHIMAN_COMMENT_AUTHOR`,
-`WACHIMAN_COMMENT_IN_REPLY_TO`, `WACHIMAN_OPERATOR`, `GH_TOKEN` and `GITHUB_REPOSITORY`, and uses the
-checkout `--repo-dir` points at. Exit 0 when the entry is recorded or already was, or when the comment was
+The command is `wachiman memory remember <pr>`. It requires `REQUEST` (the comment), `GH_TOKEN` and
+`GITHUB_REPOSITORY`; a missing one is a usage error. It also reads `WACHIMAN_COMMENT_AUTHOR` (the commenter's
+login; unset means nobody is trusted), `WACHIMAN_COMMENT_IN_REPLY_TO` (the id of the thread's first comment;
+unset or empty means the comment is not a reply, so nothing can be found and the exit is 1),
+`WACHIMAN_OPERATOR` (required: an empty or placeholder value is an error), `WACHIMAN_MENTION` (the command
+word, default `/wachiman`) and `WACHIMAN_DRY_RUN`, which the shared configuration reads along with the other
+`WACHIMAN_*` settings it validates ([configuration.md](configuration.md)). The commit needs a git identity:
+`GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL`, which the workflow
+sets to the Actions bot. It uses the checkout `--repo-dir` points at. Exit 0 when the entry is recorded or already was, or when the comment was
 not the operator's; exit 1 when it refused, wrote nothing, or recorded the entry without opening the draft
 pull request; exit 2 for a usage error such as a missing variable.
 
