@@ -17,7 +17,7 @@ It also differs from a history of past review results.
 ## Current boundary
 
 At the [collection baseline](README.md#status-and-maintenance), the [settings parser](../../src/repo-settings.ts)
-recognizes `kind`, `model` and `effort` in root `.wachiman.yml`. It does not implement a setting
+recognizes `kind`, `model`, `effort` and `paths` (the repository's path rules) in root `.wachiman.yml`. It does not implement a setting
 that points at a folder of review documents. The [review-policy guide](../review-policy.md)
 documents current instruction files. The proposed [repository policy](../adr/0006-repository-review-policy.md)
 and [learned-memory decision](../adr/0007-learned-memory-by-draft-pr.md) contain earlier designs;

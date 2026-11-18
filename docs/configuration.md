@@ -32,14 +32,14 @@ here makes a review approve, request changes or block a merge.
 | --- | --- | --- |
 | Caller workflow: `with:` and `secrets:` | The repository that installs Wachiman | Everything the [reusable workflow](#reusable-workflow) accepts. The workflow turns the inputs into `WACHIMAN_*` environment variables for the engine. |
 | Environment variables | Whoever runs the CLI directly, or a copied install | The [engine settings](#engine-settings) and [other variables](#other-environment-variables). Three of them (`DRY_RUN`, `EXCLUDE`, `PRICE_PER_MTOK`) have no reusable-workflow input. |
-| `.wachiman.yml` at the repository root | The repository | Only `model` and `effort` (plus the metadata `kind`), read from the base commit, and only where no input or variable set them. See [The settings file](#the-settings-file-wachimanyml). |
+| `.wachiman.yml` at the repository root | The repository | `model` and `effort` (read from the base commit, and only where no input or variable set them), `paths` (the repository's own path rules, always read from the base commit) and the metadata `kind`. See [The settings file](#the-settings-file-wachimanyml). |
 | Instruction files in the repository | The repository | What the reviewer is told to look for. They are not settings. See [Repository files](#repository-files). |
 
 Rules that hold everywhere:
 
 - Settings are read once, when the process starts. The only file that sets anything is
-  `.wachiman.yml` at the repository root, and only `model` and `effort`; it is read from the base
-  commit, so a pull request cannot change its own review through it. There is no per-directory
+  `.wachiman.yml` at the repository root, and only `model`, `effort` and `paths`; it is read from the
+  base commit, so a pull request cannot change its own review through it. There is no per-directory
   file and no per-pull-request override.
 - A pull request's title, body or comments cannot change a setting. The caller file can, and on
   `pull_request` events GitHub reads it from the pull request's own merge commit, so anyone who can
@@ -601,13 +601,20 @@ topics ([cli.md](cli.md#finding-labels)), change a budget, or turn off a check. 
 ### The settings file `.wachiman.yml`
 
 `wachiman init` writes `.wachiman.yml` at the repository root ([ADR 0048](adr/0048-a-repository-settings-file-at-the-root-wachiman-yml.md)).
-It takes three optional keys; unknown keys are ignored:
+It takes four optional keys; unknown keys are ignored:
 
 ```yaml
 kind: monorepo          # or single; metadata only, nothing reads it yet
 # Optional. Wachiman's defaults are what its benchmarks measure; change them knowing that.
 # model: claude-sonnet-5-5
 # effort: high
+paths:                  # optional: places a person should always look at, see "Path rules" below
+  - match: ".github/workflows/**"
+    severity: critical
+    reason: CI can publish releases and read secrets
+  - match: "src/billing/**"
+    severity: high
+    reason: charges customers
 ```
 
 - `kind` is metadata. It never chooses an account, a profile or a binary.
@@ -622,7 +629,9 @@ kind: monorepo          # or single; metadata only, nothing reads it yet
 - `model` applies to whichever provider runs. A Claude model name with `WACHIMAN_PROVIDER=codex`
   fails the same way a wrong `WACHIMAN_MODEL` would; set a model that fits the provider your
   workflow uses.
-- `init` does not ask for `model` or `effort`; a new file carries them commented out.
+- `paths` is a list of path rules; see [Path rules](#path-rules-paths) below.
+- `init` does not ask for `model` or `effort`; a new file carries them commented out, and a commented-out
+  `paths:` example.
 
 **Precedence, highest first:** an explicit workflow input or `WACHIMAN_MODEL` / `WACHIMAN_EFFORT`
 (an empty value counts as not set), then `.wachiman.yml`, then the built-in default. The workflow's
@@ -643,13 +652,83 @@ job log (Actions) or on stderr (local), and `(from .wachiman.yml)` after the mod
 the last line of a local terminal or Markdown report. The posted review footer is unchanged.
 `wachiman doctor` shows the file and where the effective model and effort come from.
 
+### Path rules (`paths`)
+
+A repository can name the places a person should always look at. The built-in path heuristic
+(`ipc`, `preload`, workflows and similar) stays as it is; a rule adds the maintainer's own say on top
+of it. The design is in the [path rules decision](adr/0058-path-rules-in-wachiman-yml-read-from-the-base-commit.md).
+
+```yaml
+paths:
+  - match: ".github/workflows/**"
+    severity: critical
+    reason: CI can publish releases and read secrets
+  - match: "src/billing/**"
+    severity: high
+    reason: charges customers
+```
+
+Each entry has three fields:
+
+| Field | Meaning |
+| --- | --- |
+| `match` | A glob with the syntax of the [exclude patterns](#excluded-files), matched against the repository-relative path of each changed file. |
+| `severity` | `critical`, `high` or `medium`. This set belongs to path rules; it is separate from the severities of findings, and a match is not a finding. |
+| `reason` | Non-empty text saying why the path matters. The review quotes it, and it is kept on one line. |
+
+Unknown keys inside an entry are ignored. A missing or empty `match`, an unknown `severity`, an empty
+`reason`, an entry that is not a mapping or a `paths` that is not a list is an error that names the
+entry (see "A broken file" below). An empty list is the same as no `paths`. When several rules match a
+file, the most severe wins; on a tie, the first in the file.
+
+**What a match changes:**
+
+- **Order.** A matched file is read before every file the heuristic ranks, `critical` before `high`
+  before `medium`, tests and documents included: the maintainer named the path. When a budget runs out,
+  the lower-ranked files are the ones left unread.
+- **The prompt.** The file's line in the batch's file list carries `path rule <severity> (<match>): <reason>`.
+- **The risk map.** The review lists the matched file with its rule and reason in place of the
+  heuristic's reason. For `critical` and `high` the line ends with "a person should approve this
+  change". That is advice: Wachiman never approves, requests changes or blocks a pull request.
+- **The level and the grade.** `critical` and `high` make the path level high, so the
+  [PR confidence grade](pr-confidence.md) is at most B; `medium` is a medium path and alone keeps
+  the grade at A. A matched file takes its level from its rule, not from the heuristic, so a rule can
+  also lower a file the heuristic scores high.
+- **The size gate.** A `critical` match does not lift the [size gate](costs.md#the-size-gate).
+  When the gate skips a run, its comment lists the changed files that match a `critical` rule, with
+  their reasons (up to 20), and says a person should read them. Nothing is sent to a model.
+
+**Where the rules are read from.** Always from the pull request's base commit in Actions, and from the
+merge-base (or `HEAD` for `--working-tree`) in `wachiman local`, never from the head, and whatever
+`model` and `effort` inputs say. So a pull request cannot remove its own path from the list. When a pull
+request edits `paths` (or the head copy of the file cannot be parsed, or the file is deleted from a base
+that had rules), the review says **Review policy changed**: it ran under the rules at the base commit,
+and the new rules apply after merge. For that review `.wachiman.yml` counts as a critical path, so it is
+read first, quoted with "a person should approve this change", and the risk level is high. A change of
+only `model`, `effort` or `kind` is not a policy change.
+
+**A broken file.** An invalid `paths` is ignored with the same warning as any other broken
+`.wachiman.yml`, and the run continues on the defaults, without rules.
+
+**Without `paths`,** ordering, prompts, risk maps and grades are unchanged from the built-in heuristic.
+
+**Out of scope.** Wachiman does not import CODEOWNERS or branch protection (ownership says who, not how
+dangerous). A rule cannot un-exclude a file: one dropped by the built-in exclude list or `WACHIMAN_EXCLUDE`
+stays dropped. A rule cannot set a model or an effort for its files.
+
+**Prior art.** The idea that some paths always need a person comes from the Claude Code team's account of
+its own review process, section
+[The life of a change](https://claude.dev/blog/solving-code-review-at-anthropic/#the-life-of-a-change)
+("Some paths always need a person"). It is inspiration, not an endorsement, and their results are not
+Wachiman results.
+
 ## Not configurable
 
 Each of these is a fixed behaviour of the engine at this release:
 
-- Anything in `.wachiman.yml` beyond `kind`, `model` and `effort` (every other setting stays an input or a variable): the verifier's model, budgets, an account, a profile or a binary are not read from it.
+- Anything in `.wachiman.yml` beyond `kind`, `model`, `effort` and `paths` (every other setting stays an input or a variable): the verifier's model, budgets, an account, a profile or a binary are not read from it.
 - A way to include a file that matches a built-in exclude pattern.
-- File risk scores and the order they produce.
+- The built-in file risk scores and the order they produce (a repository can only add [path rules](#path-rules-paths) over them).
 - The set of severities and topics.
 - The posted review event, which is always `COMMENT`.
 - A provider plugin system. The two adapters are built in.

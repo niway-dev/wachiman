@@ -671,9 +671,10 @@ What this page cannot promise, in the order a reader is most likely to rely on i
   verify that GitHub's file list was complete. Excluded files and files outside a requested scope
   are not part of "all files reviewed".
 - **Risk order is a path heuristic.** It decides which files are read first when money runs out.
-  The rules fit some layouts (`apps/*/src`, `ipc`, `preload`, `main`) better than others and are
-  not configurable per repository. The decision-record directory the prompt names, `docs/adr/`, is
-  fixed too ([#5](https://github.com/niway-dev/wachiman/issues/5)).
+  The built-in rules fit some layouts (`apps/*/src`, `ipc`, `preload`, `main`) better than others;
+  a repository can add its own through `paths` in `.wachiman.yml` (see
+  [Path rules](configuration.md#path-rules-paths)), which outrank them for the files they match. The
+  decision-record directory the prompt names, `docs/adr/`, is not configurable and is fixed too ([#5](https://github.com/niway-dev/wachiman/issues/5)).
 - **Spend caps are per call and soft.** Claude Code's cap can be overshot, Codex has no dollar cap
   (only a 15-minute timeout), a dry run still spends, and each run has its own total
   ([costs](costs.md)).

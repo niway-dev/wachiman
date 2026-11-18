@@ -167,8 +167,9 @@ which instruction files it read.
   `docs/adr/` directory at any depth. If your records live elsewhere, say so in the focus file so
   the model can find them; the notice for edits will not appear. This is
   [issue #5](https://github.com/niway-dev/wachiman/issues/5).
-- **Risk order and excluded files are not set here.** Which files are read first, and which are
-  dropped (lockfiles, build output, generated files), are fixed in the engine. The reusable
+- **Risk order and excluded files are not set here.** Risk order is the built-in heuristic plus the
+  `paths` rules of [`.wachiman.yml`](configuration.md#path-rules-paths). Which files are dropped
+  (lockfiles, build output, generated files) is fixed in the engine. The reusable
   workflow has no input for either. `WACHIMAN_EXCLUDE` adds exclusions only in the
   copy-the-files install; see [configuration.md](configuration.md) and
   [setup-copy.md](setup-copy.md).

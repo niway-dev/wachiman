@@ -430,8 +430,8 @@ export function fileKind(path: string): FileKind {
 
 /**
  * Path rules for `riskScore`. These are defaults taken from the first consumer (`ipc`, `preload`,
- * `main`, `apps/<name>/src`) and are the owner's to tune; per-repository configuration is planned
- * (https://github.com/niway-dev/wachiman/issues/5).
+ * `main`, `apps/<name>/src`) and are the owner's to tune. A repository adds its own through `paths`
+ * in `.wachiman.yml` (`matchPathRule`), which outranks these weights for the files it matches.
  * The highest matching weight wins. A test or a document scores its kind's weight whatever its
  * path, so `ipc/foo.test.ts` does not outrank the IPC code it tests.
  */

@@ -32,6 +32,16 @@ export const settingsContent = (kind: ProjectKind) =>
     "# model: claude-sonnet-5-5",
     "# effort: high",
     "",
+    "# Optional. Path rules: files a rule matches are read first, the review quotes your reason, and for",
+    "# critical and high it says a person should approve the change. Wachiman never approves or blocks.",
+    "# Rules are read from the base branch, so a pull request cannot change its own rules.",
+    "# Inspired by the Claude Code team's review process:",
+    "# https://claude.dev/blog/solving-code-review-at-anthropic/#the-life-of-a-change",
+    "# paths:",
+    '#   - match: ".github/workflows/**"',
+    "#     severity: critical",
+    "#     reason: CI can publish releases and read secrets",
+    "",
   ].join("\n");
 
 /** The value of the top-level `kind:` line (quotes and a trailing comment removed), or undefined when there is none. */

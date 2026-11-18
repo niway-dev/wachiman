@@ -18,8 +18,20 @@ describe("parseRepoSettings", () => {
     expect(parseRepoSettings("model:\neffort:\n")).toEqual({});
   });
 
-  test("the file `init` writes parses to its kind only: model and effort are commented out", () => {
+  test("the file `init` writes parses to its kind only: model, effort and paths are commented out", () => {
     expect(parseRepoSettings(settingsContent("single"))).toEqual({ kind: "single" });
+  });
+
+  test("the commented-out paths example in the file `init` writes is a valid rule once uncommented", () => {
+    const content = settingsContent("single");
+    expect(content).toContain("https://claude.dev/blog/solving-code-review-at-anthropic/#the-life-of-a-change");
+    const uncommented = content
+      .split("\n")
+      .map((l) => (/^#\s*(paths:|  - match|    severity|    reason)/.test(l) ? l.replace(/^#\s?/, "") : l))
+      .join("\n");
+    expect(parseRepoSettings(uncommented).paths).toEqual([
+      { match: ".github/workflows/**", severity: "critical", reason: "CI can publish releases and read secrets" },
+    ]);
   });
 
   test.each([
