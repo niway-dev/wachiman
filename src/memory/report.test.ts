@@ -129,6 +129,14 @@ describe("buildReport", () => {
     expect(report.neverUsed.map((e) => e.id).sort()).toEqual([IDLE.id, IDLE_CONVENTION.id, USED_CONVENTION.id].sort());
   });
 
+  test("memory lines is the period's last run's value, null when that run recorded none", () => {
+    const all = runs();
+    delete (all[1].result as unknown as { memory?: unknown }).memory;
+    const report = buildReport({ runs: all, verdicts: VERDICTS, files: FILES, used: USED });
+    expect(report.periods.map((p) => p.memoryLoadedLines)).toEqual([30, null]);
+    expect(report.total.memoryLoadedLines).toBeNull();
+  });
+
   test("a repository with no memory folder reports zero size and nothing never used", () => {
     const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: undefined, used: USED });
     expect(report.memory).toEqual({ present: false, files: 0, entries: 0, lines: 0 });

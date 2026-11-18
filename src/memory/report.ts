@@ -114,10 +114,10 @@ export function buildReport(input: ReportInput): MemoryReport {
         target.muted.byEntry[m.entry] = (target.muted.byEntry[m.entry] ?? 0) + 1;
       }
     }
-    if (run.result.memory) {
-      p.memoryLoadedLines = run.result.memory.budget.loadedLines;
-      total.memoryLoadedLines = run.result.memory.budget.loadedLines;
-    }
+    // The last run wins, and a run that recorded no memory resets the value to null instead of keeping an earlier run's.
+    const loaded = run.result.memory ? run.result.memory.budget.loadedLines : null;
+    p.memoryLoadedLines = loaded;
+    total.memoryLoadedLines = loaded;
   }
 
   // archive.md is never loaded into a review, so it is not live memory: it is left out of the size and the never-used list.
