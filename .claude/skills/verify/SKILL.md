@@ -41,3 +41,28 @@ claim merge readiness without the independent review and current-head CI.
 
 Shell suggestions are parsed with a real POSIX shell by the command tests without invoking
 Wachiman. Generated PowerShell strings do not establish native Windows validation.
+
+## Review comment format and user-facing Markdown: before and after
+
+Any change to what a reader sees on GitHub (the review body, an inline finding, a notice, a
+published document) carries a before/after capture in its pull request. Internal documents that no
+end user reads do not need one.
+
+1. Write a manifest under `.evidence/<topic>/manifest.json`: one scenario per state the change
+   touches, each with a `before` and an `after` source. Before is what is posted today (a real
+   comment by id) or the file at the merge base; after is the new output: a golden file, the
+   engine's output for a fixture, or the spec's example at the design head. Use the same data on
+   both sides; when a template has a placeholder, `fill` it with the posted text. The script's
+   header documents every source type.
+2. `bun .claude/skills/verify/scripts/before-after.ts .evidence/<topic>/manifest.json --out .evidence/<topic> --png`.
+   GitHub's own Markdown endpoint renders both sides, so a table, a `<details>` or a `<sub>` line
+   looks as it will on the pull request. It writes `index.html` (side by side or stacked, dark or
+   light, and a button that copies the Evidence table) and `<id>-before.png` / `<id>-after.png`.
+   The text goes to api.github.com: only public text, never local review data.
+3. Look at every PNG before using it. Then put the copied table in the pull request body and
+   attach the images: `gh pr edit <n> --attach '<file>#<alt>'` for each, which rewrites the
+   `./<file>.png` references in place. The images are never committed.
+4. Each caption says where its side came from (a posted comment and its date, or a file at a
+   commit). A capture proves how GitHub renders that Markdown, not that the engine produces it:
+   until the engine emits the new format, the after side is the spec's example, and the Evidence
+   row says so.
