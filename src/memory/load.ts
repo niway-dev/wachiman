@@ -65,7 +65,7 @@ export const memoryRecord = ({ entries: _entries, ...record }: MemoryLoad): Memo
 const WILDCARD = /[*?[\]{}!]/;
 
 /** The globs of a `scope` or an index row: one, or several separated by commas. */
-const globsOf = (scope: string) => scope.split(",").map((g) => g.trim()).filter(Boolean);
+export const globsOf = (scope: string) => scope.split(",").map((g) => g.trim()).filter(Boolean);
 
 /** Whether `path` is matched by any glob of `scope`. */
 export function matchesGlob(scope: string, path: string): boolean {

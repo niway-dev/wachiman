@@ -188,6 +188,82 @@
     "summary": {
       "type": "string"
     },
+    "memory": {
+      "description": "The repository's memory this review loaded (ADR 0056): the base commit it was read at, the files loaded in load order, the area files left out for lack of room and whether the memory was over budget. Absent when the repository has no .wachiman/memory/ folder. Only version 2 has it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "files",
+        "leftOut",
+        "overBudget",
+        "indexOverBudget",
+        "budget"
+      ],
+      "properties": {
+        "revision": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "lines"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "lines": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "truncated": {
+                "const": true
+              }
+            }
+          }
+        },
+        "leftOut": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "overBudget": {
+          "type": "boolean"
+        },
+        "indexOverBudget": {
+          "type": "boolean"
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "maxIndexLines",
+            "maxLoadedLines",
+            "loadedLines"
+          ],
+          "properties": {
+            "maxIndexLines": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "maxLoadedLines": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "loadedLines": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
     "riskMap": {
       "description": "The risk map (ADR 0031): the level, the checked facts and judgement items behind it, the files to read first. Only version 2 has it.",
       "type": "object",

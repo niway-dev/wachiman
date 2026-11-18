@@ -18,6 +18,7 @@ import {
   buildLocalInput,
   DEFAULT_MAX_DEPTH,
   EMPTY_TREE_LABEL,
+  localMemory,
   localRepoSettings,
   localSettingsCommit,
   type LocalRefs,
@@ -572,7 +573,9 @@ export async function runLocal(
         : "verify: off",
     );
 
-    const result = await reviewChange(input, reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), {
+    // The memory of the commit the diff starts at (the merge-base), selected by the files this run reviews (ADR 0056).
+    const memory = localMemory(repoDir, input.change.base.sha, kept.map((f) => f.filename), io.stderr);
+    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}) }, {
       provider,
       ...(verifier ? { verifier } : {}),
       // The verifier reads the code before the change too; made once, only when there is something to check.
