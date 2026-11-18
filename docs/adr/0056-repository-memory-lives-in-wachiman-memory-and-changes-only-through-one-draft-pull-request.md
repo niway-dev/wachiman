@@ -69,7 +69,10 @@ Actions; the memory must not fill with garbage.
     read from the base commit like `model` and `effort`
     ([ADR 0049](0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md)). A value
     that is not a positive whole number is ignored with a notice and the default applies. The
-    only one that changes spend is `max_loaded_lines`, which bounds prompt size.
+    only one that changes spend is `max_loaded_lines`, which sets prompt size. ADR 0049 lists
+    further spend settings in this file as a non-goal; this is the one exception, and the engine
+    clamps the value to a fixed ceiling so a pull request merged to the base cannot raise the
+    bill without limit.
 
 ## Alternatives rejected
 

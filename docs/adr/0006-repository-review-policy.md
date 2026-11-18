@@ -3,7 +3,8 @@
 - **Status:** proposed 2026-10-30. The policy folder, `wachi.yml` and severity overrides are not
   implemented. The `learned/` location is superseded by
   [ADR 0056](0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md),
-  proposed 2026-11-18: memory lives in `.wachiman/memory/`. Its prerequisite #10 is fixed on `main`: the engine reads the focus file,
+  proposed 2026-11-18: memory lives in `.wachiman/memory/`, and an `exception` entry may mute a
+  Consider or Info finding, which narrows the rule here that a learned lesson has no authority. Its prerequisite #10 is fixed on `main`: the engine reads the focus file,
   `CLAUDE.md` and `AGENTS.md` from the pull request's base commit (`readBaseInstructions`), but
   from `base.sha`, not the merge-base of decision 3.
 - **Date:** 2026-10-30
