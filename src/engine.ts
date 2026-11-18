@@ -1749,7 +1749,7 @@ export function readBasePathRules(gh: GhFn, repo: string, sha: string, warn: (li
 
 /**
  * Whether the pull request's head `.wachiman.yml` sets different path rules than the base's
- * (`baseRules`), read from the contents API at the head sha (ADR 0058 decision 4). Only to tell
+ * (`baseRules`), read from the contents API at the head sha (ADR 0058 decision 5). Only to tell
  * the author and the reader: the head's rules are never applied. A head copy that is gone and had
  * no base rules is no change; one that cannot be parsed, or is over the size limit, is.
  */

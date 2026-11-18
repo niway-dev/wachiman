@@ -82,7 +82,7 @@ export interface ReviewInput {
   /**
    * The change edits the path rules (or `.wachiman.yml` no longer parses), so `pathRules` also
    * holds the rule that makes `.wachiman.yml` a critical path for this review, and the review says
-   * its policy changed (ADR 0058 decision 4). Set by the connector; absent otherwise.
+   * its policy changed (ADR 0058 decision 5). Set by the connector; absent otherwise.
    */
   pathPolicyChanged?: true;
 }

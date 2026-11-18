@@ -110,7 +110,7 @@ function matchOne(path: string, rules: readonly PathRule[] | undefined): PathRul
 /**
  * The rule a pull request that edits the path rules is reviewed under, added to the base's rules
  * for that review only and never written anywhere: the file that sets the review's policy is read
- * first and a person decides on it (ADR 0058 decision 4).
+ * first and a person decides on it (ADR 0058 decision 5).
  */
 export const POLICY_EDIT_RULE: PathRule = { match: SETTINGS_PATH, severity: "critical", reason: "edits the review's path rules" };
 

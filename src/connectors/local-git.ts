@@ -417,7 +417,7 @@ export function localPathRules(repoDir: string, sha: string, where: string, warn
 }
 
 /**
- * The path rules a local review applies and whether the change edits them (ADR 0058 decision 4).
+ * The path rules a local review applies and whether the change edits them (ADR 0058 decision 5).
  * `readHead` returns the head's `.wachiman.yml` bytes, or null when the head has none: the head
  * commit's blob, or the snapshot's file for a working-tree review. They are compared with the
  * base's (`baseRules`) only to tell the reader; the head's rules are never applied. When the change
