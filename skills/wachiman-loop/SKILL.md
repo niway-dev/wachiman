@@ -78,6 +78,43 @@ Tell the developer, in this order:
    changing, not proved.
 4. The `notes[]`, one line each, as optional.
 
+## Ask the owner, and memory
+
+Fix the mechanical findings like any other. Two cases need the owner.
+
+**A finding whose fix depends on intent.** If the right fix depends on what the owner wants (which
+behaviour is intended, which value is correct), do not guess. Fix the rest, commit, call the loop
+again, then ask the owner in one message: the finding (`id`, `path`, `line`), what you would do,
+and why you are asking. Leave it open until they answer.
+
+**Repository memory.** Memory holds rules that a later review should apply, or should stop
+reporting. Change it only with the owner's yes. Start this when `wachiman loop --format json`
+lists `memoryCandidates`, or when the owner says a finding should not come back:
+
+1. Draft the entry yourself, from the code and what the owner meant. Do not copy the owner's
+   words as the rule.
+2. Record it. `memory add` prints the id:
+
+   ```sh
+   wachiman memory add --kind convention|exception --scope "<glob>" --rule "<what to do, or what not to report>" --why "<the reason, in your words>" --agent --repo-dir <clone>
+   ```
+
+   The default `--source instruction` records the owner's instruction. For a finding of the loop,
+   `--finding <id> --source judged` (a `wrong` verdict with a reason) or `--source fixed` (a
+   convention the loop marked probably fixed) ties the entry to the loop's history instead.
+3. Show the owner the exact text: `wachiman memory show <id> --repo-dir <clone>`. Ask whether to
+   propose it, and say why. Do not paraphrase the text you show.
+4. Only on a yes, run `wachiman memory propose <id> --repo-dir <clone>`. It opens a draft pull
+   request for a person to merge. On a no, stop; the candidate stays on this laptop.
+
+Never propose without the owner's yes.
+
+**What belongs in memory.** Belongs: how code is written here (readable before terse), what a test
+must have, how documents and ADRs are kept, behaviour that is intentional and looks like a bug.
+Does not belong: the details of one feature, a one-time exception, the temporary state of a
+migration, anything a formatter or linter can enforce, anything already in a hand-written
+instruction file. If an entry is in doubt, do not add it; tell the owner instead.
+
 ## Never
 
 | Tempting | Instead |
@@ -89,3 +126,5 @@ Tell the developer, in this order:
 | Running with `ANTHROPIC_API_KEY` set | `env -u ANTHROPIC_API_KEY wachiman loop ...`; the subscription pays |
 | Editing files under `~/.wachiman` to reset or close a loop | `--base <ref>` starts a new loop |
 | Claiming the branch is approved or safe | Report the outcome and its limits |
+| Copying the owner's reply into a memory rule | Draft the rule, show `memory show <id>`, and ask |
+| Running `memory propose` without the owner's yes | Ask first; it opens a pull request |
