@@ -672,7 +672,7 @@ Each entry has three fields:
 
 | Field | Meaning |
 | --- | --- |
-| `match` | A glob with the syntax of the [exclude patterns](#excluded-files), matched against the repository-relative path of each changed file. A renamed file is matched on its old and its new path; the more severe rule applies. |
+| `match` | A glob with the syntax of the [exclude patterns](#excluded-files), matched against the repository-relative path of each changed file. A renamed file is matched on its old and its new path; the more severe rule applies. A directory needs `/**`: `src/billing` and `src/billing/` match no file, while `src/billing/**` matches every file under it. |
 | `severity` | `critical`, `high` or `medium`. This set belongs to path rules; it is separate from the severities of findings, and a match is not a finding. |
 | `reason` | Non-empty text saying why the path matters. The review quotes it, and it is kept on one line. |
 
