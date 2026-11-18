@@ -56,7 +56,6 @@ import { parseSkillsArgs, runSkills } from "./skills/install";
 import { runPrTemplate } from "./pr-template/run";
 import { parseUpgradeArgs, runUpgrade } from "./upgrade/command";
 import { parseDoctorArgs, runDoctor } from "./doctor/run";
-import { parseInitFlags } from "./init/args";
 import { ghLogin } from "./init/github-login";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
 import { projectCommands } from "./wizard/command";
@@ -64,7 +63,8 @@ import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
-import { runInitCommand } from "./init/run";
+import { failureDocument, printDocument } from "./init/json";
+import { runInitFromArgv } from "./init/run";
 import { runSetupCommand } from "./setup/run";
 import { commandHelp, helpFor, isCommand, rootHelp } from "./help";
 import { shouldLaunch } from "./wizard/interactive";
@@ -107,6 +107,16 @@ export function extractRepoDir(argv: string[]) {
     throw new UsageError(`--repo-dir ${repoDir} is not a directory.`);
   }
   return { repoDir, rest };
+}
+
+/** The `--repo-dir` the caller typed, resolved to an absolute path; the working directory when there is none. Never throws: it only reads the arguments. */
+export function requestedRepoDir(argv: string[]): string {
+  let value: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--repo-dir") value = argv[++i];
+    else if (argv[i].startsWith("--repo-dir=")) value = argv[i].slice("--repo-dir=".length);
+  }
+  return resolve(value || ".");
 }
 
 /**
@@ -199,9 +209,8 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
     if (flags.help) return (io.stdout(commandHelp(["setup"])!), 0);
     return runSetupCommand(flags, env, io, { doctor: { version } });
   }
-  const flags = parseInitFlags(args, repoDir);
-  if (flags.help) return (io.stdout(commandHelp(["init"])!), 0);
-  return runInitCommand(flags, env, io, {
+  if (args.includes("--help") || args.includes("-h")) return (io.stdout(commandHelp(["init"])!), 0);
+  return runInitFromArgv(args, repoDir, env, io, {
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
     githubLogin: ghLogin,
@@ -458,6 +467,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
     return 0;
   } catch (error) {
     if (error instanceof UsageError || error instanceof UnknownProviderError) {
+      // `init --json` promises one document on stdout even when the arguments fail before init runs (a bad --repo-dir).
+      if (mode === "init" && argv.includes("--json")) {
+        printDocument((text) => writeAll(1, text), failureDocument({ mode: null, dryRun: argv.includes("--dry-run"), repoDir: requestedRepoDir(argv), report: {}, code: "usage", message: error.message }));
+        return 2;
+      }
       return usageError(error.message, mode);
     }
     if (error instanceof SpendLimitReached) {

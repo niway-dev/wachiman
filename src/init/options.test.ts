@@ -51,9 +51,14 @@ describe("resolveInitOptions: modes", () => {
     [{ version: "v1.5.0" }, "--version"],
     [{ path: ".github/workflows/x.yml" }, "--path"],
     [{ force: true }, "--force"],
-    [{ dryRun: true }, "--dry-run"],
   ] as [RawInitFlags, string][])("local mode refuses the github-only flag %#", (extra, flag) => {
     expect(error({ mode: "local", ...extra })).toContain(flag);
+  });
+
+  test("local mode accepts --dry-run: it previews .wachiman.yml and the PR template and writes nothing", () => {
+    const o = ok({ mode: "local", dryRun: true });
+    expect(o.dryRun).toBe(true);
+    expect(o.github).toBeUndefined();
   });
 
   test("--yes does not change what is resolved; interactive is carried through", () => {

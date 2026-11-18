@@ -3,14 +3,14 @@ import { parseFlags } from "../flags";
 import type { RawInitFlags } from "./options";
 
 export const initUsage =
-  "wachiman init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] [--force] [--dry-run] [--pr-template | --no-pr-template] [--yes] [--repo-dir <dir>]";
+  "wachiman init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] [--force] [--dry-run] [--pr-template | --no-pr-template] [--yes] [--json] [--repo-dir <dir>]";
 
 /** The arguments after `init` (`--repo-dir` is already taken out and arrives as `repoDir`). Pure; an unknown flag is a usage error. */
 export function parseInitFlags(argv: string[], repoDir: string): RawInitFlags {
   if (argv.includes("--help") || argv.includes("-h")) return { help: true, repoDir };
   const { positionals, values, booleans } = parseFlags(
     argv,
-    { values: ["--mode", "--project-kind", "--operator", "--version", "--path"], booleans: ["--force", "--dry-run", "--yes", "--pr-template", "--no-pr-template"] },
+    { values: ["--mode", "--project-kind", "--operator", "--version", "--path"], booleans: ["--force", "--dry-run", "--yes", "--json", "--pr-template", "--no-pr-template"] },
     "init",
   );
   if (positionals.length > 0) throw new UsageError(`init takes no argument "${positionals[0]}".`);
@@ -24,6 +24,7 @@ export function parseInitFlags(argv: string[], repoDir: string): RawInitFlags {
     ...(booleans["--force"] ? { force: true } : {}),
     ...(booleans["--dry-run"] ? { dryRun: true } : {}),
     ...(booleans["--yes"] ? { yes: true } : {}),
+    ...(booleans["--json"] ? { json: true } : {}),
     ...(booleans["--pr-template"] ? { prTemplate: true } : booleans["--no-pr-template"] ? { prTemplate: false } : {}),
     repoDir,
   };

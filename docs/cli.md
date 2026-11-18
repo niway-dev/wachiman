@@ -7,6 +7,9 @@ workflow both run exactly this; anything else that wants to drive a review can t
 it reads is listed in [configuration.md](configuration.md); this page covers the commands, what
 they post and how they exit.
 
+A coding agent that installs or maintains Wachiman for a person reads [agents.md](agents.md) first: it
+maps each wizard question to a flag and shows the non-interactive command sequence.
+
 ```sh
 bun src/cli.ts review <pr> [paths…] [--repo-dir <dir>]
 bun src/cli.ts comment <pr> [--repo-dir <dir>]   # the comment text comes from $REQUEST
@@ -15,7 +18,7 @@ bun src/cli.ts local [paths…] [--base <ref> | --from <commit> | --commit <comm
   [--format terminal|markdown|json] [--output <file>] [--profile default|isolated[:<name>]] [--agent-prompt]
 bun src/cli.ts setup [--profile <name>] [--repo-dir <dir>] [--yes] [--json]
 bun src/cli.ts init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
-  [--force] [--dry-run] [--yes] [--repo-dir <dir>]
+  [--force] [--dry-run] [--yes] [--json] [--repo-dir <dir>]
 bun src/cli.ts doctor [--json] [--profile <name> | --all-profiles] [--repo-dir <dir>] [--redact-paths]
 bun src/cli.ts profile list|create|add|login|remove|default ...
 bun src/cli.ts project show|unbind ...
@@ -439,7 +442,7 @@ listed, never described as undone.
 
 ```sh
 wachiman init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
-  [--force] [--dry-run] [--pr-template | --no-pr-template] [--yes] [--repo-dir <dir>]
+  [--force] [--dry-run] [--pr-template | --no-pr-template] [--yes] [--json] [--repo-dir <dir>]
 ```
 
 First-time setup of a repository. `--mode github` writes the maintained caller workflow
@@ -464,7 +467,7 @@ changed. A new file holds two comment lines, `kind: monorepo` (or `single`), and
 leaves it untouched (`.wachiman.yml already says kind: X.`); a different or missing `kind:`
 line is replaced or appended, every other line kept, after a confirmation on a terminal or with
 `--force` without one. `--dry-run` never writes it and prints `would write .wachiman.yml
-(kind: X)` on stderr. Init does not commit it: the closing steps say to add it with the workflow
+(kind: X)` on stderr, in every mode. Init does not commit it: the closing steps say to add it with the workflow
 (`local` mode: to commit it).
 
 The Git worktree is validated before questions. Interactive stages identify the project, project
@@ -510,14 +513,44 @@ command that binds the repository later.
 | `--version <tag>` | `vX.Y.Z` or a 40-character commit SHA, written after `review.yml@`. Default: the release tag bundled in this build (`DEFAULT_WORKFLOW_REF`, moved by release-please at each release commit); the CLI's own version is never used as a tag |
 | `--path <file>` | Default `.github/workflows/wachiman-review.yml`, relative to the repository top level (also when run from a subdirectory); a `.yml` or `.yaml` file directly in `.github/workflows/` |
 | `--force` | Replaces an existing workflow after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it, an existing file that differs is exit 2 (one that is identical is reported unchanged). With `--project-kind` it also lets a run without a terminal change a different `kind:` in `.wachiman.yml` (no backup; only that line changes), and it is accepted in `--mode local` for that |
-| `--dry-run` | Prints the rendered file to stdout and writes nothing |
+| `--dry-run` | Writes nothing. With `--mode github` or `both` it prints the rendered workflow to stdout. With `--mode local` there is no workflow: it reports on stderr that it would write `.wachiman.yml` (when `--project-kind` is given) and that `--pr-template` would install the template, and exits 0. With neither flag it prints `dry run: nothing would be written` and the `setup` command to run next, on stderr. It writes nothing in the repository or in the Wachiman home |
 | `--pr-template` / `--no-pr-template` | Also install the [PR description template](pr-template.md) (`wachiman pr-template install`, files only, no commit), in any mode; or do not. On a terminal, without either flag, `init` asks (default yes); a script that gives neither gets no template. A refusal (a hand-edited template, an invalid `.github/pr-template.json`) is reported and does not fail the rest of `init`. `--dry-run` installs nothing |
 | `--yes` | No prompts |
+| `--json` | Never prompts, even on a terminal, and prints exactly one `wachiman.init/1` document on stdout (see [below](#init---json)). Every human status line goes to stderr. A missing `--mode` or `--operator` is a usage error printed as that document, exit 2 |
 
-`--mode local` with `--operator`, `--version`, `--path`, `--force` (unless a kind is given with `--project-kind` or answered on a terminal) or `--dry-run` is exit 2. A
+`--mode local` with `--operator`, `--version`, `--path` or `--force` (unless a kind is given with `--project-kind` or answered on a terminal) is exit 2; `--dry-run` is allowed. A
 `.github`, `workflows` or target that is a symbolic link is refused. On a terminal the file is
 previewed on stderr and `Write it?` is asked first; Escape, Ctrl-C or Ctrl-D exit 130 and write
 nothing.
+
+#### `init --json`
+
+`--json` is for a program, such as a coding agent, that runs `init` and reads the result. It never
+asks a question: a missing answer is a usage error, not a prompt. Stdout holds one document, for a
+result and for a failure, and nothing else; the status lines (`wrote ...`, the next steps) go to
+stderr. The exit codes are the same as without `--json`.
+
+```json
+{
+  "format": "wachiman.init/1",
+  "ok": true,
+  "mode": "both",
+  "dryRun": false,
+  "repoDir": "/path/to/repo",
+  "files": [
+    { "path": ".github/workflows/wachiman-review.yml", "action": "created" },
+    { "path": ".wachiman.yml", "action": "unchanged" }
+  ],
+  "local": { "status": "pending", "pending": ["wachiman setup --profile <name> --yes --repo-dir /path/to/repo"] },
+  "github": { "status": "pending", "pending": ["add ANTHROPIC_API_KEY secret", "commit and open a PR"] },
+  "error": null
+}
+```
+
+- `files` lists each file `init` considered, relative to the repository top level, in this order: the workflow, `.wachiman.yml`, the PR description template (and `.github/pr-template.json` when it was written). `action` is `created`, `replaced`, `unchanged`, `would-create`, `would-replace` (the last two only with `--dry-run`) or `refused`. A dry run reports `ok: true` and exits 0 even when a file is `refused`. A refused workflow or `.wachiman.yml` (one that differs, without `--force`) means the real run would stop with exit 2; a refused PR template is reported and the real run continues. `backup` names where the earlier file was kept. In a dry run, the rendered workflow is in that entry's `content`.
+- `local.status` and `github.status` are `pending` or `not-used`: `init` alone never makes either side ready. `not-used` means the mode does not include it. `init` never binds an account without a terminal, so `local` is `pending` for `local` and `both`, with the exact `wachiman setup` command to run (replace `<name>` with a profile). `github` is `pending` for `github` and `both`: `init` neither checks nor creates the secret and never commits, pushes or opens a pull request.
+- On a usage error, `ok` is `false`, `error` is `{ "code": "usage", "message": "..." }`, `files` lists what was already written or refused (empty when nothing was), and the exit code is 2. Any other failure has `"code": "failed"` and exit 1. When `--repo-dir` itself is the problem, `repoDir` is that value resolved to an absolute path.
+- Running the same `init --json` again reports every file `unchanged` and leaves the repository as it was.
 
 ### Interactive launcher and intro
 
