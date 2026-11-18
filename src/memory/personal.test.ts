@@ -3,14 +3,15 @@
  * the URL of `origin`. Every Wachiman home here is a temporary directory; nothing touches a network.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { emptyRepo, git, commit, removeTempRepos } from "../../test/support/temp-repo";
 import { parseMemoryFile } from "./entries";
 import { runMemory } from "./command";
 import { repositoryKey } from "../history/store";
-import { personalMemoryDir, personalMemorySource, writeMemoryChoice } from "./personal";
+import { personalMemoryDir, personalMemorySource, readPersonalFiles, writeMemoryChoice } from "./personal";
+import { teamHasMemory } from "./propose";
 
 const temps: string[] = [];
 const temp = (prefix: string) => {
@@ -159,8 +160,10 @@ describe("memory propose --personal", () => {
     expect(git(dir, "for-each-ref")).toBe(refsBefore);
     expect(git(dir, "status", "--porcelain")).toBe("");
     expect(existsSync(join(dir, ".wachiman"))).toBe(false);
-    // The candidate is marked as proposed.
-    expect(run("candidates").stdout).toContain("proposed 2026-11-18");
+    // The candidate is marked as kept personally, never as proposed to the team.
+    const listed = run("candidates").stdout;
+    expect(listed).toContain("personal 2026-11-18");
+    expect(listed).not.toContain("proposed 2026-11-18");
   });
 
   test("proposing the same entry twice writes it once and only adds the new evidence", () => {
@@ -407,5 +410,127 @@ describe("memory propose --from-personal", () => {
     const run = cli(dir, temp("wachiman-home-"));
     expect(run("propose", "--from-personal", "--personal").code).toBe(2);
     expect(run("propose", "--from-personal", "--team").code).toBe(2);
+  });
+});
+
+describe("teamHasMemory against a real origin", () => {
+  function origin(files: Record<string, string>) {
+    const bare = temp("wachiman-origin-");
+    git(bare, "init", "-q", "--bare", "-b", "main");
+    const seed = emptyRepo("wachiman-seed-");
+    commit(seed, files, "seed");
+    git(seed, "remote", "add", "origin", bare);
+    git(seed, "push", "-q", "origin", "main");
+    const parent = temp("wachiman-dev-");
+    git(parent, "clone", "-q", bare, "repo");
+    return join(parent, "repo");
+  }
+
+  test("a default branch whose .wachiman/memory/ holds only index.md has memory", () => {
+    expect(teamHasMemory(origin({ "src/a.ts": "a\n", ".wachiman/memory/index.md": "# Memory\n" }))).toBe(true);
+  });
+
+  test("a default branch with no .wachiman/memory/ has none", () => {
+    expect(teamHasMemory(origin({ "src/a.ts": "a\n" }))).toBe(false);
+  });
+
+  test("a file named like the folder is not memory", () => {
+    expect(teamHasMemory(origin({ ".wachiman/memory": "not a folder\n" }))).toBe(false);
+  });
+
+  test("an unreachable origin is unknown, not false", () => {
+    expect(teamHasMemory(repoWithOrigin("/nonexistent/origin.git"))).toBeUndefined();
+  });
+});
+
+describe("first-propose routing branches", () => {
+  const setup = () => {
+    const dir = repoWithOrigin();
+    const home = temp("wachiman-home-");
+    const key = repositoryKey(dir).key;
+    const probes: number[] = [];
+    const probe = (answer: boolean | undefined) => () => (probes.push(1), answer);
+    const add = (run: ReturnType<typeof cli>, rule: string) => run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+    const noAsk = { ask: () => { throw new Error("must not ask"); } };
+    return { dir, home, key, probes, probe, add, noAsk };
+  };
+
+  test("a stored team answer never probes the network and goes to the team", () => {
+    const t = setup();
+    writeMemoryChoice(t.home, t.key, "team", new Date("2026-11-01T00:00:00Z"));
+    const pulls = { list: () => [], createDraft: () => "https://example.test/pr/1" };
+    const run = cli(t.dir, t.home, { teamMemory: t.probe(false), pulls }, t.noAsk);
+    const r = run("propose", t.add(run, "Prefer named exports."));
+    expect(t.probes).toHaveLength(0);
+    expect(r.stdout).not.toContain("in your personal memory");
+  });
+
+  test("an explicit flag never probes the network", () => {
+    const t = setup();
+    const run = cli(t.dir, t.home, { teamMemory: t.probe(true) }, t.noAsk);
+    expect(run("propose", t.add(run, "Prefer named exports."), "--personal").code).toBe(0);
+    expect(t.probes).toHaveLength(0);
+  });
+
+  test("a stored personal answer holds when the team state is unknown, without a line about the team", () => {
+    const t = setup();
+    writeMemoryChoice(t.home, t.key, "personal", new Date("2026-11-01T00:00:00Z"));
+    const run = cli(t.dir, t.home, { teamMemory: t.probe(undefined) }, t.noAsk);
+    const r = run("propose", t.add(run, "Prefer named exports."));
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("in your personal memory");
+    expect(r.stdout).not.toContain("now has .wachiman/memory/");
+  });
+
+  test("with no stored answer and an unknown team state it does not ask and takes the team path", () => {
+    const t = setup();
+    const run = cli(t.dir, t.home, { teamMemory: t.probe(undefined) }, t.noAsk);
+    const r = run("propose", t.add(run, "Prefer named exports."));
+    expect(r.stdout).not.toContain("in your personal memory");
+    expect(existsSync(join(t.home, "memory-choice"))).toBe(false);
+  });
+
+  test("a personal write keeps the entry proposable to the team", () => {
+    const t = setup();
+    const run = cli(t.dir, t.home);
+    const id = t.add(run, "Prefer named exports.");
+    run("propose", id, "--personal");
+    const json = JSON.parse(run("candidates", "--format", "json").stdout);
+    expect(json.candidates[0]).toMatchObject({ id, proposable: true, personal: "2026-11-18T10:00:00.000Z" });
+    expect(json.candidates[0].proposed).toBeUndefined();
+  });
+});
+
+describe("the personal folder reader", () => {
+  test("without a warn callback an unreadable file throws, so a write never starts from a partial picture", () => {
+    if (process.getuid?.() === 0) return;
+    const dir = temp("wachiman-pm-");
+    writeFileSync(join(dir, "locked.md"), "x\n");
+    chmodSync(join(dir, "locked.md"), 0o000);
+    expect(() => readPersonalFiles(dir)).toThrow();
+  });
+
+  test("a symbolic link and a hidden file are not memory", () => {
+    const dir = temp("wachiman-pm-");
+    const outside = temp("wachiman-outside-");
+    writeFileSync(join(outside, "secret.md"), "outside\n");
+    symlinkSync(join(outside, "secret.md"), join(dir, "link.md"));
+    writeFileSync(join(dir, ".hidden.md"), "h\n");
+    writeFileSync(join(dir, "index.md"), "# Memory\n");
+    expect(Object.keys(readPersonalFiles(dir))).toEqual(["index.md"]);
+  });
+
+  test("propose --personal refuses a folder that is a symbolic link and writes nothing through it", () => {
+    const dir = repoWithOrigin();
+    const home = temp("wachiman-home-");
+    const run = cli(dir, home);
+    const id = run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+    const target = temp("wachiman-target-");
+    mkdirSync(join(home, "memory", "github.com", "acme"), { recursive: true });
+    symlinkSync(target, join(home, "memory", "github.com", "acme", "widgets"));
+    const r = run("propose", id, "--personal");
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("is not a plain directory");
+    expect(readdirSync(target)).toEqual([]);
   });
 });

@@ -790,7 +790,7 @@ the same unless you have [personal memory](#memory) for it, which that review th
   also mutes nothing in this review. The line is absent when no entry applies, and a repository without
   memory sees no change. Wachiman only says so; it never edits the entry.
 
-**What it does not do yet.** The only hygiene notice is the `holds while` one above.
+The `holds while` notice is the only hygiene notice a review prints; the suggestions of `memory check` are separate (see below).
 
 `memory check` reads the folder from the working tree and prints each problem as
 `<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope (not checked in
@@ -1064,8 +1064,9 @@ same approval of the exact text: `<home>/memory/<host>/<owner>/<repository>/inde
 the Wachiman home (`WACHIMAN_HOME`, else `~/.wachiman`). The folder is keyed by the URL of the
 remote named `origin`, without credentials, so every clone and worktree of one repository shares it and
 no other repository sees it. A clone with no `origin` has no personal memory: `propose --personal`
-says so, exits 1 and writes nothing. It makes no commit, no push, no fetch and no pull request, and
-nothing appears in `git status`. An entry already there only gains the evidence it lacks, and an entry
+says so, exits 1 and writes nothing. The write itself makes no commit, no push, no fetch and no pull
+request, and nothing appears in `git status`; `memory candidates` then lists the candidate as
+`personal <date>` (not `proposed`), and it stays proposable to the team with `--from-personal`. An entry already there only gains the evidence it lacks, and an entry
 that would make `memory check` fail on the folder is refused.
 
 **The first question.** In a repository whose default branch has no `.wachiman/memory/` (and whose
@@ -1075,11 +1076,15 @@ repository in `<home>/memory-choice/<repository key>.json`; later proposals use 
 not ask again (delete the file to be asked again). A stored `personal` answer holds only while the team
 has no memory: once `.wachiman/memory/` is on the default branch (the same check the question uses), a
 plain `propose` goes to the team again and says so in one line; `--personal` still keeps an entry on
-your machine. With no terminal to ask on, and no stored answer, it
+your machine. A plain `propose` finds out whether the team has memory with a read-only fetch of
+origin's default branch (and of `wachiman/memory` when it exists), and does so only when the answer
+matters: never with `--personal` or `--team`, and never with a stored `team` answer. With no terminal to ask on, and no stored answer, it
 exits 1 and writes and pushes nothing, telling you to run it again with `--personal` or `--team`. Those
 two flags choose explicitly, never ask and never store an answer; passing both is a usage error. If
-Wachiman cannot tell whether the team uses memory (for example no network), it does not ask and takes the
-team path, which then reports what it could not reach.
+Wachiman cannot tell whether the team uses memory (for example no network), what happens depends on the
+stored answer: with none, it does not ask and takes the team path, which then reports what it could not
+reach; with a stored `personal` answer, the answer holds and the entry stays on your machine, with no
+line about the team.
 
 **Sending personal entries to the team.** `memory propose --from-personal` (with no id: every personal
 entry; with ids: only those) sends them through the same write path as `propose <id>`: one commit per
