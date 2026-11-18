@@ -62,7 +62,8 @@ function parseOptions(argv: string[], sub: string, valueOptions: readonly string
     } else if (valueOptions.includes(name)) {
       if (out.values.has(name)) throw new UsageError(`${name} was given twice.`);
       const v = eq === -1 ? argv[++i] : arg.slice(eq + 1);
-      if (v === undefined || (eq === -1 && v.startsWith("--"))) throw new UsageError(`${name} needs a value.`);
+      if (v === undefined) throw new UsageError(`${name} needs a value.`);
+      if (eq === -1 && v.startsWith("--")) throw new UsageError(`${name} needs a value, and "${v}" looks like another option. A value that starts with "--" is written ${name}=${v}.`);
       out.values.set(name, v);
     } else {
       throw new UsageError(`Unknown option "${name}" for wachiman memory ${sub}.`);
