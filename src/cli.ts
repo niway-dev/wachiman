@@ -25,6 +25,7 @@
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
+ *   wachiman memory check          check the repository memory in .wachiman/memory (src/memory/)
  *   wachiman upgrade [--check]     update the CLI, then the workflow pin in this repository (src/upgrade/)
  *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
  *   wachiman pr-template show|install|status|check|format|risk|strip  the PR description template: install it,
@@ -54,6 +55,7 @@ import { parseProfileArgs, parseProjectArgs, runProfile, runProject } from "./ac
 import { wachimanHome } from "./accounts/config";
 import { parseSkillsArgs, runSkills } from "./skills/install";
 import { runPrTemplate } from "./pr-template/run";
+import { runMemory } from "./memory/command";
 import { parseUpgradeArgs, runUpgrade } from "./upgrade/command";
 import { parseDoctorArgs, runDoctor } from "./doctor/run";
 import { parseInitFlags } from "./init/args";
@@ -357,6 +359,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (mode === "pr-template") {
       // No model, no provider; `check --pr` and `risk` shell out to gh and git in the repository directory.
       return runPrTemplate(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
+    }
+    if (mode === "memory") {
+      // No model, no provider, no GitHub: files and git in the repository directory only.
+      return runMemory(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);

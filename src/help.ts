@@ -472,13 +472,38 @@ const prTemplatePageRoot: Page = {
   },
 };
 
+const MEMORY_DOCS = `${DOCS}/cli.md#memory`;
+const MEMORY_EXIT: readonly Row[] = [
+  ["0", "The memory is clean, or the repository has no .wachiman/memory/ folder"],
+  ["1", "check found a problem: a malformed entry, a glob that matches no file, a budget overrun, or another defect"],
+  ["2", "Usage or configuration error: an unknown subcommand, or an invalid .wachiman.yml"],
+];
+const memoryPage: Page = {
+  usage: "wachiman memory check [--repo-dir <dir>]",
+  summary: "Check the repository memory in .wachiman/memory/ (Markdown files that teach Wachiman how code is written here). No model is called and nothing is written. Today a review loads, budgets and records this memory but does not yet use it to judge code.",
+  options: [REPO_DIR],
+  exit: MEMORY_EXIT,
+  examples: ["wachiman memory check"],
+  docs: MEMORY_DOCS,
+  subs: {
+    check: {
+      usage: "wachiman memory check [--repo-dir <dir>]",
+      summary: "Read .wachiman/memory/ from the working tree and print every problem as <path>:<line>: <message>: a malformed entry, an entry id that is not its digest, a glob that matches no file, an index row that names a missing file, an area file index.md does not list, and a line-budget overrun (memory.max_index_lines, memory.max_loaded_lines).",
+      options: [REPO_DIR],
+      exit: MEMORY_EXIT,
+      examples: ["wachiman memory check"],
+      docs: MEMORY_DOCS,
+    },
+  },
+};
+
 /** The commands a GitHub Actions run uses; they are not in the root help. */
 export const CI_COMMANDS = ["review", "comment", "threads", "reset-confidence"] as const;
 
 const PAGES: Readonly<Record<string, Page>> = {
   local: localPage, loop: loopPage, ask: askPage,
   history: historyPage, status: statusPage, dashboard: dashboardPage, ledger: ledgerPageWithSubs,
-  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, upgrade: upgradePage, "pr-template": prTemplatePageRoot,
+  setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, upgrade: upgradePage, "pr-template": prTemplatePageRoot, memory: memoryPage,
   review: reviewPage, comment: commentPage, threads: threadsPage, "reset-confidence": resetConfidencePage,
 };
 
@@ -559,6 +584,7 @@ export function rootHelp(paint: Paint = plain): string {
       ["project", "Show or remove this repository's binding"],
       ["skills", "Install or remove the agent skills"],
       ["pr-template", "Install and check the PR description template"],
+      ["memory", "Check the repository memory in .wachiman/memory"],
       ["upgrade", "Update the CLI and the workflow pin in this repository"],
     ]),
     "",
