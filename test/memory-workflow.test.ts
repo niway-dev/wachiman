@@ -58,6 +58,29 @@ describe("wachiman-memory.yml", () => {
     expect(run.env?.WACHIMAN_OPERATOR).toBe("${{ inputs.operator }}");
   });
 
+  test("hands the engine the comment's author and thread, the operator and the mention, and the git identity of the push", () => {
+    const run = jobs.remember.steps.find((s) => s.run?.includes("memory remember"))!;
+    expect(run.env).toMatchObject({
+      GH_TOKEN: "${{ github.token }}",
+      PR: "${{ github.event.pull_request.number }}",
+      REQUEST: "${{ github.event.comment.body }}",
+      WACHIMAN_COMMENT_AUTHOR: "${{ github.event.comment.user.login }}",
+      WACHIMAN_COMMENT_IN_REPLY_TO: "${{ github.event.comment.in_reply_to_id }}",
+      WACHIMAN_MENTION: "${{ inputs.mention }}",
+      WACHIMAN_OPERATOR: "${{ inputs.operator }}",
+    });
+    for (const name of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"]) expect(run.env?.[name], name).toBeTruthy();
+    // The engine reads the repository from the runner's own variable, which the workflow does not override.
+    expect(run.env?.GITHUB_REPOSITORY).toBeUndefined();
+  });
+
+  test("approvals never cancel one another: one concurrency group per comment, nothing cancelled", () => {
+    // GitHub keeps one pending run per group, so a shared group would drop the second of three quick approvals.
+    const job = jobs.remember as Job & { concurrency?: { group?: string; "cancel-in-progress"?: boolean } };
+    expect(job.concurrency?.group).toBe("wachiman-memory-${{ github.event.comment.id }}");
+    expect(job.concurrency?.["cancel-in-progress"]).toBe(false);
+  });
+
   test("names the repository setting a token needs to open the pull request", () => {
     expect(text).toContain("Allow GitHub Actions to create and approve pull requests");
   });

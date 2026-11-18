@@ -451,6 +451,28 @@ fi
   }, 60_000);
 });
 
+describe("two approvals racing to open the draft pull request", () => {
+  test("a job whose create fails because another job opened the pull request meanwhile reports that one, and records no failure", () => {
+    const w = world();
+    const fake = fakePulls();
+    const racing: PullRequests = {
+      list: fake.pulls.list,
+      createDraft: (input, cwd) => {
+        // The other job's create lands first; GitHub then refuses this one.
+        fake.pulls.createDraft(input, cwd);
+        throw new Error("a pull request for branch wachiman/memory into branch main already exists");
+      },
+    };
+    const d = developer(w, "ana", fake);
+    const id = d.add("Prefer named exports.");
+    let stdout = "";
+    const code = runMemory(["propose", id], d.dir, { stdout: (t) => (stdout += t), stderr: () => {} }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing } });
+    expect(code).toBe(0);
+    expect(stdout).toContain("Draft pull request: https://example.test/pr/1");
+    expect(fake.created).toHaveLength(1);
+  }, 60_000);
+});
+
 describe("reading the memory folder", () => {
   test("only a missing folder is empty; any other failure to read it is reported", () => {
     const dir = temp("wachiman-readmem-");

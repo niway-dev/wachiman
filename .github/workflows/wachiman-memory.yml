@@ -56,10 +56,13 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # One write at a time, never cancelling: two approvals in a row must both be recorded. The write path
-    # also retries when a colleague pushed to the branch first.
+    # One group per approving comment, never cancelling. A shared group would keep only one pending run, so a
+    # third quick approval would cancel the second and an approval would be lost without a word. Runs of
+    # different comments therefore overlap; the write path handles that: it retries a push that lost the race
+    # (up to five times, each from the new branch head) and takes the draft pull request another run opened.
+    # If the retries run out, the job fails and says so in the thread, so the operator can approve again.
     concurrency:
-      group: wachiman-memory
+      group: wachiman-memory-${{ github.event.comment.id }}
       cancel-in-progress: false
     permissions:
       contents: write

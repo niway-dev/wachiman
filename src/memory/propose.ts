@@ -312,7 +312,7 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
     let url: string | undefined;
     try {
       const open = pulls.list(MEMORY_BRANCH, root).find((p) => p.state === "OPEN");
-      url = open ? open.url : pulls.createDraft({ head: MEMORY_BRANCH, base: remote.defaultBranch, title: PULL_REQUEST_TITLE, body: PR_BODY }, root);
+      url = open ? open.url : openDraft(pulls, remote.defaultBranch, root);
     } catch (error) {
       io.stdout(recordedLine(""));
       io.stderr(`memory propose: the draft pull request could not be opened (${error instanceof Error ? error.message : error}). Open it from ${MEMORY_BRANCH} with the title "${PULL_REQUEST_TITLE}".`);
@@ -327,6 +327,25 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
   } finally {
     if (worktree) removeWorktree(root, worktree);
     rmSync(hooks, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Creates the draft pull request. Two approvals in Actions run side by side (one workflow group per comment), so
+ * another job may open it between our list and our create; when create fails and a pull request is open now, that one is the answer.
+ */
+function openDraft(pulls: PullRequests, base: string, root: string): string {
+  try {
+    return pulls.createDraft({ head: MEMORY_BRANCH, base, title: PULL_REQUEST_TITLE, body: PR_BODY }, root);
+  } catch (error) {
+    let open: PullRequest | undefined;
+    try {
+      open = pulls.list(MEMORY_BRANCH, root).find((p) => p.state === "OPEN");
+    } catch {
+      // The first error is the one to report.
+    }
+    if (open) return open.url;
+    throw error;
   }
 }
 
