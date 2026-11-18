@@ -51,11 +51,13 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
 6. Locations link to the file and line at the head SHA, not to review threads.
 7. The footer is one `<sub>` line that starts with "<model> via" and ends with the run's cost, and
    adds the Wachiman version; the remaining values go to a "Run details" table above it. Readers of
-   the old line keep working on old comments.
+   the old line keep working on old comments. A notice that ran no model (the rebase notice) ends with a
+   `<sub>Wachiman <version></sub>` line instead, with no model and no cost.
 8. The inline finding opens with a table: the brand and the title, then the severity (emoji and
    word, with the Important/Nit word of ADR 0030 decision 7), the topic (emoji and word, ADR 0003)
-   and the confidence as a meter of red squares (🟥🟥🟥 High, 🟥🟥⬜ Medium, 🟥⬜⬜ Low). The fix
-   follows the table and the evidence folds under `<details>`.
+   and the confidence as a meter of red squares (🟥🟥🟥 High, 🟥🟥⬜ Medium, 🟥⬜⬜ Low). The model's
+   body follows the table unchanged, and the model never reads the table (`threads.json` gets the
+   one-line label back).
 9. A not-reviewed notice states who acts, where, and what this run spent. Only a $0 refusal
    (billing, auth) that is the latest bot notice on the pull request is edited in place; every
    notice that spent money, and every rebase notice, is a new review.

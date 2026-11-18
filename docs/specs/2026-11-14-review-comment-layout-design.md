@@ -30,7 +30,7 @@ parser round-trip tests instead of more string assertions.
 | 9 | The risk row never claims a checklist: "Low: no risk facts reported, no risky paths"; no colour on the level; facts stay outside `<details>` | The level is path rules plus facts the model chose to report | reuses 0031 |
 | 10 | Model-written prose (the batch summaries) moves into "What the reviewer checked", collapsed | It is per batch, not a summary of the pull request | 0055 |
 | 11 | The footer is one shortened `<sub>` line that keeps "<model> via" first and the run cost last, plus a collapsed "Run details" table above it | Keeps the spend ceiling, the model reader and the benchmark parser working; adds the Wachiman version | 0055, keeps 0012, 0036 |
-| 12 | Inline finding: a table led by the brand and the title, then rows for Severity (with the Important/Nit word), Area and Confidence; confidence is a meter of red squares (🟥🟥🟥 High, 🟥🟥⬜ Medium, 🟥⬜⬜ Low); the fix follows the table and the evidence folds under `<details>` | The owner wants confidence as visible as severity and the labels predictable; a filled meter reads without a legend, and squares stay apart from the round severity emoji; the brand stays first for ADR 0010 and for notification previews | 0055, reuses 0030 decision 7 |
+| 12 | Inline finding: a table led by the brand and the title, then rows for Severity (with the Important/Nit word), Area and Confidence; confidence is a meter of red squares (🟥🟥🟥 High, 🟥🟥⬜ Medium, 🟥⬜⬜ Low); the model's body follows the table, unchanged | The owner wants confidence as visible as severity and the labels predictable; a filled meter reads without a legend, and squares stay apart from the round severity emoji; the brand stays first for ADR 0010 and for notification previews | 0055, reuses 0030 decision 7 |
 | 13 | A not-reviewed notice says who acts, where, and what was spent; a $0 refusal (billing, auth) that is the latest bot notice is edited in place, every other notice stays a new review | 68 identical no-credit reviews in three days; notices that spent money must stay separate for the ceiling | 0055, keeps 0012 |
 | 14 | A rebase or base-merge with no new changes stays a new one-line review with one wording | It must advance the head marker; editing an older review would rewrite its marker and its cost | 0055 |
 | 15 | The format is protected by a view model, golden Markdown files and parser round-trip tests, not by string assertions spread over tests | ~280 test lines assert on today's strings; the next change would move them all again | 0055 |
@@ -52,6 +52,10 @@ parser round-trip tests instead of more string assertions.
    is the owner's existing convention, read by `src/precision.ts` to measure how often the reviewer
    is right; no posted comment mentions it today. Default: one row in the review body's glance
    table, nothing on each inline comment.
+7. **A Fix line with the evidence folded away, inline?** Default: no, for now. The owner's table
+   layout (2026-11-18) showed `**Fix:**` and a `<details>` Evidence block, but the finding schema
+   has one `body` string, so splitting it means asking the model for the fix separately, as in
+   question 3. It can return as its own change, measured on Martian's pull requests.
 
 ### Out of scope
 
@@ -160,8 +164,9 @@ on niway-dev/kaipu-record (618 bodies, 2026-11-14) found:
    ([kaipu-record #600](https://github.com/niway-dev/kaipu-record/pull/600#pullrequestreview-5870302755)).
 8. **Rebase noise.** 21 "Rebased onto" / "Brought up to date" reviews, four in one day on
    [kaipu-record #546](https://github.com/niway-dev/kaipu-record/pull/546#pullrequestreview-5810618247).
-9. **Failures with no comment.** No timeout, rate-limit, network or 5xx notice was ever posted; the
-   job failed instead.
+9. **Failures with no comment.** None of the 618 surveyed bodies is a timeout, rate-limit, network
+   or 5xx notice, although the engine has notices for a provider rate limit, a timeout before any
+   batch finished and a budget stop; the surveyed failures ended as a failed job with no comment.
 
 ### What other reviewers do
 
@@ -311,20 +316,19 @@ and last words around `…`. The link carries the full path.
 | **Area** | 📝 docs |
 | **Confidence** | 🟥🟥⬜ Medium |
 
-**Fix:** <the model's fix, unchanged>
-
-<details>
-<summary>Evidence</summary>
-
-<the model's evidence, unchanged>
-
-</details>
+<the model's body, unchanged>
 ```
 
 The confidence meter fills one red square per level: 🟥🟥🟥 High, 🟥🟥⬜ Medium, 🟥⬜⬜ Low, so more
 red always means more certain. The squares are never round, so they do not read as the 🔴 Blocker
-or 🟠 Fix severity in the row above. The finding schema gains a `fix` string next to `body`; when
-the model leaves it empty, the body is shown unfolded and the Fix line and `<details>` are omitted.
+or 🟠 Fix severity in the row above. A separate Fix line with the evidence folded away needs the
+model to return the fix apart from the body; that is open question 7, not part of this design.
+
+The model never reads the table. `openBotThreads` copies the first comment of each open bot thread
+into `threads.json`; before it does, the engine turns a new inline table back into the one-line
+label it sends today (`<severity> · <topic>: <title> (confidence <level>)` followed by the body),
+using `parseLabel`. The prompt-golden fixtures for thread cases therefore stay byte-identical, and
+a test proves it for one old and one new thread.
 
 Pre-existing and inconclusive findings never open an inline thread (the engine routes them to the
 body first); their rows in the body and in the local sinks carry `Pre-existing` or `Needs
@@ -433,4 +437,8 @@ finding body, a whole-PR summary) were declined on 2026-11-14.
   marked BREAKS or MISLEADS is answered by a decision above (2, 3, 6, 7, 8, 9, 10, 11, 13, 14) or
   a failure to protect against.
 - Unverified: rendering in GitHub email notifications and the mobile app; the agent cost of the
-  build.
+  build; that GitHub accepts the update-review `PUT` on a review the `github-actions[bot]` token
+  submitted, and how "latest bot review" is found past the first page of reviews (no code calls
+  that endpoint today; if the `PUT` fails, the engine posts a new review, and a golden scenario
+  covers that fallback). An edited-in-place refusal also stops adding to the "over N automatic
+  runs" count of the footer; spend is unaffected.
