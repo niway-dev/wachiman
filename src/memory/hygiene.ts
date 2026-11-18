@@ -111,23 +111,38 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** `<home>/history/<repo key>/memory-use.json`: the local history store; it never exists in Actions. */
 export const memoryUsePath = (home: string, key: string) => join(historyRoot(home), key, "memory-use.json");
 
-/** Entry id to the date of its last recorded use. A missing or unreadable record is empty. */
-export function readMemoryUse(home: string, key: string): Record<string, string> {
+/** The parsed record, `{}` when the file is missing; throws when it exists but cannot be read or is not this format. */
+function loadMemoryUse(home: string, key: string): Record<string, string> {
   const path = memoryUsePath(home, key);
   if (!existsSync(path)) return {};
+  let parsed: any;
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8"));
-    if (parsed?.format !== MEMORY_USE_FORMAT || typeof parsed.used !== "object" || parsed.used === null) return {};
-    return Object.fromEntries(Object.entries(parsed.used).filter(([id, d]) => ID.test(id) && typeof d === "string" && DATE.test(d))) as Record<string, string>;
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(`${path} could not be read (${error instanceof Error ? error.message : error}); it was left as it is`);
+  }
+  if (parsed?.format !== MEMORY_USE_FORMAT || typeof parsed.used !== "object" || parsed.used === null) {
+    throw new Error(`${path} is not a ${MEMORY_USE_FORMAT} record; it was left as it is`);
+  }
+  return Object.fromEntries(Object.entries(parsed.used).filter(([id, d]) => ID.test(id) && typeof d === "string" && DATE.test(d))) as Record<string, string>;
+}
+
+/** Entry id to the date of its last recorded use. A missing or unreadable record is empty. */
+export function readMemoryUse(home: string, key: string): Record<string, string> {
+  try {
+    return loadMemoryUse(home, key);
   } catch {
     return {};
   }
 }
 
-/** Records that these entries were used on `date`; a later date replaces an earlier one, never the reverse. */
+/**
+ * Records that these entries were used on `date`; a later date replaces an earlier one, never the reverse.
+ * Throws, writing nothing, when an existing record cannot be read or is another format: it is never overwritten.
+ */
 export function recordMemoryUse(home: string, key: string, ids: string[], date: string): void {
   if (ids.length === 0) return;
-  const used = readMemoryUse(home, key);
+  const used = loadMemoryUse(home, key);
   for (const id of ids) if (!used[id] || used[id] < date) used[id] = date;
   const path = memoryUsePath(home, key);
   for (const dir of [dirname(dirname(path)), dirname(path)]) {

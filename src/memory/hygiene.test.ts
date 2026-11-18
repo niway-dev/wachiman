@@ -109,6 +109,16 @@ describe("last use", () => {
     expect(readMemoryUse(home, "repo-1")).toEqual({});
   });
 
+  test("an unreadable or foreign-format record is never overwritten: recording throws and the file stays as it was", () => {
+    const home = temp("wachiman-use-home-");
+    mkdirSync(join(home, "history", "repo-1"), { recursive: true });
+    for (const text of ["{not json", JSON.stringify({ format: "wachiman.memory-use/2", used: {} })]) {
+      writeFileSync(memoryUsePath(home, "repo-1"), text);
+      expect(() => recordMemoryUse(home, "repo-1", ["aaaaaaa"], "2026-11-10")).toThrow(/memory-use\.json/);
+      expect(readFileSync(memoryUsePath(home, "repo-1"), "utf8")).toBe(text);
+    }
+  });
+
   test("a review used a convention whose scope the diff reaches and an exception that muted a finding", () => {
     const conv = block("Prefer named exports", { scope: "src/**" });
     const far = block("Docs are short", { scope: "docs/**" });
