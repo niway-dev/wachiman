@@ -3067,7 +3067,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const reserve = options.verify ? Math.min(options.verify.budgetUsd, totalBudget / 2) : 0;
   // The memory exceptions that may act on this diff (ADR 0057). When there are any, the matching
   // call's money is reserved too, so the batches cannot spend it; no exception, no reserve.
-  const exceptionPlan = planExceptions(options.memory, input.files.map((f) => f.filename));
+  const exceptionPlan = planExceptions(options.memory, input.files.map((f) => f.filename), kept.map((f) => f.filename));
   const matchReserve = exceptionPlan.active.length > 0 ? Math.min(MEMORY_MATCH_BUDGET_USD, (totalBudget - reserve) / 4) : 0;
   const batchTotal = totalBudget - reserve - matchReserve;
   const batchBudget = options.batchBudgetUsd;
