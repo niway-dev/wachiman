@@ -65,6 +65,14 @@ describe("planExceptions", () => {
   });
 });
 
+describe("planExceptions with reviewed paths", () => {
+  test("scope is matched on reviewed files, the premise on every changed file", () => {
+    const e = entry("exception", "r", "src/**", { holdsWhile: "gen/**" });
+    expect(planExceptions(load([e]), ["package-lock.json", "src/a.ts"], ["package-lock.json"]).active).toEqual([]);
+    expect(planExceptions(load([e]), ["src/a.ts", "gen/x.ts"], ["src/a.ts"]).stale).toHaveLength(1);
+  });
+});
+
 describe("matchRequest", () => {
   const e = entry("exception", "docs rule", "docs/**");
 
