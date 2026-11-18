@@ -31,7 +31,7 @@ import { checkSupplied, promptForInit } from "./prompt";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
-import { describePointer, planPointer, type PointerPlan } from "./agents";
+import { describePointer, manualHint, planPointer, type PointerPlan } from "./agents";
 import { writeManagedFile } from "../pr-template/write";
 
 /** What `pr-template install` can write; the report names the ones a failed install did not reach. */
@@ -230,7 +230,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     try {
       writeManagedFile({ repoDir: root, relativePath: pointer.writePath, content: pointer.content, inspected: pointer.inspected, now: (deps.now ?? (() => new Date().toISOString()))(), label: "init", backup: false, hooks: deps.hooks });
     } catch (error) {
-      io.stderr(`wachiman pointer not written: ${error instanceof Error ? error.message : String(error)} The rest of init is unaffected. Add the block by hand: copy the lines between the markers from \`wachiman init --dry-run\`, or skip it with --no-agent-pointer.`);
+      io.stderr(`wachiman pointer not written: ${error instanceof Error ? error.message : String(error)} The rest of init is unaffected. ${manualHint()}`);
       return;
     }
     const how = pointer.action === "create" ? "created" : pointer.action === "append" ? "added to" : "replaced in";
