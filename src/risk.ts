@@ -111,7 +111,7 @@ export interface RiskMap {
   droppedFacts: number;
 }
 
-/** How many path-matched files the rendered risk map lists before "and N more". */
+/** How many rule-matched files the rendered risk map lists before "and N more". */
 const MAX_PATH_BULLETS = 20;
 
 export function buildRiskMap(input: {
@@ -264,11 +264,16 @@ export function renderRiskMap(
   }
 
   const covered = new Set(map.facts.map((f) => f.path));
-  const uncovered = map.pathReasons.filter((r) => r.rule || !covered.has(r.path));
+  // A path rule's files come first and are capped; the heuristic reasons are listed whole, as they were
+  // before path rules existed.
+  const ruleReasons = map.pathReasons.filter((r) => r.rule);
+  const heuristicReasons = map.pathReasons.filter((r) => !r.rule && !covered.has(r.path));
+  const bullet = (r: { path: string; why: string }) => `- ${code(r.path)} — ${neutralise(r.why)}`;
   const bullets = [
     ...map.facts.map((f) => `- ${code(f.kind)} · ${code(`${f.path}:${f.line}`)} — ${neutralise(f.why)}`),
-    ...uncovered.slice(0, MAX_PATH_BULLETS).map((r) => `- ${code(r.path)} — ${neutralise(r.why)}`),
-    ...(uncovered.length > MAX_PATH_BULLETS ? [`- and ${uncovered.length - MAX_PATH_BULLETS} more files matched by path rules`] : []),
+    ...ruleReasons.slice(0, MAX_PATH_BULLETS).map(bullet),
+    ...(ruleReasons.length > MAX_PATH_BULLETS ? [`- and ${ruleReasons.length - MAX_PATH_BULLETS} more files matched by path rules`] : []),
+    ...heuristicReasons.map(bullet),
   ];
 
   const level = map.floor

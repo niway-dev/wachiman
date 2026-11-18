@@ -285,6 +285,25 @@ describe("path rule bullets in the rendered risk map", () => {
     expect(text).toContain("- and 10 more files matched by path rules");
   });
 
+  test("without path rules every heuristic reason is listed, as before rules existed", () => {
+    const files = Array.from({ length: 30 }, (_, i) => file(`db/migrations/${String(i).padStart(4, "0")}_x.sql`));
+    const map = build({ files });
+    expect(map.pathReasons).toHaveLength(30);
+    const text = renderRiskMap(map, "### Risk map");
+    expect(text.split("\n").filter((l) => l.startsWith("- `db/migrations/"))).toHaveLength(30);
+    expect(text).not.toContain("more files");
+  });
+
+  test("only rule-matched files are capped; heuristic reasons stay whole beside them", () => {
+    const rules = Array.from({ length: 25 }, (_, i) => file(`src/f${String(i).padStart(2, "0")}.ts`));
+    const heuristic = Array.from({ length: 22 }, (_, i) => file(`db/migrations/${String(i).padStart(4, "0")}_x.sql`));
+    const text = renderRiskMap(build({ files: [...rules, ...heuristic], pathRules: rule }), "### Risk map");
+    const lines = text.split("\n");
+    expect(lines.filter((l) => l.startsWith("- `src/"))).toHaveLength(20);
+    expect(lines.filter((l) => l.startsWith("- `db/migrations/"))).toHaveLength(22);
+    expect(text).toContain("- and 5 more files matched by path rules");
+  });
+
   test("20 matched files print every bullet and no count", () => {
     const { text } = render(20);
     expect(text.split("\n").filter((l) => l.startsWith("- `src/"))).toHaveLength(20);
