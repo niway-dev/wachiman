@@ -25,7 +25,7 @@ import {
   type ReviewInput,
 } from "../engine";
 import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
-import { MEMORY_DIR, loadMemory, type MemoryLoad, type MemorySource } from "../memory/load";
+import { MEMORY_DIR, cutMemoryNote, loadMemory, type MemoryLoad, type MemorySource } from "../memory/load";
 import { parseRepoSettings, SETTINGS_PATH, type RepoSettings } from "../repo-settings";
 
 const TIMEOUT_MS = 60_000;
@@ -406,7 +406,7 @@ export function localRepoSettings(repoDir: string, sha: string, git: GitRunner =
  * branch, never the head, so a branch cannot change the memory it is reviewed under (ADR 0056).
  * A `sha` that is not in this clone (an `--input` file can name one) has no memory.
  */
-export function localMemorySource(repoDir: string, sha: string, git: GitRunner = spawnGit): MemorySource {
+export function localMemorySource(repoDir: string, sha: string, git: GitRunner = spawnGit, warn: (line: string) => void = () => {}): MemorySource {
   return {
     list: () => {
       const out = git(["ls-tree", "-z", sha, "--", `${MEMORY_DIR}/`], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
@@ -422,7 +422,10 @@ export function localMemorySource(repoDir: string, sha: string, git: GitRunner =
     },
     read: (name) => {
       const bytes = blobAt(repoDir, sha, `${MEMORY_DIR}/${name}`, git);
-      return bytes ? instructionFileOf(name, bytes).content : null;
+      if (!bytes) return null;
+      const file = instructionFileOf(name, bytes);
+      if (file.truncated) warn(cutMemoryNote(name, MAX_INSTRUCTION_BYTES / 1024));
+      return file.content;
     },
     settings: () => localRepoSettings(repoDir, sha, git),
   };
@@ -430,7 +433,7 @@ export function localMemorySource(repoDir: string, sha: string, git: GitRunner =
 
 /** The memory a local review of `changedPaths` loads at `sha`; undefined without a memory folder. */
 export function localMemory(repoDir: string, sha: string, changedPaths: string[], warn: (line: string) => void, git: GitRunner = spawnGit): MemoryLoad | undefined {
-  return loadMemory(localMemorySource(repoDir, sha, git), sha, changedPaths, warn);
+  return loadMemory(localMemorySource(repoDir, sha, git, warn), sha, changedPaths, warn);
 }
 
 const names = (out: string) => out.split("\0").filter(Boolean);

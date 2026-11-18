@@ -55,6 +55,23 @@ describe("readBaseMemory", () => {
     expect(calls).toEqual([`repos/o/r/contents/.wachiman/memory?ref=${"c".repeat(40)}`]);
   });
 
+  test("a file longer than the read limit loads its start and warns; one GitHub does not return is not loaded", () => {
+    const big = (text: string, content = true) => ({ type: "file", encoding: content ? "base64" : "none", content: content ? Buffer.from(text).toString("base64") : "" });
+    const tree: Record<string, unknown> = { "index.md": big(INDEX + "x\n".repeat(40_000)), "apps.md": big("", false) };
+    const gh: GhFn = (args) => {
+      const path = args[1].replace("repos/o/r/contents/", "").split("?ref=")[0];
+      if (path === ".wachiman/memory") return JSON.stringify(Object.keys(tree).map((name) => ({ type: "file", name })));
+      const name = path.replace(".wachiman/memory/", "");
+      if (name in tree) return JSON.stringify(tree[name]);
+      throw notFound();
+    };
+    const warned: string[] = [];
+    const load = readBaseMemory(gh, "o/r", BASE, ["apps/x.ts"], (l) => warned.push(l))!;
+    expect(load.files.map((f) => f.path)).toEqual([".wachiman/memory/index.md"]);
+    expect(warned.some((w) => w.includes("index.md is longer than 64 KB"))).toBe(true);
+    expect(warned.some((w) => w.includes("apps.md is over 1 MB"))).toBe(true);
+  });
+
   test("an error other than not-found from GitHub propagates", () => {
     const gh: GhFn = () => {
       throw new GhError("gh: boom (HTTP 502)", 502, "boom");
