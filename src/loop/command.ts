@@ -20,6 +20,8 @@ import { MIN_LINE_CHARS, stripWhitespace, titleKey } from "../history/fingerprin
 import { replay, type ReplayedFinding } from "../history/match";
 import { historyRoot, readRuns, readVerdicts, repositoryKey } from "../history/store";
 import { LOCAL_FLAGS, parseFlags, runLocal, type LocalArgs, type LocalDeps } from "../local";
+import { candidatesForRound } from "../memory/candidates";
+import { loadMemorySettings } from "../memory/settings";
 import { location, sha7 } from "../sinks/common";
 import { LOOP_STATE_FORMAT, readLoop, writeLoop, type LedgerEntry, type LoopState } from "./state";
 import { evaluate, isRefutedBy, roundCapReached, type Decision, type LoopFinding, type LoopStatus, type OpenFinding, type Released } from "./stop-rule";
@@ -92,6 +94,8 @@ export interface RoundReport {
   notes: LoopFinding[];
   outcome: { status: "converged" | "open" | "stopped"; reason?: Why; message: string };
   exitCode: 0 | 10 | 11;
+  /** Proposable memory candidates that cite a finding of this loop or whose scope matches its files. Absent when there are none. */
+  memoryCandidates?: { id: string; title: string }[];
 }
 
 const GIT_TIMEOUT_MS = 30_000;
@@ -189,7 +193,8 @@ const withVerdicts = (ledger: LedgerEntry[], verdicts: ReturnType<typeof readVer
   ledger.map((e) => ({ ...e, ...(verdicts.get(e.id) ? { verdict: { verdict: verdicts.get(e.id)!.verdict, reason: verdicts.get(e.id)!.reason } } : {}) }));
 
 export async function runLoop(args: LoopArgs, repoDir: string, env: Record<string, string | undefined>, io: LoopIo, deps: LoopDeps = {}): Promise<number> {
-  const root = historyRoot(wachimanHome(env));
+  const home = wachimanHome(env);
+  const root = historyRoot(home);
   const key = repositoryKey(repoDir).key;
   const branch = currentBranch(repoDir);
   const head = headOf(repoDir);
@@ -214,7 +219,9 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   const verdicts = () => readVerdicts(root, key);
   const roundsRun = state.rounds.length;
   const render = (report: RoundReport) => {
-    io.stdout(args.format === "json" ? renderJson(report) : renderTerminal(report));
+    const candidates = memoryCandidatesOf(state, home, key, repoDir);
+    const full: RoundReport = candidates.length > 0 ? { ...report, memoryCandidates: candidates } : report;
+    io.stdout(args.format === "json" ? renderJson(full) : renderTerminal(full));
     return report.exitCode;
   };
 
@@ -288,6 +295,16 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   writeLoop(root, key, state);
   const range: RoundReport["range"] = previous ? { kind: "since-previous-round", from: previous.head } : { kind: "whole", base: from };
   return render(report(state, round, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, args)));
+}
+
+/** The memory candidates worth asking the owner about after this round; none when memory is not in use. */
+function memoryCandidatesOf(state: LoopState, home: string, key: string, repoDir: string) {
+  try {
+    const min = loadMemorySettings(repoDir).minEvidence;
+    return candidatesForRound(home, key, min, state.ledger);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -413,6 +430,7 @@ export function renderJson(r: RoundReport): string {
     open: r.open.map((f) => ({ ...cleanFinding(f), ...(f.unreasonedWrong ? { unreasonedWrong: true } : {}) })),
     released: r.released.map((x) => ({ ...cleanFinding(x.finding), why: x.why, ...(x.reason ? { reason: x.reason } : {}) })),
     notes: r.notes.map(cleanFinding),
+    ...(r.memoryCandidates ? { memoryCandidates: r.memoryCandidates } : {}),
   };
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
@@ -436,6 +454,10 @@ export function renderTerminal(r: RoundReport): string {
   lines.push("", `Notes, never counted (${r.notes.length}):`);
   for (const f of r.notes) lines.push(`  ${row(f)}`);
   if (r.notes.length === 0) lines.push("  none");
+  if (r.memoryCandidates) {
+    lines.push("", `Memory candidates the owner could approve (${r.memoryCandidates.length}); show one with \`wachiman memory show <id>\`:`);
+    for (const c of r.memoryCandidates) lines.push(`  ${c.id}  ${neutralise(c.title).replace(/\s+/g, " ")}`);
+  }
   lines.push("", `Outcome (exit ${r.exitCode}): ${r.outcome.message}`);
   return `${lines.join("\n")}\n`;
 }

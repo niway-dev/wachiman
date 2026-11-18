@@ -647,3 +647,31 @@ describe("help", () => {
     expect(text).toMatch(/\n\s+11\s+Stopped without converging/);
   });
 });
+
+describe("memory candidates in the round", () => {
+  const ADD = ["memory", "add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Renames show up in every importer.", "--pr", "709"];
+
+  test("a proposable candidate whose scope matches a finding's file is listed in the JSON and terminal output; with none the output is unchanged", () => {
+    const plain = scenario();
+    plain.script(1, BRANCH_FILES, [BLOCKER]);
+    const without = JSON.parse(plain.loop("--base", "main", "--format", "json").stdout);
+    expect("memoryCandidates" in without).toBe(false);
+
+    const s = scenario();
+    s.script(1, BRANCH_FILES, [BLOCKER]);
+    s.script(2, BRANCH_FILES, [BLOCKER]);
+    const added = Bun.spawnSync([process.execPath, cli, ...ADD, "--repo-dir", s.repo.dir], { env: { PATH: process.env.PATH ?? "", HOME: s.home }, stdin: "ignore" });
+    expect(added.exitCode).toBe(0);
+    const id = added.stdout.toString().match(/candidate ([0-9a-f]{7}) saved/)![1];
+    const r = s.loop("--base", "main", "--format", "json");
+    expect(JSON.parse(r.stdout).memoryCandidates).toEqual([{ id, title: "Prefer named exports." }]);
+    expect(s.calls()).toBe(1);
+    // The rest of the document is what it was without candidates.
+    const { memoryCandidates: _m, ...rest } = JSON.parse(r.stdout);
+    expect(Object.keys(rest)).toEqual(Object.keys(without));
+    const terminal = s.loop();
+    expect(terminal.stdout).toContain("Memory candidates the owner could approve (1)");
+    expect(terminal.stdout).toContain(`${id}  Prefer named exports.`);
+    expect(plain.loop().stdout).not.toContain("Memory candidates");
+  }, 120_000);
+});
