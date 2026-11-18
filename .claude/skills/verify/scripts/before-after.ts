@@ -20,6 +20,7 @@
 //     "scenarios": [
 //       { "id": "inline", "name": "Inline finding", "note": "what to look at",
 //         "frame": "comment" | "file",            // GitHub comment chrome, or a file header
+//         "author": "github-actions[bot]",        // comment header for a side that was not posted
 //         "before": <source>, "after": <source> }
 //     ]
 //   }
@@ -38,7 +39,7 @@
 // from, so a reader can tell a posted comment from a template in a spec.
 //
 // Sends the Markdown to api.github.com. Do not use it on text that must not leave the machine.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
@@ -49,19 +50,21 @@ type Scenario = {
   name: string;
   note?: string;
   frame?: "comment" | "file";
+  author?: string;
   before: Source;
   after: Source;
 };
 type Manifest = { title: string; subtitle?: string; repo: string; scenarios: Scenario[] };
-type Side = { markdown: string | null; caption: string; html: string };
+type Side = { markdown: string | null; caption: string; html: string; author?: string };
 
 const CSS_VERSION = "5.8.1";
 const CHROME =
   process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
+// Throws instead of exiting, so a `finally` (the Chrome cleanup) still runs; main() reports it.
+class Failure extends Error {}
 function fail(message: string): never {
-  console.error(`before-after: ${message}`);
-  process.exit(1);
+  throw new Failure(message);
 }
 
 function run(cmd: string[], input?: string): string {
@@ -79,12 +82,18 @@ function fences(text: string): string[] {
 
 function section(text: string, heading: string): string {
   const lines = text.split("\n");
-  const start = lines.findIndex((l) => /^#{1,6} /.test(l) && l.replace(/^#+ /, "").trim() === heading);
+  // A "# comment" inside a code fence is not a heading.
+  let fenced = false;
+  const isHeading = lines.map((l) => {
+    if (/^\s*(```|~~~)/.test(l)) fenced = !fenced;
+    return !fenced && /^#{1,6} /.test(l);
+  });
+  const start = lines.findIndex((l, i) => isHeading[i] && l.replace(/^#+ /, "").trim() === heading);
   if (start < 0) fail(`no heading "${heading}"`);
   const level = lines[start].match(/^#+/)![0].length;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    const h = lines[i].match(/^(#{1,6}) /);
+    const h = isHeading[i] && lines[i].match(/^(#{1,6}) /);
     if (h && h[1].length <= level) {
       end = i;
       break;
@@ -93,7 +102,7 @@ function section(text: string, heading: string): string {
   return lines.slice(start, end).join("\n").trimEnd();
 }
 
-function comment(kind: string, ref: string, src: Source): { body: string; caption: string } {
+function comment(kind: string, ref: string, src: Source): { body: string; caption: string; author: string } {
   const m = ref.match(/^([\w.-]+\/[\w.-]+)#(\d+)$/);
   if (!m) fail(`"${ref}" is not owner/repo#number`);
   const [, repo, n] = m;
@@ -107,17 +116,19 @@ function comment(kind: string, ref: string, src: Source): { body: string; captio
     body: string;
     submitted_at?: string;
     created_at?: string;
+    user?: { login: string };
   }[];
   const hit = items.find((c) =>
     src.id !== undefined ? c.id === Number(src.id) : new RegExp(String(src.match)).test(c.body ?? ""),
   );
   if (!hit) fail(`no ${kind} comment on ${ref} matching ${src.id ?? src.match}`);
+  if (!hit.body?.trim()) fail(`${kind} comment ${hit.id} on ${ref} has an empty body`);
   const date = (hit.submitted_at ?? hit.created_at ?? "").slice(0, 10);
-  return { body: hit.body, caption: `Posted on ${ref}, ${date}` };
+  return { body: hit.body, caption: `Posted on ${ref}, ${date}`, author: hit.user?.login ?? "unknown" };
 }
 
-function resolveSource(src: Source): { markdown: string | null; caption: string } {
-  let out: { markdown: string | null; caption: string };
+function resolveSource(src: Source): { markdown: string | null; caption: string; author?: string } {
+  let out: { markdown: string | null; caption: string; author?: string };
   if (typeof src.none === "string") out = { markdown: null, caption: src.none };
   else if (typeof src.text === "string") out = { markdown: src.text, caption: "Inline text" };
   else if (typeof src.file === "string")
@@ -139,7 +150,7 @@ function resolveSource(src: Source): { markdown: string | null; caption: string 
     const kind = ["review", "inline", "issue"].find((k) => typeof src[k] === "string");
     if (!kind) fail(`unknown source ${JSON.stringify(src)}`);
     const posted = comment(kind, String(src[kind]), src);
-    out = { markdown: posted.body, caption: posted.caption };
+    out = { markdown: posted.body, caption: posted.caption, author: posted.author };
   }
   if (src.fill && out.markdown !== null) {
     for (const [placeholder, value] of Object.entries(src.fill as Record<string, string>)) {
@@ -166,11 +177,19 @@ async function css(name: string): Promise<string> {
 const esc = (s: string) =>
   s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
+// The author of a posted comment comes from the API; a template side uses the scenario's
+// "author" (default github-actions[bot]), shown the way GitHub shows a bot.
+function commentHead(login: string): string {
+  const bot = login.endsWith("[bot]");
+  const name = esc(login.replace(/\[bot\]$/, ""));
+  return `<div class="gh-head"><b>${name}</b>${bot ? ' <span class="bot">bot</span>' : ""} commented</div>`;
+}
+
 function box(sc: Scenario, which: "before" | "after", side: Side): string {
   const frame =
     sc.frame === "file"
       ? `<div class="gh-head"><span class="mono">${esc(side.caption.split(" @ ")[0])}</span></div>`
-      : `<div class="gh-head"><b>github-actions</b> <span class="bot">bot</span> commented</div>`;
+      : commentHead(side.author ?? sc.author ?? "github-actions[bot]");
   const content = side.markdown === null ? `<p class="empty">${esc(side.caption)}</p>` : side.html;
   return `<figure class="side ${which}" id="${sc.id}-${which}">
   <figcaption><b>${which === "before" ? "Before" : "After"}</b><span>${esc(side.caption)}</span></figcaption>
@@ -278,25 +297,29 @@ document.querySelector("[data-copy]").onclick = async (e) => {
 
 // Chrome DevTools protocol, just enough to clip one element per PNG.
 async function screenshots(html: string, ids: string[], outDir: string, theme: string) {
-  const port = 9400 + Math.floor(Math.random() * 500);
-  const profile = join(tmpdir(), `before-after-${port}`);
-  const chrome = Bun.spawn(
-    [CHROME, "--headless=new", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
-      "--hide-scrollbars", "--no-first-run", "about:blank"],
-    { stdout: "ignore", stderr: "ignore" },
-  );
+  if (!existsSync(CHROME)) fail(`Chrome not found at ${CHROME}; set CHROME_PATH`);
+  // Port 0 lets Chrome pick a free port; it writes the one it chose to DevToolsActivePort.
+  const profile = mkdtempSync(join(tmpdir(), "before-after-"));
+  let chrome: ReturnType<typeof Bun.spawn> | undefined;
   try {
+    chrome = Bun.spawn(
+      [CHROME, "--headless=new", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
+        "--hide-scrollbars", "--no-first-run", "about:blank"],
+      { stdout: "ignore", stderr: "ignore" },
+    );
     let target: { webSocketDebuggerUrl: string } | undefined;
-    for (let i = 0; i < 50 && !target; i++) {
+    for (let i = 0; i < 100 && !target; i++) {
       try {
+        const port = readFileSync(join(profile, "DevToolsActivePort"), "utf8").split("\n")[0];
         const list = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()) as {
           type: string;
           webSocketDebuggerUrl: string;
         }[];
         target = list.find((t) => t.type === "page");
       } catch {
-        await Bun.sleep(100);
+        // Chrome is still starting: no port file yet, or the endpoint is not answering.
       }
+      if (!target) await Bun.sleep(100);
     }
     if (!target) fail(`Chrome did not start (${CHROME})`);
     const ws = new WebSocket(target.webSocketDebuggerUrl);
@@ -337,37 +360,63 @@ async function screenshots(html: string, ids: string[], outDir: string, theme: s
     }
     ws.close();
   } finally {
-    chrome.kill();
+    chrome?.kill();
+    await chrome?.exited;
+    rmSync(profile, { recursive: true, force: true });
   }
 }
 
-const args = process.argv.slice(2);
-const manifestPath = args.find((a) => !a.startsWith("--"));
-const outIndex = args.indexOf("--out");
-if (!manifestPath || outIndex < 0 || !args[outIndex + 1])
-  fail("usage: before-after.ts <manifest.json> --out <dir> [--png] [--theme=dark|light]");
-const outDir = resolve(args[outIndex + 1]);
-const theme = args.find((a) => a.startsWith("--theme="))?.split("=")[1] ?? "dark";
-const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
-mkdirSync(outDir, { recursive: true });
-
-const sides = new Map<string, { before: Side; after: Side }>();
-for (const sc of manifest.scenarios) {
-  const pair = {} as { before: Side; after: Side };
-  for (const which of ["before", "after"] as const) {
-    const { markdown, caption } = resolveSource(sc[which]);
-    pair[which] = { markdown, caption, html: markdown === null ? "" : render(markdown, manifest.repo) };
+function parseArgs(argv: string[]) {
+  const usage = "usage: before-after.ts <manifest.json> --out <dir> [--png] [--theme=dark|light]";
+  let manifest: string | undefined;
+  let out: string | undefined;
+  let png = false;
+  let theme = "dark";
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--out") out = argv[++i];
+    else if (a.startsWith("--out=")) out = a.slice(6);
+    else if (a === "--png") png = true;
+    else if (a.startsWith("--theme=")) theme = a.slice(8);
+    else if (a.startsWith("--")) fail(`unknown option ${a}\n${usage}`);
+    else if (manifest) fail(`two manifests given\n${usage}`);
+    else manifest = a;
   }
-  sides.set(sc.id, pair);
+  if (!manifest || !out) fail(usage);
+  if (theme !== "dark" && theme !== "light") fail(`--theme must be dark or light`);
+  return { manifestPath: manifest, outDir: resolve(out), png, theme };
 }
-const [light, dark] = await Promise.all([css("github-markdown-light.css"), css("github-markdown-dark.css")]);
-const htmlPath = join(outDir, "index.html");
-writeFileSync(htmlPath, page(manifest, sides, light, dark));
-console.log(htmlPath);
-if (args.includes("--png"))
-  await screenshots(
-    htmlPath,
-    manifest.scenarios.flatMap((sc) => [`${sc.id}-before`, `${sc.id}-after`]),
-    outDir,
-    theme,
-  );
+
+async function main() {
+  const { manifestPath, outDir, png, theme } = parseArgs(process.argv.slice(2));
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
+  mkdirSync(outDir, { recursive: true });
+
+  const sides = new Map<string, { before: Side; after: Side }>();
+  for (const sc of manifest.scenarios) {
+    const pair = {} as { before: Side; after: Side };
+    for (const which of ["before", "after"] as const) {
+      const { markdown, caption } = resolveSource(sc[which]);
+      pair[which] = { markdown, caption, html: markdown === null ? "" : render(markdown, manifest.repo) };
+    }
+    sides.set(sc.id, pair);
+  }
+  const [light, dark] = await Promise.all([css("github-markdown-light.css"), css("github-markdown-dark.css")]);
+  const htmlPath = join(outDir, "index.html");
+  writeFileSync(htmlPath, page(manifest, sides, light, dark));
+  console.log(htmlPath);
+  if (png)
+    await screenshots(
+      htmlPath,
+      manifest.scenarios.flatMap((sc) => [`${sc.id}-before`, `${sc.id}-after`]),
+      outDir,
+      theme,
+    );
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error(`before-after: ${error instanceof Failure ? error.message : (error as Error).stack}`);
+  process.exit(1);
+}

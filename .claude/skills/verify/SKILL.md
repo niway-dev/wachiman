@@ -59,8 +59,11 @@ end user reads do not need one.
    looks as it will on the pull request. It writes `index.html` (side by side or stacked, dark or
    light, and a button that copies the Evidence table) and `<id>-before.png` / `<id>-after.png`.
    The text goes to api.github.com: only public text, never local review data.
+   Needs `gh` signed in, network access to api.github.com and cdn.jsdelivr.net (the GitHub
+   Markdown stylesheet), and, for `--png`, Google Chrome: the macOS path by default, any other
+   install through `CHROME_PATH`.
 3. Look at every PNG before using it. Then put the copied table in the pull request body and
-   attach the images: `gh pr edit <n> --attach '<file>#<alt>'` for each, which rewrites the
+   attach the images: `gh pr edit <n> --attach '<file>#<alt>'` (gh 2.99 or later) for each, which rewrites the
    `./<file>.png` references in place. The images are never committed.
 4. Each caption says where its side came from (a posted comment and its date, or a file at a
    commit). A capture proves how GitHub renders that Markdown, not that the engine produces it:
