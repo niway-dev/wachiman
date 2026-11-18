@@ -112,6 +112,14 @@ describe("loadMemory", () => {
     expect(warned.join("\n")).toContain("no index.md");
   });
 
+  test("a listed index.md the source cannot return does not claim the folder has none", () => {
+    const warned: string[] = [];
+    const src: MemorySource = { list: () => ["index.md"], read: () => null, settings: () => undefined };
+    expect(loadMemory(src, REV, ["a.ts"], (l) => warned.push(l))!.files).toEqual([]);
+    expect(warned.join("\n")).not.toContain("has no index.md");
+    expect(warned.join("\n")).toContain("could not be read");
+  });
+
   test("over the loaded budget it loads the most specific files first and names what it left out", () => {
     const src = source(
       {
@@ -187,6 +195,7 @@ describe("memoryNotice", () => {
     const notice = memoryNotice(load)!;
     expect(notice).toContain("`index.md` is over its 150-line budget");
     expect(notice).toContain("memory.max_index_lines");
+    expect(notice).not.toContain("loaded whole");
     expect(notice).not.toContain("does not fit");
     expect(notice).not.toContain("for lack of room");
   });
