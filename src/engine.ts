@@ -2841,7 +2841,7 @@ export interface CriticalPath {
 const MAX_CRITICAL_LISTED = 20;
 
 /** The changed files a `critical` rule of `rules` matches, in the order given. Never lifts the gate: it only names. */
-export function criticalPathsOf(files: readonly { filename: string; previous_filename?: string }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
+export function criticalPathsOf(files: readonly { filename: string; previous_filename?: string | null }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
   return files.flatMap((f) => {
     const rule = matchPathRule(f.filename, rules, f.previous_filename);
     return rule?.severity === "critical" ? [{ path: f.filename, reason: rule.reason }] : [];

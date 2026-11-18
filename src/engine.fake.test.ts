@@ -1808,7 +1808,7 @@ describe("path rules come from the base commit", () => {
   const SCRIPT = "scripts/x.sh";
   const OTHER = "src/other/a.ts";
   const patch = "@@ -0,0 +1,2 @@\n+a\n+b";
-  const defaultFiles: { filename: string; additions: number; deletions: number; patch: string; previous_filename?: string }[] = [SCRIPT, OTHER, BILLING].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
+  const defaultFiles: { filename: string; additions: number; deletions: number; patch: string; previous_filename?: string | null }[] = [SCRIPT, OTHER, BILLING].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
   const RULES = [
     "paths:",
     '  - match: "docs/billing.md"',

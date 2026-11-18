@@ -118,7 +118,7 @@ export const POLICY_EDIT_RULE: PathRule = { match: SETTINGS_PATH, severity: "cri
 export const withPolicyEditRule = (rules: readonly PathRule[] | undefined): PathRule[] => [...(rules ?? []), POLICY_EDIT_RULE];
 
 /** Whether a change touches `.wachiman.yml`: edits, adds, deletes or renames it away. */
-export const touchesSettingsFile = (files: readonly { filename: string; previous_filename?: string }[]) =>
+export const touchesSettingsFile = (files: readonly { filename: string; previous_filename?: string | null }[]) =>
   files.some((f) => f.filename === SETTINGS_PATH || f.previous_filename === SETTINGS_PATH);
 
 /**
