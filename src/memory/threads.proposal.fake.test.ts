@@ -205,4 +205,15 @@ describe("the remember command is not a question", () => {
     await comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner");
     expect(t.provider.requests).toHaveLength(0);
   });
+
+  test("with memory_proposals off nothing handles it, so it is an ordinary comment: `comment` goes on to answer it and a thread reply is pending", async () => {
+    const t = setup(output(), { memoryProposals: false });
+    t.deps.gh = () => {
+      throw new Error("reached GitHub: the comment was treated as a question");
+    };
+    await expect(comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner")).rejects.toThrow("reached GitHub");
+    const nodes = [FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")];
+    expect(pendingThreads([thread(nodes)], "/wachiman", false)).toHaveLength(1);
+    expect(pendingThreads([thread(nodes)], "/wachiman", true)).toEqual([]);
+  });
 });

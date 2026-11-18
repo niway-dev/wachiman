@@ -2646,17 +2646,18 @@ export const isWachiReply = (c: RawThread["comments"]["nodes"][number]) =>
  * fewer than `MAX_WACHI_REPLIES` replies in the thread. A thread whose latest comment is
  * Wachiman's, or a stranger's, or whose cap is spent, is not pending. Each entry is
  * `openBotThreads`' thread plus how many replies Wachiman already wrote, so the model knows
- * whether its answer is the last one allowed.
+ * whether its answer is the last one allowed. With `memoryProposals` on, a latest reply that is
+ * `<mention> remember <id>` is not pending: the memory write job answers it (layer 5). With it off no
+ * job does, so that reply is an ordinary one.
  */
-export function pendingThreads(threads: RawThread[], keyword = DEFAULT_MENTION) {
+export function pendingThreads(threads: RawThread[], keyword = DEFAULT_MENTION, memoryProposals = true) {
   const open = openBotThreads(threads);
   const byId = new Map(threads.map((t) => [t.comments.nodes[0]?.databaseId, t]));
   return open.flatMap((t) => {
     const nodes = byId.get(t.comment_id)?.comments.nodes ?? [];
     const latest = nodes.length > 1 ? nodes[nodes.length - 1] : undefined;
     if (!latest || latest.author?.login === "github-actions" || !TRUSTED.has(latest.authorAssociation)) return [];
-    // `/wachiman remember <id>` is answered by the write job, not by a model reply (layer 5).
-    if (parseCommand(latest.body, keyword)?.kind === "remember") return [];
+    if (memoryProposals && parseCommand(latest.body, keyword)?.kind === "remember") return [];
     const wachiReplies = nodes.slice(1).filter(isWachiReply).length;
     return wachiReplies < MAX_WACHI_REPLIES ? [{ ...t, wachi_replies: wachiReplies }] : [];
   });
@@ -4404,7 +4405,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
   // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
-  const threads = last ? pendingThreads(fetchThreads(gh, repo, pr), config.mention) : [];
+  const threads = last ? pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals) : [];
   const input = githubReviewInput({
     repo,
     pr,
@@ -4739,7 +4740,7 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
     );
     return;
   }
-  const pending = pendingThreads(fetchThreads(gh, repo, pr), config.mention);
+  const pending = pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals);
   if (pending.length === 0) {
     deps.log("No Wachiman thread waits for an answer.");
     return;
@@ -4842,7 +4843,7 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
   // ADR 0008: recheck the head and each thread before posting. A push since the start means its
   // review answers; a thread someone answered meanwhile is not answered twice.
   const stillPending = new Set<number>();
-  if (headOf() === headSha) for (const t of pendingThreads(fetchThreads(gh, repo, pr), config.mention)) stillPending.add(t.comment_id);
+  if (headOf() === headSha) for (const t of pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals)) stillPending.add(t.comment_id);
   const toPost = replies.filter((r) => stillPending.has(r.reply.comment_id));
   if (toPost.length < replies.length)
     deps.log(`${replies.length - toPost.length} reply(ies) not posted: the head moved or the thread changed meanwhile.`);
@@ -5596,12 +5597,15 @@ export async function comment(deps: Deps, repo: string, pr: number, request: str
   // that login command the tool.
   const problem = operatorProblem(operator);
   if (problem) throw new Error(problem);
-  const command = parseCommand(request, deps.config.mention);
+  const parsed = parseCommand(request, deps.config.mention);
+  // `/wachiman remember <id>` is the memory write job's (layer 5), which exists only with `memory_proposals`: with
+  // it off nothing handles the command, so it stays an ordinary comment (a question).
+  const command = parsed?.kind === "remember" && !deps.config.memoryProposals ? ({ kind: "answer" } as const) : parsed;
   // Without an author, the caller is the operator (manual CLI use, as before), unless collaborators
   // may ask: then nobody is trusted without a login. A dry run posts nothing, so it keeps the manual path.
   const operatorAsked =
     author === undefined ? askers === "operator" || deps.config.dryRun : author.toLowerCase() === operator.toLowerCase();
-  // `/wachiman remember <id>` is the memory write job's (layer 5): neither a review nor a question, so no model call.
+  // With the write job wired it is neither a review nor a question, so no model call.
   if (command?.kind === "remember") {
     deps.log("A `remember` command is handled by the memory write job; nothing to do here.");
     return;

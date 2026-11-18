@@ -978,7 +978,8 @@ To record exactly this text, the operator replies `/wachiman remember 4c1e9a2` i
 The proposing reply is an ordinary thread reply, so it counts toward the two replies Wachiman writes in
 a thread ([ADR 0008](adr/0008-thread-follow-up-authority.md)). A reply that is only `/wachiman remember
 <id>` is not a question: the thread run does not answer it and `/wachiman` on-demand runs ignore it, so it
-costs no model call. The proposal is shown only by the thread-only run (an operator reply on a head that
+costs no model call. That holds only with `memory_proposals` on: with it off no job handles the command,
+so `/wachiman remember <id>` is an ordinary comment, answered like any other question. The proposal is shown only by the thread-only run (an operator reply on a head that
 was already reviewed); a push review that answers threads does not propose.
 
 **Approving it: `memory remember <pr>`.** The operator's reply `/wachiman remember <id>` in that thread
