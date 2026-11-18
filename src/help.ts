@@ -475,7 +475,7 @@ const prTemplatePageRoot: Page = {
 const MEMORY_DOCS = `${DOCS}/cli.md#memory`;
 const MEMORY_EXIT: readonly Row[] = [
   ["0", "Done: the memory is clean (or the repository has no .wachiman/memory/ folder), or the entry was recorded"],
-  ["1", "check found a problem; or propose refused or failed and wrote nothing (not proposable, pull request closed, push failed)"],
+  ["1", "check found a problem; or propose refused or failed and wrote nothing (not proposable, pull request closed, push failed), or it recorded the entry but could not open the draft pull request"],
   ["2", "Usage or configuration error: an unknown subcommand, an unknown id, a bad flag, or an invalid .wachiman.yml"],
 ];
 const MEMORY_USAGE = [
@@ -487,7 +487,7 @@ const MEMORY_USAGE = [
 ].join("\n");
 const memoryPage: Page = {
   usage: MEMORY_USAGE,
-  summary: "Check the repository memory in .wachiman/memory/ (Markdown files that teach Wachiman how code is written here), and propose new entries from the laptop. No model is called. `add` writes only a file under the Wachiman home; `propose` is the only subcommand that writes to a remote, and only to a branch on origin. Today a review loads, budgets and records this memory but does not yet use it to judge code.",
+  summary: "Check the repository memory in .wachiman/memory/ (Markdown files that teach Wachiman how code is written here), and propose new entries from the laptop. No model is called. `add` writes only a file under the Wachiman home; `propose` is the only subcommand that writes to a remote, and only to a branch on origin. A review loads this memory from the base commit: conventions go into the review prompt, and findings an exception covers are muted after discovery (see the docs).",
   options: [REPO_DIR],
   exit: MEMORY_EXIT,
   examples: ["wachiman memory check", "wachiman memory candidates", "wachiman memory show 4c1e9a2", "wachiman memory propose 4c1e9a2"],
@@ -541,7 +541,7 @@ const memoryPage: Page = {
     },
     propose: {
       usage: "wachiman memory propose <id> [--repo-dir <dir>]",
-      summary: "Add the entry to the branch wachiman/memory on origin as one commit, and open the draft pull request `chore(wachiman): memory` if none is open. It builds the commit in a temporary worktree, so your branch, index and uncommitted changes are untouched; it never force-pushes and writes only under .wachiman/memory/. It uses your own git credentials and `gh`. A pull request closed without merging stops it. It says `recorded` only after the push succeeded.",
+      summary: "Add the entry to the branch wachiman/memory on origin as one commit, and open the draft pull request `chore(wachiman): memory` if none is open. It builds the commit in a temporary worktree, so your branch, index and uncommitted changes are untouched; it never force-pushes and writes only under .wachiman/memory/. It uses your own git credentials and `gh`. It runs none of your git hooks in that worktree. A pull request closed without merging stops it. It says `recorded` only after the push succeeded.",
       options: [REPO_DIR],
       exit: MEMORY_EXIT,
       examples: ["wachiman memory propose 4c1e9a2"],
