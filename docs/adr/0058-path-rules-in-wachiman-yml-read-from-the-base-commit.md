@@ -1,7 +1,11 @@
 # ADR 0058: Path rules in `.wachiman.yml`, read from the base commit
 
 - **Status:** proposed 2026-11-18. Implemented by the pull request that adds this file
-  (`feat/path-rules`). Builds on [ADR 0048](0048-a-repository-settings-file-at-the-root-wachiman-yml.md)
+  (`feat/path-rules`). Amends two statements of
+  [ADR 0049](0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md): that the file
+  "is not read at all" when `model` and `effort` are both explicit (its decision 5), and that
+  Actions makes the extra call only "unless both values are explicit" (its consequences). Every
+  Actions run now reads the file. Builds on [ADR 0048](0048-a-repository-settings-file-at-the-root-wachiman-yml.md)
   and [ADR 0049](0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md).
   Design: [path rules spec](../specs/2026-11-18-path-rules-design.md).
 - **Date:** 2026-11-18
