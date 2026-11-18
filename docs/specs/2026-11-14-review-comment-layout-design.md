@@ -1,7 +1,8 @@
 # One fixed layout for the review comment, its inline findings and its notices
 
-- **Status:** draft 2026-11-14. The owner answered open questions 1 to 4 on 2026-11-14; open
-  questions 5 and 6 run on their defaults unless the owner says otherwise.
+- **Status:** draft 2026-11-14, revised 2026-11-18 (the inline table). The owner answered open
+  questions 2 to 4 on 2026-11-14 and question 1 provisionally; open questions 5, 6 and 7 run on
+  their defaults unless the owner says otherwise.
 - **ADR:** [ADR 0055](../adr/0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md) (new).
 - **Issue:** [NIW2-810](https://linear.app/niway/issue/NIW2-810/wachiman-one-fixed-layout-for-every-comment-on-a-pull-request-summary)
 
@@ -69,8 +70,8 @@ parser round-trip tests instead of more string assertions.
 - The local loop summary of [PR #243](https://github.com/niway-dev/wachiman/pull/243) (open; it
   renders the laptop loop summary from code). This spec reuses its table vocabulary and does not
   change it.
-- The local terminal and Markdown sinks, except the shared label (decision 12), which they render
-  too.
+- The local terminal and Markdown sinks: they keep their one-line label (`src/sinks/common.ts`);
+  the inline table is for GitHub only.
 - The other comments the engine posts keep their format: ask answers (`ASK_FOOTER`,
   `readAskCost`), thread replies (their `<sub>this run … · PR so far …</sub>` line), the ceiling
   notice (`CEILING_NOTICE`) and the PR Confidence comment. The round-trip tests still run their
@@ -122,7 +123,8 @@ parser round-trip tests instead of more string assertions.
       every Blocker/Fix row survive; in a golden body whose never-dropped slots alone pass the
       limit, the To fix table ends with "and N more, on their lines" and the body fits.
 - [ ] A re-review golden body with no new Fix but open earlier bot threads never contains
-      "Nothing to fix".
+      "Nothing to fix"; neither does one whose thread page failed (it shows "earlier threads not
+      counted") nor one whose only Fix is pre-existing.
 - [ ] `wachiman-benchmarks/scripts/parse.ts` reads the new golden bodies and the old raw bodies, in
       a benchmarks pull request merged with the same release.
 - [ ] Every golden body passes `markdownlint-cli2` default rules, with the same disables as the
@@ -244,16 +246,18 @@ Status line, built from parts joined by ` · `:
 
 1. The lead, the first that applies: `⛔ Not reviewed: <reason>`, `⚠️ Partial: N of M files not
    reviewed`, `🔴 N blockers before merge`, `🟠 N to fix in this PR`, `Needs investigation: N`,
-   `No new findings to fix` (unresolved bot threads remain), `Nothing to fix` (none remain).
+   `No new findings to fix` (unresolved bot threads remain, a pre-existing Blocker or Fix exists,
+   or the thread count is unknown), `Nothing to fix` (none of those).
 2. When the lead is Partial and the review also has Blockers or Fixes, their part follows the lead:
    `⚠️ Partial: 2 of 9 files not reviewed · 🔴 1 blocker before merge · …`. The same holds for a
    Fix part after a Blocker lead: `🔴 1 blocker before merge · 🟠 2 to fix in this PR · …`.
 3. Doubts that must not read as reassuring follow next, whatever the lead: `⚠️ verifier did not
-   finish: N findings not checked` when the verifier failed or stopped, and `N pre-existing to fix`
-   when slot 9 holds a Blocker or Fix. So a review with no findings and a failed verifier opens
+   finish: N findings not checked` when the verifier failed or stopped, and `N pre-existing issues
+   to fix, not from this PR` when slot 9 holds a Blocker or Fix. So a review with no findings and a failed verifier opens
    `Nothing to fix · ⚠️ verifier did not finish: …`, never a bare `Nothing to fix`.
-4. Earlier threads: when unresolved bot threads remain, `N earlier threads open` always follows.
-   So "Nothing to fix" never appears while an earlier bot thread is unresolved.
+4. Earlier threads: when unresolved bot threads remain, `N earlier threads open` always follows;
+   when a page of `fetchThreads` failed, `⚠️ earlier threads not counted` follows instead. So
+   "Nothing to fix" never appears while an earlier bot thread is unresolved or uncounted.
 5. `🟡 N to consider`, when there are any.
 6. The scope, always last: `whole PR at <sha>` or `changes since <sha> at <sha>`.
 
@@ -301,7 +305,7 @@ illustrative):
 
 </details>
 
-<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · Wachiman 1.15.0 · PR so far $0.28 · this run $0.28</sub>
+<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · Wachiman 1.15.0 · Claude subscription: API-equivalent estimate, not a bill · PR so far $0.28 · this run $0.28</sub>
 ```
 
 Displayed paths keep the file name and the line; a name longer than 40 characters keeps its first
@@ -325,10 +329,12 @@ or 🟠 Fix severity in the row above. A separate Fix line with the evidence fol
 model to return the fix apart from the body; that is open question 7, not part of this design.
 
 The model never reads the table. `openBotThreads` copies the first comment of each open bot thread
-into `threads.json`; before it does, the engine turns a new inline table back into the one-line
-label it sends today (`<severity> · <topic>: <title> (confidence <level>)` followed by the body),
-using `parseLabel`. The prompt-golden fixtures for thread cases therefore stay byte-identical, and
-a test proves it for one old and one new thread.
+into `threads.json`; before it does, the engine rebuilds today's first line from a new inline
+table: `parseLabel` reads the fields back, the title cell's escaping is undone (`\|` back to `|`),
+and the same `branded(label(f))` call that posts today's line renders it, followed by the body and
+the signature. The bytes match today's comment except for a title that contained a newline, which
+the table cell flattened to a space. A test proves the match for one old and one new thread, and
+the prompt-golden thread fixtures use titles without a newline.
 
 Pre-existing and inconclusive findings never open an inline thread (the engine routes them to the
 body first); their rows in the body and in the local sinks carry `Pre-existing` or `Needs
@@ -339,7 +345,7 @@ the old one. It stops being a first-line-only reader.
 Rollback: an engine older than this change cannot parse the new label, so its verdict statistics
 (`judge` in `src/precision.ts`) skip findings posted by the newer engine. This loss is accepted: it
 affects only the precision report, never the spend ceiling, and the brand stays first on the line
-as ADR 0010 requires (the brand is the table's first cell).
+as amended ADR 0010 requires (the brand is the first cell of the inline table's first line).
 
 ### Not-reviewed and rebase notices
 
@@ -371,7 +377,8 @@ flag and no model: it is not a counted run for the ceiling and needs no spend lo
 `<sub>Wachiman <version></sub>` line is new; today's notice has no `<sub>` line. Decision 11's
 footer rule applies to reviews that ran a model.
 
-Edit in place: a $0 refusal carries a hidden `<!-- wachi:refusal kind=<billing|auth> -->` marker.
+Edit in place: a $0 refusal carries a hidden `<!-- wachi:refusal kind=<billing|auth|rate_limit> -->` marker. A rate-limit refusal is $0 too, and its
+notice says "Re-run later"; a golden scenario covers it.
 On the next refusal, the engine lists the pull request's reviews; if the latest bot review carries
 that marker, it replaces that review's body with one `PUT` (the update-review endpoint) instead of
 posting a new review, the way the size gate already updates its own comment by marker (`SIZE_GATE_MARKER`, [ADR 0037](../adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). A `PUT` with the
@@ -411,7 +418,7 @@ a golden file.
 
 | PR | Scope | Main risk | Protection |
 | --- | --- | --- | --- |
-| 1 | Inline label, count line that adds up, the shared label in the local sinks, `parseLabel` dual read | Benchmark parser and verdict replies | Round-trip tests on old and new labels |
+| 1 | Inline table (GitHub only; the local sinks keep their label), count line that adds up, `parseLabel` dual read, the legacy line for `threads.json` | Benchmark parser and verdict replies | Round-trip tests on old and new labels |
 | 2 | View model, review body slots, named drop list for size fitting, 422 fallback split point, cell escaping, `parse.ts` in benchmarks | Ceiling and partial marker under trimming | Golden files incl. trimmed and 422 bodies |
 | 3 | Run details table, new `<sub>` line with the Wachiman version, ceiling and model reader on both formats | Spend ceiling, rollback | Round-trip tests on old and new footers |
 | 4 | Notice template, edit in place for $0 refusals, rebase one-liner | Spend records and head marker | Two-push scenarios in golden tests |

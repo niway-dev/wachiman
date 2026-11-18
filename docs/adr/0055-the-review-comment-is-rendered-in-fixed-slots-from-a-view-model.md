@@ -2,14 +2,18 @@
 
 - **Status:** proposed 2026-11-14. Not implemented. Amends
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
-  (the GitHub sink's output was to stay unchanged). Keeps
+  (the GitHub sink's output was to stay unchanged) and
+  [ADR 0010](0010-name-wachiman.md) decision 2 (an inline finding's first line is now the table
+  header, whose first cell is the brand; `parseLabel` reads the table rows). Keeps
   [ADR 0030](0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)
   (its Important/Nit/Pre-existing word),
-  [ADR 0003](0003-two-axis-finding-labels.md), [ADR 0010](0010-name-wachiman.md),
+  [ADR 0003](0003-two-axis-finding-labels.md),
   [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md),
   [ADR 0031](0031-a-risk-map-whose-level-the-engine-computes-from-checked-facts.md),
   [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
-  and the size-gate [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md) intact.
+  the size-gate [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md) and the
+  subscription-token [ADR 0037](0037-the-actions-review-can-run-on-a-claude-code-subscription-token.md)
+  (its estimate note stays on the `<sub>` line, before the figures) intact.
 - **Date:** 2026-11-14
 - **Spec:** [One fixed layout for the review comment, its inline findings and its notices](../specs/2026-11-14-review-comment-layout-design.md)
 - **Numbering:** 0055 because open pull requests hold up to 0054.
@@ -50,7 +54,7 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
    replies that look addressed. It never says "fixed".
 6. Locations link to the file and line at the head SHA, not to review threads.
 7. The footer is one `<sub>` line that starts with "<model> via" and ends with the run's cost, and
-   adds the Wachiman version; the remaining values go to a "Run details" table above it. Readers of
+   adds the Wachiman version, keeping the subscription estimate note before the figures; the remaining values go to a "Run details" table above it. Readers of
    the old line keep working on old comments. A notice that ran no model (the rebase notice) ends with a
    `<sub>Wachiman <version></sub>` line instead, with no model and no cost.
 8. The inline finding opens with a table: the brand and the title, then the severity (emoji and
@@ -59,7 +63,7 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
    body follows the table unchanged, and the model never reads the table (`threads.json` gets the
    one-line label back).
 9. A not-reviewed notice states who acts, where, and what this run spent. Only a $0 refusal
-   (billing, auth) that is the latest bot notice on the pull request is edited in place; every
+   (billing, auth, rate limit) that is the latest bot notice on the pull request is edited in place; every
    notice that spent money, and every rebase notice, is a new review.
 10. The format is checked by golden Markdown files per scenario and by round-trip tests that run
     every reader of a posted comment against new and old bodies. A string assertion that only
