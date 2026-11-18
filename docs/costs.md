@@ -42,7 +42,7 @@ posts one "Automatic reviews paused" notice and does nothing else, and later pus
 until you raise the limit or ask yourself.
 
 - `/wachiman review` and `/wachiman <question>` are not limited and not counted.
-- The first review counts. A large first review ($1.36 on a big pull request) can use a large share of the default $6 (`auto_budget_usd`);
+- The first review counts. A large first review ($1.36 on a big pull request) uses about a quarter of the default $6 (`auto_budget_usd`);
   once the ceiling is reached the notice tells you how to continue.
 - A run cancelled by a newer push posts nothing, so what it spent is in no footer and is not
   counted; a thread-reply run that posted no reply is not counted either. The ceiling can

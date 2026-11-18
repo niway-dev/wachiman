@@ -445,7 +445,7 @@ model writes, and the footer is read only at the very end of the body.
   later pushes post nothing. Raising `auto_budget_usd` lets the next push run.
 - Otherwise the run's budget is the smaller of `budget_usd` (or `threads_budget_usd`) and what is
   left, so the pull request cannot go far past the ceiling (Claude's per-call cap is still soft).
-- The first review counts. A large first review can use most of the default $2.
+- The first review counts. A large first review ($1.36 on a big pull request) uses about a quarter of the default $6.
 - `/wachiman review` and `/wachiman <question>` are not limited and not counted. A rebase or merge with
   no change in the pull request's lines is still posted at the ceiling: it costs nothing and moves
   the marker.
