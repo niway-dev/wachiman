@@ -139,8 +139,8 @@ export interface ReviewFile {
   patch?: string;
   /** The file's blob at the compared commit: equal blobs are equal contents. Absent for a removed file. */
   sha?: string;
-  /** The name before a rename, as GitHub reports it. */
-  previous_filename?: string;
+  /** The name before a rename, as GitHub reports it: `null` for a file that was not renamed. */
+  previous_filename?: string | null;
 }
 
 /** @deprecated The name before the review core; use `ReviewFile`. Removed in the next minor release. */

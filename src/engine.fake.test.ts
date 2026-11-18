@@ -1856,7 +1856,8 @@ describe("path rules come from the base commit", () => {
 
   test("a file renamed out of a rule keeps the rule: ordered first and quoted", async () => {
     const MOVED = "docs/moved.md";
-    const renamed = [SCRIPT, OTHER, MOVED].map((filename) => ({ filename, additions: 2, deletions: 0, patch, ...(filename === MOVED ? { previous_filename: BILLING } : {}) }));
+    // GitHub sends `previous_filename: null` for every file that was not renamed.
+    const renamed = [SCRIPT, OTHER, MOVED].map((filename) => ({ filename, additions: 2, deletions: 0, patch, previous_filename: filename === MOVED ? BILLING : null }));
     const r = await run({ ".wachiman.yml": RULES }, {}, false, renamed);
     expect(r.order).toEqual([MOVED, SCRIPT, OTHER]);
     expect(r.prompt).toContain(`${MOVED} +2 −0 — path rule high (docs/billing.md): prices customers see`);

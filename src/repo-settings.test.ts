@@ -140,6 +140,11 @@ describe("paths", () => {
       expect(matchPathRule("src/a.ts", [])).toBeUndefined();
     });
 
+    test("GitHub's null for a file that was not renamed means no old path", () => {
+      expect(matchPathRule("src/billing/charge.ts", rules, null)?.reason).toBe("most severe");
+      expect(matchPathRule("README.md", rules, null)).toBeUndefined();
+    });
+
     test("a renamed file is matched on both paths; the more severe rule wins, the new name's on a tie", () => {
       const r: PathRule[] = [
         { match: "src/billing/**", severity: "high", reason: "old home" },

@@ -82,11 +82,13 @@ const compiled = new WeakMap<readonly PathRule[], { rule: PathRule; glob: Bun.Gl
  * The rule that applies to `path`: the most severe match, the first in the file on a tie
  * (`paths` decision 3). Undefined when no rule matches or there are no rules. A renamed file
  * passes its old path as `previous`: both names are matched, the more severe rule wins and the
- * new name's on a tie, so a rename cannot take a file out of its rule.
+ * new name's on a tie, so a rename cannot take a file out of its rule. No old path is `undefined`,
+ * `null` (what GitHub sends) or empty.
  */
-export function matchPathRule(path: string, rules: readonly PathRule[] | undefined, previous?: string): PathRule | undefined {
+export function matchPathRule(path: string, rules: readonly PathRule[] | undefined, previous?: string | null): PathRule | undefined {
   const current = matchOne(path, rules);
-  if (previous === undefined || previous === path) return current;
+  // GitHub sends `previous_filename: null` for a file that was not renamed.
+  if (!previous || previous === path) return current;
   const earlier = matchOne(previous, rules);
   return earlier && (!current || SEVERITY_RANK[earlier.severity] > SEVERITY_RANK[current.severity]) ? earlier : current;
 }
