@@ -2650,7 +2650,7 @@ export const isWachiReply = (c: RawThread["comments"]["nodes"][number]) =>
  * `<mention> remember <id>` is not pending: the memory write job answers it (layer 5). With it off no
  * job does, so that reply is an ordinary one.
  */
-export function pendingThreads(threads: RawThread[], keyword = DEFAULT_MENTION, memoryProposals = true) {
+export function pendingThreads(threads: RawThread[], keyword = DEFAULT_MENTION, memoryProposals = false) {
   const open = openBotThreads(threads);
   const byId = new Map(threads.map((t) => [t.comments.nodes[0]?.databaseId, t]));
   return open.flatMap((t) => {

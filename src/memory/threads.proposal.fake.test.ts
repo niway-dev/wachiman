@@ -191,10 +191,12 @@ describe("the remember command is not a question", () => {
   });
 
   test("a reply that is `/wachiman remember <id>` is not pending, so the thread run spends nothing on it", () => {
-    expect(pendingThreads([thread([FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")])])).toEqual([]);
+    expect(pendingThreads([thread([FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")])], "/wachiman", true)).toEqual([]);
+    // The default is off, like the config and the prompt: the reply is then an ordinary one.
+    expect(pendingThreads([thread([FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")])])).toHaveLength(1);
     // A custom keyword is honoured.
-    expect(pendingThreads([thread([FINDING(7), OWNER("/bot remember 4c1e9a2")])], "/bot")).toEqual([]);
-    expect(pendingThreads([thread([FINDING(7), OWNER("remember 4c1e9a2 is nice")])])).toHaveLength(1);
+    expect(pendingThreads([thread([FINDING(7), OWNER("/bot remember 4c1e9a2")])], "/bot", true)).toEqual([]);
+    expect(pendingThreads([thread([FINDING(7), OWNER("remember 4c1e9a2 is nice")])], "/wachiman", true)).toHaveLength(1);
   });
 
   test("`comment` does not answer or review it: the remember job handles it", async () => {
