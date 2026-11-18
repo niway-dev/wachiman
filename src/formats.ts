@@ -9,6 +9,7 @@ import { UsageError } from "./config";
 import type { Contract } from "./contracts";
 import type { TokenUsage } from "./cost";
 import type { Fidelity } from "./fidelity/types";
+import type { MemoryRecord } from "./memory/load";
 import type {
   BaseInstructions,
   BatchReport,
@@ -285,6 +286,12 @@ export interface ReviewResultV2 {
   instructionChanges: { files: string[]; baseSha: string };
   /** The change edits the path rules; the review ran under the base's. Only `/2` has it: `toResultV1` leaves it out. */
   pathPolicyChanged?: true;
+  /**
+   * The repository's memory this review loaded (ADR 0056): the base commit it was read at, the files
+   * loaded, what was left out and whether it was over budget. Absent when the repository has none.
+   * Only `/2` has it: `toResultV1` leaves it out.
+   */
+  memory?: MemoryRecord;
   /** Totals include the coverage calls and the verifier call. */
   execution: Execution;
   /** Absent when verification was off. */
@@ -350,7 +357,7 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
     throw new UsageError("A working-tree review has no result /1: its head is a tree id, not a commit. Use --result-version 2.");
   }
   const { account: _account, ...provider } = result.provider;
-  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, ...rest } = result;
+  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, ...rest } = result;
   return {
     ...rest,
     format: REVIEW_RESULT_V1,
