@@ -191,7 +191,13 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     if (!personal && !parsed.flags.has("--team")) {
       // Spec decision 16: a repository whose team has not adopted memory is never pushed to unasked.
       let choice = readMemoryChoice(home, key);
-      if (!choice && (ctx.deps?.teamMemory ?? teamHasMemory)(repositoryRoot(repoDir)) === false) {
+      const teamMemory = (ctx.deps?.teamMemory ?? teamHasMemory)(repositoryRoot(repoDir));
+      if (choice === "personal" && teamMemory === true) {
+        // The team adopted memory after the answer was given: the entry goes to the team again.
+        io.stdout("this repository's team now has .wachiman/memory/, so this entry goes to the team's memory pull request; pass --personal to keep it on this machine.\n");
+        choice = "team";
+      }
+      if (!choice && teamMemory === false) {
         choice = parseMemoryChoice(ctx.ask?.(FIRST_PROPOSE_QUESTION));
         if (!choice) {
           io.stderr(`memory propose: this repository's default branch has no .wachiman/memory/, so nothing was pushed or written. Run it again with --personal (keep the entry on this machine) or --team (propose it to the team's repository).`);
