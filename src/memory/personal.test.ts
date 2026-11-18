@@ -54,6 +54,13 @@ describe("personalMemoryDir", () => {
     }
   });
 
+  test("is keyed by the URL as configured, so an insteadOf rewrite does not change it", () => {
+    const dir = repoWithOrigin("https://github.com/acme/widgets.git");
+    const before = personalMemoryDir("/h", dir);
+    git(dir, "config", "url.git@github.com:.insteadOf", "https://github.com/");
+    expect(personalMemoryDir("/h", dir)).toBe(before);
+  });
+
   test("every worktree of a clone shares it", () => {
     const dir = repoWithOrigin();
     const other = join(temp("wachiman-wt-"), "wt");
@@ -252,4 +259,82 @@ describe("the first propose in a repository whose team has not adopted memory", 
     expect(run("propose", add(run, "Prefer named exports.")).code).toBe(0);
     expect(git(w.bare, "branch", "--list").includes("wachiman/memory")).toBe(true);
   }, 30_000);
+});
+
+describe("memory propose --from-personal", () => {
+  function worldWithPersonal() {
+    const bare = temp("wachiman-origin-");
+    git(bare, "init", "-q", "--bare", "-b", "main");
+    const seed = emptyRepo("wachiman-seed-");
+    commit(seed, { "src/a.ts": "export const a = 1;\n" }, "seed");
+    git(seed, "remote", "add", "origin", bare);
+    git(seed, "push", "-q", "origin", "main");
+    const parent = temp("wachiman-dev-");
+    git(parent, "clone", "-q", bare, "repo");
+    const dir = join(parent, "repo");
+    git(dir, "config", "user.name", "ana");
+    git(dir, "config", "user.email", "ana@example.com");
+    git(dir, "config", "commit.gpgsign", "false");
+    const home = temp("wachiman-home-");
+    const created: string[] = [];
+    const pulls = { list: () => (created.length > 0 ? [{ number: 1, state: "OPEN" as const, url: "https://example.test/pr/1" }] : []), createDraft: () => (created.push("pr"), "https://example.test/pr/1") };
+    const run = cli(dir, home, { teamMemory: () => false, pulls });
+    // Personal entries are written under a GitHub-shaped origin, then origin points at the bare repository for the push.
+    git(dir, "remote", "set-url", "origin", "https://github.com/acme/widgets.git");
+    // Git still reaches the bare repository through a rewrite, as on a machine that rewrites https to ssh; the personal folder is keyed by the URL as written.
+    git(dir, "config", `url.${bare}.insteadOf`, "https://github.com/acme/widgets.git");
+    const ids = ["Prefer named exports.", "Keep modules small."].map((rule, i) => {
+      const id = run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", String(7 + i)).stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+      expect(run("propose", id, "--personal").code).toBe(0);
+      return id;
+    });
+    const personalFile = join(home, "memory", "github.com", "acme", "widgets", "index.md");
+    return { bare, dir, home, run, ids, created, personalFile };
+  }
+  const memoryLog = (bare: string) => git(bare, "log", "--format=%s", "refs/heads/wachiman/memory").trim().split("\n");
+
+  test("sends every personal entry to the team's memory branch, one commit each, with the text and evidence as personal memory has them", () => {
+    const w = worldWithPersonal();
+    const personalText = readFileSync(w.personalFile, "utf8");
+    const r = w.run("propose", "--from-personal");
+    expect(r.stderr).toBe("");
+    expect(r.code).toBe(0);
+    expect(memoryLog(w.bare)).toHaveLength(3); // seed + one commit per entry
+    const team = git(w.bare, "show", "refs/heads/wachiman/memory:.wachiman/memory/index.md");
+    for (const id of w.ids) expect(team).toContain(`### ${id}`);
+    expect(team).toContain("pull request 7");
+    expect(team).toContain("pull request 8");
+    expect(parseMemoryFile("index.md", team).problems).toEqual([]);
+    expect(w.created).toEqual(["pr"]);
+    // Personal memory is left as it was: a committed copy wins at load time, so nothing is lost or doubled.
+    expect(readFileSync(w.personalFile, "utf8")).toBe(personalText);
+  }, 60_000);
+
+  test("with ids it sends only those, and an id that is not in personal memory is a usage error", () => {
+    const w = worldWithPersonal();
+    const bad = w.run("propose", "--from-personal", "0000000");
+    expect(bad.code).toBe(2);
+    expect(bad.stderr).toContain("0000000");
+    expect(git(w.bare, "branch", "--list").includes("wachiman/memory")).toBe(false);
+    const r = w.run("propose", "--from-personal", w.ids[1]);
+    expect(r.code).toBe(0);
+    const team = git(w.bare, "show", "refs/heads/wachiman/memory:.wachiman/memory/index.md");
+    expect(team).toContain(`### ${w.ids[1]}`);
+    expect(team).not.toContain(`### ${w.ids[0]}`);
+  }, 60_000);
+
+  test("with no personal memory it says so and writes nothing", () => {
+    const dir = repoWithOrigin();
+    const run = cli(dir, temp("wachiman-home-"), { teamMemory: () => true });
+    const r = run("propose", "--from-personal");
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("no personal memory");
+  });
+
+  test("it cannot be combined with --personal or --team", () => {
+    const dir = repoWithOrigin();
+    const run = cli(dir, temp("wachiman-home-"));
+    expect(run("propose", "--from-personal", "--personal").code).toBe(2);
+    expect(run("propose", "--from-personal", "--team").code).toBe(2);
+  });
 });

@@ -719,6 +719,7 @@ wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]
 wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]
 wachiman memory show <id> [--repo-dir <dir>]
 wachiman memory propose <id> [--personal | --team] [--repo-dir <dir>]
+wachiman memory propose --from-personal [<id>...] [--repo-dir <dir>]
 wachiman memory remember <pr> [--repo-dir <dir>]
 ```
 
@@ -1069,6 +1070,16 @@ exits 1 and writes and pushes nothing, telling you to run it again with `--perso
 two flags choose explicitly, never ask and never store an answer; passing both is a usage error. If
 Wachiman cannot tell whether the team uses memory (for example no network), it does not ask and takes the
 team path, which then reports what it could not reach.
+
+**Sending personal entries to the team.** `memory propose --from-personal` (with no id: every personal
+entry; with ids: only those) sends them through the same write path as `propose <id>`: one commit per
+entry on `wachiman/memory`, the same checks, the same draft pull request. Each entry is printed as it is
+sent, and goes with its text and evidence lines exactly as they are in personal memory; an entry whose
+text a terminal could show differently from what is committed is skipped and named. It is an explicit
+team action, so it does not ask the first-time question and cannot be combined with `--personal` or
+`--team`. Personal memory is left as it was: once the pull request is merged, the committed copy wins
+at load time and the personal copy is not loaded twice. Remove it yourself by deleting its entry from
+the personal `index.md`.
 
 A **laptop review** (`wachiman local`, and so `loop`) loads the committed memory first, then the
 personal memory of that repository, inside the same `memory.max_loaded_lines` budget: committed lines

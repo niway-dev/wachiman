@@ -28,7 +28,7 @@ import {
 } from "./candidates";
 import type { GhFn } from "../engine";
 import { proposeCandidate, teamHasMemory, type ProposeDeps } from "./propose";
-import { FIRST_PROPOSE_QUESTION, parseMemoryChoice, proposePersonal, readMemoryChoice, writeMemoryChoice } from "./personal";
+import { candidatesFromPersonal, FIRST_PROPOSE_QUESTION, parseMemoryChoice, personalMemoryDir, proposePersonal, readMemoryChoice, writeMemoryChoice } from "./personal";
 
 export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as const;
 
@@ -106,6 +106,30 @@ function parsePr(v: string | undefined): number | undefined {
 
 const need = (c: Candidate, minEvidence: number) => proposability(c, minEvidence);
 
+/** `propose --from-personal [<id>...]`: the personal entries (or those ids) go to the team's memory pull request through the same write path as `propose <id>`. Personal memory is left as it is. */
+function sendPersonal(ids: string[], repoDir: string, home: string, io: CaptureIo, ctx: CaptureContext): number {
+  for (const id of ids) if (!/^[0-9a-f]{7}$/.test(id)) throw new UsageError(`"${id}" is not a memory entry id (seven hex characters).`);
+  const dir = personalMemoryDir(home, repoDir);
+  if (dir === undefined) {
+    io.stderr("memory propose: this repository has no remote named origin with a host, an owner and a repository, so it has no personal memory; nothing was sent.");
+    return 1;
+  }
+  const { candidates, unknown, skipped } = candidatesFromPersonal(dir, ids);
+  if (unknown.length > 0) throw new UsageError(`No personal memory entry ${unknown.join(", ")} for this repository.`);
+  for (const line of skipped) io.stderr(`memory propose: skipped personal entry ${line}`);
+  if (candidates.length === 0) {
+    io.stdout("no personal memory entries to send.\n");
+    return skipped.length > 0 ? 1 : 0;
+  }
+  let failed = skipped.length > 0;
+  for (const c of candidates) {
+    io.stdout(`sending ${c.id} to the team's memory pull request:\n${renderEntry(c)}`);
+    const result = proposeCandidate(c, repoDir, io, ctx.deps);
+    if (!result.recorded || result.pullRequestFailed) failed = true;
+  }
+  return failed ? 1 : 0;
+}
+
 export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: string[], repoDir: string, io: CaptureIo, ctx: CaptureContext = {}): number {
   const env = ctx.env ?? process.env;
   const home = wachimanHome(env);
@@ -149,7 +173,11 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   }
 
   if (sub === "propose") {
-    const parsed = parseOptions(rest, sub, [], ["--personal", "--team"]);
+    const parsed = parseOptions(rest, sub, [], ["--personal", "--team", "--from-personal"]);
+    if (parsed.flags.has("--from-personal")) {
+      if (parsed.flags.has("--personal") || parsed.flags.has("--team")) throw new UsageError("--from-personal already sends to the team's memory pull request; it cannot be combined with --personal or --team.");
+      return sendPersonal(parsed.positional, repoDir, home, io, ctx);
+    }
     const id = oneId(parsed, sub);
     if (parsed.flags.has("--personal") && parsed.flags.has("--team")) throw new UsageError("--personal and --team exclude each other: choose where the entry goes.");
     let personal = parsed.flags.has("--personal");

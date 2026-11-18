@@ -489,7 +489,8 @@ const MEMORY_USAGE = [
   "wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]",
   "wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]",
   "wachiman memory show <id> [--repo-dir <dir>]",
-  "wachiman memory propose <id> [--repo-dir <dir>]",
+  "wachiman memory propose <id> [--personal | --team] [--repo-dir <dir>]",
+  "wachiman memory propose --from-personal [<id>...] [--repo-dir <dir>]",
   "wachiman memory remember <pr> [--repo-dir <dir>]",
 ].join("\n");
 const memoryPage: Page = {
@@ -567,9 +568,9 @@ const memoryPage: Page = {
       docs: MEMORY_DOCS,
     },
     propose: {
-      usage: "wachiman memory propose <id> [--repo-dir <dir>]",
-      summary: "Add the entry to the branch wachiman/memory on origin as one commit, and open the draft pull request `chore(wachiman): memory` if none is open. It builds the commit in a temporary worktree, so your branch, index and uncommitted changes are untouched; it never force-pushes and writes only under .wachiman/memory/. It uses your own git credentials and `gh`. It runs none of your git hooks in that worktree. A pull request closed without merging stops it. It says `recorded` only after the push succeeded.",
-      options: [REPO_DIR],
+      usage: "wachiman memory propose <id> [--personal | --team] [--repo-dir <dir>]\nwachiman memory propose --from-personal [<id>...] [--repo-dir <dir>]",
+      summary: "Add the entry to the branch wachiman/memory on origin as one commit, and open the draft pull request `chore(wachiman): memory` if none is open. It builds the commit in a temporary worktree, so your branch, index and uncommitted changes are untouched; it never force-pushes and writes only under .wachiman/memory/. It uses your own git credentials and `gh`. It runs none of your git hooks in that worktree. A pull request closed without merging stops it. It says `recorded` only after the push succeeded. `--personal` instead writes the entry to your personal memory for this repository (under the Wachiman home, keyed by the URL of origin) with no commit, no push and no network; only your laptop reviews of that repository load it. In a repository whose default branch has no .wachiman/memory/, a first `propose` without a flag asks which of the two you want (or exits 1 when it cannot ask): use `--personal` or `--team` to choose. `--from-personal` sends your personal entries (all, or the ids given) to the team's pull request.",
+      options: [["--personal", "Write to your personal memory instead of the team's branch"], ["--team", "Propose to the team's branch without the first-time question"], ["--from-personal", "Send personal entries (all, or the ids given) to the team's memory pull request"], REPO_DIR],
       exit: MEMORY_EXIT,
       examples: ["wachiman memory propose 4c1e9a2"],
       docs: MEMORY_DOCS,

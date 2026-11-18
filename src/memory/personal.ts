@@ -12,7 +12,8 @@ import { chmodSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, open
 import { join, sep } from "node:path";
 import { spawnGit, type GitRunner } from "../evidence";
 import { normaliseRemote } from "../history/store";
-import { type Candidate } from "./candidates";
+import { candidateProblem, CANDIDATE_FORMAT, type Candidate } from "./candidates";
+import { parseMemoryFile } from "./entries";
 import { type MemorySource } from "./load";
 import { applyCandidate, introducedProblems, Refused, type ProposeIo, type ProposeResult } from "./propose";
 
@@ -21,9 +22,13 @@ const GIT_TIMEOUT_MS = 30_000;
 /** A path segment that cannot climb out of its folder or hide: only letters, digits, `.`, `_`, `-`. */
 const segment = (text: string) => text.replace(/[^A-Za-z0-9._-]/g, "-").replace(/^[.-]+/, "");
 
-/** The URL of `origin` without credentials, or undefined when the clone has none. */
+/**
+ * The URL of `origin` as configured (`remote.origin.url`), or undefined when the clone has none.
+ * Not `git remote get-url`: that applies `insteadOf` rewrites, so one repository would get a
+ * different key on a machine that rewrites https to ssh.
+ */
 function originOf(repoDir: string, git: GitRunner): string | undefined {
-  const r = git(["remote", "get-url", "origin"], { cwd: repoDir, timeoutMs: GIT_TIMEOUT_MS });
+  const r = git(["config", "--get", "remote.origin.url"], { cwd: repoDir, timeoutMs: GIT_TIMEOUT_MS });
   const raw = r.status === 0 ? r.stdout.trim() : "";
   return raw === "" ? undefined : raw;
 }
@@ -179,3 +184,37 @@ export const FIRST_PROPOSE_QUESTION = [
   "  2. team: proposed as a pull request on this repository's wachiman/memory branch",
   "The answer is remembered for this repository.",
 ].join("\n");
+
+/**
+ * The personal entries of `dir` as candidates for the team path, with their text and evidence lines
+ * exactly as they are in personal memory (`Evidence.text`). `only` limits them to those ids; an id
+ * that is not there is listed in `unknown`. An entry whose text a terminal could show differently
+ * from what would be committed is skipped and named in `skipped`.
+ */
+export function candidatesFromPersonal(dir: string, only: string[]): { candidates: Candidate[]; unknown: string[]; skipped: string[] } {
+  const entries = Object.entries(readPersonalFiles(dir)).flatMap(([name, text]) => parseMemoryFile(name, text).entries);
+  const seen = new Set<string>();
+  const candidates: Candidate[] = [];
+  const skipped: string[] = [];
+  for (const e of entries) {
+    if (seen.has(e.id) || (only.length > 0 && !only.includes(e.id))) continue;
+    seen.add(e.id);
+    const candidate: Candidate = {
+      format: CANDIDATE_FORMAT,
+      id: e.id,
+      title: e.title,
+      kind: e.kind,
+      scope: e.scope,
+      rule: e.rule,
+      why: e.why,
+      ...(e.holdsWhile ? { holdsWhile: e.holdsWhile } : {}),
+      added: e.added,
+      evidence: e.evidence.map((text) => ({ date: /^\d{4}-\d{2}-\d{2}/.exec(text)?.[0] ?? e.added, source: "instruction" as const, agent: false, branch: "personal", text })),
+    };
+    const problem = candidateProblem(candidate);
+    if (problem) skipped.push(`${e.id}: ${problem}`);
+    else candidates.push(candidate);
+  }
+  const unknown = only.filter((id) => !seen.has(id));
+  return { candidates, unknown, skipped };
+}

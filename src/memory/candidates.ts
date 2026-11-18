@@ -38,6 +38,11 @@ export interface Evidence {
   agent: boolean;
   /** The local history id of the finding, for `judged` and `fixed`. Never written into the repository. */
   finding?: string;
+  /**
+   * The evidence line verbatim, for an entry that already exists as text (one read back from personal
+   * memory by `propose --from-personal`). Never stored in a candidate file.
+   */
+  text?: string;
 }
 
 export interface Candidate {
@@ -59,10 +64,11 @@ const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 export const today = (now: Date = new Date()) => now.toISOString().slice(0, 10);
 
 const refKey = (e: Evidence) => (e.pr !== undefined ? `pr:${e.pr}` : `branch:${e.branch ?? ""}`);
-const evidenceKey = (e: Evidence) => `${e.source}|${refKey(e)}|${e.finding ?? ""}`;
+const evidenceKey = (e: Evidence) => `${e.source}|${refKey(e)}|${e.finding ?? ""}|${e.text ?? ""}`;
 
 /** The evidence line as it is written in the entry. */
 export function evidenceLine(e: Evidence): string {
+  if (e.text !== undefined) return squash(e.text);
   const ref = e.pr !== undefined ? `pull request ${e.pr}` : `branch ${squash(e.branch ?? "")}`;
   return `${e.date} ${SOURCE_LABEL[e.source]}, ${ref}${e.agent ? ", written by an agent" : ""}`;
 }
@@ -134,7 +140,7 @@ export function candidateProblem(c: Candidate): string | undefined {
     ["why", c.why],
     ["holds while", c.holdsWhile],
     ["added", c.added],
-    ...c.evidence.flatMap((e, i): [string, string | undefined][] => [[`evidence ${i + 1} date`, e.date], [`evidence ${i + 1} branch`, e.branch]]),
+    ...c.evidence.flatMap((e, i): [string, string | undefined][] => [[`evidence ${i + 1} date`, e.date], [`evidence ${i + 1} branch`, e.branch], [`evidence ${i + 1} text`, e.text]]),
   ];
   for (const [name, value] of texts) {
     const bad = value === undefined ? undefined : UNSAFE_CHARACTER.exec(value);
