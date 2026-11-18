@@ -57,17 +57,24 @@ your model provider, which have their own policies.
 
 ### Does it learn from my reviews or store anything?
 
-No. Nothing persists between runs except what is already on the pull request:
+It does not learn by itself and it has no database. It stores nothing outside your repository and the
+pull request. What persists between runs is:
 
 - Each complete review ends with a hidden line recording the commit it covered; the next review
   reads it from the pull request's own review history.
 - Threads and replies are ordinary GitHub review comments.
+- An optional memory that you write and keep in your repository: Markdown files in `.wachiman/memory/`,
+  read from the base commit on every review. A convention in it is added to the review prompt; an
+  exception can keep a Consider or Info finding out of the comments, and the review summary lists every
+  finding it muted. It never mutes a Blocker, a Fix or a security finding. See [`memory`](cli.md#memory).
+  Nothing writes to it yet: a person adds entries by hand and merges them as any other change.
 
-There is no database and no memory of your repositories. The proposals for "learned" lessons
-([ADR 0007](adr/0007-learned-memory-by-draft-pr.md)) and a policy folder
-([ADR 0006](adr/0006-repository-review-policy.md)) are marked proposed and are not implemented.
-What you can tune today is in [review-policy.md](review-policy.md). The accuracy script
-([precision.md](precision.md)) reads GitHub when you run it; the engine does not run it.
+A policy folder ([ADR 0006](adr/0006-repository-review-policy.md)) is marked proposed and is not
+implemented, and neither is the automatic proposal of "learned" lessons
+([ADR 0007](adr/0007-learned-memory-by-draft-pr.md), narrowed by the
+[memory design](specs/2026-11-18-repository-memory-design.md)). What you can tune today is in
+[review-policy.md](review-policy.md). The accuracy script ([precision.md](precision.md)) reads GitHub when
+you run it; the engine does not run it.
 
 The engine writes the pull request's title, body and open threads (and, for a question, its diff)
 into temporary directories on the runner, and the engine's code does not delete them. On a GitHub-hosted runner the machine is
