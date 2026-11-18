@@ -65,8 +65,6 @@ export interface HistoryRun {
  */
 export type VerdictWord = "correct" | "partial" | "wrong" | "intentional" | "not-important";
 export const VERDICT_WORDS: readonly VerdictWord[] = ["correct", "partial", "wrong", "intentional", "not-important"];
-/** The words the dashboard's closed figures know; the two newer ones are not counted there. */
-export const CORE_VERDICT_WORDS: readonly VerdictWord[] = ["correct", "partial", "wrong"];
 
 export interface VerdictLine {
   at: string;

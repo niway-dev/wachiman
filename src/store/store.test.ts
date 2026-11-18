@@ -4,7 +4,7 @@ import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFile
 import { join } from "node:path";
 import { appendVerdict, historyRoot, writeLoopFile, writeRun } from "../history/store";
 import type { HistoryRun } from "../history/types";
-import { ALPHA, EXPECTED, fixtureHome, removeFixtureHomes } from "../../test/support/dashboard-fixture";
+import { ALPHA, BETA, EXPECTED, fixtureHome, removeFixtureHomes } from "../../test/support/dashboard-fixture";
 import { INDEX_SCHEMA_VERSION, refreshIndex } from "./index";
 import { readFigures } from "./figures";
 
@@ -109,7 +109,17 @@ describe("the local index", () => {
     appendVerdict(root, ALPHA.key, { at: "2026-11-03T00:00:00.000Z", firstId: "c1c1c1c1c1", verdict: "partial" });
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
     expect(marker()).toBeNull();
-    expect(readFigures(index).findings.byVerdict).toEqual({ correct: 1, partial: 1, wrong: 1, unjudged: 1 });
+    expect(readFigures(index).findings.byVerdict).toEqual({ correct: 1, partial: 1, wrong: 1, intentional: 0, notImportant: 0, unjudged: 1 });
+  });
+
+  test("findings judged intentional or not-important are counted, not dropped", () => {
+    const { wachiman, index, root } = fixtureHome();
+    appendVerdict(root, ALPHA.key, { at: "2026-11-03T00:00:00.000Z", firstId: "c1c1c1c1c1", verdict: "intentional" });
+    appendVerdict(root, BETA.key, { at: "2026-11-03T00:00:01.000Z", firstId: "d1d1d1d1d1", verdict: "not-important" });
+    refreshIndex(wachiman, warn);
+    const v = readFigures(index).findings.byVerdict;
+    expect(v).toEqual({ correct: 1, partial: 0, wrong: 1, intentional: 1, notImportant: 1, unjudged: 0 });
+    expect(Object.values(v).reduce((a, b) => a + b, 0)).toBe(4);
   });
 
   test("a new run file and a new loop file each make an up-to-date index rebuild", () => {
@@ -310,7 +320,7 @@ describe("the local index", () => {
     const { wachiman, index, root } = fixtureHome();
     appendFileSync(join(root, ALPHA.key, "verdicts.jsonl"), `${JSON.stringify({ firstId: "c1c1c1c1c1", verdict: "partial" })}\n`);
     refreshIndex(wachiman, warn);
-    expect(readFigures(index).findings.byVerdict).toEqual({ correct: 1, partial: 1, wrong: 1, unjudged: 1 });
+    expect(readFigures(index).findings.byVerdict).toEqual({ correct: 1, partial: 1, wrong: 1, intentional: 0, notImportant: 0, unjudged: 1 });
   });
 
   test("an index that keeps its version and signature but lost a table or a column is rebuilt", () => {

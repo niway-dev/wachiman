@@ -137,6 +137,14 @@
               "type": "integer",
               "minimum": 0
             },
+            "intentional": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "notImportant": {
+              "type": "integer",
+              "minimum": 0
+            },
             "unjudged": {
               "type": "integer",
               "minimum": 0
