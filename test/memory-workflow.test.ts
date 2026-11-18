@@ -19,6 +19,19 @@ describe("the review workflows write nothing to the repository", () => {
   }
 });
 
+describe("the memory_proposals input reaches every engine step that parses a reply", () => {
+  for (const file of ["review.yml", "wachiman-platform.yml", "review-platform.yml"]) {
+    test(`${file}: the review, threads and comment steps all get WACHIMAN_MEMORY_PROPOSALS`, () => {
+      const steps = Object.values(jobsOf(`.github/workflows/${file}`)).flatMap((j) => j.steps);
+      for (const command of ["cli.ts review ", "cli.ts threads ", "cli.ts comment "]) {
+        const step = steps.find((s) => s.run?.includes(command));
+        expect(step, `${file} ${command}`).toBeDefined();
+        expect(step!.env?.WACHIMAN_MEMORY_PROPOSALS, `${file} ${command}`).toBe("${{ inputs.memory_proposals }}");
+      }
+    });
+  }
+});
+
 describe("wachiman-memory.yml", () => {
   const text = read(".github/workflows/wachiman-memory.yml");
   const jobs = jobsOf(".github/workflows/wachiman-memory.yml");
@@ -35,6 +48,10 @@ describe("wachiman-memory.yml", () => {
     expect(gate).toContain("github.event.comment.user.type != 'Bot'");
     expect(gate).toContain("github.event.comment.in_reply_to_id");
     expect(gate).toContain("contains(github.event.comment.body, 'remember')");
+    // The command word: the body starts with the mention, `/wachi` or `@claude`.
+    expect(gate).toContain("startsWith(github.event.comment.body, inputs.mention)");
+    expect(gate).toContain("startsWith(github.event.comment.body, '/wachi')");
+    expect(gate).toContain("startsWith(github.event.comment.body, '@claude')");
     expect(gate).toContain("github.event.pull_request.head.repo.full_name == github.repository");
   });
 

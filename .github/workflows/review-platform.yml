@@ -412,6 +412,7 @@ jobs:
           WACHIMAN_PROVIDER: ${{ inputs.provider }}
           WACHIMAN_MENTION: ${{ inputs.mention }}
           WACHIMAN_OPERATOR: ${{ inputs.operator }}
+          WACHIMAN_MEMORY_PROPOSALS: ${{ inputs.memory_proposals }}
           WACHIMAN_LEDGER_URL: ${{ inputs.ledger_url }}
           WACHIMAN_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
           WACHIMAN_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
@@ -687,6 +688,7 @@ jobs:
           WACHIMAN_PROVIDER: ${{ inputs.provider }}
           WACHIMAN_MENTION: ${{ inputs.mention }}
           WACHIMAN_OPERATOR: ${{ inputs.operator }}
+          WACHIMAN_MEMORY_PROPOSALS: ${{ inputs.memory_proposals }}
           WACHIMAN_LEDGER_URL: ${{ inputs.ledger_url }}
           WACHIMAN_DAILY_BUDGET_USD: ${{ inputs.daily_budget_usd != 0 && inputs.daily_budget_usd || '' }}
           WACHIMAN_WEEKLY_BUDGET_USD: ${{ inputs.weekly_budget_usd != 0 && inputs.weekly_budget_usd || '' }}
