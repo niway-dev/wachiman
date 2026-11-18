@@ -125,6 +125,12 @@ export function requestedRepoDir(argv: string[]): string {
  * Writes all of `text` to a file descriptor before returning. `process.stdout.write` is
  * asynchronous on a pipe, and `process.exit` right after it cuts a long report short.
  */
+/** Asks one question on the terminal and returns the typed answer (Bun's synchronous `prompt`); only used when stdin and stderr are terminals. */
+function askOnTerminal(question: string): string | undefined {
+  console.error(question);
+  return prompt("Your choice (1 or 2):") ?? undefined;
+}
+
 export function writeAll(fd: number, text: string) {
   const bytes = Buffer.from(text);
   let offset = 0;
@@ -371,7 +377,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "memory") {
       // No model, no provider. `check`, `candidates`, `add` and `show` read files and git; `propose` also pushes with the developer's git credentials and calls `gh`.
-      return runMemory(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { env });
+      return runMemory(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { env, ...(process.stdin.isTTY && process.stderr.isTTY ? { ask: askOnTerminal } : {}) });
     }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);

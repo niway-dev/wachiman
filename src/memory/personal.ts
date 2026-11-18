@@ -142,3 +142,40 @@ export function proposePersonal(candidate: Candidate, repoDir: string, home: str
     return { recorded: false };
   }
 }
+
+export type MemoryChoice = "personal" | "team";
+const CHOICE_FORMAT = "wachiman.memory-choice/1";
+
+/** `<home>/memory-choice/<repo key>.json`: where a repository's answer to the first-propose question is kept (the key is `repositoryKey(repoDir).key`). */
+const choicePath = (home: string, key: string) => join(home, "memory-choice", `${key}.json`);
+
+/** The stored answer for this repository, or undefined when none was given (or the file is not one). */
+export function readMemoryChoice(home: string, key: string): MemoryChoice | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(choicePath(home, key), "utf8"));
+    return parsed?.format === CHOICE_FORMAT && (parsed.choice === "personal" || parsed.choice === "team") ? parsed.choice : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeMemoryChoice(home: string, key: string, choice: MemoryChoice, now: Date): void {
+  privateDirs(home, join(home, "memory-choice"));
+  writeFileAtomic(choicePath(home, key), `${JSON.stringify({ format: CHOICE_FORMAT, choice, at: now.toISOString() }, null, 2)}\n`);
+}
+
+/** The words of an answer to the first-propose question: `1`, `p` or `personal`; `2`, `t` or `team`. */
+export function parseMemoryChoice(answer: string | undefined): MemoryChoice | undefined {
+  const a = (answer ?? "").trim().toLowerCase();
+  if (a === "1" || a === "p" || a === "personal") return "personal";
+  if (a === "2" || a === "t" || a === "team") return "team";
+  return undefined;
+}
+
+export const FIRST_PROPOSE_QUESTION = [
+  "This repository's default branch has no .wachiman/memory/, so its team has not adopted Wachiman memory.",
+  "Where should this entry go?",
+  "  1. personal: kept on this machine, never pushed; your laptop reviews of this repository load it",
+  "  2. team: proposed as a pull request on this repository's wachiman/memory branch",
+  "The answer is remembered for this repository.",
+].join("\n");

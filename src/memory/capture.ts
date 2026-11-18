@@ -8,7 +8,7 @@ import { wachimanHome } from "../accounts/config";
 import { UsageError } from "../config";
 import { spawnGit } from "../evidence";
 import { historyRoot, repositoryKey } from "../history/store";
-import { loadMemorySettings } from "./settings";
+import { loadMemorySettings, repositoryRoot } from "./settings";
 import {
   candidateProblem,
   evidenceFromFinding,
@@ -27,8 +27,8 @@ import {
   type EvidenceSource,
 } from "./candidates";
 import type { GhFn } from "../engine";
-import { proposeCandidate, type ProposeDeps } from "./propose";
-import { proposePersonal } from "./personal";
+import { proposeCandidate, teamHasMemory, type ProposeDeps } from "./propose";
+import { FIRST_PROPOSE_QUESTION, parseMemoryChoice, proposePersonal, readMemoryChoice, writeMemoryChoice } from "./personal";
 
 export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as const;
 
@@ -51,6 +51,8 @@ export interface CaptureContext {
   gh?: GhFn;
   now?: () => Date;
   deps?: ProposeDeps;
+  /** Asks the developer a question and returns the answer; absent when nobody can answer (no terminal). */
+  ask?: (question: string) => string | undefined;
 }
 
 interface Parsed {
@@ -147,15 +149,29 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   }
 
   if (sub === "propose") {
-    const parsed = parseOptions(rest, sub, [], ["--personal"]);
+    const parsed = parseOptions(rest, sub, [], ["--personal", "--team"]);
     const id = oneId(parsed, sub);
-    const personal = parsed.flags.has("--personal");
+    if (parsed.flags.has("--personal") && parsed.flags.has("--team")) throw new UsageError("--personal and --team exclude each other: choose where the entry goes.");
+    let personal = parsed.flags.has("--personal");
     const c = readCandidate(home, key, id);
     if (!c) throw new UsageError(`No memory candidate ${id} for this repository; list them with \`wachiman memory candidates\`.`);
     const q = need(c, minEvidence);
     if (!q.proposable) {
       io.stderr(`memory propose: candidate ${id} is not proposable: ${q.why}. Nothing was written.`);
       return 1;
+    }
+    if (!personal && !parsed.flags.has("--team")) {
+      // Spec decision 16: a repository whose team has not adopted memory is never pushed to unasked.
+      let choice = readMemoryChoice(home, key);
+      if (!choice && (ctx.deps?.teamMemory ?? teamHasMemory)(repositoryRoot(repoDir)) === false) {
+        choice = parseMemoryChoice(ctx.ask?.(FIRST_PROPOSE_QUESTION));
+        if (!choice) {
+          io.stderr(`memory propose: this repository's default branch has no .wachiman/memory/, so nothing was pushed or written. Run it again with --personal (keep the entry on this machine) or --team (propose it to the team's repository).`);
+          return 1;
+        }
+        writeMemoryChoice(home, key, choice, (ctx.now ?? (() => new Date()))());
+      }
+      personal = choice === "personal";
     }
     const result = personal ? proposePersonal(c, repoDir, home, io) : proposeCandidate(c, repoDir, io, ctx.deps);
     if (result.recorded) {

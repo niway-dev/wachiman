@@ -718,7 +718,7 @@ wachiman memory report [--since <date>] [--format terminal|json] [--repo-dir <di
 wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]
 wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]
 wachiman memory show <id> [--repo-dir <dir>]
-wachiman memory propose <id> [--personal] [--repo-dir <dir>]
+wachiman memory propose <id> [--personal | --team] [--repo-dir <dir>]
 wachiman memory remember <pr> [--repo-dir <dir>]
 ```
 
@@ -1059,6 +1059,16 @@ no other repository sees it. A clone with no `origin` has no personal memory: `p
 says so, exits 1 and writes nothing. It makes no commit, no push, no fetch and no pull request, and
 nothing appears in `git status`. An entry already there only gains the evidence it lacks, and an entry
 that would make `memory check` fail on the folder is refused.
+
+**The first question.** In a repository whose default branch has no `.wachiman/memory/` (and whose
+`origin` has no `wachiman/memory` branch), `propose` without a flag never pushes a branch unasked.
+On a terminal it asks where the entry should go (1 personal, 2 team) and stores the answer for that
+repository in `<home>/memory-choice/<repository key>.json`; later proposals use the stored answer and do
+not ask again (delete the file to be asked again). With no terminal to ask on, and no stored answer, it
+exits 1 and writes and pushes nothing, telling you to run it again with `--personal` or `--team`. Those
+two flags choose explicitly, never ask and never store an answer; passing both is a usage error. If
+Wachiman cannot tell whether the team uses memory (for example no network), it does not ask and takes the
+team path, which then reports what it could not reach.
 
 A **laptop review** (`wachiman local`, and so `loop`) loads the committed memory first, then the
 personal memory of that repository, inside the same `memory.max_loaded_lines` budget: committed lines

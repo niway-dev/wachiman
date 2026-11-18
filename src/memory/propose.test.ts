@@ -68,7 +68,7 @@ function developer(w: ReturnType<typeof world>, name: string, fake = fakePulls()
     let stderr = "";
     let code: number;
     try {
-      code = runMemory(argv, dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls } });
+      code = runMemory(argv, dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls, teamMemory: () => true } });
     } catch (error) {
       code = 2;
       stderr += (error as Error).message;
@@ -242,7 +242,7 @@ describe("memory propose", () => {
     };
     expect(d.run("candidates").stdout).not.toContain("proposed");
     let out = "";
-    const code = runMemory(["propose", id], d.dir, { stdout: (t) => (out += t), stderr: () => {} }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing } });
+    const code = runMemory(["propose", id], d.dir, { stdout: (t) => (out += t), stderr: () => {} }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing, teamMemory: () => true } });
     expect(code).toBe(0);
     const shown = d.run("show", id).stdout;
     expect(shown).toContain("pull request 709");
@@ -433,7 +433,7 @@ fi
     const run = (...argv: string[]) => {
       let stdout = "";
       let stderr = "";
-      const code = runMemory(argv, d.dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: flaky } });
+      const code = runMemory(argv, d.dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: flaky, teamMemory: () => true } });
       return { code, stdout, stderr };
     };
     const first = run("propose", id);

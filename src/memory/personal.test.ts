@@ -30,13 +30,13 @@ function repoWithOrigin(url: string | undefined = "https://github.com/acme/widge
   return dir;
 }
 
-function cli(dir: string, home: string, deps = {}) {
+function cli(dir: string, home: string, deps = {}, extra: { ask?: (question: string) => string | undefined } = {}) {
   return (...argv: string[]) => {
     let stdout = "";
     let stderr = "";
     let code: number;
     try {
-      code = runMemory(argv, dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: home }, now: () => new Date("2026-11-18T10:00:00Z"), deps });
+      code = runMemory(argv, dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: home }, now: () => new Date("2026-11-18T10:00:00Z"), deps, ...extra });
     } catch (error) {
       code = 2;
       stderr += (error as Error).message;
@@ -141,4 +141,115 @@ describe("memory propose --personal", () => {
     expect(r.stderr).toContain("no remote named origin");
     expect(existsSync(join(home, "memory"))).toBe(false);
   });
+});
+
+describe("the first propose in a repository whose team has not adopted memory", () => {
+  /** A bare origin with `main` seeded, a clone of it, and a fake for the pull-request calls. */
+  function teamWorld() {
+    const bare = temp("wachiman-origin-");
+    git(bare, "init", "-q", "--bare", "-b", "main");
+    const seed = emptyRepo("wachiman-seed-");
+    commit(seed, { "src/a.ts": "export const a = 1;\n" }, "seed");
+    git(seed, "remote", "add", "origin", bare);
+    git(seed, "push", "-q", "origin", "main");
+    const parent = temp("wachiman-dev-");
+    git(parent, "clone", "-q", bare, "repo");
+    const dir = join(parent, "repo");
+    git(dir, "config", "user.name", "ana");
+    git(dir, "config", "user.email", "ana@example.com");
+    git(dir, "config", "commit.gpgsign", "false");
+    const created: string[] = [];
+    const pulls = { list: () => [], createDraft: () => (created.push("pr"), "https://example.test/pr/1") };
+    // A local path names no host, owner and repository, so personal memory needs a URL of origin; nothing contacts it.
+    const asGithub = () => git(dir, "remote", "set-url", "origin", "https://github.com/acme/widgets.git");
+    const asBare = () => git(dir, "remote", "set-url", "origin", bare);
+    return { bare, dir, pulls, created, asGithub, asBare };
+  }
+  const NO_TEAM_MEMORY = () => false;
+  const add = (run: ReturnType<typeof cli>, rule: string) => run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+  const choices = (home: string) => (existsSync(join(home, "memory-choice")) ? readdirSync(join(home, "memory-choice")).map((f) => JSON.parse(readFileSync(join(home, "memory-choice", f), "utf8"))) : []);
+  const onlyMain = (bare: string) => git(bare, "branch", "--list").trim() === "main" || git(bare, "branch", "--list").trim() === "* main";
+
+  test("without a way to ask, and without --personal or --team, it refuses and pushes nothing", () => {
+    const w = teamWorld();
+    const home = temp("wachiman-home-");
+    const run = cli(w.dir, home, { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls });
+    const r = run("propose", add(run, "Prefer named exports."));
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("has no .wachiman/memory/");
+    expect(r.stderr).toContain("--personal");
+    expect(r.stderr).toContain("--team");
+    expect(onlyMain(w.bare)).toBe(true);
+    expect(w.created).toEqual([]);
+    expect(existsSync(join(home, "memory"))).toBe(false);
+    expect(choices(home)).toEqual([]);
+  }, 30_000);
+
+  test("asked, a personal answer is stored and the next propose uses it without asking again", () => {
+    const w = teamWorld();
+    w.asGithub();
+    const home = temp("wachiman-home-");
+    const asked: string[] = [];
+    const run = cli(w.dir, home, { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls }, { ask: (q) => (asked.push(q), "1") });
+    const first = run("propose", add(run, "Prefer named exports."));
+    expect(first.code).toBe(0);
+    expect(first.stdout).toContain("in your personal memory");
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatch(/1\b.*personal/s);
+    expect(asked[0]).toMatch(/2\b.*team/s);
+    expect(choices(home)).toMatchObject([{ choice: "personal" }]);
+    expect(onlyMain(w.bare)).toBe(true);
+
+    const second = run("propose", add(run, "Keep modules small."));
+    expect(second.code).toBe(0);
+    expect(second.stdout).toContain("in your personal memory");
+    expect(asked).toHaveLength(1);
+    expect(onlyMain(w.bare)).toBe(true);
+  }, 30_000);
+
+  test("asked, a team answer is stored and the entry goes to the team's memory branch", () => {
+    const w = teamWorld();
+    const home = temp("wachiman-home-");
+    const run = cli(w.dir, home, { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls }, { ask: () => "2" });
+    const r = run("propose", add(run, "Prefer named exports."));
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("on wachiman/memory");
+    expect(git(w.bare, "branch", "--list").includes("wachiman/memory")).toBe(true);
+    expect(choices(home)).toMatchObject([{ choice: "team" }]);
+    expect(existsSync(join(home, "memory"))).toBe(false);
+  }, 30_000);
+
+  test("an answer that is neither option writes and stores nothing", () => {
+    const w = teamWorld();
+    const home = temp("wachiman-home-");
+    const run = cli(w.dir, home, { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls }, { ask: () => "maybe" });
+    const r = run("propose", add(run, "Prefer named exports."));
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("--personal");
+    expect(onlyMain(w.bare)).toBe(true);
+    expect(choices(home)).toEqual([]);
+    expect(existsSync(join(home, "memory"))).toBe(false);
+  }, 30_000);
+
+  test("--personal and --team never ask, and do not store an answer", () => {
+    const w = teamWorld();
+    const home = temp("wachiman-home-");
+    const run = cli(w.dir, home, { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls }, { ask: () => { throw new Error("must not ask"); } });
+    w.asGithub();
+    expect(run("propose", add(run, "Prefer named exports."), "--personal").code).toBe(0);
+    expect(onlyMain(w.bare)).toBe(true);
+    w.asBare();
+    expect(run("propose", add(run, "Keep modules small."), "--team").code).toBe(0);
+    expect(git(w.bare, "branch", "--list").includes("wachiman/memory")).toBe(true);
+    expect(choices(home)).toEqual([]);
+    expect(run("propose", add(run, "Third rule."), "--personal", "--team").code).toBe(2);
+  }, 30_000);
+
+  test("a repository whose default branch already has memory is not asked", () => {
+    const w = teamWorld();
+    const home = temp("wachiman-home-");
+    const run = cli(w.dir, home, { teamMemory: () => true, pulls: w.pulls }, { ask: () => { throw new Error("must not ask"); } });
+    expect(run("propose", add(run, "Prefer named exports.")).code).toBe(0);
+    expect(git(w.bare, "branch", "--list").includes("wachiman/memory")).toBe(true);
+  }, 30_000);
 });
