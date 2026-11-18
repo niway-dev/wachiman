@@ -4,7 +4,7 @@
  * with scripted prompts.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../test/support/temp-repo";
@@ -64,6 +64,10 @@ describe("init through the CLI, without a terminal", () => {
     expect(doc.error.code).toBe("usage");
     expect(doc.error.message).toContain("--repo-dir");
     expect(doc.files).toEqual([]);
+    // The directory the caller asked for, resolved, not the working directory.
+    expect(doc.repoDir).toBe(join(m.repo, "missing"));
+    const relative = JSON.parse(m.run(["init", "--json", "--mode", "local", "--repo-dir=nope"]).stdout);
+    expect(relative.repoDir).toBe(join(realpathSync(m.repo), "nope"));
   });
 
   test("--mode github --operator me --version v1.5.0 --dry-run prints the rendered file and writes nothing", () => {

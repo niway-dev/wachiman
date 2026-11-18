@@ -109,6 +109,16 @@ export function extractRepoDir(argv: string[]) {
   return { repoDir, rest };
 }
 
+/** The `--repo-dir` the caller typed, resolved to an absolute path; the working directory when there is none. Never throws: it only reads the arguments. */
+export function requestedRepoDir(argv: string[]): string {
+  let value: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--repo-dir") value = argv[++i];
+    else if (argv[i].startsWith("--repo-dir=")) value = argv[i].slice("--repo-dir=".length);
+  }
+  return resolve(value || ".");
+}
+
 /**
  * Writes all of `text` to a file descriptor before returning. `process.stdout.write` is
  * asynchronous on a pipe, and `process.exit` right after it cuts a long report short.
@@ -459,7 +469,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (error instanceof UsageError || error instanceof UnknownProviderError) {
       // `init --json` promises one document on stdout even when the arguments fail before init runs (a bad --repo-dir).
       if (mode === "init" && argv.includes("--json")) {
-        printDocument((text) => writeAll(1, text), failureDocument({ mode: null, dryRun: argv.includes("--dry-run"), repoDir: process.cwd(), report: {}, code: "usage", message: error.message }));
+        printDocument((text) => writeAll(1, text), failureDocument({ mode: null, dryRun: argv.includes("--dry-run"), repoDir: requestedRepoDir(argv), report: {}, code: "usage", message: error.message }));
         return 2;
       }
       return usageError(error.message, mode);
