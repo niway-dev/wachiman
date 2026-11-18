@@ -134,9 +134,9 @@ on:
 ```
 
 Only the `operator`'s replies start the job, and it answers only once the head was reviewed. The
-same release adds two inputs, `auto_budget_usd` (default `2`: the most all automatic runs on one
+same release adds two inputs, `auto_budget_usd` (default `2` in v1.5.0, `6` since: the most all automatic runs on one
 pull request may spend together; `/wachiman review` is not limited by it) and `threads_budget_usd`
-(default `0.25`). **This changes cost behaviour on a pull request with many pushes:** after $2 of
+(default `0.25`). **This changes cost behaviour on a pull request with many pushes:** after the ceiling ($2 in v1.5.0) of
 automatic runs the pushes stop being reviewed and one notice is posted. Raise `auto_budget_usd` in
 your caller if that is too low. Pass either input only after you move to a release that has it: a
 workflow given an input the pinned release does not declare fails. A copied install must copy the

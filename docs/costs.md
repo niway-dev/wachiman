@@ -15,7 +15,7 @@ if you need a hard ceiling. New in the next release: a pull request whose estima
 the size gate (`size_gate_usd`, default $6) is not reviewed at all, and Wachiman says why in one
 comment. See [The size gate](#the-size-gate).
 
-Everything below describes the code at release `v1.3.0` (`src/engine.ts`, `src/providers/`,
+Everything below describes the code on the `main` branch (`src/engine.ts`, `src/providers/`,
 `.github/workflows/review.yml`). It is advisory software: a review never approves, requests changes
 or blocks a merge, and neither does running out of budget.
 
@@ -42,14 +42,14 @@ posts one "Automatic reviews paused" notice and does nothing else, and later pus
 until you raise the limit or ask yourself.
 
 - `/wachiman review` and `/wachiman <question>` are not limited and not counted.
-- The first review counts. A large first review ($1.36 on a big pull request) can use most of $2;
-  the notice then tells you how to continue.
+- The first review counts. A large first review ($1.36 on a big pull request) can use a large share of the default $6 (`auto_budget_usd`);
+  once the ceiling is reached the notice tells you how to continue.
 - A run cancelled by a newer push posts nothing, so what it spent is in no footer and is not
   counted; a thread-reply run that posted no reply is not counted either. The ceiling can
   under-count them. Footers show cents. [ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)
   says when this is reopened.
 - It bounds the engine's own accounting. For Claude the per-call cap is soft, so a pull request can
-  still go past $2 by a call's overshoot.
+  still go past the ceiling by a call's overshoot.
 
 ## The size gate
 
