@@ -9,14 +9,23 @@
  * answered by fetching and applying the same entry on the new head: an entry whose id is already
  * there is not written twice, the proposer's evidence is appended to it instead.
  *
+ * No git hook of the developer's runs for the worktree, the commit or the push (`core.hooksPath`
+ * points at an empty folder for those calls): the commit touches only `.wachiman/memory/`, a
+ * temporary worktree has none of the checkout's installed tooling, and a hook that rewrites files
+ * would break "written as shown". What stands in for them is `memory check` run on the result
+ * before committing; the remote's own rules (branch protection, required checks on the pull
+ * request) still apply.
+ *
  * Only paths under `.wachiman/memory/` can be written. "recorded" is printed only after the push.
  */
 import { spawnSync } from "node:child_process";
-import { lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import { renderEntry, evidenceLine, type Candidate } from "./candidates";
+import { parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
+import { inspectMemory } from "./command";
 import { parseMemoryFile } from "./entries";
 import { INDEX_FILE, MEMORY_DIR } from "./load";
 
@@ -138,14 +147,15 @@ export function applyCandidate(current: Record<string, string>, candidate: Candi
   return { files: { [INDEX_FILE]: next }, outcome: "inserted", file: INDEX_FILE };
 }
 
-function readMemoryFiles(worktree: string): Record<string, string> {
+export function readMemoryFiles(worktree: string): Record<string, string> {
   const dir = join(worktree, MEMORY_DIR);
   for (const part of [join(worktree, ".wachiman"), dir]) {
     let st;
     try {
       st = lstatSync(part);
-    } catch {
-      return {}; // does not exist yet
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return {}; // does not exist yet
+      throw new Refused(`cannot read ${part.slice(worktree.length + 1)} (${(error as Error).message}); nothing was written.`);
     }
     if (st.isSymbolicLink() || !st.isDirectory()) throw new Refused(`${part.slice(worktree.length + 1)} is not a plain directory; nothing was written.`);
   }
@@ -155,6 +165,23 @@ function readMemoryFiles(worktree: string): Record<string, string> {
     if (e.isFile() && e.name.endsWith(".md")) out[e.name] = readFileSync(join(dir, e.name), "utf8");
   }
   return out;
+}
+
+/** The problems `memory check` would report after `next` replaces the memory files, minus those the base already had. */
+function introducedProblems(worktree: string, current: Record<string, string>, next: Record<string, string>): string[] {
+  const listed = git(worktree, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]);
+  const repoFiles = listed.status === 0 ? listed.stdout.split("\0").filter(Boolean) : [];
+  const settingsPath = join(worktree, SETTINGS_PATH);
+  let settings;
+  try {
+    settings = existsSync(settingsPath) ? parseRepoSettings(readFileSync(settingsPath, "utf8")) : undefined;
+  } catch {
+    settings = undefined; // the defaults; a broken settings file is reported by `wachiman doctor`, not by this command
+  }
+  const known = new Set(inspectMemory({ files: current, repoFiles, settings }).problems.map((p) => `${p.file}: ${p.message}`));
+  return inspectMemory({ files: { ...current, ...next }, repoFiles, settings })
+    .problems.filter((p) => !known.has(`${p.file}: ${p.message}`))
+    .map((p) => `${MEMORY_DIR}/${p.file}:${p.line}: ${p.message}`);
 }
 
 interface Remote {
@@ -200,6 +227,9 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
   if (top.status !== 0) throw new UsageError(`${repoDir} is not a git repository.`);
   const root = top.stdout.trim();
   let worktree: string | undefined;
+  const hooks = mkdtempSync(join(tmpdir(), "wachiman-nohooks-"));
+  /** `git` with none of the developer's hooks (see the header). */
+  const quiet = (cwd: string, args: string[]) => git(cwd, ["-c", `core.hooksPath=${hooks}`, ...args]);
   try {
     if (git(root, ["remote", "get-url", "origin"]).status !== 0) throw new Refused("this repository has no remote named origin; nothing was written.");
 
@@ -226,12 +256,18 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
     let outcome: Applied["outcome"] = "inserted";
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       worktree = mkdtempSync(join(tmpdir(), "wachiman-memory-"));
-      must(git(root, ["worktree", "add", "--detach", worktree, baseOf(root, remote)]), "git worktree add");
-      const applied = applyCandidate(readMemoryFiles(worktree), candidate);
+      must(quiet(root, ["worktree", "add", "--detach", worktree, baseOf(root, remote)]), "git worktree add");
+      const current = readMemoryFiles(worktree);
+      const applied = applyCandidate(current, candidate);
       outcome = applied.outcome;
       if (applied.outcome === "unchanged") {
-        io.stdout(`already recorded: ${candidate.id} is on ${MEMORY_BRANCH} with the same evidence; nothing was written.\n`);
-        return { recorded: true };
+        // Nothing to write, but an earlier run may have stopped before the pull request was opened.
+        sha = must(git(worktree, ["rev-parse", "HEAD"]), "git rev-parse");
+        break;
+      }
+      const introduced = introducedProblems(worktree, current, applied.files);
+      if (introduced.length > 0) {
+        throw new Refused(`the entry would make \`wachiman memory check\` fail on ${MEMORY_BRANCH}, so nothing was written:\n${introduced.map((l) => `  ${l}`).join("\n")}`);
       }
       const paths = Object.keys(applied.files).map((n) => `${MEMORY_DIR}/${n}`);
       assertMemoryPaths(paths);
@@ -239,8 +275,8 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
       for (const [name, text] of Object.entries(applied.files)) writeFileSync(join(worktree, MEMORY_DIR, name), text);
       must(git(worktree, ["add", "--", ...paths]), "git add");
       assertMemoryPaths(must(git(worktree, ["diff", "--cached", "--name-only"]), "git diff").split("\n").filter(Boolean));
-      must(git(worktree, ["commit", "-q", "-m", commitMessage(candidate, applied.outcome)]), "git commit");
-      const push = git(worktree, ["push", "origin", `HEAD:refs/heads/${MEMORY_BRANCH}`]);
+      must(quiet(worktree, ["commit", "-q", "-m", commitMessage(candidate, applied.outcome)]), "git commit");
+      const push = quiet(worktree, ["push", "origin", `HEAD:refs/heads/${MEMORY_BRANCH}`]);
       if (push.status === 0) {
         sha = must(git(worktree, ["rev-parse", "HEAD"]), "git rev-parse");
         break;
@@ -256,16 +292,20 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
     if (!sha) throw new Refused("the push did not complete.");
 
     const what = outcome === "inserted" ? `entry ${candidate.id}` : `evidence for entry ${candidate.id}, which was already there,`;
+    const recordedLine = (tail: string) =>
+      outcome === "unchanged"
+        ? `already recorded: ${candidate.id} is on ${MEMORY_BRANCH} with the same evidence; nothing was written.${tail}\n`
+        : `recorded: ${what} on ${MEMORY_BRANCH} (${sha!.slice(0, 7)}).${tail}\n`;
     let url: string | undefined;
     try {
       const open = pulls.list(MEMORY_BRANCH, root).find((p) => p.state === "OPEN");
       url = open ? open.url : pulls.createDraft({ head: MEMORY_BRANCH, base: remote.defaultBranch, title: PULL_REQUEST_TITLE, body: PR_BODY }, root);
     } catch (error) {
-      io.stdout(`recorded: ${what} on ${MEMORY_BRANCH} (${sha.slice(0, 7)}).\n`);
+      io.stdout(recordedLine(""));
       io.stderr(`memory propose: the draft pull request could not be opened (${error instanceof Error ? error.message : error}). Open it from ${MEMORY_BRANCH} with the title "${PULL_REQUEST_TITLE}".`);
       return { recorded: true, pullRequestFailed: true };
     }
-    io.stdout(`recorded: ${what} on ${MEMORY_BRANCH} (${sha.slice(0, 7)}). Draft pull request: ${url}\n`);
+    io.stdout(recordedLine(` Draft pull request: ${url}`));
     return { recorded: true };
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
@@ -273,6 +313,7 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
     return { recorded: false };
   } finally {
     if (worktree) removeWorktree(root, worktree);
+    rmSync(hooks, { recursive: true, force: true });
   }
 }
 
