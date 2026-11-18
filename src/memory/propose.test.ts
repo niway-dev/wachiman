@@ -466,7 +466,7 @@ describe("two approvals racing to open the draft pull request", () => {
     const d = developer(w, "ana", fake);
     const id = d.add("Prefer named exports.");
     let stdout = "";
-    const code = runMemory(["propose", id], d.dir, { stdout: (t) => (stdout += t), stderr: () => {} }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing } });
+    const code = runMemory(["propose", id], d.dir, { stdout: (t) => (stdout += t), stderr: () => {} }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing, teamMemory: () => true } });
     expect(code).toBe(0);
     expect(stdout).toContain("Draft pull request: https://example.test/pr/1");
     expect(fake.created).toHaveLength(1);
