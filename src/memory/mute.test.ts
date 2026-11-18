@@ -136,7 +136,7 @@ describe("applyMatches", () => {
       { finding: "f1", entry: stale.id, reason: "r" },
       { finding: "f1", entry: elsewhere.id, reason: "r" },
     ]) {
-      const out = applyMatches(findings, [e], [m]);
+      const out = applyMatches(findings, [e, elsewhere], [m]);
       expect(out.posted).toEqual(findings);
       expect(out.muted).toEqual([]);
       expect(out.protectedBy).toEqual([]);
