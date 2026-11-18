@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { UsageError } from "../config";
 import { MAX_INSTRUCTION_BYTES } from "../engine";
+import { POLICY_EDIT_RULE } from "../repo-settings";
 import { spawnGit, type GitRunner } from "../evidence";
 import { validate } from "../../test/support/json-schema";
 import { A_HEAD, branchRepo, commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
@@ -420,9 +421,38 @@ describe("path rules in buildLocalInput", () => {
     expect(validate(schema, JSON.parse(JSON.stringify(onDisk)))).toEqual([]);
   });
 
-  test("the branch's own copy is never read: it can neither add nor drop a rule", () => {
-    expect(build(repoWith(undefined, RULES)).input).not.toHaveProperty("pathRules");
-    expect(build(repoWith(RULES, "effort: high\n")).input.pathRules).toHaveLength(1);
+  test("the branch's own copy is never applied: it can neither add nor drop a rule", () => {
+    // An edit of only the effort changes no rule, so nothing is added to the base's.
+    const same = build(repoWith(RULES, `effort: high\n${RULES}`)).input;
+    expect(same.pathRules).toEqual([{ match: "src/billing/**", severity: "critical", reason: "charges customers" }]);
+    expect(same).not.toHaveProperty("pathPolicyChanged");
+    // Rules the branch adds are not applied; the edit is flagged and the settings file is critical.
+    const added = build(repoWith(undefined, RULES)).input;
+    expect(added.pathRules).toEqual([POLICY_EDIT_RULE]);
+    expect(added.pathPolicyChanged).toBe(true);
+    // Rules the branch drops stay applied, after the settings file's own rule.
+    const dropped = build(repoWith(RULES, "effort: high\n")).input;
+    expect(dropped.pathRules).toEqual([{ match: "src/billing/**", severity: "critical", reason: "charges customers" }, POLICY_EDIT_RULE]);
+    expect(dropped.pathPolicyChanged).toBe(true);
+  });
+
+  test("a branch that edits paths is flagged, however the head copy fails or changes", () => {
+    const base = { ".wachiman.yml": RULES };
+    // Lowered to medium, unparseable, deleted: each differs from the base's rules.
+    for (const head of [RULES.replace("critical", "medium"), "paths: [unclosed\n  - : :\n", undefined]) {
+      const dir = emptyRepo();
+      commit(dir, { "src/a.ts": "a\n", ...base }, "base");
+      git(dir, "switch", "-q", "-c", "feat/x");
+      if (head === undefined) git(dir, "rm", "-q", ".wachiman.yml");
+      commit(dir, { "src/a.ts": "b\n", ...(head !== undefined ? { ".wachiman.yml": head } : {}) }, "change");
+      const { input } = build(dir);
+      expect(input.pathPolicyChanged).toBe(true);
+      expect(input.pathRules?.[0]).toEqual({ match: "src/billing/**", severity: "critical", reason: "charges customers" });
+      expect(input.pathRules?.at(-1)).toEqual(POLICY_EDIT_RULE);
+      const schema = JSON.parse(readFileSync(join(import.meta.dir, "../../docs/formats/review-input.v1.schema.json"), "utf8"));
+      const { headDir: _, ...onDisk } = input;
+      expect(validate(schema, JSON.parse(JSON.stringify(onDisk)))).toEqual([]);
+    }
   });
 
   test("a broken file at the merge-base is ignored with one warning", () => {

@@ -97,6 +97,39 @@ export function matchPathRule(path: string, rules: readonly PathRule[] | undefin
 }
 
 /**
+ * The rule a pull request that edits the path rules is reviewed under, added to the base's rules
+ * for that review only and never written anywhere: the file that sets the review's policy is read
+ * first and a person decides on it (ADR 0058 decision 4).
+ */
+export const POLICY_EDIT_RULE: PathRule = { match: SETTINGS_PATH, severity: "critical", reason: "edits the review's path rules" };
+
+/** `rules` and `POLICY_EDIT_RULE`; the base's rules still decide every other file. */
+export const withPolicyEditRule = (rules: readonly PathRule[] | undefined): PathRule[] => [...(rules ?? []), POLICY_EDIT_RULE];
+
+/** Whether a change touches `.wachiman.yml`: edits, adds, deletes or renames it away. */
+export const touchesSettingsFile = (files: readonly { filename: string; previous_filename?: string }[]) =>
+  files.some((f) => f.filename === SETTINGS_PATH || f.previous_filename === SETTINGS_PATH);
+
+/**
+ * Whether the head's `.wachiman.yml` sets different path rules than the base's. `headContent` is
+ * null when the head has no such file. A head copy that cannot be parsed counts as a change: what
+ * it would set is unknown. An edit of only `model`, `effort` or `kind` is not a change.
+ */
+export function pathsEdited(baseRules: readonly PathRule[] | undefined, headContent: string | null): boolean {
+  let headRules: PathRule[] | undefined;
+  if (headContent !== null) {
+    try {
+      headRules = parseRepoSettings(headContent).paths;
+    } catch (error) {
+      if (error instanceof UsageError) return true;
+      throw error;
+    }
+  }
+  // Rules are normalised by `parsePathRules`, so equal lists serialise alike.
+  return JSON.stringify(headRules ?? []) !== JSON.stringify(baseRules ?? []);
+}
+
+/**
  * The settings in a `.wachiman.yml`. An empty file, or one with only comments, holds nothing. A
  * key set to nothing (`model:`) counts as not set. Unparseable YAML, a file that is not a
  * mapping, a `model` that is not text and an unknown `effort` are usage errors that name the file:

@@ -79,6 +79,12 @@ export interface ReviewInput {
    * `change.base.sha`, never from the head. Absent when the repository has none.
    */
   pathRules?: PathRule[];
+  /**
+   * The change edits the path rules (or `.wachiman.yml` no longer parses), so `pathRules` also
+   * holds the rule that makes `.wachiman.yml` a critical path for this review, and the review says
+   * its policy changed (ADR 0058 decision 4). Set by the connector; absent otherwise.
+   */
+  pathPolicyChanged?: true;
 }
 
 /** Which Claude Code profile ran the review; every GitHub-mode run is "ci". */
@@ -269,6 +275,8 @@ export interface ReviewResultV2 {
   batches: BatchReport[];
   threadReplies: ReviewOutput["thread_replies"];
   instructionChanges: { files: string[]; baseSha: string };
+  /** The change edits the path rules; the review ran under the base's. Only `/2` has it: `toResultV1` leaves it out. */
+  pathPolicyChanged?: true;
   /** Totals include the coverage calls and the verifier call. */
   execution: Execution;
   /** Absent when verification was off. */
@@ -328,7 +336,7 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
     throw new UsageError("A working-tree review has no result /1: its head is a tree id, not a commit. Use --result-version 2.");
   }
   const { account: _account, ...provider } = result.provider;
-  const { verification, riskMap: _riskMap, fidelity: _fidelity, ...rest } = result;
+  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, ...rest } = result;
   return {
     ...rest,
     format: REVIEW_RESULT_V1,

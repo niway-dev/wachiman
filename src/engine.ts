@@ -34,7 +34,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
-import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, wantsRepoSettings, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
+import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -1165,6 +1165,8 @@ export function buildReview(input: {
   priorSpend?: { spent: number; runs: number };
   /** Review-instruction files this pull request edits, and the base commit they were read from. */
   instructionChanges?: { files: string[]; baseSha: string };
+  /** The pull request edits the path rules in `.wachiman.yml`; the review ran under the base's. */
+  pathPolicyChange?: { baseSha: string };
   /** The verifier's record (ADR 0027): its outcome goes in the footer's cost line. */
   verification?: ResultVerificationV2;
   /** The run is on a Claude subscription: its dollar figures are API-price estimates (ADR 0037). */
@@ -1264,6 +1266,11 @@ export function buildReview(input: {
     const names = input.instructionChanges.files.map((f) => `\`${f}\``).join(", ");
     parts.push(
       `ℹ️ **Review instructions changed**: this pull request edits ${names}. The review ran under the versions at the base commit \`${short(input.instructionChanges.baseSha)}\`; the change takes effect after merge.`,
+    );
+  }
+  if (input.pathPolicyChange) {
+    parts.push(
+      `ℹ️ **Review policy changed**: this pull request edits the path rules in \`${SETTINGS_PATH}\`. The review ran under the rules at the base commit \`${short(input.pathPolicyChange.baseSha)}\`; the change takes effect after merge.`,
     );
   }
   parts.push(
@@ -1736,6 +1743,18 @@ export function readBasePathRules(gh: GhFn, repo: string, sha: string, warn: (li
     warn(ignoredSettingsNote(error.message, `the base commit ${sha.slice(0, 7)}`));
     return undefined;
   }
+}
+
+/**
+ * Whether the pull request's head `.wachiman.yml` sets different path rules than the base's
+ * (`baseRules`), read from the contents API at the head sha (ADR 0058 decision 4). Only to tell
+ * the author and the reader: the head's rules are never applied. A head copy that is gone and had
+ * no base rules is no change; one that cannot be parsed, or is over the size limit, is.
+ */
+export function headEditsPathRules(gh: GhFn, repo: string, headSha: string, baseRules: readonly PathRule[] | undefined): boolean {
+  const file = fileAtBase(gh, repo, SETTINGS_PATH, headSha);
+  if (file?.truncated) return true;
+  return pathsEdited(baseRules, file ? file.content : null);
 }
 
 /**
@@ -2811,6 +2830,33 @@ export const SIZE_GATE_MARKER = "<!-- wachi:size-gate -->";
 const usd2 = (n: number) => `$${n.toFixed(2)}`;
 const count = (n: number) => n.toLocaleString("en-US");
 
+/** A changed file a `critical` path rule matches, and the maintainer's reason. */
+export interface CriticalPath {
+  path: string;
+  reason: string;
+}
+
+/** How many critical paths the size-gate comment lists before "and N more". */
+const MAX_CRITICAL_LISTED = 20;
+
+/** The changed files a `critical` rule of `rules` matches, in the order given. Never lifts the gate: it only names. */
+export function criticalPathsOf(files: readonly { filename: string }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
+  return files.flatMap((f) => {
+    const rule = matchPathRule(f.filename, rules);
+    return rule?.severity === "critical" ? [{ path: f.filename, reason: rule.reason }] : [];
+  });
+}
+
+function criticalPathsSection(critical: readonly CriticalPath[]): string {
+  const listed = critical.slice(0, MAX_CRITICAL_LISTED).map((c) => `- \`${neutralise(c.path)}\`: ${neutralise(c.reason)}`);
+  const more = critical.length - listed.length;
+  return [
+    `**Critical paths in this change** (from \`${SETTINGS_PATH}\` at the base commit): a person should read these before merging, since nothing was reviewed.`,
+    ...listed,
+    ...(more > 0 ? [`- and ${more} more`] : []),
+  ].join("\n");
+}
+
 /**
  * The comment that says a pull request was not reviewed because its estimate is above the size
  * gate (nothing was sent to a model), what the estimate rests on, and the inputs that lift it.
@@ -2821,6 +2867,8 @@ export function sizeGateBody(o: {
   headSha: string;
   mention: string;
   model: string;
+  /** The changed files a `critical` path rule matches, from the base commit's rules; none by default. */
+  critical?: readonly CriticalPath[];
 }): string {
   const { estimate: e, gate, headSha, mention, model } = o;
   const budget = suggestedBudget(e.usd);
@@ -2828,6 +2876,7 @@ export function sizeGateBody(o: {
     branded(
       `**Not reviewed: this pull request is above the size gate.** Reviewing all of it would cost about **${usd2(e.usd)}**, and the gate is **${usd2(gate)}**, so nothing was sent to a model and nothing was spent.`,
     ),
+    ...(o.critical?.length ? [criticalPathsSection(o.critical)] : []),
     `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines), from the diff alone, before any model call. It can be off by about 40% either way.`,
     `To review the whole pull request, set the run budget in the workflow that calls Wachiman, then comment \`${mention} review\`:`,
     ["```yaml", "    with:", `      budget_usd: ${budget}`, "```"].join("\n"),
@@ -2849,6 +2898,7 @@ export function postSizeGateNotice(
   headSha: string,
   estimate: ReviewEstimate,
   gate: number,
+  critical: readonly CriticalPath[] = [],
 ) {
   const { config } = deps;
   const body = sizeGateBody({
@@ -2857,6 +2907,7 @@ export function postSizeGateNotice(
     headSha,
     mention: config.mention,
     model: config.model,
+    critical,
   });
   if (config.dryRun) {
     deps.log("--- size gate comment ---\n" + body);
@@ -3506,6 +3557,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       files: changedInstructionFiles(input.files.map((f) => f.filename)),
       baseSha: input.instructions.baseSha,
     },
+    ...(input.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
     execution: {
       costUsdEstimate: spent,
       usage,
@@ -3703,6 +3755,8 @@ export function githubReviewInput(p: {
   threads: Thread[];
   /** The base commit's `paths` rules; omitted or empty when the repository has none. */
   pathRules?: PathRule[];
+  /** The pull request edits the path rules; `pathRules` then ends with the rule for `.wachiman.yml`. */
+  pathPolicyChanged?: boolean;
 }): ReviewInput {
   return {
     format: REVIEW_INPUT_FORMAT,
@@ -3734,6 +3788,7 @@ export function githubReviewInput(p: {
       : {}),
     ...(p.threads.length > 0 ? { conversation: p.threads } : {}),
     ...(p.pathRules?.length ? { pathRules: p.pathRules } : {}),
+    ...(p.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
   };
 }
 
@@ -3795,6 +3850,7 @@ export function githubReview(
     receiptLine: github.receiptLine,
     mention: github.mention,
     instructionChanges: github.instructionChanges,
+    ...(result.pathPolicyChanged ? { pathPolicyChange: { baseSha: github.instructionChanges.baseSha } } : {}),
     riskMap: result.riskMap,
     ...(result.fidelity ? { fidelity: result.fidelity } : {}),
     pushOnly: github.since !== null,
@@ -4003,12 +4059,16 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // The path rules come from the base commit whatever the model and effort inputs say; they reorder
   // the batches, so the estimate is made with them.
   const base = baseSha(gh, repo, pr);
-  const pathRules = readBasePathRules(gh, repo, base, deps.warn);
+  const baseRules = readBasePathRules(gh, repo, base, deps.warn);
+  // A pull request that edits the rules is reviewed under the base's, and `.wachiman.yml` itself is
+  // a critical path for that review: the head's rules are never applied, only compared.
+  const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
+  const pathRules = pathPolicyChanged ? withPolicyEditRule(baseRules) : baseRules;
   const estimate = estimateFor(allBinary.reviewable, config, pathRules);
   const gate = sizeGate(config, isAutomatic(config.trigger));
   if (estimate.usd > gate) {
     deps.log(`Estimated $${estimate.usd.toFixed(2)} is above the $${gate.toFixed(2)} size gate; nothing sent to a model.`);
-    postSizeGateNotice(deps, repo, pr, headSha, estimate, gate);
+    postSizeGateNotice(deps, repo, pr, headSha, estimate, gate, criticalPathsOf(allBinary.reviewable, baseRules));
     return;
   }
   // After the rebase exits above (they cost nothing and move the marker) and before any paid step.
@@ -4038,6 +4098,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     carried: resumed,
     threads,
     pathRules,
+    pathPolicyChanged,
   });
   // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
   // part of the change, and "nothing else changed" cannot be said of a part.

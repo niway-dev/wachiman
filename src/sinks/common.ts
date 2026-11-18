@@ -169,6 +169,12 @@ export function instructionNote(result: ReviewResult) {
   return `Review instructions changed: this change edits ${files.map((f) => neutralise(f)).join(", ")}. The review ran under the versions at the base commit ${sha7(baseSha)}.`;
 }
 
+/** The note on a change that edits the path rules in `.wachiman.yml`, or null. */
+export function policyNote(result: ReviewResult) {
+  if (!result.pathPolicyChanged) return null;
+  return `Review policy changed: this change edits the path rules in .wachiman.yml. The review ran under the rules at the commit ${sha7(result.instructionChanges.baseSha)} they were read at.`;
+}
+
 /**
  * What a `--history` run adds to its report (ADR 0020): a label per finding and what this run
  * settled about earlier ones. Built by `saveRun`; the sinks only print it.

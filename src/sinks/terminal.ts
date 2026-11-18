@@ -11,6 +11,7 @@ import {
   historyLabel,
   indent,
   instructionNote,
+  policyNote,
   location,
   notReviewed,
   plainLabel,
@@ -36,6 +37,8 @@ export function renderTerminal(result: ReviewResult, opts: { profileNote?: strin
   );
   const note = instructionNote(result);
   if (note) blocks.push(note);
+  const policy = policyNote(result);
+  if (policy) blocks.push(policy);
   if (result.riskMap) blocks.push(renderRiskMap(result.riskMap, "Risk map:", { style: PLAIN_STYLE }));
   const grouped = sections(result);
   const finding = ({ f, index }: (typeof grouped.main)[number]) => {
