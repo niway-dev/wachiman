@@ -441,7 +441,7 @@ listed, never described as undone.
 
 ```sh
 wachiman init [--mode github|local|both] [--project-kind monorepo|single] [--operator <login>] [--version <tag>] [--path <file>] \
-  [--force] [--dry-run] [--pr-template | --no-pr-template] [--yes] [--repo-dir <dir>]
+  [--force] [--dry-run] [--pr-template | --no-pr-template] [--no-agent-pointer] [--yes] [--repo-dir <dir>]
 ```
 
 First-time setup of a repository. `--mode github` writes the maintained caller workflow
@@ -474,10 +474,13 @@ file: `AGENTS.md` when it exists, else `CLAUDE.md` when it exists, else a new `A
 two lines between the markers `<!-- wachiman:begin -->` and `<!-- wachiman:end -->`. It says that reviews
 run with that skill, which [`skills install`](#skills) puts in place, and that repository memory lives in
 `.wachiman/memory/`. A re-run replaces the block between the markers and never adds a second one; text
-outside the markers is kept as it is. A file whose markers are not one pair, in order, on lines of their
-own is refused before anything is written, and the person fixes it by hand. It is written in every mode,
-after the workflow and the settings file, with no question. `--dry-run` writes nothing and prints what it
-would write on stderr. Init does not commit it.
+outside the markers is kept as it is. A file with CRLF line endings gets the block with CRLF. A link (`CLAUDE.md` pointing at `AGENTS.md` is common) is written
+through to its target when the target is inside the repository; a link that leaves the repository or does not resolve is
+skipped. The pointer never fails `init`: a file whose markers are not one pair, in order, on lines of their own, a skipped
+link, or a failed write is reported on stderr with how to add the block by hand, and `init` keeps its exit code for
+everything else it did. It is written in every mode, after the workflow and the settings file, with no question;
+`--no-agent-pointer` skips it. `--dry-run` writes nothing and prints what it would write (or skip) on stderr.
+Init does not commit it.
 
 The Git worktree is validated before questions. Interactive stages identify the project, project
 type, review mode, configuration, the Claude account when relevant, and checks/next actions. The route total
@@ -524,6 +527,7 @@ command that binds the repository later.
 | `--force` | Replaces an existing workflow after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it, an existing file that differs is exit 2 (one that is identical is reported unchanged). With `--project-kind` it also lets a run without a terminal change a different `kind:` in `.wachiman.yml` (no backup; only that line changes), and it is accepted in `--mode local` for that |
 | `--dry-run` | Prints the rendered file to stdout and writes nothing |
 | `--pr-template` / `--no-pr-template` | Also install the [PR description template](pr-template.md) (`wachiman pr-template install`, files only, no commit), in any mode; or do not. On a terminal, without either flag, `init` asks (default yes); a script that gives neither gets no template. A refusal (a hand-edited template, an invalid `.github/pr-template.json`) is reported and does not fail the rest of `init`. `--dry-run` installs nothing |
+| `--no-agent-pointer` | Do not write the pointer into `AGENTS.md` or `CLAUDE.md` (see above). For a repository whose team has not adopted Wachiman, where a shared instruction file must not change |
 | `--yes` | No prompts |
 
 `--mode local` with `--operator`, `--version`, `--path`, `--force` (unless a kind is given with `--project-kind` or answered on a terminal) or `--dry-run` is exit 2. A

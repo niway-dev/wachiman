@@ -60,6 +60,13 @@ describe("withPointer", () => {
     expect(() => withPointer(`${POINTER_END}\n${POINTER_BEGIN}\n`, "AGENTS.md")).toThrow(UsageError);
   });
 
+  test("a CRLF file gets the block with CRLF, appended or replaced", () => {
+    const crlfBlock = block.replace(/\n/g, "\r\n");
+    expect(withPointer("# Notes\r\n", "AGENTS.md")).toBe(`# Notes\r\n\r\n${crlfBlock}`);
+    const stale = `# Top\r\n${POINTER_BEGIN}\r\nold\r\n${POINTER_END}\r\nend\r\n`;
+    expect(withPointer(stale, "AGENTS.md")).toBe(`# Top\r\n${crlfBlock}end\r\n`);
+  });
+
   test("a marker that is not alone on its line is refused, so a re-run cannot duplicate the block", () => {
     expect(() => withPointer(`see ${POINTER_BEGIN} here\n`, "AGENTS.md")).toThrow(UsageError);
   });
@@ -97,13 +104,28 @@ describe("planPointer chooses the file", () => {
     expect(planPointer(dir)).toMatchObject({ file: "AGENTS.md", action: "same" });
   });
 
-  test("a symbolic link where the file would be is refused", () => {
+  test("a symbolic link to a file outside the repository is skipped with a reason, not thrown", () => {
     const dir = fresh();
     const outside = mkdtempSync(join(tmpdir(), "wachiman-agents-out-"));
     writeFileSync(join(outside, "elsewhere.md"), "x\n");
     symlinkSync(join(outside, "elsewhere.md"), join(dir, "AGENTS.md"));
-    expect(() => planPointer(dir)).toThrow(UsageError);
+    const plan = planPointer(dir);
+    expect(plan.action).toBe("skip");
+    expect(plan).toMatchObject({ reason: expect.stringContaining("outside the repository") });
     expect(readFileSync(join(outside, "elsewhere.md"), "utf8")).toBe("x\n");
     rmSync(outside, { recursive: true, force: true });
+  });
+
+  test("a link to a file inside the repository is planned through to the target", () => {
+    const dir = fresh();
+    write(dir, { "docs/rules.md": "r\n" });
+    symlinkSync("docs/rules.md", join(dir, "AGENTS.md"));
+    expect(planPointer(dir)).toMatchObject({ action: "append", file: "AGENTS.md", writePath: "docs/rules.md" });
+  });
+
+  test("a malformed block is a skip with the way to add it by hand", () => {
+    const dir = fresh();
+    write(dir, { "AGENTS.md": `${POINTER_BEGIN}\nno end\n` });
+    expect(planPointer(dir)).toMatchObject({ action: "skip", reason: expect.stringContaining("by hand") });
   });
 });

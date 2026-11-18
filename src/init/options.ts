@@ -28,6 +28,8 @@ export interface RawInitFlags {
   yes?: boolean;
   /** `--pr-template` is true, `--no-pr-template` is false; absent means not given. */
   prTemplate?: boolean;
+  /** `--no-agent-pointer` is false; absent means the pointer is written. */
+  agentPointer?: boolean;
   repoDir?: string;
   help?: boolean;
 }
@@ -38,6 +40,8 @@ export interface InitOptions {
   github?: { operator: string; tag: string; path: string; force: boolean; dryRun: boolean };
   /** Install the PR description template after the workflow work. Absent means no: a script that did not ask gets no new file. */
   prTemplate?: boolean;
+  /** False (`--no-agent-pointer`) skips the pointer in AGENTS.md or CLAUDE.md; absent means write it. */
+  agentPointer?: false;
   /** Present iff the kind was given (flag or answer); then `.wachiman.yml` is written or checked. `force` allows changing a different `kind:` without asking. */
   settings?: { kind: ProjectKind; force: boolean };
   repoDir: string;
@@ -104,7 +108,10 @@ export function resolveInitOptions(
   if (!initModes.includes(flags.mode as InitMode)) return fail(`--mode must be github, local or both, got "${flags.mode}".`);
   const mode = flags.mode as InitMode;
   const repoDir = flags.repoDir ?? ".";
-  const templateOption = flags.prTemplate === true ? { prTemplate: true } : {};
+  const templateOption = {
+    ...(flags.prTemplate === true ? { prTemplate: true } : {}),
+    ...(flags.agentPointer === false ? { agentPointer: false as const } : {}),
+  };
   if (flags.projectKind !== undefined) {
     const kindError = projectKindProblem(flags.projectKind);
     if (kindError) return fail(kindError);

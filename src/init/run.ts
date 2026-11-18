@@ -31,7 +31,7 @@ import { checkSupplied, promptForInit } from "./prompt";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
-import { describePointer, planPointer } from "./agents";
+import { describePointer, planPointer, type PointerPlan } from "./agents";
 import { writeManagedFile } from "../pr-template/write";
 
 /** What `pr-template install` can write; the report names the ones a failed install did not reach. */
@@ -135,8 +135,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const cwd = deps.cwd ?? process.cwd();
   // Before anything is rendered or written: this must be a git repository.
   const root = worktreeRoot(options.repoDir, deps.git);
-  // The agent pointer is planned here, so a malformed block refuses the run before anything is written.
-  const pointer = planPointer(root);
+  // The pointer is planned here and never refuses the run: a problem becomes a "skip" that is reported at the end.
+  const pointer: PointerPlan | undefined = options.agentPointer === false ? undefined : planPointer(root);
   const { github } = options;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
@@ -218,13 +218,23 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
 
   /** The pointer to the wachiman-loop skill, last among the files: a run refused or cancelled above writes none of them. */
   const writePointer = () => {
+    if (!pointer) return;
+    if (pointer.action === "skip") {
+      io.stderr(`wachiman pointer not written: ${pointer.reason}`);
+      return;
+    }
     if (pointer.action === "same") {
       io.stderr(`${pointer.file} already has the wachiman pointer; unchanged.`);
       return;
     }
-    writeManagedFile({ repoDir: root, relativePath: pointer.file, content: pointer.content, inspected: pointer.inspected, now: (deps.now ?? (() => new Date().toISOString()))(), label: "init", backup: false, hooks: deps.hooks });
+    try {
+      writeManagedFile({ repoDir: root, relativePath: pointer.writePath, content: pointer.content, inspected: pointer.inspected, now: (deps.now ?? (() => new Date().toISOString()))(), label: "init", backup: false, hooks: deps.hooks });
+    } catch (error) {
+      io.stderr(`wachiman pointer not written: ${error instanceof Error ? error.message : String(error)} The rest of init is unaffected. Add the block by hand: copy the lines between the markers from \`wachiman init --dry-run\`, or skip it with --no-agent-pointer.`);
+      return;
+    }
     const how = pointer.action === "create" ? "created" : pointer.action === "append" ? "added to" : "replaced in";
-    io.stderr(`wrote the wachiman pointer: ${how} ${pointer.file}.`);
+    io.stderr(`wrote the wachiman pointer: ${how} ${pointer.file}${pointer.writePath !== pointer.file ? ` (through the link, to ${pointer.writePath})` : ""}.`);
   };
 
   /** The settings file alone, with no workflow to write: shows it, asks what needs asking. Returns an exit code to stop with, or undefined to go on. */
@@ -265,7 +275,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (github.dryRun) {
       if (unchanged) io.stderr(`note: ${shown} is unchanged.`);
       else if (inspected.exists && !github.force && !prompter) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
-      for (const line of describePointer(pointer)) io.stderr(line);
+      if (pointer) for (const line of describePointer(pointer)) io.stderr(line);
+      else io.stderr("note: --no-agent-pointer: no wachiman pointer would be written to AGENTS.md or CLAUDE.md.");
       if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
       io.stdout(rendered);
       return 0;

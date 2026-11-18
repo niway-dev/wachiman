@@ -306,6 +306,7 @@ const initPage: Page = {
     ["--dry-run", "Print the file to stdout and write nothing"],
     ["--pr-template", "Also install the PR description template (`wachiman pr-template install`, files only, never a commit). A refusal is reported and does not fail init"],
     ["--no-pr-template", "Do not install it and do not ask. Without either flag a terminal asks (default yes) and a script gets none"],
+    ["--no-agent-pointer", "Do not write the wachiman pointer into AGENTS.md or CLAUDE.md. A failure to write it never fails init"],
     ["--yes", "No prompts"],
     REPO_DIR,
   ],
