@@ -67,6 +67,20 @@ export function evidenceLine(e: Evidence): string {
   return `${e.date} ${SOURCE_LABEL[e.source]}, ${ref}${e.agent ? ", written by an agent" : ""}`;
 }
 
+/**
+ * The evidence `evidenceLine` wrote, read back; undefined for a line it did not write. `finding` is
+ * never written into the repository, so it is never read back.
+ */
+export function parseEvidenceLine(line: string): Evidence | undefined {
+  const labels = Object.entries(SOURCE_LABEL) as [EvidenceSource, string][];
+  const m = /^(\d{4}-\d{2}-\d{2}) (.+?), (?:pull request ([1-9]\d*)|branch (.+?))(, written by an agent)?$/.exec(line);
+  const source = labels.find(([, label]) => label === m?.[2])?.[0];
+  if (!m || !source) return undefined;
+  const pr = m[3] !== undefined ? Number(m[3]) : undefined;
+  if (pr !== undefined && !Number.isSafeInteger(pr)) return undefined;
+  return { date: m[1], source, agent: m[5] !== undefined, ...(pr !== undefined ? { pr } : { branch: m[4] }) };
+}
+
 export interface EntryFields {
   kind: string;
   scope: string;
