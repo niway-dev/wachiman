@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { UsageError } from "../config";
@@ -8,6 +8,8 @@ import { POLICY_EDIT_RULE } from "../repo-settings";
 import { spawnGit, type GitRunner } from "../evidence";
 import { validate } from "../../test/support/json-schema";
 import { A_HEAD, branchRepo, commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
+import { personalMemoryDir, personalSourceFor } from "../memory/personal";
+import { entryId } from "../memory/entries";
 import {
   buildLocalInput,
   localFiles,
@@ -629,5 +631,61 @@ describe("localMemory", () => {
     const load = localMemory(dir, base, [], () => {})!;
     expect(load.files).toEqual([{ path: ".wachiman/memory/index.md", lines: 2, truncated: true }]);
     expect(load.overBudget).toBe(true);
+  });
+});
+
+describe("localMemory with personal memory", () => {
+  const INDEX = "# Memory\n\n";
+  const entryText = (id: string, rule: string) => `### ${id} ${rule}\n\n- kind: convention\n- scope: src/**\n- rule: ${rule}\n- why: because\n- evidence:\n  - 2026-11-18 instruction, branch x\n- added: 2026-11-18\n`;
+  const withOrigin = (url: string) => {
+    const dir = emptyRepo();
+    const base = commit(dir, { "src/a.ts": "a\n" }, "base");
+    git(dir, "remote", "add", "origin", url);
+    return { dir, base };
+  };
+  /** Writes an entry into the personal folder of `dir` under `home`, with a correct id. */
+  const idOf = (rule: string) => entryId({ kind: "convention", scope: "src/**", rule, why: "because" });
+  const writePersonal = (home: string, dir: string, ...rules: string[]) => {
+    const folder = personalMemoryDir(home, dir)!;
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "index.md"), INDEX + rules.map((r) => entryText(idOf(r), r)).join("\n"));
+    return rules.map(idOf);
+  };
+  const home = () => mkdtempSync(join(tmpdir(), "wachiman-lg-home-"));
+
+  test("AC16: a laptop review of the repository loads its personal memory; a review of another repository does not", () => {
+    const h = home();
+    const mine = withOrigin("https://github.com/acme/widgets.git");
+    const other = withOrigin("https://github.com/acme/gadgets.git");
+    const [id] = writePersonal(h, mine.dir, "Prefer named exports.");
+    const load = localMemory(mine.dir, mine.base, ["src/a.ts"], () => {}, spawnGit, personalSourceFor(h, mine.dir))!;
+    expect(load.personalEntries).toEqual([id]);
+    expect(load.entries.map((e) => e.rule)).toEqual(["Prefer named exports."]);
+    expect(localMemory(other.dir, other.base, ["src/a.ts"], () => {}, spawnGit, personalSourceFor(h, other.dir))).toBeUndefined();
+    rmSync(h, { recursive: true, force: true });
+  });
+
+  test("a worktree of the same clone shares it, and a clone with no origin has none", () => {
+    const h = home();
+    const mine = withOrigin("git@github.com:acme/widgets.git");
+    writePersonal(h, mine.dir, "Prefer named exports.");
+    const wt = join(mkdtempSync(join(tmpdir(), "wachiman-lg-wt-")), "wt");
+    git(mine.dir, "worktree", "add", "-q", "-b", "other", wt);
+    expect(personalSourceFor(h, wt)).toBeDefined();
+    const bare = emptyRepo();
+    commit(bare, { "a.txt": "x\n" }, "base");
+    expect(personalSourceFor(h, bare)).toBeUndefined();
+    rmSync(h, { recursive: true, force: true });
+  });
+
+  test("committed memory is loaded first and wins a duplicate id", () => {
+    const h = home();
+    const dir = emptyRepo();
+    const base = commit(dir, { "src/a.ts": "a\n", ".wachiman/memory/index.md": INDEX + entryText(idOf("Same."), "Same.") }, "base");
+    git(dir, "remote", "add", "origin", "https://github.com/acme/widgets.git");
+    writePersonal(h, dir, "Same.", "Only mine.");
+    const load = localMemory(dir, base, ["src/a.ts"], () => {}, spawnGit, personalSourceFor(h, dir))!;
+    expect(load.entries.map((e) => [e.rule, e.personal === true])).toEqual([["Same.", false], ["Only mine.", true]]);
+    rmSync(h, { recursive: true, force: true });
   });
 });

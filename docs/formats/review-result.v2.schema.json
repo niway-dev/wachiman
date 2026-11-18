@@ -223,8 +223,19 @@
               },
               "truncated": {
                 "const": true
+              },
+              "personal": {
+                "description": "True on a file of the developer's personal memory (laptop reviews only); its path is then personal:<name>, not a repository path.",
+                "const": true
               }
             }
+          }
+        },
+        "personalEntries": {
+          "description": "The ids of the loaded entries that came from the developer's personal memory. Absent when none did.",
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         },
         "leftOut": {

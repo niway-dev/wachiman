@@ -30,6 +30,7 @@ import {
 import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, splitUnreviewable, type ReviewInput, type ReviewResult } from "./engine";
 import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
+import { personalSourceFor } from "./memory/personal";
 import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
 import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parsePathRules, wantsRepoSettings, type RepoSettings } from "./repo-settings";
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
@@ -589,7 +590,8 @@ export async function runLocal(
     // excluded as the Actions path does (ADR 0056).
     const reviewable = splitUnreviewable(kept, input.headDir).reviewable;
     if (args.noMemory) io.stderr("memory: off (--no-memory)");
-    const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr);
+    // The developer's personal memory for this repository (keyed by `origin`) is loaded after it, on the laptop only.
+    const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr, spawnGit, personalSourceFor(home, repoDir));
     const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}) }, {
       provider,
       ...(verifier ? { verifier } : {}),

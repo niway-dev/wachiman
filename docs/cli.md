@@ -1060,6 +1060,18 @@ says so, exits 1 and writes nothing. It makes no commit, no push, no fetch and n
 nothing appears in `git status`. An entry already there only gains the evidence it lacks, and an entry
 that would make `memory check` fail on the folder is refused.
 
+A **laptop review** (`wachiman local`, and so `loop`) loads the committed memory first, then the
+personal memory of that repository, inside the same `memory.max_loaded_lines` budget: committed lines
+are counted first, personal files that do not fit are named as left out (as `personal:<file>`), and an
+entry already committed under the same id is not loaded twice. The budget is the one the repository's
+committed `.wachiman.yml` sets, or the default. Personal conventions go into the prompt marked
+`personal="true"`, with the rule that a committed convention wins when the two disagree; hand-written
+instruction files still win over both. The JSON result's `memory` object marks personal files
+(`personal: true`, path `personal:<file>`) and lists the ids of the personal entries it loaded in
+`personalEntries`. A review of another repository never loads this folder, because the key is the
+repository's `origin`; a review in GitHub Actions never does either, because the folder exists only on
+your machine and the Actions path does not read it.
+
 ### `history`
 
 `wachiman history` lists the findings that `local --history` kept for the repository of

@@ -465,9 +465,13 @@ export function localMemorySource(repoDir: string, sha: string, git: GitRunner =
   };
 }
 
-/** The memory a local review of `changedPaths` loads at `sha`; undefined without a memory folder. */
-export function localMemory(repoDir: string, sha: string, changedPaths: string[], warn: (line: string) => void, git: GitRunner = spawnGit): MemoryLoad | undefined {
-  return loadMemory(localMemorySource(repoDir, sha, git, warn), sha, changedPaths, warn);
+/**
+ * The memory a local review of `changedPaths` loads at `sha`; undefined without a memory folder.
+ * `personal` is the developer's own folder for this repository (`personalSourceFor`): only a laptop
+ * review passes it, so a review in Actions never has it.
+ */
+export function localMemory(repoDir: string, sha: string, changedPaths: string[], warn: (line: string) => void, git: GitRunner = spawnGit, personal?: MemorySource): MemoryLoad | undefined {
+  return loadMemory(localMemorySource(repoDir, sha, git, warn), sha, changedPaths, warn, personal);
 }
 
 const names = (out: string) => out.split("\0").filter(Boolean);

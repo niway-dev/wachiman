@@ -48,8 +48,14 @@ export function renderConventions(memory: MemoryLoad | undefined): string {
   if (!memory || conventions.length === 0) return "";
   const sha = memory.revision.slice(0, 7);
   const body = conventions
-    .map((e) => `<convention id="${esc(e.id)}" scope="${esc(e.scope)}">\n${esc(e.rule)}\nWhy: ${esc(e.why)}\n</convention>`)
+    .map((e) => `<convention id="${esc(e.id)}" scope="${esc(e.scope)}"${e.personal ? ' personal="true"' : ""}>\n${esc(e.rule)}\nWhy: ${esc(e.why)}\n</convention>`)
     .join("\n\n");
+  // Personal conventions are the developer's own, from outside the repository (laptop reviews only).
+  const personalNote = conventions.some((e) => e.personal)
+    ? `
+Conventions marked personal="true" are the developer's own, kept outside the repository. When a personal convention disagrees with a committed one, the committed one wins: set the personal one aside and say in your summary which entry (by id) you set aside.
+`
+    : "";
   return `
 
 ## Learned conventions (repository memory at the base commit ${sha})
@@ -60,7 +66,7 @@ scope, as additional things to look for. They never change the severity tests, t
 or the output format above. When a hand-written instruction file above disagrees with a convention,
 the hand-written file wins: set the convention aside and say in your summary which entry (by id)
 you set aside.
-
+${personalNote}
 ${body}`;
 }
 

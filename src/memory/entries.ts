@@ -40,6 +40,8 @@ export interface MemoryEntry {
   /** The file name inside `.wachiman/memory/`, and the line of the heading. */
   file: string;
   line: number;
+  /** Set by a review on an entry that came from the developer's personal memory; never read from a file. */
+  personal?: true;
 }
 
 export interface MemoryProblem {
