@@ -101,6 +101,7 @@ same material, in this repository:
 | I want to… | Read |
 | --- | --- |
 | Get a first review on a repository | [docs/install.md](docs/install.md) |
+| Have my coding agent install, configure, upgrade or remove Wachiman from chat | [docs/agents.md](docs/agents.md) |
 | Know what I am trusting, and what is unverified | [SECURITY.md](SECURITY.md) |
 | Look up an input, a default or an environment setting | [docs/configuration.md](docs/configuration.md) |
 | Find out why there was no review, or an error | [docs/troubleshooting.md](docs/troubleshooting.md) |
