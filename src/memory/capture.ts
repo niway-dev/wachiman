@@ -10,6 +10,7 @@ import { spawnGit } from "../evidence";
 import { historyRoot, repositoryKey } from "../history/store";
 import { loadMemorySettings } from "./settings";
 import {
+  candidateProblem,
   evidenceFromFinding,
   EVIDENCE_SOURCES,
   newCandidate,
@@ -193,6 +194,8 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   );
   const existing = readCandidate(home, key, fresh.id);
   const saved = existing ? withEvidence(existing, [first]) : fresh;
+  const problem = candidateProblem(saved);
+  if (problem) throw new UsageError(problem);
   writeCandidate(home, key, saved);
   const q = need(saved, minEvidence);
   io.stdout(`candidate ${saved.id} saved: ${saved.title}\n${q.proposable ? "proposable: show it to the owner with `wachiman memory show " + saved.id + "`, then `wachiman memory propose " + saved.id + "`." : `not proposable yet: ${q.why}.`}\n`);
