@@ -194,23 +194,15 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     templateDone = true;
     const existed = new Set(PR_TEMPLATE_FILES.filter((f) => existsSync(join(root, f))));
     const backups = new Map<string, string>();
-    // `install` says "wrote <file>" for each file it writes; listening to it tells a failure that wrote nothing from one that stopped halfway.
+    // `install` reports each file it writes through `onWrite`; that tells a failure that wrote nothing from one that stopped halfway.
     const wrote: string[] = [];
-    const watching = {
-      stdout: (text: string) => io.stdout(text),
-      stderr: (line: string) => {
-        const file = /^wrote (.+?)(?:;|\.$)/.exec(line)?.[1];
-        if (file !== undefined) {
-          wrote.push(file);
-          const backup = /kept as (.+?)\.$/.exec(line)?.[1];
-          if (backup !== undefined) backups.set(file, isAbsolute(backup) && !relative(root, backup).startsWith("..") ? relative(root, backup) : backup);
-        }
-        io.stderr(line);
-      },
+    const record = (file: string, backup?: string) => {
+      wrote.push(file);
+      if (backup !== undefined) backups.set(file, isAbsolute(backup) && !relative(root, backup).startsWith("..") ? relative(root, backup) : backup);
     };
     try {
       // Same semantics as `pr-template install` with no --force and no --commit: init never commits.
-      runInstall({ force: false, commit: false }, root, watching, deps.prTemplate);
+      runInstall({ force: false, commit: false }, root, io, { ...deps.prTemplate, onWrite: record });
       templateInstalled = true;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -411,6 +403,10 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     // A local dry run previews the files init would write and writes none (decision 4 of the agent-operated setup spec).
     if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
     previewTemplate();
+    if (!options.settings && !options.prTemplate) {
+      io.stderr("dry run: nothing would be written. Local mode has no workflow; a project kind or the PR template are the only files it writes.");
+      for (const command of projectCommands("setup", options.repoDir, cwd)) io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
+    }
     return 0;
   }
   if (!github && settingsToWrite && prompter) {
