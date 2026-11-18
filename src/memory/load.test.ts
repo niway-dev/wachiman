@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { UsageError } from "../config";
 import { parseRepoSettings } from "../repo-settings";
 import { entryId } from "./entries";
-import { globSpecificity, loadMemory, matchesGlob, memoryRecord, type MemorySource } from "./load";
+import { globSpecificity, loadMemory, matchesGlob, memoryNotice, memoryRecord, type MemorySource } from "./load";
 
 const REV = "b".repeat(40);
 
@@ -81,9 +81,19 @@ describe("loadMemory", () => {
   });
 
   test("a row that points outside the folder or at archive.md loads nothing", () => {
-    const src = source({ "index.md": indexOf([["**", "../secret.md"], ["**", "archive.md"], ["**", "index.md"]]), "archive.md": entry("old") });
+    // The source lists the odd names too, so only the plain-name guard keeps them out.
+    const rows: [string, string][] = [["**", "../secret.md"], ["**", "sub/deep.md"], ["**", "..\\win.md"], ["**", ".hidden.md"], ["**", "archive.md"], ["**", "index.md"]];
+    const src = source({
+      "index.md": indexOf(rows),
+      "../secret.md": entry("secret"),
+      "sub/deep.md": entry("deep"),
+      "..\\win.md": entry("win"),
+      ".hidden.md": entry("hidden"),
+      "archive.md": entry("old"),
+    });
     const load = loadMemory(src, REV, ["a.ts"], () => {})!;
     expect(load.files.map((f) => f.path)).toEqual([".wachiman/memory/index.md"]);
+    expect(src.reads).toEqual(["index.md"]);
   });
 
   test("a folder with no index.md loads nothing and says so", () => {
@@ -108,6 +118,21 @@ describe("loadMemory", () => {
     expect(load.leftOut).toEqual([".wachiman/memory/broad.md"]);
     expect(load.overBudget).toBe(true);
     expect(load.budget.loadedLines).toBeLessThanOrEqual(85);
+  });
+
+  test("it stops at the first file that does not fit: a less specific file that would fit does not take its place", () => {
+    const src = source(
+      {
+        "index.md": indexOf([["apps/desktop/src/**", "narrow.md"], ["apps/**", "broad.md"]]),
+        "narrow.md": lines(60),
+        "broad.md": lines(5),
+      },
+      "memory:\n  max_loaded_lines: 50\n",
+    );
+    const load = loadMemory(src, REV, ["apps/desktop/src/a.ts"], () => {})!;
+    expect(load.files.map((f) => f.path)).toEqual([".wachiman/memory/index.md"]);
+    expect(load.leftOut).toEqual([".wachiman/memory/narrow.md", ".wachiman/memory/broad.md"]);
+    expect(src.reads).not.toContain("broad.md");
   });
 
   test("an index longer than the loaded budget is loaded up to the budget and reported over budget", () => {
@@ -144,6 +169,28 @@ describe("loadMemory", () => {
     const warned: string[] = [];
     loadMemory(source({ "index.md": lines(3) }, "memory:\n  max_index_lines: -1\n"), REV, [], (l) => warned.push(l));
     expect(warned.join("\n")).toContain("memory.max_index_lines must be a positive whole number");
+  });
+});
+
+describe("memoryNotice", () => {
+  test("an index over max_index_lines that was loaded whole does not claim the memory did not fit", () => {
+    const load = loadMemory(source({ "index.md": lines(200) }, "memory:\n  max_index_lines: 150\n"), REV, [], () => {})!;
+    const notice = memoryNotice(load)!;
+    expect(notice).toContain("`index.md` is over its 150-line budget");
+    expect(notice).toContain("memory.max_index_lines");
+    expect(notice).not.toContain("does not fit");
+    expect(notice).not.toContain("for lack of room");
+  });
+
+  test("files left out say the memory does not fit and name them", () => {
+    const load = loadMemory(source({ "index.md": indexOf([["**", "a.md"]]), "a.md": lines(30) }, "memory:\n  max_loaded_lines: 20\n"), REV, ["x.ts"], () => {})!;
+    const notice = memoryNotice(load)!;
+    expect(notice).toContain("does not fit in 20 lines");
+    expect(notice).toContain(".wachiman/memory/a.md");
+  });
+
+  test("within budget there is no notice", () => {
+    expect(memoryNotice(loadMemory(source({ "index.md": lines(5) }), REV, [], () => {})!)).toBeUndefined();
   });
 });
 
