@@ -744,7 +744,7 @@ before, with no extra field, no extra text and no extra call. The settings are i
   exceptions whose `scope` covers a finding's path. It is made only when there is at least one such
   exception and at least one finding of severity Consider or Info; otherwise no call is made. It runs
   after verification, so it sees each finding's final severity, and it counts as a call of the review
-  (its cost is in the totals; `$0.25` is its cap, reserved out of the budget when an exception can apply).
+  (its cost is in the totals; its cap is `$0.25`, or a quarter of the budget left after the verifier's reserve when that is less, reserved out of the budget when an exception can apply).
 - **The floor is in the engine, not in the prompt.** Only a Consider or Info finding can be muted. A
   Blocker or Fix finding, and a finding of any severity with the security topic, are never offered to the
   matching call, and if its answer names one anyway the engine posts the finding with a note naming the
