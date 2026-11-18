@@ -293,6 +293,10 @@ describe("remember: the operator's `/wachiman remember <id>`", () => {
     expect(t.run(COMMAND(CANDIDATE.id))).toBe(0);
     expect(t.posts).toEqual([]);
     expect(t.logs.join("\n")).toContain("--- reply to 7");
+    // Nothing was written: no commit or branch, no push, no pull request call.
+    expect(hasBranch(t.w.bare)).toBe(false);
+    expect(t.calls.some((c) => c.includes("-X POST") || c.includes("push"))).toBe(false);
+    expect(t.pulls.created).toEqual([]);
   });
 
   test("the proposals it reads are the ones renderProposal wrote", () => {

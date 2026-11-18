@@ -185,7 +185,12 @@ describe("the two-reply cap (spec decision 10)", () => {
 describe("the remember command is not a question", () => {
   test("parseCommand reads `remember <id>` and leaves a question that merely starts with the word alone", () => {
     expect(parseCommand("/wachiman remember 4c1e9a2")).toEqual({ kind: "remember", id: "4c1e9a2" });
-    expect(parseCommand("/wachi remember 4C1E9A2 thanks")).toEqual({ kind: "remember", id: "4c1e9a2" });
+    expect(parseCommand("/wachi remember 4C1E9A2")).toEqual({ kind: "remember", id: "4c1e9a2" });
+    expect(parseCommand("  /wachiman remember 4c1e9a2\n")).toEqual({ kind: "remember", id: "4c1e9a2" });
+    // The approval is the whole comment: any other text makes it an ordinary reply.
+    expect(parseCommand("/wachi remember 4C1E9A2 thanks")).toEqual({ kind: "answer" });
+    expect(parseCommand("thanks, /wachiman remember 4c1e9a2")).toEqual({ kind: "answer" });
+    expect(parseCommand("/wachiman remember 4c1e9a2\n\nthanks")).toEqual({ kind: "answer" });
     expect(parseCommand("/wachiman remember the lessons from last week")).toEqual({ kind: "answer" });
     expect(parseCommand("/wachiman remember")).toEqual({ kind: "answer" });
   });
@@ -197,6 +202,9 @@ describe("the remember command is not a question", () => {
     // A custom keyword is honoured.
     expect(pendingThreads([thread([FINDING(7), OWNER("/bot remember 4c1e9a2")])], "/bot", true)).toEqual([]);
     expect(pendingThreads([thread([FINDING(7), OWNER("remember 4c1e9a2 is nice")])], "/wachiman", true)).toHaveLength(1);
+    // A mention mid-body is an ordinary reply the thread run answers, not an approval it skips.
+    expect(pendingThreads([thread([FINDING(7), OWNER("thanks, /wachiman remember 4c1e9a2")])], "/wachiman", true)).toHaveLength(1);
+    expect(pendingThreads([thread([FINDING(7), OWNER("/wachiman remember 4c1e9a2 thanks")])], "/wachiman", true)).toHaveLength(1);
   });
 
   test("`comment` does not answer or review it: the remember job handles it", async () => {
@@ -204,8 +212,17 @@ describe("the remember command is not a question", () => {
     t.deps.gh = () => {
       throw new Error("comment must not call GitHub for a remember command");
     };
-    await comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner");
+    await comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner", { id: 50, replyTo: 40, path: "src/a.ts", line: 3 });
     expect(t.provider.requests).toHaveLength(0);
+  });
+
+  test("a top-level comment `remember <id>` is not a thread reply, so no job handles it: it is an ordinary comment, not dropped", async () => {
+    const t = setup(output());
+    t.deps.gh = () => {
+      throw new Error("reached GitHub: the comment was treated as a question");
+    };
+    await expect(comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner")).rejects.toThrow("reached GitHub");
+    await expect(comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner", { id: 50, path: "src/a.ts", line: 3 })).rejects.toThrow("reached GitHub");
   });
 
   test("with memory_proposals off nothing handles it, so it is an ordinary comment: `comment` goes on to answer it and a thread reply is pending", async () => {

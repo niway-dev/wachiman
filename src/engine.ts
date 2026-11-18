@@ -437,9 +437,13 @@ export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command |
     // `paths` is every word after `review`, as before the ledger: `comment` drops `--force` from it only when a ledger is set.
     return { kind: "review", paths: rest, force: rest.includes("--force") };
   }
-  // `remember <id>` approves a memory entry the thread showed (layer 5); the id is seven hex characters. A
-  // question that merely starts with the word, such as "remember the lessons", stays a question.
-  if (words[0]?.toLowerCase() === "remember" && /^[0-9a-f]{7}$/i.test(words[1] ?? "")) return { kind: "remember", id: words[1].toLowerCase() };
+  // `remember <id>` approves a memory entry the thread showed (layer 5); the id is seven hex characters. The
+  // approval is the whole comment (trimmed): "thanks, /wachiman remember 4c1e9a2", a trailing word, or a question
+  // that merely starts with the word ("remember the lessons") stays an ordinary comment.
+  if (words[0]?.toLowerCase() === "remember" && words.length === 2 && /^[0-9a-f]{7}$/i.test(words[1])) {
+    const whole = body.trim().match(new RegExp(`^${mentionSource(keyword)}\\s+remember\\s+[0-9a-f]{7}$`, "i"));
+    if (whole) return { kind: "remember", id: words[1].toLowerCase() };
+  }
   return { kind: "answer" };
 }
 
@@ -5599,8 +5603,9 @@ export async function comment(deps: Deps, repo: string, pr: number, request: str
   if (problem) throw new Error(problem);
   const parsed = parseCommand(request, deps.config.mention);
   // `/wachiman remember <id>` is the memory write job's (layer 5), which exists only with `memory_proposals`: with
-  // it off nothing handles the command, so it stays an ordinary comment (a question).
-  const command = parsed?.kind === "remember" && !deps.config.memoryProposals ? ({ kind: "answer" } as const) : parsed;
+  // it off, or outside a thread reply, nothing handles the command, so it stays an ordinary comment (a question).
+  // The job answers only a reply in a thread, so a top-level `remember <id>` is an ordinary comment as well.
+  const command = parsed?.kind === "remember" && !(deps.config.memoryProposals && line?.replyTo) ? ({ kind: "answer" } as const) : parsed;
   // Without an author, the caller is the operator (manual CLI use, as before), unless collaborators
   // may ask: then nobody is trusted without a login. A dry run posts nothing, so it keeps the manual path.
   const operatorAsked =

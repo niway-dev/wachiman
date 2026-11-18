@@ -53,6 +53,8 @@ describe("wachiman-memory.yml", () => {
     expect(gate).toContain("startsWith(github.event.comment.body, '/wachi')");
     expect(gate).toContain("startsWith(github.event.comment.body, '@claude')");
     expect(gate).toContain("github.event.pull_request.head.repo.full_name == github.repository");
+    // The approval is the whole comment (the job checks the exact shape): a mention mid-body never starts it.
+    expect(gate).not.toMatch(/contains\(github\.event\.comment\.body, (inputs\.mention|'\/wachi|'@claude)/);
   });
 
   test("passes no model credential and checks out the default branch, never the pull request's head", () => {

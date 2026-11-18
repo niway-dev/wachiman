@@ -9,8 +9,10 @@ name: Wachiman memory (reusable)
 # What it does:
 #   - Runs only on a reply in a review thread (`pull_request_review_comment`) written by the `operator`
 #     login, that starts with the mention and says `remember`, on a pull request whose head is in this
-#     repository. Anyone else's comment starts a skipped job and nothing else. The engine checks the
-#     operator again.
+#     repository. The approval is the whole comment: this gate cannot test the exact shape, so the engine does
+#     (`/wachiman remember <id>` and nothing else); a comment with other text writes nothing, and the thread
+#     run answers it as an ordinary reply. Anyone else's comment starts a skipped job and nothing else. The
+#     engine checks the operator again.
 #   - Calls no model and passes no model key. The engine reads the proposal back from Wachiman's own reply
 #     in that thread, checks that the digest of the text shown is the id the operator approved, and
 #     writes exactly that text: one commit on the branch `wachiman/memory` that touches only

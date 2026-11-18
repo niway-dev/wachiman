@@ -95,6 +95,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `pr-template show\|install\|status\|check\|format\|risk\|strip` | Installs the PR description template, reports its state, checks and reorders a description, and computes the risk floor. No model call. See [`pr-template`](#pr-template) and [the guide](pr-template.md). |
 | `memory check` | Checks the repository memory in `.wachiman/memory/`: malformed entries, globs that match no file, budget overruns; then suggests likely duplicates and entries to archive. No model call. See [`memory`](#memory). |
 | `memory archive <id>` | Moves one entry to `.wachiman/memory/archive.md` in the working tree. See [`memory`](#memory). |
+| `memory remember <pr>` | The write job of memory in Actions: records the entry the operator approved with `/wachiman remember <id>` as the whole comment of a thread reply. See [`memory`](#memory). |
 | `memory candidates`, `add`, `show`, `propose` | Keeps memory candidates on the laptop and proposes an approved entry as one commit on the branch `wachiman/memory`. No model call. See [`memory`](#memory). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
@@ -787,8 +788,7 @@ before, with no extra field, no extra text and no extra call. The settings are i
   also mutes nothing in this review. The line is absent when no entry applies, and a repository without
   memory sees no change. Wachiman only says so; it never edits the entry.
 
-**What it does not do yet.** Personal memory (`--personal`) and the `/wachiman remember` command in
-Actions are later layers.
+**What it does not do yet.** Personal memory (`--personal`) is a later layer.
 
 `memory check` reads the folder from the working tree and prints each problem as
 `<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope (not checked in
