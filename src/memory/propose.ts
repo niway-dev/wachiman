@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { UsageError } from "../config";
 import { renderEntry, evidenceLine, type Candidate } from "./candidates";
 import { parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
-import { inspectMemory } from "./command";
+import { inspectMemory } from "./inspect";
 import { parseMemoryFile } from "./entries";
 import { INDEX_FILE, MEMORY_DIR } from "./load";
 
