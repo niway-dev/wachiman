@@ -133,6 +133,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   // Before anything is rendered or written: this must be a git repository.
   const root = worktreeRoot(options.repoDir, deps.git);
   const { github } = options;
+  const dryRun = github?.dryRun ?? options.dryRun === true;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
   let templateDone = false;
@@ -175,13 +176,13 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   let settingsToWrite = plan && plan.action !== "same" ? plan : undefined;
   let settingsWritten = false;
   if (plan?.action === "same") io.stderr(`${SETTINGS_PATH} already says kind: ${plan.kind}.`);
-  if (settingsToWrite && github?.dryRun) {
+  if (settingsToWrite && dryRun) {
     io.stderr(`would write ${SETTINGS_PATH} (kind: ${settingsToWrite.kind})`);
     if (settingsToWrite.action === "change" && !options.settings?.force) {
       io.stderr(`note: ${SETTINGS_PATH} says kind: ${settingsToWrite.from ?? "(none)"}; a real run needs --force to change it.`);
     }
   }
-  if (settingsToWrite?.action === "change" && !github?.dryRun && !prompter && !options.settings?.force) {
+  if (settingsToWrite?.action === "change" && !dryRun && !prompter && !options.settings?.force) {
     throw new UsageError(`${SETTINGS_PATH} says kind: ${settingsToWrite.from ?? "(none)"}, not ${settingsToWrite.kind}. Re-run with --force to change it.`);
   }
   const settingsTitle = (p: Exclude<SettingsPlan, { action: "same" }>) => (p.action === "create" ? `${SETTINGS_PATH} (new)` : `${SETTINGS_PATH} (kind: ${p.from ?? "none"} to ${p.kind})`);
@@ -326,6 +327,11 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     }
   }
 
+  if (!github && dryRun) {
+    // A local dry run previews the files init would write and writes none (decision 4 of the agent-operated setup spec).
+    if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
+    return 0;
+  }
   if (!github && settingsToWrite && prompter) {
     const code = await askSettingsAlone();
     if (code !== undefined) return code;

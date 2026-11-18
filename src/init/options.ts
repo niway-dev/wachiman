@@ -25,6 +25,8 @@ export interface RawInitFlags {
   projectKind?: string;
   force?: boolean;
   dryRun?: boolean;
+  /** Print one `wachiman.init/1` document on stdout; never prompt. */
+  json?: boolean;
   yes?: boolean;
   /** `--pr-template` is true, `--no-pr-template` is false; absent means not given. */
   prTemplate?: boolean;
@@ -40,6 +42,8 @@ export interface InitOptions {
   prTemplate?: boolean;
   /** Present iff the kind was given (flag or answer); then `.wachiman.yml` is written or checked. `force` allows changing a different `kind:` without asking. */
   settings?: { kind: ProjectKind; force: boolean };
+  /** Set only in local mode (github mode carries it in `github.dryRun`): preview `.wachiman.yml` and the PR template, write nothing. */
+  dryRun?: true;
   repoDir: string;
   interactive: boolean;
 }
@@ -64,7 +68,6 @@ const GITHUB_ONLY_FLAGS = [
   ["version", "--version"],
   ["path", "--path"],
   ["force", "--force"],
-  ["dryRun", "--dry-run"],
 ] as const;
 
 export const initModes: readonly InitMode[] = ["github", "local", "both"];
@@ -116,7 +119,7 @@ export function resolveInitOptions(
     const given = GITHUB_ONLY_FLAGS.filter(([key]) => flags[key] !== undefined && flags[key] !== false && !(key === "force" && settings))
       .map(([, name]) => name);
     if (given.length > 0) return fail(`${given.join(", ")} only apply to a workflow; --mode local writes none. Drop them, or use --mode github or both.`);
-    return { ok: true, options: { mode, ...templateOption, ...(settings ? { settings } : {}), repoDir, interactive: ctx.interactive } };
+    return { ok: true, options: { mode, ...templateOption, ...(settings ? { settings } : {}), ...(flags.dryRun ? { dryRun: true as const } : {}), repoDir, interactive: ctx.interactive } };
   }
 
   if (flags.operator === undefined) return fail(`init --mode ${mode} needs --operator <github login> when it cannot ask: the one person whose /wachiman comments start a run.`);
