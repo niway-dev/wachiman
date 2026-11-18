@@ -7,6 +7,9 @@ workflow both run exactly this; anything else that wants to drive a review can t
 it reads is listed in [configuration.md](configuration.md); this page covers the commands, what
 they post and how they exit.
 
+A coding agent that installs or maintains Wachiman for a person reads [agents.md](agents.md) first: it
+maps each wizard question to a flag and shows the non-interactive command sequence.
+
 ```sh
 bun src/cli.ts review <pr> [paths…] [--repo-dir <dir>]
 bun src/cli.ts comment <pr> [--repo-dir <dir>]   # the comment text comes from $REQUEST
@@ -529,7 +532,7 @@ stderr. The exit codes are the same as without `--json`.
 
 ```json
 {
-  "schema": "wachiman.init/1",
+  "format": "wachiman.init/1",
   "ok": true,
   "mode": "both",
   "dryRun": false,

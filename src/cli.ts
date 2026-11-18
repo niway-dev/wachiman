@@ -63,6 +63,7 @@ import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
+import { failureDocument, printDocument } from "./init/json";
 import { runInitFromArgv } from "./init/run";
 import { runSetupCommand } from "./setup/run";
 import { commandHelp, helpFor, isCommand, rootHelp } from "./help";
@@ -456,6 +457,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
     return 0;
   } catch (error) {
     if (error instanceof UsageError || error instanceof UnknownProviderError) {
+      // `init --json` promises one document on stdout even when the arguments fail before init runs (a bad --repo-dir).
+      if (mode === "init" && argv.includes("--json")) {
+        printDocument((text) => writeAll(1, text), failureDocument({ mode: null, dryRun: argv.includes("--dry-run"), repoDir: process.cwd(), report: {}, code: "usage", message: error.message }));
+        return 2;
+      }
       return usageError(error.message, mode);
     }
     if (error instanceof SpendLimitReached) {

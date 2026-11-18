@@ -58,7 +58,7 @@ describe("init --mode local --dry-run", () => {
   });
 });
 
-const KEYS = ["schema", "ok", "mode", "dryRun", "repoDir", "files", "local", "github", "error"];
+const KEYS = ["format", "ok", "mode", "dryRun", "repoDir", "files", "local", "github", "error"];
 
 describe("init --json", () => {
   test("a real run prints exactly one wachiman.init/1 document and every status line goes to stderr", async () => {
@@ -67,7 +67,7 @@ describe("init --json", () => {
     expect(code).toBe(0);
     const d = doc(w);
     expect(Object.keys(d)).toEqual(KEYS);
-    expect(d.schema).toBe("wachiman.init/1");
+    expect(d.format).toBe("wachiman.init/1");
     expect(d).toMatchObject({ ok: true, mode: "both", dryRun: false, error: null });
     expect(d.repoDir).toBe(realpathSync(w.repo));
     expect(d.files).toEqual([
@@ -167,7 +167,7 @@ describe("init --json", () => {
     expect(code).toBe(2);
     const d = doc(w);
     expect(Object.keys(d)).toEqual(KEYS);
-    expect(d).toMatchObject({ schema: "wachiman.init/1", ok: false, files: [], error: { code: "usage" } });
+    expect(d).toMatchObject({ format: "wachiman.init/1", ok: false, files: [], error: { code: "usage" } });
     expect(d.error.message).toContain(mention);
     expect(w.out).toHaveLength(1);
   });

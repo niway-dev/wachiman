@@ -78,7 +78,7 @@ Read the `wachiman.init/1` document it prints (the shape below is illustrative, 
 
 ```json
 {
-  "schema": "wachiman.init/1", "ok": true, "mode": "both", "dryRun": false,
+  "format": "wachiman.init/1", "ok": true, "mode": "both", "dryRun": false,
   "files": [ { "path": ".github/workflows/wachiman-review.yml", "action": "created" } ],
   "local":  { "status": "pending", "pending": ["wachiman setup --profile <name> --yes ..."] },
   "github": { "status": "pending", "pending": ["Add the repository secret ANTHROPIC_API_KEY", "..."] }

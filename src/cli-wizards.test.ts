@@ -54,6 +54,18 @@ describe("init through the CLI, without a terminal", () => {
     expect(existsSync(join(m.repo, ".git", ".github"))).toBe(false);
   });
 
+  test("--json with a --repo-dir that is not a directory prints one wachiman.init/1 usage error", () => {
+    const m = machine();
+    const out = m.run(["init", "--json", "--mode", "local", "--repo-dir", join(m.repo, "missing")]);
+    expect(out.code).toBe(2);
+    const doc = JSON.parse(out.stdout);
+    expect(doc.format).toBe("wachiman.init/1");
+    expect(doc.ok).toBe(false);
+    expect(doc.error.code).toBe("usage");
+    expect(doc.error.message).toContain("--repo-dir");
+    expect(doc.files).toEqual([]);
+  });
+
   test("--mode github --operator me --version v1.5.0 --dry-run prints the rendered file and writes nothing", () => {
     const m = machine();
     const before = snapshotTree(m.repo);

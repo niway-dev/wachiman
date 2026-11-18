@@ -6,7 +6,7 @@
 import { quoteArgument } from "../wizard/command";
 import type { InitMode } from "./options";
 
-export const INIT_SCHEMA = "wachiman.init/1";
+export const INIT_FORMAT = "wachiman.init/1";
 
 export type FileAction = "created" | "replaced" | "unchanged" | "would-create" | "would-replace" | "skipped" | "refused";
 
@@ -30,7 +30,7 @@ export interface InitReport {
 export type Readiness = "ready" | "pending" | "not-used";
 
 export interface InitDocument {
-  schema: typeof INIT_SCHEMA;
+  format: typeof INIT_FORMAT;
   ok: boolean;
   mode: InitMode | null;
   dryRun: boolean;
@@ -47,7 +47,7 @@ const filesOf = (report: InitReport): InitFile[] => [report.workflow, report.set
 export function buildDocument(p: { mode: InitMode; dryRun: boolean; repoDir: string; report: InitReport }): InitDocument {
   const { mode } = p;
   return {
-    schema: INIT_SCHEMA,
+    format: INIT_FORMAT,
     ok: true,
     mode,
     dryRun: p.dryRun,
@@ -65,7 +65,7 @@ export function buildDocument(p: { mode: InitMode; dryRun: boolean; repoDir: str
 /** A failure: `files` holds what was already written or refused, and the other fields say what is known. */
 export function failureDocument(p: { mode: InitMode | null; dryRun: boolean; repoDir: string; report: InitReport; code: "usage" | "failed"; message: string }): InitDocument {
   return {
-    schema: INIT_SCHEMA,
+    format: INIT_FORMAT,
     ok: false,
     mode: p.mode,
     dryRun: p.dryRun,

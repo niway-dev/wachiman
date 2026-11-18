@@ -56,7 +56,7 @@ A person asks their coding agent to set up Wachiman. The agent reads one public 
 
 ```json
 {
-  "schema": "wachiman.init/1",
+  "format": "wachiman.init/1",
   "ok": true,
   "mode": "both",
   "dryRun": false,
