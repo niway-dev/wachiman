@@ -602,7 +602,7 @@ topics ([cli.md](cli.md#finding-labels)), change a budget, or turn off a check. 
 ### The settings file `.wachiman.yml`
 
 `wachiman init` writes `.wachiman.yml` at the repository root ([ADR 0048](adr/0048-a-repository-settings-file-at-the-root-wachiman-yml.md)).
-It takes four optional keys; unknown keys are ignored:
+It takes these optional keys; unknown keys are ignored:
 
 ```yaml
 kind: monorepo          # or single; metadata only, nothing reads it yet
@@ -616,6 +616,12 @@ paths:                  # optional: places a person should always look at, see "
   - match: "src/billing/**"
     severity: high
     reason: charges customers
+# Optional. Line budget of the repository memory (see "The memory key" below).
+# memory:
+#   min_evidence: 2
+#   max_index_lines: 150
+#   max_loaded_lines: 400
+#   archive_after_days: 90
 ```
 
 - `kind` is metadata. It never chooses an account, a profile or a binary.
@@ -633,6 +639,23 @@ paths:                  # optional: places a person should always look at, see "
 - `paths` is a list of path rules; see [Path rules](#path-rules-paths) below.
 - `init` does not ask for `model` or `effort`; a new file carries them commented out, and a commented-out
   `paths:` example.
+
+**The `memory` key ([ADR 0056](adr/0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md)).**
+It sets the line budget of the [repository memory](cli.md#memory), a folder of Markdown files in
+`.wachiman/memory/`. It is read from the same commit as `model` and `effort`. Unlike them it is
+read whenever that folder exists, even when the model and the effort were set explicitly, because
+it decides how much memory a review loads.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `memory.max_index_lines` | 150 | Lines `index.md` should not exceed. A longer index is still loaded, up to `max_loaded_lines`, and reported. |
+| `memory.max_loaded_lines` | 400 | Lines one review loads: `index.md` plus the area files its diff selects. The engine clamps it to 1000, so a merged change cannot raise the prompt size without limit. |
+| `memory.min_evidence` | 2 | Pieces of evidence a tool-found candidate needs. Stored and validated now; nothing uses it until memory capture exists. |
+| `memory.archive_after_days` | 90 | Days without use before an entry is suggested for the archive. Stored and validated now; nothing uses it yet. |
+
+A value that is not a positive whole number is ignored with a notice (`.wachiman.yml: memory.<key>
+must be a positive whole number, got ...; using <default>`) and the default applies. A
+`max_loaded_lines` above 1000 is replaced by 1000, with a notice.
 
 **Precedence, highest first:** an explicit workflow input or `WACHIMAN_MODEL` / `WACHIMAN_EFFORT`
 (an empty value counts as not set), then `.wachiman.yml`, then the built-in default. The workflow's
