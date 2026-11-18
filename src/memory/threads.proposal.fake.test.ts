@@ -155,7 +155,7 @@ describe("a thread reply that proposes a memory entry", () => {
 
 describe("a malformed proposal from the model", () => {
   test("a memory field that is not an object is no proposal: the run does not throw and the reply is still posted", async () => {
-    for (const memory of ["use tabs", null, [MEMORY], 42, true]) {
+    for (const memory of ["use tabs", [MEMORY], 42, true]) {
       const warnings: string[] = [];
       const t = setup(output(memory));
       t.deps.warn = (line) => void warnings.push(line);
@@ -165,6 +165,26 @@ describe("a malformed proposal from the model", () => {
       expect(t.replies[0].body, JSON.stringify(memory)).toContain("No memory entry was proposed: the proposal was not in a usable shape, so there is nothing to approve.");
       expect(warnings.some((w) => w.includes("Memory proposal for thread 7 dropped")), JSON.stringify(memory)).toBe(true);
     }
+  });
+});
+
+describe("the memory field of a strict schema", () => {
+  test("null is the strict form of `no proposal`: it posts the reply with no note and no warning", async () => {
+    const warnings: string[] = [];
+    const t = setup(output(null));
+    t.deps.warn = (line) => void warnings.push(line);
+    await threadReplies(t.deps, "o/r", 7, "owner");
+    expect(t.replies).toHaveLength(1);
+    expect(proposalsIn(t.replies[0].body)).toEqual([]);
+    expect(t.replies[0].body).not.toContain("No memory entry was proposed");
+    expect(warnings.some((w) => w.includes("Memory proposal"))).toBe(false);
+  });
+
+  test("a null holds_while is no condition: the entry is proposed as without one", async () => {
+    const t = setup(output({ ...MEMORY, holds_while: null }));
+    await threadReplies(t.deps, "o/r", 7, "owner");
+    const [shown] = proposalsIn(t.replies[0].body);
+    expect(shown.id).toBe(entryId({ kind: "exception", scope: MEMORY.scope, rule: MEMORY.rule, why: MEMORY.why }));
   });
 });
 
@@ -186,7 +206,12 @@ describe("the remember command is not a question", () => {
   test("parseCommand reads `remember <id>` and leaves a question that merely starts with the word alone", () => {
     expect(parseCommand("/wachiman remember 4c1e9a2")).toEqual({ kind: "remember", id: "4c1e9a2" });
     expect(parseCommand("/wachi remember 4C1E9A2")).toEqual({ kind: "remember", id: "4c1e9a2" });
-    expect(parseCommand("  /wachiman remember 4c1e9a2\n")).toEqual({ kind: "remember", id: "4c1e9a2" });
+    // The write job's gate is `startsWith(body, mention)`, so trailing whitespace passes it and leading whitespace does not:
+    // the engine agrees, or a reply the job would skip is a reply the thread run also skips, and nobody answers it.
+    expect(parseCommand("/wachiman remember 4c1e9a2\n")).toEqual({ kind: "remember", id: "4c1e9a2" });
+    expect(parseCommand("/wachiman remember 4c1e9a2  \r\n\n")).toEqual({ kind: "remember", id: "4c1e9a2" });
+    expect(parseCommand("  /wachiman remember 4c1e9a2\n")).toEqual({ kind: "answer" });
+    expect(parseCommand("\n/wachiman remember 4c1e9a2")).toEqual({ kind: "answer" });
     // The approval is the whole comment: any other text makes it an ordinary reply.
     expect(parseCommand("/wachi remember 4C1E9A2 thanks")).toEqual({ kind: "answer" });
     expect(parseCommand("thanks, /wachiman remember 4c1e9a2")).toEqual({ kind: "answer" });
@@ -196,15 +221,31 @@ describe("the remember command is not a question", () => {
   });
 
   test("a reply that is `/wachiman remember <id>` is not pending, so the thread run spends nothing on it", () => {
-    expect(pendingThreads([thread([FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")])], "/wachiman", true)).toEqual([]);
+    expect(pendingThreads([thread([FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")])], "/wachiman", true, "owner")).toEqual([]);
     // The default is off, like the config and the prompt: the reply is then an ordinary one.
     expect(pendingThreads([thread([FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")])])).toHaveLength(1);
     // A custom keyword is honoured.
-    expect(pendingThreads([thread([FINDING(7), OWNER("/bot remember 4c1e9a2")])], "/bot", true)).toEqual([]);
-    expect(pendingThreads([thread([FINDING(7), OWNER("remember 4c1e9a2 is nice")])], "/wachiman", true)).toHaveLength(1);
+    expect(pendingThreads([thread([FINDING(7), OWNER("/bot remember 4c1e9a2")])], "/bot", true, "owner")).toEqual([]);
+    expect(pendingThreads([thread([FINDING(7), OWNER("remember 4c1e9a2 is nice")])], "/wachiman", true, "owner")).toHaveLength(1);
     // A mention mid-body is an ordinary reply the thread run answers, not an approval it skips.
-    expect(pendingThreads([thread([FINDING(7), OWNER("thanks, /wachiman remember 4c1e9a2")])], "/wachiman", true)).toHaveLength(1);
-    expect(pendingThreads([thread([FINDING(7), OWNER("/wachiman remember 4c1e9a2 thanks")])], "/wachiman", true)).toHaveLength(1);
+    expect(pendingThreads([thread([FINDING(7), OWNER("thanks, /wachiman remember 4c1e9a2")])], "/wachiman", true, "owner")).toHaveLength(1);
+    expect(pendingThreads([thread([FINDING(7), OWNER("/wachiman remember 4c1e9a2 thanks")])], "/wachiman", true, "owner")).toHaveLength(1);
+  });
+
+  test("a collaborator's `remember <id>` is not an approval, so it is an ordinary reply the thread run answers", async () => {
+    const nodes = [FINDING(7), WACHI(800), MATE("/wachiman remember 4c1e9a2")];
+    expect(pendingThreads([thread(nodes)], "/wachiman", true, "owner")).toHaveLength(1);
+    // The operator is compared without regard to case, as the write job does.
+    expect(pendingThreads([thread([FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")])], "/wachiman", true, "OWNER")).toEqual([]);
+    // `comment` does not drop it silently either: it says only the operator may act on it.
+    const t = setup(output());
+    const warnings: string[] = [];
+    t.deps.warn = (line) => void warnings.push(line);
+    const logs: string[] = [];
+    t.deps.log = (line) => void logs.push(line);
+    await comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "mate", { id: 50, replyTo: 40, path: "src/a.ts", line: 3 });
+    expect(logs.join("\n")).not.toContain("handled by the memory write job");
+    expect(warnings.join("\n")).toContain("Comment by mate, not the operator owner; nothing to do.");
   });
 
   test("`comment` does not answer or review it: the remember job handles it", async () => {
@@ -233,6 +274,6 @@ describe("the remember command is not a question", () => {
     await expect(comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner")).rejects.toThrow("reached GitHub");
     const nodes = [FINDING(7), WACHI(800), OWNER("/wachiman remember 4c1e9a2")];
     expect(pendingThreads([thread(nodes)], "/wachiman", false)).toHaveLength(1);
-    expect(pendingThreads([thread(nodes)], "/wachiman", true)).toEqual([]);
+    expect(pendingThreads([thread(nodes)], "/wachiman", true, "owner")).toEqual([]);
   });
 });

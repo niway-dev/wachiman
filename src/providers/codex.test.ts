@@ -3,6 +3,7 @@ import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../config";
+import { THREAD_SCHEMA, THREAD_SCHEMA_WITH_MEMORY } from "../engine";
 import {
   buildChildEnv,
   buildCodexArgs,
@@ -329,5 +330,45 @@ describe("the schema Codex receives", () => {
   test("a schema without the risk arrays comes back as the same object", () => {
     const schema = { type: "object", properties: { a: { type: "string" } }, required: ["a"] };
     expect(strictSchema(schema)).toBe(schema);
+  });
+
+  /** Codex's strict structured output: the rules every object in a schema must meet. Returns the breaches, `path: rule`. */
+  function strictBreaches(schema: unknown, path = "$"): string[] {
+    if (schema === null || typeof schema !== "object") return [];
+    const node = schema as Record<string, unknown>;
+    const out: string[] = [];
+    for (const key of Object.keys(node)) {
+      if (!["type", "enum", "properties", "required", "additionalProperties", "items"].includes(key)) out.push(`${path}: unsupported keyword ${key}`);
+    }
+    const types = Array.isArray(node.type) ? node.type : [node.type];
+    if (types.includes("object")) {
+      const properties = (node.properties ?? {}) as Record<string, unknown>;
+      if (node.additionalProperties !== false) out.push(`${path}: additionalProperties is not false`);
+      const missing = Object.keys(properties).filter((name) => !(Array.isArray(node.required) ? node.required : []).includes(name));
+      if (missing.length > 0) out.push(`${path}: not required: ${missing.join(", ")}`);
+      for (const [name, child] of Object.entries(properties)) out.push(...strictBreaches(child, `${path}.${name}`));
+    }
+    if (node.items) out.push(...strictBreaches(node.items, `${path}[]`));
+    return out;
+  }
+
+  test("every thread schema, as Codex receives it, meets the strict structured-output rules", () => {
+    for (const [name, schema] of [["THREAD_SCHEMA", THREAD_SCHEMA], ["THREAD_SCHEMA_WITH_MEMORY", THREAD_SCHEMA_WITH_MEMORY]] as const) {
+      expect(strictBreaches(strictSchema(schema)), name).toEqual([]);
+    }
+  });
+
+  test("the checker catches an optional property and a missing additionalProperties", () => {
+    expect(strictBreaches({ type: "object", properties: { a: { type: "string" } }, required: [] })).toEqual([
+      "$: additionalProperties is not false",
+      "$: not required: a",
+    ]);
+  });
+
+  test("the memory object of a thread reply is a union with null, and its optional text is too", () => {
+    const reply = THREAD_SCHEMA_WITH_MEMORY.properties.thread_replies.items;
+    expect(reply.required).toContain("memory");
+    expect(reply.properties.memory.type).toEqual(["object", "null"]);
+    expect(reply.properties.memory.properties.holds_while.type).toEqual(["string", "null"]);
   });
 });

@@ -438,10 +438,11 @@ export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command |
     return { kind: "review", paths: rest, force: rest.includes("--force") };
   }
   // `remember <id>` approves a memory entry the thread showed (layer 5); the id is seven hex characters. The
-  // approval is the whole comment (trimmed): "thanks, /wachiman remember 4c1e9a2", a trailing word, or a question
-  // that merely starts with the word ("remember the lessons") stays an ordinary comment.
+  // approval is the whole comment: "thanks, /wachiman remember 4c1e9a2", a trailing word, or a question that merely
+  // starts with the word ("remember the lessons") stays an ordinary comment. It starts the comment, as the write
+  // job's gate (`startsWith`) requires, so leading whitespace makes an ordinary comment; trailing whitespace is fine.
   if (words[0]?.toLowerCase() === "remember" && words.length === 2 && /^[0-9a-f]{7}$/i.test(words[1])) {
-    const whole = body.trim().match(new RegExp(`^${mentionSource(keyword)}\\s+remember\\s+[0-9a-f]{7}$`, "i"));
+    const whole = body.match(new RegExp(`^${mentionSource(keyword)}\\s+remember\\s+[0-9a-f]{7}\\s*$`, "i"));
     if (whole) return { kind: "remember", id: words[1].toLowerCase() };
   }
   return { kind: "answer" };
@@ -2651,17 +2652,19 @@ export const isWachiReply = (c: RawThread["comments"]["nodes"][number]) =>
  * Wachiman's, or a stranger's, or whose cap is spent, is not pending. Each entry is
  * `openBotThreads`' thread plus how many replies Wachiman already wrote, so the model knows
  * whether its answer is the last one allowed. With `memoryProposals` on, a latest reply that is
- * `<mention> remember <id>` is not pending: the memory write job answers it (layer 5). With it off no
- * job does, so that reply is an ordinary one.
+ * `<mention> remember <id>` written by the `operator` is not pending: the memory write job answers it
+ * (layer 5). With it off no job does, and for anyone but the operator the job skips it, so that reply is
+ * an ordinary one.
  */
-export function pendingThreads(threads: RawThread[], keyword = DEFAULT_MENTION, memoryProposals = false) {
+export function pendingThreads(threads: RawThread[], keyword = DEFAULT_MENTION, memoryProposals = false, operator?: string) {
   const open = openBotThreads(threads);
   const byId = new Map(threads.map((t) => [t.comments.nodes[0]?.databaseId, t]));
   return open.flatMap((t) => {
     const nodes = byId.get(t.comment_id)?.comments.nodes ?? [];
     const latest = nodes.length > 1 ? nodes[nodes.length - 1] : undefined;
     if (!latest || latest.author?.login === "github-actions" || !TRUSTED.has(latest.authorAssociation)) return [];
-    if (memoryProposals && parseCommand(latest.body, keyword)?.kind === "remember") return [];
+    const byOperator = operator !== undefined && latest.author?.login.toLowerCase() === operator.trim().toLowerCase();
+    if (memoryProposals && byOperator && parseCommand(latest.body, keyword)?.kind === "remember") return [];
     const wachiReplies = nodes.slice(1).filter(isWachiReply).length;
     return wachiReplies < MAX_WACHI_REPLIES ? [{ ...t, wachi_replies: wachiReplies }] : [];
   });
@@ -4409,7 +4412,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
   // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
-  const threads = last ? pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals) : [];
+  const threads = last ? pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals, config.operator) : [];
   const input = githubReviewInput({
     repo,
     pr,
@@ -4582,7 +4585,7 @@ export interface ThreadReply {
   status: "addressed" | "still_open";
   reply: string;
   /** An entry for repository memory, proposed from the owner's latest instruction (only with `memory_proposals`). */
-  memory?: { kind?: unknown; scope?: unknown; rule?: unknown; why?: unknown; holds_while?: unknown };
+  memory?: { kind?: unknown; scope?: unknown; rule?: unknown; why?: unknown; holds_while?: unknown } | null;
   /** `path:line` or `path:from-to` the reply rests on; every one is checked against the head. */
   cites: string[];
 }
@@ -4622,18 +4625,21 @@ export const THREAD_SCHEMA_WITH_MEMORY = {
       type: "array",
       items: {
         ...THREAD_SCHEMA.properties.thread_replies.items,
+        // Codex's structured output is strict: every property is required and an optional one is a union with
+        // null. So the model answers `memory: null` for no proposal and `holds_while: null` for no condition.
+        required: [...THREAD_SCHEMA.properties.thread_replies.items.required, "memory"],
         properties: {
           ...THREAD_SCHEMA.properties.thread_replies.items.properties,
           memory: {
-            type: "object",
+            type: ["object", "null"],
             additionalProperties: false,
-            required: ["kind", "scope", "rule", "why"],
+            required: ["kind", "scope", "rule", "why", "holds_while"],
             properties: {
               kind: { enum: ["convention", "exception"] },
               scope: { type: "string" },
               rule: { type: "string" },
               why: { type: "string" },
-              holds_while: { type: "string" },
+              holds_while: { type: ["string", "null"] },
             },
           },
         },
@@ -4673,14 +4679,14 @@ const MEMORY_PROPOSAL_PROMPT = `
 
 Repository memory. When the latest reply in a thread is the owner's own explicit instruction about how
 code in this repository should be written, or which kind of finding they do not want, and it gives a
-reason, add a "memory" object to that thread's reply: kind ("convention" for how code is written here,
+reason, set that thread's "memory" to an object: kind ("convention" for how code is written here,
 "exception" for one kind of finding the owner does not want), scope (a path glob), rule (one sentence),
-why (the owner's reason, in their terms) and, only when the reason is a fact about the code ("this caller
-already validates"), holds_while (the paths that fact lives in). An exception names one kind of finding
+why (the owner's reason, in their terms) and holds_while (the paths that fact lives in, only when the reason
+is a fact about the code, as in "this caller already validates"; otherwise null). An exception names one kind of finding
 in a path scope: never write an entry that excludes files from review ("do not review the auth files").
 Do not propose memory for the details of one feature, a one-time exception, the temporary state of a
 migration, or anything a formatter or linter can enforce. Most replies are not such an instruction: then
-leave "memory" out. The owner approves the entry separately and you never write it, so your reply text
+set "memory" to null. The owner approves the entry separately and you never write it, so your reply text
 must not say it was recorded.`;
 
 /** The prompt of a thread-only run. The threads, their replies and the code are in `threads.json`. */
@@ -4744,7 +4750,7 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
     );
     return;
   }
-  const pending = pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals);
+  const pending = pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals, config.operator);
   if (pending.length === 0) {
     deps.log("No Wachiman thread waits for an answer.");
     return;
@@ -4813,9 +4819,10 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
     const date = today(new Date(deps.now?.() ?? Date.now()));
     for (const { reply } of replies) {
       const proposed: unknown = reply.memory;
-      if (proposed === undefined) continue;
+      // `null` is the strict schema's form of "no proposal" (`THREAD_SCHEMA_WITH_MEMORY`), the same as leaving it out.
+      if (proposed === undefined || proposed === null) continue;
       // The model's own field: anything but an object is no proposal, never an error that fails a run whose cost is spent.
-      if (typeof proposed !== "object" || proposed === null || Array.isArray(proposed)) {
+      if (typeof proposed !== "object" || Array.isArray(proposed)) {
         deps.warn(`Memory proposal for thread ${reply.comment_id} dropped: it is not an object.`);
         dropped.set(reply.comment_id, "the proposal was not in a usable shape");
         continue;
@@ -4847,7 +4854,7 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
   // ADR 0008: recheck the head and each thread before posting. A push since the start means its
   // review answers; a thread someone answered meanwhile is not answered twice.
   const stillPending = new Set<number>();
-  if (headOf() === headSha) for (const t of pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals)) stillPending.add(t.comment_id);
+  if (headOf() === headSha) for (const t of pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals, config.operator)) stillPending.add(t.comment_id);
   const toPost = replies.filter((r) => stillPending.has(r.reply.comment_id));
   if (toPost.length < replies.length)
     deps.log(`${replies.length - toPost.length} reply(ies) not posted: the head moved or the thread changed meanwhile.`);
@@ -5602,14 +5609,16 @@ export async function comment(deps: Deps, repo: string, pr: number, request: str
   const problem = operatorProblem(operator);
   if (problem) throw new Error(problem);
   const parsed = parseCommand(request, deps.config.mention);
-  // `/wachiman remember <id>` is the memory write job's (layer 5), which exists only with `memory_proposals`: with
-  // it off, or outside a thread reply, nothing handles the command, so it stays an ordinary comment (a question).
-  // The job answers only a reply in a thread, so a top-level `remember <id>` is an ordinary comment as well.
-  const command = parsed?.kind === "remember" && !(deps.config.memoryProposals && line?.replyTo) ? ({ kind: "answer" } as const) : parsed;
   // Without an author, the caller is the operator (manual CLI use, as before), unless collaborators
   // may ask: then nobody is trusted without a login. A dry run posts nothing, so it keeps the manual path.
   const operatorAsked =
     author === undefined ? askers === "operator" || deps.config.dryRun : author.toLowerCase() === operator.toLowerCase();
+  // `/wachiman remember <id>` is the memory write job's (layer 5). No shipped route sends it here: `routeMode` keeps it
+  // in the thread run, which skips it, and the `comment` job only gets top-level comments. This guards a direct call:
+  // the operator's own reply in a thread, with `memory_proposals` on, is left to the job and costs no model call.
+  // Anything else (the flag off, a top-level comment, anyone but the operator) is an ordinary comment, so a
+  // collaborator's `remember <id>` is answered or refused like any other comment, never dropped silently.
+  const command = parsed?.kind === "remember" && !(deps.config.memoryProposals && line?.replyTo && operatorAsked) ? ({ kind: "answer" } as const) : parsed;
   // With the write job wired it is neither a review nor a question, so no model call.
   if (command?.kind === "remember") {
     deps.log("A `remember` command is handled by the memory write job; nothing to do here.");
