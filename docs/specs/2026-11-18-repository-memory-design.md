@@ -45,13 +45,13 @@ flowchart LR
 | --- | --- | --- | --- |
 | 1 | Memory is Markdown under `.wachiman/memory/` at the repository root: `index.md` (always loaded), area files (loaded when the diff touches their glob), `archive.md` (never loaded). The path is fixed, not configurable | Wachiman now runs on the laptop and has `.wachiman.yml` at the root; `.github/` is a GitHub convention. A fixed path cannot be repointed by a pull request. The owner accepted this place on 2026-11-18 | 0056 (new), supersedes the location in 0006 and narrows the "no authority" rule of 0007 |
 | 2 | Memory is read only from the base commit. Each run records the memory revision and the files it loaded. An incremental run applies the current base memory to the new diff only | A pull request cannot rewrite its own rules; the record makes a review reproducible | 0056, reuses 0006 and 0049 |
-| 3 | An entry has a kind (`convention` or `exception`), a path scope, a reason, an evidence list and, when it depends on a fact about the code, a `holds while` line naming the paths that fact lives in. Its id is a digest of its text | Evidence and scope are what keep a memory from becoming garbage; the id ties an approval to an exact text | 0056 |
+| 3 | An entry has a kind (`convention` or `exception`), a path scope, a reason, an evidence list and, when it depends on a fact about the code, a `holds while` line naming the paths that fact lives in. Its id is a digest of its kind, scope, rule, reason and `holds while` line; the evidence list and the date are not part of it, so adding evidence does not change the id | Evidence and scope are what keep a memory from becoming garbage; the id ties an approval to an exact text | 0056 |
 | 4 | Conventions go into the review prompt. Exceptions never do: findings are discovered without them, then each exception is matched against the candidates, and a match is moved to a "Muted by memory" list in the summary with the entry id | An exception in the discovery prompt can stop a real bug from ever being generated, and nothing would show it | 0057 (new) |
 | 5 | Only a Consider or Info finding can be muted. A Blocker or Fix finding, or any finding with the security topic, is posted. The engine enforces it, not the prompt. Memory never changes which files are reviewed: an entry such as "do not review the auth files" cannot be expressed, because an exception names one kind of finding and acts only after the whole diff was reviewed | The owner's rule: memory never hides a bug | 0057 |
 | 6 | Three signals create a candidate: an explicit operator instruction with a reason (enough alone); a finding judged wrong or intentional with a reason; a finding fixed. The last two need `memory.min_evidence` (default 2) from different pull requests. A fix only supports a convention. Reactions and silence are never evidence | One exception must not become a rule; the pilot's replies are mostly "Fixed in", so fixes must count for something, but only for what they show | 0056 |
 | 7 | The model drafts the entry from the code and the owner's intent. The owner approves that exact text; the commit carries the same digest. Redrafting after approval is not allowed | A raw "no, not important" is not a rule; an approval must be of what gets written | 0056 |
 | 8 | One write path: one commit per entry on the branch `wachiman/memory`, in one draft pull request titled `chore(wachiman): memory`. Never a force-push, only paths under `.wachiman/memory/`, "recorded" is said only after the push succeeds. The commit is built on the head of `wachiman/memory` (or of the default branch when that branch does not exist), never on the developer's branch, and the developer's working tree and current branch are not touched. Everyone on the team writes to that same branch and pull request | The owner sees every change; anyone can check the branch out and refine it. A memory entry must not carry the unrelated changes of a feature branch, and three developers must not produce three memory pull requests | 0056, supersedes the capture in 0007 |
-| 9 | On the laptop, `wachiman memory propose <id>` writes with the developer's own git credentials. In Actions, the operator's `/wachiman remember` starts a separate job with `contents: write` and `pull-requests: write`; the engine writes, the model has no credentials, the review job stays read-only | The laptop needs no new permission, so the pilot can start there; the write permission is confined to one job only the operator can start | 0056 |
+| 9 | On the laptop, `wachiman memory propose <id>` writes with the developer's own git credentials. In Actions, the operator's `/wachiman remember <id>` names the id shown in Wachiman's reply and starts a separate job that writes the text with that id and refuses if the digest does not match. That job has `contents: write` and `pull-requests: write`; the engine writes, the model has no credentials, the review job stays read-only | The laptop needs no new permission, so the pilot can start there; the write permission is confined to one job only the operator can start | 0056 |
 | 10 | Approving memory and dismissing the current finding are separate. In the pull request where the operator gave the instruction, that finding is dismissed at that code state and comes back if the cited code changes. Wachiman replies in the thread and never resolves it. The reply that proposes an entry counts toward the two-reply cap of thread follow-up; the reply that confirms `/wachiman remember` answers an operator command and does not | Memory is not active until merged; a dismissal must not outlive the code it judged. Reuses the rule that only the operator resolves | reuses 0008 |
 | 11 | Budget: 150 lines for `index.md`, 400 lines loaded per review, both set in `.wachiman.yml`. The index counts toward the 400. Over budget, the review loads the most specific globs first, names what it left out and says so | Memory can grow without limit only if it stays light for each review | 0056 |
 | 12 | Hygiene is suggested, never applied: possible duplicates and contradictions, entries whose `holds while` paths the diff touches, entries not used in `memory.archive_after_days` (default 90). An archive suggestion moves the entry to `archive.md` | The team tunes the memory; Wachiman points at likely problems | 0056 |
@@ -65,8 +65,8 @@ flowchart LR
 | # | What it builds | Criteria | Risk | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | Entry format, parser, base-commit reader, glob selection, budget, `wachiman memory check` | AC1, AC2, AC3, AC4, AC10 | 🟡 Medium | — |
-| 2 | Review uses memory: conventions in the prompt, exceptions after discovery, "Muted by memory", revision in the record | AC5, AC6 | 🔴 High | 1 |
-| 3 | Laptop capture: candidates in `loop` and the local history, `wachiman memory propose`, the draft pull request | AC7, AC8 | 🟡 Medium | 1 |
+| 2 | Review uses memory: conventions in the prompt, exceptions after discovery, "Muted by memory", revision in the record | AC5, AC6, AC17 | 🔴 High | 1 |
+| 3 | Laptop capture: candidates in `loop` and the local history, `wachiman memory propose`, the draft pull request | AC7, AC8, AC15 | 🟡 Medium | 1 |
 | 4 | The agent instructions in the `wachiman-loop` skill, and the pointer written by `wachiman init` | AC12 | 🟢 Low | 3 |
 | 5 | Actions capture: the suggestion in the thread reply, `/wachiman remember`, the write job in `review.yml` | AC9 | 🔴 High | 3 |
 | 6 | Hygiene suggestions: out of date, duplicates, archive | AC11 | 🟡 Medium | 2 |
@@ -144,7 +144,7 @@ users of other products; sources are in the detail below.
 - [ ] **AC6** An exception cannot mute a Blocker or Fix finding, or a finding with the security topic. A test proves the finding is posted.
 - [ ] **AC7** A candidate found by the tool is not proposable until it has `memory.min_evidence` pieces of evidence from different pull requests. An explicit operator instruction is proposable with one.
 - [ ] **AC8** `wachiman memory propose <id>` adds exactly the entry text the developer was shown, as one commit on the branch `wachiman/memory`, and opens or updates one draft pull request. It never force-pushes and never touches a path outside `.wachiman/memory/`. Run from a feature branch with uncommitted changes, it leaves the working tree and the current branch as they were, and the commit contains no change from that branch.
-- [ ] **AC9** In Actions, an operator's `/wachiman remember` runs a separate job that writes the same commit. The review job keeps `contents: read`. A comment from anyone else writes nothing. The thread gets a reply and is not resolved.
+- [ ] **AC9** In Actions, an operator's `/wachiman remember <id>` runs a separate job that writes the same commit, with the text whose digest is that id, and writes nothing when they differ. The review job keeps `contents: read`. A comment from anyone else writes nothing. The thread gets a reply and is not resolved.
 - [ ] **AC10** `wachiman memory check` exits non-zero on a malformed entry, a glob that matches no file, or a budget overrun, and prints each problem with its file and line.
 - [ ] **AC11** A review of a diff that touches a path an entry names in `holds while` says that entry may be out of date.
 - [ ] **AC12** The `wachiman-loop` skill carries the agent instructions of this spec. `wachiman init` writes a pointer to it in the repository's agent instruction file, and re-running it does not duplicate the pointer.
@@ -152,7 +152,7 @@ users of other products; sources are in the detail below.
 - [ ] **AC14** The replay protocol is written down and run once on kaipu-record: memory frozen before the evaluated commits, three runs per arm, results with their spread.
 - [ ] **AC15** Two developers who run `wachiman memory propose` for different entries end with two commits on the one branch and one pull request. The same entry proposed twice is written once, and the second developer's evidence is added to it.
 - [ ] **AC16** `wachiman memory propose <id> --personal` writes the entry under the Wachiman home and makes no commit and no push. A laptop review of that repository loads it; a review of another repository does not, and a review in Actions never does.
-- [ ] **AC17** An exception entry scoped to a path does not change which files a review reads: with it in the base memory, a Fix finding in a file under that path is posted. `wachiman memory check` fails on an exception with no `rule` naming a kind of finding.
+- [ ] **AC17** An exception entry scoped to a path does not change which files a review reads: with it in the base memory, a Fix finding in a file under that path is posted.
 
 ---
 
@@ -227,8 +227,12 @@ as text, so when a push is rejected because a colleague pushed first, Wachiman f
 inserts the same entry on the new head. The same text has the same digest: it is written once and
 the later proposer's evidence is appended to the existing entry. Two entries that say nearly the
 same thing in different words are both written, and the hygiene check of decision 12 names them
-as likely duplicates in the pull request, for a person to merge into one. After the pull request
-is merged, the next proposal starts a new branch from the default branch.
+as likely duplicates in the pull request, for a person to merge into one.
+
+After the pull request is merged, the next proposal starts a new branch from the default branch
+and opens a new pull request. If the pull request was closed without merging, Wachiman says so
+and writes nothing until a person reopens it or deletes the branch: a closed pull request is the
+team saying no, and Wachiman does not open another on its own.
 
 ### What an exception can and cannot do
 
@@ -237,9 +241,8 @@ edits under `docs/adr/**`"). It cannot name files to skip. If someone writes "do
 auth files" anyway, the review still reads every changed file, a Blocker, Fix or security
 finding in them is posted, and at most Consider and Info notes are muted, each listed under
 "Muted by memory" with the entry that muted it. The drafting prompt refuses to write an entry
-that excludes paths, and `wachiman memory check` fails on an exception whose `rule` names no kind
-of finding. That last check is a format check: a person can still write a vague rule by hand, and
-the severity floor is what holds then.
+that excludes paths. No deterministic check can tell a vague hand-written rule from a precise
+one, so the design does not depend on one: the severity floor and the visible list are what hold.
 
 For comparison, [CodeRabbit's learnings page](https://docs.coderabbit.ai/knowledge-base/learnings)
 (read 2026-11-18) describes a relevance check before a learning is applied and tells users to
@@ -250,8 +253,8 @@ finding.
 
 For a developer whose team has not adopted Wachiman. The files have the same format and live
 outside the repository, so nothing appears in `git status` and nothing can be pushed by mistake.
-The key is the repository's remote, so every worktree and clone of it shares the memory and no
-other repository sees it. A laptop review loads committed memory first, then personal memory,
+The key is the URL of the remote named `origin`, so every worktree and clone of it shares the memory and no
+other repository sees it. A clone with no `origin` has no personal memory, and `propose --personal` says so. A laptop review loads committed memory first, then personal memory,
 inside the same budget; its record marks which entries were personal. There is no pull request:
 the approval in the terminal is the only gate, and `wachiman memory report` lists personal
 entries separately.
