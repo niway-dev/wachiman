@@ -4804,17 +4804,23 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
   if (config.memoryProposals) {
     const date = today(new Date(deps.now?.() ?? Date.now()));
     for (const { reply } of replies) {
-      const proposed = reply.memory;
+      const proposed: unknown = reply.memory;
       if (proposed === undefined) continue;
+      // The model's own field: anything but an object is no proposal, never an error that fails a run whose cost is spent.
+      if (typeof proposed !== "object" || proposed === null || Array.isArray(proposed)) {
+        deps.warn(`Memory proposal for thread ${reply.comment_id} dropped: it is not an object.`);
+        continue;
+      }
+      const fields = proposed as NonNullable<typeof reply.memory>;
       const latest = pending.find((t) => t.comment_id === reply.comment_id)?.replies.at(-1);
       if (latest?.author.toLowerCase() !== config.operator.trim().toLowerCase()) {
         deps.warn(`Memory proposal for thread ${reply.comment_id} dropped: the latest reply there is not the operator's.`);
         continue;
       }
       try {
-        const text = (name: string, v: unknown) => (typeof v === "string" ? v : "");
-        const holds = typeof proposed.holds_while === "string" && proposed.holds_while.trim() !== "" ? proposed.holds_while : undefined;
-        const candidate = newCandidate({ kind: text("kind", proposed.kind), scope: text("scope", proposed.scope), rule: text("rule", proposed.rule), why: text("why", proposed.why), ...(holds ? { holdsWhile: holds } : {}) }, { date, source: "instruction", pr, agent: false }, date);
+        const text = (v: unknown) => (typeof v === "string" ? v : "");
+        const holds = typeof fields.holds_while === "string" && fields.holds_while.trim() !== "" ? fields.holds_while : undefined;
+        const candidate = newCandidate({ kind: text(fields.kind), scope: text(fields.scope), rule: text(fields.rule), why: text(fields.why), ...(holds ? { holdsWhile: holds } : {}) }, { date, source: "instruction", pr, agent: false }, date);
         const shown = renderEntry(candidate);
         if (neutralise(shown) !== shown) throw new UsageError("the entry contains an HTML comment marker");
         if (proposability(candidate, 1).proposable === false) throw new UsageError("the entry is not proposable");

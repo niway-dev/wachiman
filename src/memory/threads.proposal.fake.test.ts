@@ -76,7 +76,7 @@ function setup(output: unknown, opts: { memoryProposals?: boolean; threads?: Raw
   return { deps, provider, replies };
 }
 
-const output = (memory?: unknown) => ({ thread_replies: [{ comment_id: 7, status: "still_open", reply: "Understood; I would not repeat that finding on wording edits.", cites: ["src/a.ts:3"], ...(memory ? { memory } : {}) }] });
+const output = (memory?: unknown) => ({ thread_replies: [{ comment_id: 7, status: "still_open", reply: "Understood; I would not repeat that finding on wording edits.", cites: ["src/a.ts:3"], ...(memory !== undefined ? { memory } : {}) }] });
 
 describe("a thread reply that proposes a memory entry", () => {
   test("shows the exact entry text and its id and says how to approve it; the text is the one whose digest is that id", async () => {
@@ -128,6 +128,20 @@ describe("a thread reply that proposes a memory entry", () => {
       await threadReplies(t.deps, "o/r", 7, "owner");
       expect(t.replies).toHaveLength(1);
       expect(proposalsIn(t.replies[0].body)).toEqual([]);
+    }
+  });
+});
+
+describe("a malformed proposal from the model", () => {
+  test("a memory field that is not an object is no proposal: the run does not throw and the reply is still posted", async () => {
+    for (const memory of ["use tabs", null, [MEMORY], 42, true]) {
+      const warnings: string[] = [];
+      const t = setup(output(memory));
+      t.deps.warn = (line) => void warnings.push(line);
+      await threadReplies(t.deps, "o/r", 7, "owner");
+      expect(t.replies, JSON.stringify(memory)).toHaveLength(1);
+      expect(proposalsIn(t.replies[0].body)).toEqual([]);
+      expect(warnings.some((w) => w.includes("Memory proposal for thread 7 dropped")), JSON.stringify(memory)).toBe(true);
     }
   });
 });
