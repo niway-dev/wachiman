@@ -26,7 +26,7 @@ A person asks their coding agent to set up Wachiman. The agent reads one public 
 - [ ] **AC2** `docs/agents.md` maps every `init` and `setup` question to its flag or command, default, and effect, and names the choices with no flag.
 - [ ] **AC3** `docs/agents.md` tells the agent to ask in chat, never to use credentials in chat, and to ask before every commit, push or pull request.
 - [ ] **AC4** `wachiman init --json` prints exactly one parseable `wachiman.init/1` document on stdout, for success and for usage errors.
-- [ ] **AC5** The JSON lists each file with its action (`created`, `replaced`, `unchanged`, `would-create`, `would-replace`, `skipped`, `refused`) and any backup path.
+- [ ] **AC5** The JSON lists each file with its action (`created`, `replaced`, `unchanged`, `would-create`, `would-replace`, `refused`) and any backup path.
 - [ ] **AC6** The JSON reports local and GitHub readiness separately, with pending actions such as the exact `setup` command and adding `ANTHROPIC_API_KEY`.
 - [ ] **AC7** `init --json` never prompts: with stdin closed and `--mode` missing it exits 2 with a JSON error naming the missing flag.
 - [ ] **AC8** `init --mode local --dry-run` exits 0, reports what it would write, and writes no file in the repository or the Wachiman home.

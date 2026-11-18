@@ -8,7 +8,7 @@ import type { InitMode } from "./options";
 
 export const INIT_FORMAT = "wachiman.init/1";
 
-export type FileAction = "created" | "replaced" | "unchanged" | "would-create" | "would-replace" | "skipped" | "refused";
+export type FileAction = "created" | "replaced" | "unchanged" | "would-create" | "would-replace" | "refused";
 
 export interface InitFile {
   /** Relative to the repository top level. */
@@ -27,7 +27,8 @@ export interface InitReport {
   template?: InitFile[];
 }
 
-export type Readiness = "ready" | "pending" | "not-used";
+/** `init` alone never makes a side ready: binding is `setup`, and GitHub needs a secret and a merge. */
+export type Readiness = "pending" | "not-used";
 
 export interface InitDocument {
   format: typeof INIT_FORMAT;
