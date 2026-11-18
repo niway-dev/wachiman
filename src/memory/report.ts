@@ -159,7 +159,7 @@ export function renderReport(report: MemoryReport): string {
   out.push(m.present ? `Memory now (${MEMORY_DIR}/ in the working tree): ${m.files} files, ${m.entries} entries, ${m.lines} lines.` : `Memory now: no ${MEMORY_DIR}/ folder in the working tree.`);
   if (report.neverUsed.length === 0) out.push("Entries never used: none.");
   else {
-    out.push(`Entries never used in these runs (${report.neverUsed.length}):`);
+    out.push(`Entries never used (${report.neverUsed.length}):`);
     for (const e of report.neverUsed) out.push(`  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}  (${e.file})`);
   }
   out.push("memory lines = lines of memory the period's last review loaded; a - means no review in it recorded memory.");
