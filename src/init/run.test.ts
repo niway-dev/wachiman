@@ -4,13 +4,14 @@ import { tmpdir } from "node:os";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
 import { CTRL_C, ESC, scripted } from "../../test/support/scripted-prompt";
-import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
+import { commit, emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
 import { fakeUi } from "../../test/support/fake-ui";
 import { snapshotTree } from "../../test/support/tree-snapshot";
 import { UsageError } from "../config";
 import { parseInitFlags } from "./args";
 import { readKind, settingsContent, withKind } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
+import { POINTER_BEGIN, pointerBlock } from "./agents";
 import { runInitCommand, type InitDeps } from "./run";
 import { runSetupCommand } from "../setup/run";
 import { readConfig } from "../accounts/config";
@@ -226,7 +227,11 @@ describe("init --mode local", () => {
     const w = world();
     const before = snapshotTree(w.repo);
     expect(await init(w, ["--mode", "local"])).toBe(0);
-    expect(snapshotTree(w.repo)).toEqual(before);
+    // The only new file is the agent pointer (AGENTS.md); no workflow or settings file.
+    const after = snapshotTree(w.repo);
+    expect(Object.keys(after).filter((f) => !(f in before))).toEqual(["AGENTS.md"]);
+    delete after["AGENTS.md"];
+    expect(after).toEqual(before);
     expect(existsSync(join(w.repo, ".github"))).toBe(false);
     expect(w.err.join("\n")).toContain(`wachiman setup --repo-dir ${w.repo}`);
   });
@@ -760,6 +765,8 @@ describe("the repository settings file .wachiman.yml", () => {
     const w = world();
     mkdirSync(join(w.repo, ".github"));
     writeFileSync(settingsFile(w), "# mine\nkind: 'single'  # note\nother: 1\n");
+    // The agent pointer is already in place, so the only thing this test can see change is the settings file.
+    write(w.repo, { "AGENTS.md": pointerBlock() });
     const before = snapshotTree(w.repo);
     expect(await init(w, ["--mode", "local", "--project-kind", "single"])).toBe(0);
     expect(snapshotTree(w.repo)).toEqual(before);
@@ -929,5 +936,48 @@ describe("settings text helpers", () => {
     expect(() => withKind("{kind: monorepo}\n", "single")).toThrow(/cannot be updated safely/); // appending to a flow mapping is invalid YAML
     expect(() => withKind("kind: a\nkind: b\n", "single")).toThrow(/by hand/); // a duplicate the regex would half-fix
     expect(withKind("model: x\n", "single")).toBe("model: x\nkind: single\n");
+  });
+});
+
+describe("the agent instruction pointer", () => {
+  test("a github run creates AGENTS.md with the pointer, and a re-run leaves exactly one", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "github", "--operator", "me"])).toBe(0);
+    expect(readFileSync(join(w.repo, "AGENTS.md"), "utf8")).toBe(pointerBlock());
+    expect(await init(w, ["--mode", "github", "--operator", "me"])).toBe(0);
+    expect(readFileSync(join(w.repo, "AGENTS.md"), "utf8")).toBe(pointerBlock());
+  });
+
+  test("an existing AGENTS.md keeps its text and gets the block appended", async () => {
+    const w = world();
+    write(w.repo, { "AGENTS.md": "# Rules\n\nUse named exports.\n" });
+    expect(await init(w, ["--mode", "local"])).toBe(0);
+    expect(readFileSync(join(w.repo, "AGENTS.md"), "utf8")).toBe(`# Rules\n\nUse named exports.\n\n${pointerBlock()}`);
+  });
+
+  test("with only CLAUDE.md in the repository, local mode writes the pointer there and nowhere else", async () => {
+    const w = world();
+    write(w.repo, { "CLAUDE.md": "# Claude\n" });
+    expect(await init(w, ["--mode", "local"])).toBe(0);
+    expect(readFileSync(join(w.repo, "CLAUDE.md"), "utf8")).toBe(`# Claude\n\n${pointerBlock()}`);
+    expect(existsSync(join(w.repo, "AGENTS.md"))).toBe(false);
+    expect(existsSync(join(w.repo, ".github"))).toBe(false);
+  });
+
+  test("--dry-run writes nothing and says what it would write on stderr", async () => {
+    const w = world();
+    const before = snapshotTree(w.repo);
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--dry-run"])).toBe(0);
+    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(w.err.join("\n")).toContain("would create AGENTS.md");
+    expect(w.err.join("\n")).toContain(POINTER_BEGIN);
+  });
+
+  test("a malformed pointer block refuses the run before anything is written", async () => {
+    const w = world();
+    write(w.repo, { "AGENTS.md": `${POINTER_BEGIN}\nno end marker\n` });
+    const before = snapshotTree(w.repo);
+    expect(await exit2(init(w, ["--mode", "github", "--operator", "me"]))).toContain("AGENTS.md");
+    expect(snapshotTree(w.repo)).toEqual(before);
   });
 });

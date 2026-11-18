@@ -296,7 +296,7 @@ const setupPage: Page = {
 
 const initPage: Page = {
   usage: initUsage,
-  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write no workflow and hand over to setup. With a repository kind, also write .wachiman.yml. It can also install the PR description template.",
+  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write no workflow and hand over to setup. With a repository kind, also write .wachiman.yml. It writes a pointer to the wachiman-loop skill into AGENTS.md (or CLAUDE.md). It can also install the PR description template.",
   options: [
     ["--mode github|local|both", "What to set up. Required without a terminal"],
     ["--operator <login>", "The GitHub login allowed to command the reviewer. Required for github and both without a terminal"],
