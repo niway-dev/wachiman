@@ -62,14 +62,25 @@ export interface MemoryLoad extends MemoryRecord {
 
 export const memoryRecord = ({ entries: _entries, ...record }: MemoryLoad): MemoryRecord => record;
 
+/** What a review says when a memory file was longer than a connector can read, so only its start is memory. */
+export const cutMemoryNote = (name: string, kb: number) =>
+  `${MEMORY_DIR}/${name} is longer than ${kb} KB and was read only up to there; the rest of it is not memory for this review. Split it into area files.`;
+
 const WILDCARD = /[*?[\]{}!]/;
 
 /** The globs of a `scope` or an index row: one, or several separated by commas. */
 export const globsOf = (scope: string) => scope.split(",").map((g) => g.trim()).filter(Boolean);
 
+const compiled = new Map<string, Bun.Glob>();
+const globFor = (glob: string) => {
+  let g = compiled.get(glob);
+  if (!g) compiled.set(glob, (g = new Bun.Glob(glob)));
+  return g;
+};
+
 /** Whether `path` is matched by any glob of `scope`. */
 export function matchesGlob(scope: string, path: string): boolean {
-  return globsOf(scope).some((glob) => new Bun.Glob(glob).match(path));
+  return globsOf(scope).some((glob) => globFor(glob).match(path));
 }
 
 /**
@@ -171,8 +182,12 @@ export function loadMemory(source: MemorySource, revision: string, changedPaths:
 export function memoryNotice(record: MemoryRecord): string | undefined {
   if (!record.overBudget) return undefined;
   const parts: string[] = [];
-  if (record.leftOut.length > 0) parts.push(`left out for lack of room: ${record.leftOut.map((p) => `\`${p}\``).join(", ")}`);
   const index = record.files[0];
+  const doesNotFit = record.leftOut.length > 0 || index?.truncated === true;
+  if (!doesNotFit) {
+    return `⚠️ **Memory over budget**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget (it was still loaded whole). Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
+  }
+  if (record.leftOut.length > 0) parts.push(`left out for lack of room: ${record.leftOut.map((p) => `\`${p}\``).join(", ")}`);
   if (index?.truncated) parts.push(`\`${index.path}\` was cut to its first ${index.lines} lines`);
   if (record.indexOverBudget) parts.push(`\`index.md\` is over its ${record.budget.maxIndexLines}-line budget`);
   return `⚠️ **Memory over budget**: the repository's memory does not fit in ${record.budget.maxLoadedLines} lines for this review (${parts.join("; ")}). Trim it, or raise \`memory.max_loaded_lines\` in \`.wachiman.yml\`.`;
