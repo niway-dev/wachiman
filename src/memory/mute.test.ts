@@ -65,6 +65,22 @@ describe("planExceptions", () => {
   });
 });
 
+describe("planExceptions with brace globs and malformed globs", () => {
+  test("a brace glob in holds while keeps its alternatives together", () => {
+    const e = entry("exception", "r", "src/**", { holdsWhile: "src/{auth,gateway}/**, docs/x.md" });
+    expect(planExceptions(load([e]), ["src/a.ts", "src/gateway/g.ts"]).stale.map((s) => s.touched)).toEqual([["src/gateway/g.ts"]]);
+    expect(planExceptions(load([e]), ["src/a.ts"]).active).toEqual([e]);
+  });
+
+  test("a malformed glob in holds while or scope throws nothing and matches nothing", () => {
+    for (const bad of ["src/{auth", "src/auth}/**", "[a", "src/{a,{b}"]) {
+      const e = entry("exception", "r", "src/**", { holdsWhile: bad });
+      expect(() => planExceptions(load([e]), ["src/a.ts"])).not.toThrow();
+      expect(planExceptions(load([entry("exception", "r", bad)]), ["src/a.ts"]).active).toEqual([]);
+    }
+  });
+});
+
 describe("planExceptions with reviewed paths", () => {
   test("scope is matched on reviewed files, the premise on every changed file", () => {
     const e = entry("exception", "r", "src/**", { holdsWhile: "gen/**" });
