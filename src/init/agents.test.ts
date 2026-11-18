@@ -128,4 +128,13 @@ describe("planPointer chooses the file", () => {
     write(dir, { "AGENTS.md": `${POINTER_BEGIN}\nno end\n` });
     expect(planPointer(dir)).toMatchObject({ action: "skip", reason: expect.stringContaining("by hand") });
   });
+
+  test("a skip reason carries the pointer lines itself, since a dry run does not print them in that case", () => {
+    const dir = fresh();
+    write(dir, { "AGENTS.md": `${POINTER_BEGIN}\nno end\n` });
+    const plan = planPointer(dir);
+    if (plan.action !== "skip") throw new Error("expected a skip");
+    expect(plan.reason).toContain(block.trimEnd());
+    expect(plan.reason).not.toContain("--dry-run");
+  });
 });

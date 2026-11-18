@@ -66,7 +66,8 @@ export function withPointer(current: string, file: string): string {
   return [...before, ...inner, ...after].join("\n");
 }
 
-const FAILURE_HINT = "Add the block by hand: copy the lines between the markers from `wachiman init --dry-run`, or skip it with --no-agent-pointer.";
+/** A dry run does not print the lines when the file is skipped, so the hint carries them. */
+export const manualHint = () => `Add this block by hand, or skip it with --no-agent-pointer:\n${pointerBlock().trimEnd()}`;
 
 /**
  * Looks at the file that would hold the pointer, without writing. It never throws: a link out of
@@ -92,10 +93,10 @@ export function planPointer(repoDir: string): PointerPlan {
       try {
         real = realpathSync(`${root}${sep}${file}`);
       } catch {
-        return { action: "skip", file, reason: `${file} is a symbolic link that does not resolve; init leaves it alone. ${FAILURE_HINT}` };
+        return { action: "skip", file, reason: `${file} is a symbolic link that does not resolve; init leaves it alone. ${manualHint()}` };
       }
       if (real !== root && !real.startsWith(root + sep)) {
-        return { action: "skip", file, reason: `${file} is a symbolic link to ${real}, outside the repository; init does not write there. ${FAILURE_HINT}` };
+        return { action: "skip", file, reason: `${file} is a symbolic link to ${real}, outside the repository; init does not write there. ${manualHint()}` };
       }
       writePath = relative(root, real).split(sep).join("/");
     }
@@ -106,7 +107,7 @@ export function planPointer(repoDir: string): PointerPlan {
     if (content === current) return { action: "same", file };
     return { action: current.includes(POINTER_BEGIN) ? "replace" : "append", file, writePath, content, inspected };
   } catch (error) {
-    return { action: "skip", file, reason: `${error instanceof Error ? error.message : String(error)} ${FAILURE_HINT}` };
+    return { action: "skip", file, reason: `${error instanceof Error ? error.message : String(error)} ${manualHint()}` };
   }
 }
 
