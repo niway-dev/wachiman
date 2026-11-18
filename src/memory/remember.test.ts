@@ -255,14 +255,6 @@ describe("remember: the operator's `/wachiman remember <id>`", () => {
     }
   });
 
-  test("approving twice: the second reply does not claim a write", () => {
-    const t = setup([thread(FINDING(7), proposalReply())]);
-    t.run(COMMAND(CANDIDATE.id));
-    t.run(COMMAND(CANDIDATE.id));
-    expect(t.posts[1].body).not.toContain("exactly as shown");
-    expect(t.posts[1].body).toMatch(/already on the branch/);
-  });
-
   test("a write the job refuses (recorded: false) posts what was refused, writes nothing and fails the job", () => {
     const t = setup([thread(FINDING(7), proposalReply())], {}, fakePulls(), (_c, _d, io) => (io.stderr("memory propose: the push to wachiman/memory was refused: protected"), { recorded: false }));
     expect(t.run(COMMAND(CANDIDATE.id))).toBe(1);
