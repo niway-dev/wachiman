@@ -1,12 +1,12 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
 import { snapshotTree } from "../../test/support/tree-snapshot";
 import { UsageError } from "../config";
 import { parseInitFlags } from "./args";
-import { runInitCommand, type InitDeps } from "./run";
+import { runInitCommand, runInitFromArgv, type InitDeps } from "./run";
 
 const scratch: string[] = [];
 afterAll(() => {
@@ -57,3 +57,137 @@ describe("init --mode local --dry-run", () => {
     expect(error).toBeInstanceOf(UsageError);
   });
 });
+
+const KEYS = ["schema", "ok", "mode", "dryRun", "repoDir", "files", "local", "github", "error"];
+
+describe("init --json", () => {
+  test("a real run prints exactly one wachiman.init/1 document and every status line goes to stderr", async () => {
+    const w = world();
+    const code = await init(w, ["--mode", "both", "--operator", "me", "--project-kind", "single", "--pr-template", "--json"]);
+    expect(code).toBe(0);
+    const d = doc(w);
+    expect(Object.keys(d)).toEqual(KEYS);
+    expect(d.schema).toBe("wachiman.init/1");
+    expect(d).toMatchObject({ ok: true, mode: "both", dryRun: false, error: null });
+    expect(d.repoDir).toBe(realpathSync(w.repo));
+    expect(d.files).toEqual([
+      { path: ".github/workflows/wachiman-review.yml", action: "created" },
+      { path: ".wachiman.yml", action: "created" },
+      { path: ".github/pull_request_template.md", action: "created" },
+    ]);
+    expect(d.local.status).toBe("pending");
+    expect(d.local.pending).toEqual([`wachiman setup --profile <name> --yes --repo-dir ${realpathSync(w.repo)}`]);
+    expect(d.github.status).toBe("pending");
+    expect(d.github.pending).toEqual(["add ANTHROPIC_API_KEY secret", "commit and open a PR"]);
+    expect(w.out).toHaveLength(1);
+    expect(w.err.join("\n")).toContain("wrote .github/workflows/wachiman-review.yml");
+    expect(existsSync(join(w.repo, ".github", "workflows", "wachiman-review.yml"))).toBe(true);
+  });
+
+  test("local mode has no GitHub work and github mode has no local work", async () => {
+    const local = world();
+    expect(await init(local, ["--mode", "local", "--json"])).toBe(0);
+    expect(doc(local)).toMatchObject({ files: [], github: { status: "not-used", pending: [] }, local: { status: "pending" } });
+    const gh = world();
+    expect(await init(gh, ["--mode", "github", "--operator", "me", "--json"])).toBe(0);
+    expect(doc(gh)).toMatchObject({ local: { status: "not-used", pending: [] }, github: { status: "pending" } });
+  });
+
+  test("a dry run puts the rendered workflow in the file entry and writes nothing", async () => {
+    const w = world();
+    const before = snapshotTree(w.repo);
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--project-kind", "single", "--pr-template", "--dry-run", "--json"])).toBe(0);
+    const d = doc(w);
+    expect(d.dryRun).toBe(true);
+    expect(d.files.map((f: any) => [f.path, f.action])).toEqual([
+      [".github/workflows/wachiman-review.yml", "would-create"],
+      [".wachiman.yml", "would-create"],
+      [".github/pull_request_template.md", "would-create"],
+    ]);
+    expect(d.files[0].content).toContain("/wachiman");
+    expect(snapshotTree(w.repo)).toEqual(before);
+  });
+
+  test("a local dry run reports would-create for the settings file and the template", async () => {
+    const w = world();
+    const before = snapshotTree(w.repo);
+    expect(await init(w, ["--mode", "local", "--dry-run", "--project-kind", "single", "--pr-template", "--json"])).toBe(0);
+    expect(doc(w).files).toEqual([
+      { path: ".wachiman.yml", action: "would-create" },
+      { path: ".github/pull_request_template.md", action: "would-create" },
+    ]);
+    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(snapshotTree(w.home)).toEqual({});
+  });
+
+  test("a second identical run leaves the repository byte for byte and reports every file unchanged", async () => {
+    const w = world();
+    const argv = ["--mode", "both", "--operator", "me", "--project-kind", "single", "--pr-template", "--json"];
+    expect(await init(w, argv)).toBe(0);
+    const after = snapshotTree(w.repo);
+    w.out.length = 0;
+    expect(await init(w, argv, { now: () => "2027-01-01T00:00:00.000Z" })).toBe(0);
+    const d = doc(w);
+    expect(d.files.map((f: any) => f.action)).toEqual(["unchanged", "unchanged", "unchanged"]);
+    expect(snapshotTree(w.repo)).toEqual(after);
+  });
+
+  test("replacing a different workflow with --force reports replaced and the backup path", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--json"])).toBe(0);
+    w.out.length = 0;
+    expect(await init(w, ["--mode", "github", "--operator", "you", "--force", "--json"])).toBe(0);
+    const [file] = doc(w).files;
+    expect(file.action).toBe("replaced");
+    expect(file.backup).toMatch(/^\.github\/workflows\/wachiman-review\.yml\.bak-/);
+    expect(existsSync(join(w.repo, file.backup))).toBe(true);
+  });
+
+  test("an existing different workflow without --force is a usage error that lists the refused file", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--json"])).toBe(0);
+    w.out.length = 0;
+    expect(await init(w, ["--mode", "github", "--operator", "you", "--json"])).toBe(2);
+    const d = doc(w);
+    expect(d.ok).toBe(false);
+    expect(d.error.code).toBe("usage");
+    expect(d.files).toEqual([{ path: ".github/workflows/wachiman-review.yml", action: "refused" }]);
+  });
+
+  test.each([
+    [["--json"], "--mode"],
+    [["--mode", "github", "--json"], "--operator"],
+    [["--mode", "both", "--json"], "--operator"],
+    [["--mode", "local", "--operator", "me", "--json"], "--operator"],
+    [["--mode", "github", "--operator", "me", "--pr-template", "--no-pr-template", "--json"], "contradict"],
+    [["--mode", "local", "--bogus", "--json"], "--bogus"],
+  ])("usage error %#: one JSON document, exit 2", async (argv, mention) => {
+    const w = world();
+    const code = await runJson(w, argv);
+    expect(code).toBe(2);
+    const d = doc(w);
+    expect(Object.keys(d)).toEqual(KEYS);
+    expect(d).toMatchObject({ schema: "wachiman.init/1", ok: false, files: [], error: { code: "usage" } });
+    expect(d.error.message).toContain(mention);
+    expect(w.out).toHaveLength(1);
+  });
+
+  test("with stdin not a terminal and --mode missing it exits 2 naming --mode and never calls a prompter", async () => {
+    const w = world();
+    const refuse = new Proxy({}, { get: () => () => { throw new Error("a prompter must not be used"); } });
+    const code = await runJson(w, ["--json"], { interactive: true, streams: { stdin: { isTTY: false }, stdout: { isTTY: false } }, prompter: refuse as never });
+    expect(code).toBe(2);
+    expect(doc(w).error.message).toContain("--mode");
+  });
+
+  test("--json never prompts even on a terminal", async () => {
+    const w = world();
+    const refuse = new Proxy({}, { get: () => () => { throw new Error("a prompter must not be used"); } });
+    const code = await runJson(w, ["--json"], { interactive: true, streams: { stdin: { isTTY: true }, stdout: { isTTY: true } }, prompter: refuse as never });
+    expect(code).toBe(2);
+    expect(doc(w).error.message).toContain("--mode");
+  });
+});
+
+/** What `cli.ts` does for `init`: parse (a failure there is still a document under --json), then run. */
+const runJson = (w: World, argv: string[], extra: InitDeps = {}) => runInitFromArgv(argv, w.repo, w.env, w.io, w.deps(extra));

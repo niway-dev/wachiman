@@ -195,6 +195,26 @@ function backupDirOf(repoDir: string, git: GitRunner): string | undefined {
   return join(resolve(repoDir, out), "wachiman", "backups");
 }
 
+/**
+ * What `runInstall` with no `--force` and no `--from` would do to the template file, without writing:
+ * "create", "replace" (an unmanaged file that gets adopted, or an out-of-date managed one),
+ * "unchanged" (already current) or "refused" (it would stop with an error).
+ */
+export function previewInstall(repoDir: string, deps: Deps = {}): "create" | "replace" | "unchanged" | "refused" {
+  try {
+    const catalog = deps.catalog ?? loadCatalog();
+    const template = readManaged(repoDir, TEMPLATE_FILE);
+    const json = readManaged(repoDir, CHOICE_FILE);
+    const state = templateState({ catalog, fileText: template.text, choiceText: json.text });
+    if (state.state === "invalid" || state.state === "edited-by-hand") return "refused";
+    if (state.state === "unmanaged" && json.text !== null) return "refused";
+    if (template.text === null) return "create";
+    return state.state === "current" ? "unchanged" : "replace";
+  } catch {
+    return "refused";
+  }
+}
+
 export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: Deps = {}): number {
   const catalog = deps.catalog ?? loadCatalog();
   const now = nowIso(deps);

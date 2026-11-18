@@ -56,7 +56,6 @@ import { parseSkillsArgs, runSkills } from "./skills/install";
 import { runPrTemplate } from "./pr-template/run";
 import { parseUpgradeArgs, runUpgrade } from "./upgrade/command";
 import { parseDoctorArgs, runDoctor } from "./doctor/run";
-import { parseInitFlags } from "./init/args";
 import { ghLogin } from "./init/github-login";
 import { DEFAULT_WORKFLOW_REF } from "./init/options";
 import { projectCommands } from "./wizard/command";
@@ -64,7 +63,7 @@ import { DEFAULT_ISOLATED_NAME, setupProfile } from "./profiles";
 import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
-import { runInitCommand } from "./init/run";
+import { runInitFromArgv } from "./init/run";
 import { runSetupCommand } from "./setup/run";
 import { commandHelp, helpFor, isCommand, rootHelp } from "./help";
 import { shouldLaunch } from "./wizard/interactive";
@@ -199,9 +198,8 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
     if (flags.help) return (io.stdout(commandHelp(["setup"])!), 0);
     return runSetupCommand(flags, env, io, { doctor: { version } });
   }
-  const flags = parseInitFlags(args, repoDir);
-  if (flags.help) return (io.stdout(commandHelp(["init"])!), 0);
-  return runInitCommand(flags, env, io, {
+  if (args.includes("--help") || args.includes("-h")) return (io.stdout(commandHelp(["init"])!), 0);
+  return runInitFromArgv(args, repoDir, env, io, {
     version,
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
     githubLogin: ghLogin,

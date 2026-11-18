@@ -12,8 +12,8 @@
  * (src/init/github-login.ts, up to 10 s) to suggest the operator, and only on a terminal in github
  * or both mode; Wachiman itself makes no request (no `fetch`).
  */
-import { readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { CommandIo } from "../accounts/commands";
 import { UsageError } from "../config";
 import { spawnGit, type GitRunner } from "../evidence";
@@ -23,16 +23,18 @@ import { loadTerminalUi } from "../wizard/load";
 import type { Outcome, Prompter, PromptIO } from "../wizard/prompt";
 import type { Ui } from "../wizard/ui";
 import { projectCommands, quoteArgument } from "../wizard/command";
-import { runInstall, type Deps as PrTemplateDeps } from "../pr-template/install";
+import { previewInstall, runInstall, TEMPLATE_FILE, type Deps as PrTemplateDeps } from "../pr-template/install";
 import { CHOICE_FILE } from "../pr-template/catalog";
-import { DEFAULT_WORKFLOW_REF, resolveInitOptions, type InitOptions, type RawInitFlags } from "./options";
+import { parseInitFlags } from "./args";
+import { buildDocument, failureDocument, printDocument, type FileAction, type InitReport } from "./json";
+import { DEFAULT_WORKFLOW_REF, initModes, resolveInitOptions, type InitMode, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
 
 /** What `pr-template install` can write; the report names the ones a failed install did not reach. */
-const PR_TEMPLATE_FILES = [CHOICE_FILE, ".github/pull_request_template.md"];
+const PR_TEMPLATE_FILES = [CHOICE_FILE, TEMPLATE_FILE];
 
 export interface InitDeps {
   /** The caller template. Default: `templates/wachiman-review-caller.yml` of this install. */
@@ -64,6 +66,8 @@ export interface InitDeps {
   closing?: SessionClosing;
   /** The same hook for the settings file, for a test. */
   settingsHooks?: WriteHooks;
+  /** Set by `--json`: `runInit` records what it did to each file here, and prints no rendered workflow. */
+  report?: InitReport;
 }
 
 /**
@@ -87,8 +91,52 @@ const openSession = async (deps: InitDeps, env: Record<string, string | undefine
 /** How a finished run ends the session: 0 is done, 130 a cancel, anything else a stop. */
 const outcomeOf = (code: number): Outcome => (code === 0 ? "done" : code === 130 ? "cancelled" : "failed");
 
+/** `init` as `cli.ts` runs it. A parse failure under `--json` is still one JSON document with exit 2. */
+export async function runInitFromArgv(argv: string[], repoDir: string, env: Record<string, string | undefined>, io: CommandIo, deps: InitDeps = {}): Promise<number> {
+  let flags: RawInitFlags;
+  try {
+    flags = parseInitFlags(argv, repoDir);
+  } catch (error) {
+    if (!(error instanceof UsageError) || !argv.includes("--json")) throw error;
+    const at = argv.indexOf("--mode");
+    const named = at >= 0 ? argv[at + 1] : undefined;
+    const mode = initModes.includes(named as InitMode) ? (named as InitMode) : null;
+    io.stderr(error.message);
+    printDocument(io.stdout, failureDocument({ mode, dryRun: argv.includes("--dry-run"), repoDir: resolve(deps.cwd ?? process.cwd(), repoDir), report: {}, code: "usage", message: error.message }));
+    return 2;
+  }
+  return runInitCommand(flags, env, io, deps);
+}
+
+/** `--json`: never asks, prints one document, and sends every human line to stderr. */
+async function runInitJson(flags: RawInitFlags, io: CommandIo, deps: InitDeps): Promise<number> {
+  const report: InitReport = {};
+  const defaultWorkflowRef = "defaultWorkflowRef" in deps ? deps.defaultWorkflowRef : DEFAULT_WORKFLOW_REF;
+  let repoDir = resolve(deps.cwd ?? process.cwd(), flags.repoDir ?? ".");
+  const named = flags.mode as InitMode;
+  let mode: InitMode | null = initModes.includes(named) ? named : null;
+  // Anything else init would print on stdout is a human line here.
+  const quiet: CommandIo = { stdout: (text) => io.stderr(text.replace(/\n$/, "")), stderr: io.stderr };
+  try {
+    repoDir = worktreeRoot(flags.repoDir ?? ".", deps.git);
+    const resolved = resolveInitOptions(flags, { interactive: false, defaultWorkflowRef });
+    if (!resolved.ok) throw new UsageError(resolved.error);
+    mode = resolved.options.mode;
+    await runInit(resolved.options, quiet, { ...deps, prompter: undefined, report });
+    printDocument(io.stdout, buildDocument({ mode, dryRun: resolved.options.github?.dryRun ?? resolved.options.dryRun === true, repoDir, report }));
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const usage = error instanceof UsageError;
+    io.stderr(message);
+    printDocument(io.stdout, failureDocument({ mode, dryRun: flags.dryRun === true, repoDir, report, code: usage ? "usage" : "failed", message }));
+    return usage ? 2 : 1;
+  }
+}
+
 /** From the parsed flags: asks what is missing when a person can be asked, resolves, and runs. */
 export async function runInitCommand(flags: RawInitFlags, env: Record<string, string | undefined>, io: CommandIo, deps: InitDeps = {}): Promise<number> {
+  if (flags.json) return runInitJson(flags, io, deps);
   // Fail before asking for an operator or account in an unusable target.
   const root = worktreeRoot(flags.repoDir ?? ".", deps.git);
   const interactive = deps.interactive ?? isInteractive(flags, env, deps.streams ?? { stdin: process.stdin, stdout: process.stdout });
@@ -134,6 +182,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const root = worktreeRoot(options.repoDir, deps.git);
   const { github } = options;
   const dryRun = github?.dryRun ?? options.dryRun === true;
+  const report = deps.report;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
   let templateDone = false;
@@ -143,13 +192,19 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (!options.prTemplate) return false;
     if (templateDone) return templateInstalled;
     templateDone = true;
+    const existed = new Set(PR_TEMPLATE_FILES.filter((f) => existsSync(join(root, f))));
+    const backups = new Map<string, string>();
     // `install` says "wrote <file>" for each file it writes; listening to it tells a failure that wrote nothing from one that stopped halfway.
     const wrote: string[] = [];
     const watching = {
       stdout: (text: string) => io.stdout(text),
       stderr: (line: string) => {
         const file = /^wrote (.+?)(?:;|\.$)/.exec(line)?.[1];
-        if (file !== undefined) wrote.push(file);
+        if (file !== undefined) {
+          wrote.push(file);
+          const backup = /kept as (.+?)\.$/.exec(line)?.[1];
+          if (backup !== undefined) backups.set(file, isAbsolute(backup) && !relative(root, backup).startsWith("..") ? relative(root, backup) : backup);
+        }
         io.stderr(line);
       },
     };
@@ -168,7 +223,21 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       }
       io.stderr("The rest of init is unaffected. See `wachiman pr-template status`.");
     }
+    if (report) {
+      const entry = (path: string): { path: string; action: FileAction; backup?: string } => {
+        if (wrote.includes(path)) return { path, action: existed.has(path) ? "replaced" : "created", ...(backups.has(path) ? { backup: backups.get(path) } : {}) };
+        return { path, action: templateInstalled ? "unchanged" : "refused" };
+      };
+      report.template = [entry(TEMPLATE_FILE), ...(wrote.includes(CHOICE_FILE) ? [entry(CHOICE_FILE)] : [])];
+    }
     return templateInstalled;
+  };
+
+  /** A dry run: what installing the template would do, without writing. */
+  const previewTemplate = () => {
+    if (!report || !options.prTemplate) return;
+    const preview = previewInstall(root, deps.prTemplate);
+    report.template = [{ path: TEMPLATE_FILE, action: { create: "would-create", replace: "would-replace", unchanged: "unchanged", refused: "refused" }[preview] as FileAction }];
   };
 
   // The settings file: planned first (a link or a non-file in the way fails before anything is written), written under the same confirm.
@@ -176,6 +245,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   let settingsToWrite = plan && plan.action !== "same" ? plan : undefined;
   let settingsWritten = false;
   if (plan?.action === "same") io.stderr(`${SETTINGS_PATH} already says kind: ${plan.kind}.`);
+  if (report && plan?.action === "same") report.settings = { path: SETTINGS_PATH, action: "unchanged" };
+  else if (report && plan && dryRun) report.settings = { path: SETTINGS_PATH, action: plan.action === "create" ? "would-create" : options.settings?.force ? "would-replace" : "refused" };
   if (settingsToWrite && dryRun) {
     io.stderr(`would write ${SETTINGS_PATH} (kind: ${settingsToWrite.kind})`);
     if (settingsToWrite.action === "change" && !options.settings?.force) {
@@ -183,6 +254,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     }
   }
   if (settingsToWrite?.action === "change" && !dryRun && !prompter && !options.settings?.force) {
+    if (report) report.settings = { path: SETTINGS_PATH, action: "refused" };
     throw new UsageError(`${SETTINGS_PATH} says kind: ${settingsToWrite.from ?? "(none)"}, not ${settingsToWrite.kind}. Re-run with --force to change it.`);
   }
   const settingsTitle = (p: Exclude<SettingsPlan, { action: "same" }>) => (p.action === "create" ? `${SETTINGS_PATH} (new)` : `${SETTINGS_PATH} (kind: ${p.from ?? "none"} to ${p.kind})`);
@@ -209,6 +281,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (!settingsToWrite) return;
     writeSettings(root, settingsToWrite, deps.settingsHooks);
     settingsWritten = true;
+    if (report) report.settings = { path: SETTINGS_PATH, action: settingsToWrite.action === "create" ? "created" : "replaced" };
     io.stderr(`wrote ${SETTINGS_PATH} (kind: ${settingsToWrite.kind}).`);
   };
 
@@ -251,10 +324,15 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       if (unchanged) io.stderr(`note: ${shown} is unchanged.`);
       else if (inspected.exists && !github.force && !prompter) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
       if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
-      io.stdout(rendered);
+      if (report) {
+        const refused = inspected.exists && !unchanged && !github.force;
+        report.workflow = { path: shown, action: unchanged ? "unchanged" : refused ? "refused" : inspected.exists ? "would-replace" : "would-create", content: rendered };
+        previewTemplate();
+      } else io.stdout(rendered);
       return 0;
     }
     if (inspected.exists && !github.force && !prompter && !unchanged) {
+      if (report) report.workflow = { path: shown, action: "refused" };
       throw new UsageError(`A workflow already exists at ${shown}. Re-run with --force to replace it (a .bak copy is kept).`);
     }
     if (unchanged) {
@@ -264,6 +342,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
         if (code !== undefined) return code;
       }
       written = shown;
+      if (report) report.workflow = { path: shown, action: "unchanged" };
     } else if (prompter) {
       const preview = rendered.replace(/\n$/, "");
       // On a terminal the preview is a titled note in the session frame; otherwise it is the lines it always was.
@@ -298,6 +377,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       // The workflow first: it is what the run is for. If the settings file then fails, the error says the workflow stays.
       const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
       written = shown;
+      if (report) report.workflow = { path: shown, action: inspected.exists ? "replaced" : "created", ...(result.backup ? { backup: join(dirname(github.path), basename(result.backup)) } : {}) };
       io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
     }
     // The template is reported and never fails init, so it goes before the settings file, which can throw.
@@ -330,6 +410,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   if (!github && dryRun) {
     // A local dry run previews the files init would write and writes none (decision 4 of the agent-operated setup spec).
     if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
+    previewTemplate();
     return 0;
   }
   if (!github && settingsToWrite && prompter) {
