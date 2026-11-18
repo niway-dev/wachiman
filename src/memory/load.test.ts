@@ -212,6 +212,26 @@ describe("memoryNotice", () => {
     expect(notice).toContain(".wachiman/memory/a.md");
   });
 
+  test("a truncated personal index is named as personal, with its own file, and the repository's memory is not blamed", () => {
+    const committed = source({ "index.md": indexOf([], entry("Committed rule.")) }, "memory:\n  max_loaded_lines: 25\n");
+    const load = loadMemory(committed, REV, [], () => {}, source({ "index.md": lines(60) }))!;
+    const personalIndex = load.files.find((f) => f.personal)!;
+    expect(personalIndex.truncated).toBe(true);
+    const notice = memoryNotice(memoryRecord(load))!;
+    expect(notice).toContain(`\`personal:index.md\` was cut to its first ${personalIndex.lines} lines`);
+    expect(notice).toContain("your personal memory");
+    expect(notice).not.toContain("the repository's memory");
+    expect(notice).not.toContain(".wachiman/memory/index.md");
+  });
+
+  test("a truncated committed index is named with its repository path, and personal memory is not blamed", () => {
+    const load = loadMemory(source({ "index.md": lines(60) }, "memory:\n  max_loaded_lines: 25\n"), REV, [], () => {})!;
+    const notice = memoryNotice(memoryRecord(load))!;
+    expect(notice).toContain("`.wachiman/memory/index.md` was cut to its first 25 lines");
+    expect(notice).toContain("the repository's memory");
+    expect(notice).not.toContain("personal");
+  });
+
   test("within budget there is no notice", () => {
     expect(memoryNotice(loadMemory(source({ "index.md": lines(5) }), REV, [], () => {})!)).toBeUndefined();
   });

@@ -267,13 +267,17 @@ export function loadMemory(source: MemorySource, revision: string, changedPaths:
 export function memoryNotice(record: MemoryRecord): string | undefined {
   if (!record.overBudget) return undefined;
   const parts: string[] = [];
-  const index = record.files[0];
-  const doesNotFit = record.leftOut.length > 0 || index?.truncated === true;
+  const cut = record.files.filter((f) => f.truncated === true);
+  const doesNotFit = record.leftOut.length > 0 || cut.length > 0;
   if (!doesNotFit) {
     return `⚠️ **Memory over budget**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget. Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
   }
   if (record.leftOut.length > 0) parts.push(`left out for lack of room: ${record.leftOut.map((p) => `\`${p}\``).join(", ")}`);
-  if (index?.truncated) parts.push(`\`${index.path}\` was cut to its first ${index.lines} lines`);
+  for (const f of cut) parts.push(`\`${f.path}\` was cut to its first ${f.lines} lines`);
   if (record.indexOverBudget) parts.push(`\`index.md\` is over its ${record.budget.maxIndexLines}-line budget`);
-  return `⚠️ **Memory over budget**: the repository's memory does not fit in ${record.budget.maxLoadedLines} lines for this review (${parts.join("; ")}). Trim it, or raise \`memory.max_loaded_lines\` in \`.wachiman.yml\`.`;
+  // Name whose memory it is: personal files carry the `personal:` prefix in the record.
+  const personal = [...record.leftOut, ...cut.map((f) => f.path)].filter((p) => p.startsWith(PERSONAL_PREFIX)).length;
+  const team = record.leftOut.length + cut.length - personal;
+  const whose = personal > 0 && team > 0 ? "the repository's memory and your personal memory" : personal > 0 ? "your personal memory" : "the repository's memory";
+  return `⚠️ **Memory over budget**: ${whose} does not fit in ${record.budget.maxLoadedLines} lines for this review (${parts.join("; ")}). Trim it, or raise \`memory.max_loaded_lines\` in \`.wachiman.yml\`.`;
 }
