@@ -25,7 +25,7 @@
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
- *   wachiman memory check|candidates|add|show|propose   repository memory in .wachiman/memory (src/memory/)
+ *   wachiman memory check|archive|candidates|add|show|propose   repository memory in .wachiman/memory (src/memory/)
  *   wachiman upgrade [--check]     update the CLI, then the workflow pin in this repository (src/upgrade/)
  *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
  *   wachiman pr-template show|install|status|check|format|risk|strip  the PR description template: install it,

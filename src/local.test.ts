@@ -12,6 +12,7 @@ import { entryId } from "./memory/entries";
 import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
 import { A_BASE, A_HEAD, PNG_BASE, PNG_HEAD, branchRepo, commit, emptyCommits, emptyRepo, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
+import { readMemoryUse } from "./memory/hygiene";
 
 const temps: string[] = [];
 const temp = (prefix: string) => {
@@ -1405,4 +1406,37 @@ test("working-tree verification reads a raw base tree and removes both snapshots
   const dirs = (r.read("dirs") ?? "").trim().split("\n").filter(Boolean);
   expect(new Set(dirs).size).toBeGreaterThan(1);
   for (const dir of dirs) expect(existsSync(dir)).toBe(false);
+});
+
+describe("memory use", () => {
+  const convention = (id: string, scope: string) => `### ${id} Prefer named exports\n\n- kind: convention\n- scope: ${scope}\n- rule: Prefer named exports.\n- why: because\n- evidence:\n  - 2026-11-01 operator instruction, branch x\n- added: 2026-11-01\n`;
+  function repoWithMemory(scope: string) {
+    const dir = emptyRepo();
+    const id = entryId({ kind: "convention", scope, rule: "Prefer named exports.", why: "because" });
+    commit(dir, { ".wachiman/memory/index.md": `# Memory\n\n${convention(id, scope)}`, "src/a.ts": "export const a = 1;\n" }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    commit(dir, { "src/a.ts": "export const a = 2;\n" }, "change a");
+    return { repo: { dir } as BranchRepo, id };
+  }
+
+  test("a laptop review records the conventions it used, under the Wachiman home, and nothing else", () => {
+    const { repo, id } = repoWithMemory("src/**");
+    const home = temp("wachiman-home-");
+    const r = local("ok", [], { HOME: home }, repo);
+    expect(r.code).toBe(0);
+    const key = repositoryKey(repo.dir).key;
+    const used = readMemoryUse(join(home, ".wachiman"), key);
+    expect(Object.keys(used)).toEqual([id]);
+    expect(used[id]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  }, 30_000);
+
+  test("a convention whose scope the diff does not reach is not recorded as used, and no memory records nothing", () => {
+    const { repo } = repoWithMemory("docs/**");
+    const home = temp("wachiman-home-");
+    expect(local("ok", [], { HOME: home }, repo).code).toBe(0);
+    expect(readMemoryUse(join(home, ".wachiman"), repositoryKey(repo.dir).key)).toEqual({});
+    const plain = temp("wachiman-home-");
+    expect(local("ok", [], { HOME: plain }).code).toBe(0);
+    expect(existsSync(join(plain, ".wachiman"))).toBe(false);
+  }, 30_000);
 });

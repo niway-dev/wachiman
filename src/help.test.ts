@@ -66,7 +66,7 @@ describe("a page per command", () => {
   }, 30_000);
 
   test("nested commands have their own page", () => {
-    for (const words of [["profile", "create"], ["profile", "add"], ["project", "show"], ["skills", "install"], ["skills", "uninstall"], ["ledger", "pull"], ["memory", "check"], ["memory", "candidates"], ["memory", "add"], ["memory", "show"], ["memory", "propose"], ...["show", "install", "status", "check", "format", "risk", "strip"].map((sub) => ["pr-template", sub])]) {
+    for (const words of [["profile", "create"], ["profile", "add"], ["project", "show"], ["skills", "install"], ["skills", "uninstall"], ["ledger", "pull"], ["memory", "check"], ["memory", "archive"], ["memory", "candidates"], ["memory", "add"], ["memory", "show"], ["memory", "propose"], ...["show", "install", "status", "check", "format", "risk", "strip"].map((sub) => ["pr-template", sub])]) {
       const page = commandHelp(words)!;
       expect(page).toContain(`Usage\n  wachiman ${words.join(" ")}`);
       expect(helpFor([...words, "--help"])).toEqual({ text: page });

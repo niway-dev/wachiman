@@ -477,12 +477,13 @@ const prTemplatePageRoot: Page = {
 
 const MEMORY_DOCS = `${DOCS}/cli.md#memory`;
 const MEMORY_EXIT: readonly Row[] = [
-  ["0", "Done: the memory is clean (or the repository has no .wachiman/memory/ folder), or the entry was recorded"],
-  ["1", "check found a problem; or propose refused or failed and wrote nothing (not proposable, pull request closed, push failed), or it recorded the entry but could not open the draft pull request"],
+  ["0", "Done: the memory is clean (or the repository has no .wachiman/memory/ folder; suggestions do not count), the entry was recorded, or the entry was archived"],
+  ["1", "check found a problem; archive found no such entry; or propose refused or failed and wrote nothing (not proposable, pull request closed, push failed), or it recorded the entry but could not open the draft pull request"],
   ["2", "Usage or configuration error: an unknown subcommand, an unknown id, a bad flag, or an invalid .wachiman.yml"],
 ];
 const MEMORY_USAGE = [
   "wachiman memory check [--repo-dir <dir>]",
+  "wachiman memory archive <id> [--repo-dir <dir>]",
   "wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]",
   "wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]",
   "wachiman memory show <id> [--repo-dir <dir>]",
@@ -498,10 +499,18 @@ const memoryPage: Page = {
   subs: {
     check: {
       usage: "wachiman memory check [--repo-dir <dir>]",
-      summary: "Read .wachiman/memory/ from the working tree and print every problem as <path>:<line>: <message>: a malformed entry, an entry id that is not its digest, a glob that matches no file, an index row that names a missing file, an area file index.md does not list, and a line-budget overrun (memory.max_index_lines, memory.max_loaded_lines).",
+      summary: "Read .wachiman/memory/ from the working tree and print every problem as <path>:<line>: <message>: a malformed entry, an entry id that is not its digest, a glob that matches no file, an index row that names a missing file, an area file index.md does not list, and a line-budget overrun (memory.max_index_lines, memory.max_loaded_lines). After the problems it prints suggestions, which never change the exit code: likely duplicates (same kind, overlapping scopes, rules at least 80% alike by word overlap; contradictions are not detected) and entries not used in memory.archive_after_days (from the laptop's record of use; not made in GitHub Actions).",
       options: [REPO_DIR],
       exit: MEMORY_EXIT,
       examples: ["wachiman memory check"],
+      docs: MEMORY_DOCS,
+    },
+    archive: {
+      usage: "wachiman memory archive <id> [--repo-dir <dir>]",
+      summary: "Move one entry from its file to .wachiman/memory/archive.md, which no review loads. It changes the working tree only: nothing is committed or pushed, so commit the change yourself. Wachiman only ever suggests archiving; this runs only when you ask.",
+      options: [REPO_DIR],
+      exit: MEMORY_EXIT,
+      examples: ["wachiman memory archive 4c1e9a2"],
       docs: MEMORY_DOCS,
     },
     candidates: {

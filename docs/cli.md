@@ -93,7 +93,8 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `upgrade [--check] [--repo-only] [--to <version>]` | Updates the CLI, then moves the workflow pin in this repository to the new release. See [`upgrade`](#upgrade). |
 | `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
 | `pr-template show\|install\|status\|check\|format\|risk\|strip` | Installs the PR description template, reports its state, checks and reorders a description, and computes the risk floor. No model call. See [`pr-template`](#pr-template) and [the guide](pr-template.md). |
-| `memory check` | Checks the repository memory in `.wachiman/memory/`: malformed entries, globs that match no file, budget overruns. No model call. See [`memory`](#memory). |
+| `memory check` | Checks the repository memory in `.wachiman/memory/`: malformed entries, globs that match no file, budget overruns; then suggests likely duplicates and entries to archive. No model call. See [`memory`](#memory). |
+| `memory archive <id>` | Moves one entry to `.wachiman/memory/archive.md` in the working tree. See [`memory`](#memory). |
 | `memory candidates`, `add`, `show`, `propose` | Keeps memory candidates on the laptop and proposes an approved entry as one commit on the branch `wachiman/memory`. No model call. See [`memory`](#memory). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
@@ -710,6 +711,7 @@ configuration error. The whole guide, with the states, the findings and the risk
 
 ```
 wachiman memory check [--repo-dir <dir>]
+wachiman memory archive <id> [--repo-dir <dir>]
 wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]
 wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]
 wachiman memory show <id> [--repo-dir <dir>]
@@ -776,11 +778,14 @@ before, with no extra field, no extra text and no extra call. The settings are i
   nothing was muted. The JSON result carries the same list in `muted` (result format 2 only).
 - **Fails open.** When the matching call fails, stops or answers something that cannot be read, nothing
   is muted and the summary says that matching did not run.
-- **`holds while`.** When an exception has a `holds while` line and the diff touches one of those paths,
-  that exception mutes nothing in this review and the summary says the entry may be out of date.
+- **`holds while`.** When any loaded entry, convention or exception, has a `holds while` line and the
+  diff touches one of those paths, the summary names the entry (id and title) and says it may be out of
+  date, once per entry, whether or not the entry's own scope reaches the diff. An exception in that state
+  also mutes nothing in this review. The line is absent when no entry applies, and a repository without
+  memory sees no change. Wachiman only says so; it never edits the entry.
 
-**What it does not do yet.** The only hygiene notice is the `holds while` one above. Personal memory
-(`--personal`) and the `/wachiman remember` command in Actions are later layers.
+**What it does not do yet.** Personal memory (`--personal`) and the `/wachiman remember` command in
+Actions are later layers.
 
 `memory check` reads the folder from the working tree and prints each problem as
 `<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope or an
@@ -789,6 +794,37 @@ the index does not list, a missing `index.md`, an `index.md` over `memory.max_in
 file that cannot fit beside the index within `memory.max_loaded_lines`. No model is called and nothing
 is written. Exit codes: 0 clean, or no memory folder; 1 problems found; 2 a usage error or an invalid
 `.wachiman.yml`.
+
+**Hygiene suggestions (layer 6).** After the problems, `memory check` prints suggestions on standard
+output, one `suggestion:` line each, then a line saying nothing was changed. Suggestions are never
+problems: they do not change the exit code, and Wachiman never applies one. No model is called.
+
+- *Likely duplicates.* Two entries of the same kind (both conventions or both exceptions) in the live
+  files, not `archive.md`, whose scopes overlap and whose `rule` text is near-identical. Overlap is
+  judged from the literal part of each glob before its first wildcard: one prefix contains the other
+  (`src/**` and `src/api/*.ts` overlap, `src/**` and `docs/**` do not), so it can say two scopes
+  overlap when no real path matches both. Near-identical means the lowercase word sets of the two
+  rules share at least 80% of their combined words (size of the intersection over the size of the
+  union). The threshold is fixed, not a setting.
+- *Contradictions are not detected.* Telling that two rules disagree needs a model, and `check` calls
+  none. Only duplicates are found deterministically.
+- *Archive suggestions.* An entry whose last use is more than `memory.archive_after_days` (default 90)
+  days before today. An entry with no recorded use is measured from its `added` date. A use is recorded
+  when a laptop review (`wachiman local`) loads memory and an entry was used: a convention whose scope
+  matches a file of the diff (it was in the prompt for that diff), or an exception that muted a finding.
+  The record is entry id and date, per repository, in `<home>/history/<repository
+  key>/memory-use.json`, written with mode 0600. It exists only on the laptop. **In GitHub Actions
+  nothing persists between runs, so no use is recorded there and `check` makes no archive suggestion
+  when `GITHUB_ACTIONS` is `true`;** an entry used only in pull request reviews looks unused to
+  the laptop. Forgetting the history (`wachiman history --forget`) forgets the record, and every entry
+  is then measured from its `added` date again.
+
+`memory archive <id>` moves the entry's text, unchanged, from its file to `.wachiman/memory/archive.md`
+(created when absent), which no review loads. It runs only when you ask. It changes the working tree
+only: nothing is committed, pushed or put in the memory pull request, because the propose write path
+builds a commit on `wachiman/memory` around a new entry and has no step for "apply this change to
+that branch". Commit the change yourself. An unknown id, or one already in `archive.md`, changes
+nothing and exits 1.
 
 **Capturing memory on the laptop (layer 3).** No model is called by any of these commands. The
 developer's coding agent drafts an entry from the code and the owner's intent, hands it over with
