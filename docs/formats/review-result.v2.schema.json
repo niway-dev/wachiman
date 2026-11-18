@@ -189,7 +189,7 @@
       "type": "string"
     },
     "memory": {
-      "description": "The repository's memory this review loaded (ADR 0056): the base commit it was read at, the files loaded in load order, the area files left out for lack of room and whether the memory was over budget. Absent when the repository has no .wachiman/memory/ folder. Only version 2 has it.",
+      "description": "The repository's memory this review loaded (ADR 0056): the base commit it was read at, the files loaded in load order, the area files left out for lack of room and whether the memory was over budget. Absent when the repository has no .wachiman/memory/ folder, unless a laptop review loaded the developer's personal memory (then it describes only that). A review in GitHub Actions never has personal memory. Only version 2 has it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
