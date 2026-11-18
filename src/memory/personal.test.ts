@@ -445,25 +445,42 @@ describe("teamHasMemory against a real origin", () => {
 
 describe("first-propose routing branches", () => {
   const setup = () => {
-    const dir = repoWithOrigin();
+    // The team path pushes to a local bare repository reached through an insteadOf rewrite of the GitHub-shaped origin, with a fake for `gh`: no network.
+    const bare = temp("wachiman-origin-");
+    git(bare, "init", "-q", "--bare", "-b", "main");
+    const seed = emptyRepo("wachiman-seed-");
+    commit(seed, { "src/a.ts": "export const a = 1;\n" }, "seed");
+    git(seed, "remote", "add", "origin", bare);
+    git(seed, "push", "-q", "origin", "main");
+    const parent = temp("wachiman-dev-");
+    git(parent, "clone", "-q", bare, "repo");
+    const dir = join(parent, "repo");
+    git(dir, "config", "user.name", "ana");
+    git(dir, "config", "user.email", "ana@example.com");
+    git(dir, "config", "commit.gpgsign", "false");
+    git(dir, "remote", "set-url", "origin", "https://github.com/acme/widgets.git");
+    git(dir, "config", `url.${bare}.insteadOf`, "https://github.com/acme/widgets.git");
+    const created: string[] = [];
+    const pulls = { list: () => [], createDraft: () => (created.push("pr"), "https://example.test/pr/1") };
+    const teamTaken = () => created.length === 1 && git(bare, "branch", "--list").includes("wachiman/memory");
     const home = temp("wachiman-home-");
     const key = repositoryKey(dir).key;
     const probes: number[] = [];
     const probe = (answer: boolean | undefined) => () => (probes.push(1), answer);
     const add = (run: ReturnType<typeof cli>, rule: string) => run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
     const noAsk = { ask: () => { throw new Error("must not ask"); } };
-    return { dir, home, key, probes, probe, add, noAsk };
+    return { dir, home, key, probes, probe, add, noAsk, pulls, teamTaken };
   };
 
   test("a stored team answer never probes the network and goes to the team", () => {
     const t = setup();
     writeMemoryChoice(t.home, t.key, "team", new Date("2026-11-01T00:00:00Z"));
-    const pulls = { list: () => [], createDraft: () => "https://example.test/pr/1" };
-    const run = cli(t.dir, t.home, { teamMemory: t.probe(false), pulls }, t.noAsk);
+    const run = cli(t.dir, t.home, { teamMemory: t.probe(false), pulls: t.pulls }, t.noAsk);
     const r = run("propose", t.add(run, "Prefer named exports."));
     expect(t.probes).toHaveLength(0);
     expect(r.stdout).not.toContain("in your personal memory");
-  });
+    expect(t.teamTaken()).toBe(true);
+  }, 30_000);
 
   test("an explicit flag never probes the network", () => {
     const t = setup();
@@ -484,11 +501,12 @@ describe("first-propose routing branches", () => {
 
   test("with no stored answer and an unknown team state it does not ask and takes the team path", () => {
     const t = setup();
-    const run = cli(t.dir, t.home, { teamMemory: t.probe(undefined) }, t.noAsk);
+    const run = cli(t.dir, t.home, { teamMemory: t.probe(undefined), pulls: t.pulls }, t.noAsk);
     const r = run("propose", t.add(run, "Prefer named exports."));
     expect(r.stdout).not.toContain("in your personal memory");
     expect(existsSync(join(t.home, "memory-choice"))).toBe(false);
-  });
+    expect(t.teamTaken()).toBe(true);
+  }, 30_000);
 
   test("a personal write keeps the entry proposable to the team", () => {
     const t = setup();
