@@ -94,6 +94,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
 | `pr-template show\|install\|status\|check\|format\|risk\|strip` | Installs the PR description template, reports its state, checks and reorders a description, and computes the risk floor. No model call. See [`pr-template`](#pr-template) and [the guide](pr-template.md). |
 | `memory check` | Checks the repository memory in `.wachiman/memory/`: malformed entries, globs that match no file, budget overruns. No model call. See [`memory`](#memory). |
+| `memory candidates`, `add`, `show`, `propose` | Keeps memory candidates on the laptop and proposes an approved entry as one commit on the branch `wachiman/memory`. No model call. See [`memory`](#memory). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
 ### Incremental reviews
@@ -694,6 +695,10 @@ configuration error. The whole guide, with the states, the findings and the risk
 
 ```
 wachiman memory check [--repo-dir <dir>]
+wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]
+wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]
+wachiman memory show <id> [--repo-dir <dir>]
+wachiman memory propose <id> [--repo-dir <dir>]
 ```
 
 Repository memory is a set of Markdown files in `.wachiman/memory/` at the repository root
@@ -759,8 +764,8 @@ before, with no extra field, no extra text and no extra call. The settings are i
 - **`holds while`.** When an exception has a `holds while` line and the diff touches one of those paths,
   that exception mutes nothing in this review and the summary says the entry may be out of date.
 
-**What it does not do yet.** Nothing proposes or writes memory, and the only hygiene notice is the
-`holds while` one above.
+**What it does not do yet.** The only hygiene notice is the `holds while` one above. Personal memory
+(`--personal`) and the `/wachiman remember` command in Actions are later layers.
 
 `memory check` reads the folder from the working tree and prints each problem as
 `<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope or an
@@ -769,6 +774,38 @@ the index does not list, a missing `index.md`, an `index.md` over `memory.max_in
 file that cannot fit beside the index within `memory.max_loaded_lines`. No model is called and nothing
 is written. Exit codes: 0 clean, or no memory folder; 1 problems found; 2 a usage error or an invalid
 `.wachiman.yml`.
+
+**Capturing memory on the laptop (layer 3).** No model is called by any of these commands. The
+developer's coding agent drafts an entry from the code and the owner's intent, hands it over with
+`memory add`, shows the owner the exact text with `memory show <id>`, and runs `memory propose <id>`
+only after the owner approves it.
+
+- `memory add` stores a *candidate* under the Wachiman home (`<home>/memory-candidates/<repository
+  key>/`, keyed like the local history) with its first piece of evidence. The fields come from flags or
+  from `--file <json>` (`kind`, `scope`, `rule`, `why`, `holdsWhile`, `title`). The id is the digest of
+  kind, scope, rule, why and `holds while`, so adding the same entry again only adds evidence. There
+  are three sources. `--source instruction` (the default) is an explicit instruction with a reason, from
+  the current branch or `--pr <n>`; it is proposable with one piece of evidence. `--source judged` and
+  `--source fixed` need `--finding <id>`: the evidence is checked against the local loop history (a
+  `wrong` verdict with a reason, or the loop's `probably-fixed` mark) and its reference is the loop's
+  branch or `--pr`. A fix supports only a convention, never an exception. Reactions and silence are
+  not a source. `--agent` records that an agent wrote the reply.
+- `memory candidates` lists them and says which can be proposed: a candidate found by the tool needs
+  `memory.min_evidence` pieces of evidence (default 2) from different pull requests or branches;
+  `--format json` prints `wachiman.memory-candidates/1`. `wachiman loop --format json` adds a
+  `memoryCandidates` list (`id`, `title`) when a proposable candidate cites a finding of the loop or its
+  scope matches a file of one; with none, the output has no such key.
+- `memory show <id>` prints the entry as it will be written, evidence and `added` date included.
+- `memory propose <id>` fetches `origin`, builds one commit in a temporary worktree on the head of
+  `origin/wachiman/memory` (the default branch when that branch does not exist or was already merged),
+  appends the shown text to `.wachiman/memory/index.md` (created when absent), pushes without force, and
+  opens the draft pull request `chore(wachiman): memory` unless one is open. Your branch, index and
+  uncommitted changes are not touched, and only files under `.wachiman/memory/` can be written. A
+  colleague who pushed first is handled by fetching and applying the same entry on the new head (up to
+  five times). An entry whose id is already on the branch is not written twice: your evidence lines
+  are added to it. If the pull request for the branch was closed without merging, it says so and writes
+  nothing until a person reopens it or deletes the branch. It uses your git credentials and `gh`, and
+  prints `recorded` only after the push succeeded. Exit 1 when it refused or failed.
 
 ### `history`
 
