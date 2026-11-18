@@ -2,7 +2,8 @@
  * `wachiman init` (command contract section 5.5): parse, prompt, resolve, then the one impure
  * half. It writes the chosen workflow file and its `.bak` copy and, when the repository kind is
  * given or answered, the settings file `.wachiman.yml` (ADR 0048), after the person has seen what
- * will be written (or named `--yes` or no terminal with every mandatory flag). With
+ * will be written (or named `--yes` or no terminal with every mandatory flag). In every mode it also
+ * adds the pointer to the wachiman-loop skill to `AGENTS.md` or `CLAUDE.md` (src/init/agents.ts). With
  * `--pr-template` (or a yes to the question) it also installs the PR description template, files
  * only, as `wachiman pr-template install` does: `.github/pull_request_template.md` and, when there
  * is something to keep, `.github/pr-template.json`. An existing unmanaged template is adopted and
@@ -30,6 +31,8 @@ import { checkSupplied, promptForInit } from "./prompt";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
+import { describePointer, planPointer } from "./agents";
+import { writeManagedFile } from "../pr-template/write";
 
 /** What `pr-template install` can write; the report names the ones a failed install did not reach. */
 const PR_TEMPLATE_FILES = [CHOICE_FILE, ".github/pull_request_template.md"];
@@ -132,6 +135,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const cwd = deps.cwd ?? process.cwd();
   // Before anything is rendered or written: this must be a git repository.
   const root = worktreeRoot(options.repoDir, deps.git);
+  // The agent pointer is planned here, so a malformed block refuses the run before anything is written.
+  const pointer = planPointer(root);
   const { github } = options;
   const prompter = options.interactive ? deps.prompter : undefined;
   let written: string | undefined;
@@ -211,6 +216,17 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     io.stderr(`wrote ${SETTINGS_PATH} (kind: ${settingsToWrite.kind}).`);
   };
 
+  /** The pointer to the wachiman-loop skill, last among the files: a run refused or cancelled above writes none of them. */
+  const writePointer = () => {
+    if (pointer.action === "same") {
+      io.stderr(`${pointer.file} already has the wachiman pointer; unchanged.`);
+      return;
+    }
+    writeManagedFile({ repoDir: root, relativePath: pointer.file, content: pointer.content, inspected: pointer.inspected, now: (deps.now ?? (() => new Date().toISOString()))(), label: "init", backup: false, hooks: deps.hooks });
+    const how = pointer.action === "create" ? "created" : pointer.action === "append" ? "added to" : "replaced in";
+    io.stderr(`wrote the wachiman pointer: ${how} ${pointer.file}.`);
+  };
+
   /** The settings file alone, with no workflow to write: shows it, asks what needs asking. Returns an exit code to stop with, or undefined to go on. */
   const askSettingsAlone = async (): Promise<number | undefined> => {
     if (!prompter || !settingsToWrite) return undefined;
@@ -249,6 +265,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (github.dryRun) {
       if (unchanged) io.stderr(`note: ${shown} is unchanged.`);
       else if (inspected.exists && !github.force && !prompter) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
+      for (const line of describePointer(pointer)) io.stderr(line);
       if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
       io.stdout(rendered);
       return 0;
@@ -336,6 +353,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     else io.stderr(`Commit ${SETTINGS_PATH} like any file; init does not commit.`);
   }
   installTemplate();
+  writePointer();
 
   if (options.mode === "github") {
     io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");
