@@ -36,7 +36,7 @@ export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as c
 export const CAPTURE_OPTIONS: Record<(typeof CAPTURE_SUBCOMMANDS)[number], { values: readonly string[]; flags: readonly string[] }> = {
   candidates: { values: ["--format"], flags: [] },
   show: { values: [], flags: [] },
-  propose: { values: [], flags: [] },
+  propose: { values: [], flags: ["--personal", "--team", "--from-personal"] },
   add: { values: ["--file", "--kind", "--scope", "--rule", "--why", "--holds-while", "--title", "--source", "--finding", "--pr", "--branch"], flags: ["--agent"] },
 };
 
@@ -173,7 +173,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   }
 
   if (sub === "propose") {
-    const parsed = parseOptions(rest, sub, [], ["--personal", "--team", "--from-personal"]);
+    const parsed = parseOptions(rest, sub, CAPTURE_OPTIONS.propose.values, CAPTURE_OPTIONS.propose.flags);
     if (parsed.flags.has("--from-personal")) {
       if (parsed.flags.has("--personal") || parsed.flags.has("--team")) throw new UsageError("--from-personal already sends to the team's memory pull request; it cannot be combined with --personal or --team.");
       return sendPersonal(parsed.positional, repoDir, home, io, ctx);

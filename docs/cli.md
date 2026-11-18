@@ -922,6 +922,10 @@ or after that day. With no history in the window it prints `No review history ..
   that is used often and wrong is not caught by this; the `holds while` notice is
   for that.
 
+- **Personal memory.** The entries of your [personal memory](#memory) for this repository are listed
+  apart (`personal` in the JSON) and are never counted in the size or the never-used list above,
+  which describe only the repository's `.wachiman/memory/`.
+
 `--format json` prints `wachiman.memory-report/1`:
 
 ```json
@@ -940,6 +944,7 @@ or after that day. With no history in the window it prints `No review history ..
   ],
   "total": { "period": "total", "comments": 4, "outcomes": { "...": 0 }, "muted": { "count": 3, "byEntry": {} }, "memoryLoadedLines": 40 },
   "memory": { "present": true, "files": 3, "entries": 4, "lines": 62 },
+  "personal": [{ "id": "9d2b7c4", "title": "...", "kind": "convention", "scope": "src/**" }],
   "neverUsed": [{ "id": "4c1e9a2", "title": "...", "kind": "exception", "scope": "docs/**", "file": "index.md" }],
   "neverUsedReason": null,
   "useRecordedSince": "2026-10-20"
