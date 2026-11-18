@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
@@ -51,12 +51,27 @@ describe("init --mode local --dry-run", () => {
     expect(existsSync(join(w.repo, ".wachiman.yml"))).toBe(false);
   });
 
+  test("without --json and with nothing to preview, it says so on stderr and prints nothing on stdout", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "local", "--dry-run"])).toBe(0);
+    expect(w.out.join("")).toBe("");
+    expect(w.err.join("\n")).toContain("dry run: nothing would be written");
+    expect(w.err.join("\n")).toContain("wachiman setup");
+  });
+
   test("other github-only flags with local mode are still a usage error", async () => {
     const w = world();
     const error = await init(w, ["--mode", "local", "--dry-run", "--operator", "me"]).then(() => undefined, (e) => e);
     expect(error).toBeInstanceOf(UsageError);
   });
 });
+
+const TEMPLATE_PATH = ".github/pull_request_template.md";
+const put = (w: World, path: string, text: string) => {
+  mkdirSync(join(w.repo, path, ".."), { recursive: true });
+  writeFileSync(join(w.repo, path), text);
+};
+const actions = (w: World) => doc(w).files.map((f: any) => [f.path, f.action]);
 
 const KEYS = ["format", "ok", "mode", "dryRun", "repoDir", "files", "local", "github", "error"];
 
@@ -186,6 +201,86 @@ describe("init --json", () => {
     const code = await runJson(w, ["--json"], { interactive: true, streams: { stdin: { isTTY: true }, stdout: { isTTY: true } }, prompter: refuse as never });
     expect(code).toBe(2);
     expect(doc(w).error.message).toContain("--mode");
+  });
+});
+
+describe("init --json: PR template outcomes", () => {
+  const base = ["--mode", "local", "--project-kind", "single", "--pr-template", "--json"];
+
+  test("an unmanaged template is adopted: replaced, with the backup path, and a dry run says would-replace", async () => {
+    const dry = world();
+    put(dry, TEMPLATE_PATH, "My own template\n");
+    expect(await init(dry, [...base, "--dry-run"])).toBe(0);
+    expect(actions(dry)).toContainEqual([TEMPLATE_PATH, "would-replace"]);
+    const w = world();
+    put(w, TEMPLATE_PATH, "My own template\n");
+    expect(await init(w, base)).toBe(0);
+    const entry = doc(w).files.find((f: any) => f.path === TEMPLATE_PATH);
+    expect(entry.action).toBe("replaced");
+    expect(typeof entry.backup).toBe("string");
+    expect(readFileSync(entry.backup.startsWith("/") ? entry.backup : join(w.repo, entry.backup), "utf8")).toBe("My own template\n");
+  });
+
+  test("a template edited by hand is refused in a real run and a dry run, and init still succeeds", async () => {
+    const w = world();
+    expect(await init(w, base)).toBe(0);
+    writeFileSync(join(w.repo, TEMPLATE_PATH), `${readFileSync(join(w.repo, TEMPLATE_PATH), "utf8")}\nhand edit\n`);
+    for (const extra of [[], ["--dry-run"]]) {
+      w.out.length = 0;
+      expect(await init(w, [...base, ...extra])).toBe(0);
+      expect(doc(w)).toMatchObject({ ok: true });
+      expect(actions(w)).toContainEqual([TEMPLATE_PATH, "refused"]);
+    }
+  });
+
+  test("a current template is unchanged in a dry run", async () => {
+    const w = world();
+    expect(await init(w, base)).toBe(0);
+    w.out.length = 0;
+    expect(await init(w, [...base, "--dry-run"])).toBe(0);
+    expect(actions(w)).toContainEqual([TEMPLATE_PATH, "unchanged"]);
+  });
+
+  test("an install that stops after the choice file lists that file and refuses the template", async () => {
+    const w = world();
+    put(w, TEMPLATE_PATH, "## Rollout plan\n\nSteps\n");
+    let calls = 0;
+    const hooks = { writeTemp: (path: string, content: string) => { if (++calls === 2) throw new Error("disk full"); writeFileSync(path, content, { flag: "wx" }); } };
+    expect(await init(w, base, { prTemplate: { hooks } })).toBe(0);
+    expect(w.err.join("\n")).toContain("only part of the install was done");
+    const files = doc(w).files;
+    expect(files.map((f: any) => f.path)).toContain(".github/pr-template.json");
+    expect(files.find((f: any) => f.path === TEMPLATE_PATH).action).toBe("refused");
+  });
+});
+
+describe("init --json: workflow and settings outcomes", () => {
+  test("a dry run with a different workflow or a different kind reports refused and would-replace, and still says ok with exit 0", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "both", "--operator", "me", "--project-kind", "single", "--json"])).toBe(0);
+    w.out.length = 0;
+    expect(await init(w, ["--mode", "both", "--operator", "you", "--project-kind", "monorepo", "--dry-run", "--json"])).toBe(0);
+    expect(doc(w)).toMatchObject({ ok: true });
+    expect(actions(w)).toEqual([[".github/workflows/wachiman-review.yml", "refused"], [".wachiman.yml", "refused"]]);
+    w.out.length = 0;
+    expect(await init(w, ["--mode", "both", "--operator", "you", "--project-kind", "monorepo", "--force", "--dry-run", "--json"])).toBe(0);
+    expect(actions(w)).toEqual([[".github/workflows/wachiman-review.yml", "would-replace"], [".wachiman.yml", "would-replace"]]);
+  });
+
+  test("a different kind in .wachiman.yml without --force is refused in a real run: exit 2 and the file is listed", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "local", "--project-kind", "single", "--json"])).toBe(0);
+    w.out.length = 0;
+    expect(await init(w, ["--mode", "local", "--project-kind", "monorepo", "--json"])).toBe(2);
+    expect(doc(w)).toMatchObject({ ok: false, error: { code: "usage" } });
+    expect(actions(w)).toEqual([[".wachiman.yml", "refused"]]);
+  });
+
+  test("a failure that is not a usage error is code failed with exit 1", async () => {
+    const w = world();
+    const hooks = { writeTemp: () => { throw new Error("disk full"); } };
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--json"], { hooks })).toBe(1);
+    expect(doc(w)).toMatchObject({ ok: false, error: { code: "failed" } });
   });
 });
 
