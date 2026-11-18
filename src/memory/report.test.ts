@@ -109,7 +109,15 @@ describe("buildReport", () => {
     expect(report.neverUsed.find((e) => e.id === IDLE.id)).toMatchObject({ kind: "exception", file: "index.md" });
   });
 
-  test("--since keeps the runs and comments from that date on, ", () => {
+  test("archive.md is never loaded: its entries are not live memory and are not listed as never used", () => {
+    const archived = entryText("convention", "lib/**", "Keep helpers pure");
+    const files = { ...FILES, "archive.md": archived.text };
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files, used: USED });
+    expect(report.memory).toEqual({ present: true, files: 3, entries: 4, lines: FILE_LINES });
+    expect(report.neverUsed.map((e) => e.id)).not.toContain(archived.id);
+  });
+
+  test("--since keeps the runs and comments from that date on, the way the whole history does", () => {
     const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED, since: "2026-11-01" });
     expect(report.periods.map((p) => p.period)).toEqual(["2026-11"]);
     expect(report.total.comments).toBe(1);

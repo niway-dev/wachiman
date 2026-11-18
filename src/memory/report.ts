@@ -13,7 +13,7 @@ import { UsageError } from "../config";
 import { replay } from "../history/match";
 import type { HistoryRun, VerdictLine } from "../history/types";
 import { parseMemoryFile, type MemoryKind } from "./entries";
-import { lineCount, MEMORY_DIR } from "./load";
+import { ARCHIVE_FILE, lineCount, MEMORY_DIR } from "./load";
 
 export const MEMORY_REPORT_FORMAT = "wachiman.memory-report/1";
 
@@ -120,14 +120,15 @@ export function buildReport(input: ReportInput): MemoryReport {
     }
   }
 
-  const entries = Object.keys(input.files ?? {})
+  // archive.md is never loaded into a review, so it is not live memory: it is left out of the size and the never-used list.
+  const names = Object.keys(input.files ?? {}).filter((name) => name !== ARCHIVE_FILE);
+  const entries = [...names]
     .sort()
     .flatMap((name) => parseMemoryFile(name, input.files![name]).entries);
   const neverUsed: NeverUsedEntry[] = entries
     .filter((e) => input.used[e.id] === undefined || (input.since !== undefined && input.used[e.id] < input.since))
     .map((e) => ({ id: e.id, title: e.title, kind: e.kind, scope: e.scope, file: e.file }));
 
-  const names = Object.keys(input.files ?? {});
   return {
     format: MEMORY_REPORT_FORMAT,
     since: input.since ?? null,
