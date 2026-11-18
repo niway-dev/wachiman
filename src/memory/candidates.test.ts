@@ -177,3 +177,16 @@ describe("memory add, candidates and show", () => {
     expect(out.stdout).toContain("not proposable: needs evidence from 2 different pull requests");
   });
 });
+
+describe("option values that start with --", () => {
+  test("a value that looks like an option is refused with the way to write it, and name=value accepts it", () => {
+    const s = setup();
+    const refused = s.run("add", "--kind", "convention", "--scope", "src/**", "--rule", "--strict is required.", "--why", "w", "--pr", "1");
+    expect(refused.code).toBe(2);
+    expect(refused.stderr).toContain('"--strict is required." looks like another option');
+    expect(refused.stderr).toContain('--rule=--strict is required.');
+    const ok = s.run("add", "--kind", "convention", "--scope", "src/**", "--rule=--strict is required.", "--why", "w", "--pr", "1");
+    expect(ok.code).toBe(0);
+    expect(s.run("add", "--kind").stderr).toContain("--kind needs a value.");
+  });
+});
