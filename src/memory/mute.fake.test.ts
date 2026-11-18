@@ -271,6 +271,25 @@ describe("when the exception does not or cannot apply", () => {
     expect(result.execution.notices.some((n) => n.includes("matching"))).toBe(true);
   });
 
+  test("when the provider already rejected the account, no matching call is made and the summary says why", async () => {
+    let n = 0;
+    const provider = new FakeProvider((r) => {
+      const files = ["src/a.ts", "src/b.ts"].filter((f) => r.prompt.includes(f));
+      if (n++ === 0) return discover([NIT])(r);
+      return { isError: true, terminalReason: "error", providerError: "billing", errorText: `credit balance is too low (${files.join()})` };
+    });
+    const input = branchInput();
+    writeFileSync(join(input.headDir, "src/b.ts"), "const x = 1;\nconst y = 2;\n");
+    input.files.push({ filename: "src/b.ts", additions: 2, deletions: 0, patch: "@@ -0,0 +1,2 @@\n+const x = 1;\n+const y = 2;" });
+    const { deps: d } = deps(provider);
+    const result = await reviewChange(input, options({ memory: memoryOf([EXCEPTION.block]), batchLines: 2 }), d);
+    expect(provider.requests.length).toBe(2);
+    expect(provider.matchingCalls).toHaveLength(0);
+    expect(result.muted).toBeUndefined();
+    expect(result.findings.map((f) => f.title)).toEqual(["stale comment"]);
+    expect(result.summary).toContain("matching did not run");
+  });
+
   test("an unparseable answer, an error result and a stopped call mute nothing", async () => {
     for (const bad of [
       () => ({ structuredOutput: "f1 matches it" }),

@@ -3010,8 +3010,9 @@ export interface ReviewOptions {
   confidence?: { budgetUsd: number };
   /**
    * The repository's memory, loaded from the base commit by the connector (ADR 0056). It is
-   * recorded in the result and, when over budget, announced in the summary. Layer 1 puts nothing
-   * of it in a prompt. Absent when the repository has no `.wachiman/memory/` folder.
+   * recorded in the result and, when over budget, announced in the summary. Its conventions go
+   * into the discovery prompt; its exceptions are matched against the findings afterwards, in one
+   * small call, and never reach a discovery prompt (ADR 0057). Absent when the repository has no `.wachiman/memory/` folder.
    */
   memory?: MemoryLoad;
 }
@@ -3387,7 +3388,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   } else checked = annotateUnverified(merged.findings);
   // After verification, so the floor applies to the final severity (ADR 0057). Muted findings leave
   // the list here: nothing below, the anchors, the fidelity grade or the posting, ever sees them.
-  const memoryStep = await matchExceptions(core, options, context, exceptionPlan, checked, Math.max(totalBudget - spent, 0));
+  const memoryStep = await matchExceptions(core, options, context, exceptionPlan, checked, Math.max(totalBudget - spent, 0), refused?.text);
   spent += memoryStep.costUsd;
   usage = addUsage(usage, memoryStep.usage);
   checked = memoryStep.findings;
@@ -3703,6 +3704,7 @@ async function matchExceptions<F extends Finding>(
   plan: ExceptionPlan,
   findings: F[],
   budgetUsd: number,
+  refused?: string,
 ): Promise<{ findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage; text?: string }> {
   const request = matchRequest(plan.active, findings);
   const finish = (rest: { findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage }, failure?: string) => {
@@ -3712,6 +3714,8 @@ async function matchExceptions<F extends Finding>(
   };
   const none = { findings, muted: [] as MutedFinding[], costUsd: 0, usage: NO_USAGE };
   if (!request) return finish(none);
+  // The same account refused a batch; the matching call would most likely be refused too.
+  if (refused) return finish(none, `the provider rejected an earlier call: ${refused}`);
   const cap = Math.min(MEMORY_MATCH_BUDGET_USD, budgetUsd);
   if (cap < MIN_BATCH_USD) return finish(none, "no budget left for the matching call");
   const dir = mkdtempSync(join(tmpdir(), "agent-memory-"));
