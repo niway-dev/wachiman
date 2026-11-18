@@ -30,7 +30,7 @@ parser round-trip tests instead of more string assertions.
 | 9 | The risk row never claims a checklist: "Low: no risk facts reported, no risky paths"; no colour on the level; facts stay outside `<details>` | The level is path rules plus facts the model chose to report | reuses 0031 |
 | 10 | Model-written prose (the batch summaries) moves into "What the reviewer checked", collapsed | It is per batch, not a summary of the pull request | 0055 |
 | 11 | The footer is one shortened `<sub>` line that keeps "<model> via" first and the run cost last, plus a collapsed "Run details" table above it | Keeps the spend ceiling, the model reader and the benchmark parser working; adds the Wachiman version | 0055, keeps 0012, 0036 |
-| 12 | Inline label: `👮 **Wachiman** · <Important or Nit> · <severity emoji + word> · <topic emoji + word> — <title>`; confidence moves to a `<sub>` line | The owner keeps the Important/Nit word, the vocabulary of Claude Code's own Code Review; the title reads on the first line | 0055, reuses 0030 decision 7 |
+| 12 | Inline finding: a table led by the brand and the title, then rows for Severity (with the Important/Nit word), Area and Confidence; confidence is a meter of red squares (🟥🟥🟥 High, 🟥🟥⬜ Medium, 🟥⬜⬜ Low); the fix follows the table and the evidence folds under `<details>` | The owner wants confidence as visible as severity and the labels predictable; a filled meter reads without a legend, and squares stay apart from the round severity emoji; the brand stays first for ADR 0010 and for notification previews | 0055, reuses 0030 decision 7 |
 | 13 | A not-reviewed notice says who acts, where, and what was spent; a $0 refusal (billing, auth) that is the latest bot notice is edited in place, every other notice stays a new review | 68 identical no-credit reviews in three days; notices that spent money must stay separate for the ceiling | 0055, keeps 0012 |
 | 14 | A rebase or base-merge with no new changes stays a new one-line review with one wording | It must advance the head marker; editing an older review would rewrite its marker and its cost | 0055 |
 | 15 | The format is protected by a view model, golden Markdown files and parser round-trip tests, not by string assertions spread over tests | ~280 test lines assert on today's strings; the next change would move them all again | 0055 |
@@ -305,23 +305,37 @@ and last words around `…`. The link carries the full path.
 ### Inline finding
 
 ```markdown
-👮 **Wachiman** · Nit · 🟡 Consider · 📝 docs — `base` field of `.github/pr-template.json` is shown but never defined
+| 👮 **Wachiman** | `base` field of `.github/pr-template.json` is shown but never defined |
+|:--|:--|
+| **Severity** | 🟡 Consider · Nit |
+| **Area** | 📝 docs |
+| **Confidence** | 🟥🟥⬜ Medium |
 
-<the model's body, unchanged>
+**Fix:** <the model's fix, unchanged>
 
-<sub>Confidence medium</sub>
+<details>
+<summary>Evidence</summary>
+
+<the model's evidence, unchanged>
+
+</details>
 ```
+
+The confidence meter fills one red square per level: 🟥🟥🟥 High, 🟥🟥⬜ Medium, 🟥⬜⬜ Low, so more
+red always means more certain. The squares are never round, so they do not read as the 🔴 Blocker
+or 🟠 Fix severity in the row above. The finding schema gains a `fix` string next to `body`; when
+the model leaves it empty, the body is shown unfolded and the Fix line and `<details>` are omitted.
 
 Pre-existing and inconclusive findings never open an inline thread (the engine routes them to the
 body first); their rows in the body and in the local sinks carry `Pre-existing` or `Needs
-investigation` before the severity. `parseLabel` reads both the new inline line and the old one: severity and topic from the first
-line in both, confidence from the trailing `<sub>Confidence …</sub>` line in the new one and from
-`(confidence …)` on the first line in the old one. It stops being a first-line-only reader.
+investigation` before the severity. `parseLabel` reads both the new inline table and the old one-line label: severity, topic and
+confidence from the Severity, Area and Confidence rows in the new one, and from the first line in
+the old one. It stops being a first-line-only reader.
 
 Rollback: an engine older than this change cannot parse the new label, so its verdict statistics
 (`judge` in `src/precision.ts`) skip findings posted by the newer engine. This loss is accepted: it
 affects only the precision report, never the spend ceiling, and the brand stays first on the line
-as ADR 0010 requires.
+as ADR 0010 requires (the brand is the table's first cell).
 
 ### Not-reviewed and rebase notices
 

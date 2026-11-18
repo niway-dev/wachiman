@@ -52,9 +52,10 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
 7. The footer is one `<sub>` line that starts with "<model> via" and ends with the run's cost, and
    adds the Wachiman version; the remaining values go to a "Run details" table above it. Readers of
    the old line keep working on old comments.
-8. The inline label is the brand, the Important/Nit word (ADR 0030 decision 7), the severity
-   (emoji and word), the topic (emoji and word, ADR 0003) and the title. Confidence moves to a
-   `<sub>` line.
+8. The inline finding opens with a table: the brand and the title, then the severity (emoji and
+   word, with the Important/Nit word of ADR 0030 decision 7), the topic (emoji and word, ADR 0003)
+   and the confidence as a meter of red squares (🟥🟥🟥 High, 🟥🟥⬜ Medium, 🟥⬜⬜ Low). The fix
+   follows the table and the evidence folds under `<details>`.
 9. A not-reviewed notice states who acts, where, and what this run spent. Only a $0 refusal
    (billing, auth) that is the latest bot notice on the pull request is edited in place; every
    notice that spent money, and every rebase notice, is a new review.
@@ -86,7 +87,7 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
   files.
 - The benchmarks repository's parser changes in the same release; until it does, comparisons with
   other reviewers would break.
-- An engine older than this change, after a rollback, cannot parse the new inline label, so its
+- An engine older than this change, after a rollback, cannot parse the new inline table, so its
   verdict statistics skip those findings. Accepted: the spend ceiling is unaffected.
 - Comments get slightly longer (an estimated 200 characters per finding listed in the body); the
   largest of 618 posted bodies is about 26k characters of the 60k limit (spec, "Sources").
