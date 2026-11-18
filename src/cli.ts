@@ -25,7 +25,7 @@
  *   wachiman doctor                 explain what a local run would use and what would fail
  *   wachiman profile …              list, create, add, login, remove and default account profiles
  *   wachiman project show|unbind    inspect or remove this repository's binding
- *   wachiman memory check          check the repository memory in .wachiman/memory (src/memory/)
+ *   wachiman memory check|candidates|add|show|propose   repository memory in .wachiman/memory (src/memory/)
  *   wachiman upgrade [--check]     update the CLI, then the workflow pin in this repository (src/upgrade/)
  *   wachiman skills install|uninstall  copy the agent skills into place, or remove what was copied
  *   wachiman pr-template show|install|status|check|format|risk|strip  the PR description template: install it,
@@ -361,8 +361,8 @@ export async function main(argv: string[], env: Record<string, string | undefine
       return runPrTemplate(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "memory") {
-      // No model, no provider, no GitHub: files and git in the repository directory only.
-      return runMemory(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
+      // No model, no provider. `check`, `candidates`, `add` and `show` read files and git; `propose` also pushes with the developer's git credentials and calls `gh`.
+      return runMemory(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { env });
     }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);

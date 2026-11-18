@@ -1,9 +1,9 @@
 /**
- * `wachiman memory <subcommand>`: the one entry that `src/cli.ts` calls. Layer 1 has one
- * subcommand, `check`, which reads `.wachiman/memory/` from the working tree and reports every
- * defect with its file and line: a malformed entry, an entry id that is not its digest, a glob that
+ * `wachiman memory <subcommand>`: the one entry that `src/cli.ts` calls. `check` (layer 1) reads
+ * `.wachiman/memory/` from the working tree and reports every defect with its file and line: a malformed entry, an entry id that is not its digest, a glob that
  * matches no file, an index row that names a missing file, an area file the index does not list, and
  * a budget overrun. No model is called and nothing is written. Exit 0 when clean, 1 on problems.
+ * `candidates`, `add`, `show` and `propose` (layer 3, laptop capture) are in `capture.ts`.
  */
 import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,9 +12,10 @@ import { spawnGit } from "../evidence";
 import { commandHelp } from "../help";
 import { parseRepoSettings, resolveMemorySettings, SETTINGS_PATH, type RepoSettings } from "../repo-settings";
 import { parseIndexMap, parseMemoryFile, type MemoryProblem } from "./entries";
+import { CAPTURE_SUBCOMMANDS, runCapture, type CaptureContext } from "./capture";
 import { ARCHIVE_FILE, globsOf, INDEX_FILE, lineCount, matchesGlob, MEMORY_DIR } from "./load";
 
-export const MEMORY_SUBCOMMANDS = ["check"] as const;
+export const MEMORY_SUBCOMMANDS = ["check", ...CAPTURE_SUBCOMMANDS] as const;
 
 export interface MemoryIo {
   stdout: (text: string) => void;
@@ -133,10 +134,14 @@ function readMemoryFolder(root: string): Record<string, string> | undefined {
 }
 
 /** `argv` is what follows `memory`. Returns the exit code: 0 clean, 1 problems found; usage errors throw `UsageError` (exit 2). */
-export function runMemory(argv: string[], repoDir: string, io: MemoryIo): number {
+export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: CaptureContext = {}): number {
   const [first, ...rest] = argv;
   if (first === undefined || first === "--help" || first === "-h") return (io.stdout(commandHelp(["memory"])!), 0);
-  if (first !== "check") throw new UsageError(`Unknown memory subcommand "${first}". Use one of: ${MEMORY_SUBCOMMANDS.join(", ")}.`);
+  if (!(MEMORY_SUBCOMMANDS as readonly string[]).includes(first)) throw new UsageError(`Unknown memory subcommand "${first}". Use one of: ${MEMORY_SUBCOMMANDS.join(", ")}.`);
+  if (first !== "check") {
+    if (rest.includes("--help") || rest.includes("-h")) return (io.stdout(commandHelp(["memory", first])!), 0);
+    return runCapture(first as (typeof CAPTURE_SUBCOMMANDS)[number], rest, repoDir, io, ctx);
+  }
   if (rest.includes("--help") || rest.includes("-h")) return (io.stdout(commandHelp(["memory", "check"])!), 0);
   if (rest.length > 0) throw new UsageError(`wachiman memory check takes no arguments, got "${rest[0]}".`);
 
