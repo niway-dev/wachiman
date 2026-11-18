@@ -236,6 +236,15 @@ describe("wachiman memory check suggestions and memory archive", () => {
     expect(s.run(["check"]).code).toBe(0);
   });
 
+  test("a failed write to archive.md leaves the entry in its source file", () => {
+    const a = block("Rule A");
+    const s = setup([a.text], { ".wachiman/memory/archive.md/keep": "x" });
+    const path = join(s.dir, ".wachiman/memory/index.md");
+    const before = readFileSync(path, "utf8");
+    expect(() => s.run(["archive", a.id])).toThrow();
+    expect(readFileSync(path, "utf8")).toBe(before);
+  });
+
   test("archive of an unknown id or without an id writes nothing and fails", () => {
     const s = setup([block("Rule A").text]);
     const before = readFileSync(join(s.dir, ".wachiman/memory/index.md"), "utf8");

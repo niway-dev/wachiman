@@ -161,7 +161,8 @@ function runArchive(rest: string[], repoDir: string, io: MemoryIo): number {
       return 1;
     }
   }
-  for (const [name, text] of Object.entries(moved.files)) {
+  // archive.md first, then the source: a failure in between leaves the entry in both files, never in neither.
+  for (const [name, text] of Object.entries(moved.files).sort(([a], [b]) => Number(b === ARCHIVE_FILE) - Number(a === ARCHIVE_FILE))) {
     const path = join(root, MEMORY_DIR, name);
     writeFileSync(`${path}.tmp`, text);
     renameSync(`${path}.tmp`, path);
