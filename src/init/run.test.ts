@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
@@ -973,11 +973,57 @@ describe("the agent instruction pointer", () => {
     expect(w.err.join("\n")).toContain(POINTER_BEGIN);
   });
 
-  test("a malformed pointer block refuses the run before anything is written", async () => {
+  test("a malformed pointer block does not fail init: the workflow is written, the problem is reported", async () => {
     const w = world();
     write(w.repo, { "AGENTS.md": `${POINTER_BEGIN}\nno end marker\n` });
-    const before = snapshotTree(w.repo);
-    expect(await exit2(init(w, ["--mode", "github", "--operator", "me"]))).toContain("AGENTS.md");
-    expect(snapshotTree(w.repo)).toEqual(before);
+    expect(await init(w, ["--mode", "github", "--operator", "me"])).toBe(0);
+    expect(existsSync(w.target)).toBe(true);
+    expect(readFileSync(join(w.repo, "AGENTS.md"), "utf8")).toBe(`${POINTER_BEGIN}\nno end marker\n`);
+    expect(w.err.join("\n")).toContain("wachiman pointer not written");
+    expect(w.err.join("\n")).toContain("by hand");
+  });
+
+  test("a symlinked CLAUDE.md is written through to AGENTS.md inside the repository", async () => {
+    const w = world();
+    write(w.repo, { "AGENTS.md": "# Rules\n" });
+    symlinkSync("AGENTS.md", join(w.repo, "CLAUDE.md"));
+    expect(await init(w, ["--mode", "local"])).toBe(0);
+    expect(readFileSync(join(w.repo, "AGENTS.md"), "utf8")).toBe(`# Rules\n\n${pointerBlock()}`);
+    expect(lstatSync(join(w.repo, "CLAUDE.md")).isSymbolicLink()).toBe(true);
+  });
+
+  test("a symlink to a file outside the repository is skipped with a message and init still succeeds", async () => {
+    const w = world();
+    const outside = mkdtempSync(join(tmpdir(), "wachiman-run-out-"));
+    writeFileSync(join(outside, "shared.md"), "x\n");
+    symlinkSync(join(outside, "shared.md"), join(w.repo, "AGENTS.md"));
+    expect(await init(w, ["--mode", "github", "--operator", "me"])).toBe(0);
+    expect(existsSync(w.target)).toBe(true);
+    expect(readFileSync(join(outside, "shared.md"), "utf8")).toBe("x\n");
+    expect(w.err.join("\n")).toContain("wachiman pointer not written");
+    rmSync(outside, { recursive: true, force: true });
+  });
+
+  test("a failure while writing the pointer leaves the workflow in place and the exit code 0", async () => {
+    const w = world();
+    const hooks = {
+      writeTemp: (path: string, content: string) => {
+        if (content.includes(POINTER_BEGIN)) throw new Error("disk full");
+        writeFileSync(path, content, { flag: "wx" });
+      },
+    };
+    expect(await init(w, ["--mode", "github", "--operator", "me"], { hooks })).toBe(0);
+    expect(w.err.join("\n")).toContain("disk full");
+    expect(w.err.join("\n")).toContain("by hand");
+  });
+
+  test("--no-agent-pointer writes no pointer and a dry run says so", async () => {
+    const w = world();
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--no-agent-pointer"])).toBe(0);
+    expect(existsSync(w.target)).toBe(true);
+    expect(existsSync(join(w.repo, "AGENTS.md"))).toBe(false);
+    const d = world();
+    expect(await init(d, ["--mode", "github", "--operator", "me", "--dry-run", "--no-agent-pointer"])).toBe(0);
+    expect(d.err.join("\n")).toContain("--no-agent-pointer");
   });
 });

@@ -6,7 +6,8 @@
  * `AGENTS.md`. The skill itself is not in the repository; `wachiman skills install` puts it on the
  * developer's machine.
  */
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
+import { relative, sep } from "node:path";
 import { UsageError } from "../config";
 import { inspectTarget, type TargetState } from "./write";
 
@@ -21,11 +22,17 @@ const POINTER_TEXT = [
 /** The block as the file holds it, with a final newline. */
 export const pointerBlock = () => [POINTER_BEGIN, ...POINTER_TEXT, POINTER_END].join("\n") + "\n";
 
+/**
+ * `file` is the name shown to the person; `writePath` is where the write lands, relative to the
+ * repository root (the link's target when `file` is a link that stays inside the repository).
+ * `skip` is a pointer that cannot be written, with the reason; it never fails `init`.
+ */
 export type PointerPlan =
-  | { action: "create"; file: string; content: string; inspected: TargetState }
-  | { action: "append"; file: string; content: string; inspected: TargetState }
-  | { action: "replace"; file: string; content: string; inspected: TargetState }
-  | { action: "same"; file: string };
+  | { action: "create"; file: string; writePath: string; content: string; inspected: TargetState }
+  | { action: "append"; file: string; writePath: string; content: string; inspected: TargetState }
+  | { action: "replace"; file: string; writePath: string; content: string; inspected: TargetState }
+  | { action: "same"; file: string }
+  | { action: "skip"; file: string; reason: string };
 
 const stripCr = (line: string) => line.replace(/\r$/, "");
 
@@ -36,32 +43,71 @@ const stripCr = (line: string) => line.replace(/\r$/, "");
  */
 export function withPointer(current: string, file: string): string {
   const lines = current.split("\n");
+  // A file that uses CRLF gets the block with CRLF, so its endings stay uniform.
+  const crlf = current.includes("\r\n");
+  const eol = crlf ? "\r\n" : "\n";
+  const block = pointerBlock().trimEnd().split("\n").join(eol) + eol;
   const begins = lines.flatMap((line, i) => (stripCr(line) === POINTER_BEGIN ? [i] : []));
   const ends = lines.flatMap((line, i) => (stripCr(line) === POINTER_END ? [i] : []));
   if (begins.length === 0 && ends.length === 0) {
     if (current.includes(POINTER_BEGIN) || current.includes(POINTER_END)) {
       throw new UsageError(`${file} has a wachiman marker that is not alone on its line; init will not guess where the pointer goes. Put each marker on its own line, or remove it, and run init again.`);
     }
-    if (current === "") return pointerBlock();
-    return `${current}${current.endsWith("\n") ? "\n" : "\n\n"}${pointerBlock()}`;
+    if (current === "") return block;
+    return `${current}${current.endsWith("\n") ? eol : eol + eol}${block}`;
   }
   if (begins.length !== 1 || ends.length !== 1 || ends[0] < begins[0]) {
     throw new UsageError(`${file} has ${begins.length} wachiman begin marker(s) and ${ends.length} end marker(s); init needs one pair, begin first. Keep one pair, or remove the block by hand, and run init again.`);
   }
   const before = lines.slice(0, begins[0]);
   const after = lines.slice(ends[0] + 1);
-  return [...before, ...pointerBlock().trimEnd().split("\n"), ...after].join("\n");
+  const endHadCr = lines[ends[0]].endsWith("\r");
+  const inner = pointerBlock().trimEnd().split("\n").map((line, i, all) => (i < all.length - 1 ? line + (crlf ? "\r" : "") : line + (endHadCr ? "\r" : "")));
+  return [...before, ...inner, ...after].join("\n");
 }
 
-/** Looks at the file that would hold the pointer, without writing. Refuses a link there, like the other init writes. */
+const FAILURE_HINT = "Add the block by hand: copy the lines between the markers from `wachiman init --dry-run`, or skip it with --no-agent-pointer.";
+
+/**
+ * Looks at the file that would hold the pointer, without writing. It never throws: a link out of
+ * the repository, a malformed block or any other problem is a `skip` with the reason. A link that
+ * stays inside the repository is written through to its target.
+ */
 export function planPointer(repoDir: string): PointerPlan {
-  const file = ["AGENTS.md", "CLAUDE.md"].find((name) => inspectTarget(repoDir, name).exists) ?? "AGENTS.md";
-  const inspected = inspectTarget(repoDir, file);
-  if (!inspected.exists) return { action: "create", file, content: withPointer("", file), inspected };
-  const current = readFileSync(inspected.target, "utf8");
-  const content = withPointer(current, file);
-  if (content === current) return { action: "same", file };
-  return { action: current.includes(POINTER_BEGIN) ? "replace" : "append", file, content, inspected };
+  let file = "AGENTS.md";
+  try {
+    const exists = (name: string) => {
+      try {
+        lstatSync(`${repoDir}${sep}${name}`);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    file = ["AGENTS.md", "CLAUDE.md"].find(exists) ?? "AGENTS.md";
+    let writePath = file;
+    if (exists(file) && lstatSync(`${repoDir}${sep}${file}`).isSymbolicLink()) {
+      const root = realpathSync(repoDir);
+      let real: string;
+      try {
+        real = realpathSync(`${root}${sep}${file}`);
+      } catch {
+        return { action: "skip", file, reason: `${file} is a symbolic link that does not resolve; init leaves it alone. ${FAILURE_HINT}` };
+      }
+      if (real !== root && !real.startsWith(root + sep)) {
+        return { action: "skip", file, reason: `${file} is a symbolic link to ${real}, outside the repository; init does not write there. ${FAILURE_HINT}` };
+      }
+      writePath = relative(root, real).split(sep).join("/");
+    }
+    const inspected = inspectTarget(repoDir, writePath);
+    if (!inspected.exists) return { action: "create", file, writePath, content: withPointer("", file), inspected };
+    const current = readFileSync(inspected.target, "utf8");
+    const content = withPointer(current, file);
+    if (content === current) return { action: "same", file };
+    return { action: current.includes(POINTER_BEGIN) ? "replace" : "append", file, writePath, content, inspected };
+  } catch (error) {
+    return { action: "skip", file, reason: `${error instanceof Error ? error.message : String(error)} ${FAILURE_HINT}` };
+  }
 }
 
 /** What a dry run says the plan would do, on stderr. */
@@ -76,5 +122,7 @@ export function describePointer(plan: PointerPlan): string[] {
       return [`would replace the wachiman pointer in ${plan.file}`];
     case "same":
       return [`${plan.file} already has the wachiman pointer; nothing to write.`];
+    case "skip":
+      return [`the wachiman pointer would not be written: ${plan.reason}`];
   }
 }
