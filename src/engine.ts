@@ -35,7 +35,7 @@ import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
-import { MEMORY_DIR, loadMemory, memoryNotice, memoryRecord, type MemoryLoad, type MemorySource } from "./memory/load";
+import { MEMORY_DIR, cutMemoryNote, loadMemory, memoryNotice, memoryRecord, type MemoryLoad, type MemorySource } from "./memory/load";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -1904,7 +1904,7 @@ export function headEditsPathRules(gh: GhFn, repo: string, headSha: string, base
  * The memory folder and `.wachiman.yml` at the pull request's base commit, read through the
  * contents API. Never the head: a pull request cannot change the memory it is reviewed under.
  */
-export function githubMemorySource(gh: GhFn, repo: string, sha: string): MemorySource {
+export function githubMemorySource(gh: GhFn, repo: string, sha: string, warn: (line: string) => void = () => {}): MemorySource {
   return {
     list: () => {
       let raw: string;
@@ -1918,14 +1918,19 @@ export function githubMemorySource(gh: GhFn, repo: string, sha: string): MemoryS
       if (!Array.isArray(listing)) return [];
       return listing.flatMap((e: { type?: string; name?: string }) => (e.type === "file" && typeof e.name === "string" ? [e.name] : []));
     },
-    read: (name) => fileAtBase(gh, repo, `${MEMORY_DIR}/${name}`, sha)?.content ?? null,
+    read: (name) => {
+      const file = fileAtBase(gh, repo, `${MEMORY_DIR}/${name}`, sha);
+      if (!file) return null;
+      if (file.truncated) warn(file.content === "" ? `${MEMORY_DIR}/${name} is over 1 MB, which GitHub does not return; it is not loaded. Split it into area files.` : cutMemoryNote(name, MAX_INSTRUCTION_BYTES / 1024));
+      return file.truncated && file.content === "" ? null : file.content;
+    },
     settings: () => readBaseSettings(gh, repo, sha),
   };
 }
 
 /** The memory a review of `changedPaths` loads at the base commit `sha`; undefined without a memory folder. */
 export function readBaseMemory(gh: GhFn, repo: string, sha: string, changedPaths: string[], warn: (line: string) => void): MemoryLoad | undefined {
-  return loadMemory(githubMemorySource(gh, repo, sha), sha, changedPaths, warn);
+  return loadMemory(githubMemorySource(gh, repo, sha, warn), sha, changedPaths, warn);
 }
 
 /**

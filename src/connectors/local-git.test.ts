@@ -614,6 +614,15 @@ describe("localMemory", () => {
     expect(localMemory(r.dir, "f".repeat(40), ["src/a.ts"], () => {})).toBeUndefined();
   });
 
+  test("a memory file over the read limit loads its start and warns", () => {
+    const dir = emptyRepo();
+    const base = commit(dir, { ".wachiman/memory/index.md": "line\n".repeat(20_000) }, "base");
+    const warned: string[] = [];
+    const load = localMemory(dir, base, [], (l) => warned.push(l))!;
+    expect(load.files[0].lines).toBeLessThan(20_000);
+    expect(warned.join("\n")).toContain("index.md is longer than 64 KB");
+  });
+
   test("memory settings come from .wachiman.yml at the merge-base", () => {
     const dir = emptyRepo();
     const base = commit(dir, { ".wachiman/memory/index.md": "one\ntwo\nthree\n", ".wachiman.yml": "memory:\n  max_loaded_lines: 2\n" }, "base");
