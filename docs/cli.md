@@ -958,6 +958,26 @@ that you judged it wrong, intentional or not important, unless you reply in the 
 adds a reply's classification across runs. To measure a repository that is reviewed in Actions, run
 the [replay](memory-replay.md) on the laptop.
 
+**Capturing memory in Actions (layer 5).** Set the workflow input `memory_proposals: true`
+([configuration.md](configuration.md#inputs)) and a reply Wachiman writes in a thread can propose an
+entry. It does so only when the operator's latest reply in that thread is an instruction with a reason;
+a collaborator's reply, a question, or "Fixed in" never leads to one. The model drafts only the fields
+(kind, scope, rule, why and, for a fact about the code, `holds while`). The engine builds the entry,
+gives it its id (the digest of those fields) and shows it in the reply, in a block between two hidden
+markers that no model text can write:
+
+```text
+**Proposed memory entry** `4c1e9a2`. Nothing is recorded yet. This is the exact text that would be written:
+(the entry, as `memory show` prints it, with the evidence line "operator instruction, pull request 709")
+To record exactly this text, the operator replies `/wachiman remember 4c1e9a2` in this thread. ...
+```
+
+The proposing reply is an ordinary thread reply, so it counts toward the two replies Wachiman writes in
+a thread ([ADR 0008](adr/0008-thread-follow-up-authority.md)). A reply that is only `/wachiman remember
+<id>` is not a question: the thread run does not answer it and `/wachiman` on-demand runs ignore it, so it
+costs no model call. The proposal is shown only by the thread-only run (an operator reply on a head that
+was already reviewed); a push review that answers threads does not propose.
+
 ### `history`
 
 `wachiman history` lists the findings that `local --history` kept for the repository of

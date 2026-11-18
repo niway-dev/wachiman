@@ -209,6 +209,15 @@ on:
           See docs/pr-confidence.md
         type: boolean
         default: false
+      memory_proposals:
+        description: >-
+          Let a thread reply propose an entry for the repository's memory (`.wachiman/memory/`) when the
+          operator's latest reply there is an instruction with a reason. The reply shows the exact entry
+          and its id; nothing is written by this workflow. The operator approves with
+          `/wachiman remember <id>`, which only the separate `wachiman-memory.yml` job can act on, so
+          without that job in the caller a proposal can be shown but not recorded. See docs/cli.md
+        type: boolean
+        default: false
     # Pass exactly one in the caller. With both, the token wins and the key never reaches the agent
     # (ADR 0037); a run is never retried with the other credential. With neither, the run fails.
     secrets:
@@ -506,6 +515,7 @@ jobs:
           WACHIMAN_COMMENT_PATH: ${{ github.event.comment.path }}
           WACHIMAN_COMMENT_LINE: ${{ github.event.comment.line || github.event.comment.original_line }}
           WACHIMAN_TRIGGER: thread
+          WACHIMAN_MEMORY_PROPOSALS: ${{ inputs.memory_proposals }}
           WACHIMAN_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
           WACHIMAN_THREADS_BUDGET_USD: ${{ inputs.threads_budget_usd }}
           WACHIMAN_MODEL: ${{ inputs.model }}

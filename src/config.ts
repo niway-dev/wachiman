@@ -139,6 +139,12 @@ export interface EngineConfig {
    * off, every review shows the priority and records no arm. Local reviews never join the trial.
    */
   priorityTrial: boolean;
+  /**
+   * `WACHIMAN_MEMORY_PROPOSALS`: a thread reply may propose an entry for repository memory from the
+   * operator's instruction (layer 5); the operator approves it with `/wachiman remember <id>`. Off by
+   * default; enabled only by `1` or `true`. Read by the thread-only run.
+   */
+  memoryProposals: boolean;
 }
 
 /** The verifier's model when `WACHIMAN_VERIFIER_MODEL` is unset (Claude Code only). */
@@ -220,6 +226,10 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   if (verify && verifierModel === undefined) {
     throw new UsageError(`WACHIMAN_VERIFY needs WACHIMAN_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`);
   }
+  const memoryProposalsRaw = get("MEMORY_PROPOSALS");
+  if (memoryProposalsRaw !== undefined && !["0", "1", "true", "false"].includes(memoryProposalsRaw)) {
+    throw new UsageError(`WACHIMAN_MEMORY_PROPOSALS must be 1, true, 0 or false (unset means off), got "${memoryProposalsRaw}".`);
+  }
   const confidenceRaw = get("CONFIDENCE");
   if (confidenceRaw !== undefined && !["0", "1", "true", "false"].includes(confidenceRaw)) {
     throw new UsageError(`WACHIMAN_CONFIDENCE must be 1, true, 0 or false (unset means off), got "${confidenceRaw}".`);
@@ -287,6 +297,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     verifierModel: verifierModel ?? DEFAULT_VERIFIER_MODEL,
     confidence: confidenceRaw === "1" || confidenceRaw === "true",
     priorityTrial: get("PRIORITY_TRIAL") === "1",
+    memoryProposals: memoryProposalsRaw === "1" || memoryProposalsRaw === "true",
     ledgerUrl,
     dailyBudgetUsd: get("DAILY_BUDGET_USD") === undefined ? undefined : number("DAILY_BUDGET_USD", 0),
     weeklyBudgetUsd: get("WEEKLY_BUDGET_USD") === undefined ? undefined : number("WEEKLY_BUDGET_USD", 0),
