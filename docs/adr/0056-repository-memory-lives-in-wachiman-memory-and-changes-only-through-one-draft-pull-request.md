@@ -52,7 +52,10 @@ Actions; the memory must not fill with garbage.
    request that a person merges. Wachiman never force-pushes that branch, writes only under
    `.wachiman/memory/`, and reports an entry as recorded only after the push succeeds. A rejected
    push is retried by applying the same entry on the branch's new head; an entry whose digest is
-   already on the branch is not written twice.
+   already on the branch is not written twice; the later proposer's evidence is added to it. The
+   commit is built on the head of that branch, or of the default branch when it does not exist,
+   never on the developer's current branch, and the developer's working tree is not touched. The
+   whole team writes to that one branch and pull request.
 7. On the laptop, `wachiman memory propose <id>` writes with the developer's git credentials. In
    Actions, the configured operator's `/wachiman remember` starts a separate job with
    `contents: write` and `pull-requests: write`; the engine writes the file and the model call has
@@ -73,6 +76,13 @@ Actions; the memory must not fill with garbage.
     further spend settings in this file as a non-goal; this is the one exception, and the engine
     clamps the value to a fixed ceiling so a pull request merged to the base cannot raise the
     bill without limit.
+11. A developer may keep a personal memory in the same format under the Wachiman home, keyed by
+    the repository's remote. Only laptop reviews load it, after the committed memory, which wins.
+    It is written by `wachiman memory propose <id> --personal` after the same approval, with no
+    commit and no push. In a repository whose default branch has no `.wachiman/memory/`, the
+    first proposal asks which of the two the developer wants; Wachiman never pushes a memory
+    branch to such a repository unasked. The rule of decision 6 governs the repository's memory;
+    personal memory is not in the repository.
 
 ## Alternatives rejected
 
@@ -85,7 +95,11 @@ Actions; the memory must not fill with garbage.
 - **Writing the entry into the working tree for the developer to commit with their change.** It
   mixes memory into feature pull requests, where it is approved by being overlooked.
 - **`.github/wachiman-memory/`.** The owner's first choice. `.github/` is specific to one host and
-  the tool is no longer Actions-only. Kept as open question 1 of the spec.
+  the tool is no longer Actions-only. The owner accepted `.wachiman/memory/` on 2026-11-18.
+- **One memory pull request per developer or per entry.** The same lesson arrives in several
+  wordings and each is approved alone; one pull request lets the team see and merge them together.
+- **Personal memory in the working tree, hidden with `.git/info/exclude`.** A clean of the
+  checkout deletes it and other worktrees of the same repository do not see it.
 - **One file with no area files.** A monorepo's memory would be loaded whole into every review.
 - **A path set in `.wachiman.yml`.** A fixed path cannot be repointed, and one location is easier
   to find.

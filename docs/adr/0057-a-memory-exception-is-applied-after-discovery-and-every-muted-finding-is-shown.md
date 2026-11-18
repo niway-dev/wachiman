@@ -38,7 +38,11 @@ The owner's rule is that memory never hides a bug and that nothing happens witho
 4. A match needs a reason tied to the current code. When an exception has a `holds while` line and
    the diff touches one of those paths, the exception does not mute in that review and the summary
    says the entry may be out of date.
-5. Every run records the muted findings, so a report can count them and a person can audit them.
+5. Memory never changes which files a review reads. An exception names one kind of finding in a
+   path scope; `wachiman memory check` fails on an exception whose rule names no kind of finding,
+   and the drafting prompt does not write an entry that excludes paths. A hand-written entry that
+   passes the format check and still says "do not review these files" is bounded by decision 3.
+6. Every run records the muted findings, so a report can count them and a person can audit them.
 
 ## Alternatives rejected
 
