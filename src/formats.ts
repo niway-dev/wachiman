@@ -21,6 +21,7 @@ import type {
   Unreviewable,
 } from "./engine";
 import type { ProviderErrorClass } from "./providers/errors";
+import type { PathRule } from "./repo-settings";
 import type { RiskMap } from "./risk";
 
 export const REVIEW_INPUT_FORMAT = "wachiman.review-input/1";
@@ -73,6 +74,11 @@ export interface ReviewInput {
   since?: { sha: string; rebased: boolean; commits?: string[]; carried?: string[] };
   /** Open threads for the model to answer. */
   conversation?: Thread[];
+  /**
+   * The repository's path rules (`paths` in `.wachiman.yml`, ADR 0058), read by the connector from
+   * `change.base.sha`, never from the head. Absent when the repository has none.
+   */
+  pathRules?: PathRule[];
 }
 
 /** Which Claude Code profile ran the review; every GitHub-mode run is "ci". */

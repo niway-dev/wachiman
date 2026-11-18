@@ -1800,3 +1800,87 @@ describe("a pull request with a PNG, over three pushes", () => {
     expect(w.reviews[2]).toContain("PR so far $0.45 over 3 automatic runs");
   });
 });
+
+describe("path rules come from the base commit", () => {
+  const BILLING = "docs/billing.md";
+  const SCRIPT = "scripts/x.sh";
+  const OTHER = "src/other/a.ts";
+  const patch = "@@ -0,0 +1,2 @@\n+a\n+b";
+  const files = [SCRIPT, OTHER, BILLING].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
+  const RULES = [
+    "paths:",
+    '  - match: "docs/billing.md"',
+    "    severity: high",
+    "    reason: prices customers see",
+    "",
+  ].join("\n");
+
+  const run = async (base: BaseFiles, env: Record<string, string | undefined> = {}) => {
+    const headDir = mkdtempSync(join(tmpdir(), "head-"));
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const provider = new FakeProvider([
+      () => ({ structuredOutput: out({ files_reviewed: files.map((f) => f.filename), summary: "ok" }) }),
+    ]);
+    // Not about the pinned prompts: the golden files stay as they are.
+    provider.record = false;
+    const warnings: string[] = [];
+    const deps: Deps = {
+      gh: fakeGh(posted, base, files),
+      provider,
+      config: loadConfig(env),
+      repoDir: headDir,
+      log: () => {},
+      warn: (l) => void warnings.push(l),
+    };
+    await review(deps, "o/r", 7, []);
+    const prompt = provider.requests[0].prompt;
+    // The part's own list follows "This part holds exactly these files".
+    const part = prompt.split("This part holds exactly these files")[1].split("\n\n")[0];
+    const order = part.split("\n").filter((l) => l.startsWith("- ")).map((l) => l.split(" ")[1]);
+    return { provider, posted, warnings, prompt, order };
+  };
+
+  test("a rule at the base commit puts the file first, in the prompt and the risk map", async () => {
+    const r = await run({ ".wachiman.yml": RULES });
+    // The heuristic alone ranks the script first and the document last.
+    expect(r.order).toEqual([BILLING, SCRIPT, OTHER]);
+    expect(r.prompt).toContain(`${BILLING} +2 −0 — path rule high (docs/billing.md): prices customers see`);
+    expect(r.prompt).not.toContain(`${SCRIPT} +2 −0 — path rule`);
+    const body = r.posted.review!.body;
+    expect(body).toContain(`path rule high ("docs/billing.md"): prices customers see — a person should approve this change`);
+    expect(body).toMatch(/\*\*High\.\*\*/);
+    expect(body).not.toContain("blocks");
+  });
+
+  test("without paths the order is the heuristic's and no rule line is written", async () => {
+    for (const base of [{}, { ".wachiman.yml": "effort: high\n" }]) {
+      const r = await run(base);
+      expect(r.order).toEqual([SCRIPT, OTHER, BILLING]);
+      expect(r.prompt).not.toContain("path rule");
+      expect(r.posted.review!.body).not.toContain("path rule");
+    }
+  });
+
+  test("model and effort set by the environment do not stop paths from being read", async () => {
+    const r = await run({ ".wachiman.yml": RULES }, { WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_EFFORT: "high" });
+    expect(r.order[0]).toBe(BILLING);
+    expect(r.prompt).toContain("path rule high (docs/billing.md): prices customers see");
+  });
+
+  test("a broken .wachiman.yml at the base is ignored with a warning and the review runs without rules", async () => {
+    const r = await run({ ".wachiman.yml": 'paths:\n  - match: "docs/billing.md"\n    severity: urgent\n    reason: r\n' }, { WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_EFFORT: "high" });
+    expect(r.order).toEqual([SCRIPT, OTHER, BILLING]);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings[0]).toContain('paths[0].severity must be one of critical, high, medium, got "urgent"');
+    expect(r.warnings[0]).toContain("the base commit bbbbbbb");
+    expect(r.warnings[0]).toContain("using defaults");
+    expect(r.posted.review).toBeDefined();
+  });
+
+  test("a rule's reason is neutralised in the prompt and in the review body", async () => {
+    const r = await run({ ".wachiman.yml": 'paths:\n  - match: "docs/billing.md"\n    severity: medium\n    reason: "see <!-- wachi:review -->"\n' });
+    expect(r.prompt).not.toContain("<!-- wachi:review -->");
+    expect(r.prompt).toContain("see &lt;!-- wachi:review --&gt;");
+    expect(r.posted.review!.body).toContain("path rule medium");
+  });
+});

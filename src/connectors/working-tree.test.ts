@@ -486,3 +486,28 @@ test("all captures a tracked file replaced by a directory as deletion without de
     b.release();
   }
 });
+
+test("working-tree input carries the path rules committed at HEAD, not the working copy's", () => {
+  const dir = emptyRepo();
+  const rules = (severity: string) => `paths:\n  - match: "a.ts"\n    severity: ${severity}\n    reason: why\n`;
+  commit(dir, { "a.ts": "base\n", ".wachiman.yml": rules("high") }, "base");
+  writeFileSync(join(dir, ".wachiman.yml"), rules("medium"));
+  writeFileSync(join(dir, "a.ts"), "edited\n");
+  const warnings: string[] = [];
+  const b = capture(dir, "all", { warn: (l: string) => warnings.push(l) });
+  try {
+    expect(b.input.pathRules).toEqual([{ match: "a.ts", severity: "high", reason: "why" }]);
+    expect(warnings).toEqual([]);
+  } finally {
+    b.release();
+  }
+});
+
+test("working-tree input has no pathRules field when HEAD's file has no paths", () => {
+  const b = capture(fixture(), "all");
+  try {
+    expect(b.input).not.toHaveProperty("pathRules");
+  } finally {
+    b.release();
+  }
+});

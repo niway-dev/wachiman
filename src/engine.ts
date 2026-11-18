@@ -34,7 +34,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
-import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parseRepoSettings, wantsRepoSettings, type RepoSettings } from "./repo-settings";
+import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, wantsRepoSettings, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -455,7 +455,26 @@ export const RISK_RULES: { glob: string; weight: number; why: string }[] = [
 const KIND_WEIGHT: Record<FileKind, number> = { code: 4, test: 2, docs: 1 };
 const riskGlobs = RISK_RULES.map((r) => ({ ...r, matcher: new Bun.Glob(r.glob) }));
 
-export function riskScore(path: string): number {
+/**
+ * The ordering score of a file a maintainer's path rule matched (ADR 0058): above every heuristic
+ * weight, `critical` above `high` above `medium`. Derived from the tables, so a heavier heuristic
+ * weight added later cannot outrank a rule. Today: medium 9, high 10, critical 11.
+ */
+const HEURISTIC_MAX = Math.max(...Object.values(KIND_WEIGHT), ...RISK_RULES.map((r) => r.weight));
+export const PATH_RULE_SCORE: Record<PathSeverity, number> = {
+  medium: HEURISTIC_MAX + 1,
+  high: HEURISTIC_MAX + 2,
+  critical: HEURISTIC_MAX + 3,
+};
+
+/**
+ * How risky a path is, for ordering. With `rules` (the repository's `paths`, from the base commit),
+ * a file a rule matches scores by the rule, tests and documents included: the maintainer named the
+ * path. Without rules, or with no match, the built-in heuristic decides, unchanged.
+ */
+export function riskScore(path: string, rules?: readonly PathRule[]): number {
+  const rule = matchPathRule(path, rules);
+  if (rule) return PATH_RULE_SCORE[rule.severity];
   const kind = fileKind(path);
   if (kind !== "code") return KIND_WEIGHT[kind];
   const weights = riskGlobs.filter((r) => r.matcher.match(path)).map((r) => r.weight);
@@ -490,7 +509,14 @@ const sizeOf = (f: ReviewFile) => f.additions + f.deletions;
 export function planBatches(
   files: ReviewFile[],
   limits: { maxLines: number; maxChars: number },
+  rules?: readonly PathRule[],
 ): Batch[] {
+  const score = (path: string) => riskScore(path, rules);
+  /** The rule's score for a matched file, 0 for any other. */
+  const ruled = (path: string) => {
+    const rule = matchPathRule(path, rules);
+    return rule ? PATH_RULE_SCORE[rule.severity] : 0;
+  };
   const modules = new Map<string, ReviewFile[]>();
   for (const f of files) {
     const key = moduleKey(f.filename);
@@ -500,12 +526,12 @@ export function planBatches(
     .map((group) =>
       group.sort(
         (a, b) =>
-          riskScore(b.filename) - riskScore(a.filename) || a.filename.localeCompare(b.filename),
+          score(b.filename) - score(a.filename) || a.filename.localeCompare(b.filename),
       ),
     )
     .sort(
       (a, b) =>
-        riskScore(b[0].filename) - riskScore(a[0].filename) ||
+        score(b[0].filename) - score(a[0].filename) ||
         a[0].filename.localeCompare(b[0].filename),
     )
     .flat();
@@ -533,11 +559,14 @@ export function planBatches(
   if (current.length > 0) batches.push(current);
 
   return batches.map((group) => ({
+    // A file a path rule matched leads its batch, most severe first, tests and documents included:
+    // the maintainer named the path. The rest keep the order of its kind. Without rules this is the
+    // kind order alone.
     files: [...group].sort(
-      (a, b) => KIND_ORDER[fileKind(a.filename)] - KIND_ORDER[fileKind(b.filename)],
+      (a, b) => ruled(b.filename) - ruled(a.filename) || KIND_ORDER[fileKind(a.filename)] - KIND_ORDER[fileKind(b.filename)],
     ),
     lines: group.reduce((n, f) => n + sizeOf(f), 0),
-    maxRisk: Math.max(...group.map((f) => riskScore(f.filename))),
+    maxRisk: Math.max(...group.map((f) => score(f.filename))),
   }));
 }
 
@@ -1692,6 +1721,24 @@ export function readBaseSettings(gh: GhFn, repo: string, sha: string): RepoSetti
 }
 
 /**
+ * The base commit's `paths` rules (ADR 0058), or undefined when it has none. Read on every run,
+ * whether or not `model` and `effort` were set explicitly: the rules are review policy, not a spend
+ * choice. Like `withBaseSettings`, a broken file is ignored with one warning and the run continues
+ * with no rules, so the pull request that fixes the file can be reviewed; errors from GitHub itself
+ * still propagate. When a `.wachiman.yml` read has already warned about the same file, the same
+ * problem is reported once more here: the two reads are independent.
+ */
+export function readBasePathRules(gh: GhFn, repo: string, sha: string, warn: (line: string) => void): PathRule[] | undefined {
+  try {
+    return readBaseSettings(gh, repo, sha)?.paths;
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    warn(ignoredSettingsNote(error.message, `the base commit ${sha.slice(0, 7)}`));
+    return undefined;
+  }
+}
+
+/**
  * `config` with the model and the effort the base commit's `.wachiman.yml` sets, wherever no
  * explicit `WACHIMAN_MODEL` / `WACHIMAN_EFFORT` (a workflow input) did. Reads nothing when both
  * were explicit. Logs one line when the file decided something, so the job log says so. A broken
@@ -2753,8 +2800,8 @@ async function settledOnError<T>(deps: Deps, grant: SpendGrant, run: () => Promi
 }
 
 /** The estimate of reviewing `files` with this configuration: the batches `planBatches` makes, priced per batch. */
-export function estimateFor(files: ReviewFile[], config: EngineConfig): ReviewEstimate {
-  const batches = planBatches(files, { maxLines: config.batchLines, maxChars: config.batchChars }).length;
+export function estimateFor(files: ReviewFile[], config: EngineConfig, rules?: readonly PathRule[]): ReviewEstimate {
+  const batches = planBatches(files, { maxLines: config.batchLines, maxChars: config.batchChars }, rules).length;
   return estimateReview(files, { batches, batchBudgetUsd: config.batchBudgetUsd, model: config.model });
 }
 
@@ -3026,11 +3073,15 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const reserve = options.verify ? Math.min(options.verify.budgetUsd, totalBudget / 2) : 0;
   const batchTotal = totalBudget - reserve;
   const batchBudget = options.batchBudgetUsd;
-  const batches = planBatches(kept, {
-    maxLines: options.batchLines,
-    // About 40k tokens at 3.5 characters a token.
-    maxChars: options.batchChars,
-  });
+  const batches = planBatches(
+    kept,
+    {
+      maxLines: options.batchLines,
+      // About 40k tokens at 3.5 characters a token.
+      maxChars: options.batchChars,
+    },
+    input.pathRules,
+  );
   // The files this run reviews whole because the previous review did not reach them.
   const keptNames = new Set(kept.map((f) => f.filename));
   const carriedHere = (input.since?.carried ?? []).filter((f) => keptNames.has(f));
@@ -3051,6 +3102,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     everyFile,
     meta: { title: change.title, body: change.description, author: change.author },
     instructions: renderInstructions(input.instructions),
+    ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
     costTags: { repo: change.repository.name, ...(number ? { pr: Number(number) } : {}) },
   };
 
@@ -3382,6 +3434,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   // contracts' lines are: the file must be in the review and the line must exist at the head.
   const lineCount = deps.lineCounter ?? repoLineCounter(input.headDir);
   const riskMap = buildRiskMap({
+    ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
     files: kept.map((f) => ({ path: f.filename, changedLines: f.additions + f.deletions })),
     facts: parts.flatMap((p) => wellFormed<RiskFact>(p.output.risk_facts, RISK_KINDS)),
     judgement: parts.flatMap((p) => wellFormed<JudgementItem>(p.output.judgement, JUDGEMENT_KINDS)),
@@ -3648,6 +3701,8 @@ export function githubReviewInput(p: {
   /** The files of `files` the previous partial review did not reach (they carry their whole diff). */
   carried?: string[];
   threads: Thread[];
+  /** The base commit's `paths` rules; omitted or empty when the repository has none. */
+  pathRules?: PathRule[];
 }): ReviewInput {
   return {
     format: REVIEW_INPUT_FORMAT,
@@ -3678,6 +3733,7 @@ export function githubReviewInput(p: {
         }
       : {}),
     ...(p.threads.length > 0 ? { conversation: p.threads } : {}),
+    ...(p.pathRules?.length ? { pathRules: p.pathRules } : {}),
   };
 }
 
@@ -3944,7 +4000,11 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   }
   // The size gate: what this run would send, priced before any model call. Nothing is posted as a
   // review and no marker is written, so the next push sees no marker and gates again.
-  const estimate = estimateFor(allBinary.reviewable, config);
+  // The path rules come from the base commit whatever the model and effort inputs say; they reorder
+  // the batches, so the estimate is made with them.
+  const base = baseSha(gh, repo, pr);
+  const pathRules = readBasePathRules(gh, repo, base, deps.warn);
+  const estimate = estimateFor(allBinary.reviewable, config, pathRules);
   const gate = sizeGate(config, isAutomatic(config.trigger));
   if (estimate.usd > gate) {
     deps.log(`Estimated $${estimate.usd.toFixed(2)} is above the $${gate.toFixed(2)} size gate; nothing sent to a model.`);
@@ -3957,7 +4017,6 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // What the automatic runs before this one cost; an operator's run is not counted and shows none.
   const automatic = isAutomatic(config.trigger);
   const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
-  const base = baseSha(gh, repo, pr);
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
@@ -3978,6 +4037,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     commits,
     carried: resumed,
     threads,
+    pathRules,
   });
   // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
   // part of the change, and "nothing else changed" cannot be said of a part.
@@ -4347,6 +4407,8 @@ export interface ReviewContext {
   meta: { title?: string; body?: string; author?: string };
   /** `renderInstructions` of the base commit's rules. */
   instructions: string;
+  /** The repository's path rules (`paths` in `.wachiman.yml`, from the base commit); a matched file's line in the prompt quotes its rule. */
+  pathRules?: readonly PathRule[];
   /** PR Confidence on: the claims the batches assign their files to, as the claims call listed them. */
   claims?: readonly string[];
   /** How the cost log line names the change; absent for a change with no repository or number. */
@@ -4394,7 +4456,11 @@ export function buildBatchPrompt(
 ) {
   const carried = new Set(ctx.carried ?? []);
   const list = files
-    .map((f) => `- ${f.filename} +${f.additions} −${f.deletions}${carried.has(f.filename) ? " (not reached by the previous review: whole diff)" : ""}`)
+    .map((f) => {
+      const rule = matchPathRule(f.filename, ctx.pathRules);
+      const ruleNote = rule ? ` — ${neutralise(`path rule ${rule.severity} (${rule.match}): ${rule.reason}`)}` : "";
+      return `- ${f.filename} +${f.additions} −${f.deletions}${carried.has(f.filename) ? " (not reached by the previous review: whole diff)" : ""}${ruleNote}`;
+    })
     .join("\n");
   const sinceScope = ctx.since
     ? ctx.rebased

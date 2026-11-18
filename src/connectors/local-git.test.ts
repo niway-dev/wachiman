@@ -395,6 +395,50 @@ describe("snapshotHead", () => {
   });
 });
 
+describe("path rules in buildLocalInput", () => {
+  const RULES = 'paths:\n  - match: "src/billing/**"\n    severity: critical\n    reason: charges customers\n';
+  const repoWith = (base: string | undefined, head: string | undefined) => {
+    const dir = emptyRepo();
+    commit(dir, { "src/a.ts": "a\n", ...(base !== undefined ? { ".wachiman.yml": base } : {}) }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    commit(dir, { "src/a.ts": "b\n", ...(head !== undefined ? { ".wachiman.yml": head } : {}) }, "change");
+    return dir;
+  };
+  const build = (dir: string) => {
+    const warnings: string[] = [];
+    const built = buildLocalInput({ repoDir: dir, paths: [], log: () => {}, warn: (l) => warnings.push(l) });
+    snapshots.push(built.snapshotDir);
+    return { input: built.input, warnings };
+  };
+
+  test("the rules at the merge-base reach the input", () => {
+    const { input, warnings } = build(repoWith(RULES, undefined));
+    expect(input.pathRules).toEqual([{ match: "src/billing/**", severity: "critical", reason: "charges customers" }]);
+    expect(warnings).toEqual([]);
+    const schema = JSON.parse(readFileSync(join(import.meta.dir, "../../docs/formats/review-input.v1.schema.json"), "utf8"));
+    const { headDir: _, ...onDisk } = input;
+    expect(validate(schema, JSON.parse(JSON.stringify(onDisk)))).toEqual([]);
+  });
+
+  test("the branch's own copy is never read: it can neither add nor drop a rule", () => {
+    expect(build(repoWith(undefined, RULES)).input).not.toHaveProperty("pathRules");
+    expect(build(repoWith(RULES, "effort: high\n")).input.pathRules).toHaveLength(1);
+  });
+
+  test("a broken file at the merge-base is ignored with one warning", () => {
+    const { input, warnings } = build(repoWith('paths:\n  - match: "a"\n    severity: urgent\n    reason: r\n', undefined));
+    expect(input).not.toHaveProperty("pathRules");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('paths[0].severity must be one of critical, high, medium, got "urgent"');
+    expect(warnings[0]).toContain("the merge-base");
+  });
+
+  test("no file and no paths leave the input without the field", () => {
+    expect(build(repoWith(undefined, undefined)).input).not.toHaveProperty("pathRules");
+    expect(build(repoWith("effort: high\n", undefined)).input).not.toHaveProperty("pathRules");
+  });
+});
+
 describe("buildLocalInput", () => {
   test("the change, the scope and the cleanup", () => {
     const r = branchRepo();

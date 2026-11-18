@@ -25,7 +25,7 @@ import {
   type ReviewInput,
 } from "../engine";
 import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
-import { parseRepoSettings, SETTINGS_PATH, type RepoSettings } from "../repo-settings";
+import { ignoredSettingsNote, parseRepoSettings, SETTINGS_PATH, type PathRule, type RepoSettings } from "../repo-settings";
 
 const TIMEOUT_MS = 60_000;
 /** The whole branch diff is one output; a large branch can be far over the evidence step's 8 MB. */
@@ -400,6 +400,22 @@ export function localRepoSettings(repoDir: string, sha: string, git: GitRunner =
   return parseRepoSettings(bytes.toString("utf8"));
 }
 
+/**
+ * The `paths` rules of the `.wachiman.yml` at `sha` (ADR 0058), or undefined when it has none. Read
+ * at the commit the instruction files are read at, never at the head. A broken file is ignored with
+ * one warning naming `where`, like the model and effort read: the change that fixes it must be
+ * reviewable.
+ */
+export function localPathRules(repoDir: string, sha: string, where: string, warn: (line: string) => void, git: GitRunner = spawnGit): PathRule[] | undefined {
+  try {
+    return localRepoSettings(repoDir, sha, git)?.paths;
+  } catch (error) {
+    if (!(error instanceof UsageError)) throw error;
+    warn(ignoredSettingsNote(error.message, `${where} ${short(sha)}`));
+    return undefined;
+  }
+}
+
 const names = (out: string) => out.split("\0").filter(Boolean);
 
 /**
@@ -591,6 +607,7 @@ export function buildLocalInput(p: {
   );
   if (ignored.length > 0) p.log(`Not paths in this change, ignored: ${ignored.join(" ")}`);
   const instructions = localInstructions(p.repoDir, refs.mergeBase, p.warn, git);
+  const pathRules = localPathRules(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git);
   const top = run(git, p.repoDir, ["rev-parse", "--show-toplevel"]).trim();
   const name = basename(top);
   const subjects = run(git, p.repoDir, ["log", "--reverse", "--format=%s", ...subjectRange(refs)]).trim();
@@ -613,6 +630,7 @@ export function buildLocalInput(p: {
     instructions,
     headDir: snapshot.dir,
     scope: paths,
+    ...(pathRules?.length ? { pathRules } : {}),
   };
   return { input, snapshotDir: snapshot.dir, refs };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig, UsageError } from "./config";
 import { GhError, readBaseSettings, withBaseSettings, type GhFn } from "./engine";
-import { applyRepoSettings, effectiveSettings, fileSettingsNote, parseRepoSettings, wantsRepoSettings } from "./repo-settings";
+import { applyRepoSettings, effectiveSettings, fileSettingsNote, matchPathRule, parsePathRules, parseRepoSettings, wantsRepoSettings, type PathRule } from "./repo-settings";
 import { settingsContent } from "./init/settings";
 
 const BASE = "b".repeat(40);
@@ -41,6 +41,96 @@ describe("parseRepoSettings", () => {
     expect(error).toBeInstanceOf(UsageError);
     expect((error as Error).message).toContain(".wachiman.yml");
     expect((error as Error).message).toContain(message);
+  });
+});
+
+describe("paths", () => {
+  const FILE = [
+    "paths:",
+    '  - match: ".github/workflows/**"',
+    "    severity: critical",
+    "    reason: CI can publish releases and read secrets",
+    '  - match: "src/billing/**"',
+    "    severity: high",
+    "    reason: charges customers",
+    "    owner: ignored-key",
+    "",
+  ].join("\n");
+
+  test("reads the entries in file order and ignores unknown keys inside an entry", () => {
+    expect(parseRepoSettings(FILE)).toEqual({
+      paths: [
+        { match: ".github/workflows/**", severity: "critical", reason: "CI can publish releases and read secrets" },
+        { match: "src/billing/**", severity: "high", reason: "charges customers" },
+      ],
+    });
+  });
+
+  test("lives next to model and effort", () => {
+    expect(parseRepoSettings(`model: claude-opus-5-5\n${FILE}`)).toMatchObject({ model: "claude-opus-5-5", paths: [{}, {}] });
+  });
+
+  test("no paths, `paths:` with no value and an empty list hold nothing", () => {
+    expect(parseRepoSettings("effort: high\n").paths).toBeUndefined();
+    expect(parseRepoSettings("paths:\n").paths).toBeUndefined();
+    expect(parseRepoSettings("paths: []\n").paths).toBeUndefined();
+  });
+
+  test.each([
+    ["paths: x\n", "paths must be a list"],
+    ["paths:\n  a: 1\n", "paths must be a list"],
+    ["paths:\n  - just text\n", "paths[0] must be a mapping"],
+    ["paths:\n  - [a]\n", "paths[0] must be a mapping"],
+    ["paths:\n  - severity: high\n    reason: r\n", "paths[0].match must be a glob"],
+    ['paths:\n  - match: ""\n    severity: high\n    reason: r\n', "paths[0].match must be a glob"],
+    ['paths:\n  - match: "a/**"\n    severity: urgent\n    reason: r\n', 'paths[0].severity must be one of critical, high, medium, got "urgent"'],
+    ['paths:\n  - match: "a/**"\n    severity: High\n    reason: r\n', 'got "High"'],
+    ['paths:\n  - match: "a/**"\n    severity: high\n', "paths[0].reason must be a non-empty text"],
+    ['paths:\n  - match: "a/**"\n    severity: high\n    reason: "  "\n', "paths[0].reason must be a non-empty text"],
+    ['paths:\n  - match: "a/**"\n    severity: high\n    reason: r\n  - match: "b/**"\n    severity: x\n    reason: r\n', 'paths[1].severity must be one of critical, high, medium, got "x".'],
+  ])("%p is a usage error naming the entry", (content, message) => {
+    let error: unknown;
+    try {
+      parseRepoSettings(content);
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(UsageError);
+    expect((error as Error).message).toContain(".wachiman.yml: ");
+    expect((error as Error).message).toContain(message);
+  });
+
+  test("parsePathRules names the place it was given, for an input file", () => {
+    expect(() => parsePathRules([{ match: "a", severity: "x", reason: "r" }], "--input in.json")).toThrow(/^--input in\.json: paths\[0\]\.severity/);
+  });
+
+  describe("matchPathRule", () => {
+    const rules: PathRule[] = [
+      { match: "src/**", severity: "medium", reason: "first, medium" },
+      { match: "src/billing/**", severity: "critical", reason: "most severe" },
+      { match: "src/billing/*.ts", severity: "critical", reason: "later critical" },
+      { match: "docs/**", severity: "high", reason: "docs high" },
+      { match: "docs/*.md", severity: "high", reason: "tie, later in the file" },
+    ];
+
+    test("the most severe match wins, whatever its place in the file", () => {
+      expect(matchPathRule("src/billing/charge.ts", rules)?.reason).toBe("most severe");
+    });
+
+    test("on a tie the first in the file wins", () => {
+      expect(matchPathRule("docs/billing.md", rules)?.reason).toBe("docs high");
+    });
+
+    test("a single match is returned as it is; no match, no rules and an empty list are undefined", () => {
+      expect(matchPathRule("src/ui/button.ts", rules)?.severity).toBe("medium");
+      expect(matchPathRule("README.md", rules)).toBeUndefined();
+      expect(matchPathRule("src/a.ts", undefined)).toBeUndefined();
+      expect(matchPathRule("src/a.ts", [])).toBeUndefined();
+    });
+
+    test("dotted directories match a literal dotted glob", () => {
+      expect(matchPathRule(".github/workflows/ci.yml", [{ match: ".github/workflows/**", severity: "critical", reason: "r" }])?.severity).toBe("critical");
+    });
   });
 });
 

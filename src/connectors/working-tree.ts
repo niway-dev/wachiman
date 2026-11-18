@@ -21,7 +21,7 @@ import { UsageError } from "../config";
 import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
 import { REVIEW_INPUT_V2, type ReviewInput } from "../formats";
 import { resolveScope } from "../engine";
-import { localFiles, localInstructions } from "./local-git";
+import { localFiles, localInstructions, localPathRules } from "./local-git";
 
 type Spawn = typeof spawnSync;
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -264,6 +264,7 @@ export function workingTreeInput(p: {
     // Evidence uses git grep in its own index; symlink entries remain textual blobs there too.
     indexRawSnapshot(snapshot, treeEntries, (a, input) => exec(["-C", snapshot, ...a], input));
     const name = basename(top);
+    const pathRules = localPathRules(top, base, "HEAD", p.warn, git);
     const input: ReviewInput = {
       format: REVIEW_INPUT_V2,
       change: {
@@ -278,6 +279,7 @@ export function workingTreeInput(p: {
       instructions: localInstructions(top, base, p.warn, git),
       headDir: snapshot,
       scope: paths,
+      ...(pathRules?.length ? { pathRules } : {}),
     };
     return { input, release };
   } catch (e) {

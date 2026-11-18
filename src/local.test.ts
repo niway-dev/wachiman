@@ -225,6 +225,14 @@ describe("readInputFile", () => {
     expect(() => readInputFile(file({ ...fixture(), scope: [1] }))).toThrow("scope");
     expect(() => readInputFile(file({ ...fixture(), headDir: "/tmp/x" }))).toThrow("headDir");
   });
+
+  test("pathRules are optional, and checked the way .wachiman.yml's paths are", () => {
+    expect(readInputFile(file(fixture())).pathRules).toBeUndefined();
+    const rules = [{ match: "src/billing/**", severity: "high", reason: "charges customers" }];
+    expect(readInputFile(file({ ...fixture(), pathRules: rules })).pathRules).toEqual(rules);
+    expect(() => readInputFile(file({ ...fixture(), pathRules: [{ ...rules[0], severity: "urgent" }] }))).toThrow(/paths\[0\]\.severity must be one of critical, high, medium, got "urgent"/);
+    expect(() => readInputFile(file({ ...fixture(), pathRules: "src/**" }))).toThrow(UsageError);
+  });
 });
 
 describe("wachiman local with WACHIMAN_LEDGER_URL set (the laptop read side's setting)", () => {
