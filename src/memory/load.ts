@@ -128,7 +128,8 @@ export function loadMemory(source: MemorySource, revision: string, changedPaths:
 
   const indexText = names.includes(INDEX_FILE) ? source.read(INDEX_FILE) : null;
   if (indexText === null) {
-    warn(`${MEMORY_DIR} has no ${INDEX_FILE}, so no memory is loaded.`);
+    // A listed index the source could not return was already explained by the source.
+    warn(names.includes(INDEX_FILE) ? `${MEMORY_DIR}/${INDEX_FILE} could not be read, so no memory is loaded.` : `${MEMORY_DIR} has no ${INDEX_FILE}, so no memory is loaded.`);
     return { revision, files: [], leftOut: [], overBudget: false, indexOverBudget: false, budget: { maxIndexLines: budget.maxIndexLines, maxLoadedLines: budget.maxLoadedLines, loadedLines: 0 }, entries: [] };
   }
 
@@ -185,7 +186,7 @@ export function memoryNotice(record: MemoryRecord): string | undefined {
   const index = record.files[0];
   const doesNotFit = record.leftOut.length > 0 || index?.truncated === true;
   if (!doesNotFit) {
-    return `⚠️ **Memory over budget**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget (it was still loaded whole). Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
+    return `⚠️ **Memory over budget**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget. Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
   }
   if (record.leftOut.length > 0) parts.push(`left out for lack of room: ${record.leftOut.map((p) => `\`${p}\``).join(", ")}`);
   if (index?.truncated) parts.push(`\`${index.path}\` was cut to its first ${index.lines} lines`);
