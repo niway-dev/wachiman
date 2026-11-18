@@ -28,6 +28,7 @@ import {
 } from "./candidates";
 import type { GhFn } from "../engine";
 import { proposeCandidate, type ProposeDeps } from "./propose";
+import { proposePersonal } from "./personal";
 
 export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as const;
 
@@ -146,7 +147,9 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   }
 
   if (sub === "propose") {
-    const id = oneId(parseOptions(rest, sub, [], []), sub);
+    const parsed = parseOptions(rest, sub, [], ["--personal"]);
+    const id = oneId(parsed, sub);
+    const personal = parsed.flags.has("--personal");
     const c = readCandidate(home, key, id);
     if (!c) throw new UsageError(`No memory candidate ${id} for this repository; list them with \`wachiman memory candidates\`.`);
     const q = need(c, minEvidence);
@@ -154,7 +157,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
       io.stderr(`memory propose: candidate ${id} is not proposable: ${q.why}. Nothing was written.`);
       return 1;
     }
-    const result = proposeCandidate(c, repoDir, io, ctx.deps);
+    const result = personal ? proposePersonal(c, repoDir, home, io) : proposeCandidate(c, repoDir, io, ctx.deps);
     if (result.recorded) {
       // Read again: evidence added by `memory add` while the push was in flight must not be overwritten.
       const at = (ctx.now ?? (() => new Date()))().toISOString();

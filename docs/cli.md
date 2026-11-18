@@ -718,7 +718,7 @@ wachiman memory report [--since <date>] [--format terminal|json] [--repo-dir <di
 wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]
 wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]
 wachiman memory show <id> [--repo-dir <dir>]
-wachiman memory propose <id> [--repo-dir <dir>]
+wachiman memory propose <id> [--personal] [--repo-dir <dir>]
 wachiman memory remember <pr> [--repo-dir <dir>]
 ```
 
@@ -788,7 +788,7 @@ before, with no extra field, no extra text and no extra call. The settings are i
   also mutes nothing in this review. The line is absent when no entry applies, and a repository without
   memory sees no change. Wachiman only says so; it never edits the entry.
 
-**What it does not do yet.** Personal memory (`--personal`) is a later layer.
+**What it does not do yet.** The only hygiene notice is the `holds while` one above.
 
 `memory check` reads the folder from the working tree and prints each problem as
 `<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope (not checked in
@@ -1049,6 +1049,16 @@ word, default `/wachiman`) and `WACHIMAN_DRY_RUN`, which the shared configuratio
 sets to the Actions bot. It uses the checkout `--repo-dir` points at. Exit 0 when the entry is recorded or already was, or when the comment was
 not the operator's; exit 1 when it refused, wrote nothing, or recorded the entry without opening the draft
 pull request; exit 2 for a usage error such as a missing variable.
+
+**Personal memory (layer 8).** For a developer whose team has not adopted Wachiman, `memory propose
+<id> --personal` writes the entry to a folder outside the repository, with the same format and the
+same approval of the exact text: `<home>/memory/<host>/<owner>/<repository>/index.md`, where `<home>` is
+the Wachiman home (`WACHIMAN_HOME`, else `~/.wachiman`). The folder is keyed by the URL of the
+remote named `origin`, without credentials, so every clone and worktree of one repository shares it and
+no other repository sees it. A clone with no `origin` has no personal memory: `propose --personal`
+says so, exits 1 and writes nothing. It makes no commit, no push, no fetch and no pull request, and
+nothing appears in `git status`. An entry already there only gains the evidence it lacks, and an entry
+that would make `memory check` fail on the folder is refused.
 
 ### `history`
 

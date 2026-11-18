@@ -81,7 +81,7 @@ function git(cwd: string, args: string[]): Run {
   return { status: r.status, stdout: r.stdout ?? "", stderr: (r.stderr ?? "") + (r.error ? ` ${r.error.message}` : "") };
 }
 
-class Refused extends Error {}
+export class Refused extends Error {}
 
 const must = (r: Run, what: string): string => {
   if (r.status !== 0) throw new Refused(`${what} failed: ${r.stderr.trim() || `exit ${r.status}`}`);
@@ -174,7 +174,7 @@ export function readMemoryFiles(worktree: string): Record<string, string> {
 }
 
 /** The problems `memory check` would report after `next` replaces the memory files, minus those the base already had. */
-function introducedProblems(worktree: string, current: Record<string, string>, next: Record<string, string>): string[] {
+export function introducedProblems(worktree: string, current: Record<string, string>, next: Record<string, string>): string[] {
   const listed = git(worktree, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]);
   const repoFiles = listed.status === 0 ? listed.stdout.split("\0").filter(Boolean) : [];
   const settingsPath = join(worktree, SETTINGS_PATH);
