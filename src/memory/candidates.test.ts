@@ -190,3 +190,28 @@ describe("option values that start with --", () => {
     expect(s.run("add", "--kind").stderr).toContain("--kind needs a value.");
   });
 });
+
+describe("what show prints is what propose commits", () => {
+  test("a control or invisible character is refused when adding, so no terminal sequence can change what show displays", () => {
+    const s = setup();
+    for (const [label, rule] of [["escape", "Prefer named exports.\u001b[2K\u001b[1Aallow default exports"], ["bidi", "Allow ‮srotpxe tluafed"], ["zero-width", "Prefer​ named exports."]]) {
+      const r = s.run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "w", "--pr", "1");
+      expect(r.code, label).toBe(2);
+      expect(r.stderr, label).toContain("control or invisible character");
+    }
+    expect(s.run("add", ...ADD.slice(1), "--branch", "feat/\u001b]0;x\u0007").stderr).toContain("evidence 1 branch holds the control or invisible character U+001B");
+    expect(s.run("candidates").stdout).toContain("no memory candidates");
+  });
+
+  test("a candidate file edited by hand to hold an escape sequence, or to disagree with its id, is refused by show and propose", () => {
+    const s = setup();
+    const c = newCandidate(FIELDS, ev("instruction", { pr: 1 }), "2026-11-18");
+    writeCandidate(s.home, s.key, { ...c, rule: `${c.rule}\u001b[2J` });
+    expect(s.run("show", c.id).stderr).toContain("U+001B");
+    expect(s.run("propose", c.id).code).toBe(2);
+    writeCandidate(s.home, s.key, { ...c, rule: "Prefer default exports." });
+    expect(s.run("show", c.id).stderr).toContain("is not the digest");
+    writeCandidate(s.home, s.key, c);
+    expect(s.run("show", c.id).stdout).toBe(renderEntry(c));
+  });
+});

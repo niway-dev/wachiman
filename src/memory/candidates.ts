@@ -99,6 +99,45 @@ export function renderEntry(c: Candidate): string {
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Characters a terminal acts on or a reader cannot see: control characters (an escape sequence can
+ * rewrite what `show` appears to print), zero-width and direction-changing characters. Whitespace is
+ * already folded away by `squash`, so none of these is legitimate in an entry.
+ */
+const UNSAFE_CHARACTER = /[\p{Cc}\u200B-\u200F\u202A-\u202E\u2060-\u2069]/u;
+
+/**
+ * Why `c` cannot be shown and committed as the same bytes, or undefined when it can: a character the
+ * terminal would interpret, an id that is not the digest of the fields, or text that does not read
+ * back as exactly this one entry (the text `propose` writes is what `memory check` must accept).
+ */
+export function candidateProblem(c: Candidate): string | undefined {
+  const texts: [string, string | undefined][] = [
+    ["title", c.title],
+    ["kind", c.kind],
+    ["scope", c.scope],
+    ["rule", c.rule],
+    ["why", c.why],
+    ["holds while", c.holdsWhile],
+    ["added", c.added],
+    ...c.evidence.flatMap((e, i): [string, string | undefined][] => [[`evidence ${i + 1} date`, e.date], [`evidence ${i + 1} branch`, e.branch]]),
+  ];
+  for (const [name, value] of texts) {
+    const bad = value === undefined ? undefined : UNSAFE_CHARACTER.exec(value);
+    if (bad) {
+      const code = (bad[0].codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
+      return `The ${name} holds the control or invisible character U+${code}, which a terminal would not show as written; remove it.`;
+    }
+  }
+  const digest = entryId({ kind: c.kind, scope: c.scope, rule: c.rule, why: c.why, ...(c.holdsWhile ? { holdsWhile: c.holdsWhile } : {}) });
+  if (digest !== c.id) return `The id ${c.id} is not the digest ${digest} of the entry's fields, so the text shown would not be the text recorded.`;
+  const parsed = parseMemoryFile("index.md", renderEntry(c));
+  if (parsed.problems.length > 0 || parsed.entries.length !== 1 || parsed.entries[0].id !== c.id) {
+    return `The entry does not read back as one valid memory entry (${parsed.problems[0]?.message ?? "unreadable"}).`;
+  }
+  return undefined;
+}
+
 /** A new candidate from entry fields and its first evidence. Throws a `UsageError` for a field the format cannot carry. */
 export function newCandidate(fields: EntryFields, first: Evidence, date: string): Candidate {
   const need = (name: string, value: string | undefined) => {
@@ -125,11 +164,8 @@ export function newCandidate(fields: EntryFields, first: Evidence, date: string)
     added: date,
     evidence: [first],
   };
-  // The text must read back as exactly this entry, or `check` would reject what `propose` writes.
-  const parsed = parseMemoryFile("index.md", renderEntry(candidate));
-  if (parsed.problems.length > 0 || parsed.entries.length !== 1 || parsed.entries[0].id !== id) {
-    throw new UsageError(`The entry does not read back as one valid memory entry (${parsed.problems[0]?.message ?? "unreadable"}).`);
-  }
+  const problem = candidateProblem(candidate);
+  if (problem) throw new UsageError(problem);
   return candidate;
 }
 
@@ -227,8 +263,13 @@ export function readCandidate(home: string, key: string, id: string): Candidate 
   if (!existsSync(path)) return undefined;
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8"));
-    if (validCandidate(parsed) && parsed.id === id) return parsed;
-  } catch {
+    if (validCandidate(parsed) && parsed.id === id) {
+      const problem = candidateProblem(parsed);
+      if (problem) throw new UsageError(`${path}: ${problem}`);
+      return parsed;
+    }
+  } catch (error) {
+    if (error instanceof UsageError) throw error;
     // fall through
   }
   throw new UsageError(`${path} is not a memory candidate; remove it to start that candidate again.`);
