@@ -1817,14 +1817,14 @@ describe("path rules come from the base commit", () => {
     "",
   ].join("\n");
 
-  const run = async (base: BaseFiles, env: Record<string, string | undefined> = {}) => {
+  const run = async (base: BaseFiles, env: Record<string, string | undefined> = {}, record = false) => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const provider = new FakeProvider([
       () => ({ structuredOutput: out({ files_reviewed: files.map((f) => f.filename), summary: "ok" }) }),
     ]);
-    // Not about the pinned prompts: the golden files stay as they are.
-    provider.record = false;
+    // Only the main acceptance test pins its prompt; the others leave the golden files as they are.
+    provider.record = record;
     const warnings: string[] = [];
     const deps: Deps = {
       gh: fakeGh(posted, base, files),
@@ -1843,7 +1843,7 @@ describe("path rules come from the base commit", () => {
   };
 
   test("a rule at the base commit puts the file first, in the prompt and the risk map", async () => {
-    const r = await run({ ".wachiman.yml": RULES });
+    const r = await run({ ".wachiman.yml": RULES }, {}, true);
     // The heuristic alone ranks the script first and the document last.
     expect(r.order).toEqual([BILLING, SCRIPT, OTHER]);
     expect(r.prompt).toContain(`${BILLING} +2 −0 — path rule high (docs/billing.md): prices customers see`);
