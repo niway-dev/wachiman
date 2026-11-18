@@ -299,6 +299,10 @@
               },
               "why": {
                 "type": "string"
+              },
+              "rule": {
+                "description": "True when a path rule in `.wachiman.yml` matched the file, and `why` quotes that rule. Optional; absent for a file only the built-in path heuristic flagged.",
+                "const": true
               }
             }
           }
