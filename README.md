@@ -68,6 +68,9 @@ wachiman local --format markdown --output review.md
 **Loop until clean.** `wachiman loop --base main` runs one review round per call and exits `0`
 when nothing keeps it open, `10` while findings do and `11` when it stopped without converging; a
 coding agent fixes between calls and the CLI never edits code ([docs/cli.md](docs/cli.md#loop)).
+`--format markdown` or `--summary` prints a "Review summary — local" comment generated from the
+loop's own record (versions, models, rounds, cost, findings); `--publish` posts it on the branch's
+pull request and edits it in place on later rounds.
 
 **Ask about a change.** `wachiman ask "<question>"` answers one question about the same local
 change, grounded in its stored review when there is one; with no question it walks you through the

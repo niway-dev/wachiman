@@ -3,7 +3,7 @@
  *
  * `init` writes it with plain string handling (`src/init/settings.ts`); everything that reads it
  * goes through `parseRepoSettings`, so what counts as valid is decided in one place. The keys are
- * `kind` (metadata), `model` and `effort`. Unknown keys are ignored.
+ * `kind` (metadata), `model`, `effort` and `publishLoopSummary` (ADR 0054). Unknown keys are ignored.
  *
  * Where the file is read from is a spend decision, not a convenience: in Actions it comes from the
  * pull request's base commit and locally from the merge-base, never from the head, so a change
@@ -28,6 +28,14 @@ export interface RepoSettings {
   kind?: string;
   model?: string;
   effort?: Effort;
+  /** `true`: `wachiman loop` posts or updates its summary on the branch's open pull request after every call. */
+  publishLoopSummary?: boolean;
+  /**
+   * Set instead of `publishLoopSummary` when it is not true or false. It is the one setting that is
+   * not a review input, so a bad value never costs the valid `model` and `effort` beside it:
+   * `wachiman loop` does not publish and says why, and `wachiman doctor` warns.
+   */
+  publishLoopSummaryError?: string;
 }
 
 /**
@@ -45,7 +53,7 @@ export function parseRepoSettings(content: string): RepoSettings {
   }
   if (doc === null || doc === undefined) return {};
   if (typeof doc !== "object" || Array.isArray(doc)) {
-    throw new UsageError(`${SETTINGS_PATH} must be a mapping of settings (kind, model, effort), like \`effort: high\`.`);
+    throw new UsageError(`${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, publishLoopSummary), like \`effort: high\`.`);
   }
   const map = doc as Record<string, unknown>;
   const settings: RepoSettings = {};
@@ -63,6 +71,11 @@ export function parseRepoSettings(content: string): RepoSettings {
       throw new UsageError(`${SETTINGS_PATH}: effort must be one of ${EFFORTS.join(", ")}, got "${String(effort)}".`);
     }
     settings.effort = effort as Effort;
+  }
+  const publish = map.publishLoopSummary;
+  if (publish !== undefined && publish !== null) {
+    if (typeof publish !== "boolean") settings.publishLoopSummaryError = `${SETTINGS_PATH}: publishLoopSummary must be true or false, got ${JSON.stringify(publish)}.`;
+    else settings.publishLoopSummary = publish;
   }
   return settings;
 }

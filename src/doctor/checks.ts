@@ -418,6 +418,16 @@ export const CHECKS: DoctorCheck[] = [
         ? `${SETTINGS_PATH} has changes that are not committed, and runs read the committed file: once committed (and merged, for Actions) a run would use model ${from(effective.model)}, effort ${from(effective.effort)}`
         : `a run here would use model ${from(effective.model)}, effort ${from(effective.effort)}`;
       const evidence = `${read}; ${runs}. GitHub Actions reads the file from the base commit of the pull request, not from the head`;
+      if (settings?.publishLoopSummaryError !== undefined) {
+        return {
+          id: "settings",
+          level: "optional",
+          status: "warn",
+          evidence: `${settings.publishLoopSummaryError} \`wachiman loop\` does not publish until it is fixed; the model and effort are unaffected. ${evidence}`,
+          fix: `set publishLoopSummary to true or false in ${SETTINGS_PATH}, or remove the key`,
+          detail: { ...detail, publishLoopSummaryValid: false },
+        };
+      }
       if (hasOld) {
         return {
           id: "settings",

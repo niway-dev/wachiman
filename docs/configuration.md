@@ -32,7 +32,7 @@ here makes a review approve, request changes or block a merge.
 | --- | --- | --- |
 | Caller workflow: `with:` and `secrets:` | The repository that installs Wachiman | Everything the [reusable workflow](#reusable-workflow) accepts. The workflow turns the inputs into `WACHIMAN_*` environment variables for the engine. |
 | Environment variables | Whoever runs the CLI directly, or a copied install | The [engine settings](#engine-settings) and [other variables](#other-environment-variables). Three of them (`DRY_RUN`, `EXCLUDE`, `PRICE_PER_MTOK`) have no reusable-workflow input. |
-| `.wachiman.yml` at the repository root | The repository | Only `model` and `effort` (plus the metadata `kind`), read from the base commit, and only where no input or variable set them. See [The settings file](#the-settings-file-wachimanyml). |
+| `.wachiman.yml` at the repository root | The repository | `model` and `effort` (plus the metadata `kind`), read from the base commit, and only where no input or variable set them; and `publishLoopSummary`, which only `wachiman loop` reads. See [The settings file](#the-settings-file-wachimanyml). |
 | Instruction files in the repository | The repository | What the reviewer is told to look for. They are not settings. See [Repository files](#repository-files). |
 
 Rules that hold everywhere:
@@ -601,13 +601,15 @@ topics ([cli.md](cli.md#finding-labels)), change a budget, or turn off a check. 
 ### The settings file `.wachiman.yml`
 
 `wachiman init` writes `.wachiman.yml` at the repository root ([ADR 0048](adr/0048-a-repository-settings-file-at-the-root-wachiman-yml.md)).
-It takes three optional keys; unknown keys are ignored:
+It takes four optional keys; unknown keys are ignored:
 
 ```yaml
 kind: monorepo          # or single; metadata only, nothing reads it yet
 # Optional. Wachiman's defaults are what its benchmarks measure; change them knowing that.
 # model: claude-sonnet-5-5
 # effort: high
+# Optional. `wachiman loop` posts its review summary on the branch's pull request after every call.
+# publishLoopSummary: true
 ```
 
 - `kind` is metadata. It never chooses an account, a profile or a binary.
@@ -622,6 +624,14 @@ kind: monorepo          # or single; metadata only, nothing reads it yet
 - `model` applies to whichever provider runs. A Claude model name with `WACHIMAN_PROVIDER=codex`
   fails the same way a wrong `WACHIMAN_MODEL` would; set a model that fits the provider your
   workflow uses.
+- `publishLoopSummary` is `true` or `false` (default: not set, which is `false`). Only `wachiman
+  loop` reads it ([ADR 0054](adr/0054-the-loop-records-each-round-and-renders-a-review-summary-comment-from-code.md)):
+  `true` makes every call post or update the summary comment on the open pull request of the branch,
+  as the account `gh` is signed in with, like `--publish`; `--no-publish` overrides it for one call.
+  Because the comment goes out under each developer's own account, turn it on for a repository only
+  when everyone who runs the loop there should publish. It is read at the merge-base of the loop's
+  `--base`, so a branch cannot turn publishing on for itself. A value that is not `true` or `false`
+  is ignored with a warning, and nothing is published.
 - `init` does not ask for `model` or `effort`; a new file carries them commented out.
 
 **Precedence, highest first:** an explicit workflow input or `WACHIMAN_MODEL` / `WACHIMAN_EFFORT`
