@@ -219,8 +219,6 @@ const PR_BODY = [
   "Nothing here is active until a person merges this pull request: reviews read `.wachiman/memory/` from the base commit. Edit, drop or refine entries on this branch before merging.",
 ].join("\n");
 
-const rejected = (stderr: string) => /rejected|non-fast-forward|fetch first|failed to update ref|cannot lock ref/i.test(stderr);
-
 export function proposeCandidate(candidate: Candidate, repoDir: string, io: ProposeIo, deps: ProposeDeps = {}): ProposeResult {
   const pulls = deps.pulls ?? realPulls;
   const top = git(repoDir, ["rev-parse", "--show-toplevel"]);
@@ -254,9 +252,15 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
 
     let sha: string | undefined;
     let outcome: Applied["outcome"] = "inserted";
+    let builtOnMemoryBranch = true;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       worktree = mkdtempSync(join(tmpdir(), "wachiman-memory-"));
-      must(quiet(root, ["worktree", "add", "--detach", worktree, baseOf(root, remote)]), "git worktree add");
+      // Only the memory folder and the settings file are checked out; the index still lists every file, which is all `memory check` needs of the rest.
+      const base = baseOf(root, remote);
+      builtOnMemoryBranch = base === remote.memoryHead;
+      must(quiet(root, ["worktree", "add", "--detach", "--no-checkout", worktree, base]), "git worktree add");
+      must(quiet(worktree, ["sparse-checkout", "set", "--no-cone", `/${MEMORY_DIR.split("/")[0]}/`, `/${SETTINGS_PATH}`]), "git sparse-checkout");
+      must(quiet(worktree, ["checkout", "-q", "HEAD"]), "git checkout");
       const current = readMemoryFiles(worktree);
       const applied = applyCandidate(current, candidate);
       outcome = applied.outcome;
@@ -281,15 +285,24 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
         sha = must(git(worktree, ["rev-parse", "HEAD"]), "git rev-parse");
         break;
       }
-      if (!rejected(push.stderr) || attempt === MAX_ATTEMPTS) {
-        throw new Refused(`the push to ${MEMORY_BRANCH} failed${rejected(push.stderr) ? ` ${MAX_ATTEMPTS} times because colleagues kept pushing first` : ""}: ${push.stderr.trim()}`);
-      }
+      // A lost race is told by what the remote looks like now, not by the wording of git's message:
+      // a refusal by a hook or branch protection leaves the branch where it was and must not be retried.
+      const latest = fetchRemote(root);
+      const raced = latest.memoryHead !== remote.memoryHead || latest.defaultHead !== remote.defaultHead;
+      if (!raced) throw new Refused(`the push to ${MEMORY_BRANCH} was refused: ${push.stderr.trim()}`);
+      if (attempt === MAX_ATTEMPTS) throw new Refused(`the push to ${MEMORY_BRANCH} failed ${MAX_ATTEMPTS} times because colleagues kept pushing first: ${push.stderr.trim()}`);
       // A colleague pushed first: start again from the new head with the same entry.
       removeWorktree(root, worktree);
       worktree = undefined;
-      remote = fetchRemote(root);
+      remote = latest;
     }
     if (!sha) throw new Refused("the push did not complete.");
+
+    if (outcome === "unchanged" && !builtOnMemoryBranch) {
+      // The entry is already part of the default branch and the memory branch is gone or merged: there is nothing to propose and no pull request to open.
+      io.stdout(`already recorded: ${candidate.id} is on ${remote.defaultBranch} with the same evidence; nothing was written and no pull request is needed.\n`);
+      return { recorded: true };
+    }
 
     const what = outcome === "inserted" ? `entry ${candidate.id}` : `evidence for entry ${candidate.id}, which was already there,`;
     const recordedLine = (tail: string) =>
