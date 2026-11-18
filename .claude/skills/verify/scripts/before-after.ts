@@ -155,7 +155,8 @@ function resolveSource(src: Source): { markdown: string | null; caption: string;
   if (src.fill && out.markdown !== null) {
     for (const [placeholder, value] of Object.entries(src.fill as Record<string, string>)) {
       if (!out.markdown.includes(placeholder)) fail(`placeholder "${placeholder}" not found`);
-      out.markdown = out.markdown.replaceAll(placeholder, value);
+      // split/join: a "$&" or "$1" in the posted text must stay literal.
+      out.markdown = out.markdown.split(placeholder).join(value);
     }
     out.caption += ", placeholders filled";
   }
@@ -396,8 +397,8 @@ async function main() {
   for (const sc of manifest.scenarios) {
     const pair = {} as { before: Side; after: Side };
     for (const which of ["before", "after"] as const) {
-      const { markdown, caption } = resolveSource(sc[which]);
-      pair[which] = { markdown, caption, html: markdown === null ? "" : render(markdown, manifest.repo) };
+      const { markdown, caption, author } = resolveSource(sc[which]);
+      pair[which] = { markdown, caption, author, html: markdown === null ? "" : render(markdown, manifest.repo) };
     }
     sides.set(sc.id, pair);
   }
