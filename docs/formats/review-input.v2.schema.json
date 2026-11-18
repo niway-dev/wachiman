@@ -80,9 +80,9 @@
       "additionalProperties": false,
       "required": ["match", "severity", "reason"],
       "properties": {
-        "match": { "description": "A glob matched against the repository-relative path.", "type": "string" },
+        "match": { "description": "A glob matched against the repository-relative path.", "type": "string", "minLength": 1 },
         "severity": { "enum": ["critical", "high", "medium"] },
-        "reason": { "description": "The maintainer's reason, quoted in the prompt and the review.", "type": "string" }
+        "reason": { "description": "The maintainer's reason, quoted in the prompt and the review.", "type": "string", "minLength": 1 }
       }
     },
     "ReviewChange": {

@@ -1808,7 +1808,7 @@ describe("path rules come from the base commit", () => {
   const SCRIPT = "scripts/x.sh";
   const OTHER = "src/other/a.ts";
   const patch = "@@ -0,0 +1,2 @@\n+a\n+b";
-  const files = [SCRIPT, OTHER, BILLING].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
+  const defaultFiles: { filename: string; additions: number; deletions: number; patch: string; previous_filename?: string }[] = [SCRIPT, OTHER, BILLING].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
   const RULES = [
     "paths:",
     '  - match: "docs/billing.md"',
@@ -1817,7 +1817,7 @@ describe("path rules come from the base commit", () => {
     "",
   ].join("\n");
 
-  const run = async (base: BaseFiles, env: Record<string, string | undefined> = {}, record = false) => {
+  const run = async (base: BaseFiles, env: Record<string, string | undefined> = {}, record = false, files = defaultFiles) => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const provider = new FakeProvider([
@@ -1852,6 +1852,16 @@ describe("path rules come from the base commit", () => {
     expect(body).toContain(`path rule high ("docs/billing.md"): prices customers see — a person should approve this change`);
     expect(body).toMatch(/\*\*High\.\*\*/);
     expect(body).not.toContain("blocks");
+  });
+
+  test("a file renamed out of a rule keeps the rule: ordered first and quoted", async () => {
+    const MOVED = "docs/moved.md";
+    const renamed = [SCRIPT, OTHER, MOVED].map((filename) => ({ filename, additions: 2, deletions: 0, patch, ...(filename === MOVED ? { previous_filename: BILLING } : {}) }));
+    const r = await run({ ".wachiman.yml": RULES }, {}, false, renamed);
+    expect(r.order).toEqual([MOVED, SCRIPT, OTHER]);
+    expect(r.prompt).toContain(`${MOVED} +2 −0 — path rule high (docs/billing.md): prices customers see`);
+    expect(r.posted.review!.body).toContain(`path rule high ("docs/billing.md"): prices customers see — a person should approve this change`);
+    expect(r.posted.review!.body).toMatch(/\*\*High\.\*\*/);
   });
 
   test("without paths the order is the heuristic's and no rule line is written", async () => {

@@ -22,8 +22,8 @@ The first row that matches wins.
 | A | None of the above |
 
 A **high-risk path** is a file that a `critical` or `high` [path rule](configuration.md#path-rules-paths)
-matches when the repository's `.wachiman.yml` has `paths:`; without `paths:` it is a file the built-in
-path heuristic scores high. A `medium` rule is a medium-risk path. A rule decides its file's level, so
+matches or, when no rule matches it, a file the built-in path heuristic scores high. A `medium` rule
+makes a medium-risk path. A rule decides its file's level, so
 it can also lower a file the heuristic would score high. A pull request that edits the path rules is
 reviewed under the rules at its base commit, says "Review policy changed", and counts
 `.wachiman.yml` as a high-risk path, so its grade is at most B.

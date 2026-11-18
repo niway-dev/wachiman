@@ -67,6 +67,8 @@ describe("review formats", () => {
     expect(() => checkKeywords(resultSchema)).not.toThrow();
     expect(() => checkKeywords(resultSchemaV2)).not.toThrow();
     expect(() => checkKeywords({ type: "object", properties: { a: { pattern: "x" } } })).toThrow('"pattern"');
+    expect(validate({ type: "string", minLength: 1 }, "")).toHaveLength(1);
+    expect(validate({ type: "string", minLength: 1 }, "x")).toEqual([]);
   });
 });
 

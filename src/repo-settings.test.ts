@@ -140,6 +140,20 @@ describe("paths", () => {
       expect(matchPathRule("src/a.ts", [])).toBeUndefined();
     });
 
+    test("a renamed file is matched on both paths; the more severe rule wins, the new name's on a tie", () => {
+      const r: PathRule[] = [
+        { match: "src/billing/**", severity: "high", reason: "old home" },
+        { match: "src/util/**", severity: "medium", reason: "new home" },
+        { match: "lib/**", severity: "high", reason: "new tie" },
+        { match: "pkg/**", severity: "high", reason: "old tie" },
+      ];
+      expect(matchPathRule("src/util/charge.ts", r, "src/billing/charge.ts")?.reason).toBe("old home");
+      expect(matchPathRule("src/billing/charge.ts", r, "src/util/charge.ts")?.reason).toBe("old home");
+      expect(matchPathRule("lib/a.ts", r, "pkg/a.ts")?.reason).toBe("new tie");
+      expect(matchPathRule("src/other/a.ts", r, "src/billing/a.ts")?.reason).toBe("old home");
+      expect(matchPathRule("src/other/a.ts", r, "src/other/b.ts")).toBeUndefined();
+    });
+
     test("dotted directories match a literal dotted glob", () => {
       expect(matchPathRule(".github/workflows/ci.yml", [{ match: ".github/workflows/**", severity: "critical", reason: "r" }])?.severity).toBe("critical");
     });

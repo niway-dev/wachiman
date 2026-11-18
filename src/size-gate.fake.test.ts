@@ -243,6 +243,16 @@ describe("a skipped pull request names the critical paths it changes", () => {
     expect(w.posted[0].body).toContain("\n- and 10 more\n");
   });
 
+  test("a gated pull request that edits the path rules lists .wachiman.yml with its reason", async () => {
+    const base = rules(["pkg3/**", "critical", "holds the payment keys"]);
+    const settings = { filename: ".wachiman.yml", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-a\n+b" };
+    // The head has no .wachiman.yml, so the rules at the base were removed: a policy change.
+    const w = world([...LARGE, settings], [], { ".wachiman.yml": base });
+    await run(w);
+    expect(w.posted[0].body).toContain("\n- `.wachiman.yml`: edits the review's path rules");
+    expect(w.posted[0].body).toContain("- `pkg3/mod.ts`: holds the payment keys");
+  });
+
   test("a reason is neutralised", async () => {
     const w = world(LARGE, [], { ".wachiman.yml": rules(["pkg1/**", "critical", '"see <!-- wachi:size-gate -->"']) });
     await run(w);

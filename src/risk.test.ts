@@ -269,3 +269,31 @@ describe("rendering", () => {
     );
   });
 });
+
+describe("path rule bullets in the rendered risk map", () => {
+  const rule = [{ match: "src/**", severity: "high" as const, reason: "all of it" }];
+  const render = (n: number) => {
+    const files = Array.from({ length: n }, (_, i) => file(`src/f${String(i).padStart(2, "0")}.ts`));
+    const map = build({ files, pathRules: rule });
+    return { map, text: renderRiskMap(map, "### Risk map") };
+  };
+
+  test("more than 20 matched files print 20 bullets and a count; the grade keeps every reason", () => {
+    const { map, text } = render(30);
+    expect(map.pathReasons).toHaveLength(30);
+    expect(text.split("\n").filter((l) => l.startsWith("- `src/"))).toHaveLength(20);
+    expect(text).toContain("- and 10 more files matched by path rules");
+  });
+
+  test("20 matched files print every bullet and no count", () => {
+    const { text } = render(20);
+    expect(text.split("\n").filter((l) => l.startsWith("- `src/"))).toHaveLength(20);
+    expect(text).not.toContain("more files matched");
+  });
+
+  test("a renamed file's old path is matched by the rule", () => {
+    const map = build({ files: [{ ...file("src/util/c.ts"), previousPath: "src/billing/c.ts" }], pathRules: [{ match: "src/billing/**", severity: "critical", reason: "money" }] });
+    expect(map.level).toBe("high");
+    expect(map.pathReasons).toHaveLength(1);
+  });
+});

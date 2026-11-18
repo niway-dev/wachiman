@@ -472,8 +472,8 @@ export const PATH_RULE_SCORE: Record<PathSeverity, number> = {
  * a file a rule matches scores by the rule, tests and documents included: the maintainer named the
  * path. Without rules, or with no match, the built-in heuristic decides, unchanged.
  */
-export function riskScore(path: string, rules?: readonly PathRule[]): number {
-  const rule = matchPathRule(path, rules);
+export function riskScore(path: string, rules?: readonly PathRule[], previous?: string): number {
+  const rule = matchPathRule(path, rules, previous);
   if (rule) return PATH_RULE_SCORE[rule.severity];
   const kind = fileKind(path);
   if (kind !== "code") return KIND_WEIGHT[kind];
@@ -511,10 +511,11 @@ export function planBatches(
   limits: { maxLines: number; maxChars: number },
   rules?: readonly PathRule[],
 ): Batch[] {
-  const score = (path: string) => riskScore(path, rules);
+  const previousOf = new Map(files.flatMap((f) => (f.previous_filename ? [[f.filename, f.previous_filename] as const] : [])));
+  const score = (path: string) => riskScore(path, rules, previousOf.get(path));
   /** The rule's score for a matched file, 0 for any other. */
   const ruled = (path: string) => {
-    const rule = matchPathRule(path, rules);
+    const rule = matchPathRule(path, rules, previousOf.get(path));
     return rule ? PATH_RULE_SCORE[rule.severity] : 0;
   };
   const modules = new Map<string, ReviewFile[]>();
@@ -2840,9 +2841,9 @@ export interface CriticalPath {
 const MAX_CRITICAL_LISTED = 20;
 
 /** The changed files a `critical` rule of `rules` matches, in the order given. Never lifts the gate: it only names. */
-export function criticalPathsOf(files: readonly { filename: string }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
+export function criticalPathsOf(files: readonly { filename: string; previous_filename?: string }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
   return files.flatMap((f) => {
-    const rule = matchPathRule(f.filename, rules);
+    const rule = matchPathRule(f.filename, rules, f.previous_filename);
     return rule?.severity === "critical" ? [{ path: f.filename, reason: rule.reason }] : [];
   });
 }
@@ -3486,7 +3487,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const lineCount = deps.lineCounter ?? repoLineCounter(input.headDir);
   const riskMap = buildRiskMap({
     ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
-    files: kept.map((f) => ({ path: f.filename, changedLines: f.additions + f.deletions })),
+    files: kept.map((f) => ({ path: f.filename, changedLines: f.additions + f.deletions, ...(f.previous_filename ? { previousPath: f.previous_filename } : {}) })),
     facts: parts.flatMap((p) => wellFormed<RiskFact>(p.output.risk_facts, RISK_KINDS)),
     judgement: parts.flatMap((p) => wellFormed<JudgementItem>(p.output.judgement, JUDGEMENT_KINDS)),
     unreadFiles: expected.filter((f) => !reviewedSet.has(f)).length,
@@ -4068,7 +4069,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const gate = sizeGate(config, isAutomatic(config.trigger));
   if (estimate.usd > gate) {
     deps.log(`Estimated $${estimate.usd.toFixed(2)} is above the $${gate.toFixed(2)} size gate; nothing sent to a model.`);
-    postSizeGateNotice(deps, repo, pr, headSha, estimate, gate, criticalPathsOf(allBinary.reviewable, baseRules));
+    postSizeGateNotice(deps, repo, pr, headSha, estimate, gate, criticalPathsOf(allBinary.reviewable, pathRules));
     return;
   }
   // After the rebase exits above (they cost nothing and move the marker) and before any paid step.
@@ -4518,7 +4519,7 @@ export function buildBatchPrompt(
   const carried = new Set(ctx.carried ?? []);
   const list = files
     .map((f) => {
-      const rule = matchPathRule(f.filename, ctx.pathRules);
+      const rule = matchPathRule(f.filename, ctx.pathRules, f.previous_filename);
       const ruleNote = rule ? ` — ${neutralise(`path rule ${rule.severity} (${rule.match}): ${rule.reason}`)}` : "";
       return `- ${f.filename} +${f.additions} −${f.deletions}${carried.has(f.filename) ? " (not reached by the previous review: whole diff)" : ""}${ruleNote}`;
     })

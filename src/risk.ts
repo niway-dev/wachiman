@@ -111,8 +111,11 @@ export interface RiskMap {
   droppedFacts: number;
 }
 
+/** How many path-matched files the rendered risk map lists before "and N more". */
+const MAX_PATH_BULLETS = 20;
+
 export function buildRiskMap(input: {
-  files: { path: string; changedLines: number }[];
+  files: { path: string; changedLines: number; previousPath?: string }[];
   facts: RiskFact[];
   judgement: JudgementItem[];
   unreadFiles: number;
@@ -151,7 +154,7 @@ export function buildRiskMap(input: {
 
   let level: RiskLevel = "low";
   for (const f of input.files) {
-    const rule = matchPathRule(f.path, input.pathRules);
+    const rule = matchPathRule(f.path, input.pathRules, f.previousPath);
     const fromPath = rule ? RULE_LEVEL[rule.severity] : pathLevel(riskScore(f.path));
     if (LEVEL_RANK[fromPath] > LEVEL_RANK[level]) level = fromPath;
   }
@@ -161,7 +164,7 @@ export function buildRiskMap(input: {
 
   const pathReasons: { path: string; why: string }[] = [];
   for (const f of input.files) {
-    const pathRule = matchPathRule(f.path, input.pathRules);
+    const pathRule = matchPathRule(f.path, input.pathRules, f.previousPath);
     if (pathRule) {
       pathReasons.push({ path: f.path, why: pathRuleWhy(pathRule) });
       continue;
@@ -180,7 +183,7 @@ export function buildRiskMap(input: {
     .sort(
       (a, b) =>
         (factRank.get(b.path) ?? -1) - (factRank.get(a.path) ?? -1) ||
-        riskScore(b.path, input.pathRules) - riskScore(a.path, input.pathRules) ||
+        riskScore(b.path, input.pathRules, b.previousPath) - riskScore(a.path, input.pathRules, a.previousPath) ||
         b.changedLines - a.changedLines ||
         (a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
     )
@@ -261,11 +264,11 @@ export function renderRiskMap(
   }
 
   const covered = new Set(map.facts.map((f) => f.path));
+  const uncovered = map.pathReasons.filter((r) => !covered.has(r.path));
   const bullets = [
     ...map.facts.map((f) => `- ${code(f.kind)} · ${code(`${f.path}:${f.line}`)} — ${neutralise(f.why)}`),
-    ...map.pathReasons
-      .filter((r) => !covered.has(r.path))
-      .map((r) => `- ${code(r.path)} — ${neutralise(r.why)}`),
+    ...uncovered.slice(0, MAX_PATH_BULLETS).map((r) => `- ${code(r.path)} — ${neutralise(r.why)}`),
+    ...(uncovered.length > MAX_PATH_BULLETS ? [`- and ${uncovered.length - MAX_PATH_BULLETS} more files matched by path rules`] : []),
   ];
 
   const level = map.floor
