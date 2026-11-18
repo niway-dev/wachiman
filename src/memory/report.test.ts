@@ -129,6 +129,17 @@ describe("buildReport", () => {
     expect(report.neverUsed.map((e) => e.id).sort()).toEqual([IDLE.id, IDLE_CONVENTION.id, USED_CONVENTION.id].sort());
   });
 
+  test("no record of use at all: never-used is unknown, not every entry", () => {
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: {} });
+    expect(report.neverUsed).toBeNull();
+    expect(report.neverUsedReason).toBe("no-use-recorded");
+    const text = renderReport(report);
+    expect(text).toContain("Entries never used: unknown, no use was recorded");
+    expect(text).not.toContain(IDLE.id);
+    const withUse = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED });
+    expect(withUse.neverUsedReason).toBeNull();
+  });
+
   test("memory lines is the period's last run's value, null when that run recorded none", () => {
     const all = runs();
     delete (all[1].result as unknown as { memory?: unknown }).memory;
@@ -210,7 +221,7 @@ describe("wachiman memory report", () => {
     expect(text.code).toBe(0);
     expect(text.stdout).toMatch(/total\s+4\s+1\s+1\s+0\s+1\s+1\s+3/);
     const json = JSON.parse(run(["--format", "json"]).stdout);
-    expect(Object.keys(json).sort()).toEqual(["empty", "format", "memory", "neverUsed", "periods", "since", "total"].sort());
+    expect(Object.keys(json).sort()).toEqual(["empty", "format", "memory", "neverUsed", "neverUsedReason", "periods", "since", "total"].sort());
     expect(json.total.outcomes).toEqual({ fixed: 1, wrong: 1, intentional: 0, notImportant: 1, unjudged: 1 });
     expect(json.memory.entries).toBe(4);
     expect(json.neverUsed.map((e: { id: string }) => e.id).sort()).toEqual([IDLE.id, IDLE_CONVENTION.id].sort());

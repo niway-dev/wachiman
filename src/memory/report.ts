@@ -54,8 +54,10 @@ export interface MemoryReport {
   total: ReportPeriod;
   /** The working tree's `.wachiman/memory/`, now. */
   memory: { present: boolean; files: number; entries: number; lines: number };
-  /** Entries of that folder no run used: see `buildReport`. */
-  neverUsed: NeverUsedEntry[];
+  /** Entries of that folder no run used: see `buildReport`. Null when no use was recorded at all, so none can be called unused. */
+  neverUsed: NeverUsedEntry[] | null;
+  /** `no-use-recorded` when `neverUsed` is null (history off, or never run), else null. */
+  neverUsedReason: "no-use-recorded" | null;
 }
 
 export interface ReportInput {
@@ -125,6 +127,8 @@ export function buildReport(input: ReportInput): MemoryReport {
   const entries = [...names]
     .sort()
     .flatMap((name) => parseMemoryFile(name, input.files![name]).entries);
+  // An empty record means use was never recorded (history off, or no review since): that is not "no entry was used".
+  const unknown = Object.keys(input.used).length === 0;
   const neverUsed: NeverUsedEntry[] = entries
     .filter((e) => input.used[e.id] === undefined || (input.since !== undefined && input.used[e.id] < input.since))
     .map((e) => ({ id: e.id, title: e.title, kind: e.kind, scope: e.scope, file: e.file }));
@@ -136,7 +140,8 @@ export function buildReport(input: ReportInput): MemoryReport {
     periods: [...periods.values()].sort((a, b) => (a.period < b.period ? -1 : 1)),
     total,
     memory: { present: input.files !== undefined, files: names.length, entries: entries.length, lines: names.reduce((n, name) => n + lineCount(input.files![name]), 0) },
-    neverUsed: runs.length === 0 ? [] : neverUsed,
+    neverUsed: runs.length === 0 ? [] : unknown ? null : neverUsed,
+    neverUsedReason: runs.length > 0 && unknown ? "no-use-recorded" : null,
   };
 }
 
@@ -158,7 +163,8 @@ export function renderReport(report: MemoryReport): string {
   out.push(muters.length === 0 ? "Muted by memory: nothing." : `Muted by memory, by entry: ${muters.map(([id, n]) => `${id}: ${n}`).join(", ")}`);
   const m = report.memory;
   out.push(m.present ? `Memory now (${MEMORY_DIR}/ in the working tree): ${m.files} files, ${m.entries} entries, ${m.lines} lines.` : `Memory now: no ${MEMORY_DIR}/ folder in the working tree.`);
-  if (report.neverUsed.length === 0) out.push("Entries never used: none.");
+  if (report.neverUsed === null) out.push("Entries never used: unknown, no use was recorded (run `wachiman local --history` to start recording it).");
+  else if (report.neverUsed.length === 0) out.push("Entries never used: none.");
   else {
     out.push(`Entries never used (${report.neverUsed.length}):`);
     for (const e of report.neverUsed) out.push(`  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}  (${e.file})`);

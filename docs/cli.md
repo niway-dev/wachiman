@@ -913,7 +913,9 @@ or after that day. With no history in the window it prints `No review history ..
 - **Entries never used.** Read from the laptop's record of when each entry was last used (the
   `memory-use.json` file in the history folder that `memory check` also reads, so the two never
   disagree): an entry is used when that record has a last-use date for it, on or after `--since` when
-  given. An entry that is used often and wrong is not caught by this; the `holds while` notice is
+  given. When that record is empty (history off, or no review since it was turned on) nothing is
+  known about use: the text says so and the JSON has `"neverUsed": null` with
+  `"neverUsedReason": "no-use-recorded"`, instead of listing every entry. An entry that is used often and wrong is not caught by this; the `holds while` notice is
   for that.
 
 `--format json` prints `wachiman.memory-report/1`:
@@ -934,11 +936,12 @@ or after that day. With no history in the window it prints `No review history ..
   ],
   "total": { "period": "total", "comments": 4, "outcomes": { "...": 0 }, "muted": { "count": 3, "byEntry": {} }, "memoryLoadedLines": 40 },
   "memory": { "present": true, "files": 3, "entries": 4, "lines": 62 },
-  "neverUsed": [{ "id": "4c1e9a2", "title": "...", "kind": "exception", "scope": "docs/**", "file": "index.md" }]
+  "neverUsed": [{ "id": "4c1e9a2", "title": "...", "kind": "exception", "scope": "docs/**", "file": "index.md" }],
+  "neverUsedReason": null
 }
 ```
 
-The figures are illustrative. `since` is a string or `null`; `memoryLoadedLines` is a number or `null`;
+The figures are illustrative. `since` is a string or `null`; `memoryLoadedLines` is a number or `null`; `neverUsed` is a list or `null`, and `neverUsedReason` is `"no-use-recorded"` exactly when it is `null`;
 `periods` is oldest first. Keys are only added in a new format version.
 
 **Where outcomes are recorded.** On the laptop, `wachiman local --history` keeps every run, and
