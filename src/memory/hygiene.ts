@@ -200,7 +200,17 @@ export function archiveEntry(current: Record<string, string>, id: string): Archi
       }
     }
     const block = rows.slice(start, end).join("\n").replace(/\n+$/, "\n");
-    const rest = [...rows.slice(0, start), ...rows.slice(end)].join("\n").replace(/\n{3,}/g, "\n\n");
+    // Only the entry's own block goes, with the one blank line that separated it; the rest of the file keeps every byte.
+    let contentEnd = end;
+    while (contentEnd > start + 1 && rows[contentEnd - 1].trim() === "") contentEnd--;
+    let rest: string;
+    if (end === rows.length) {
+      const from = start > 0 && rows[start - 1] === "" ? start - 1 : start;
+      rest = [...rows.slice(0, from), ...(text.endsWith("\n") ? [""] : [])].join("\n");
+    } else {
+      const cut = rows[contentEnd] === "" ? contentEnd + 1 : contentEnd;
+      rest = [...rows.slice(0, start), ...rows.slice(cut)].join("\n");
+    }
     const archive = current[ARCHIVE_FILE];
     const next = archive === undefined ? `# Wachiman memory archive\n\nEntries moved here are never loaded by a review.\n\n${block}` : `${archive.replace(/\n*$/, "\n")}\n${block}`;
     return { ok: true, from: name, files: { [name]: rest, [ARCHIVE_FILE]: next } };

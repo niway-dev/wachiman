@@ -145,6 +145,17 @@ describe("archiveEntry", () => {
     expect(parseMemoryFile("archive.md", r.files["archive.md"]).entries.map((x) => x.id)).toEqual([a.id]);
   });
 
+  test("removes only the entry's own block and its one separating blank line; every other byte stays", () => {
+    const a = block("Rule A");
+    const b = block("Rule B");
+    const c = block("Rule C");
+    const index = `# Memory\n\n\n\nIntro  text.\n\n\n${a.text}\n${b.text}\n\n\n${c.text}`;
+    const r = archiveEntry({ "index.md": index }, b.id);
+    expect(r.ok && r.files["index.md"]).toBe(`# Memory\n\n\n\nIntro  text.\n\n\n${a.text}\n\n\n${c.text}`);
+    const last = archiveEntry({ "index.md": index }, c.id);
+    expect(last.ok && last.files["index.md"]).toBe(`# Memory\n\n\n\nIntro  text.\n\n\n${a.text}\n${b.text}\n\n`);
+  });
+
   test("appends to an existing archive.md; an unknown or already archived id is refused", () => {
     const a = block("Rule A");
     const b = block("Rule B");
