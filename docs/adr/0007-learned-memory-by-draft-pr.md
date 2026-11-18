@@ -1,7 +1,9 @@
 # ADR 0007: Learned memory is proposed as one draft pull request
 
 - **Status:** proposed 2026-10-30. Not implemented. It depends on ADR 0006 and on #42 (strict
-  verdicts).
+  verdicts). Its capture mechanism (a batch `learn` over `Verdict:` replies) is superseded by
+  [ADR 0056](0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md),
+  proposed 2026-11-18; the draft pull request and the human merge stand.
 - **Date:** 2026-10-30
 - **Spec:** [2026-10-30-review-memory-and-threads-design.md](../specs/2026-10-30-review-memory-and-threads-design.md)
 
