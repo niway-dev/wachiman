@@ -264,6 +264,61 @@
         }
       }
     },
+    "muted": {
+      "description": "The findings a memory exception muted (ADR 0057): not posted as comments, listed in the summary under \"Muted by memory\" with the id of the entry that muted each. Only a Consider or Info finding without the security topic can be muted. Absent when nothing was muted. Only version 2 has it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "line",
+          "severity",
+          "topic",
+          "title",
+          "entry",
+          "reason"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "severity": {
+            "enum": [
+              "consider",
+              "info"
+            ]
+          },
+          "topic": {
+            "enum": [
+              "bug",
+              "rules",
+              "adr",
+              "docs",
+              "tests",
+              "perf",
+              "cleanup",
+              "question"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "entry": {
+            "type": "string",
+            "description": "The id of the exception that muted the finding."
+          },
+          "reason": {
+            "type": "string",
+            "description": "The matching step's reason, in its words."
+          }
+        }
+      }
+    },
     "riskMap": {
       "description": "The risk map (ADR 0031): the level, the checked facts and judgement items behind it, the files to read first. Only version 2 has it.",
       "type": "object",
