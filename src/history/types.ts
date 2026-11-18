@@ -58,8 +58,15 @@ export interface HistoryRun {
   unknownIds: string[];
 }
 
-export type VerdictWord = "correct" | "partial" | "wrong";
-export const VERDICT_WORDS: readonly VerdictWord[] = ["correct", "partial", "wrong"];
+/**
+ * `intentional` (the code is meant to be that way) and `not-important` (right, but not worth
+ * acting on) were added for the memory report (layer 7). A verdicts file written before them has
+ * only the first three words and reads as before.
+ */
+export type VerdictWord = "correct" | "partial" | "wrong" | "intentional" | "not-important";
+export const VERDICT_WORDS: readonly VerdictWord[] = ["correct", "partial", "wrong", "intentional", "not-important"];
+/** The words the dashboard's closed figures know; the two newer ones are not counted there. */
+export const CORE_VERDICT_WORDS: readonly VerdictWord[] = ["correct", "partial", "wrong"];
 
 export interface VerdictLine {
   at: string;

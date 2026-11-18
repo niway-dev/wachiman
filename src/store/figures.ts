@@ -4,7 +4,7 @@
  */
 import { Database } from "bun:sqlite";
 import { GRADES, type Grade } from "../fidelity/types";
-import { VERDICT_WORDS } from "../history/types";
+import { CORE_VERDICT_WORDS } from "../history/types";
 
 export const SEVERITY_ORDER = ["blocker", "fix", "consider", "info"] as const;
 export const LOOP_STATUSES = ["new", "open", "probably-fixed", "not-repeated", "unknown"] as const;
@@ -80,7 +80,7 @@ export function readFigures(indexPath: string): Figures {
     const byVerdict = { correct: 0, partial: 0, wrong: 0, unjudged: 0 };
     for (const r of all<{ verdict: string | null; n: number }>("SELECT verdict, COUNT(*) AS n FROM findings GROUP BY verdict")) {
       const word = r.verdict ?? "unjudged";
-      if (word === "unjudged" || (VERDICT_WORDS as readonly string[]).includes(word)) byVerdict[word as keyof typeof byVerdict] = r.n;
+      if (word === "unjudged" || (CORE_VERDICT_WORDS as readonly string[]).includes(word)) byVerdict[word as keyof typeof byVerdict] = r.n;
     }
     const findingsTotal = (db.query("SELECT COUNT(*) AS n FROM findings").get() as { n: number }).n;
 

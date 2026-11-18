@@ -133,9 +133,31 @@ export interface ReplayedFinding extends TrackedFinding {
   verdict?: VerdictLine;
 }
 
+/** `intentional` and `notImportant` appear only once a verdict of that word exists, so older output is unchanged. */
+export interface VerdictCounts {
+  correct: number;
+  partial: number;
+  wrong: number;
+  unjudged: number;
+  intentional?: number;
+  notImportant?: number;
+}
+
 export interface Replayed {
   findings: ReplayedFinding[];
-  counts: { correct: number; partial: number; wrong: number; unjudged: number };
+  counts: VerdictCounts;
+}
+
+const COUNT_KEY = { correct: "correct", partial: "partial", wrong: "wrong", intentional: "intentional", "not-important": "notImportant" } as const;
+
+/** Counts the findings' verdicts; the same rule for the whole listing and for a `--since` slice. */
+export function countVerdicts(findings: ReplayedFinding[]): VerdictCounts {
+  const counts: VerdictCounts = { correct: 0, partial: 0, wrong: 0, unjudged: 0 };
+  for (const f of findings) {
+    const key = f.verdict ? COUNT_KEY[f.verdict.verdict] : "unjudged";
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
 }
 
 /** The state after `runs` (in `savedAt` order) and the developer's verdicts. */
@@ -175,7 +197,5 @@ export function replay(runs: HistoryRun[], verdicts: Map<string, VerdictLine>): 
     }
   }
   const findings = [...state.values()].map((t): ReplayedFinding => ({ ...t, verdict: verdicts.get(t.firstId) }));
-  const counts = { correct: 0, partial: 0, wrong: 0, unjudged: 0 };
-  for (const f of findings) counts[f.verdict?.verdict ?? "unjudged"]++;
-  return { findings, counts };
+  return { findings, counts: countVerdicts(findings) };
 }

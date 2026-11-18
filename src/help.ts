@@ -212,7 +212,7 @@ const historyPage: Page = {
     ["--since <n>d", "Only findings seen in the last n days"],
     ["--all-repos", "Every repository in the history, not just this clone's"],
     ["--json", "The replayed state as wachiman.history-state/1"],
-    ["--verdict <id> correct|partial|wrong", "Record your judgement of a finding (the id is in the report and the listing)"],
+    ["--verdict <id> correct|partial|wrong|intentional|not-important", "Record your judgement of a finding (the id is in the report and the listing)"],
     ["--reason <text>", "With --verdict: why"],
     ["--forget [--all]", "Delete this repository's history, or all of it with --all. Takes no --all-repos, --json or --since"],
     REPO_DIR,
