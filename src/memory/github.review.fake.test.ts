@@ -10,7 +10,7 @@ import type { ProviderAdapter, ProviderRequest, ProviderResult } from "../provid
 
 const BASE = "b".repeat(40);
 const HEAD = "abc1234" + "0".repeat(33);
-const INDEX = "# Memory\n\n| Glob | File |\n| --- | --- |\n| `src/**` | `src.md` |\n| `package-lock.json` | `locks.md` |\n| `assets/**` | `assets.md` |\n";
+const INDEX = "# Memory\n\n| Glob | File |\n| --- | --- |\n| `src/**` | `src.md` |\n| `package-lock.json` | `locks.md` |\n";
 
 class FakeProvider implements ProviderAdapter {
   readonly name = "fake";
