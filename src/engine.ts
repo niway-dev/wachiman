@@ -4002,8 +4002,9 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
   const base = baseSha(gh, repo, pr);
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
-  // The memory of the base commit, selected by the files this run reviews (ADR 0056).
-  const memory = readBaseMemory(gh, repo, base, files.map((f) => f.filename), deps.warn);
+  // The memory of the base commit, selected by the files this run reviews (ADR 0056): not the
+  // excluded, out-of-scope or binary ones that `files` still holds.
+  const memory = readBaseMemory(gh, repo, base, allBinary.reviewable.map((f) => f.filename), deps.warn);
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
   // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
