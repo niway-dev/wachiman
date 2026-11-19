@@ -1,7 +1,8 @@
 /**
  * The finding priority (ADR 0059, spec 2026-11-18): a word the engine derives from severity,
  * confidence and topic through a versioned calibration table. The model never supplies it, the
- * rank only sorts, and nothing gates on either. Layer 1 ships table v1, seeded and not measured.
+ * rank is recorded but not used to order findings yet, and nothing gates on either. Layer 1 ships
+ * table v1, seeded and not measured.
  */
 import { createHash } from "node:crypto";
 import type { Confidence, Severity, Topic } from "./engine";
