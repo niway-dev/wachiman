@@ -76,6 +76,8 @@ interface Draft {
   values: Map<string, { text: string; line: number }>;
   evidence: string[];
   current?: string;
+  /** A blank line came after the last field line: what follows may be free prose or a table. */
+  afterBlank?: boolean;
 }
 
 /** Every entry of one memory file and every defect found in it. */
@@ -140,7 +142,11 @@ export function parseMemoryFile(file: string, content: string): { entries: Memor
       }
       return;
     }
-    if (!draft || raw.trim() === "") return;
+    if (!draft) return;
+    if (raw.trim() === "") {
+      draft.afterBlank = true;
+      return;
+    }
     const field = FIELD.exec(raw);
     if (field) {
       const name = field[1];
@@ -150,6 +156,7 @@ export function parseMemoryFile(file: string, content: string): { entries: Memor
         return;
       }
       draft.current = name;
+      draft.afterBlank = false;
       if (draft.values.has(name)) problem(line, `field "${name}" appears twice`);
       draft.values.set(name, { text: field[2].trim(), line });
       return;
@@ -166,7 +173,8 @@ export function parseMemoryFile(file: string, content: string): { entries: Memor
       }
       return;
     }
-    problem(line, "unexpected line inside an entry");
+    // After a blank line, free prose or a table is allowed; a stray line glued to the fields is a defect.
+    if (!draft.afterBlank) problem(line, "unexpected line inside an entry");
   });
   finish();
   return { entries, problems };

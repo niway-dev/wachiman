@@ -94,6 +94,23 @@ describe("parseMemoryFile", () => {
     ]);
   });
 
+  test.each([
+    ["a paragraph", "Some free prose about this entry.\nIt runs two lines.\n"],
+    ["a Markdown table", "| Glob | File |\n| --- | --- |\n| `apps/**` | `apps.md` |\n"],
+  ])("%s after an entry, with no heading between, is not a defect", (_name, extra) => {
+    const id = entryId(FIELDS);
+    const { entries, problems } = parseMemoryFile("index.md", `${BODY(id)}\n${extra}`);
+    expect(problems).toEqual([]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ ...FIELDS, added: "2026-11-18", evidence: ["2026-11-18 operator instruction, pull request 709"] });
+  });
+
+  test("a malformed field line after the free text is still reported", () => {
+    const id = entryId(FIELDS);
+    const { problems } = parseMemoryFile("a.md", `${BODY(id)}\nSome prose.\n\n- colour: red\n`);
+    expect(problems.map((p) => p.message)).toEqual(['unknown field "colour"']);
+  });
+
   test("a heading that is not `### <id> <title>` is a problem", () => {
     const { problems, entries } = parseMemoryFile("a.md", "### no id here\n\n- kind: convention\n");
     expect(entries).toEqual([]);
