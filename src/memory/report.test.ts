@@ -180,8 +180,8 @@ describe("buildReport", () => {
   test("personal entries are listed apart and never counted as repository memory or as never used", () => {
     const mine = entryText("convention", "src/**", "Prefer early returns");
     const personalFiles = { "index.md": `# Memory\n\n${mine.text}` };
-    const withPersonal = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, personalFiles, used: USED });
-    const without = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED });
+    const withPersonal = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, personalFiles, use: USED });
+    const without = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED });
     expect(withPersonal.personal).toEqual([{ id: mine.id, title: "Prefer early returns", kind: "convention", scope: "src/**" }]);
     expect(withPersonal.memory).toEqual(without.memory);
     expect(withPersonal.neverUsed).toEqual(without.neverUsed);
@@ -199,12 +199,12 @@ describe("buildReport", () => {
 
   test("no runs: the text still lists the personal memory", () => {
     const mine = entryText("convention", "src/**", "Prefer early returns");
-    const report = buildReport({ runs: [], verdicts: new Map(), files: FILES, personalFiles: { "index.md": `# Memory\n\n${mine.text}` }, used: USED });
+    const report = buildReport({ runs: [], verdicts: new Map(), files: FILES, personalFiles: { "index.md": `# Memory\n\n${mine.text}` }, use: USED });
     expect(report.empty).toBe(true);
     const text = renderReport(report);
     expect(text).toContain("No review history");
     expect(text).toContain(`Personal memory (outside the repository, not counted above) (1):\n  ${mine.id}`);
-    expect(renderReport(buildReport({ runs: [], verdicts: new Map(), files: FILES, used: USED }))).not.toContain("Personal memory");
+    expect(renderReport(buildReport({ runs: [], verdicts: new Map(), files: FILES, use: USED }))).not.toContain("Personal memory");
   });
 
   test("the table has one row per period and a total, and lists the entries", () => {

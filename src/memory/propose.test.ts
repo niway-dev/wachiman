@@ -264,7 +264,7 @@ describe("memory propose", () => {
       },
     };
     let err = "";
-    const code = runMemory(["propose", id], d.dir, { stdout: () => {}, stderr: (l) => (err += `${l}\n`) }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: locking } });
+    const code = runMemory(["propose", id], d.dir, { stdout: () => {}, stderr: (l) => (err += `${l}\n`) }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: locking, teamMemory: () => true } });
     expect(code).toBe(0);
     expect(err).toContain("the entry was recorded, but candidate");
     expect(remoteLog(w.bare)).toHaveLength(2);
