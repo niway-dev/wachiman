@@ -25,6 +25,7 @@ export interface InitReport {
   workflow?: InitFile;
   settings?: InitFile;
   template?: InitFile[];
+  agentPointer?: InitFile;
 }
 
 /** `init` alone never makes a side ready: binding is `setup`, and GitHub needs a secret and a merge. */
@@ -42,7 +43,7 @@ export interface InitDocument {
   error: { code: "usage" | "failed"; message: string } | null;
 }
 
-const filesOf = (report: InitReport): InitFile[] => [report.workflow, report.settings, ...(report.template ?? [])].filter((f): f is InitFile => f !== undefined);
+const filesOf = (report: InitReport): InitFile[] => [report.workflow, report.settings, ...(report.template ?? []), report.agentPointer].filter((f): f is InitFile => f !== undefined);
 
 /** `init` never binds without a terminal and never touches GitHub, so a mode that includes either leaves it pending. */
 export function buildDocument(p: { mode: InitMode; dryRun: boolean; repoDir: string; report: InitReport }): InitDocument {

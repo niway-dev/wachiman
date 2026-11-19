@@ -296,7 +296,7 @@ const setupPage: Page = {
 
 const initPage: Page = {
   usage: initUsage,
-  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write no workflow and hand over to setup. With a repository kind, also write .wachiman.yml. It can also install the PR description template.",
+  summary: "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write no workflow and hand over to setup. With a repository kind, also write .wachiman.yml. It writes a pointer to the wachiman-loop skill into AGENTS.md (or CLAUDE.md). It can also install the PR description template.",
   options: [
     ["--mode github|local|both", "What to set up. Required without a terminal"],
     ["--operator <login>", "The GitHub login allowed to command the reviewer. Required for github and both without a terminal"],
@@ -307,6 +307,7 @@ const initPage: Page = {
     ["--dry-run", "Write nothing. github and both print the rendered workflow to stdout; local reports on stderr what it would write (.wachiman.yml, the PR template)"],
     ["--pr-template", "Also install the PR description template (`wachiman pr-template install`, files only, never a commit). A refusal is reported and does not fail init"],
     ["--no-pr-template", "Do not install it and do not ask. Without either flag a terminal asks (default yes) and a script gets none"],
+    ["--no-agent-pointer", "Do not write the wachiman pointer into AGENTS.md or CLAUDE.md. A failure to write it never fails init"],
     ["--yes", "No prompts"],
     ["--json", "Never prompt, and print one wachiman.init/1 document on stdout (files and their actions, local and GitHub readiness, error). Status lines go to stderr"],
     REPO_DIR,

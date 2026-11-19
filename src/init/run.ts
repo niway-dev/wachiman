@@ -2,7 +2,8 @@
  * `wachiman init` (command contract section 5.5): parse, prompt, resolve, then the one impure
  * half. It writes the chosen workflow file and its `.bak` copy and, when the repository kind is
  * given or answered, the settings file `.wachiman.yml` (ADR 0048), after the person has seen what
- * will be written (or named `--yes` or no terminal with every mandatory flag). With
+ * will be written (or named `--yes` or no terminal with every mandatory flag). In every mode it also
+ * adds the pointer to the wachiman-loop skill to `AGENTS.md` or `CLAUDE.md` (src/init/agents.ts). With
  * `--pr-template` (or a yes to the question) it also installs the PR description template, files
  * only, as `wachiman pr-template install` does: `.github/pull_request_template.md` and, when there
  * is something to keep, `.github/pr-template.json`. An existing unmanaged template is adopted and
@@ -32,6 +33,8 @@ import { checkSupplied, promptForInit } from "./prompt";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
+import { describePointer, manualHint, planPointer, pointerBlock, type PointerPlan } from "./agents";
+import { writeManagedFile } from "../pr-template/write";
 
 /** What `pr-template install` can write; the report names the ones a failed install did not reach. */
 const PR_TEMPLATE_FILES = [CHOICE_FILE, TEMPLATE_FILE];
@@ -180,6 +183,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const cwd = deps.cwd ?? process.cwd();
   // Before anything is rendered or written: this must be a git repository.
   const root = worktreeRoot(options.repoDir, deps.git);
+  // The pointer is planned here and never refuses the run: a problem becomes a "skip" that is reported at the end.
+  const pointer: PointerPlan | undefined = options.agentPointer === false ? undefined : planPointer(root);
   const { github } = options;
   const dryRun = github?.dryRun ?? options.dryRun === true;
   const report = deps.report;
@@ -232,6 +237,18 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     report.template = [{ path: TEMPLATE_FILE, action: { create: "would-create", replace: "would-replace", unchanged: "unchanged", refused: "refused" }[preview] as FileAction }];
   };
 
+  /** Records the pointer file in the report: a dry run says what would happen, a real run what did (a skip is a refusal). */
+  const reportPointer = (outcome: "plan" | "written" | "failed") => {
+    if (!report || !pointer) return;
+    const path = pointer.action === "skip" || pointer.action === "same" ? pointer.file : pointer.writePath;
+    const action: FileAction =
+      pointer.action === "skip" || outcome === "failed" ? "refused"
+      : pointer.action === "same" ? "unchanged"
+      : outcome === "plan" ? (pointer.action === "create" ? "would-create" : "would-replace")
+      : pointer.action === "create" ? "created" : "replaced";
+    report.agentPointer = { path, action };
+  };
+
   // The settings file: planned first (a link or a non-file in the way fails before anything is written), written under the same confirm.
   const plan = options.settings ? planSettings(root, options.settings.kind) : undefined;
   let settingsToWrite = plan && plan.action !== "same" ? plan : undefined;
@@ -277,6 +294,51 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     io.stderr(`wrote ${SETTINGS_PATH} (kind: ${settingsToWrite.kind}).`);
   };
 
+  /** The pointer to the wachiman-loop skill, last among the files: a run refused or cancelled above writes none of them. */
+  const writePointer = async (): Promise<number | undefined> => {
+    if (!pointer) return undefined;
+    if (pointer.action === "skip") {
+      reportPointer("failed");
+      io.stderr(`wachiman pointer not written: ${pointer.reason}`);
+      return undefined;
+    }
+    if (pointer.action === "same") {
+      reportPointer("written");
+      io.stderr(`${pointer.file} already has the wachiman pointer; unchanged.`);
+      return undefined;
+    }
+    if (prompter) {
+      // Like every other file init writes: shown first, written only on a yes.
+      const shown = pointerBlock().trimEnd();
+      const title = `${pointer.file} (${pointer.action === "create" ? "new" : "would change"})`;
+      if (prompter.fancy) prompter.note(shown, title);
+      else {
+        io.stderr(`--- ${title}`);
+        io.stderr(shown);
+      }
+      const answer = await prompter.confirm(`Add the wachiman pointer to ${pointer.file}?`, true);
+      if (answer === null) {
+        io.stderr("cancelled: the pointer was not written.");
+        return 130;
+      }
+      if (!answer) {
+        io.stderr("wachiman pointer not written.");
+        return undefined;
+      }
+    }
+    try {
+      writeManagedFile({ repoDir: root, relativePath: pointer.writePath, content: pointer.content, inspected: pointer.inspected, now: (deps.now ?? (() => new Date().toISOString()))(), label: "init", backup: false, hooks: deps.hooks });
+    } catch (error) {
+      reportPointer("failed");
+      io.stderr(`wachiman pointer not written: ${error instanceof Error ? error.message : String(error)} The rest of init is unaffected. ${manualHint()}`);
+      return undefined;
+    }
+    reportPointer("written");
+    const how = pointer.action === "create" ? "created" : pointer.action === "append" ? "added to" : "replaced in";
+    io.stderr(`wrote the wachiman pointer: ${how} ${pointer.file}${pointer.writePath !== pointer.file ? ` (through the link, to ${pointer.writePath})` : ""}.`);
+    return undefined;
+  };
+
   /** The settings file alone, with no workflow to write: shows it, asks what needs asking. Returns an exit code to stop with, or undefined to go on. */
   const askSettingsAlone = async (): Promise<number | undefined> => {
     if (!prompter || !settingsToWrite) return undefined;
@@ -315,6 +377,9 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (github.dryRun) {
       if (unchanged) io.stderr(`note: ${shown} is unchanged.`);
       else if (inspected.exists && !github.force && !prompter) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
+      if (pointer) for (const line of describePointer(pointer)) io.stderr(line);
+      else io.stderr("note: --no-agent-pointer: no wachiman pointer would be written to AGENTS.md or CLAUDE.md.");
+      reportPointer("plan");
       if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
       if (report) {
         const refused = inspected.exists && !unchanged && !github.force;
@@ -403,8 +468,12 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     // A local dry run previews the files init would write and writes none (decision 4 of the agent-operated setup spec).
     if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
     previewTemplate();
-    if (!options.settings && !options.prTemplate) {
-      io.stderr("dry run: nothing would be written. Local mode has no workflow; a project kind or the PR template are the only files it writes.");
+    if (pointer) for (const line of describePointer(pointer)) io.stderr(line);
+    else io.stderr("note: --no-agent-pointer: no wachiman pointer would be written to AGENTS.md or CLAUDE.md.");
+    reportPointer("plan");
+    const pointerWrites = pointer?.action === "create" || pointer?.action === "append" || pointer?.action === "replace";
+    if (!options.settings && !options.prTemplate && !pointerWrites) {
+      io.stderr("dry run: nothing would be written. Local mode has no workflow; a project kind, the PR template or the agent pointer are the only files it writes.");
       for (const command of projectCommands("setup", options.repoDir, cwd)) io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
     }
     return 0;
@@ -419,6 +488,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     else io.stderr(`Commit ${SETTINGS_PATH} like any file; init does not commit.`);
   }
   installTemplate();
+  const pointerCode = await writePointer();
+  if (pointerCode !== undefined) return pointerCode;
 
   if (options.mode === "github") {
     io.stderr("github: pending; workflow written, add the secret and submit the workflow. Remote readiness was not checked.");

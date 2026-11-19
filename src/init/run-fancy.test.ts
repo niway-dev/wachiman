@@ -26,7 +26,7 @@ function world(answers: (number | string | boolean | null)[]) {
 
 describe("init on a terminal session", () => {
   test("asks through the Ui, shows the workflow as a titled note, and writes the file on confirm", async () => {
-    const w = world([0, "octocat", false, true]); // kind (Monorepo), operator, PR template (no), Write it?
+    const w = world([0, "octocat", false, true, true]); // kind (Monorepo), operator, PR template (no), Write it? (yes), pointer (yes)
     expect(await w.run()).toBe(0);
     const note = w.ui.of("note")[0];
     expect(note.title).toBe(".github/workflows/wachiman-review.yml (new)");
@@ -34,6 +34,7 @@ describe("init on a terminal session", () => {
     expect(w.ui.of("confirm").map((e) => e.message)).toEqual([
       "Also install the PR description template? An existing .github/pull_request_template.md is adopted and replaced (a backup is kept); nothing is committed.",
       "Write it?",
+      "Add the wachiman pointer to AGENTS.md?",
     ]);
     expect(readFileSync(w.target, "utf8")).toContain('operator: "octocat"');
     expect(existsSync(join(w.repo, ".github", "pull_request_template.md"))).toBe(false);
@@ -42,6 +43,21 @@ describe("init on a terminal session", () => {
     expect(readFileSync(join(w.repo, ".wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
     // The old `--- path` preview lines are for the plain session only.
     expect(w.err.join("\n")).not.toContain("--- .github/workflows");
+  });
+
+  test("shows the agent pointer as a titled note and writes it only after a yes", async () => {
+    const w = world([0, "octocat", false, true, true]); // kind, operator, PR template (no), Write it? (yes), pointer (yes)
+    expect(await w.run()).toBe(0);
+    expect(w.ui.of("note").map((n) => n.title)).toContain("AGENTS.md (new)");
+    expect(w.ui.of("confirm").map((e) => e.message)).toContain("Add the wachiman pointer to AGENTS.md?");
+    expect(readFileSync(join(w.repo, "AGENTS.md"), "utf8")).toContain("<!-- wachiman:begin -->");
+  });
+
+  test("declining the agent pointer leaves AGENTS.md absent and the workflow written", async () => {
+    const w = world([0, "octocat", false, true, false]);
+    expect(await w.run()).toBe(0);
+    expect(existsSync(w.target)).toBe(true);
+    expect(existsSync(join(w.repo, "AGENTS.md"))).toBe(false);
   });
 
   test("declining writes nothing and says so inside the frame", async () => {
@@ -69,7 +85,7 @@ describe("init on a terminal session", () => {
   });
 
   test("status lines go through the Ui, not loose to stderr", async () => {
-    const w = world([0, "octocat", false, true]);
+    const w = world([0, "octocat", false, true, true]);
     await w.run();
     const drawn = w.ui.of("log").map((e) => e.message).join("\n");
     expect(drawn).toContain("wrote ");
@@ -77,7 +93,7 @@ describe("init on a terminal session", () => {
   });
 
   test("a yes to the template question installs it after the workflow, with no commit, and reports it", async () => {
-    const w = world([0, "octocat", true, true]);
+    const w = world([0, "octocat", true, true, true]);
     expect(await w.run()).toBe(0);
     const template = join(w.repo, ".github", "pull_request_template.md");
     expect(readFileSync(template, "utf8")).toContain("wachiman:pr-template version=1");

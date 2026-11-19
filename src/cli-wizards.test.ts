@@ -105,7 +105,11 @@ describe("init through the CLI, without a terminal", () => {
     const out = m.run(["init", "--mode", "local"]);
     expect(out.code).toBe(0);
     expect(out.stderr).toContain("wachiman setup");
-    expect(snapshotTree(m.repo)).toEqual(before);
+    // The one new file is the agent pointer in AGENTS.md; nothing else is written.
+    const after = snapshotTree(m.repo);
+    expect(Object.keys(after).filter((f) => !(f in before))).toEqual(["AGENTS.md"]);
+    delete after["AGENTS.md"];
+    expect(after).toEqual(before);
     expect(existsSync(join(m.repo, ".github"))).toBe(false);
     expect(existsSync(m.home)).toBe(false);
   });
