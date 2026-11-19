@@ -3,7 +3,7 @@
  * entries never used, per month and in total. The scenario below is invented for the test.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
@@ -177,11 +177,34 @@ describe("buildReport", () => {
     expect(report.neverUsed).toEqual([]);
   });
 
+  test("personal entries are listed apart and never counted as repository memory or as never used", () => {
+    const mine = entryText("convention", "src/**", "Prefer early returns");
+    const personalFiles = { "index.md": `# Memory\n\n${mine.text}` };
+    const withPersonal = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, personalFiles, use: USED });
+    const without = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED });
+    expect(withPersonal.personal).toEqual([{ id: mine.id, title: "Prefer early returns", kind: "convention", scope: "src/**" }]);
+    expect(withPersonal.memory).toEqual(without.memory);
+    expect(withPersonal.neverUsed).toEqual(without.neverUsed);
+    expect(without.personal).toEqual([]);
+    expect(renderReport(withPersonal)).toContain(`Personal memory (outside the repository, not counted above) (1):\n  ${mine.id}`);
+    expect(renderReport(without)).not.toContain("Personal memory");
+  });
+
   test("no runs: empty, and the text says so", () => {
     const report = buildReport({ runs: [], verdicts: new Map(), files: FILES, use: USED });
     expect(report.empty).toBe(true);
     expect(report.periods).toEqual([]);
     expect(renderReport(report)).toContain("No review history");
+  });
+
+  test("no runs: the text still lists the personal memory", () => {
+    const mine = entryText("convention", "src/**", "Prefer early returns");
+    const report = buildReport({ runs: [], verdicts: new Map(), files: FILES, personalFiles: { "index.md": `# Memory\n\n${mine.text}` }, use: USED });
+    expect(report.empty).toBe(true);
+    const text = renderReport(report);
+    expect(text).toContain("No review history");
+    expect(text).toContain(`Personal memory (outside the repository, not counted above) (1):\n  ${mine.id}`);
+    expect(renderReport(buildReport({ runs: [], verdicts: new Map(), files: FILES, use: USED }))).not.toContain("Personal memory");
   });
 
   test("the table has one row per period and a total, and lists the entries", () => {
@@ -225,7 +248,7 @@ describe("wachiman memory report", () => {
       const code = runMemory(["report", ...args], repo, { stdout: (t) => out.push(t), stderr: () => {} }, { env: { WACHIMAN_HOME: home } });
       return { code, stdout: out.join("") };
     };
-    return { run };
+    return { run, home };
   }
 
   test("with no history it says so and exits 0, in text and in json", () => {
@@ -238,13 +261,42 @@ describe("wachiman memory report", () => {
     expect(JSON.parse(json.stdout)).toMatchObject({ format: "wachiman.memory-report/1", empty: true, periods: [] });
   });
 
+  test("the command lists the personal memory of the repository's origin apart from its own memory", () => {
+    const { run, home } = seeded(true);
+    const mine = entryText("convention", "src/**", "Prefer early returns");
+    const folder = join(home, "memory", "github.com", "o", "demo");
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "index.md"), `# Memory\n\n${mine.text}`);
+    const json = JSON.parse(run(["--format", "json"]).stdout);
+    expect(json.personal.map((e: { id: string }) => e.id)).toEqual([mine.id]);
+    expect(json.memory.entries).toBe(4);
+    expect(json.neverUsed.map((e: { id: string }) => e.id)).not.toContain(mine.id);
+  });
+
+  test("an unreadable personal file is warned about and the report still prints", () => {
+    if (process.getuid?.() === 0) return;
+    const { home } = seeded(true);
+    const folder = join(home, "memory", "github.com", "o", "demo");
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "locked.md"), "secret\n");
+    chmodSync(join(folder, "locked.md"), 0o000);
+    const repo = emptyRepo();
+    git(repo, "remote", "add", "origin", "https://github.com/o/demo.git");
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = runMemory(["report"], repo, { stdout: (t) => out.push(t), stderr: (l) => err.push(l) }, { env: { WACHIMAN_HOME: home } });
+    expect(code).toBe(0);
+    expect(err.join("\n")).toContain("locked.md");
+    expect(out.join("")).not.toBe("");
+  });
+
   test("reads the local history and the working tree's memory folder", () => {
     const { run } = seeded(true);
     const text = run([]);
     expect(text.code).toBe(0);
     expect(text.stdout).toMatch(/total\s+4\s+1\s+1\s+0\s+1\s+1\s+3/);
     const json = JSON.parse(run(["--format", "json"]).stdout);
-    expect(Object.keys(json).sort()).toEqual(["empty", "format", "memory", "neverUsed", "neverUsedReason", "periods", "since", "total", "useRecordedSince"].sort());
+    expect(Object.keys(json).sort()).toEqual(["empty", "format", "memory", "neverUsed", "neverUsedReason", "periods", "personal", "since", "total", "useRecordedSince"].sort());
     expect(json.total.outcomes).toEqual({ fixed: 1, wrong: 1, intentional: 0, notImportant: 1, unjudged: 1 });
     expect(json.memory.entries).toBe(4);
     expect(json.neverUsed.map((e: { id: string }) => e.id).sort()).toEqual([IDLE.id, IDLE_CONVENTION.id].sort());

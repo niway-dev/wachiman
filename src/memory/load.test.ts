@@ -212,6 +212,26 @@ describe("memoryNotice", () => {
     expect(notice).toContain(".wachiman/memory/a.md");
   });
 
+  test("a truncated personal index is named as personal, with its own file, and the repository's memory is not blamed", () => {
+    const committed = source({ "index.md": indexOf([], entry("Committed rule.")) }, "memory:\n  max_loaded_lines: 25\n");
+    const load = loadMemory(committed, REV, [], () => {}, source({ "index.md": lines(60) }))!;
+    const personalIndex = load.files.find((f) => f.personal)!;
+    expect(personalIndex.truncated).toBe(true);
+    const notice = memoryNotice(memoryRecord(load))!;
+    expect(notice).toContain(`\`personal:index.md\` was cut to its first ${personalIndex.lines} lines`);
+    expect(notice).toContain("your personal memory");
+    expect(notice).not.toContain("the repository's memory");
+    expect(notice).not.toContain(".wachiman/memory/index.md");
+  });
+
+  test("a truncated committed index is named with its repository path, and personal memory is not blamed", () => {
+    const load = loadMemory(source({ "index.md": lines(60) }, "memory:\n  max_loaded_lines: 25\n"), REV, [], () => {})!;
+    const notice = memoryNotice(memoryRecord(load))!;
+    expect(notice).toContain("`.wachiman/memory/index.md` was cut to its first 25 lines");
+    expect(notice).toContain("the repository's memory");
+    expect(notice).not.toContain("personal");
+  });
+
   test("within budget there is no notice", () => {
     expect(memoryNotice(loadMemory(source({ "index.md": lines(5) }), REV, [], () => {})!)).toBeUndefined();
   });
@@ -224,5 +244,65 @@ describe("memoryRecord", () => {
     expect(record).not.toHaveProperty("entries");
     expect(record.revision).toBe(REV);
     expect(record.files).toEqual(load.files);
+  });
+});
+
+describe("loadMemory with personal memory", () => {
+  const personalIndex = indexOf([["src/**", "src.md"]]);
+
+  test("loads committed memory first, then personal memory, and records which entries were personal", () => {
+    const committed = source({ "index.md": indexOf([], entry("Committed rule.")) });
+    const personal = source({ "index.md": `${personalIndex}${entry("Personal rule.")}`, "src.md": entry("Personal src rule.", "src/**") });
+    const load = loadMemory(committed, REV, ["src/a.ts"], () => {}, personal)!;
+    expect(load.entries.map((e) => e.rule)).toEqual(["Committed rule.", "Personal rule.", "Personal src rule."]);
+    expect(load.files.map((f) => [f.path, f.personal === true])).toEqual([
+      [".wachiman/memory/index.md", false],
+      ["personal:index.md", true],
+      ["personal:src.md", true],
+    ]);
+    expect(load.entries.filter((e) => e.personal).length).toBe(2);
+    expect(load.personalEntries).toEqual(load.entries.filter((e) => e.personal).map((e) => e.id));
+    expect(memoryRecord(load).personalEntries).toEqual(load.personalEntries);
+    expect(memoryRecord(load)).not.toHaveProperty("entries");
+  });
+
+  test("a review with no personal memory records nothing about it", () => {
+    const load = loadMemory(source({ "index.md": indexOf([], entry("Committed rule.")) }), REV, [], () => {})!;
+    expect(load).not.toHaveProperty("personalEntries");
+    expect(load.files[0]).not.toHaveProperty("personal");
+  });
+
+  test("personal memory alone is loaded when the repository has no memory folder", () => {
+    const load = loadMemory(source({}), REV, [], () => {}, source({ "index.md": indexOf([], entry("Personal rule.")) }))!;
+    expect(load.revision).toBe(REV);
+    expect(load.entries.map((e) => [e.rule, e.personal])).toEqual([["Personal rule.", true]]);
+    expect(loadMemory(source({}), REV, [], () => {}, source({}))).toBeUndefined();
+  });
+
+  test("an entry that is already committed is not loaded again from personal memory", () => {
+    const text = entry("Same rule.");
+    const load = loadMemory(source({ "index.md": indexOf([], text) }), REV, [], () => {}, source({ "index.md": indexOf([], text) }))!;
+    expect(load.entries).toHaveLength(1);
+    expect(load.entries[0].personal).toBeUndefined();
+    expect(load.personalEntries).toBeUndefined();
+  });
+
+  test("personal memory shares the committed budget: committed lines are counted first and personal files that do not fit are left out", () => {
+    const committed = source({ "index.md": indexOf([], entry("Committed rule.", "**", 5)) }, "memory:\n  max_loaded_lines: 25\n");
+    const personal = source({ "index.md": indexOf([["src/**", "src.md"]]), "src.md": lines(40) });
+    const load = loadMemory(committed, REV, ["src/a.ts"], () => {}, personal)!;
+    expect(load.budget.maxLoadedLines).toBe(25);
+    expect(load.budget.loadedLines).toBeLessThanOrEqual(25);
+    expect(load.leftOut).toEqual(["personal:src.md"]);
+    expect(load.overBudget).toBe(true);
+    expect(load.files[0].path).toBe(".wachiman/memory/index.md");
+    expect(memoryNotice(memoryRecord(load))).toContain("personal:src.md");
+  });
+
+  test("a personal folder without index.md warns and loads nothing", () => {
+    const warned: string[] = [];
+    const load = loadMemory(source({ "index.md": indexOf([], entry("Committed rule.")) }), REV, [], (l) => warned.push(l), source({ "src.md": "x\n" }))!;
+    expect(load.entries.map((e) => e.rule)).toEqual(["Committed rule."]);
+    expect(warned.join("\n")).toContain("personal memory has no index.md");
   });
 });

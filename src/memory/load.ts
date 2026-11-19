@@ -39,6 +39,8 @@ export interface LoadedMemoryFile {
   lines: number;
   /** Set when the file was longer than the budget allowed and only its first lines were loaded. */
   truncated?: boolean;
+  /** Set on a file of the personal folder; its `path` is then `personal:<name>`, never a repository path. */
+  personal?: true;
 }
 
 /** What a review recorded about its memory; the `memory` field of the review result. */
@@ -54,6 +56,8 @@ export interface MemoryRecord {
   /** `index.md` is longer than `memory.max_index_lines`. */
   indexOverBudget: boolean;
   budget: { maxIndexLines: number; maxLoadedLines: number; loadedLines: number };
+  /** The ids of the loaded entries that came from the developer's personal memory (laptop reviews only). Absent when none did. */
+  personalEntries?: string[];
 }
 
 export interface MemoryLoad extends MemoryRecord {
@@ -126,14 +130,85 @@ const firstLines = (text: string, n: number) => text.split("\n").slice(0, n).joi
 /** A plain file name inside the folder: no directory part, so an index row cannot reach outside it. */
 const isPlainName = (name: string) => /^[^/\\]+\.md$/.test(name) && !name.startsWith(".");
 
+interface Side {
+  files: LoadedMemoryFile[];
+  texts: { name: string; text: string }[];
+  leftOut: string[];
+  used: number;
+  indexLines: number;
+  indexTruncated: boolean;
+}
+
+/** The label a file of the personal folder carries in a record: it is not a repository path. */
+const PERSONAL_PREFIX = "personal:";
+
+/**
+ * One folder's share of a load: its `index.md`, then the area files the changed paths select, from
+ * the most specific glob, while the lines already `used` plus these fit `budget`. Committed memory
+ * goes first with nothing used; personal memory gets what is left.
+ */
+function loadSide(source: MemorySource, names: string[], indexText: string, budget: MemorySettings, used: number, changedPaths: string[], personal: boolean): Side {
+  const label = (name: string) => (personal ? `${PERSONAL_PREFIX}${name}` : `${MEMORY_DIR}/${name}`);
+  const mark = personal ? ({ personal: true } as const) : {};
+  const files: LoadedMemoryFile[] = [];
+  const texts: { name: string; text: string }[] = [];
+  const leftOut: string[] = [];
+  const indexLines = lineCount(indexText);
+  const room = Math.max(budget.maxLoadedLines - used, 0);
+  const indexTruncated = indexLines > room;
+  if (personal && room === 0) {
+    // Nothing is left for personal memory: the whole folder is left out.
+    return { files, texts, leftOut: [label(INDEX_FILE)], used, indexLines, indexTruncated: false };
+  }
+  const indexLoaded = indexTruncated ? room : indexLines;
+  files.push({ path: label(INDEX_FILE), lines: indexLoaded, ...(indexTruncated ? { truncated: true } : {}), ...mark });
+  texts.push({ name: INDEX_FILE, text: indexTruncated ? firstLines(indexText, room) : indexText });
+  used += indexLoaded;
+
+  // The files the changed paths select, each with the sharpest glob that selected it.
+  const selected = new Map<string, number>();
+  for (const row of parseIndexMap(indexText)) {
+    if (!isPlainName(row.file) || row.file === INDEX_FILE || row.file === ARCHIVE_FILE || !names.includes(row.file)) continue;
+    if (!changedPaths.some((p) => matchesGlob(row.glob, p))) continue;
+    selected.set(row.file, Math.max(selected.get(row.file) ?? 0, globSpecificity(row.glob)));
+  }
+  const ordered = [...selected].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name]) => name);
+
+  let full = false;
+  for (const name of ordered) {
+    if (full) {
+      leftOut.push(label(name));
+      continue;
+    }
+    const text = source.read(name);
+    if (text === null) continue;
+    const n = lineCount(text);
+    if (used + n > budget.maxLoadedLines) {
+      // Stop at the first file that does not fit: a less specific file never takes the place of a more specific one.
+      full = true;
+      leftOut.push(label(name));
+      continue;
+    }
+    files.push({ path: label(name), lines: n, ...mark });
+    texts.push({ name, text });
+    used += n;
+  }
+  return { files, texts, leftOut, used, indexLines, indexTruncated };
+}
+
 /**
  * The memory a review of `changedPaths` loads from `source`, read at `revision`, or undefined when
  * the repository has no memory folder (the review is then exactly what it was before memory).
  * Settings problems are reported through `warn` and never stop a review.
+ *
+ * `personal` is the developer's own folder for this repository (a laptop review only). It is loaded
+ * after the committed memory, inside the same budget, with its entries marked; an entry already
+ * committed under the same id is not loaded twice. Without a committed folder it is loaded alone.
  */
-export function loadMemory(source: MemorySource, revision: string, changedPaths: string[], warn: (line: string) => void): MemoryLoad | undefined {
+export function loadMemory(source: MemorySource, revision: string, changedPaths: string[], warn: (line: string) => void, personal?: MemorySource): MemoryLoad | undefined {
   const names = source.list();
-  if (names.length === 0) return undefined;
+  const personalNames = personal?.list() ?? [];
+  if (names.length === 0 && personalNames.length === 0) return undefined;
 
   let fileSettings: RepoSettings | undefined;
   try {
@@ -145,71 +220,64 @@ export function loadMemory(source: MemorySource, revision: string, changedPaths:
   const resolved = resolveMemorySettings(fileSettings);
   for (const notice of resolved.notices) warn(notice);
   const budget: MemorySettings = resolved.settings;
+  const empty = (): MemoryLoad => ({ revision, files: [], leftOut: [], overBudget: false, indexOverBudget: false, budget: { maxIndexLines: budget.maxIndexLines, maxLoadedLines: budget.maxLoadedLines, loadedLines: 0 }, entries: [] });
 
-  const indexText = names.includes(INDEX_FILE) ? source.read(INDEX_FILE) : null;
-  if (indexText === null) {
-    // The source may have said why a listed index could not be read; this note says what it means.
-    warn(names.includes(INDEX_FILE) ? `${MEMORY_DIR}/${INDEX_FILE} could not be read, so no memory is loaded.` : `${MEMORY_DIR} has no ${INDEX_FILE}, so no memory is loaded.`);
-    return { revision, files: [], leftOut: [], overBudget: false, indexOverBudget: false, budget: { maxIndexLines: budget.maxIndexLines, maxLoadedLines: budget.maxLoadedLines, loadedLines: 0 }, entries: [] };
-  }
-
-  const files: LoadedMemoryFile[] = [];
-  const texts: { name: string; text: string }[] = [];
-  const indexLines = lineCount(indexText);
-  const indexTruncated = indexLines > budget.maxLoadedLines;
-  const indexLoaded = indexTruncated ? budget.maxLoadedLines : indexLines;
-  files.push({ path: `${MEMORY_DIR}/${INDEX_FILE}`, lines: indexLoaded, ...(indexTruncated ? { truncated: true } : {}) });
-  texts.push({ name: INDEX_FILE, text: indexTruncated ? firstLines(indexText, budget.maxLoadedLines) : indexText });
-  let used = indexLoaded;
-
-  // The files the changed paths select, each with the sharpest glob that selected it.
-  const selected = new Map<string, number>();
-  for (const row of parseIndexMap(indexText)) {
-    if (!isPlainName(row.file) || row.file === INDEX_FILE || row.file === ARCHIVE_FILE || !names.includes(row.file)) continue;
-    if (!changedPaths.some((p) => matchesGlob(row.glob, p))) continue;
-    selected.set(row.file, Math.max(selected.get(row.file) ?? 0, globSpecificity(row.glob)));
-  }
-  const ordered = [...selected].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name]) => name);
-
-  const leftOut: string[] = [];
-  let full = false;
-  for (const name of ordered) {
-    const path = `${MEMORY_DIR}/${name}`;
-    if (full) {
-      leftOut.push(path);
-      continue;
+  let committed: Side | undefined;
+  if (names.length > 0) {
+    const indexText = names.includes(INDEX_FILE) ? source.read(INDEX_FILE) : null;
+    if (indexText === null) {
+      // The source may have said why a listed index could not be read; this note says what it means.
+      warn(names.includes(INDEX_FILE) ? `${MEMORY_DIR}/${INDEX_FILE} could not be read, so no memory is loaded.` : `${MEMORY_DIR} has no ${INDEX_FILE}, so no memory is loaded.`);
+    } else {
+      committed = loadSide(source, names, indexText, budget, 0, changedPaths, false);
     }
-    const text = source.read(name);
-    if (text === null) continue;
-    const n = lineCount(text);
-    if (used + n > budget.maxLoadedLines) {
-      // Stop at the first file that does not fit: a less specific file never takes the place of a more specific one.
-      full = true;
-      leftOut.push(path);
-      continue;
-    }
-    files.push({ path, lines: n });
-    texts.push({ name, text });
-    used += n;
   }
 
-  const indexOverBudget = indexLines > budget.maxIndexLines;
-  const overBudget = indexTruncated || indexOverBudget || leftOut.length > 0;
-  const entries = texts.flatMap(({ name, text }) => parseMemoryFile(name, text).entries);
-  return { revision, files, leftOut, overBudget, indexOverBudget, budget: { maxIndexLines: budget.maxIndexLines, maxLoadedLines: budget.maxLoadedLines, loadedLines: used }, entries };
+  let own: Side | undefined;
+  if (personal && personalNames.length > 0) {
+    const indexText = personalNames.includes(INDEX_FILE) ? personal.read(INDEX_FILE) : null;
+    if (indexText === null) warn(`personal memory has no ${INDEX_FILE}, so it is not loaded.`);
+    else own = loadSide(personal, personalNames, indexText, budget, committed?.used ?? 0, changedPaths, true);
+  }
+  if (!committed && !own) return empty();
+
+  const sides = [committed, own].filter((x): x is Side => x !== undefined);
+  const files = sides.flatMap((x) => x.files);
+  const leftOut = sides.flatMap((x) => x.leftOut);
+  const used = sides[sides.length - 1].used;
+  const indexOverBudget = sides.some((x) => x.indexLines > budget.maxIndexLines);
+  const overBudget = sides.some((x) => x.indexTruncated) || indexOverBudget || leftOut.length > 0;
+  const entriesOf = (side: Side | undefined) => (side ? side.texts.flatMap(({ name, text }) => parseMemoryFile(name, text).entries) : []);
+  const committedEntries = entriesOf(committed);
+  const known = new Set(committedEntries.map((e) => e.id));
+  const personalEntries = entriesOf(own).filter((e) => !known.has(e.id)).map((e): MemoryEntry => ({ ...e, personal: true }));
+  return {
+    revision,
+    files,
+    leftOut,
+    overBudget,
+    indexOverBudget,
+    budget: { maxIndexLines: budget.maxIndexLines, maxLoadedLines: budget.maxLoadedLines, loadedLines: used },
+    entries: [...committedEntries, ...personalEntries],
+    ...(personalEntries.length > 0 ? { personalEntries: personalEntries.map((e) => e.id) } : {}),
+  };
 }
 
 /** The sentence a review's summary carries when its memory did not fit, or undefined. */
 export function memoryNotice(record: MemoryRecord): string | undefined {
   if (!record.overBudget) return undefined;
   const parts: string[] = [];
-  const index = record.files[0];
-  const doesNotFit = record.leftOut.length > 0 || index?.truncated === true;
+  const cut = record.files.filter((f) => f.truncated === true);
+  const doesNotFit = record.leftOut.length > 0 || cut.length > 0;
   if (!doesNotFit) {
     return `⚠️ **Memory over budget**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget. Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
   }
   if (record.leftOut.length > 0) parts.push(`left out for lack of room: ${record.leftOut.map((p) => `\`${p}\``).join(", ")}`);
-  if (index?.truncated) parts.push(`\`${index.path}\` was cut to its first ${index.lines} lines`);
+  for (const f of cut) parts.push(`\`${f.path}\` was cut to its first ${f.lines} lines`);
   if (record.indexOverBudget) parts.push(`\`index.md\` is over its ${record.budget.maxIndexLines}-line budget`);
-  return `⚠️ **Memory over budget**: the repository's memory does not fit in ${record.budget.maxLoadedLines} lines for this review (${parts.join("; ")}). Trim it, or raise \`memory.max_loaded_lines\` in \`.wachiman.yml\`.`;
+  // Name whose memory it is: personal files carry the `personal:` prefix in the record.
+  const personal = [...record.leftOut, ...cut.map((f) => f.path)].filter((p) => p.startsWith(PERSONAL_PREFIX)).length;
+  const team = record.leftOut.length + cut.length - personal;
+  const whose = personal > 0 && team > 0 ? "the repository's memory and your personal memory" : personal > 0 ? "your personal memory" : "the repository's memory";
+  return `⚠️ **Memory over budget**: ${whose} does not fit in ${record.budget.maxLoadedLines} lines for this review (${parts.join("; ")}). Trim it, or raise \`memory.max_loaded_lines\` in \`.wachiman.yml\`.`;
 }

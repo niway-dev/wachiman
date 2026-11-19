@@ -69,7 +69,7 @@ const GIT_TIMEOUT_MS = 30_000;
  * can carry a credential through the fallback. The host is lowercased; no `.git`, no trailing `/`.
  * `parsed` is false when the stripped text is not a URL: it still keys the history, but is not stored.
  */
-function normaliseRemote(raw: string): { text: string; parsed: boolean } {
+export function normaliseRemote(raw: string): { text: string; parsed: boolean } {
   let url = raw.trim();
   const scheme = url.match(/^([a-z][a-z0-9+.-]*:\/\/)[^/?#]*@/i);
   if (scheme) url = scheme[1] + url.slice(scheme[0].length);

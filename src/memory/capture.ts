@@ -8,7 +8,7 @@ import { wachimanHome } from "../accounts/config";
 import { UsageError } from "../config";
 import { spawnGit } from "../evidence";
 import { historyRoot, repositoryKey } from "../history/store";
-import { loadMemorySettings } from "./settings";
+import { loadMemorySettings, repositoryRoot } from "./settings";
 import {
   candidateProblem,
   evidenceFromFinding,
@@ -27,7 +27,8 @@ import {
   type EvidenceSource,
 } from "./candidates";
 import type { GhFn } from "../engine";
-import { proposeCandidate, type ProposeDeps } from "./propose";
+import { proposeCandidate, teamHasMemory, type ProposeDeps } from "./propose";
+import { candidatesFromPersonal, FIRST_PROPOSE_QUESTION, parseMemoryChoice, personalMemoryDir, proposePersonal, readMemoryChoice, writeMemoryChoice } from "./personal";
 
 export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as const;
 
@@ -35,7 +36,7 @@ export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as c
 export const CAPTURE_OPTIONS: Record<(typeof CAPTURE_SUBCOMMANDS)[number], { values: readonly string[]; flags: readonly string[] }> = {
   candidates: { values: ["--format"], flags: [] },
   show: { values: [], flags: [] },
-  propose: { values: [], flags: [] },
+  propose: { values: [], flags: ["--personal", "--team", "--from-personal"] },
   add: { values: ["--file", "--kind", "--scope", "--rule", "--why", "--holds-while", "--title", "--source", "--finding", "--pr", "--branch"], flags: ["--agent"] },
 };
 
@@ -50,6 +51,8 @@ export interface CaptureContext {
   gh?: GhFn;
   now?: () => Date;
   deps?: ProposeDeps;
+  /** Asks the developer a question and returns the answer; absent when nobody can answer (no terminal). */
+  ask?: (question: string) => string | undefined;
 }
 
 interface Parsed {
@@ -103,6 +106,48 @@ function parsePr(v: string | undefined): number | undefined {
 
 const need = (c: Candidate, minEvidence: number) => proposability(c, minEvidence);
 
+/**
+ * Marks a candidate after its entry was written: `proposed` once the team's pull request has it, `personal` when it only went to
+ * this machine. Read again under the candidate's lock, so evidence added by `memory add` while the push was in flight is not
+ * overwritten. A failure is said, never thrown: the entry is already written, and a second propose is idempotent.
+ */
+function markCandidate(home: string, key: string, id: string, fallback: Candidate | undefined, mark: "proposed" | "personal", at: string, io: CaptureIo) {
+  try {
+    withCandidateLock(home, key, id, () => {
+      const latest = readCandidate(home, key, id) ?? fallback;
+      if (latest) writeCandidate(home, key, { ...latest, [mark]: { at } });
+    });
+  } catch (error) {
+    io.stderr(`memory propose: the entry was recorded, but candidate ${id} could not be marked as ${mark === "personal" ? "written to personal memory" : "proposed"} (${(error as Error).message}).`);
+  }
+}
+
+/** `propose --from-personal [<id>...]`: the personal entries (or those ids) go to the team's memory pull request through the same write path as `propose <id>`. Personal memory is left as it is. */
+function sendPersonal(ids: string[], repoDir: string, home: string, key: string, io: CaptureIo, ctx: CaptureContext): number {
+  for (const id of ids) if (!/^[0-9a-f]{7}$/.test(id)) throw new UsageError(`"${id}" is not a memory entry id (seven hex characters).`);
+  const dir = personalMemoryDir(home, repoDir);
+  if (dir === undefined) {
+    io.stderr("memory propose: this repository has no remote named origin with a host, an owner and a repository, so it has no personal memory; nothing was sent.");
+    return 1;
+  }
+  const { candidates, unknown, skipped } = candidatesFromPersonal(dir, ids);
+  if (unknown.length > 0) throw new UsageError(`No personal memory entry ${unknown.join(", ")} for this repository.`);
+  for (const line of skipped) io.stderr(`memory propose: skipped personal entry ${line}`);
+  if (candidates.length === 0) {
+    io.stdout("no personal memory entries to send.\n");
+    return skipped.length > 0 ? 1 : 0;
+  }
+  let failed = skipped.length > 0;
+  for (const c of candidates) {
+    io.stdout(`sending ${c.id} to the team's memory pull request:\n${renderEntry(c)}`);
+    const result = proposeCandidate(c, repoDir, io, ctx.deps);
+    if (!result.recorded || result.pullRequestFailed) failed = true;
+    // As after a team propose: the local candidate of this entry, if there is one, is marked as proposed.
+    if (result.recorded) markCandidate(home, key, c.id, undefined, "proposed", (ctx.now ?? (() => new Date()))().toISOString(), io);
+  }
+  return failed ? 1 : 0;
+}
+
 export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: string[], repoDir: string, io: CaptureIo, ctx: CaptureContext = {}): number {
   const env = ctx.env ?? process.env;
   const home = wachimanHome(env);
@@ -120,7 +165,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     if (format === "json") {
       const candidates = list.map((c) => {
         const q = need(c, minEvidence);
-        return { id: c.id, title: c.title, kind: c.kind, scope: c.scope, evidence: q.counted, distinct: q.distinct, needed: q.needed, proposable: q.proposable, ...(q.why ? { why: q.why } : {}), ...(c.proposed ? { proposed: c.proposed.at } : {}) };
+        return { id: c.id, title: c.title, kind: c.kind, scope: c.scope, evidence: q.counted, distinct: q.distinct, needed: q.needed, proposable: q.proposable, ...(q.why ? { why: q.why } : {}), ...(c.proposed ? { proposed: c.proposed.at } : {}), ...(c.personal && !c.proposed ? { personal: c.personal.at } : {}) };
       });
       io.stdout(`${JSON.stringify({ format: "wachiman.memory-candidates/1", candidates }, null, 2)}\n`);
       return 0;
@@ -131,7 +176,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     }
     for (const c of list) {
       const q = need(c, minEvidence);
-      const state = c.proposed ? `proposed ${c.proposed.at.slice(0, 10)}` : q.proposable ? "proposable" : `not proposable: ${q.why}`;
+      const state = c.proposed ? `proposed ${c.proposed.at.slice(0, 10)}` : c.personal ? `personal ${c.personal.at.slice(0, 10)}${q.proposable ? ", proposable to the team" : ""}` : q.proposable ? "proposable" : `not proposable: ${q.why}`;
       io.stdout(`${c.id}  ${c.kind}  ${c.scope}  ${c.title}\n    ${state}\n`);
     }
     return 0;
@@ -146,7 +191,14 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   }
 
   if (sub === "propose") {
-    const id = oneId(parseOptions(rest, sub, [], []), sub);
+    const parsed = parseOptions(rest, sub, CAPTURE_OPTIONS.propose.values, CAPTURE_OPTIONS.propose.flags);
+    if (parsed.flags.has("--from-personal")) {
+      if (parsed.flags.has("--personal") || parsed.flags.has("--team")) throw new UsageError("--from-personal already sends to the team's memory pull request; it cannot be combined with --personal or --team.");
+      return sendPersonal(parsed.positional, repoDir, home, key, io, ctx);
+    }
+    const id = oneId(parsed, sub);
+    if (parsed.flags.has("--personal") && parsed.flags.has("--team")) throw new UsageError("--personal and --team exclude each other: choose where the entry goes.");
+    let personal = parsed.flags.has("--personal");
     const c = readCandidate(home, key, id);
     if (!c) throw new UsageError(`No memory candidate ${id} for this repository; list them with \`wachiman memory candidates\`.`);
     const q = need(c, minEvidence);
@@ -154,19 +206,30 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
       io.stderr(`memory propose: candidate ${id} is not proposable: ${q.why}. Nothing was written.`);
       return 1;
     }
-    const result = proposeCandidate(c, repoDir, io, ctx.deps);
-    if (result.recorded) {
-      // Read again: evidence added by `memory add` while the push was in flight must not be overwritten.
-      const at = (ctx.now ?? (() => new Date()))().toISOString();
-      try {
-        withCandidateLock(home, key, id, () => {
-          const latest = readCandidate(home, key, id) ?? c;
-          writeCandidate(home, key, { ...latest, proposed: { at } });
-        });
-      } catch (error) {
-        // The entry is already on origin: say so rather than turn the run into a usage error. A second propose is idempotent.
-        io.stderr(`memory propose: the entry was recorded, but candidate ${id} could not be marked as proposed (${(error as Error).message}).`);
+    if (!personal && !parsed.flags.has("--team")) {
+      // Spec decision 16: a repository whose team has not adopted memory is never pushed to unasked.
+      let choice = readMemoryChoice(home, key);
+      // The probe fetches from origin, so it runs only when the answer depends on it: a stored `team` answer goes to the team whatever the team has.
+      const teamMemory = choice === "team" ? undefined : (ctx.deps?.teamMemory ?? teamHasMemory)(repositoryRoot(repoDir));
+      if (choice === "personal" && teamMemory === true) {
+        // The team adopted memory after the answer was given: the entry goes to the team again.
+        io.stdout("this repository's team now has .wachiman/memory/, so this entry goes to the team's memory pull request; pass --personal to keep it on this machine.\n");
+        choice = "team";
       }
+      if (!choice && teamMemory === false) {
+        choice = parseMemoryChoice(ctx.ask?.(FIRST_PROPOSE_QUESTION));
+        if (!choice) {
+          io.stderr(`memory propose: this repository's default branch has no .wachiman/memory/, so nothing was pushed or written. Run it again with --personal (keep the entry on this machine) or --team (propose it to the team's repository).`);
+          return 1;
+        }
+        writeMemoryChoice(home, key, choice, (ctx.now ?? (() => new Date()))());
+      }
+      personal = choice === "personal";
+    }
+    const result = personal ? proposePersonal(c, repoDir, home, io) : proposeCandidate(c, repoDir, io, ctx.deps);
+    if (result.recorded) {
+      // A personal write is kept on this machine: the team never received it, so it stays proposable (`--from-personal`).
+      markCandidate(home, key, id, c, personal ? "personal" : "proposed", (ctx.now ?? (() => new Date()))().toISOString(), io);
     }
     return result.recorded ? (result.pullRequestFailed ? 1 : 0) : 1;
   }

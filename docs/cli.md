@@ -241,7 +241,7 @@ builds, with the `local-git` connector, and sends the same prompt
 | `--no-verify` | — | Turn verification off for this run, even when `WACHIMAN_VERIFY` is on. With `--verify` it is a usage error |
 | `--result-version 1\|2` | `1` for committed; `2` for working-tree | With `--format json` only (any other use exits 2): which result version to write. `1` is the committed form (`toResultV1`): no `verification` block, and one line in `execution.notices` saying how verification went. `2` is the full result, with each finding's `origin`, `verification` and `tier` |
 | `--history` | off (or `WACHIMAN_HISTORY=1`) | Save the run under `~/.wachiman/history` and label each finding `new` or `open since <sha7>`; see [local review](local-review.md#keep-a-history-of-your-runs-optional). The prompts are the same with or without it |
-| `--no-memory` | off | Review as if the repository had no `.wachiman/memory/` folder: nothing is loaded, no conventions reach the prompt, no exception is matched, and the result has no `memory` or `muted` field. Stderr says `memory: off (--no-memory)`. It exists for the control arm of the [memory replay](memory-replay.md); `ask` and the GitHub mode do not take it |
+| `--no-memory` | off | Review as if the repository had no `.wachiman/memory/` folder and you had no personal memory for it: nothing is loaded, no conventions reach the prompt, no exception is matched, and the result has no `memory` or `muted` field. Stderr says `memory: off (--no-memory)`. It exists for the control arm of the [memory replay](memory-replay.md); `ask` and the GitHub mode do not take it |
 
 Both `--x value` and `--x=value` work. Before any call, `local` prints the resolved base, the
 merge-base, the depth and the head (`base: main (1a2b3c4)`, `merge-base: …`, `depth: 12 commits (max 250)`, `head: feat/x (…)`); with `--commit` or
@@ -718,7 +718,8 @@ wachiman memory report [--since <date>] [--format terminal|json] [--repo-dir <di
 wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]
 wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]
 wachiman memory show <id> [--repo-dir <dir>]
-wachiman memory propose <id> [--repo-dir <dir>]
+wachiman memory propose <id> [--personal | --team] [--repo-dir <dir>]
+wachiman memory propose --from-personal [<id>...] [--repo-dir <dir>]
 wachiman memory remember <pr> [--repo-dir <dir>]
 ```
 
@@ -758,8 +759,9 @@ change under review has no effect on it. The review loads `index.md` and the are
 files select, within `memory.max_loaded_lines` (most specific glob first; files that do not fit are
 left out), and records it: the JSON result (format /2; the /1 result has no such field) carries a `memory` object with the revision (the base commit),
 the files loaded, the files left out and whether the memory was over budget. When it was, the summary
-says so and names what was left out. A repository without `.wachiman/memory/` is reviewed exactly as
-before, with no extra field, no extra text and no extra call. The settings are in
+says so and names what was left out. A review in GitHub Actions of a repository without `.wachiman/memory/` is reviewed exactly as
+before, with no extra field, no extra text and no extra call. A laptop review of such a repository is
+the same unless you have [personal memory](#memory) for it, which that review then loads. The settings are in
 [configuration.md](configuration.md#the-settings-file-wachimanyml).
 
 - **Conventions** go into the review prompt, in a section labelled "Learned conventions" that follows the
@@ -788,7 +790,7 @@ before, with no extra field, no extra text and no extra call. The settings are i
   also mutes nothing in this review. The line is absent when no entry applies, and a repository without
   memory sees no change. Wachiman only says so; it never edits the entry.
 
-**What it does not do yet.** Personal memory (`--personal`) is a later layer.
+The `holds while` notice is the only hygiene notice a review prints; the suggestions of `memory check` are separate (see below).
 
 `memory check` reads the folder from the working tree and prints each problem as
 `<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope (not checked in
@@ -856,7 +858,8 @@ only after the owner approves it.
   `wrong` verdict with a reason, or the loop's `probably-fixed` mark) and its reference is the loop's
   branch or `--pr`. A fix supports only a convention, never an exception. Reactions and silence are
   not a source. `--agent` records that an agent wrote the reply.
-- `memory candidates` lists them and says which can be proposed: a candidate found by the tool needs
+- `memory candidates` lists them and says which can be proposed, which were proposed, and which were
+  written to your personal memory (`personal <date>`, still proposable to the team): a candidate found by the tool needs
   `memory.min_evidence` pieces of evidence (default 2) from different pull requests or branches;
   `--format json` prints `wachiman.memory-candidates/1`. `wachiman loop --format json` adds a
   `memoryCandidates` list (`id`, `title`) when a proposable candidate that has not been proposed yet
@@ -867,7 +870,7 @@ only after the owner approves it.
   zero-width or direction-changing character in any field, or an id that is not the digest of the
   fields, is refused by `add`, `show` and `propose`, because a terminal could display it differently
   from what is committed. A value that starts with `--` is written `--rule=--strict`.
-- `memory propose <id>` fetches `origin`, builds one commit in a temporary worktree on the head of
+- `memory propose <id>` (with `--team`, or when the team already has `.wachiman/memory/`, and see "Personal memory" below for `--personal`) fetches `origin`, builds one commit in a temporary worktree on the head of
   `origin/wachiman/memory` (the default branch when that branch does not exist or was already merged),
   appends the shown text to `.wachiman/memory/index.md` (created when absent), pushes without force, and
   opens the draft pull request `chore(wachiman): memory` unless one is open. Your branch, index and
@@ -921,6 +924,11 @@ or after that day. With no history in the window it prints `No review history ..
   that is used often and wrong is not caught by this; the `holds while` notice is
   for that.
 
+- **Personal memory.** The entries of your [personal memory](#memory) for this repository are listed
+  apart (`personal` in the JSON) and are never counted in the size or the never-used list above,
+  which describe only the repository's `.wachiman/memory/`. They are listed even when there is no
+  review history yet.
+
 `--format json` prints `wachiman.memory-report/1`:
 
 ```json
@@ -939,6 +947,7 @@ or after that day. With no history in the window it prints `No review history ..
   ],
   "total": { "period": "total", "comments": 4, "outcomes": { "...": 0 }, "muted": { "count": 3, "byEntry": {} }, "memoryLoadedLines": 40 },
   "memory": { "present": true, "files": 3, "entries": 4, "lines": 62 },
+  "personal": [{ "id": "9d2b7c4", "title": "...", "kind": "convention", "scope": "src/**" }],
   "neverUsed": [{ "id": "4c1e9a2", "title": "...", "kind": "exception", "scope": "docs/**", "file": "index.md" }],
   "neverUsedReason": null,
   "useRecordedSince": "2026-10-20"
@@ -1049,6 +1058,59 @@ word, default `/wachiman`) and `WACHIMAN_DRY_RUN`, which the shared configuratio
 sets to the Actions bot. It uses the checkout `--repo-dir` points at. Exit 0 when the entry is recorded or already was, or when the comment was
 not the operator's; exit 1 when it refused, wrote nothing, or recorded the entry without opening the draft
 pull request; exit 2 for a usage error such as a missing variable.
+
+**Personal memory (layer 8).** For a developer whose team has not adopted Wachiman, `memory propose
+<id> --personal` writes the entry to a folder outside the repository, with the same format and the
+same approval of the exact text: `<home>/memory/<host>/<owner>/<repository>/index.md` (a nested group such as GitLab's `group/sub/repo` gets one folder per part), where `<home>` is
+the Wachiman home (`WACHIMAN_HOME`, else `~/.wachiman`). The folder is keyed by the URL of the
+remote named `origin`, without credentials, so every clone and worktree of one repository shares it and
+no other repository sees it. A clone with no `origin`, or one whose URL names no host, owner and repository (a local path), has no personal memory: `propose --personal`
+says so, exits 1 and writes nothing. The write itself makes no commit, no push, no fetch and no pull
+request, and nothing appears in `git status`; `memory candidates` then lists the candidate as
+`personal <date>` (not `proposed`), and it stays proposable to the team with `--from-personal`. An entry already there only gains the evidence it lacks, and an entry
+that would make `memory check` fail on the folder is refused.
+
+**The first question.** In a repository whose default branch has no `.wachiman/memory/` (and whose
+`origin` has no `wachiman/memory` branch), `propose` without a flag never pushes a branch unasked when Wachiman can tell that the team has no
+memory; when it cannot tell (see below), it takes the team path.
+On a terminal it asks where the entry should go (1 personal, 2 team) and stores the answer for that
+repository in `<home>/memory-choice/<repository key>.json`; later proposals use the stored answer and do
+not ask again (delete the file to be asked again). A stored `personal` answer holds only while the team
+has no memory: once `.wachiman/memory/` is on the default branch (the same check the question uses), a
+plain `propose` goes to the team again and says so in one line; `--personal` still keeps an entry on
+your machine. A plain `propose` finds out whether the team has memory with a fetch from origin of its default branch
+(and of `wachiman/memory` when it exists). The fetch changes no branch, file or commit of yours, but it
+does update the remote-tracking refs `refs/remotes/origin/*`, and it runs only when the answer
+matters: never with `--personal` or `--team`, and never with a stored `team` answer. With no terminal to ask on, and no stored answer, it
+exits 1 and writes and pushes nothing, telling you to run it again with `--personal` or `--team`. Those
+two flags choose explicitly, never ask and never store an answer; passing both is a usage error. If
+Wachiman cannot tell whether the team uses memory (for example no network), what happens depends on the
+stored answer: with none, it does not ask and takes the team path, which then reports what it could not
+reach; with a stored `personal` answer, the answer holds and the entry stays on your machine, with no
+line about the team.
+
+**Sending personal entries to the team.** `memory propose --from-personal` (with no id: every personal
+entry; with ids: only those) sends them through the same write path as `propose <id>`: one commit per
+entry on `wachiman/memory`, the same checks, the same draft pull request. Each entry is printed as it is
+sent, and goes with its text and evidence lines exactly as they are in personal memory; an entry whose
+text a terminal could show differently from what is committed is skipped and named. It is an explicit
+team action, so it does not ask the first-time question and cannot be combined with `--personal` or
+`--team`. Personal memory is left as it was: once the pull request is merged, the committed copy wins
+at load time and the personal copy is not loaded twice. Remove it yourself by deleting its entry from
+the personal `index.md`.
+
+A **laptop review** (`wachiman local`, and so `loop`) loads the committed memory first, then the
+personal memory of that repository, inside the same `memory.max_loaded_lines` budget: committed lines
+are counted first, personal files that do not fit are named as left out (as `personal:<file>`), and an
+entry already committed under the same id is not loaded twice. The budget is the one the repository's
+committed `.wachiman.yml` sets, or the default. Personal conventions go into the prompt marked
+`personal="true"`, with the rule that a committed convention wins when the two disagree; hand-written
+instruction files still win over both. The JSON result's `memory` object marks personal files
+(`personal: true`, path `personal:<file>`) and lists the ids of the personal entries it loaded in
+`personalEntries`. A review of another repository never loads this folder, because the key is the
+repository's `origin`; a review in GitHub Actions never does either, because the folder exists only on
+your machine and the Actions path does not read it. A personal file that cannot be read never stops
+a review: Wachiman warns on stderr, naming the file, and reviews without it.
 
 ### `history`
 

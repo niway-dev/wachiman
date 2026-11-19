@@ -49,6 +49,12 @@ export interface PullRequests {
 
 export interface ProposeDeps {
   pulls?: PullRequests;
+  /**
+   * Whether the team already uses memory: the default branch has `.wachiman/memory/`, or `origin` has
+   * the memory branch. `undefined` when it cannot be told (no network); the question about personal
+   * memory is then not asked. Tests pass a fake.
+   */
+  teamMemory?: (root: string) => boolean | undefined;
 }
 
 export interface ProposeIo {
@@ -81,7 +87,7 @@ function git(cwd: string, args: string[]): Run {
   return { status: r.status, stdout: r.stdout ?? "", stderr: (r.stderr ?? "") + (r.error ? ` ${r.error.message}` : "") };
 }
 
-class Refused extends Error {}
+export class Refused extends Error {}
 
 const must = (r: Run, what: string): string => {
   if (r.status !== 0) throw new Refused(`${what} failed: ${r.stderr.trim() || `exit ${r.status}`}`);
@@ -174,7 +180,7 @@ export function readMemoryFiles(worktree: string): Record<string, string> {
 }
 
 /** The problems `memory check` would report after `next` replaces the memory files, minus those the base already had. */
-function introducedProblems(worktree: string, current: Record<string, string>, next: Record<string, string>): string[] {
+export function introducedProblems(worktree: string, current: Record<string, string>, next: Record<string, string>): string[] {
   const listed = git(worktree, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]);
   const repoFiles = listed.status === 0 ? listed.stdout.split("\0").filter(Boolean) : [];
   const settingsPath = join(worktree, SETTINGS_PATH);
@@ -207,6 +213,19 @@ function fetchRemote(root: string): Remote {
   const defaultHead = must(git(root, ["rev-parse", "--verify", `refs/remotes/origin/${defaultBranch}^{commit}`]), "reading origin's default branch");
   const memoryHead = hasMemory ? must(git(root, ["rev-parse", "--verify", `refs/remotes/origin/${MEMORY_BRANCH}^{commit}`]), "reading origin/wachiman/memory") : undefined;
   return { defaultBranch, defaultHead, ...(memoryHead ? { memoryHead } : {}) };
+}
+
+/** The real answer to `ProposeDeps.teamMemory`: read-only (a fetch of the default branch and, when it exists, the memory branch). */
+export function teamHasMemory(root: string): boolean | undefined {
+  try {
+    const remote = fetchRemote(root);
+    if (remote.memoryHead) return true;
+    const tree = git(root, ["ls-tree", "-d", remote.defaultHead, "--", MEMORY_DIR]);
+    return tree.status === 0 ? tree.stdout.trim() !== "" : undefined;
+  } catch (error) {
+    if (error instanceof Refused) return undefined;
+    throw error;
+  }
 }
 
 const isAncestor = (root: string, a: string, b: string) => git(root, ["merge-base", "--is-ancestor", a, b]).status === 0;

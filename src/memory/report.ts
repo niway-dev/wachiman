@@ -45,6 +45,14 @@ export interface NeverUsedEntry {
   file: string;
 }
 
+/** An entry of the developer's personal memory for this repository: it lives outside the repository and is never counted as repository memory. */
+export interface PersonalEntry {
+  id: string;
+  title: string;
+  kind: MemoryKind;
+  scope: string;
+}
+
 export interface MemoryReport {
   format: typeof MEMORY_REPORT_FORMAT;
   /** The `--since` date, or null. */
@@ -55,6 +63,8 @@ export interface MemoryReport {
   total: ReportPeriod;
   /** The working tree's `.wachiman/memory/`, now. */
   memory: { present: boolean; files: number; entries: number; lines: number };
+  /** The entries of the personal memory folder of this repository (layer 8), listed apart from `memory`; empty when there are none. */
+  personal: PersonalEntry[];
   /** Entries of that folder no run used: see `buildReport`. Null when no use was recorded at all, so none can be called unused. */
   neverUsed: NeverUsedEntry[] | null;
   /** `no-use-recorded` when `neverUsed` is null (no record of use, or one that cannot be read), else null. */
@@ -68,6 +78,8 @@ export interface ReportInput {
   verdicts: Map<string, VerdictLine>;
   /** The text of every `.md` file directly in `.wachiman/memory/`; undefined without the folder. */
   files: Record<string, string> | undefined;
+  /** The text of every `.md` file of the personal memory folder for this repository; undefined without one. */
+  personalFiles?: Record<string, string>;
   /** Layer 6's local record of use (`readMemoryUse`): entry id to the date of its last use, or why none is known. The only source for "never used". */
   use: MemoryUse;
   /** `YYYY-MM-DD`: only runs saved on or after this day count. */
@@ -142,6 +154,14 @@ export function buildReport(input: ReportInput): MemoryReport {
     })
     .map((e) => ({ id: e.id, title: e.title, kind: e.kind, scope: e.scope, file: e.file }));
 
+  // Personal entries are listed apart: they are not in the repository, so they never enter the size or the never-used list.
+  const personalFiles = input.personalFiles ?? {};
+  const personal: PersonalEntry[] = Object.keys(personalFiles)
+    .filter((name) => name !== ARCHIVE_FILE)
+    .sort()
+    .flatMap((name) => parseMemoryFile(name, personalFiles[name]).entries)
+    .map((e) => ({ id: e.id, title: e.title, kind: e.kind, scope: e.scope }));
+
   return {
     format: MEMORY_REPORT_FORMAT,
     since: input.since ?? null,
@@ -149,6 +169,7 @@ export function buildReport(input: ReportInput): MemoryReport {
     periods: [...periods.values()].sort((a, b) => (a.period < b.period ? -1 : 1)),
     total,
     memory: { present: input.files !== undefined, files: names.length, entries: entries.length, lines: names.reduce((n, name) => n + lineCount(input.files![name]), 0) },
+    personal,
     neverUsed: runs.length === 0 ? [] : unknown ? null : neverUsed,
     neverUsedReason: runs.length > 0 && unknown ? "no-use-recorded" : null,
     useRecordedSince: input.use.known ? (input.use.since ?? null) : null,
@@ -157,10 +178,15 @@ export function buildReport(input: ReportInput): MemoryReport {
 
 const pad = (text: string, width: number) => text.padEnd(width);
 
+const personalLines = (report: MemoryReport) =>
+  report.personal.length === 0
+    ? []
+    : [`Personal memory (outside the repository, not counted above) (${report.personal.length}):`, ...report.personal.map((e) => `  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}`)];
+
 export function renderReport(report: MemoryReport): string {
   if (report.empty) {
     const window = report.since ? ` since ${report.since}` : "";
-    return `No review history${window} for this repository: run \`wachiman local --history\` to start one.\n`;
+    return `No review history${window} for this repository: run \`wachiman local --history\` to start one.\n${personalLines(report).join("\n")}${report.personal.length > 0 ? "\n" : ""}`;
   }
   const head = ["period", "comments", "fixed", "wrong", "intentional", "not important", "unjudged", "muted", "memory lines"];
   const row = (p: ReportPeriod) => [p.period, p.comments, p.outcomes.fixed, p.outcomes.wrong, p.outcomes.intentional, p.outcomes.notImportant, p.outcomes.unjudged, p.muted.count, p.memoryLoadedLines ?? "-"].map(String);
@@ -173,6 +199,7 @@ export function renderReport(report: MemoryReport): string {
   out.push(muters.length === 0 ? "Muted by memory: nothing." : `Muted by memory, by entry: ${muters.map(([id, n]) => `${id}: ${n}`).join(", ")}`);
   const m = report.memory;
   out.push(m.present ? `Memory now (${MEMORY_DIR}/ in the working tree): ${m.files} files, ${m.entries} entries, ${m.lines} lines.` : `Memory now: no ${MEMORY_DIR}/ folder in the working tree.`);
+  out.push(...personalLines(report));
   if (report.neverUsed === null) out.push("Entries never used: unknown, this laptop has no readable record of use (run `wachiman local --history` to start recording it).");
   else if (report.neverUsed.length === 0) out.push("Entries never used: none.");
   else {

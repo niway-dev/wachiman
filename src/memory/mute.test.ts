@@ -23,6 +23,21 @@ function entry(kind: MemoryEntry["kind"], rule: string, scope: string, over: Par
 const load = (entries: MemoryEntry[]): MemoryLoad => ({ revision: "b".repeat(40), files: [], leftOut: [], overBudget: false, indexOverBudget: false, budget: { maxIndexLines: 150, maxLoadedLines: 400, loadedLines: 0 }, entries });
 const finding = (over: Partial<Finding> = {}): Finding => ({ path: "docs/adr/0031.md", line: 3, severity: "consider", topic: "docs", title: "stale date", body: "The date is old.", ...over });
 
+describe("renderConventions with personal memory", () => {
+  test("marks a personal convention and says the committed memory wins; without personal entries the text is unchanged", () => {
+    const committed = entry("convention", "Committed rule.", "**");
+    const personal = entry("convention", "Personal rule.", "**", { personal: true });
+    const plain = renderConventions(load([committed]));
+    expect(plain).not.toContain("personal");
+    const mixed = renderConventions(load([committed, personal]));
+    expect(mixed).toContain(`<convention id="${personal.id}" scope="**" personal="true">`);
+    expect(mixed).toContain(`<convention id="${committed.id}" scope="**">`);
+    expect(mixed).toContain("When a personal convention disagrees with a committed one, the committed one wins");
+    // A repository whose only convention is personal still gets the rule.
+    expect(renderConventions(load([personal]))).toContain("personal convention");
+  });
+});
+
 describe("renderConventions", () => {
   test("is empty without memory, without entries and with only exceptions", () => {
     expect(renderConventions(undefined)).toBe("");

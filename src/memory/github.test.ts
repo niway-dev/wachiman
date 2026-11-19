@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { GhError, readBaseMemory, type GhFn } from "../engine";
 
 const BASE = "b".repeat(40);
@@ -77,5 +80,51 @@ describe("readBaseMemory", () => {
       throw new GhError("gh: boom (HTTP 502)", 502, "boom");
     };
     expect(() => readBaseMemory(gh, "o/r", BASE, [], () => {})).toThrow("boom");
+  });
+});
+
+describe("a review in Actions never loads personal memory", () => {
+  const entry = (id: string) => `### ${id} Personal rule.\n\n- kind: convention\n- scope: apps/**\n- rule: Personal rule.\n- why: because\n- evidence:\n  - 2026-11-18 instruction, branch x\n- added: 2026-11-18\n`;
+
+  /** A Wachiman home that holds personal memory for github.com/o/r, the repository `repo()` answers for. */
+  const withPersonalMemory = (run: () => void) => {
+    const home = mkdtempSync(join(tmpdir(), "wachiman-actions-home-"));
+    const folder = join(home, "memory", "github.com", "o", "r");
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "index.md"), `# Memory\n\n${entry("aaaaaaaaaaaa")}`);
+    const saved = { WACHIMAN_HOME: process.env.WACHIMAN_HOME, HOME: process.env.HOME };
+    process.env.WACHIMAN_HOME = home;
+    process.env.HOME = home;
+    try {
+      run();
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      rmSync(home, { recursive: true, force: true });
+    }
+  };
+
+  test("with committed memory, the load holds none of the personal entries and records none", () => {
+    withPersonalMemory(() => {
+      const { gh } = repo();
+      const load = readBaseMemory(gh, "o/r", BASE, ["apps/x.ts"], () => {})!;
+      expect(load.files.every((f) => !f.personal && f.path.startsWith(".wachiman/memory/"))).toBe(true);
+      expect(load.entries.some((e) => e.personal)).toBe(false);
+      expect(load.personalEntries).toBeUndefined();
+    });
+  });
+
+  test("with no committed memory, there is no memory at all, however much personal memory the home holds", () => {
+    withPersonalMemory(() => {
+      const { gh } = repo();
+      expect(readBaseMemory(gh, "o/r", "c".repeat(40), ["apps/x.ts"], () => {})).toBeUndefined();
+    });
+  });
+
+  test("the Actions entry point does not import the personal memory module", () => {
+    const engine = readFileSync(join(import.meta.dir, "..", "engine.ts"), "utf8");
+    expect(engine).not.toMatch(/memory\/personal/);
   });
 });

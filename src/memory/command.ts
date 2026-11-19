@@ -23,6 +23,7 @@ import { CAPTURE_SUBCOMMANDS, runCapture, type CaptureContext } from "./capture"
 import { runRemember } from "./remember";
 import { repositoryRoot } from "./settings";
 import { archiveEntry, archiveSuggestions, findDuplicates, readMemoryUse, writeFileAtomically, type MemoryUse } from "./hygiene";
+import { personalMemoryDir, readPersonalFiles } from "./personal";
 import { buildReport, parseReportArgs, renderReport } from "./report";
 import { ARCHIVE_FILE, MEMORY_DIR } from "./load";
 
@@ -85,7 +86,8 @@ export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: Ca
     const root = repositoryRoot(repoDir);
     const key = repositoryKey(repoDir).key;
     const home = historyRoot(wachimanHome(ctx.env ?? process.env));
-    const report = buildReport({ runs: readRuns(home, key, (line) => io.stderr(line)), verdicts: readVerdicts(home, key), files: readMemoryFolder(root), use: readMemoryUse(wachimanHome(ctx.env ?? process.env), key), since: args.since });
+    const personalDir = personalMemoryDir(wachimanHome(ctx.env ?? process.env), repoDir);
+    const report = buildReport({ runs: readRuns(home, key, (line) => io.stderr(line)), verdicts: readVerdicts(home, key), files: readMemoryFolder(root), personalFiles: personalDir === undefined ? undefined : readPersonalFiles(personalDir, (line) => io.stderr(line)), use: readMemoryUse(wachimanHome(ctx.env ?? process.env), key), since: args.since });
     io.stdout(args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report));
     return 0;
   }
