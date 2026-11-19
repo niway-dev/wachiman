@@ -12,6 +12,7 @@ import { entryId } from "./memory/entries";
 import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
 import { A_BASE, A_HEAD, PNG_BASE, PNG_HEAD, branchRepo, commit, emptyCommits, emptyRepo, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
+import { personalMemoryDir } from "./memory/personal";
 import { readMemoryUse } from "./memory/hygiene";
 
 const temps: string[] = [];
@@ -938,6 +939,30 @@ describe("--no-memory", () => {
     expect("memory" in skipped).toBe(false);
     expect("muted" in skipped).toBe(false);
   }, 60_000);
+
+  test("personal memory is loaded by a laptop review, and --no-memory loads none of it", () => {
+    const wachimanHome = temp("wachiman-home-");
+    const withPersonal = () => {
+      const repo = repoWith(false);
+      git(repo.dir, "remote", "add", "origin", "https://github.com/acme/widgets.git");
+      const folder = personalMemoryDir(wachimanHome, repo.dir)!;
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(join(folder, "index.md"), INDEX);
+      return repo;
+    };
+    const env = { WACHIMAN_HOME: wachimanHome };
+    const flags = ["--format", "json", "--result-version", "2"];
+    const prompt = (r: { read: (s: string) => string | undefined }) => scrub(r.read("prompt") as string);
+
+    const loaded = local("ok", flags, env, withPersonal());
+    expect(JSON.parse(loaded.stdout).memory?.personalEntries).toEqual(["4c1e9a2"]);
+    expect(prompt(loaded)).toContain("Prefer named exports");
+
+    const skipped = local("ok", [...flags, "--no-memory"], env, withPersonal());
+    expect("memory" in JSON.parse(skipped.stdout)).toBe(false);
+    expect(prompt(skipped)).not.toContain("Prefer named exports");
+    expect(prompt(skipped)).toBe(prompt(local("ok", flags, env, repoWith(false))));
+  }, 90_000);
 
   test("says on stderr that memory is off, and only then", () => {
     expect(local("ok", ["--no-memory"], {}, repoWith(true)).stderr).toContain("memory: off (--no-memory)");
