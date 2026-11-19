@@ -1,7 +1,7 @@
 # A calibrated finding priority instead of the Important/Nit word
 
 - **Status:** proposed (2026-11-18). Tracker: [NIW2-873](https://linear.app/niway/issue/NIW2-873/wachiman-a-calibrated-finding-priority-must-should-could-fyi-instead); measurement: [NIW2-874](https://linear.app/niway/issue/NIW2-874/wachiman-measure-what-happens-to-each-finding-per-severity-confidence).
-- **ADRs:** [the priority word is derived from a calibration table](../adr/0059-the-finding-priority-is-derived-from-a-calibration-table.md) (new; supersedes [ADR 0030](../adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md) decision 7).
+- **ADRs:** [the priority word is derived from a calibration table](../adr/0059-the-finding-priority-is-derived-from-a-calibration-table.md) (new; supersedes [ADR 0030](../adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md) decision 7 and amends the word in the inline severity cell of [ADR 0055](../adr/0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md) decision 8).
 
 ## Summary (one minute)
 
@@ -44,10 +44,10 @@ flowchart LR
 
 | # | Decision | Why | ADR |
 | --- | --- | --- | --- |
-| 1 | The headline word is a priority derived by the engine, never chosen by the model | ADR 0031 rejected a model-picked level: the one published attempt found model-assigned severity near random; confidence already separates outcomes | 0059 (new) |
+| 1 | The headline word is a priority derived by the engine, never chosen by the model | The same reasoning as ADR 0031 for the risk-map level (a model-picked level is unreliable), applied here to findings; confidence already separates outcomes | 0059 (new) |
 | 2 | Four words: Must, Should, Could, FYI | Two words cannot hold "almost always fixed but not blocking"; "Nit" already means "ignore" | 0059 |
-| 3 | The priority comes from a versioned table keyed by severity × confidence × topic group (defect, quality, question), plus a rank 0–100 | A table scales by data, not by code; the rank sorts within a word, as SARIF `rank` does | 0059 |
-| 4 | Table v1 is seeded from the sample below; a cell with fewer than 20 outcomes keeps its seed and says so | Honest about thin data; "Could" is the default where nothing is known | 0059 |
+| 3 | The priority comes from a versioned table keyed by severity × confidence, with topic group (defect, quality, question) as a third key only once a split cell is measured; the rank (0–100) is the lower end of the cell's judged interval, sorts findings within a word, is stored but never displayed, and never gates anything | A table scales by data, not by code; ADR 0031 rejected a number because thresholds turn it into a gate, so the rank stays a sort key | 0059 |
+| 4 | Table v1 is seeded from the severity × confidence rows of the sample below: Blocker high/medium → Must, Fix high/medium → Should, Consider high → Should, Consider medium and low → Could, any low-confidence Blocker or Fix → Could, Info → FYI. A cell not measured under decision 12 keeps its seed and says so | Only what the sample shows; the topic split (defect Considers fixed 61%, below tests and docs) is not enough to seed by topic; "Could" is the default where nothing is known | 0059 |
 | 5 | Each comment shows what its cell's number measures and on how much: `fixed 95% · n 56 · 12 PRs` | Highlights confidence and makes every review a data point, without calling a fix rate "should act" | 0059 |
 | 6 | The table is fitted to **warranted action**: a sample of findings judged by a person who does not see the displayed word. Fix, decline and no-answer rates are reported beside it, never fitted | A fix (above all an agent's) measures compliance; the label would otherwise learn its own effect | 0059 |
 | 7 | A new table ships only in a reviewed PR and stays frozen for the release | Prevents the label from confirming itself (higher word → more fixes → higher word) | 0059 |
@@ -56,22 +56,27 @@ flowchart LR
 | 10 | A rate can raise a priority, never lower it below a floor set by severity and topic: Blocker is Must, Fix on a defect or security topic is Should | A rare severe defect must never rank under a frequent cleanup | 0059 |
 | 11 | Each cell records the model family and prompt version it was measured on; a review on another configuration shows `not measured for this configuration` and uses the seed | A cell's contents change when the model or prompt changes | 0059 |
 | 12 | A cell counts as measured only when n ≥ 20 from at least 5 PRs and the lower end of its 90% Wilson interval clears the band; a word changes only when the interval moves past the band edge | Twenty correlated outcomes near an edge would flip words between releases | 0059 |
+| 14 | Pre-existing is an origin badge beside the priority, never a priority | Keeps Claude Code's one stated reason (a bug the PR did not introduce is not the author's fault) without hiding its severity | 0059 |
+| 15 | The cell rate is rendered in the finding's body, never on the title line | `precision.ts` reads confidence anchored to the end of the title line | 0059 |
 | 13 | The trial is an A/B in the owner's repositories: each PR is assigned the old word or the priority at random, recorded in the result, for at least two weeks | The only way to tell the word's effect from the findings' | — |
 
 ## Layers
 
 | # | What it builds | Criteria | Risk | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | `priority` and `rank` on findings, `priorityOf` with floors, table v1 as data with provenance, title and footer show the word and the cell rate, origin badge, `tier` deprecated, A/B assignment | AC1–AC5, AC10, AC11, AC13 | 🟡 Medium | — |
+| 1 | `priority` and `rank` on findings, `priorityOf` with floors, table v1 as data with provenance, title and footer show the word and the cell rate, origin badge, `tier` deprecated, A/B assignment | AC1–AC5, AC10, AC11, AC13, AC15 | 🟡 Medium | — |
 | 2 | `wachiman calibrate`: outcome rates per cell from local history, verdicts and PR threads; a blind judging sample; proposes table vN+1 as a diff | AC6–AC8, AC12, AC14 | 🟡 Medium | 1 |
 | 3 | Prompt: the test that separates Fix from Consider, measured on the benchmark before and after | AC9 | 🟢 Low | 2 |
 
 ## Open questions
 
-1. **Size of the blind judging sample.** Default: 30 findings per release, drawn at random across
-   cells including unanswered ones, judged by the owner with the word hidden ("would you act on
-   this?"). Revisit after the first run of NIW2-874.
-2. **Bands from rank to word.** Default: Should 60 and above, Could 25–59, FYI below 25. Must is
+1. **Size and pace of the blind judging sample.** Default: 40 findings per release, stratified over
+   the eight severity × confidence cells that occur (about five each), unanswered findings included,
+   judged by the owner with the word hidden ("would you act on this?"). Judgements accumulate across
+   releases, so a cell reaches decision 12 after about four releases; cells whose fix rates disagree
+   most with their seed are judged first. Revisit after the first run of NIW2-874.
+2. **Bands from rank to word.** The rank is 100 × the lower end of the cell's 90% Wilson interval
+   on the judged "would act" proportion. Default: Should 60 and above, Could 25–59, FYI below 25. Must is
    not a band: it is every Blocker at high or medium confidence, whatever its rate. A Blocker at low
    confidence is already posted as a question (ADR 0027) and is Could.
 3. **Should a Could be skipped by agents?** Claude Code's write-up notes that an agent fixes every
@@ -102,8 +107,9 @@ flowchart LR
 
 ## Acceptance criteria
 
-- [ ] **AC1** `priorityOf` returns Must for every Blocker at high or medium confidence, Could at low, and the v1 table maps Consider · high · defect to Should and Consider · low to Could (unit tests over every cell).
-- [ ] **AC2** The inline title and the footer read `Should · 🟡🐛 Consider · bug: …` and `Wachiman · should`; golden Markdown files updated.
+- [ ] **AC1** `priorityOf` returns Must for every Blocker at high or medium confidence, Could at low, and the v1 table maps Consider · high to Should, Consider · medium and low to Could, and every Info to FYI (unit tests over every cell).
+- [ ] **AC2** In the inline finding of ADR 0055, the severity cell reads `🟡 Consider` with the word `Should`, and the signature line reads `Wachiman · should`; the review body's `<sub>… via …</sub>` footer is unchanged; golden Markdown files updated.
+- [ ] **AC15** The cell rate appears only in the finding body; `parseLabel` in `src/precision.ts` still reads severity, topic and confidence from every golden file.
 - [ ] **AC3** A measured cell shows `fixed <p>% · n <n> · <k> PRs`; a cell below the rule of decision 12 shows `not yet measured`.
 - [ ] **AC4** `/2` output keeps `tier` with today's values and adds `priority` and `rank`; the JSON schema validates both old and new files.
 - [ ] **AC5** Pre-existing findings show the origin badge and keep their priority.
@@ -163,7 +169,7 @@ bug the PR didn't introduce doesn't look like the author's fault"
 Their pipeline drops style, diagnostics and cleanup findings and caps nits before posting, so its
 Nit is a small residue. Wachiman posts every Consider, so the same word covers most of what we
 post, including findings authors fix almost always. The pre-existing reason stays valid: it moves
-to its own badge (decision 8). The same write-up sorts every comment by how the author responded
+to its own badge (decision 14). The same write-up sorts every comment by how the author responded
 (fixed, wrong, intentional, didn't matter); `calibrate` uses the same outcomes.
 
 ## State of the art
