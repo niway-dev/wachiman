@@ -73,6 +73,9 @@ flowchart LR
 | 15 | Priority and Track record are rows of the inline finding table (the fixed layout of ADR 0055, built in the inline-finding-table work); the Severity cell drops the tier word. The thread text given back to the model is rebuilt to today's one-line label by `legacyFindingComment`, so the new rows never reach the model; `parseInlineTable` accepts a Severity cell with or without the tier word | The table is where a reader already looks for severity, area and confidence; a line in the body would be the one label outside it | 0059 |
 | 16 | Every review opens its findings with one line of what was reviewed: `9 findings: 1 Must, 4 Should, 3 Could, 1 FYI · 6 at high confidence` | A reader who saw only "Nit" concluded the review found little; the line shows its weight at a glance | 0059 |
 | 17 | Info keeps no thread (it asks for no code decision) and is listed in the body and counted in the summary line | Every finding is read; a thread per Info would add noise without a decision to record | — |
+| 18 | Layer 1 is stacked on the inline finding table branch, which opens as its own PR at the bottom of the stack | The Priority and Track record rows need the table; assumed in the GSD run, your call | — |
+| 19 | In layer 1 the Track record row reads `no record yet · seed` for every finding; numbers appear only from the repository's own outcomes, once layer 2 counts them. The 63-PR sample stays in this spec as the reason for the seeds, never in a comment | One private repository's compliance rates must not show up in another project's review as if they were its own; assumed, your call | 0059 |
+| 20 | The trial is on with `WACHIMAN_PRIORITY_TRIAL=1`; the arm is a hash of repository and PR number, so a push never changes it and nothing is stored; with the trial off every review uses the priority arm and the result has no `arm` | Stable per PR without a store; assumed, your call | 0059 |
 
 ## Layers
 
@@ -124,7 +127,7 @@ flowchart LR
 - [ ] **AC15** `parseInlineTable` and `parseLabel` read severity, topic and confidence from tables with and without the tier word and from the old one-line label; `legacyFindingComment` drops the Priority and Track record rows from the model's input (round-trip tests).
 - [ ] **AC16** Every review with findings opens them with the summary line of decision 16, in both arms.
 - [ ] **AC17** Priority is computed after verification, so a finding the verifier lowers to low confidence gets its final priority (test through `verify.ts`).
-- [ ] **AC3** The Track record row shows `fixed <p>% of <n> answered · <k> PRs` with `seed` or `calibrated vN` when counts are known, and `no record yet · seed` when they are not.
+- [ ] **AC3** The Track record row shows `no record yet · seed` while the repository has no counted outcomes (all of layer 1), and `fixed <p>% of <n> answered · <k> PRs` with `seed` or `calibrated vN` once layer 2 counts them.
 - [ ] **AC4** `/2` output keeps `tier` with today's values and adds `priority`, `rank` and, during the trial, `arm`; the JSON schema validates both old and new files.
 - [ ] **AC5** Pre-existing findings show the origin badge and keep their priority.
 - [ ] **AC6** `wachiman calibrate` prints, per cell, n, fixed %, declined %, wrong %, unanswered %, split by owner and agent.
