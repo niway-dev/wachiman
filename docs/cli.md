@@ -890,7 +890,7 @@ only after the owner approves it.
   the pull request by hand or run the command again).
 
 **Measuring what memory does (layer 7).** `memory report` prints what the local history says,
-without calling a model and without writing anything:
+without calling a model. It writes nothing, except that a run file in the history that cannot be read is set aside under a new name (with a warning), as in every command that reads the history:
 
 ```
 wachiman memory report [--since <date>] [--format terminal|json] [--repo-dir <dir>]
