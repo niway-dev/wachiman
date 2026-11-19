@@ -87,7 +87,7 @@ An inline finding, on its line in the diff, is a small table followed by the rea
 …the reasoning, citing the lines it rests on…
 ```
 
-The local sinks print the one-line label instead (`👮 **Wachiman** · Should · 🟠🐛 **Fix · bug: …**`).
+The local sinks print the one-line label instead, without the brand (`Should · 🟠🐛 **Fix · bug: …**`).
 
 ### The priority word
 
