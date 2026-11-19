@@ -56,7 +56,8 @@ describe("githubReview with verified findings", () => {
   test("a pre-existing finding is listed in the body, not opened as a thread", () => {
     const review = githubReview(fixture(), github);
     expect(review.comments.map((c) => c.path)).toEqual(["apps/api/src/main/session/store.ts"]);
-    expect(review.comments[0].body).toContain("👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: The store drops the last session (confidence high)**");
+    expect(review.comments[0].body).toContain("| 👮 **Wachiman** | The store drops the last session |");
+    expect(review.comments[0].body).toContain("| **Confidence** | 🟥🟥🟥 High |");
     expect(review.body).toContain("### Pre-existing");
     expect(review.body).toMatch(/### Pre-existing\n\n- Pre-existing · 🟠🐛 \*\*Fix · bug: The manager never closes the store \(confidence high\)\*\* \(`apps\/api\/src\/main\/session\/session-manager\.ts:3`\)/);
   });

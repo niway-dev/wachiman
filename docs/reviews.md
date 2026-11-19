@@ -73,17 +73,24 @@ content and amounts are invented. It is not a recorded review.
 Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · 2 batches · $0.42
 ```
 
-An inline finding, on its line in the diff, looks like this:
+An inline finding, on its line in the diff, is a small table followed by the reasoning:
 
 ```text
-👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Zero limit breaks the page count (confidence high)**
+| 👮 **Wachiman** | Zero limit breaks the page count |
+|:--|:--|
+| **Severity** | 🟠 Fix · Important |
+| **Area** | 🐛 bug |
+| **Confidence** | 🟥🟥🟥 High |
 
 …the reasoning, citing the lines it rests on…
 ```
 
+The model and the local sinks still use the one-line label (`👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: …**`).
+
 ### The tier word
 
-A label starts with a tier word the engine derives: **Important** for Blocker and Fix, **Nit** for
+The engine derives a tier word, shown in the Severity row of the table and at the start of the
+one-line label: **Important** for Blocker and Fix, **Nit** for
 Consider and Info, and **Pre-existing** for a true bug that verification found in the base commit
 as well, which this change neither caused nor made worse. Pre-existing findings and fixes the
 verifier could not settle are listed in the review body, under "Pre-existing" and
@@ -119,8 +126,9 @@ the contract is in [cli.md](cli.md#finding-labels).
 These are the only labels. A repository's instructions cannot add one
 ([review-policy.md](review-policy.md)).
 
-A finding also shows how sure the reviewer is, after its title: `(confidence high)`, `medium` or
-`low`. Severity says how bad the finding is if it is true; confidence says how sure the reviewer
+A finding also shows how sure the reviewer is: a Confidence row (`High`, `Medium` or `Low`), left
+out when the model gave none. The one-line label shows it after the title, as `(confidence high)`,
+`medium` or `low`. Severity says how bad the finding is if it is true; confidence says how sure the reviewer
 is that it is true. A finding the reviewer is not sure of at Fix or above is posted as a ❓
 question. Definitions: [cli.md](cli.md#finding-labels).
 

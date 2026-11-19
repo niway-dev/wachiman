@@ -1005,13 +1005,13 @@ describe("buildReview", () => {
         path: "src/a.ts",
         line: 2,
         side: "RIGHT",
-        body: "👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Off by one**\n\nFails for an empty list.\n\n<!-- wachi:finding -->",
+        body: "| 👮 **Wachiman** | Off by one |\n|:--|:--|\n| **Severity** | 🟠 Fix · Important |\n| **Area** | 🐛 bug |\n\nFails for an empty list.\n\n<!-- wachi:finding -->",
       },
       {
         path: "src/a.ts",
         line: 1,
         side: "RIGHT",
-        body: "👮 **Wachiman** · Nit · 🟡🧹 **Consider · cleanup: Naming**\n\nConsider a clearer name.\n\n<!-- wachi:finding -->",
+        body: "| 👮 **Wachiman** | Naming |\n|:--|:--|\n| **Severity** | 🟡 Consider · Nit |\n| **Area** | 🧹 cleanup |\n\nConsider a clearer name.\n\n<!-- wachi:finding -->",
       },
     ]);
     expect(review.body).toContain("2 finding(s): 1 to fix, 1 to consider; 2 on their lines");
@@ -1517,7 +1517,13 @@ describe("contracts in the review body", () => {
       ...base,
       output: output({ files_reviewed: ["src/a.ts"], findings: [fix, { ...fix, line: 99, confidence: "low", title: "Outside" }] }),
     });
-    expect(comments[0].body.split("\n")[0]).toBe("👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Face is lost (confidence high)**");
+    expect(comments[0].body.split("\n").slice(0, 5)).toEqual([
+      "| 👮 **Wachiman** | Face is lost |",
+      "|:--|:--|",
+      "| **Severity** | 🟠 Fix · Important |",
+      "| **Area** | 🐛 bug |",
+      "| **Confidence** | 🟥🟥🟥 High |",
+    ]);
     expect(body).toContain("Important · 🟠🐛 **Fix · bug: Outside (confidence low)** (`src/a.ts:99`)");
   });
 

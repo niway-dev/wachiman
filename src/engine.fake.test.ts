@@ -211,7 +211,8 @@ describe("the batch loop against a fake provider", () => {
     // and marked, and its headline names the logo.
     // Every comment opens with the brand, so a reader sees it is Wachi's despite the bot account.
     expect(body.startsWith("👮 **Wachiman** · ")).toBe(true);
-    expect(posted.review?.comments[0].body.startsWith("👮 **Wachiman** · Important · 🟠🐛")).toBe(true);
+    expect(posted.review?.comments[0].body.startsWith("| 👮 **Wachiman** | ")).toBe(true);
+    expect(posted.review?.comments[0].body).toContain("| **Severity** | 🟠 Fix · Important |");
     expect(body.split("\n")[0]).not.toContain("Partial review");
     expect(body.split("\n")[0]).toContain(`all 3 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
     expect(body).toContain("wachiman sha=");
@@ -579,7 +580,8 @@ describe("flow questions and contracts against a fake provider", () => {
     expect(body).toContain("- drag a ready copy (`apps/api/src/main/session/session-manager.ts:2`)");
     expect(body).toContain("Who re-lists?");
     expect(body.indexOf("What the change connects to")).toBeLessThan(body.indexOf("Coverage by batch"));
-    expect(posted?.comments[0].body).toContain("**Fix · bug: Seen flag skipped (confidence high)**");
+    expect(posted?.comments[0].body).toContain("| 👮 **Wachiman** | Seen flag skipped |");
+    expect(posted?.comments[0].body).toContain("| **Confidence** | 🟥🟥🟥 High |");
   });
 
   test("a citation to a missing file or a line past the end is a warning, and the review still posts", async () => {
@@ -785,10 +787,12 @@ describe("the confidence rule through review()", () => {
       warn: () => {},
     };
     await review(deps, "o/r", 7, []);
-    const heads = (posted.review?.comments ?? []).map((c) => c.body.split("\n")[0]);
-    expect(heads).toContain("👮 **Wachiman** · Important · 🟠❓ **Fix · question: Maybe leaks (confidence low)**");
-    expect(heads).toContain("👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Off by one (confidence high)**");
-    expect(heads).toContain("👮 **Wachiman** · Nit · 🟡🧹 **Consider · cleanup: Name (confidence low)**");
+    const tables = (posted.review?.comments ?? []).map((c) => c.body.split("\n").slice(0, 5).join("\n"));
+    const table = (title: string, severity: string, area: string, confidence: string) =>
+      `| 👮 **Wachiman** | ${title} |\n|:--|:--|\n| **Severity** | ${severity} |\n| **Area** | ${area} |\n| **Confidence** | ${confidence} |`;
+    expect(tables).toContain(table("Maybe leaks", "🟠 Fix · Important", "❓ question", "🟥⬜⬜ Low"));
+    expect(tables).toContain(table("Off by one", "🟠 Fix · Important", "🐛 bug", "🟥🟥🟥 High"));
+    expect(tables).toContain(table("Name", "🟡 Consider · Nit", "🧹 cleanup", "🟥⬜⬜ Low"));
     expect(posted.review?.comments.find((c) => c.line === 2)?.body).toContain("Is the handle closed on error?");
     expect(logs.filter((l) => l.startsWith("Confidence rule:"))).toEqual([
       "Confidence rule: 1 finding(s) with low confidence at severity fix or above posted as questions.",
