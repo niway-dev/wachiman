@@ -591,7 +591,7 @@ export async function runLocal(
     const reviewable = splitUnreviewable(kept, input.headDir).reviewable;
     if (args.noMemory) io.stderr("memory: off (--no-memory)");
     // The developer's personal memory for this repository (keyed by `origin`) is loaded after it, on the laptop only.
-    const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr, spawnGit, personalSourceFor(home, repoDir));
+    const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr, spawnGit, personalSourceFor(home, repoDir, spawnGit, io.stderr));
     const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}) }, {
       provider,
       ...(verifier ? { verifier } : {}),

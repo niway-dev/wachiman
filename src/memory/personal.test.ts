@@ -3,13 +3,14 @@
  * the URL of `origin`. Every Wachiman home here is a temporary directory; nothing touches a network.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { emptyRepo, git, commit, removeTempRepos } from "../../test/support/temp-repo";
 import { parseMemoryFile } from "./entries";
 import { runMemory } from "./command";
-import { personalMemoryDir, personalMemorySource } from "./personal";
+import { repositoryKey } from "../history/store";
+import { personalMemoryDir, personalMemorySource, writeMemoryChoice } from "./personal";
 
 const temps: string[] = [];
 const temp = (prefix: string) => {
@@ -88,6 +89,45 @@ describe("personalMemorySource", () => {
     expect(s.list()).toEqual([]);
     expect(s.read("index.md")).toBeNull();
     expect(s.settings()).toBeUndefined();
+  });
+
+  test("a populated folder lists its plain .md files and reads them; hidden files, other extensions and folders are not memory", () => {
+    const dir = temp("wachiman-pm-");
+    writeFileSync(join(dir, "index.md"), "# Memory\n");
+    writeFileSync(join(dir, "src.md"), "src rules\n");
+    writeFileSync(join(dir, ".hidden.md"), "no\n");
+    writeFileSync(join(dir, "notes.txt"), "no\n");
+    mkdirSync(join(dir, "folder.md"));
+    const s = personalMemorySource(dir);
+    expect(s.list().sort()).toEqual(["index.md", "src.md"]);
+    expect(s.read("index.md")).toBe("# Memory\n");
+    expect(s.read("src.md")).toBe("src rules\n");
+    expect(s.read("notes.txt")).toBeNull();
+    expect(s.read("missing.md")).toBeNull();
+  });
+
+  test("an unreadable file is warned about by path and left out; the rest still loads", () => {
+    if (process.getuid?.() === 0) return;
+    const dir = temp("wachiman-pm-");
+    writeFileSync(join(dir, "index.md"), "# Memory\n");
+    writeFileSync(join(dir, "locked.md"), "secret\n");
+    chmodSync(join(dir, "locked.md"), 0o000);
+    const warned: string[] = [];
+    const s = personalMemorySource(dir, (line) => warned.push(line));
+    expect(s.list()).toEqual(["index.md"]);
+    expect(s.read("locked.md")).toBeNull();
+    expect(warned).toHaveLength(1);
+    expect(warned[0]).toContain(join(dir, "locked.md"));
+    expect(warned[0]).toContain("personal memory");
+  });
+
+  test("a folder that cannot be listed is warned about and has no memory", () => {
+    const dir = temp("wachiman-pm-");
+    const file = join(dir, "not-a-folder");
+    writeFileSync(file, "x");
+    const warned: string[] = [];
+    expect(personalMemorySource(file, (line) => warned.push(line)).list()).toEqual([]);
+    expect(warned.join("\n")).toContain(file);
   });
 });
 
@@ -250,6 +290,37 @@ describe("the first propose in a repository whose team has not adopted memory", 
     expect(git(w.bare, "branch", "--list").includes("wachiman/memory")).toBe(true);
     expect(choices(home)).toEqual([]);
     expect(run("propose", add(run, "Third rule."), "--personal", "--team").code).toBe(2);
+  }, 30_000);
+
+  test("a remembered personal answer yields to the team once the repository has team memory, and says so", () => {
+    const w = teamWorld();
+    const home = temp("wachiman-home-");
+    const remember = () => writeMemoryChoice(home, repositoryKey(w.dir).key, "personal", new Date("2026-11-01T00:00:00Z"));
+    const noAsk = { ask: () => { throw new Error("must not ask"); } };
+
+    // The team has not adopted memory yet: the remembered answer holds.
+    const solo = cli(w.dir, home, { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls }, noAsk);
+    w.asGithub();
+    remember();
+    const first = solo("propose", add(solo, "Prefer named exports."));
+    expect(first.stdout).toContain("in your personal memory");
+
+    // The team adopted it: a plain propose goes to the team and says so in one line.
+    w.asBare();
+    remember();
+    const after = cli(w.dir, home, { teamMemory: () => true, pulls: w.pulls }, noAsk);
+    const r = after("propose", add(after, "Keep modules small."));
+    expect(r.code).toBe(0);
+    expect(r.stdout).not.toContain("in your personal memory");
+    expect(r.stdout).toContain("on wachiman/memory");
+    expect(r.stdout.split("\n").filter((l) => l.includes("now has .wachiman/memory/"))).toHaveLength(1);
+    expect(git(w.bare, "branch", "--list").includes("wachiman/memory")).toBe(true);
+
+    // --personal still works explicitly.
+    w.asGithub();
+    const explicit = after("propose", add(after, "Third rule."), "--personal");
+    expect(explicit.code).toBe(0);
+    expect(explicit.stdout).toContain("in your personal memory");
   }, 30_000);
 
   test("a repository whose default branch already has memory is not asked", () => {

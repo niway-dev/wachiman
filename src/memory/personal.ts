@@ -8,7 +8,7 @@
  * repository shares it and no other repository sees it. A clone with no `origin` has none.
  * Only a laptop review loads it (`localMemory`); a review in Actions never does.
  */
-import { chmodSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, writeSync } from "node:fs";
+import { type Dirent, chmodSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, writeSync } from "node:fs";
 import { join, sep } from "node:path";
 import { spawnGit, type GitRunner } from "../evidence";
 import { normaliseRemote } from "../history/store";
@@ -59,34 +59,55 @@ export function personalMemoryDir(home: string, repoDir: string, git: GitRunner 
   return join(home, "memory", host, owner, repository);
 }
 
-/** The plain `.md` files directly inside `dir`: not links, not hidden. */
-export function readPersonalFiles(dir: string): Record<string, string> {
+/**
+ * The plain `.md` files directly inside `dir`: not links, not hidden. Without `warn`, a file or
+ * folder that cannot be read throws (a write must never start from a partial picture). With
+ * `warn`, it is named there and left out, so a review goes on without it.
+ */
+export function readPersonalFiles(dir: string, warn?: (line: string) => void): Record<string, string> {
   if (!existsSync(dir)) return {};
   const out: Record<string, string> = {};
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.isFile() && !e.isSymbolicLink() && !e.name.startsWith(".") && e.name.endsWith(".md")) out[e.name] = readFileSync(join(dir, e.name), "utf8");
+  const skip = (path: string, error: unknown) => {
+    if (!warn) throw error;
+    warn(`personal memory: ${path} could not be read (${error instanceof Error ? error.message : String(error)}), so it is left out of this review.`);
+  };
+  let entries: Dirent[] = [];
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (error) {
+    skip(dir, error);
+  }
+  for (const e of entries) {
+    if (!(e.isFile() && !e.isSymbolicLink() && !e.name.startsWith(".") && e.name.endsWith(".md"))) continue;
+    try {
+      out[e.name] = readFileSync(join(dir, e.name), "utf8");
+    } catch (error) {
+      skip(join(dir, e.name), error);
+    }
   }
   return out;
 }
 
-/** The personal folder as a `MemorySource`, so a review loads it with the same reader as committed memory. */
-export function personalMemorySource(dir: string): MemorySource {
+/**
+ * The personal folder as a `MemorySource`, so a review loads it with the same reader as committed
+ * memory. Read once, on first use; a problem is reported through `warn` and never throws.
+ */
+export function personalMemorySource(dir: string, warn: (line: string) => void = () => {}): MemorySource {
+  let files: Record<string, string> | undefined;
+  const all = () => (files ??= readPersonalFiles(dir, warn));
   return {
-    list: () => Object.keys(readPersonalFiles(dir)),
-    read: (name) => {
-      const files = readPersonalFiles(dir);
-      return Object.hasOwn(files, name) ? files[name] : null;
-    },
+    list: () => Object.keys(all()),
+    read: (name) => (Object.hasOwn(all(), name) ? all()[name] : null),
     // Personal memory has no settings of its own: the budget is the repository's.
     settings: () => undefined,
   };
 }
 
 /** The personal source of `repoDir`, or undefined when it has none or its folder is empty. */
-export function personalSourceFor(home: string, repoDir: string, git: GitRunner = spawnGit): MemorySource | undefined {
+export function personalSourceFor(home: string, repoDir: string, git: GitRunner = spawnGit, warn?: (line: string) => void): MemorySource | undefined {
   const dir = personalMemoryDir(home, repoDir, git);
   if (dir === undefined) return undefined;
-  const source = personalMemorySource(dir);
+  const source = personalMemorySource(dir, warn);
   return source.list().length > 0 ? source : undefined;
 }
 
