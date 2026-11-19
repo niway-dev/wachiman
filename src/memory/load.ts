@@ -9,8 +9,9 @@
  * most specific globs go first and the rest are named as left out.
  *
  * This layer loads, selects, budgets and records. It does not put anything into a prompt and does
- * not mute anything: `MemoryLoad.entries` is what the review prompt (conventions) and the exception
- * matching will consume.
+ * not mute anything: `MemoryLoad.entries` is what the review prompt consumes for conventions, and
+ * what the engine's matching step consumes after discovery to mute Consider and Info findings that
+ * an in-scope exception covers.
  */
 import { UsageError } from "../config";
 import { ignoredSettingsNote, resolveMemorySettings, type MemorySettings, type RepoSettings } from "../repo-settings";
