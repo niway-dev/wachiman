@@ -147,7 +147,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     if (format === "json") {
       const candidates = list.map((c) => {
         const q = need(c, minEvidence);
-        return { id: c.id, title: c.title, kind: c.kind, scope: c.scope, evidence: q.counted, distinct: q.distinct, needed: q.needed, proposable: q.proposable, ...(q.why ? { why: q.why } : {}), ...(c.proposed ? { proposed: c.proposed.at } : {}) };
+        return { id: c.id, title: c.title, kind: c.kind, scope: c.scope, evidence: q.counted, distinct: q.distinct, needed: q.needed, proposable: q.proposable, ...(q.why ? { why: q.why } : {}), ...(c.proposed ? { proposed: c.proposed.at } : {}), ...(c.personal && !c.proposed ? { personal: c.personal.at } : {}) };
       });
       io.stdout(`${JSON.stringify({ format: "wachiman.memory-candidates/1", candidates }, null, 2)}\n`);
       return 0;
@@ -158,7 +158,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     }
     for (const c of list) {
       const q = need(c, minEvidence);
-      const state = c.proposed ? `proposed ${c.proposed.at.slice(0, 10)}` : q.proposable ? "proposable" : `not proposable: ${q.why}`;
+      const state = c.proposed ? `proposed ${c.proposed.at.slice(0, 10)}` : c.personal ? `personal ${c.personal.at.slice(0, 10)}${q.proposable ? ", proposable to the team" : ""}` : q.proposable ? "proposable" : `not proposable: ${q.why}`;
       io.stdout(`${c.id}  ${c.kind}  ${c.scope}  ${c.title}\n    ${state}\n`);
     }
     return 0;
@@ -191,7 +191,8 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     if (!personal && !parsed.flags.has("--team")) {
       // Spec decision 16: a repository whose team has not adopted memory is never pushed to unasked.
       let choice = readMemoryChoice(home, key);
-      const teamMemory = (ctx.deps?.teamMemory ?? teamHasMemory)(repositoryRoot(repoDir));
+      // The probe fetches from origin, so it runs only when the answer depends on it: a stored `team` answer goes to the team whatever the team has.
+      const teamMemory = choice === "team" ? undefined : (ctx.deps?.teamMemory ?? teamHasMemory)(repositoryRoot(repoDir));
       if (choice === "personal" && teamMemory === true) {
         // The team adopted memory after the answer was given: the entry goes to the team again.
         io.stdout("this repository's team now has .wachiman/memory/, so this entry goes to the team's memory pull request; pass --personal to keep it on this machine.\n");
@@ -214,11 +215,12 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
       try {
         withCandidateLock(home, key, id, () => {
           const latest = readCandidate(home, key, id) ?? c;
-          writeCandidate(home, key, { ...latest, proposed: { at } });
+          // A personal write is kept on this machine: the team never received it, so it stays proposable (`--from-personal`).
+          writeCandidate(home, key, personal ? { ...latest, personal: { at } } : { ...latest, proposed: { at } });
         });
       } catch (error) {
-        // The entry is already on origin: say so rather than turn the run into a usage error. A second propose is idempotent.
-        io.stderr(`memory propose: the entry was recorded, but candidate ${id} could not be marked as proposed (${(error as Error).message}).`);
+        // The entry is already written: say so rather than turn the run into a usage error. A second propose is idempotent.
+        io.stderr(`memory propose: the entry was recorded, but candidate ${id} could not be marked as ${personal ? "written to personal memory" : "proposed"} (${(error as Error).message}).`);
       }
     }
     return result.recorded ? (result.pullRequestFailed ? 1 : 0) : 1;

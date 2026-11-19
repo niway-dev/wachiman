@@ -57,7 +57,10 @@ export interface Candidate {
   /** `YYYY-MM-DD` of the first sighting; it is the entry's `added` line. */
   added: string;
   evidence: Evidence[];
+  /** Sent to the team's memory pull request. */
   proposed?: { at: string };
+  /** Kept in personal memory only; the team never received it. */
+  personal?: { at: string };
 }
 
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
@@ -413,7 +416,7 @@ export function candidatesForRound(home: string, key: string, minEvidence: numbe
   try {
     const ids = new Set(ledger.map((e) => e.id));
     return readCandidates(home, key)
-      .filter((c) => !c.proposed && proposability(c, minEvidence).proposable)
+      .filter((c) => !c.proposed && !c.personal && proposability(c, minEvidence).proposable)
       .filter((c) => c.evidence.some((e) => e.finding !== undefined && ids.has(e.finding)) || ledger.some((e) => matchesGlob(c.scope, e.path)))
       .map((c) => ({ id: c.id, title: c.title }));
   } catch {
