@@ -197,7 +197,7 @@ export interface VerifiedFields {
    * and topic, after verification; never trusted from a model. Optional: a result written before it existed has none.
    */
   priority?: Priority;
-  /** 0-100, sorts findings within a priority; never displayed and never a gate. Present with `priority`. */
+  /** 0-100, recorded for each finding and not used to order findings yet; never displayed and never a gate. Present with `priority`. */
   rank?: number;
 }
 

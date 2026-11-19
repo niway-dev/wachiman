@@ -19,7 +19,7 @@ export type Provenance =
   | { basis: "seed" }
   | { basis: "calibrated"; n: number; prs: number; model: string; promptVersion: string };
 
-/** One severity x confidence cell. The rank (0-100) sorts findings within a word and is never displayed. */
+/** One severity x confidence cell. The rank (0-100) is recorded for each finding, not used to order findings yet, and never displayed. */
 export interface Cell {
   priority: Priority;
   rank: number;

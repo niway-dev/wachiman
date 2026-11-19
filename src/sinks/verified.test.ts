@@ -28,7 +28,7 @@ const withInconclusiveFix = (): ReviewResult => {
 };
 
 describe("terminal", () => {
-  test("every label leads with its tier word and ends with what the verifier found", () => {
+  test("every label leads with its priority word and ends with what the verifier found", () => {
     const text = renderTerminal(fixture(), { agentPrompt: false });
     expect(text).toContain("Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high, supported)");
     expect(text).toContain("Should · Pre-existing · 🟠🐛 Fix · bug: The manager never closes the store (confidence high, supported)");
@@ -97,7 +97,7 @@ describe("markdown", () => {
 });
 
 describe("the agent prompt", () => {
-  test("carries the tier word and the status", () => {
+  test("carries the priority word and the status", () => {
     expect(agentPrompt(fixture())).toContain("1. apps/api/src/main/session/store.ts:2 · Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high, supported)");
   });
 });

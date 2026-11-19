@@ -885,7 +885,7 @@
           ]
         },
         "rank": {
-          "description": "0-100; sorts findings within a priority. Never displayed, never a gate.",
+          "description": "0-100; recorded for each finding and not used to order findings yet. Never displayed, never a gate.",
           "type": "integer",
           "minimum": 0,
           "maximum": 100
