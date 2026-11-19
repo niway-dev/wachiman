@@ -31,7 +31,8 @@ export function inspectMemory(input: CheckInput): CheckResult {
     const parsed = parseMemoryFile(name, files[name]);
     problems.push(...parsed.problems);
     entryCount += parsed.entries.length;
-    for (const entry of parsed.entries) {
+    // An archived entry is never loaded, so a scope that matches no file is expected there: archiving is the way to clear that problem.
+    for (const entry of name === ARCHIVE_FILE ? [] : parsed.entries) {
       for (const glob of globsOf(entry.scope)) {
         if (!matchesSome(glob)) add(name, entry.line, `scope \`${glob}\` of entry matches no file in the repository`);
       }

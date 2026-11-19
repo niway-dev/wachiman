@@ -397,6 +397,32 @@ describe("when the exception does not or cannot apply", () => {
     expect(result.summary).not.toContain("may be out of date");
   });
 
+  test("AC11: a convention whose holds-while path the diff touches is named with its id and title, once, and stays in the prompt", async () => {
+    const guarded = memoryEntry("convention", "Handlers get validated input", "src/**", "src/a.ts, src/*.ts");
+    const provider = new FakeProvider(discover([]));
+    const result = await reviewChange(branchInput(), options({ memory: memoryOf([guarded.block]) }), deps(provider).deps);
+    expect(provider.discoveryCalls[0].prompt).toContain("Handlers get validated input");
+    expect(result.summary).toContain(`\`${guarded.id}\` may be out of date`);
+    expect(result.summary).toContain('"Handlers get validated input"');
+    expect(result.summary.split("may be out of date")).toHaveLength(2);
+    expect(result.summary).not.toContain("did not mute anything");
+  });
+
+  test("AC11: an exception outside the diff's scope is still named when the diff touches its holds-while path", async () => {
+    const guarded = memoryEntry("exception", "Docs are not reviewed", "docs/**", "src/a.ts");
+    const provider = new FakeProvider(discover([NIT]));
+    const result = await reviewChange(branchInput(), options({ memory: memoryOf([guarded.block]) }), deps(provider).deps);
+    expect(result.summary).toContain(`\`${guarded.id}\` may be out of date`);
+  });
+
+  test("AC11: an entry without a holds-while line, or whose paths the diff leaves alone, adds nothing to the summary", async () => {
+    const plain = memoryEntry("convention", "Readable before terse", "src/**");
+    const far = memoryEntry("convention", "Handlers get validated input", "src/**", "src/gateway.ts");
+    const provider = new FakeProvider(discover([]));
+    const result = await reviewChange(branchInput(), options({ memory: memoryOf([plain.block, far.block]) }), deps(provider).deps);
+    expect(result.summary).not.toContain("may be out of date");
+  });
+
   test("a budget with no room left for the matching call mutes nothing and says so", async () => {
     const provider = new FakeProvider((r) => ({ ...discover([NIT])(r), costUsd: 0.19 }), answer({ finding: "f1", entry: EXCEPTION.id }));
     const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]), totalBudgetUsd: 0.2 }), deps(provider).deps);

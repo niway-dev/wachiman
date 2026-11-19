@@ -38,6 +38,7 @@ import { readConfig, wachimanHome } from "./accounts/config";
 import { confirmProfile, type SpawnFn } from "./accounts/confirm";
 import { failureText, profileLine, resolveProfile, type ResolvedProfile } from "./accounts/resolve";
 import { repositoryKey } from "./history/store";
+import { entriesUsed, recordMemoryUse } from "./memory/hygiene";
 import { inspectIsolatedProfile, parseProfile, populatedProfileError, profileDir } from "./profiles";
 import { getProvider as defaultGetProvider, type ProviderAdapter } from "./providers";
 import { InterruptedError, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
@@ -608,6 +609,14 @@ export async function runLocal(
     if (state.interrupted) {
       io.stderr("Interrupted: the review stopped and its snapshot was removed.");
       return 130;
+    }
+    // The laptop's record of which memory entries a review used (`memory check` suggests archiving the unused). It lives in the history store, so it is written only when history is on (ADR 0020); it never leaves the laptop and never fails a review.
+    if (memory && history.enabled) {
+      try {
+        recordMemoryUse(home, repositoryKey(repoDir).key, entriesUsed(memory, reviewable.map((f) => f.filename), result.muted ?? []), new Date().toISOString().slice(0, 10));
+      } catch (error) {
+        io.stderr(`memory: this run's use of memory was not recorded (${error instanceof Error ? error.message : error})`);
+      }
     }
     // After the review and before the snapshot goes: the cited lines are read from it.
     let annotation: HistoryAnnotation | undefined;
