@@ -4,9 +4,9 @@
   [ADR 0030](0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)
   (the Important/Nit/Pre-existing display word) once implemented; until then ADR 0030 decision 7
   describes the code. Amends [ADR 0055](0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md)
-  decision 8 on the same terms: the word in the inline finding's severity cell becomes the priority,
-  and the engine appends one line to the posted finding body (the cell rate, decision 5) that the
-  thread text given back to the model leaves out.
+  decision 8 on the same terms: the tier word leaves the inline finding's Severity cell, and the
+  table gains a Priority row first under the title and a Track record row (decision 5); the thread
+  text given back to the model is rebuilt to today's one-line label, so neither row reaches it.
   Builds on [ADR 0003](0003-two-axis-finding-labels.md), and applies to findings the reasoning
   [ADR 0031](0031-a-risk-map-whose-level-the-engine-computes-from-checked-facts.md) used for the
   risk-map level: the model does not pick the level, and a number does not become a gate. Design: [calibrated finding priority spec](../specs/2026-11-18-calibrated-finding-priority-design.md).
@@ -40,22 +40,28 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
 4. Table v1 is keyed by severity × confidence and seeded from the sample; topic group becomes a key
    only for a split cell that is measured. A cell not measured under decision 9 keeps its seed and
    is shown as not yet measured. The seed for unknown cells is Could.
-5. Each posted finding shows, in its body and never on the title line, what its cell's number
-   measures and on how much (`fixed 95% · n 56 · 12 PRs`), never as "should act".
+5. Each inline finding's table shows a Track record row: what its cell's number measures and on
+   how much (`fixed 95% of 56 answered · 1 repo · seed`), never as "should act". The observed rate
+   is shown whenever its counts and provenance are known; seed or calibrated is said separately.
+   Every review opens its findings with one line of what was reviewed (counts per priority and at
+   high confidence).
 6. The table is fitted to warranted action, judged on a random sample (unanswered findings
    included) by a person who does not see the displayed word. Fix, decline and no-answer rates are
    reported beside it and never fitted. A new table is proposed by `wachiman calibrate`, merged in a
    reviewed pull request, and frozen for the release.
-7. A rate only raises a priority above a floor: Blocker at high or medium confidence is Must, Fix
-   on a defect topic (bug, security, perf) at high or medium confidence is at least Should.
+7. Precedence: a low-confidence Blocker or Fix is at most Could; Info is FYI; every other Blocker
+   is Must; every other Fix on a defect topic (bug, security, perf) is at least Should. A rate only
+   raises a priority above its floor.
 8. Each cell records the model family and prompt version it was measured on; another
    configuration falls back to the seed and says so.
-9. The single minimum-sample rule: a cell is measured only with n ≥ 20 judgements, accumulated
-   across releases, from at least 5 pull requests and a 90% Wilson interval
-   whose lower end clears the band. Words have hysteresis: a word moves up only when the lower end of the interval clears the band edge, and down only when the upper end falls below it.
+9. Eligibility and movement are separate. A cell is eligible with n ≥ 20 judgements, accumulated
+   across releases, from at least 5 pull requests on a matching configuration. An eligible cell's
+   word moves up only when the lower end of its 90% Wilson interval clears the next band's edge,
+   and down only when the upper end falls below its current band.
    Seeds are set by decision 4, not computed from fix rates, because a fix rate measures compliance.
 10. Result `/2` adds `priority`, `rank` and, while the trial runs, `arm` (`word` or `priority`,
-   assigned at random per pull request in the owner's repositories). Under `arm: word` the comment
+   assigned at random once per pull request in the owner's repositories and kept on every push; only
+   the word differs between arms, and the order of findings is unchanged in both). Under `arm: word` the comment
    shows today's word, and `priority` and `rank` are still computed and stored for the comparison. `tier` stays, computed exactly as before and marked
    deprecated, until `/3` removes it. Pre-existing is shown as an origin badge beside the priority.
 11. The review loop's stop rule keeps reading severity (ADR 0034).
@@ -77,8 +83,9 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
 ## Consequences
 
 - Titles and footers change words; golden files and any reader of the title text must follow.
-  `precision.ts` reads confidence anchored to the end of the title line, so the cell rate goes in
-  the body (decision 5) and golden files prove the parser still reads every label.
+  `parseInlineTable` today requires the tier word in the Severity cell; it must accept the cell
+  without it, and round-trip tests prove every reader still gets severity, topic and confidence.
+  Layer 1 builds on the inline finding table, which is not merged yet.
 - Every review exposes per-cell rates, so the table can be checked by anyone reading a comment.
 - `calibrate` becomes part of the release routine; a release with no new table says so.
 - Consumers of `/2` see two new fields; `tier` keeps its meaning until `/3`.

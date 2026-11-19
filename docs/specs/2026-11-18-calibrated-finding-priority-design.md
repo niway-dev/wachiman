@@ -15,6 +15,10 @@ shows each comment's measured rate beside it, and adds a command that recalibrat
 recorded outcomes. The model never picks the priority. The loop's stop rule and the review cost do
 not change in this version.
 
+The priority lives in the inline finding table, as its own row under the title, next to the rows
+the table already has (Severity, Area, Confidence), plus a Track record row with the measured rate.
+How it looks, before and after: [the labels mockup](https://claude.ai/artifact/5KzGQKtSXYGP5m9VBkr1oK).
+
 The priority changes what a finding means to its reader, not whether it is read. Every finding is
 still read and answered, whatever its word; the author decides on the merits whether it warrants a
 change. A reader who sees only "Nit" concludes the review found nothing worth its cost, even when
@@ -38,9 +42,11 @@ flowchart LR
 
 | Thing | Today | After |
 | --- | --- | --- |
-| Headline word | `Nit` or `Important`, from severity only | `Must`, `Should`, `Could` or `FYI`, from severity × confidence × topic group |
+| Headline word | `Nit` or `Important`, from severity only, inside the Severity cell (`🟡 Consider · Nit`) | Its own **Priority** row, first under the title: `Must`, `Should`, `Could` or `FYI`, from severity × confidence × topic group; the Severity cell keeps only the severity |
 | Where the word comes from | `tierWord` in code | `priorityOf(finding, table)`; the table is versioned data shipped with the engine |
-| Confidence in the comment | A meter, not used for ranking | Still the meter; it now moves the priority, and the cell's measured rate shows beside it |
+| Confidence in the comment | A meter, not used for ranking | Still the meter row; it now moves the priority |
+| Track record | None | A **Track record** row: what happened to earlier findings of the same cell, with its counts and whether the priority is a seed or calibrated |
+| Review summary | Counts by severity | One line of what was reviewed: counts per priority and how many at high confidence |
 | Pre-existing | Folded into the word | Its own origin badge, beside any priority |
 | Result `/2` | `tier: Important \| Nit \| Pre-existing` | Adds `priority` and `rank`; `tier` stays, deprecated, until `/3` |
 | Calibration | None | `wachiman calibrate` prints outcome rates per cell and proposes the next table |
@@ -54,23 +60,25 @@ flowchart LR
 | 2 | Four words: Must, Should, Could, FYI | Two words cannot hold "almost always fixed but not blocking"; "Nit" already means "ignore" | 0059 |
 | 3 | The priority comes from a versioned table keyed by severity × confidence, with topic group (defect: bug, security, perf; policy: rules, adr; quality: tests, docs, cleanup; question) as a third key only once a split cell is measured; the rank (0–100) is the lower end of the cell's judged interval, sorts findings within a word, is stored but never displayed, and never gates anything | A table scales by data, not by code; ADR 0031 rejected a number because thresholds turn it into a gate, so the rank stays a sort key | 0059 |
 | 4 | Table v1 is seeded from the severity × confidence rows of the sample below: Blocker high/medium → Must, Fix high/medium → Should, Consider high → Should, Consider medium and low → Could, any low-confidence Blocker or Fix → Could, Info → FYI. A finding with no confidence uses its severity's medium cell. Seeds are set, not computed: Consider · medium is fixed 71%, but a fix rate measures compliance, and the owner chose Could while nothing is judged. A cell not measured under decision 12 keeps its seed and says so | Only what the sample shows; the topic split (defect Considers fixed 61%, below tests and docs) is not enough to seed by topic; "Could" is the default where nothing is known | 0059 |
-| 5 | Each comment shows what its cell's number measures and on how much: `fixed 95% · n 56 · 12 PRs` | Highlights confidence and makes every review a data point, without calling a fix rate "should act" | 0059 |
+| 5 | Each inline finding has a **Track record** row that says what its cell's number measures and on how much: `fixed 95% of 56 answered · 1 repo · seed`. The observed rate is shown whenever its counts and provenance are known; whether the priority is a seed or calibrated is said separately | Highlights confidence and makes every review a data point, without calling a fix rate "should act"; the first release can show evidence before any cell is calibrated | 0059 |
 | 6 | The table is fitted to **warranted action**: a sample of findings judged by a person who does not see the displayed word. Fix, decline and no-answer rates are reported beside it, never fitted | A fix (above all an agent's) measures compliance; the label would otherwise learn its own effect | 0059 |
 | 7 | A new table ships only in a reviewed PR and stays frozen for the release | Prevents the label from confirming itself (higher word → more fixes → higher word) | 0059 |
 | 8 | `tier` stays in `/2` as deprecated, computed as today; `priority` and `rank` are added | `/2` consumers keep working (ADR 0030 reopen condition: deliberate wire change) | 0059 |
 | 9 | The loop's stop rule keeps reading severity | Measure first how many Should findings a loop leaves open before letting the word add rounds | — |
-| 10 | A rate can raise a priority, never lower it below a floor set by severity and topic: Blocker is Must, Fix on a defect topic (bug, security, perf) is Should | A rare severe defect must never rank under a frequent cleanup | 0059 |
+| 10 | Precedence: a low-confidence Blocker or Fix is a question (ADR 0027) and at most Could; Info is FYI; every other Blocker is Must; every other Fix on a defect topic (bug, security, perf) is at least Should. A rate can raise a priority above its floor, never lower it | A rare severe defect must never rank under a frequent cleanup | 0059 |
 | 11 | Each cell records the model family and prompt version it was measured on; a review on another configuration shows `not measured for this configuration` and uses the seed | A cell's contents change when the model or prompt changes | 0059 |
-| 12 | A cell counts as measured only when n ≥ 20 from at least 5 PRs and the lower end of its 90% Wilson interval clears the band; a word moves up only when the lower end of the interval clears the band edge, and down only when the upper end falls below it | Twenty correlated outcomes near an edge would flip words between releases | 0059 |
-| 13 | The trial is an A/B in the owner's repositories: each PR is assigned the old word or the priority at random, recorded as `arm` in the result, for at least two weeks; `priority` and `rank` are computed in both arms | The only way to tell the word's effect from the findings' | 0059 |
+| 12 | Eligibility and movement are separate. A cell is eligible for calibration with n ≥ 20 judgements from at least 5 PRs on a matching configuration. An eligible cell's word moves up only when the lower end of its 90% Wilson interval clears the next band's edge, and down only when the upper end falls below its current band | Twenty correlated outcomes near an edge would flip words between releases | 0059 |
+| 13 | The trial is an A/B in the owner's repositories: each PR is assigned the old word or the priority at random, once, kept on every push, recorded as `arm` in the result, for at least two weeks; only the word differs between arms (the Priority row versus `· Nit`/`· Important` in the Severity cell); the Track record row, the summary line and the order of findings are the same in both, and `priority` and `rank` are computed in both | The only way to tell the word's effect from the findings'; anything else that differs would be a second treatment | 0059 |
 | 14 | Pre-existing is an origin badge beside the priority, never a priority | Keeps Claude Code's one stated reason (a bug the PR did not introduce is not the author's fault) without hiding its severity | 0059 |
-| 15 | The cell rate is rendered in the finding's body, never on the title line | `precision.ts` reads confidence anchored to the end of the title line | 0059 |
+| 15 | Priority and Track record are rows of the inline finding table (the fixed layout of ADR 0055, built in the inline-finding-table work); the Severity cell drops the tier word. The thread text given back to the model is rebuilt to today's one-line label by `legacyFindingComment`, so the new rows never reach the model; `parseInlineTable` accepts a Severity cell with or without the tier word | The table is where a reader already looks for severity, area and confidence; a line in the body would be the one label outside it | 0059 |
+| 16 | Every review opens its findings with one line of what was reviewed: `9 findings: 1 Must, 4 Should, 3 Could, 1 FYI · 6 at high confidence` | A reader who saw only "Nit" concluded the review found little; the line shows its weight at a glance | 0059 |
+| 17 | Info keeps no thread (it asks for no code decision) and is listed in the body and counted in the summary line | Every finding is read; a thread per Info would add noise without a decision to record | — |
 
 ## Layers
 
 | # | What it builds | Criteria | Risk | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | `priority` and `rank` on findings, `priorityOf` with floors, table v1 as data with provenance, title and footer show the word and the cell rate, origin badge, `tier` deprecated, A/B assignment | AC1–AC5, AC10, AC11, AC13, AC15 | 🟡 Medium | — |
+| 1 | `priority` and `rank` on findings, `priorityOf` with floors, table v1 as data with provenance, Priority and Track record rows in the inline table, the summary line, origin badge, `tier` deprecated, A/B assignment | AC1–AC5, AC10, AC11, AC13, AC15–AC17 | 🟡 Medium | The inline finding table (branch `feat/inline-finding-table`, not yet a PR) |
 | 2 | `wachiman calibrate`: outcome rates per cell from local history, verdicts and PR threads; a blind judging sample; proposes table vN+1 as a diff | AC6–AC8, AC12, AC14 | 🟡 Medium | 1 |
 | 3 | Prompt: the test that separates Fix from Consider, measured on the benchmark before and after | AC9 | 🟢 Low | 2 |
 
@@ -112,9 +120,11 @@ flowchart LR
 ## Acceptance criteria
 
 - [ ] **AC1** `priorityOf` returns Must for every Blocker at high or medium confidence, Could at low, and the v1 table maps Consider · high to Should, Consider · medium and low to Could, and every Info to FYI (unit tests over every cell).
-- [ ] **AC2** In the inline finding of ADR 0055, every place that renders today's Important/Nit word renders the priority instead (`Should` beside `🟡 Consider`); no new visible line is added and the hidden thread marker is unchanged (ADR 0010); the review body's `<sub>… via …</sub>` footer is unchanged; golden Markdown files updated.
-- [ ] **AC15** The cell rate appears only in the finding body; `parseLabel` in `src/precision.ts` still reads severity, topic and confidence from every golden file.
-- [ ] **AC3** A measured cell shows `fixed <p>% · n <n> · <k> PRs`; a cell below the rule of decision 12 shows `not yet measured`.
+- [ ] **AC2** In the priority arm, the inline finding table shows a Priority row first under the title and a Severity cell without the tier word; the plain-text and Markdown sinks (`src/sinks/common.ts`) show the same word; the hidden thread marker is unchanged (ADR 0010); rendered fixtures updated.
+- [ ] **AC15** `parseInlineTable` and `parseLabel` read severity, topic and confidence from tables with and without the tier word and from the old one-line label; `legacyFindingComment` drops the Priority and Track record rows from the model's input (round-trip tests).
+- [ ] **AC16** Every review with findings opens them with the summary line of decision 16, in both arms.
+- [ ] **AC17** Priority is computed after verification, so a finding the verifier lowers to low confidence gets its final priority (test through `verify.ts`).
+- [ ] **AC3** The Track record row shows `fixed <p>% of <n> answered · <k> PRs` with `seed` or `calibrated vN` when counts are known, and `no record yet · seed` when they are not.
 - [ ] **AC4** `/2` output keeps `tier` with today's values and adds `priority`, `rank` and, during the trial, `arm`; the JSON schema validates both old and new files.
 - [ ] **AC5** Pre-existing findings show the origin badge and keep their priority.
 - [ ] **AC6** `wachiman calibrate` prints, per cell, n, fixed %, declined %, wrong %, unanswered %, split by owner and agent.
