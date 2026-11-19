@@ -68,8 +68,22 @@ export const cutMemoryNote = (name: string, kb: number) =>
 
 const WILDCARD = /[*?[\]{}!]/;
 
-/** The globs of a `scope` or an index row: one, or several separated by commas. */
-export const globsOf = (scope: string) => scope.split(",").map((g) => g.trim()).filter(Boolean);
+/** The globs of a `scope` or an index row: one, or several separated by commas outside braces. */
+export function globsOf(scope: string): string[] {
+  const globs: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const char of scope) {
+    if (char === "{") depth++;
+    else if (char === "}" && depth > 0) depth--;
+    if (char === "," && depth === 0) {
+      globs.push(current);
+      current = "";
+    } else current += char;
+  }
+  globs.push(current);
+  return globs.map((g) => g.trim()).filter(Boolean);
+}
 
 const compiled = new Map<string, Bun.Glob>();
 const globFor = (glob: string) => {

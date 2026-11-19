@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { UsageError } from "../config";
 import { parseRepoSettings } from "../repo-settings";
 import { entryId } from "./entries";
-import { globSpecificity, loadMemory, matchesGlob, memoryNotice, memoryRecord, type MemorySource } from "./load";
+import { globsOf, globSpecificity, loadMemory, matchesGlob, memoryNotice, memoryRecord, type MemorySource } from "./load";
 
 const REV = "b".repeat(40);
 
@@ -33,6 +33,14 @@ function source(files: Record<string, string>, settingsText?: string): MemorySou
 
 const lines = (n: number) => Array.from({ length: n }, (_, i) => `line ${i}`).join("\n") + "\n";
 
+describe("globsOf", () => {
+  test.each([
+    ["src/**/*.{ts,tsx}", ["src/**/*.{ts,tsx}"]],
+    ["a/*, b/*.{js,jsx}", ["a/*", "b/*.{js,jsx}"]],
+    ["{a,b}/*, c/**", ["{a,b}/*", "c/**"]],
+  ])("%s splits only on commas outside braces", (scope, expected) => expect(globsOf(scope)).toEqual(expected));
+});
+
 describe("matchesGlob", () => {
   test.each([
     ["apps/desktop/**", "apps/desktop/src/a.ts", true],
@@ -42,6 +50,7 @@ describe("matchesGlob", () => {
     ["*.md", "README.md", true],
     ["*.md", "docs/a.md", false],
     ["docs/adr/**, apps/**", "apps/x.ts", true],
+    ["src/**/*.{ts,tsx}", "src/a/b.tsx", true],
   ])("%s against %s is %p", (glob, path, expected) => expect(matchesGlob(glob, path)).toBe(expected));
 
   test("a more specific glob has a higher specificity", () => {
