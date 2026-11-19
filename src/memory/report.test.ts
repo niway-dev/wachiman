@@ -197,6 +197,16 @@ describe("buildReport", () => {
     expect(renderReport(report)).toContain("No review history");
   });
 
+  test("no runs: the text still lists the personal memory", () => {
+    const mine = entryText("convention", "src/**", "Prefer early returns");
+    const report = buildReport({ runs: [], verdicts: new Map(), files: FILES, personalFiles: { "index.md": `# Memory\n\n${mine.text}` }, used: USED });
+    expect(report.empty).toBe(true);
+    const text = renderReport(report);
+    expect(text).toContain("No review history");
+    expect(text).toContain(`Personal memory (outside the repository, not counted above) (1):\n  ${mine.id}`);
+    expect(renderReport(buildReport({ runs: [], verdicts: new Map(), files: FILES, used: USED }))).not.toContain("Personal memory");
+  });
+
   test("the table has one row per period and a total, and lists the entries", () => {
     const text = renderReport(buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED }));
     expect(text).toMatch(/period\s+comments\s+fixed\s+wrong\s+intentional\s+not important\s+unjudged\s+muted/);

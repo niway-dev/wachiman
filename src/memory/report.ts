@@ -178,10 +178,15 @@ export function buildReport(input: ReportInput): MemoryReport {
 
 const pad = (text: string, width: number) => text.padEnd(width);
 
+const personalLines = (report: MemoryReport) =>
+  report.personal.length === 0
+    ? []
+    : [`Personal memory (outside the repository, not counted above) (${report.personal.length}):`, ...report.personal.map((e) => `  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}`)];
+
 export function renderReport(report: MemoryReport): string {
   if (report.empty) {
     const window = report.since ? ` since ${report.since}` : "";
-    return `No review history${window} for this repository: run \`wachiman local --history\` to start one.\n`;
+    return `No review history${window} for this repository: run \`wachiman local --history\` to start one.\n${personalLines(report).join("\n")}${report.personal.length > 0 ? "\n" : ""}`;
   }
   const head = ["period", "comments", "fixed", "wrong", "intentional", "not important", "unjudged", "muted", "memory lines"];
   const row = (p: ReportPeriod) => [p.period, p.comments, p.outcomes.fixed, p.outcomes.wrong, p.outcomes.intentional, p.outcomes.notImportant, p.outcomes.unjudged, p.muted.count, p.memoryLoadedLines ?? "-"].map(String);
@@ -194,10 +199,7 @@ export function renderReport(report: MemoryReport): string {
   out.push(muters.length === 0 ? "Muted by memory: nothing." : `Muted by memory, by entry: ${muters.map(([id, n]) => `${id}: ${n}`).join(", ")}`);
   const m = report.memory;
   out.push(m.present ? `Memory now (${MEMORY_DIR}/ in the working tree): ${m.files} files, ${m.entries} entries, ${m.lines} lines.` : `Memory now: no ${MEMORY_DIR}/ folder in the working tree.`);
-  if (report.personal.length > 0) {
-    out.push(`Personal memory (outside the repository, not counted above) (${report.personal.length}):`);
-    for (const e of report.personal) out.push(`  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}`);
-  }
+  out.push(...personalLines(report));
   if (report.neverUsed === null) out.push("Entries never used: unknown, this laptop has no readable record of use (run `wachiman local --history` to start recording it).");
   else if (report.neverUsed.length === 0) out.push("Entries never used: none.");
   else {
