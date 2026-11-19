@@ -85,7 +85,7 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
   `parseInlineTable` today requires the tier word in the Severity cell; it must accept the cell
   without it, and round-trip tests prove every reader still gets severity, topic and confidence.
   Layer 1 builds on the inline finding table, which is not merged yet.
-- Once layer 2 counts outcomes, every review exposes per-cell rates, so the table can be checked by anyone reading a comment. Until then a comment shows no rate.
+- Once layer 2 counts outcomes, every review exposes each cell's observed fix, decline and no-answer rates beside the table, which are never fitted to it (decision 6), so a reader can see what happened to findings like the one they read. Until then a comment shows no rate.
 - `calibrate` becomes part of the release routine; a release with no new table says so.
 - Consumers of `/2` see new fields (`priority`, `rank`, and `arm` during the trial); `tier` keeps its meaning until `/3`.
 - Each release costs the owner a blind judging pass (default 40 findings); without it the table

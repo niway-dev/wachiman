@@ -208,6 +208,6 @@ per-finding priority calibrated from outcomes; layer 2 is new ground and is meas
 
 The change is cheap to build: the word only renders titles, needs no extra model call, and the stop
 rule reads severity. The expected gain is triage: findings authors act on almost always stop reading as Nit, a Could is
-visibly optional, and once layer 2 counts outcomes, every comment carries the rate it is ranked by, so each review adds data. Authors may
+visibly optional, and once layer 2 counts outcomes, every comment carries its cell's observed fix rate beside the word, which the word is not fitted to (decision 6), so each review adds data. Authors may
 spend more on a finding that now reads Should, so rounds and commits after a PR opens are measured
 in the A/B against the NIW2-874 baseline and reported, not assumed.
