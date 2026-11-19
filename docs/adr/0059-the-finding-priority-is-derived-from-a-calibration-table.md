@@ -22,7 +22,7 @@ A five-day sample of remote reviews on one private repository (63 pull requests,
 the spec) shows the word misleads where it matters: Consider findings at high confidence were fixed
 95% of the time (56 answered), Fix findings 73% (11), Consider at low confidence 56% (25). The model
 rarely uses Fix, so most findings an author acts on arrive as "Nit". Confidence separates outcomes;
-the word ignores it.
+the word ignores it. A reader who sees only "Nit" also concludes the review was not worth its cost.
 
 ## Decision
 
@@ -88,6 +88,10 @@ the word ignores it.
   the trial's A/B, not assumed.
 
 ## Non-goals
+
+- Letting an author or agent skip a finding by its priority. Every finding is read and answered;
+  the priority tells the reader how much it matters, and the author decides on the merits whether
+  it warrants a change.
 
 - Changing the stop rule, the loop budget or what the model is asked to find.
 - Dropping or capping findings by priority before posting.

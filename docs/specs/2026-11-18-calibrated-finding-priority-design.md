@@ -15,6 +15,12 @@ shows each comment's measured rate beside it, and adds a command that recalibrat
 recorded outcomes. The model never picks the priority. The loop's stop rule and the review cost do
 not change in this version.
 
+The priority changes what a finding means to its reader, not whether it is read. Every finding is
+still read and answered, whatever its word; the author decides on the merits whether it warrants a
+change. A reader who sees only "Nit" concludes the review found nothing worth its cost, even when
+most of those findings were fixed. The word must say how much a finding matters and how sure the
+model is, as two separate things.
+
 <!-- visual: priority-grid -->
 
 ```mermaid
@@ -79,11 +85,9 @@ flowchart LR
    on the judged "would act" proportion. Default: Should 60 and above, Could 25–59, FYI below 25. Must is
    not a band: it is every Blocker at high or medium confidence, whatever its rate. A Blocker at low
    confidence is already posted as a question (ADR 0027) and is Could.
-3. **Should a Could be skipped by agents?** Claude Code's write-up notes that an agent fixes every
-   nit, which costs a commit and a round. A later rule could tell agents to answer Could without
-   fixing it. Out of this version; the data from layer 2 decides.
-
 ## Out of scope
+
+- Any rule that lets an author or agent skip a finding by its priority. Every finding is answered.
 
 - Changing the stop rule or the loop budget.
 - A per-repository table before its cells reach the minimum sample.
