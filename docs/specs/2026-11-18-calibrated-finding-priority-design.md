@@ -11,7 +11,7 @@ keeping pre-existing bugs from looking like the author's fault. In our own revie
 wrong where it matters: a high-confidence Consider is fixed 95% of the time (56 answers), a Fix 73% (11, a thin base), and
 still reads as "Nit". This spec replaces the word with a **priority** (Must, Should, Could, FYI)
 that the engine derives from severity, confidence and topic through a versioned calibration table,
-shows each comment's measured rate beside it, and adds a command that recalibrates the table from
+shows each comment's measured rate beside it once layer 2 counts outcomes, and adds a command that recalibrates the table from
 recorded outcomes. The model never picks the priority. The loop's stop rule and the review cost do
 not change in this version.
 
@@ -45,7 +45,7 @@ flowchart LR
 | Headline word | `Nit` or `Important`, from severity only, inside the Severity cell (`🟡 Consider · Nit`) | Its own **Priority** row, first under the title: `Must`, `Should`, `Could` or `FYI`, from severity × confidence × topic group; the Severity cell keeps only the severity |
 | Where the word comes from | `tierWord` in code | `priorityOf(finding, table)`; the table is versioned data shipped with the engine |
 | Confidence in the comment | A meter, not used for ranking | Still the meter row; it now moves the priority |
-| Track record | None | A **Track record** row: what happened to earlier findings of the same cell, with its counts and whether the priority is a seed or calibrated |
+| Track record | None | A **Track record** row: once layer 2 counts outcomes, what happened to earlier findings of the same cell, with its counts and whether the priority is a seed or calibrated; until then, `no record yet · seed` |
 | Review summary | Counts by severity | One line of what was reviewed: counts per priority and how many at high confidence |
 | Pre-existing | Folded into the word | Its own origin badge, beside any priority |
 | Result `/2` | `tier: Important \| Nit \| Pre-existing` | Adds `priority`, `rank` and, during the trial, `arm`; `tier` stays, deprecated, until `/3` |
@@ -67,7 +67,7 @@ flowchart LR
 | 9 | The loop's stop rule keeps reading severity | Measure first how many Should findings a loop leaves open before letting the word add rounds | — |
 | 10 | Precedence: a low-confidence Blocker or Fix is a question (ADR 0027) and at most Could; Info is FYI; every other Blocker is Must; every other Fix on a defect topic (bug, security, perf) is at least Should. A rate can raise a priority above its floor, never lower it | A rare severe defect must never rank under a frequent cleanup | 0059 |
 | 11 | Each cell records the model family and prompt version it was measured on; a review on another configuration shows `not measured for this configuration` and uses the seed | A cell's contents change when the model or prompt changes | 0059 |
-| 12 | Eligibility and movement are separate. A cell is eligible for calibration with n ≥ 20 judgements from at least 5 PRs on a matching configuration. A cell moves up to the band of its 90% Wilson interval's lower end when that band is higher than its current word, and moves down only when the band of the upper end is lower than the current word | Twenty correlated outcomes near an edge would flip words between releases | 0059 |
+| 12 | Eligibility and movement are separate. A cell is eligible for calibration with n ≥ 20 judgements from at least 5 PRs on a matching configuration. A cell keeps its word until its 90% Wilson interval leaves the current band: it moves up only when the band of the lower end is higher than the word, and down only when the band of the upper end is lower than the word | Twenty correlated outcomes near an edge would flip words between releases | 0059 |
 | 13 | The trial is an A/B in the owner's repositories: each PR is assigned the old word or the priority at random, once, kept on every push, recorded as `arm` in the result, for at least two weeks; only the word differs between arms (the Priority row versus `· Nit`/`· Important` in the Severity cell); the Track record row and the order of findings are the same in both, and the summary line counts by each arm's word, and `priority` and `rank` are computed in both | The only way to tell the word's effect from the findings'; anything else that differs would be a second treatment | 0059 |
 | 14 | Pre-existing is an origin badge beside the priority, never a priority | Keeps Claude Code's one stated reason (a bug the PR did not introduce is not the author's fault) without hiding its severity | 0059 |
 | 15 | Priority and Track record are rows of the inline finding table (the fixed layout of ADR 0055, built in the inline-finding-table work); the Severity cell drops the tier word. The thread text given back to the model is rebuilt to today's one-line label by `legacyFindingComment`, so the new rows never reach the model; `parseInlineTable` accepts a Severity cell with or without the tier word | The table is where a reader already looks for severity, area and confidence. Findings with no inline thread (Info, Pre-existing, inconclusive, outside the diff) cannot use the table, so they show the priority and Track record as one line in the body list | 0059 |
@@ -208,6 +208,6 @@ per-finding priority calibrated from outcomes; layer 2 is new ground and is meas
 
 The change is cheap to build: the word only renders titles, needs no extra model call, and the stop
 rule reads severity. The expected gain is triage: findings authors act on almost always stop reading as Nit, a Could is
-visibly optional, and every comment carries the rate it is ranked by, so each review adds data. Authors may
+visibly optional, and once layer 2 counts outcomes, every comment carries the rate it is ranked by, so each review adds data. Authors may
 spend more on a finding that now reads Should, so rounds and commits after a PR opens are measured
 in the A/B against the NIW2-874 baseline and reported, not assumed.

@@ -56,8 +56,7 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
    configuration falls back to the seed and says so.
 9. Eligibility and movement are separate. A cell is eligible with n ≥ 20 judgements, accumulated
    across releases, from at least 5 pull requests on a matching configuration. An eligible cell's
-   word moves up to the band of its 90% Wilson interval's lower end only when that band is higher than the current word,
-   and down only when the band of the upper end is lower than the current word.
+   word keeps its current band until the 90% Wilson interval leaves it: it moves up only when the band of the lower end is higher than the word, and down only when the band of the upper end is lower than the word.
    Seeds are set by decision 4, not computed from fix rates, because a fix rate measures compliance.
 10. Result `/2` adds `priority`, `rank` and, while the trial runs, `arm` (`word` or `priority`,
    assigned at random once per pull request in the owner's repositories and kept on every push; only
@@ -86,7 +85,7 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
   `parseInlineTable` today requires the tier word in the Severity cell; it must accept the cell
   without it, and round-trip tests prove every reader still gets severity, topic and confidence.
   Layer 1 builds on the inline finding table, which is not merged yet.
-- Every review exposes per-cell rates, so the table can be checked by anyone reading a comment.
+- Once layer 2 counts outcomes, every review exposes per-cell rates, so the table can be checked by anyone reading a comment. Until then a comment shows no rate.
 - `calibrate` becomes part of the release routine; a release with no new table says so.
 - Consumers of `/2` see new fields (`priority`, `rank`, and `arm` during the trial); `tier` keeps its meaning until `/3`.
 - Each release costs the owner a blind judging pass (default 40 findings); without it the table
