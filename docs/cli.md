@@ -939,11 +939,12 @@ or after that day. With no history in the window it prints `No review history ..
   "total": { "period": "total", "comments": 4, "outcomes": { "...": 0 }, "muted": { "count": 3, "byEntry": {} }, "memoryLoadedLines": 40 },
   "memory": { "present": true, "files": 3, "entries": 4, "lines": 62 },
   "neverUsed": [{ "id": "4c1e9a2", "title": "...", "kind": "exception", "scope": "docs/**", "file": "index.md" }],
-  "neverUsedReason": null
+  "neverUsedReason": null,
+  "useRecordedSince": "2026-10-20"
 }
 ```
 
-The figures are illustrative. `since` is a string or `null`; `memoryLoadedLines` is a number or `null`; `neverUsed` is a list or `null`, and `neverUsedReason` is `"no-use-recorded"` exactly when it is `null`;
+The figures are illustrative. `since` is a string or `null`; `memoryLoadedLines` is a number or `null`; `neverUsed` is a list or `null`, and `neverUsedReason` is `"no-use-recorded"` exactly when it is `null`; `useRecordedSince` is the day this laptop began recording use, or `null`, and "never used" counts only from then;
 `periods` is oldest first. Keys are only added in a new format version.
 
 **Where outcomes are recorded.** On the laptop, `wachiman local --history` keeps every run, and

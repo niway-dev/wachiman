@@ -59,6 +59,8 @@ export interface MemoryReport {
   neverUsed: NeverUsedEntry[] | null;
   /** `no-use-recorded` when `neverUsed` is null (no record of use, or one that cannot be read), else null. */
   neverUsedReason: "no-use-recorded" | null;
+  /** The day this laptop began recording use (the record's first date), or null when unknown or the record predates it. "Never used" cannot cover days before it. */
+  useRecordedSince: string | null;
 }
 
 export interface ReportInput {
@@ -149,6 +151,7 @@ export function buildReport(input: ReportInput): MemoryReport {
     memory: { present: input.files !== undefined, files: names.length, entries: entries.length, lines: names.reduce((n, name) => n + lineCount(input.files![name]), 0) },
     neverUsed: runs.length === 0 ? [] : unknown ? null : neverUsed,
     neverUsedReason: runs.length > 0 && unknown ? "no-use-recorded" : null,
+    useRecordedSince: input.use.known ? (input.use.since ?? null) : null,
   };
 }
 
@@ -173,7 +176,7 @@ export function renderReport(report: MemoryReport): string {
   if (report.neverUsed === null) out.push("Entries never used: unknown, this laptop has no readable record of use (run `wachiman local --history` to start recording it).");
   else if (report.neverUsed.length === 0) out.push("Entries never used: none.");
   else {
-    out.push(`Entries never used (${report.neverUsed.length}):`);
+    out.push(`Entries never used (${report.neverUsed.length})${report.useRecordedSince ? `, counting only from ${report.useRecordedSince}, when this laptop began recording use` : ""}:`);
     for (const e of report.neverUsed) out.push(`  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}  (${e.file})`);
   }
   out.push("memory lines = lines of memory the period's last review loaded; a - means no review in it recorded memory.");

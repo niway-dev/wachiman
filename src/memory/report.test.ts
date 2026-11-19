@@ -149,6 +149,14 @@ describe("buildReport", () => {
     expect(report.neverUsedReason).toBeNull();
   });
 
+  test("a young record says since when it counts, so a short history is not read as long disuse", () => {
+    const young = { known: true, used: USED_DATES, since: "2026-11-02" } as MemoryUse;
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: young });
+    expect(report.useRecordedSince).toBe("2026-11-02");
+    expect(renderReport(report)).toContain("counting only from 2026-11-02, when this laptop began recording use");
+    expect(buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED }).useRecordedSince).toBeNull();
+  });
+
   test("a use dated before the entry was added is not a use of it", () => {
     const early = { known: true, used: { ...USED_DATES, [IDLE.id]: "2026-09-30" } } as MemoryUse;
     const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: early });
@@ -236,7 +244,7 @@ describe("wachiman memory report", () => {
     expect(text.code).toBe(0);
     expect(text.stdout).toMatch(/total\s+4\s+1\s+1\s+0\s+1\s+1\s+3/);
     const json = JSON.parse(run(["--format", "json"]).stdout);
-    expect(Object.keys(json).sort()).toEqual(["empty", "format", "memory", "neverUsed", "neverUsedReason", "periods", "since", "total"].sort());
+    expect(Object.keys(json).sort()).toEqual(["empty", "format", "memory", "neverUsed", "neverUsedReason", "periods", "since", "total", "useRecordedSince"].sort());
     expect(json.total.outcomes).toEqual({ fixed: 1, wrong: 1, intentional: 0, notImportant: 1, unjudged: 1 });
     expect(json.memory.entries).toBe(4);
     expect(json.neverUsed.map((e: { id: string }) => e.id).sort()).toEqual([IDLE.id, IDLE_CONVENTION.id].sort());
