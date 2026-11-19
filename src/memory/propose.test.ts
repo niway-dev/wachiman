@@ -369,6 +369,21 @@ fi
     expect(existsSync(join(d.dir, ".git", "hooks", "pre-commit"))).toBe(true);
   }, 60_000);
 
+  test("removing its own worktree leaves the developer's other registered worktrees alone, even one whose folder is missing", () => {
+    const w = world();
+    const d = developer(w, "ana");
+    const away = join(temp("wachiman-away-"), "feature");
+    git(d.dir, "worktree", "add", "-q", "--detach", away);
+    rmSync(away, { recursive: true, force: true });
+    expect(worktrees(d.dir)).toBe(2);
+    const id = d.add("Prefer named exports.");
+    const r = d.run("propose", id);
+    expect(r.code).toBe(0);
+    // Only the temporary worktree's registration is gone; the missing one is still registered.
+    expect(worktrees(d.dir)).toBe(2);
+    expect(git(d.dir, "worktree", "list", "--porcelain")).toContain("feature");
+  }, 60_000);
+
   test("an entry whose scope matches no file would fail memory check, so it is refused before anything is committed", () => {
     const w = world();
     const d = developer(w, "ana");

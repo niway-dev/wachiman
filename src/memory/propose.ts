@@ -19,9 +19,9 @@
  * Only paths under `.wachiman/memory/` can be written. "recorded" is printed only after the push.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { UsageError } from "../config";
 import { renderEntry, evidenceLine, type Candidate } from "./candidates";
 import { parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
@@ -330,8 +330,41 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
   }
 }
 
+/**
+ * Removes the temporary worktree and only its own registration. `git worktree prune` is avoided on
+ * purpose: it also forgets the developer's other worktrees whose folder is merely absent right now
+ * (an unmounted drive, a folder being moved).
+ */
 function removeWorktree(root: string, worktree: string) {
+  let real = worktree;
+  try {
+    real = realpathSync(worktree);
+  } catch {
+    // Already gone: match the registration by the path as given.
+  }
   git(root, ["worktree", "remove", "--force", worktree]);
   rmSync(worktree, { recursive: true, force: true });
-  git(root, ["worktree", "prune"]);
+  forgetWorktree(root, [worktree, real]);
+}
+
+/** Deletes the registration of a worktree that `git worktree remove` did not manage to delete. */
+function forgetWorktree(root: string, paths: string[]) {
+  const common = git(root, ["rev-parse", "--git-common-dir"]);
+  if (common.status !== 0) return;
+  const registry = join(resolve(root, common.stdout.trim()), "worktrees");
+  let names: string[];
+  try {
+    names = readdirSync(registry);
+  } catch {
+    return;
+  }
+  const wanted = new Set(paths.map((p) => join(p, ".git")));
+  for (const name of names) {
+    try {
+      const gitdir = readFileSync(join(registry, name, "gitdir"), "utf8").trim();
+      if (isAbsolute(gitdir) && wanted.has(gitdir)) rmSync(join(registry, name), { recursive: true, force: true });
+    } catch {
+      // Not a registration we can read: leave it alone.
+    }
+  }
 }

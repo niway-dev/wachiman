@@ -107,6 +107,18 @@ function setup() {
 const ADD = ["add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Renames then show up in every importer."];
 
 describe("memory add, candidates and show", () => {
+  test("show still prints a stored entry when .wachiman.yml is broken, while candidates and add report the file", () => {
+    const s = setup();
+    const added = s.run(...ADD, "--pr", "709");
+    const id = added.stdout.match(/\b([0-9a-f]{7})\b/)![1];
+    writeFileSync(join(s.repo.dir, ".wachiman.yml"), "model: [unclosed\n");
+    const shown = s.run("show", id);
+    expect(shown.code).toBe(0);
+    expect(shown.stdout).toBe(renderEntry(readCandidate(s.home, s.key, id)!));
+    expect(s.run("candidates").code).toBe(2);
+    expect(s.run(...ADD, "--pr", "710").code).toBe(2);
+  });
+
   test("add records an operator instruction as a proposable candidate, and show prints the exact entry text", () => {
     const s = setup();
     git(s.repo.dir, "switch", "-q", "feat/x");

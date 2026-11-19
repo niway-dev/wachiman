@@ -96,7 +96,8 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   const home = wachimanHome(env);
   const key = repositoryKey(repoDir).key;
   const date = today((ctx.now ?? (() => new Date()))());
-  const { minEvidence } = loadMemorySettings(repoDir, (n) => io.stderr(`note: ${n}`));
+  // `show` prints stored text and needs no setting, so a broken `.wachiman.yml` must not stop it.
+  const minEvidence = sub === "show" ? 0 : loadMemorySettings(repoDir, (n) => io.stderr(`note: ${n}`)).minEvidence;
 
   if (sub === "candidates") {
     const p = parseOptions(rest, sub, ["--format"], []);
