@@ -74,6 +74,7 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
+import { armFor } from "./priority";
 import {
   annotateUnverified,
   applyVerdicts,
@@ -3139,6 +3140,12 @@ export interface ReviewOptions {
    * by `reviewOptionsOf`: a local review and an incremental or scoped one have no grade.
    */
   confidence?: { budgetUsd: number };
+  /**
+   * The priority A/B (ADR 0059): a pull request review records its `arm` in the result. Set by the
+   * pull request review from `WACHIMAN_PRIORITY_TRIAL=1`, never by `reviewOptionsOf`: a local review
+   * never joins the trial, and a change that is not a pull request has no arm either way.
+   */
+  priorityTrial?: boolean;
 }
 
 /** Today's settings as the core's options. */
@@ -3602,6 +3609,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       },
     });
   }
+  // The trial arm: a pull request only, by its number; a change without one has none.
+  const arm = options.priorityTrial && change.kind === "pull-request" && number ? armFor(change.repository.name, Number(number)) : undefined;
   return {
     format: REVIEW_RESULT_V2,
     change,
@@ -3639,6 +3648,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     },
     ...(verification ? { verification } : {}),
     ...(fidelity ? { fidelity } : {}),
+    ...(arm ? { arm } : {}),
   };
 }
 
@@ -4178,6 +4188,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const options: ReviewOptions = {
     ...reviewOptionsOf(config, totalBudget),
     ...(config.confidence && fullReview ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
+    ...(config.priorityTrial ? { priorityTrial: true } : {}),
   };
   const result = await settledOnError(deps, grant, () => reviewChange(input, options, deps));
   const { usage, costUsdEstimate: spent } = result.execution;

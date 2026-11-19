@@ -65,6 +65,7 @@ const GH_EXIT: readonly Row[] = [
 const GH_ENV: readonly Row[] = [
   ["GH_TOKEN", "Token for gh. Never given to the agent"],
   ["GITHUB_REPOSITORY", "owner/name of the repository"],
+  ["WACHIMAN_PRIORITY_TRIAL", "Set to 1 to run the finding priority A/B: each pull request shows the Important/Nit word or the Priority row, by a hash of repository and number"],
   ["ANTHROPIC_API_KEY", "The claude-code provider needs this or CLAUDE_CODE_OAUTH_TOKEN (not in a dry run)"],
   ["CLAUDE_CODE_OAUTH_TOKEN", "A Claude subscription token (`claude setup-token`); when set it wins and the API key never reaches the agent"],
   OTHER_ENV,

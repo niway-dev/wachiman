@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { CONFIDENCE, SEVERITY, TOPIC, type Confidence, type Severity, type Topic } from "./engine";
-import { priorityOf, TABLE_V1, type CalibrationTable, type Priority } from "./priority";
+import { armFor, priorityOf, TABLE_V1, type CalibrationTable, type Priority } from "./priority";
 
 const SEVERITIES = Object.keys(SEVERITY) as Severity[];
 const TOPICS = Object.keys(TOPIC) as Topic[];
@@ -119,5 +119,27 @@ describe("floors and caps (spec decision 10, AC10)", () => {
 
   test("a cap lowers the rank with the priority", () => {
     expect(priorityOf({ severity: "blocker", topic: "bug", confidence: "low" }, glowing)).toMatchObject({ priority: "could", rank: 40 });
+  });
+});
+
+describe("armFor (spec decision 20, AC13)", () => {
+  test("the same repository and pull request always get the same arm", () => {
+    for (let pr = 1; pr <= 50; pr++) {
+      const first = armFor("niway-dev/wachiman", pr);
+      for (let again = 0; again < 3; again++) expect(armFor("niway-dev/wachiman", pr)).toBe(first);
+    }
+  });
+
+  test("both arms occur, in roughly even shares, across pull request numbers and repositories", () => {
+    const arms = Array.from({ length: 400 }, (_, i) => armFor(i % 2 === 0 ? "o/r" : "o/other", i + 1));
+    const words = arms.filter((a) => a === "word").length;
+    expect(arms.every((a) => a === "word" || a === "priority")).toBe(true);
+    expect(words).toBeGreaterThan(140);
+    expect(words).toBeLessThan(260);
+  });
+
+  test("the repository is part of the key", () => {
+    const differs = Array.from({ length: 40 }, (_, i) => armFor("o/a", i + 1) !== armFor("o/b", i + 1));
+    expect(differs.some(Boolean)).toBe(true);
   });
 });

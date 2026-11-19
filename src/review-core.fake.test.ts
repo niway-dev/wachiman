@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError, loadConfig } from "./config";
+import { armFor } from "./priority";
 import {
   reviewChange,
   reviewOptionsOf,
@@ -93,6 +94,46 @@ const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({ ...revi
 /** The files a part's prompt lists, so a fake answer accounts for exactly them. */
 const partFiles = (prompt: string) =>
   [...prompt.split("This part holds exactly these files")[1].split("\n\n")[0].matchAll(/^- (\S+) \+/gm)].map((m) => m[1]);
+
+describe("the priority trial arm (spec decision 13 and 20)", () => {
+  const prFixture = JSON.parse(readFileSync(join(ROOT, "test/fixtures/formats/review-input.pull-request.json"), "utf8"));
+  const finding = { path: "src/a.ts", line: 2, severity: "fix" as const, topic: "bug" as const, confidence: "high" as const, title: "b is wrong", body: "It should be 3." };
+  const review = async (change: ReviewInput["change"], over: Partial<ReviewOptions>) => {
+    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: ["src/a.ts"], findings: [finding], summary: "s" }) })]);
+    const input = { ...branchInput(), change };
+    return reviewChange(input, options(over), coreDeps(provider).deps);
+  };
+  const pr = (n: number): ReviewInput["change"] => ({ ...prFixture.change, identifier: `#${n}` });
+
+  test("with the trial off, a pull request review records no arm and every finding has its priority", async () => {
+    const result = await review(pr(7), {});
+    expect(result.arm).toBeUndefined();
+    expect("arm" in result).toBe(false);
+    expect(result.findings[0]).toMatchObject({ priority: "should", rank: 70, tier: "Important" });
+  });
+
+  test("with the trial on, a pull request review records the arm armFor gives, and priority is computed in both arms", async () => {
+    const seen = new Set<string>();
+    for (let n = 1; n <= 12; n++) {
+      const result = await review(pr(n), { priorityTrial: true });
+      expect(result.arm).toBe(armFor("o/r", n));
+      expect(result.findings[0]).toMatchObject({ priority: "should", rank: 70 });
+      expect(validate(resultSchema, JSON.parse(JSON.stringify(result)))).toEqual([]);
+      seen.add(result.arm as string);
+    }
+    expect([...seen].sort()).toEqual(["priority", "word"]);
+  });
+
+  test("a local review never records an arm, trial or not", async () => {
+    const result = await review(branchInput().change, { priorityTrial: true });
+    expect(result.arm).toBeUndefined();
+  });
+
+  test("a pull request without a number has no arm to hash", async () => {
+    const { identifier: _dropped, ...noNumber } = pr(7) as { identifier?: string };
+    expect((await review(noNumber as ReviewInput["change"], { priorityTrial: true })).arm).toBeUndefined();
+  });
+});
 
 describe("reviewChange from a ReviewInput", () => {
   test("reviews a branch input end to end and never touches gh", async () => {

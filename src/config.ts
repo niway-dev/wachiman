@@ -132,6 +132,13 @@ export interface EngineConfig {
    * the pull request review only: `wachiman local` never grades.
    */
   confidence: boolean;
+  /**
+   * `WACHIMAN_PRIORITY_TRIAL`: the A/B of the finding priority (ADR 0059 decision 10). Each pull
+   * request review gets the old Important/Nit word or the priority row, by a hash of the repository
+   * and the pull request number, and the result records `arm`. On only with the exact value `1`;
+   * off, every review shows the priority and records no arm. Local reviews never join the trial.
+   */
+  priorityTrial: boolean;
 }
 
 /** The verifier's model when `WACHIMAN_VERIFIER_MODEL` is unset (Claude Code only). */
@@ -279,6 +286,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     verifyBudgetUsd: number("VERIFY_BUDGET_USD", 1),
     verifierModel: verifierModel ?? DEFAULT_VERIFIER_MODEL,
     confidence: confidenceRaw === "1" || confidenceRaw === "true",
+    priorityTrial: get("PRIORITY_TRIAL") === "1",
     ledgerUrl,
     dailyBudgetUsd: get("DAILY_BUDGET_USD") === undefined ? undefined : number("DAILY_BUDGET_USD", 0),
     weeklyBudgetUsd: get("WEEKLY_BUDGET_USD") === undefined ? undefined : number("WEEKLY_BUDGET_USD", 0),

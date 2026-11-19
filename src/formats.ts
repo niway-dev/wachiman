@@ -21,7 +21,7 @@ import type {
   Unreviewable,
 } from "./engine";
 import type { ProviderErrorClass } from "./providers/errors";
-import type { Priority } from "./priority";
+import type { Arm, Priority } from "./priority";
 import type { PathRule } from "./repo-settings";
 import type { RiskMap } from "./risk";
 
@@ -294,7 +294,7 @@ export interface ReviewResultV2 {
    * word, `priority` the priority row. Only a pull request review under `WACHIMAN_PRIORITY_TRIAL=1`
    * has it; `toResultV1` leaves it out.
    */
-  arm?: "word" | "priority";
+  arm?: Arm;
 }
 
 /** What the core returns and every sink renders: the `/2` result. `toResultV1` makes the `/1` form. */

@@ -3,6 +3,7 @@
  * confidence and topic through a versioned calibration table. The model never supplies it, the
  * rank only sorts, and nothing gates on either. Layer 1 ships table v1, seeded and not measured.
  */
+import { createHash } from "node:crypto";
 import type { Confidence, Severity, Topic } from "./engine";
 
 export type Priority = "must" | "should" | "could" | "fyi";
@@ -90,3 +91,15 @@ export const PRIORITY_GLOSS: Record<Priority, string> = {
   could: "worth a look; change on the merits",
   fyi: "context, no code decision",
 };
+
+/** Which word a pull request's comments show during the trial (ADR 0059 decision 10). */
+export type Arm = "word" | "priority";
+
+/**
+ * The arm of a pull request: the parity of the first byte of `sha256("<repo>#<number>")`. Pure, so a push
+ * never changes it and nothing is stored; the repository is in the key so two repositories do not move together.
+ */
+export function armFor(repo: string, prNumber: number): Arm {
+  const first = createHash("sha256").update(`${repo}#${prNumber}`).digest()[0];
+  return first % 2 === 0 ? "word" : "priority";
+}
