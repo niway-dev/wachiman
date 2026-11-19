@@ -20,7 +20,7 @@ topic play no part.
 
 A five-day sample of remote reviews on one private repository (63 pull requests, counts only, in
 the spec) shows the word misleads where it matters: Consider findings at high confidence were fixed
-95% of the time (56 answered), Fix findings 73% (11), Consider at low confidence 56% (25). The model
+95% of the time (56 answered), Fix findings 73% (11, a thin base), Consider at low confidence 56% (25). The model
 rarely uses Fix, so most findings an author acts on arrive as "Nit". Confidence separates outcomes;
 the word ignores it. A reader who sees only "Nit" also concludes the review was not worth its cost.
 
@@ -36,14 +36,14 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
 3. Must is every Blocker at high or medium confidence. A Blocker or Fix at low confidence is posted
    as a question (ADR 0027) and is at most Could. Info is always FYI. Other words come from rank
    bands, where the rank is 100 × the lower end of the cell's 90% Wilson interval on the judged
-   "would act" proportion. The rank sorts findings, is not displayed, and gates nothing.
+   "would act" proportion. The rank is not displayed and gates nothing. In layer 1 every cell is a seed, so its rank is the seed rank of its word (Must 90, Should 70, Could 40, FYI 10). It is stored and orders nothing during the trial (decision 10).
 4. Table v1 is keyed by severity × confidence and seeded from the sample; topic group becomes a key
    only for a split cell that is measured. A cell not measured under decision 9 keeps its seed and
-   is shown as not yet measured. The seed for unknown cells is Could.
+   is shown as not yet measured. The seed for unknown cells is Could. Consider at high confidence → Should is an owner-chosen seed, not a fitted one: the 95% fix rate that motivates it measures compliance (decision 9).
 5. Each inline finding's table shows a Track record row: what its cell's number measures and on
-   how much (`fixed 95% of 56 answered · 1 repo · seed`), never as "should act". The observed rate
+   how much (in the form `fixed <p>% of <n> answered · <k> PRs · seed`), never as "should act". The observed rate
    is shown whenever its counts and provenance are known; seed or calibrated is said separately.
-   Every review opens its findings with one line of what was reviewed (counts per priority and at
+   In layer 1 the row reads only `no record yet · seed`, and no repository's rates appear in another project's review: the 63-PR sample is the reason for the seeds, never a comment. Every review opens its findings with one line of what was reviewed (counts per priority and at
    high confidence).
 6. The table is fitted to warranted action, judged on a random sample (unanswered findings
    included) by a person who does not see the displayed word. Fix, decline and no-answer rates are
@@ -56,14 +56,14 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
    configuration falls back to the seed and says so.
 9. Eligibility and movement are separate. A cell is eligible with n ≥ 20 judgements, accumulated
    across releases, from at least 5 pull requests on a matching configuration. An eligible cell's
-   word moves up only when the lower end of its 90% Wilson interval clears the next band's edge,
-   and down only when the upper end falls below its current band.
+   word is the band of its 90% Wilson interval's lower end; it moves up only when that band is higher than the current word,
+   and down only when the band of the upper end is lower than the current word.
    Seeds are set by decision 4, not computed from fix rates, because a fix rate measures compliance.
 10. Result `/2` adds `priority`, `rank` and, while the trial runs, `arm` (`word` or `priority`,
    assigned at random once per pull request in the owner's repositories and kept on every push; only
    the word differs between arms, and the order of findings is unchanged in both). Under `arm: word` the comment
    shows today's word, and `priority` and `rank` are still computed and stored for the comparison. `tier` stays, computed exactly as before and marked
-   deprecated, until `/3` removes it. Pre-existing is shown as an origin badge beside the priority.
+   deprecated, until `/3` removes it. Pre-existing is shown as an origin badge beside the priority. `/1` drops `priority`, `rank` and `arm`; the change to the `/2` schema is additive and optional, as `riskMap` and `fidelity` were.
 11. The review loop's stop rule keeps reading severity (ADR 0034).
 
 ## Alternatives rejected
@@ -88,7 +88,7 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
   Layer 1 builds on the inline finding table, which is not merged yet.
 - Every review exposes per-cell rates, so the table can be checked by anyone reading a comment.
 - `calibrate` becomes part of the release routine; a release with no new table says so.
-- Consumers of `/2` see two new fields; `tier` keeps its meaning until `/3`.
+- Consumers of `/2` see new fields (`priority`, `rank`, and `arm` during the trial); `tier` keeps its meaning until `/3`.
 - Each release costs the owner a blind judging pass (default 40 findings); without it the table
   does not move.
 - The only guarantee about cost is no extra model call. Rounds and author effort are measured in
