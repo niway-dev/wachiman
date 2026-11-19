@@ -306,6 +306,15 @@ describe("when the exception does not or cannot apply", () => {
     }
   });
 
+  test("an error result from the matching call logs the provider text locally and keeps it out of the summary", async () => {
+    const provider = new FakeProvider(discover([NIT]), () => ({ isError: true, terminalReason: "error", providerError: "billing", errorText: "credit balance is too low" }));
+    const { deps: d, warnings } = deps(provider);
+    const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]) }), d);
+    expect(warnings.some((w) => w.includes("billing") && w.includes("credit balance is too low"))).toBe(true);
+    expect(result.summary).toContain("matching did not run");
+    expect(result.summary).not.toContain("credit balance");
+  });
+
   test("an exception whose holds-while path the diff touches mutes nothing, makes no call, and the summary says it may be out of date", async () => {
     const guarded = memoryEntry("exception", "Handlers get validated input", "src/**", "src/a.ts");
     const provider = new FakeProvider(discover([NIT]), answer({ finding: "f1", entry: guarded.id }));

@@ -3988,6 +3988,8 @@ async function matchExceptions<F extends Finding>(
     const result = call.value;
     const spend = { costUsd: result.costUsd, usage: result.usage ?? NO_USAGE };
     if (result.isError || result.terminalReason === "budget" || result.terminalReason === "turns" || result.terminalReason === "timeout") {
+      // The provider's text is for the local log only; the public summary gets the generic reason.
+      if (result.isError && result.errorText) deps.warn(`Memory matching call failed (${result.providerError ?? "other"}): ${oneLine(result.errorText, 300)}`);
       return finish({ ...none, ...spend }, `the call ended on ${result.isError ? "an error" : `its ${result.terminalReason} limit`}`);
     }
     const matches = parseMatches(result.structuredOutput);
