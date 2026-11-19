@@ -5064,8 +5064,18 @@ export function askLedger(gh: GhFn, repo: string, pr: number) {
 function threadBefore(gh: GhFn, repo: string, pr: number, line: ReviewLineComment): string | undefined {
   const root = threadRoot(line);
   const thread = fetchThreads(gh, repo, pr).find((t) => t.comments.nodes[0]?.databaseId === root);
-  const earlier = (thread?.comments.nodes ?? []).filter((n) => n.databaseId < line.id).slice(-10);
-  const text = earlier.map((n) => `@${n.author?.login ?? "ghost"}: ${neutralise(n.body)}`).join("\n\n");
+  return earlierThreadText(thread?.comments.nodes ?? [], line.id);
+}
+
+/** The text of the comments before `lineId`, the ask prompt's view: a finding table as today's label. */
+export function earlierThreadText(
+  nodes: { databaseId: number; author: { login: string } | null; body: string }[],
+  lineId: number,
+): string | undefined {
+  const earlier = nodes.filter((n) => n.databaseId < lineId).slice(-10);
+  const text = earlier
+    .map((n) => `@${n.author?.login ?? "ghost"}: ${neutralise(legacyFindingComment(n.body))}`)
+    .join("\n\n");
   if (text === "") return undefined;
   return text.length > 4000 ? `…${text.slice(-4000)}` : text;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   askFindingThread,
+  earlierThreadText,
   branded,
   confidenceMeter,
   inlineFindingBody,
@@ -139,5 +140,19 @@ describe("a review GitHub would not anchor", () => {
       comments: { nodes: [{ databaseId: 3, author: { login: "github-actions" }, authorAssociation: "NONE", body: newComment(f), createdAt: "2026-11-15T00:00:00Z" }] },
     };
     expect(askFindingThread(raw as never).finding).toBe(oldComment(f));
+  });
+
+  test("the thread reply reader shows the earlier finding as today's label, not the table", () => {
+    const f = finding({ title: "a | b", severity: "fix", topic: "bug", confidence: "high" });
+    const text = earlierThreadText(
+      [
+        { databaseId: 1, author: { login: "github-actions" }, body: newComment(f) },
+        { databaseId: 2, author: { login: "owner" }, body: "fixed" },
+      ],
+      3,
+    );
+    expect(text).not.toContain("|:--|");
+    expect(text).toContain("**Fix · bug: a | b (confidence high)**");
+    expect(text.endsWith("@owner: fixed")).toBe(true);
   });
 });
