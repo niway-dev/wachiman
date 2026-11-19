@@ -74,7 +74,7 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
-import { armFor } from "./priority";
+import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
 import {
   annotateUnverified,
   applyVerdicts,
@@ -273,13 +273,32 @@ export const DEFAULT_EXCLUDE = [
 // `claude-review` is still read so repositories reviewed under that name keep their incremental state.
 const MARKER_SOURCE = "<!-- (?:wachiman|claude-review) sha=([A-Za-z0-9]+) -->";
 const short = (sha: string) => sha.slice(0, 7);
+/** One finding as a line: `<lead> · 🟠📝 **Fix · docs: stale cell (confidence high)**`. The lead stays outside the bold: the precision report reads the bold part. */
+const oneLineLabel = (lead: string, f: Finding, status?: string) =>
+  `${lead} · ${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} **${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${detail(f, status)}**`;
+
 /**
- * `Important · 🟠📝 **Fix · docs: stale cell (confidence high)**`: the tier word, both emojis, then
- * the severity, topic and title in words, then the model's confidence when it gave one. The tier
- * stays outside the bold: the precision report reads the bold part.
+ * The priority word of a finding as a reader sees it: `Should`, or `Should · Pre-existing` for a
+ * finding that predates the change (ADR 0059 decision 14). A result written before `priority`
+ * existed is priced on the fly with table v1.
  */
-export const label = (f: Finding & { origin?: Origin }, status?: string) =>
-  `${tierWord(f)} · ${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} **${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${detail(f, status)}**`;
+export const priorityLead = (f: Finding & { origin?: Origin; priority?: Priority }) => {
+  const word = PRIORITY_WORD[f.priority ?? priorityOf(f).priority];
+  return f.origin === "pre-existing" ? `${word} · Pre-existing` : word;
+};
+
+/**
+ * `Should · 🟠📝 **Fix · docs: stale cell (confidence high)**`: the label every list in the review
+ * body and every local report shows, led by the priority word.
+ */
+export const label = (f: Finding & { origin?: Origin; priority?: Priority }, status?: string) => oneLineLabel(priorityLead(f), f, status);
+
+/**
+ * `Important · 🟠📝 **Fix · docs: stale cell (confidence high)**`: today's label with the tier word,
+ * the one the model reads back from its own earlier comments (`legacyFindingComment`). It never
+ * shows the priority: the model must not see the word the reader sees.
+ */
+export const legacyLabel = (f: Finding & { origin?: Origin }, status?: string) => oneLineLabel(tierWord(f), f, status);
 /** ` (confidence high, supported)`: the confidence the model gave and, for a local report, what the verifier found. */
 export const detail = (f: Finding, status?: string) => {
   const parts = [f.confidence ? `confidence ${f.confidence}` : "", status ?? ""].filter(Boolean);
@@ -306,57 +325,88 @@ export const confidenceMeter = (level: Confidence) => {
 const cell = (text: string) => text.replace(/\r?\n|\r/g, " ").replaceAll("|", "\\|").replaceAll("`", "\\`");
 const uncell = (text: string) => text.replaceAll("\\|", "|").replaceAll("\\`", "`");
 
+/** The Track record row. Layer 1 counts no outcomes, so every finding says so (spec decision 19). */
+const TRACK_RECORD = "no record yet · seed";
+
 /**
  * The GitHub body of an inline finding, before the signature: a table whose first cell is the
  * brand, then the model's body unchanged (spec 2026-11-14, "Inline finding"). `legacyFindingComment`
- * undoes it for the model; the local sinks keep `label`.
+ * undoes it for the model; the local sinks use `label`.
+ *
+ * The priority arm (the default) opens with a Priority row and leaves the tier word out of the
+ * Severity cell; the word arm of the trial is today's table. Both end with the Track record row.
  */
-export const inlineFindingBody = (f: Finding & { origin?: Origin }) =>
-  [
+export const inlineFindingBody = (f: Finding & { origin?: Origin; priority?: Priority }, arm: Arm = "priority") => {
+  const severity = `${SEVERITY[f.severity].emoji} ${SEVERITY[f.severity].word}`;
+  const word = f.priority ?? priorityOf(f).priority;
+  return [
     `| ${BRAND} | ${cell(neutralise(f.title))} |`,
     "|:--|:--|",
-    `| **Severity** | ${SEVERITY[f.severity].emoji} ${SEVERITY[f.severity].word} · ${tierWord(f)} |`,
+    ...(arm === "priority"
+      ? [`| **Priority** | **${PRIORITY_WORD[word]}** · ${PRIORITY_GLOSS[word]}${f.origin === "pre-existing" ? " · Pre-existing" : ""} |`, `| **Severity** | ${severity} |`]
+      : [`| **Severity** | ${severity} · ${tierWord(f)} |`]),
     `| **Area** | ${TOPIC[f.topic].emoji} ${TOPIC[f.topic].word} |`,
     ...(f.confidence ? [`| **Confidence** | ${confidenceMeter(f.confidence)} |`] : []),
+    `| **Track record** | ${TRACK_RECORD} |`,
     "",
     neutralise(f.body),
   ].join("\n");
+};
 
 const TABLE_HEAD = `| ${BRAND} | `;
 
-/** The fields of an inline finding's table, or null when the comment does not open with one. */
+/**
+ * The fields of an inline finding's table, or null when the comment does not open with one. The
+ * Severity cell is read with or without the tier word, and the Priority and Track record rows are
+ * ignored: severity, topic and confidence are all a reader of the table needs (ADR 0059).
+ */
 export function parseInlineTable(body: string) {
   if (!body.startsWith(TABLE_HEAD)) return null;
   const rows = body.split("\n");
   const end = rows.findIndex((r) => !r.startsWith("|"));
   const table = rows.slice(0, end === -1 ? rows.length : end);
   const value = (name: string) => table.find((r) => r.startsWith(`| **${name}** | `))?.slice(`| **${name}** | `.length).replace(/ \|$/, "");
-  const severity = value("Severity")?.match(/^(\S+) (Blocker|Fix|Consider|Info) · (Important|Nit)$/);
+  const severity = value("Severity")?.match(/^(\S+) (Blocker|Fix|Consider|Info)(?: · (Important|Nit))?$/);
   const area = value("Area")?.match(/^(\S+) ([a-z]+)$/);
   if (!severity || !area || !table[0].endsWith(" |")) return null;
   const confidence = value("Confidence")?.match(/^\S+ (High|Medium|Low)$/)?.[1].toLowerCase();
+  const priority = value("Priority")?.match(/^\*\*(Must|Should|Could|FYI)\*\*/)?.[1];
+  const preExisting = value("Priority")?.endsWith(" · Pre-existing") ?? false;
   return {
     rows: table.length,
     title: uncell(table[0].slice(TABLE_HEAD.length, -2)),
-    severity: { emoji: severity[1], word: severity[2], tier: severity[3] },
+    // The tier word of the one-line label: the cell's own, or, in the priority arm, the one `tierWord` derives.
+    severity: { emoji: severity[1], word: severity[2], tier: severity[3] ?? (preExisting ? "Pre-existing" : severity[2] === "Blocker" || severity[2] === "Fix" ? "Important" : "Nit") },
     topic: { emoji: area[1], word: area[2] },
+    ...(priority ? { priority: { word: priority, preExisting } } : {}),
     ...(confidence ? { confidence } : {}),
   };
 }
 
 /**
- * A finding comment as the model reads it: an inline table becomes today's one-line label again
- * (`branded(label(f))`), the rest of the comment is untouched. A comment without a table is returned as is.
+ * A finding comment as a one-line label again: an inline table becomes `branded(<lead> · label)`,
+ * the rest of the comment is untouched. A comment without a table is returned as is.
  */
-export function legacyFindingComment(body: string): string {
+function findingLine(body: string, lead: (t: NonNullable<ReturnType<typeof parseInlineTable>>) => string): string {
   const t = parseInlineTable(body);
   if (!t) return body;
   const detail = t.confidence ? ` (confidence ${t.confidence})` : "";
   const line = branded(
-    `${t.severity.tier} · ${t.severity.emoji}${t.topic.emoji} **${t.severity.word} · ${t.topic.word}: ${t.title}${detail}**`,
+    `${lead(t)} · ${t.severity.emoji}${t.topic.emoji} **${t.severity.word} · ${t.topic.word}: ${t.title}${detail}**`,
   );
   return [line, ...body.split("\n").slice(t.rows)].join("\n");
 }
+
+/**
+ * A finding comment as the model reads it: an inline table becomes today's one-line label with the
+ * tier word (`branded(legacyLabel(f))`), whichever arm wrote it, so the Priority and Track record
+ * rows never reach the model. A comment without a table is returned as is.
+ */
+export const legacyFindingComment = (body: string) => findingLine(body, (t) => t.severity.tier);
+
+/** A finding comment as a person reads it in a list: the same line, led by the word its table showed. */
+const shownFindingComment = (body: string) =>
+  findingLine(body, (t) => (t.priority ? `${t.priority.word}${t.priority.preExisting ? " · Pre-existing" : ""}` : t.severity.tier));
 
 /** The default command keyword. A slash command, so writing it notifies no GitHub account. */
 export const DEFAULT_MENTION = "/wachiman";
@@ -1195,7 +1245,7 @@ const estimateTail = (estimate: boolean) => (estimate ? ` · ${ESTIMATE_NOTE}` :
 
 export function buildReview(input: {
   /** A finding's `anchor`, when given (a `ReviewResult`'s), decides inline or body; else its file's patch does. */
-  output: Omit<ReviewOutput, "findings"> & { findings: (Finding & Partial<Pick<ResultFinding, "anchor" | "origin" | "verification">>)[] };
+  output: Omit<ReviewOutput, "findings"> & { findings: (Finding & Partial<Pick<ResultFinding, "anchor" | "origin" | "verification" | "priority" | "rank">>)[] };
   files: ReviewFile[];
   headSha: string;
   since: string | null;
@@ -1236,6 +1286,8 @@ export function buildReview(input: {
   verification?: ResultVerificationV2;
   /** The run is on a Claude subscription: its dollar figures are API-price estimates (ADR 0037). */
   estimate?: boolean;
+  /** The trial arm (ADR 0059): `word` renders today's Important/Nit word in each inline table. Default: the priority. */
+  arm?: Arm;
   /** The risk map (ADR 0031), rendered right after the count line. */
   riskMap?: RiskMap;
   /** PR Confidence (ADR 0033): the grade as one line after the count line; the description block holds the rest. */
@@ -1282,7 +1334,7 @@ export function buildReview(input: {
         path: f.path,
         line: f.line,
         side: "RIGHT",
-        body: `${inlineFindingBody(f)}\n\n${SIGNATURE.finding}`,
+        body: `${inlineFindingBody(f, input.arm)}\n\n${SIGNATURE.finding}`,
       });
     } else outsideDiff.push(f);
   }
@@ -1350,7 +1402,9 @@ export function buildReview(input: {
   // Before the findings and outside any <details> block. The size fitting below cuts the contracts,
   // the Inconclusive and Pre-existing lists and the unreviewed-files list, never this part.
   if (input.riskMap) parts.push(renderRiskMap(input.riskMap, "### Risk map", { pushOnly: input.pushOnly }));
-  const listed = (f: Finding & { origin?: Origin }) => `- ${label(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
+  // The word arm of the trial keeps today's tier word in these lists too: only the word differs between arms.
+  const listLabel = input.arm === "word" ? legacyLabel : label;
+  const listed = (f: Finding & { origin?: Origin; priority?: Priority }) => `- ${listLabel(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
   if (outsideDiff.length > 0) parts.push("### Outside the diff", ...outsideDiff.map(listed));
   // Each of these two is one part, so a long body can cut it by its index.
   const cuttable: { at: number; heading: string; items: string[] }[] = [];
@@ -1455,7 +1509,7 @@ export function buildReview(input: {
 export function moveCommentsToBody(review: Review): Review {
   if (review.comments.length === 0) return review;
   const moved = review.comments.map(
-    (c) => `- \`${neutralise(c.path)}:${c.line}\`: ${legacyFindingComment(c.body).replace(SIGNATURE.finding, "").trim().replace(/\n\n/, " ")}`,
+    (c) => `- \`${neutralise(c.path)}:${c.line}\`: ${shownFindingComment(c.body).replace(SIGNATURE.finding, "").trim().replace(/\n\n/, " ")}`,
   );
   const base = review.body.replace(
     /; \d+ on their lines\. Reply in a comment's thread to answer it\./,
@@ -3930,6 +3984,7 @@ export function githubReview(
     instructionChanges: github.instructionChanges,
     ...(result.pathPolicyChanged ? { pathPolicyChange: { baseSha: github.instructionChanges.baseSha } } : {}),
     riskMap: result.riskMap,
+    ...(result.arm ? { arm: result.arm } : {}),
     ...(result.fidelity ? { fidelity: result.fidelity } : {}),
     pushOnly: github.since !== null,
     ...(result.verification ? { verification: result.verification } : {}),

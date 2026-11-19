@@ -613,7 +613,7 @@ describe("enforceConfidenceRule", () => {
 
   test("the label of a rewritten finding shows the question topic and the low confidence", () => {
     const [rewritten] = enforceConfidenceRule([f("fix", "bug", "low")]).findings;
-    expect(label(rewritten)).toBe("Important · 🟠❓ **Fix · question: Title (confidence low)**");
+    expect(label(rewritten)).toBe("Could · 🟠❓ **Fix · question: Title (confidence low)**");
   });
 });
 
@@ -668,28 +668,28 @@ describe("label", () => {
 
   test("puts both emojis first, then the severity, topic and title in words", () => {
     expect(label(f("fix", "docs", "stale 'Read by' cell"))).toBe(
-      "Important · 🟠📝 **Fix · docs: stale 'Read by' cell**",
+      "Should · 🟠📝 **Fix · docs: stale 'Read by' cell**",
     );
     expect(label(f("blocker", "security", "DATABASE_URL printed"))).toBe(
-      "Important · 🔴🔐 **Blocker · security: DATABASE_URL printed**",
+      "Must · 🔴🔐 **Blocker · security: DATABASE_URL printed**",
     );
     expect(label(f("consider", "cleanup", "Duplicate schema"))).toBe(
-      "Nit · 🟡🧹 **Consider · cleanup: Duplicate schema**",
+      "Could · 🟡🧹 **Consider · cleanup: Duplicate schema**",
     );
-    expect(label(f("info", "adr", "Edits a record"))).toBe("Nit · ⚪🏛️ **Info · adr: Edits a record**");
+    expect(label(f("info", "adr", "Edits a record"))).toBe("FYI · ⚪🏛️ **Info · adr: Edits a record**");
   });
 
   test("shows the confidence after the title, inside the bold label", () => {
     expect(label({ ...f("fix", "bug", "Face is lost"), confidence: "high" })).toBe(
-      "Important · 🟠🐛 **Fix · bug: Face is lost (confidence high)**",
+      "Should · 🟠🐛 **Fix · bug: Face is lost (confidence high)**",
     );
     expect(label({ ...f("consider", "question", "Is it deliberate?"), confidence: "low" })).toBe(
-      "Nit · 🟡❓ **Consider · question: Is it deliberate? (confidence low)**",
+      "Could · 🟡❓ **Consider · question: Is it deliberate? (confidence low)**",
     );
   });
 
   test("shows no confidence when the model gave none", () => {
-    expect(label(f("fix", "bug", "Old output"))).toBe("Important · 🟠🐛 **Fix · bug: Old output**");
+    expect(label(f("fix", "bug", "Old output"))).toBe("Should · 🟠🐛 **Fix · bug: Old output**");
   });
 
   test("has an emoji and a word for every severity and topic", () => {
@@ -1005,13 +1005,13 @@ describe("buildReview", () => {
         path: "src/a.ts",
         line: 2,
         side: "RIGHT",
-        body: "| 👮 **Wachiman** | Off by one |\n|:--|:--|\n| **Severity** | 🟠 Fix · Important |\n| **Area** | 🐛 bug |\n\nFails for an empty list.\n\n<!-- wachi:finding -->",
+        body: "| 👮 **Wachiman** | Off by one |\n|:--|:--|\n| **Priority** | **Should** · a change is expected; answer if you disagree |\n| **Severity** | 🟠 Fix |\n| **Area** | 🐛 bug |\n| **Track record** | no record yet · seed |\n\nFails for an empty list.\n\n<!-- wachi:finding -->",
       },
       {
         path: "src/a.ts",
         line: 1,
         side: "RIGHT",
-        body: "| 👮 **Wachiman** | Naming |\n|:--|:--|\n| **Severity** | 🟡 Consider · Nit |\n| **Area** | 🧹 cleanup |\n\nConsider a clearer name.\n\n<!-- wachi:finding -->",
+        body: "| 👮 **Wachiman** | Naming |\n|:--|:--|\n| **Priority** | **Could** · worth a look; change on the merits |\n| **Severity** | 🟡 Consider |\n| **Area** | 🧹 cleanup |\n| **Track record** | no record yet · seed |\n\nConsider a clearer name.\n\n<!-- wachi:finding -->",
       },
     ]);
     expect(review.body).toContain("2 finding(s): 1 to fix, 1 to consider; 2 on their lines");
@@ -1038,7 +1038,7 @@ describe("buildReview", () => {
     });
     expect(review.comments).toEqual([]);
     expect(review.body).toContain("### Outside the diff");
-    expect(review.body).toContain("Important · 🔴🔐 **Blocker · security: Key in log** (`src/b.ts:9`)");
+    expect(review.body).toContain("Must · 🔴🔐 **Blocker · security: Key in log** (`src/b.ts:9`)");
   });
 
   test("puts info findings in the body under their own heading, never inline, even on a diff line", () => {
@@ -1063,9 +1063,9 @@ describe("buildReview", () => {
     expect(review.body).not.toContain("### Outside the diff");
     expect(review.body).toContain("2 finding(s); 0 on their lines");
     const info = review.body.slice(review.body.indexOf("### For your information"));
-    expect(info).toContain("- Nit · ⚪❓ **Info · question: Heads up** (`src/a.ts:2`): Nothing to change.");
+    expect(info).toContain("- FYI · ⚪❓ **Info · question: Heads up** (`src/a.ts:2`): Nothing to change.");
     expect(info).toContain(
-      "- Nit · ⚪🏛️ **Info · adr: Edits an accepted decision record** (`docs/adr/0001-x.md`): This pull request edits",
+      "- FYI · ⚪🏛️ **Info · adr: Edits an accepted decision record** (`docs/adr/0001-x.md`): This pull request edits",
     );
     expect(review.body.indexOf("### For your information")).toBeLessThan(
       review.body.indexOf("### Summary"),
@@ -1517,14 +1517,17 @@ describe("contracts in the review body", () => {
       ...base,
       output: output({ files_reviewed: ["src/a.ts"], findings: [fix, { ...fix, line: 99, confidence: "low", title: "Outside" }] }),
     });
-    expect(comments[0].body.split("\n").slice(0, 5)).toEqual([
+    expect(comments[0].body.split("\n").slice(0, 8)).toEqual([
       "| 👮 **Wachiman** | Face is lost |",
       "|:--|:--|",
-      "| **Severity** | 🟠 Fix · Important |",
+      "| **Priority** | **Should** · a change is expected; answer if you disagree |",
+      "| **Severity** | 🟠 Fix |",
       "| **Area** | 🐛 bug |",
       "| **Confidence** | 🟥🟥🟥 High |",
+      "| **Track record** | no record yet · seed |",
+      "",
     ]);
-    expect(body).toContain("Important · 🟠🐛 **Fix · bug: Outside (confidence low)** (`src/a.ts:99`)");
+    expect(body).toContain("Could · 🟠🐛 **Fix · bug: Outside (confidence low)** (`src/a.ts:99`)");
   });
 
   test("a body over the limit loses its contracts down to what fits, never a finding", () => {

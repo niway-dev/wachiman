@@ -2,24 +2,24 @@
  * What the local sinks share: the lines that must read the same in the terminal and in the
  * Markdown report. Every sink reads only the `ReviewResult` and computes no anchor.
  */
-import { detail, label, neutralise, oneLine, SEVERITY, TOPIC, type Finding, type Profile, type ReviewResult } from "../engine";
+import { detail, label, neutralise, oneLine, priorityLead, SEVERITY, TOPIC, type Finding, type Profile, type ReviewResult } from "../engine";
 import type { Citation, ResultFinding } from "../formats";
-import { sectionOf, tierWord, verificationSegment, type Section } from "../verify";
+import { sectionOf, verificationSegment, type Section } from "../verify";
 import type { Settled } from "../history/types";
 
 export const sha7 = (sha: string) => sha.slice(0, 7);
 
 /** A finding as a sink sees it: the verification fields are there on a `/2` result. */
-export type Reported = Finding & Partial<Pick<ResultFinding, "origin" | "originReason" | "originEvidence" | "verification">>;
+export type Reported = Finding & Partial<Pick<ResultFinding, "origin" | "originReason" | "originEvidence" | "verification" | "priority">>;
 
 /** What the verifier found, for the label: nothing for a finding nobody verified. */
 const statusOf = (f: Reported) => (f.verification && f.verification.status !== "unverified" ? f.verification.status : undefined);
 
-/** `Important · 🟠🐛 Fix · bug: <title> (confidence high, supported)`: `label` without the Markdown bold. */
+/** `Should · 🟠🐛 Fix · bug: <title> (confidence high, supported)`: `label` without the Markdown bold. */
 export const plainLabel = (f: Reported) =>
-  `${tierWord(f)} · ${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} ${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${detail(f, statusOf(f))}`;
+  `${priorityLead(f)} · ${SEVERITY[f.severity].emoji}${TOPIC[f.topic].emoji} ${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}: ${neutralise(f.title)}${detail(f, statusOf(f))}`;
 
-/** `Important · 🟠🐛 **Fix · bug: <title> (confidence high, supported)**`: the GitHub label plus the verdict, for a report. */
+/** `Should · 🟠🐛 **Fix · bug: <title> (confidence high, supported)**`: the GitHub label plus the verdict, for a report. */
 export const markdownLabel = (f: Reported) => label(f, statusOf(f));
 
 const cite = (c: Citation) => neutralise(`${c.snapshot === "base" ? "base:" : ""}${c.path}:${c.line}`);

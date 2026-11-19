@@ -39,16 +39,40 @@ describe("sectionOf", () => {
 });
 
 describe("the GitHub label", () => {
-  test("the tier word leads, outside the bold, and the precision parser still reads the label", () => {
+  test("the priority word leads, outside the bold, and the precision parser still reads the label", () => {
     const [store] = fixture().findings;
     const line = label(store);
-    expect(line).toBe("Important · 🟠🐛 **Fix · bug: The store drops the last session (confidence high)**");
+    expect(line).toBe("Should · 🟠🐛 **Fix · bug: The store drops the last session (confidence high)**");
     expect(parseLabel(line)).toEqual({ severity: "fix", topic: "bug", confidence: "high" });
     expect(parseLabel(`👮 **Wachiman** · ${line}`)).toEqual({ severity: "fix", topic: "bug", confidence: "high" });
   });
 
   test("a finding without verification fields is labelled by its severity", () => {
-    expect(label({ path: "a", line: 1, severity: "consider", topic: "cleanup", title: "t", body: "b" })).toStartWith("Nit · 🟡");
+    expect(label({ path: "a", line: 1, severity: "consider", topic: "cleanup", title: "t", body: "b" })).toStartWith("Could · 🟡");
+  });
+});
+
+describe("githubReview and the trial arm (AC13)", () => {
+  test("without an arm every table shows the Priority row and every list the priority word", () => {
+    const review = githubReview(fixture(), github);
+    expect(review.comments[0].body).toContain("| **Priority** | **Should** · a change is expected; answer if you disagree |\n| **Severity** | 🟠 Fix |");
+    expect(review.comments[0].body).toContain("| **Track record** | no record yet · seed |");
+    expect(review.body).toContain("- FYI · ⚪🏛️ **Info · adr:");
+  });
+
+  test("the priority arm is the same as no arm", () => {
+    expect(githubReview({ ...fixture(), arm: "priority" }, github)).toEqual(githubReview(fixture(), github));
+  });
+
+  test("the word arm shows today's table and tier words, plus the Track record row; the order of findings is unchanged", () => {
+    const priority = githubReview({ ...fixture(), arm: "priority" }, github);
+    const word = githubReview({ ...fixture(), arm: "word" }, github);
+    expect(word.comments[0].body).toContain("| **Severity** | 🟠 Fix · Important |");
+    expect(word.comments[0].body).not.toContain("**Priority**");
+    expect(word.comments[0].body).toContain("| **Track record** | no record yet · seed |");
+    expect(word.body).toContain("- Pre-existing · 🟠🐛 **Fix · bug: The manager never closes the store");
+    expect(word.body).toContain("- Nit · ⚪🏛️ **Info · adr:");
+    expect(word.comments.map((c) => [c.path, c.line])).toEqual(priority.comments.map((c) => [c.path, c.line]));
   });
 });
 
@@ -59,7 +83,7 @@ describe("githubReview with verified findings", () => {
     expect(review.comments[0].body).toContain("| 👮 **Wachiman** | The store drops the last session |");
     expect(review.comments[0].body).toContain("| **Confidence** | 🟥🟥🟥 High |");
     expect(review.body).toContain("### Pre-existing");
-    expect(review.body).toMatch(/### Pre-existing\n\n- Pre-existing · 🟠🐛 \*\*Fix · bug: The manager never closes the store \(confidence high\)\*\* \(`apps\/api\/src\/main\/session\/session-manager\.ts:3`\)/);
+    expect(review.body).toMatch(/### Pre-existing\n\n- Should · Pre-existing · 🟠🐛 \*\*Fix · bug: The manager never closes the store \(confidence high\)\*\* \(`apps\/api\/src\/main\/session\/session-manager\.ts:3`\)/);
   });
 
   test("a fix the verifier could not settle goes to an Inconclusive section; one it never reached stays where it was", () => {
@@ -73,7 +97,7 @@ describe("githubReview with verified findings", () => {
     });
     result.findings.push({ ...first, line: 3, title: "Never reached", verification: { status: "inconclusive", reason: "not verified: budget", checked: [], unreached: true } });
     const review = githubReview(result, github);
-    expect(review.body).toMatch(/### Inconclusive\n\n- Important · .*The flush may race/);
+    expect(review.body).toMatch(/### Inconclusive\n\n- Should · .*The flush may race/);
     expect(review.body).not.toMatch(/### Inconclusive\n\n[^#]*Never reached/);
     expect(review.comments.some((c) => c.body.includes("Never reached"))).toBe(true);
     expect(review.comments.some((c) => c.body.includes("The flush may race"))).toBe(false);
