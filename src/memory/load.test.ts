@@ -39,6 +39,11 @@ describe("globsOf", () => {
     ["a/*, b/*.{js,jsx}", ["a/*", "b/*.{js,jsx}"]],
     ["{a,b}/*, c/**", ["{a,b}/*", "c/**"]],
   ])("%s splits only on commas outside braces", (scope, expected) => expect(globsOf(scope)).toEqual(expected));
+
+  test.each([
+    ["src/{a,b", ["src/{a", "b"]],
+    ["a/*, {b,c, d/**", ["a/*", "{b", "c", "d/**"]],
+  ])("%s has unbalanced braces, so every comma separates", (scope, expected) => expect(globsOf(scope)).toEqual(expected));
 });
 
 describe("matchesGlob", () => {
