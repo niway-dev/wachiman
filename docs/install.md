@@ -332,6 +332,16 @@ published here. What the engine sends it and what it must answer is the contract
 [ledger-api.md](ledger-api.md). To run a ledger of your own, implement that contract and point
 `ledger_url` at it.
 
+## Optional: record memory from a review thread
+
+With `memory_proposals: true` on the review caller, a reply Wachiman writes in a thread can propose an
+entry for the repository's memory, and the operator approves it with `/wachiman remember <id>`. Recording
+it is done by a second caller file that calls `wachiman-memory.yml` and grants `contents: write` and
+`pull-requests: write`; the review caller keeps `contents: read`. The repository setting "Allow GitHub
+Actions to create and approve pull requests" must be on for the job to open the draft pull request. The
+caller, the checks the job makes and the limits are in
+[cli.md](cli.md#capturing-memory-in-actions-layer-5).
+
 ## Optional: a focus file
 
 Add `.github/wachiman.md` to say what this repository's reviews should look at beyond the

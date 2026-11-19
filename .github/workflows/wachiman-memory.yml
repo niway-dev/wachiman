@@ -1,0 +1,127 @@
+name: Wachiman memory (reusable)
+
+# Reusable workflow: records a memory entry the operator approved in a review thread.
+# It is the only Wachiman job that writes to the calling repository, which is why it is a workflow of
+# its own and not a job of `review.yml`: a called workflow cannot hold a permission its caller did not
+# grant, so a `contents: write` job inside `review.yml` would stop every caller that grants only
+# `contents: read`. Call it from its own caller file (docs/cli.md, "Capturing memory in Actions").
+#
+# What it does:
+#   - Runs only on a reply in a review thread (`pull_request_review_comment`) written by the `operator`
+#     login, that starts with the mention and says `remember`, on a pull request whose head is in this
+#     repository. The approval is the whole comment: this gate cannot test the exact shape, so the engine does
+#     (`/wachiman remember <id>` and nothing else); a comment with other text writes nothing, and the thread
+#     run answers it as an ordinary reply. Anyone else's comment starts a skipped job and nothing else. The
+#     engine checks the operator again.
+#   - Calls no model and passes no model key. The engine reads the proposal back from Wachiman's own reply
+#     in that thread, checks that the digest of the text shown is the id the operator approved, and
+#     writes exactly that text: one commit on the branch `wachiman/memory` that touches only
+#     `.wachiman/memory/`, and a draft pull request. A person merges it; nothing is active before that.
+#   - Never reads the pull request's code. The calling repository is checked out at its default branch,
+#     not at the pull request, and the engine comes from this repository at the version of this
+#     workflow. Bun runs with `--no-env-file` and the engine's own `bunfig.toml`.
+#
+# The token needs `contents: write` and `pull-requests: write`. A token can open the draft pull request
+# only when the repository setting "Allow GitHub Actions to create and approve pull requests" is on
+# (Settings, Actions, General). When it is off the entry is still pushed to the branch and the job fails
+# with a message that names the setting. Pushes made with the workflow token do not start other
+# workflows, so the draft pull request gets no CI run until someone pushes to it.
+
+on:
+  workflow_call:
+    inputs:
+      operator:
+        description: GitHub login allowed to approve a memory entry
+        type: string
+        required: true
+      mention:
+        description: Command word the approving comment starts with (`/wachi`, `/wachiman` and `@claude` are always accepted too)
+        type: string
+        default: "/wachiman"
+      bun_version:
+        description: Pinned Bun version
+        type: string
+        default: 1.3.4
+
+jobs:
+  remember:
+    name: Wachiman remember
+    if: |
+      github.event_name == 'pull_request_review_comment' &&
+      github.event.comment.user.type != 'Bot' &&
+      github.event.comment.user.login == inputs.operator &&
+      github.event.comment.in_reply_to_id &&
+      (startsWith(github.event.comment.body, inputs.mention) ||
+       startsWith(github.event.comment.body, '/wachi') ||
+       startsWith(github.event.comment.body, '@claude')) &&
+      contains(github.event.comment.body, 'remember') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # One group per approving comment, never cancelling. A shared group would keep only one pending run, so a
+    # third quick approval would cancel the second and an approval would be lost without a word. Runs of
+    # different comments therefore overlap; the write path handles that: it retries a push that lost the race
+    # (up to five times, each from the new branch head) and takes the draft pull request another run opened.
+    # If the retries run out, the job fails and says so in the thread, so the operator can approve again.
+    concurrency:
+      group: wachiman-memory-${{ github.event.comment.id }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check the operator input
+        env:
+          OPERATOR: ${{ inputs.operator }}
+        run: |
+          op="${OPERATOR//[[:space:]]/}"
+          lower="${op,,}"
+          if [ -z "$op" ] || [[ "$lower" == edit* ]] || [ "$lower" = "your-github-login" ]; then
+            echo "::error title=operator is not set::The workflow input 'operator' is empty or still a template placeholder ('$op'). Set it to your GitHub login in the caller workflow. A placeholder can be registered by anyone and would make them the operator."
+            exit 1
+          fi
+
+      # See the `review` job of review.yml for why this is `job.workflow_sha` and not `github.workflow_sha`.
+      - name: Checkout the engine at this workflow's version
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: engine
+          fetch-depth: 1
+          persist-credentials: false
+
+      # The default branch, never the pull request: the write path builds its commit in a temporary
+      # worktree from `origin`, and the pull request's files are not needed. The credentials stay
+      # configured because the write path pushes with them.
+      - name: Checkout the repository at its default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: repo
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ inputs.bun_version }}
+
+      - name: Record the approved memory entry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          # The comment's text and place. Environment only, never interpolated into the script.
+          REQUEST: ${{ github.event.comment.body }}
+          WACHIMAN_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          WACHIMAN_COMMENT_ID: ${{ github.event.comment.id }}
+          WACHIMAN_COMMENT_IN_REPLY_TO: ${{ github.event.comment.in_reply_to_id }}
+          WACHIMAN_MENTION: ${{ inputs.mention }}
+          WACHIMAN_OPERATOR: ${{ inputs.operator }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        # Bun's working directory is `engine/`; the repository is passed with `--repo-dir`.
+        working-directory: engine
+        run: bun --no-env-file --config=bunfig.toml src/cli.ts memory remember "$PR" --repo-dir "$GITHUB_WORKSPACE/repo"

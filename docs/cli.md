@@ -95,6 +95,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `pr-template show\|install\|status\|check\|format\|risk\|strip` | Installs the PR description template, reports its state, checks and reorders a description, and computes the risk floor. No model call. See [`pr-template`](#pr-template) and [the guide](pr-template.md). |
 | `memory check` | Checks the repository memory in `.wachiman/memory/`: malformed entries, globs that match no file, budget overruns; then suggests likely duplicates and entries to archive. No model call. See [`memory`](#memory). |
 | `memory archive <id>` | Moves one entry to `.wachiman/memory/archive.md` in the working tree. See [`memory`](#memory). |
+| `memory remember <pr>` | The write job of memory in Actions: records the entry the operator approved with `/wachiman remember <id>` as the whole comment of a thread reply. See [`memory`](#memory). |
 | `memory candidates`, `add`, `show`, `propose` | Keeps memory candidates on the laptop and proposes an approved entry as one commit on the branch `wachiman/memory`. No model call. See [`memory`](#memory). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
@@ -718,6 +719,7 @@ wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]
 wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]
 wachiman memory show <id> [--repo-dir <dir>]
 wachiman memory propose <id> [--repo-dir <dir>]
+wachiman memory remember <pr> [--repo-dir <dir>]
 ```
 
 Repository memory is a set of Markdown files in `.wachiman/memory/` at the repository root
@@ -786,8 +788,7 @@ before, with no extra field, no extra text and no extra call. The settings are i
   also mutes nothing in this review. The line is absent when no entry applies, and a repository without
   memory sees no change. Wachiman only says so; it never edits the entry.
 
-**What it does not do yet.** Personal memory (`--personal`) and the `/wachiman remember` command in
-Actions are later layers.
+**What it does not do yet.** Personal memory (`--personal`) is a later layer.
 
 `memory check` reads the folder from the working tree and prints each problem as
 `<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope (not checked in
@@ -957,6 +958,97 @@ or the finding is `still_open`. What it cannot record: that a finding was fixed 
 that you judged it wrong, intentional or not important, unless you reply in the thread, and nothing
 adds a reply's classification across runs. To measure a repository that is reviewed in Actions, run
 the [replay](memory-replay.md) on the laptop.
+
+#### Capturing memory in Actions (layer 5)
+
+Set the workflow input `memory_proposals: true`
+([configuration.md](configuration.md#inputs)) and a reply Wachiman writes in a thread can propose an
+entry. It does so only when the operator's latest reply in that thread is an instruction with a reason;
+a collaborator's reply, a question, or "Fixed in" never leads to one. The model drafts only the fields
+(kind, scope, rule, why and, for a fact about the code, `holds while`). The engine builds the entry,
+gives it its id (the digest of those fields) and shows it in the reply, in a block between two hidden
+markers that no model text can write:
+
+```text
+**Proposed memory entry** `4c1e9a2`. Nothing is recorded yet. This is the exact text that would be written:
+(the entry, as `memory show` prints it, with the evidence line "operator instruction, pull request 709")
+To record exactly this text, the operator replies `/wachiman remember 4c1e9a2` in this thread. ...
+```
+
+The proposing reply is an ordinary thread reply, so it counts toward the two replies Wachiman writes in
+a thread ([ADR 0008](adr/0008-thread-follow-up-authority.md)). A reply that is only `/wachiman remember
+<id>` is not a question: the thread run does not answer it and `/wachiman` on-demand runs ignore it, so it
+costs no model call. That holds only with `memory_proposals` on: with it off no job handles the command,
+so `/wachiman remember <id>` is an ordinary comment, answered like any other question. The proposal is shown only by the thread-only run (an operator reply on a head that
+was already reviewed); a push review that answers threads does not propose.
+
+**Approving it: `memory remember <pr>`.** The operator's reply `/wachiman remember <id>` in that thread
+starts a separate workflow, `wachiman-memory.yml`, with one job. It is the only Wachiman job that writes
+to your repository, and it is a workflow of its own because a called workflow cannot hold a permission its
+caller did not grant: a `contents: write` job inside `review.yml` would stop every caller that grants only
+`contents: read`. The review workflow keeps `contents: read` and `pull-requests: write`. The write job
+holds `contents: write` and `pull-requests: write`, passes no model key and calls no model. It does this,
+in order:
+
+1. It starts only for a reply by the `operator` login that begins with the command word and says
+   `remember`, on a pull request whose head is in this repository. A comment from anyone else starts a
+   skipped job, and the engine checks the login again: it writes nothing and posts nothing.
+2. It reads the thread from GitHub and takes the proposal from Wachiman's own signed replies in that
+   thread. Text a person wrote, in any thread, is never a proposal.
+3. It checks that the shown text is exactly one entry whose id is the digest of its fields, that the id is
+   the one the operator approved, and that writing it gives the shown text back byte for byte. If not,
+   it writes nothing and says why in the thread.
+4. It writes the text with the same path as `memory propose`: one commit on `wachiman/memory` that
+   touches only `.wachiman/memory/`, and the draft pull request `chore(wachiman): memory` unless one is
+   open. Nothing is active until a person merges that pull request.
+5. It replies in the thread with what it did and never resolves the thread. This reply carries its own
+   signature, not the thread-reply one, so it does not count toward the two replies Wachiman writes in a
+   thread; the reply that proposed the entry does. Approving the same entry twice writes it once.
+
+The repository is checked out at its default branch, never at the pull request, and the engine comes from
+this repository at the version of the workflow. Add a second caller file next to the review caller. It
+exists only from the first release that contains `wachiman-memory.yml`, so the pin below must be that release or later:
+
+<!-- x-release-please-start-version -->
+```yaml
+name: Wachiman memory
+on:
+  pull_request_review_comment: { types: [created] }
+permissions: { contents: write, pull-requests: write }
+jobs:
+  remember:
+    uses: niway-dev/wachiman/.github/workflows/wachiman-memory.yml@v1.17.0
+    with:
+      operator: your-github-login
+```
+<!-- x-release-please-end -->
+
+Three things to know before you rely on it:
+
+- **The repository setting for pull requests.** A workflow token can open a pull request only when the
+  repository allows it: Settings, Actions, General, "Allow GitHub Actions to create and approve pull
+  requests". This was not verified against every GitHub plan or organization policy. When the setting is
+  off, or an organization policy overrides it, the entry is still pushed to `wachiman/memory`, the thread
+  reply says so and names the setting, and the job exits 1. Turn the setting on, or open the draft pull
+  request from that branch by hand; the next `remember` for any entry opens it when none is open.
+- **No CI on the draft pull request at first.** A push made with the workflow token does not start other
+  workflows, so the pull request gets no check run until someone pushes to the branch or closes and
+  reopens it. A required check will therefore wait.
+- **Proposals come from the thread-only run.** Only the run that answers an operator reply on a head that
+  was already reviewed shows a proposal. Without the caller above, a proposal can be shown but the
+  approving comment records nothing; `wachiman memory propose <id>` on a laptop still works.
+
+The command is `wachiman memory remember <pr>`. It requires `REQUEST` (the comment), `GH_TOKEN` and
+`GITHUB_REPOSITORY`; a missing one is a usage error. It also reads `WACHIMAN_COMMENT_AUTHOR` (the commenter's
+login; unset means nobody is trusted), `WACHIMAN_COMMENT_IN_REPLY_TO` (the id of the thread's first comment;
+unset or empty means the comment is not a reply, so nothing can be found and the exit is 1),
+`WACHIMAN_OPERATOR` (required: an empty or placeholder value is an error), `WACHIMAN_MENTION` (the command
+word, default `/wachiman`) and `WACHIMAN_DRY_RUN`, which the shared configuration reads along with the other
+`WACHIMAN_*` settings it validates ([configuration.md](configuration.md)). The commit needs a git identity:
+`GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME` and `GIT_COMMITTER_EMAIL`, which the workflow
+sets to the Actions bot. It uses the checkout `--repo-dir` points at. Exit 0 when the entry is recorded or already was, or when the comment was
+not the operator's; exit 1 when it refused, wrote nothing, or recorded the entry without opening the draft
+pull request; exit 2 for a usage error such as a missing variable.
 
 ### `history`
 

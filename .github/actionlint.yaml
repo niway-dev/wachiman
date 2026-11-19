@@ -13,3 +13,7 @@ paths:
   .github/workflows/review-platform.yml:
     ignore:
       - 'property "workflow_(repository|sha)" is not defined in object type'
+  # The memory write job checks out its engine the same way.
+  .github/workflows/wachiman-memory.yml:
+    ignore:
+      - 'property "workflow_(repository|sha)" is not defined in object type'

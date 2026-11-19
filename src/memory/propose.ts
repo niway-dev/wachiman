@@ -58,6 +58,12 @@ export interface ProposeIo {
 
 export interface ProposeResult {
   recorded: boolean;
+  /**
+   * What the write did: `inserted` a new entry, `evidence-added` to an entry that was already there,
+   * `unchanged` (already on the memory branch with the same evidence) or `on-default` (already on the
+   * default branch, so nothing was written and no pull request is needed).
+   */
+  change?: "inserted" | "evidence-added" | "unchanged" | "on-default";
   pullRequestFailed?: boolean;
 }
 
@@ -301,7 +307,7 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
     if (outcome === "unchanged" && !builtOnMemoryBranch) {
       // The entry is already part of the default branch and the memory branch is gone or merged: there is nothing to propose and no pull request to open.
       io.stdout(`already recorded: ${candidate.id} is on ${remote.defaultBranch} with the same evidence; nothing was written and no pull request is needed.\n`);
-      return { recorded: true };
+      return { recorded: true, change: "on-default" };
     }
 
     const what = outcome === "inserted" ? `entry ${candidate.id}` : `evidence for entry ${candidate.id}, which was already there,`;
@@ -312,14 +318,14 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
     let url: string | undefined;
     try {
       const open = pulls.list(MEMORY_BRANCH, root).find((p) => p.state === "OPEN");
-      url = open ? open.url : pulls.createDraft({ head: MEMORY_BRANCH, base: remote.defaultBranch, title: PULL_REQUEST_TITLE, body: PR_BODY }, root);
+      url = open ? open.url : openDraft(pulls, remote.defaultBranch, root);
     } catch (error) {
       io.stdout(recordedLine(""));
       io.stderr(`memory propose: the draft pull request could not be opened (${error instanceof Error ? error.message : error}). Open it from ${MEMORY_BRANCH} with the title "${PULL_REQUEST_TITLE}".`);
-      return { recorded: true, pullRequestFailed: true };
+      return { recorded: true, change: outcome, pullRequestFailed: true };
     }
     io.stdout(recordedLine(` Draft pull request: ${url}`));
-    return { recorded: true };
+    return { recorded: true, change: outcome };
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
     io.stderr(`memory propose: ${error.message}`);
@@ -327,6 +333,25 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
   } finally {
     if (worktree) removeWorktree(root, worktree);
     rmSync(hooks, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Creates the draft pull request. Two approvals in Actions run side by side (one workflow group per comment), so
+ * another job may open it between our list and our create; when create fails and a pull request is open now, that one is the answer.
+ */
+function openDraft(pulls: PullRequests, base: string, root: string): string {
+  try {
+    return pulls.createDraft({ head: MEMORY_BRANCH, base, title: PULL_REQUEST_TITLE, body: PR_BODY }, root);
+  } catch (error) {
+    let open: PullRequest | undefined;
+    try {
+      open = pulls.list(MEMORY_BRANCH, root).find((p) => p.state === "OPEN");
+    } catch {
+      // The first error is the one to report.
+    }
+    if (open) return open.url;
+    throw error;
   }
 }
 

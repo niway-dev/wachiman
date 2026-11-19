@@ -26,6 +26,7 @@ import {
   type Evidence,
   type EvidenceSource,
 } from "./candidates";
+import type { GhFn } from "../engine";
 import { proposeCandidate, type ProposeDeps } from "./propose";
 
 export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as const;
@@ -45,6 +46,8 @@ export interface CaptureIo {
 
 export interface CaptureContext {
   env?: Record<string, string | undefined>;
+  /** The GitHub calls of `memory remember`; tests pass a fake. Default: the `gh` binary. */
+  gh?: GhFn;
   now?: () => Date;
   deps?: ProposeDeps;
 }

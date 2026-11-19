@@ -20,6 +20,7 @@ import { parseRepoSettings, resolveMemorySettings, SETTINGS_PATH } from "../repo
 import { parseMemoryFile, type MemoryEntry, type MemoryProblem } from "./entries";
 import { inspectMemory, type CheckInput, type CheckResult } from "./inspect";
 import { CAPTURE_SUBCOMMANDS, runCapture, type CaptureContext } from "./capture";
+import { runRemember } from "./remember";
 import { repositoryRoot } from "./settings";
 import { archiveEntry, archiveSuggestions, findDuplicates, readMemoryUse, writeFileAtomically, type MemoryUse } from "./hygiene";
 import { buildReport, parseReportArgs, renderReport } from "./report";
@@ -27,7 +28,7 @@ import { ARCHIVE_FILE, MEMORY_DIR } from "./load";
 
 export { inspectMemory, type CheckInput, type CheckResult };
 
-export const MEMORY_SUBCOMMANDS = ["check", "archive", "report", ...CAPTURE_SUBCOMMANDS] as const;
+export const MEMORY_SUBCOMMANDS = ["check", "archive", "report", ...CAPTURE_SUBCOMMANDS, "remember"] as const;
 
 export interface MemoryIo {
   stdout: (text: string) => void;
@@ -90,6 +91,8 @@ export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: Ca
   }
   if (first !== "check") {
     if (rest.includes("--help") || rest.includes("-h")) return (io.stdout(commandHelp(["memory", first])!), 0);
+    // The Actions write job (layer 5): reads the comment from the workflow's environment, calls `gh`.
+    if (first === "remember") return runRemember(rest, repoDir, io, { env: ctx.env, gh: ctx.gh, pulls: ctx.deps?.pulls });
     return runCapture(first as (typeof CAPTURE_SUBCOMMANDS)[number], rest, repoDir, io, ctx);
   }
   if (rest.includes("--help") || rest.includes("-h")) return (io.stdout(commandHelp(["memory", "check"])!), 0);

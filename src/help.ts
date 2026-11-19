@@ -479,7 +479,7 @@ const prTemplatePageRoot: Page = {
 const MEMORY_DOCS = `${DOCS}/cli.md#memory`;
 const MEMORY_EXIT: readonly Row[] = [
   ["0", "Done: the memory is clean (or the repository has no .wachiman/memory/ folder; suggestions do not count), the entry was recorded, or the entry was archived"],
-  ["1", "check found a problem; archive could not move the entry (no such entry, already archived, no memory folder, or a symbolic link in the way) and wrote nothing; or propose refused or failed and wrote nothing (not proposable, pull request closed, push failed), or it recorded the entry but could not open the draft pull request"],
+  ["1", "check found a problem; archive could not move the entry (no such entry, already archived, no memory folder, or a symbolic link in the way) and wrote nothing; or propose or remember refused or failed and wrote nothing (not proposable, text does not match the id, pull request closed, push failed), or it recorded the entry but could not open the draft pull request"],
   ["2", "Usage or configuration error: an unknown subcommand, an unknown id, a bad flag, or an invalid .wachiman.yml"],
 ];
 const MEMORY_USAGE = [
@@ -490,6 +490,7 @@ const MEMORY_USAGE = [
   "wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]",
   "wachiman memory show <id> [--repo-dir <dir>]",
   "wachiman memory propose <id> [--repo-dir <dir>]",
+  "wachiman memory remember <pr> [--repo-dir <dir>]",
 ].join("\n");
 const memoryPage: Page = {
   usage: MEMORY_USAGE,
@@ -571,6 +572,14 @@ const memoryPage: Page = {
       options: [REPO_DIR],
       exit: MEMORY_EXIT,
       examples: ["wachiman memory propose 4c1e9a2"],
+      docs: MEMORY_DOCS,
+    },
+    remember: {
+      usage: "wachiman memory remember <pr> [--repo-dir <dir>]",
+      summary: "The write job of memory in GitHub Actions: it records the entry an operator approved with `/wachiman remember <id>` in a thread. It reads the comment from REQUEST, WACHIMAN_COMMENT_AUTHOR and WACHIMAN_COMMENT_IN_REPLY_TO, finds the reply of Wachiman in that thread that showed the id, and writes the text shown with the same one commit on wachiman/memory and draft pull request as `propose`. It writes nothing unless the commenter is WACHIMAN_OPERATOR and the digest of the text shown is the id. It replies in the thread and never resolves it. Needs GH_TOKEN and GITHUB_REPOSITORY, and a token with contents: write and pull-requests: write; opening the pull request also needs the repository setting \"Allow GitHub Actions to create and approve pull requests\". No model is called.",
+      options: [REPO_DIR],
+      exit: MEMORY_EXIT,
+      examples: ["wachiman memory remember 709"],
       docs: MEMORY_DOCS,
     },
   },

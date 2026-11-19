@@ -39,6 +39,7 @@ describe("loadConfig", () => {
       verifierModel: "claude-opus-5-5",
       confidence: false,
       priorityTrial: false,
+      memoryProposals: false,
       limitMode: "fail",
       limitBypass: false,
       ledgerUnavailable: "run",
