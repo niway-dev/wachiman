@@ -123,7 +123,7 @@ function fakeGh(
     if (contents !== undefined) return contents;
     if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
     if (line.startsWith("pr view"))
-      return JSON.stringify({ headRefOid: "head1234567", title: "t", body: "b", author: { login: "u" } });
+      return JSON.stringify({ headRefOid: "head1234567", baseRefName: "main", title: "t", body: "b", author: { login: "u" } });
     if (line.includes("/pulls/7/files")) return files.map((f) => JSON.stringify(f)).join("\n");
     if (line.includes("/pulls/7/reviews") && !args.includes("POST")) return "";
     if (line.includes("-X POST repos/o/r/pulls/7/reviews")) {
@@ -358,6 +358,9 @@ describe("the turn cap and the wall-clock kill", () => {
   });
 });
 
+/** A posted body without the `wachi:attempt` line `postReview` adds after it. */
+const withoutAttempt = (body: string) => body.replace(/\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/, "");
+
 describe("provider rejections (no credit, bad key, rate limit)", () => {
   const CREDIT = "API Error: 400 Your credit balance is too low to access the Anthropic API.";
   const rejected = (providerError: "billing" | "auth" | "rate_limit" | "other", errorText: string) => () => ({
@@ -392,16 +395,28 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     t.provider.latencyMs = 5;
     await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(2);
-    const body = t.posted.review?.body ?? "";
-    expect(body).toContain("Not reviewed: the reviewer's Anthropic account has no credit");
-    expect(body).toContain("credit balance is too low");
+    expect(withoutAttempt(t.posted.review?.body ?? "")).toBe(
+      [
+        "👮 **Wachiman** · ⛔ **Not reviewed**: the Anthropic account has no credit",
+        [
+          "| What to do | |",
+          "| --- | --- |",
+          "| **Who** | The repository owner, who holds the `ANTHROPIC_API_KEY` secret |",
+          '| **Fix** | Add credit to that Anthropic account, then re-run the "Wachiman review" job in the Actions tab, or push again |',
+          "| **Spent** | Nothing this run |",
+          `| **Provider said** | \`${CREDIT}\` |`,
+        ].join("\n"),
+        "<!-- wachi:refusal kind=billing -->",
+      ].join("\n\n"),
+    );
   });
 
   test("an auth rejection posts its own notice", async () => {
     const t = setup([rejected("auth", "API Error: 401 invalid x-api-key")]);
     await review(t.deps, "o/r", 7, []);
-    expect(t.posted.review?.body).toContain("the reviewer's API key was rejected");
-    expect(t.posted.review?.body).toContain("ANTHROPIC_API_KEY");
+    expect(t.posted.review?.body).toContain("⛔ **Not reviewed**: the API key was rejected");
+    expect(t.posted.review?.body).toContain("| **Fix** | Check the `ANTHROPIC_API_KEY` secret, then re-run");
+    expect(t.posted.review?.body).toContain("<!-- wachi:refusal kind=auth -->");
     expect(t.provider.requests).toHaveLength(1);
   });
 
@@ -1111,6 +1126,9 @@ describe("comment with an operator that is not a real login", () => {
 describe("a push after a review (incremental, rebase-aware)", () => {
   const LAST = "old1111111";
   const HEAD = "head1234567";
+  /** The one line every base-update notice starts with (the spec's wording). */
+  const UPDATED_LINE =
+    "👮 **Wachiman** · No new changes to review: the branch was updated from `main` (`old1111` → `head123`). The previous review still applies.";
   const PRIOR_BODY = `👮 **Wachiman** · review of the whole pull request, at \`old1111\`: all 4 files reviewed.\n\n<sub>x</sub>\n\n<!-- wachi:review -->\n\n<!-- wachiman sha=${LAST} -->\n\n<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->`;
 
   /** The same added lines as `prFiles`, over a different base: other context rows and other line numbers. */
@@ -1182,7 +1200,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       },
     ]);
     const logs: string[] = [];
-    const deps: Deps = { gh, provider, config: loadConfig({}), log: (l) => void logs.push(l), warn: () => {} };
+    const deps: Deps = { gh, provider, config: loadConfig({}), log: (l) => void logs.push(l), warn: () => {}, engineVersion: "1.2.3" };
     await review(deps, "o/r", 7, []);
     return { posted: posted.review, provider, prompts, logs, calls };
   }
@@ -1192,9 +1210,16 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       const r = await run({ status, old: oldFiles, current: rebasedFiles });
       expect(r.provider.requests).toHaveLength(0);
       expect(r.posted?.comments).toEqual([]);
-      expect(r.posted?.body.split("\n")[0]).toBe(
-        `👮 **Wachiman** · Rebased onto \`bbbbbbb\`, no new changes since \`old1111\`.`,
+      expect(withoutAttempt(r.posted?.body ?? "")).toBe(
+        [
+          "👮 **Wachiman** · No new changes to review: the branch was updated from `main` (`old1111` → `head123`). The previous review still applies.",
+          "<sub>Wachiman 1.2.3</sub>",
+          SIGNATURE.review,
+          `<!-- wachiman sha=${HEAD} -->`,
+        ].join("\n\n"),
       );
+      // No model call, so no cost line and no automatic flag: the ceiling does not count it.
+      expect(readAutoCost(r.posted?.body ?? "")).toBeNull();
       expect(r.logs.join("\n")).toContain("rebased with no content change, nothing to review");
       // The marker moved to the new head, in the shape the next push reads.
       expect(lastEngineMarker([{ body: r.posted?.body ?? "" }])).toBe(HEAD);
@@ -1366,9 +1391,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     ];
     const r = await run({ status: "ahead", old: oldFiles, current: oldFiles, since: fromBase });
     expect(r.provider.requests).toHaveLength(0);
-    expect(r.posted?.body.split("\n")[0]).toBe(
-      "👮 **Wachiman** · Brought up to date with the base branch, no new changes since `old1111`.",
-    );
+    expect(r.posted?.body.split("\n")[0]).toBe(UPDATED_LINE);
     expect(lastEngineMarker([{ body: r.posted?.body ?? "" }])).toBe(HEAD);
     // The merge also touched a file the pull request changes, without changing the pull request's
     // own hunks in it: compare lists it, and it is still not reviewed.
@@ -1412,9 +1435,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     );
     const none = await run({ status: "ahead", old: edgeOld, current: sameOwn, since: onlyBase });
     expect(none.provider.requests).toHaveLength(0);
-    expect(none.posted?.body.split("\n")[0]).toBe(
-      "👮 **Wachiman** · Brought up to date with the base branch, no new changes since `old1111`.",
-    );
+    expect(none.posted?.body.split("\n")[0]).toBe(UPDATED_LINE);
     expect(none.logs.join("\n")).toContain("came from the merged branch");
   });
 });
