@@ -295,6 +295,68 @@ export const BRAND = "👮 **Wachiman**";
 /** `text` after the brand, on the same first line. */
 export const branded = (text: string) => `${BRAND} · ${text}`;
 
+/** `🟥🟥⬜ Medium`: one red square per level, filled from the left, always three. More red is more certain. */
+export const confidenceMeter = (level: Confidence) => {
+  const filled = CONFIDENCE.length - CONFIDENCE.indexOf(level);
+  return `${"🟥".repeat(filled)}${"⬜".repeat(CONFIDENCE.length - filled)} ${level[0].toUpperCase()}${level.slice(1)}`;
+};
+
+/** A table cell of text Wachiman did not write: `|`, a backtick and a newline would break the row. */
+const cell = (text: string) => text.replace(/\r?\n|\r/g, " ").replaceAll("|", "\\|").replaceAll("`", "\\`");
+const uncell = (text: string) => text.replaceAll("\\|", "|").replaceAll("\\`", "`");
+
+/**
+ * The GitHub body of an inline finding, before the signature: a table whose first cell is the
+ * brand, then the model's body unchanged (spec 2026-11-14, "Inline finding"). `legacyFindingComment`
+ * undoes it for the model; the local sinks keep `label`.
+ */
+export const inlineFindingBody = (f: Finding & { origin?: Origin }) =>
+  [
+    `| ${BRAND} | ${cell(neutralise(f.title))} |`,
+    "|:--|:--|",
+    `| **Severity** | ${SEVERITY[f.severity].emoji} ${SEVERITY[f.severity].word} · ${tierWord(f)} |`,
+    `| **Area** | ${TOPIC[f.topic].emoji} ${TOPIC[f.topic].word} |`,
+    ...(f.confidence ? [`| **Confidence** | ${confidenceMeter(f.confidence)} |`] : []),
+    "",
+    neutralise(f.body),
+  ].join("\n");
+
+const TABLE_HEAD = `| ${BRAND} | `;
+
+/** The fields of an inline finding's table, or null when the comment does not open with one. */
+export function parseInlineTable(body: string) {
+  if (!body.startsWith(TABLE_HEAD)) return null;
+  const rows = body.split("\n");
+  const end = rows.findIndex((r) => !r.startsWith("|"));
+  const table = rows.slice(0, end === -1 ? rows.length : end);
+  const value = (name: string) => table.find((r) => r.startsWith(`| **${name}** | `))?.slice(`| **${name}** | `.length).replace(/ \|$/, "");
+  const severity = value("Severity")?.match(/^(\S+) (Blocker|Fix|Consider|Info) · (Important|Nit)$/);
+  const area = value("Area")?.match(/^(\S+) ([a-z]+)$/);
+  if (!severity || !area || !table[0].endsWith(" |")) return null;
+  const confidence = value("Confidence")?.match(/^\S+ (High|Medium|Low)$/)?.[1].toLowerCase();
+  return {
+    rows: table.length,
+    title: uncell(table[0].slice(TABLE_HEAD.length, -2)),
+    severity: { emoji: severity[1], word: severity[2], tier: severity[3] },
+    topic: { emoji: area[1], word: area[2] },
+    ...(confidence ? { confidence } : {}),
+  };
+}
+
+/**
+ * A finding comment as the model reads it: an inline table becomes today's one-line label again
+ * (`branded(label(f))`), the rest of the comment is untouched. A comment without a table is returned as is.
+ */
+export function legacyFindingComment(body: string): string {
+  const t = parseInlineTable(body);
+  if (!t) return body;
+  const detail = t.confidence ? ` (confidence ${t.confidence})` : "";
+  const line = branded(
+    `${t.severity.tier} · ${t.severity.emoji}${t.topic.emoji} **${t.severity.word} · ${t.topic.word}: ${t.title}${detail}**`,
+  );
+  return [line, ...body.split("\n").slice(t.rows)].join("\n");
+}
+
 /** The default command keyword. A slash command, so writing it notifies no GitHub account. */
 export const DEFAULT_MENTION = "/wachiman";
 /**
@@ -1219,7 +1281,7 @@ export function buildReview(input: {
         path: f.path,
         line: f.line,
         side: "RIGHT",
-        body: `${branded(label(f))}\n\n${neutralise(f.body)}\n\n${SIGNATURE.finding}`,
+        body: `${inlineFindingBody(f)}\n\n${SIGNATURE.finding}`,
       });
     } else outsideDiff.push(f);
   }
@@ -1392,7 +1454,7 @@ export function buildReview(input: {
 export function moveCommentsToBody(review: Review): Review {
   if (review.comments.length === 0) return review;
   const moved = review.comments.map(
-    (c) => `- \`${neutralise(c.path)}:${c.line}\`: ${c.body.replace(SIGNATURE.finding, "").trim().replace(/\n\n/, " ")}`,
+    (c) => `- \`${neutralise(c.path)}:${c.line}\`: ${legacyFindingComment(c.body).replace(SIGNATURE.finding, "").trim().replace(/\n\n/, " ")}`,
   );
   const base = review.body.replace(
     /; \d+ on their lines\. Reply in a comment's thread to answer it\./,
@@ -2327,7 +2389,8 @@ export function openBotThreads(threads: RawThread[]) {
       comment_id: t.comments.nodes[0].databaseId,
       path: t.path,
       line: t.line,
-      finding: t.comments.nodes[0].body,
+      // The model reads today's one-line label, never the inline table.
+      finding: legacyFindingComment(t.comments.nodes[0].body),
       replies: t.comments.nodes
         .slice(1)
         .filter((c) => TRUSTED.has(c.authorAssociation))

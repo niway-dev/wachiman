@@ -18,7 +18,7 @@
  * Why: a change to the prompt rules has to show it lowers false positives without hiding real
  * findings, and the owner's verdicts are the only ground truth available.
  */
-import { defaultGh, isWachiFinding, type GhFn } from "./engine";
+import { defaultGh, isWachiFinding, parseInlineTable, type GhFn } from "./engine";
 
 export type Verdict = "correct" | "partial" | "wrong" | "unjudged";
 
@@ -30,11 +30,19 @@ export interface ParsedLabel {
 }
 
 /**
- * The severity and topic of a finding comment's first line. Reads the current label
+ * The severity and topic of a finding comment. Reads the inline table (its Severity, Area and Confidence rows), the one-line label
  * (`🟠🐛 **Fix · bug: … (confidence high)**`) and the one used before v1.1.0 (`**Should fix (correctness): …**`),
  * so older reviews still count; the old ones keep their old names.
  */
 export function parseLabel(body: string): ParsedLabel | null {
+  const table = parseInlineTable(body);
+  if (table) {
+    return {
+      severity: table.severity.word.toLowerCase(),
+      topic: table.topic.word,
+      ...(table.confidence ? { confidence: table.confidence } : {}),
+    };
+  }
   const first = body.split("\n", 1)[0];
   const current = first.match(/\*\*(Blocker|Fix|Consider|Info) · ([a-z]+):/);
   if (current) {
