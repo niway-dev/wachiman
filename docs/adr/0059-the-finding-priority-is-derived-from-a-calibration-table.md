@@ -4,7 +4,9 @@
   [ADR 0030](0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md)
   (the Important/Nit/Pre-existing display word) once implemented; until then ADR 0030 decision 7
   describes the code. Amends [ADR 0055](0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md)
-  decision 8 on the same terms: the word in the inline finding's severity cell becomes the priority.
+  decision 8 on the same terms: the word in the inline finding's severity cell becomes the priority,
+  and the engine appends one line to the posted finding body (the cell rate, decision 5) that the
+  thread text given back to the model leaves out.
   Builds on [ADR 0003](0003-two-axis-finding-labels.md), and applies to findings the reasoning
   [ADR 0031](0031-a-risk-map-whose-level-the-engine-computes-from-checked-facts.md) used for the
   risk-map level: the model does not pick the level, and a number does not become a gate. Design: [calibrated finding priority spec](../specs/2026-11-18-calibrated-finding-priority-design.md).
@@ -27,8 +29,10 @@ the word ignores it.
 1. Each finding carries a **priority** (`must`, `should`, `could`, `fyi`) and a **rank** (0–100),
    computed by the engine with `priorityOf(finding, table)`. The model never supplies either.
 2. The **calibration table** is versioned data shipped with the engine, keyed by severity ×
-   confidence × topic group (defect: bug, security, perf, rules, adr; quality: tests, docs,
-   cleanup; question). Each cell holds a rank, its sample size and the table version that set it.
+   confidence, with topic group as a later key (defect: bug, security, perf; policy: rules, adr;
+   quality: tests, docs, cleanup; question). Each cell holds a rank, its sample size, its
+   provenance and the table version that set it. A finding with no confidence uses its severity's
+   medium cell, for floors too, and is shown as not measured.
 3. Must is every Blocker at high or medium confidence. A Blocker or Fix at low confidence is posted
    as a question (ADR 0027) and is at most Could. Info is always FYI. Other words come from rank
    bands, where the rank is 100 × the lower end of the cell's 90% Wilson interval on the judged
@@ -43,13 +47,16 @@ the word ignores it.
    reported beside it and never fitted. A new table is proposed by `wachiman calibrate`, merged in a
    reviewed pull request, and frozen for the release.
 7. A rate only raises a priority above a floor: Blocker at high or medium confidence is Must, Fix
-   on a defect or security topic at high or medium confidence is at least Should.
+   on a defect topic (bug, security, perf) at high or medium confidence is at least Should.
 8. Each cell records the model family and prompt version it was measured on; another
    configuration falls back to the seed and says so.
 9. The single minimum-sample rule: a cell is measured only with n ≥ 20 judgements, accumulated
    across releases, from at least 5 pull requests and a 90% Wilson interval
-   whose lower end clears the band; a word moves only when the interval crosses the band edge.
-10. Result `/2` adds `priority` and `rank`. `tier` stays, computed exactly as before and marked
+   whose lower end clears the band. Words have hysteresis: a word moves up only when the lower end of the interval clears the band edge, and down only when the upper end falls below it.
+   Seeds are set by decision 4, not computed from fix rates, because a fix rate measures compliance.
+10. Result `/2` adds `priority`, `rank` and, while the trial runs, `arm` (`word` or `priority`,
+   assigned at random per pull request in the owner's repositories). Under `arm: word` the comment
+   shows today's word, and `priority` and `rank` are still computed and stored for the comparison. `tier` stays, computed exactly as before and marked
    deprecated, until `/3` removes it. Pre-existing is shown as an origin badge beside the priority.
 11. The review loop's stop rule keeps reading severity (ADR 0034).
 
@@ -75,7 +82,7 @@ the word ignores it.
 - Every review exposes per-cell rates, so the table can be checked by anyone reading a comment.
 - `calibrate` becomes part of the release routine; a release with no new table says so.
 - Consumers of `/2` see two new fields; `tier` keeps its meaning until `/3`.
-- Each release costs the owner a blind judging pass (default 30 findings); without it the table
+- Each release costs the owner a blind judging pass (default 40 findings); without it the table
   does not move.
 - The only guarantee about cost is no extra model call. Rounds and author effort are measured in
   the trial's A/B, not assumed.

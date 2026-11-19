@@ -46,17 +46,17 @@ flowchart LR
 | --- | --- | --- | --- |
 | 1 | The headline word is a priority derived by the engine, never chosen by the model | The same reasoning as ADR 0031 for the risk-map level (a model-picked level is unreliable), applied here to findings; confidence already separates outcomes | 0059 (new) |
 | 2 | Four words: Must, Should, Could, FYI | Two words cannot hold "almost always fixed but not blocking"; "Nit" already means "ignore" | 0059 |
-| 3 | The priority comes from a versioned table keyed by severity × confidence, with topic group (defect, quality, question) as a third key only once a split cell is measured; the rank (0–100) is the lower end of the cell's judged interval, sorts findings within a word, is stored but never displayed, and never gates anything | A table scales by data, not by code; ADR 0031 rejected a number because thresholds turn it into a gate, so the rank stays a sort key | 0059 |
-| 4 | Table v1 is seeded from the severity × confidence rows of the sample below: Blocker high/medium → Must, Fix high/medium → Should, Consider high → Should, Consider medium and low → Could, any low-confidence Blocker or Fix → Could, Info → FYI. A cell not measured under decision 12 keeps its seed and says so | Only what the sample shows; the topic split (defect Considers fixed 61%, below tests and docs) is not enough to seed by topic; "Could" is the default where nothing is known | 0059 |
+| 3 | The priority comes from a versioned table keyed by severity × confidence, with topic group (defect: bug, security, perf; policy: rules, adr; quality: tests, docs, cleanup; question) as a third key only once a split cell is measured; the rank (0–100) is the lower end of the cell's judged interval, sorts findings within a word, is stored but never displayed, and never gates anything | A table scales by data, not by code; ADR 0031 rejected a number because thresholds turn it into a gate, so the rank stays a sort key | 0059 |
+| 4 | Table v1 is seeded from the severity × confidence rows of the sample below: Blocker high/medium → Must, Fix high/medium → Should, Consider high → Should, Consider medium and low → Could, any low-confidence Blocker or Fix → Could, Info → FYI. A finding with no confidence uses its severity's medium cell. Seeds are set, not computed: Consider · medium is fixed 71%, but a fix rate measures compliance, and the owner chose Could while nothing is judged. A cell not measured under decision 12 keeps its seed and says so | Only what the sample shows; the topic split (defect Considers fixed 61%, below tests and docs) is not enough to seed by topic; "Could" is the default where nothing is known | 0059 |
 | 5 | Each comment shows what its cell's number measures and on how much: `fixed 95% · n 56 · 12 PRs` | Highlights confidence and makes every review a data point, without calling a fix rate "should act" | 0059 |
 | 6 | The table is fitted to **warranted action**: a sample of findings judged by a person who does not see the displayed word. Fix, decline and no-answer rates are reported beside it, never fitted | A fix (above all an agent's) measures compliance; the label would otherwise learn its own effect | 0059 |
 | 7 | A new table ships only in a reviewed PR and stays frozen for the release | Prevents the label from confirming itself (higher word → more fixes → higher word) | 0059 |
 | 8 | `tier` stays in `/2` as deprecated, computed as today; `priority` and `rank` are added | `/2` consumers keep working (ADR 0030 reopen condition: deliberate wire change) | 0059 |
 | 9 | The loop's stop rule keeps reading severity | Measure first how many Should findings a loop leaves open before letting the word add rounds | — |
-| 10 | A rate can raise a priority, never lower it below a floor set by severity and topic: Blocker is Must, Fix on a defect or security topic is Should | A rare severe defect must never rank under a frequent cleanup | 0059 |
+| 10 | A rate can raise a priority, never lower it below a floor set by severity and topic: Blocker is Must, Fix on a defect topic (bug, security, perf) is Should | A rare severe defect must never rank under a frequent cleanup | 0059 |
 | 11 | Each cell records the model family and prompt version it was measured on; a review on another configuration shows `not measured for this configuration` and uses the seed | A cell's contents change when the model or prompt changes | 0059 |
-| 12 | A cell counts as measured only when n ≥ 20 from at least 5 PRs and the lower end of its 90% Wilson interval clears the band; a word changes only when the interval moves past the band edge | Twenty correlated outcomes near an edge would flip words between releases | 0059 |
-| 13 | The trial is an A/B in the owner's repositories: each PR is assigned the old word or the priority at random, recorded in the result, for at least two weeks | The only way to tell the word's effect from the findings' | — |
+| 12 | A cell counts as measured only when n ≥ 20 from at least 5 PRs and the lower end of its 90% Wilson interval clears the band; a word moves up only when the lower end of the interval clears the band edge, and down only when the upper end falls below it | Twenty correlated outcomes near an edge would flip words between releases | 0059 |
+| 13 | The trial is an A/B in the owner's repositories: each PR is assigned the old word or the priority at random, recorded as `arm` in the result, for at least two weeks; `priority` and `rank` are computed in both arms | The only way to tell the word's effect from the findings' | 0059 |
 | 14 | Pre-existing is an origin badge beside the priority, never a priority | Keeps Claude Code's one stated reason (a bug the PR did not introduce is not the author's fault) without hiding its severity | 0059 |
 | 15 | The cell rate is rendered in the finding's body, never on the title line | `precision.ts` reads confidence anchored to the end of the title line | 0059 |
 
@@ -103,21 +103,21 @@ flowchart LR
 - Unanswered findings dropped from the denominator, hiding the ones nobody wanted.
 - A table measured on one model or prompt applied to another as if measured.
 - A cell flipping words between releases on noise near a band edge.
-- A frequent, cheap cleanup cell ranked above a defect or security Fix.
+- A frequent, cheap cleanup cell ranked above a defect Fix.
 
 ## Acceptance criteria
 
 - [ ] **AC1** `priorityOf` returns Must for every Blocker at high or medium confidence, Could at low, and the v1 table maps Consider · high to Should, Consider · medium and low to Could, and every Info to FYI (unit tests over every cell).
-- [ ] **AC2** In the inline finding of ADR 0055, the severity cell reads `🟡 Consider` with the word `Should`, and the signature line reads `Wachiman · should`; the review body's `<sub>… via …</sub>` footer is unchanged; golden Markdown files updated.
+- [ ] **AC2** In the inline finding of ADR 0055, every place that renders today's Important/Nit word renders the priority instead (`Should` beside `🟡 Consider`); no new visible line is added and the hidden thread marker is unchanged (ADR 0010); the review body's `<sub>… via …</sub>` footer is unchanged; golden Markdown files updated.
 - [ ] **AC15** The cell rate appears only in the finding body; `parseLabel` in `src/precision.ts` still reads severity, topic and confidence from every golden file.
 - [ ] **AC3** A measured cell shows `fixed <p>% · n <n> · <k> PRs`; a cell below the rule of decision 12 shows `not yet measured`.
-- [ ] **AC4** `/2` output keeps `tier` with today's values and adds `priority` and `rank`; the JSON schema validates both old and new files.
+- [ ] **AC4** `/2` output keeps `tier` with today's values and adds `priority`, `rank` and, during the trial, `arm`; the JSON schema validates both old and new files.
 - [ ] **AC5** Pre-existing findings show the origin badge and keep their priority.
 - [ ] **AC6** `wachiman calibrate` prints, per cell, n, fixed %, declined %, wrong %, unanswered %, split by owner and agent.
 - [ ] **AC7** `wachiman calibrate --propose` writes the next table as a file diff and changes nothing the engine reads until it is committed.
-- [ ] **AC8** Running `calibrate` on the local history of one repository reproduces the sample table below within one percentage point.
+- [ ] **AC8** Given a fixture of thread outcomes with the counts of the sample below, `calibrate` prints exactly the sample's table.
 - [ ] **AC9** The prompt change is merged only if, on the benchmark, the share of Fix among findings later fixed rises and the share of Fix later declined does not exceed one third (ADR 0003 reopen condition).
-- [ ] **AC10** No finding gets a priority below its floor: every Blocker at high or medium confidence is Must, every Fix on a defect or security topic at high or medium confidence is at least Should (property test over all cells and rates).
+- [ ] **AC10** No finding gets a priority below its floor: every Blocker at high or medium confidence is Must, every Fix on a defect topic at high or medium confidence is at least Should (property test over all cells and rates).
 - [ ] **AC11** A review whose model family or prompt version differs from the cell's provenance shows `not measured for this configuration` and the seed word.
 - [ ] **AC12** `calibrate` marks a cell measured only under decision 12, and a word moves only when the interval crosses the band edge (unit tests at the edges).
 - [ ] **AC13** With the trial on, each PR's result records `arm: word | priority`, assigned at random, and the comment renders accordingly.
@@ -156,7 +156,7 @@ Attacked by a second model on another provider with only the claim and the facts
 | --- | --- |
 | A fix rate measures compliance, not whether to act | Decision 6: fit to blind judgements; show `fixed` for what it is |
 | A table from one repository is not portable | Decision 11: provenance per cell; other configurations fall back to the seed |
-| 20 outcomes is not precision; edges flip | Decision 12: 5 PRs minimum, Wilson interval, hysteresis |
+| 20 outcomes is not precision; edges flip | Decision 12: 5 PRs minimum, Wilson interval, a word moves up on the lower end and down on the upper end |
 | The word changes the behaviour it learns from | Decisions 6 and 13: blind judgements and an A/B arm |
 | A cell average hides stakes | Decision 10: severity and topic floors; a rate only raises |
 | "No added rounds or cost" was a code property | Narrowed to "no extra model call"; rounds measured in the A/B |
