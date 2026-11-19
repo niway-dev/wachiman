@@ -1,6 +1,8 @@
 # ADR 0010: The name Wachiman and a brand line on every comment
 
 - **Status:** accepted. Supersedes decision 1 of [ADR 0005](0005-name-wachi-reviewer.md).
+  **Decision 2 amended** by the [review comment layout spec](../specs/2026-11-14-review-comment-layout-design.md)
+  (2026-11-14): on an inline finding the brand is the first cell of the table's first row.
 - **Date:** 2026-10-31
 - **Numbering:** accepted as "ADR 0009" on 2026-10-31. A second record
   ([ADR 0009](0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md)) took the
@@ -26,9 +28,10 @@ edits and nothing else.
    pronounced *watchman*. `niway-dev/wachiman` was free on 2026-10-31; a personal account named
    `wachiman` exists, but nothing here mentions it.
 2. **Every comment the engine posts starts with `👮 **Wachiman**`** on its first line: review
-   body, inline finding, thread reply, answer and notice. It is one constant, `BRAND`, and stays
-   on the label's line, so the readers of a finding's first line (`parseLabel`, the 422 fallback)
-   keep working.
+   body, inline finding, thread reply, answer and notice. It is one constant, `BRAND`. On an inline
+   finding it is the first cell of the first row of the finding's table (`| 👮 **Wachiman** | <title> |`),
+   and `parseLabel` reads the table rows. It is still the start of the one-line label that the
+   local sinks print and the model is given.
 3. **`/wachi` stays the default command; `/wachiman` is an alias.** The short command is what
    people already type. The workflow's `contains(…, '/wachi')` condition already matches
    `/wachiman`.

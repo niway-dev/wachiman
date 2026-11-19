@@ -73,13 +73,19 @@ content and amounts are invented. It is not a recorded review.
 Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · 2 batches · $0.42
 ```
 
-An inline finding, on its line in the diff, looks like this:
+An inline finding, on its line in the diff, is a small table followed by the reasoning:
 
 ```text
-👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: Zero limit breaks the page count (confidence high)**
+| 👮 **Wachiman** | Zero limit breaks the page count |
+|:--|:--|
+| **Severity** | 🟠 Fix · Important |
+| **Area** | 🐛 bug |
+| **Confidence** | 🟥🟥🟥 High |
 
 …the reasoning, citing the lines it rests on…
 ```
+
+The model and the local sinks still use the one-line label (`👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: …**`).
 
 ### The tier word
 
