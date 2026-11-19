@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { githubReview, label, type ReviewResult } from "./engine";
+import { githubReview, label, summaryLine, type ReviewResult } from "./engine";
 import { parseLabel } from "./precision";
 import { sectionOf, tierWord } from "./verify";
 
@@ -49,6 +49,55 @@ describe("the GitHub label", () => {
 
   test("a finding without verification fields is labelled by its severity", () => {
     expect(label({ path: "a", line: 1, severity: "consider", topic: "cleanup", title: "t", body: "b" })).toStartWith("Could · 🟡");
+  });
+});
+
+describe("the summary line (AC16)", () => {
+  const f = (severity: "blocker" | "fix" | "consider" | "info", confidence?: "high" | "medium" | "low") => ({
+    path: "a.ts",
+    line: 1,
+    severity,
+    topic: "bug" as const,
+    title: "t",
+    body: "b",
+    ...(confidence ? { confidence } : {}),
+  });
+
+  test("counts per priority in order, zero counts left out, then the findings at high confidence", () => {
+    const findings = [
+      f("blocker", "high"),
+      ...Array.from({ length: 4 }, (_, i) => f("fix", i < 3 ? "high" : "medium")),
+      ...Array.from({ length: 3 }, () => f("consider", "medium")),
+      f("info", "high"),
+    ];
+    expect(summaryLine(findings)).toBe("**9 findings:** 1 Must, 4 Should, 3 Could, 1 FYI · 5 at high confidence");
+  });
+
+  test("one finding is singular, a priority with none is omitted, and a finding without confidence is not high", () => {
+    expect(summaryLine([f("consider", "low")])).toBe("**1 finding:** 1 Could · 0 at high confidence");
+    expect(summaryLine([f("fix"), f("info")])).toBe("**2 findings:** 1 Should, 1 FYI · 0 at high confidence");
+  });
+
+  test("no findings, no line", () => {
+    expect(summaryLine([])).toBeNull();
+  });
+
+  test("a stored priority wins over the table, so a recomputed word never disagrees with the thread", () => {
+    expect(summaryLine([{ ...f("fix", "high"), priority: "could" as const }])).toBe("**1 finding:** 1 Could · 1 at high confidence");
+  });
+
+  test("the review body carries it right after the count line, the same in both arms; none without findings", () => {
+    const result = fixture();
+    const expected = summaryLine(result.findings) as string;
+    expect(expected).toStartWith(`**${result.findings.length} finding`);
+    for (const arm of [undefined, "priority", "word"] as const) {
+      const body = githubReview(arm ? { ...result, arm } : result, github).body;
+      expect(body).toContain(expected);
+      expect(body.indexOf(expected)).toBeGreaterThan(body.indexOf("finding(s)"));
+    }
+    const none = githubReview({ ...result, findings: [] }, github).body;
+    expect(none).not.toContain("**0 finding");
+    expect(none).not.toMatch(/\*\*\d+ findings?:\*\*/);
   });
 });
 

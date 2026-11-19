@@ -1139,6 +1139,23 @@ export function countLine(findings: Finding[]): string {
   return `${findings.length} finding(s)${shown.length > 0 ? `: ${shown.join(", ")}` : ""}`;
 }
 
+/**
+ * `**9 findings:** 1 Must, 4 Should, 3 Could, 1 FYI · 6 at high confidence`: what the review found,
+ * weighed, on one line that opens its findings (ADR 0059). Priorities with none are left out,
+ * a finding with no confidence is not counted as high, and no findings means no line. It is the
+ * same in both trial arms, and it counts a finding's stored priority before the table's.
+ */
+export function summaryLine(findings: (Finding & { priority?: Priority })[]): string | null {
+  if (findings.length === 0) return null;
+  const words = findings.map((f) => f.priority ?? priorityOf(f).priority);
+  const groups = (["must", "should", "could", "fyi"] as const)
+    .map((p) => [words.filter((w) => w === p).length, PRIORITY_WORD[p]] as const)
+    .filter(([n]) => n > 0)
+    .map(([n, word]) => `${n} ${word}`);
+  const high = findings.filter((f) => f.confidence === "high").length;
+  return `**${countOf(findings.length, "finding")}:** ${groups.join(", ")} · ${high} at high confidence`;
+}
+
 /** The `<summary>` of the contracts block; `trimMiddle` finds the block by it. */
 export const CONTRACTS_SUMMARY = "What the change connects to";
 
@@ -1393,6 +1410,8 @@ export function buildReview(input: {
   parts.push(
     `${countLine(output.findings)}; ${comments.length} on their lines. Reply in a comment's thread to answer it.`,
   );
+  const summary = summaryLine(output.findings);
+  if (summary) parts.push(summary);
   if (input.fidelity) parts.push(fidelitySummary(input.fidelity));
   if (input.verification?.status === "failed") {
     parts.push("⚠️ **Not verified**: the second reader that checks each finding did not finish, so these findings are posted as the review wrote them.");
