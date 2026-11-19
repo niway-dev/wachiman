@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError, loadConfig } from "./config";
 import { armFor } from "./priority";
+import { evaluate, type LoopFinding } from "./loop/stop-rule";
 import {
   reviewChange,
   reviewOptionsOf,
@@ -132,6 +133,65 @@ describe("the priority trial arm (spec decision 13 and 20)", () => {
   test("a pull request without a number has no arm to hash", async () => {
     const { identifier: _dropped, ...noNumber } = pr(7) as { identifier?: string };
     expect((await review(noNumber as ReviewInput["change"], { priorityTrial: true })).arm).toBeUndefined();
+  });
+});
+
+describe("the priority changes nothing the review decides (AC15)", () => {
+  const prFixture = JSON.parse(readFileSync(join(ROOT, "test/fixtures/formats/review-input.pull-request.json"), "utf8"));
+  // Illustrative findings that land on every priority, including a blocker the confidence caps.
+  const findings = [
+    { path: "src/a.ts", line: 1, severity: "blocker" as const, topic: "bug" as const, confidence: "high" as const, title: "one", body: "b" },
+    { path: "src/a.ts", line: 2, severity: "blocker" as const, topic: "security" as const, confidence: "low" as const, title: "two", body: "b" },
+    { path: "src/a.ts", line: 3, severity: "fix" as const, topic: "bug" as const, confidence: "medium" as const, title: "three", body: "b" },
+    { path: "src/b.ts", line: 1, severity: "consider" as const, topic: "tests" as const, confidence: "low" as const, title: "four", body: "b" },
+    { path: "src/b.ts", line: 2, severity: "info" as const, topic: "docs" as const, title: "five", body: "b" },
+  ];
+  const run = async (identifier: string, over: Partial<ReviewOptions>) => {
+    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: ["src/a.ts", "src/b.ts"], findings, summary: "s" }) })]);
+    const input = { ...branchInput(), change: { ...prFixture.change, identifier } };
+    const result = await reviewChange(input, options(over), coreDeps(provider).deps);
+    return { result, requests: provider.requests.map(({ prompt, allowedTools, maxBudgetUsd, maxTurns, outputSchema }) => ({ prompt: prompt.replace(/wachiman-review-\w+/g, "wachiman-review-TMP"), allowedTools, maxBudgetUsd, maxTurns, outputSchema })) };
+  };
+  const withoutPriority = (r: Awaited<ReturnType<typeof run>>["result"]) =>
+    r.findings.map(({ priority: _p, rank: _r, ...rest }) => rest);
+  const decisionOf = (r: Awaited<ReturnType<typeof run>>["result"]) => {
+    const loop: LoopFinding[] = r.findings.map((f) => ({
+      id: `${f.path}:${f.line}`,
+      path: f.path,
+      line: f.line,
+      severity: f.severity,
+      topic: f.topic,
+      title: f.title,
+      status: "new",
+      refuted: false,
+    }));
+    return evaluate(loop);
+  };
+
+  test("the trial arms and the trial off make the same provider calls, find the same findings and reach the same stop-rule decision", async () => {
+    const off = await run("#1", {});
+    // 1 and 2 land in different arms (see armFor); the loop below asserts both are present.
+    const arms = await Promise.all([1, 2, 3, 4, 5, 6].map((n) => run(`#${n}`, { priorityTrial: true })));
+    expect(new Set(arms.map((a) => a.result.arm))).toEqual(new Set(["word", "priority"]));
+    for (const other of arms) {
+      expect(other.requests).toEqual(off.requests);
+      expect(other.result.findings.length).toBe(off.result.findings.length);
+      expect(withoutPriority(other.result)).toEqual(withoutPriority(off.result));
+      expect(other.result.findings.map((f) => [f.priority, f.rank])).toEqual(off.result.findings.map((f) => [f.priority, f.rank]));
+      expect(decisionOf(other.result)).toEqual(decisionOf(off.result));
+    }
+    expect(off.requests.length).toBe(1);
+    expect(decisionOf(off.result).converged).toBe(false);
+  });
+
+  test("the words follow the floors: a low-confidence blocker is capped at could, info is fyi", async () => {
+    const { result } = await run("#1", {});
+    expect(result.findings.map((f) => f.priority)).toEqual(["must", "could", "should", "could", "fyi"]);
+  });
+
+  test("the stop rule never reads a priority, a rank or an arm", () => {
+    const source = readFileSync(join(ROOT, "src/loop/stop-rule.ts"), "utf8");
+    expect(source).not.toMatch(/priority|rank|\barm\b/i);
   });
 });
 
