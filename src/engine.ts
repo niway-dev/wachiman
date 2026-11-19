@@ -2461,15 +2461,18 @@ export function reviewMaterial(
 ): { review: string; threads: FindingThread[] } | null {
   const review = latestEngineReview(gh, repo, pr);
   if (review === null) return null;
-  const threads = fetchThreads(gh, repo, pr)
-    .filter(isBotFinding)
-    .map((t) => ({
-      path: t.path,
-      line: t.line,
-      resolved: t.isResolved,
-      finding: t.comments.nodes[0].body,
-    }));
+  const threads = fetchThreads(gh, repo, pr).filter(isBotFinding).map(askFindingThread);
   return { review, threads };
+}
+
+/** A bot finding thread as the ask prompt reads it: the model sees today's label, never the table. */
+export function askFindingThread(t: RawThread): FindingThread {
+  return {
+    path: t.path,
+    line: t.line,
+    resolved: t.isResolved,
+    finding: legacyFindingComment(t.comments.nodes[0].body),
+  };
 }
 
 /** The file the ask prompt reads for the review: the body, then the threads as JSON. */

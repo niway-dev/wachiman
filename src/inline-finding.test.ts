@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  askFindingThread,
   branded,
   confidenceMeter,
   inlineFindingBody,
@@ -127,5 +128,16 @@ describe("a review GitHub would not anchor", () => {
     const moved = moveCommentsToBody(review).body;
     expect(moved).toContain(`- \`a.ts:1\`: ${branded(label(f))} ${f.body}`);
     expect(moved).not.toContain("|:--|");
+  });
+
+  test("the ask prompt reads today's label too, not the table", () => {
+    const f = finding({ title: "a | b", severity: "fix", topic: "bug", confidence: "high" });
+    const raw = {
+      isResolved: false,
+      path: "a.ts",
+      line: 1,
+      comments: { nodes: [{ databaseId: 3, author: { login: "github-actions" }, authorAssociation: "NONE", body: newComment(f), createdAt: "2026-11-15T00:00:00Z" }] },
+    };
+    expect(askFindingThread(raw as never).finding).toBe(oldComment(f));
   });
 });
