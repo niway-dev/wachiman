@@ -131,8 +131,19 @@ export function parseMemoryFile(file: string, content: string): { entries: Memor
     });
   };
 
+  // Lines inside a fenced code block (``` or ~~~) are example text, never entries or headings.
+  let fence: string | undefined;
   content.split(/\r?\n/).forEach((raw, i) => {
     const line = i + 1;
+    const opener = /^ {0,3}(`{3,}|~{3,})/.exec(raw);
+    if (fence !== undefined) {
+      if (opener && opener[1][0] === fence[0] && opener[1].length >= fence.length && raw.trim() === opener[1]) fence = undefined;
+      return;
+    }
+    if (opener) {
+      fence = opener[1];
+      return;
+    }
     if (ANY_HEADING.test(raw)) {
       finish();
       if (raw.startsWith("### ")) {

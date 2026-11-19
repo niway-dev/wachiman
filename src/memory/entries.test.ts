@@ -117,6 +117,22 @@ describe("parseMemoryFile", () => {
     expect(problems[0]).toEqual({ file: "a.md", line: 1, message: "entry heading must be `### <id> <title>` with a 7-character hex id" });
   });
 
+  test("an example entry inside a fenced code block is neither an entry nor a problem", () => {
+    const example = BODY("4c1e9a2").trimEnd();
+    for (const fence of ["```", "~~~", "````"]) {
+      const { entries, problems } = parseMemoryFile("index.md", `# Memory\n\nHow to write one:\n\n${fence}markdown\n${example}\n### not an entry\n${fence}\n`);
+      expect(entries).toEqual([]);
+      expect(problems).toEqual([]);
+    }
+  });
+
+  test("a real entry after a fenced example is still read, and a ### heading after the fence is still a problem", () => {
+    const real = BODY(entryId({ ...FIELDS }));
+    const { entries, problems } = parseMemoryFile("index.md", `\`\`\`\n### no id\n\`\`\`\n\n${real}\n### no id here\n`);
+    expect(entries).toHaveLength(1);
+    expect(problems).toEqual([{ file: "index.md", line: 5 + real.split("\n").length, message: "entry heading must be `### <id> <title>` with a 7-character hex id" }]);
+  });
+
   test("text outside entries (headings, prose, tables) is allowed", () => {
     const { entries, problems } = parseMemoryFile("index.md", "# Memory\n\nSome prose.\n\n| Glob | File |\n| --- | --- |\n");
     expect(entries).toEqual([]);
