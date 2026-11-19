@@ -868,7 +868,7 @@
           }
         },
         "tier": {
-          "description": "The display word, derived from severity and origin by the engine; never taken from a model.",
+          "description": "Deprecated: use `priority`. The display word, derived from severity and origin by the engine; never taken from a model.",
           "enum": [
             "Important",
             "Nit",

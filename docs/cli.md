@@ -926,8 +926,8 @@ version that carries it are [ADR 0030](adr/0030-review-result-2-carries-verifica
 
 The tier word is derived by code, never written by the model: `Pre-existing` when verification
 showed the defect in the base commit (origin `pre-existing`), else `Important` for `blocker` and
-`fix`, else `Nit`. On GitHub it sits outside the bold part, so older readers of the label still
-parse it. The terminal and Markdown reports add what the verifier found after the confidence
+`fix`, else `Nit`. The displayed label leads with the priority; the tier word remains only in the label
+given back to the model and in the trial's word arm, and `tier` stays in `/2` as deprecated. The terminal and Markdown reports add what the verifier found after the confidence
 (`(confidence high, supported)` or `(…, inconclusive)`), a `Verified:` or `Inconclusive:` line
 with the lines it read, and group `Inconclusive` and `Pre-existing` findings after the findings
 of the change. On GitHub those two groups are listed in the review body and open no thread; a

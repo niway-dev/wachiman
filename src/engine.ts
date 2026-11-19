@@ -376,7 +376,7 @@ export function parseInlineTable(body: string) {
     rows: table.length,
     title: uncell(table[0].slice(TABLE_HEAD.length, -2)),
     // The tier word of the one-line label: the cell's own, or, in the priority arm, the one `tierWord` derives.
-    severity: { emoji: severity[1], word: severity[2], tier: severity[3] ?? (preExisting ? "Pre-existing" : severity[2] === "Blocker" || severity[2] === "Fix" ? "Important" : "Nit") },
+    severity: { emoji: severity[1], word: severity[2], tier: severity[3] ?? tierWord({ severity: severity[2].toLowerCase() as Severity, ...(preExisting ? { origin: "pre-existing" as const } : {}) }) },
     topic: { emoji: area[1], word: area[2] },
     ...(priority ? { priority: { word: priority, preExisting } } : {}),
     ...(confidence ? { confidence } : {}),
@@ -1141,19 +1141,23 @@ export function countLine(findings: Finding[]): string {
 
 /**
  * `**9 findings:** 1 Must, 4 Should, 3 Could, 1 FYI · 6 at high confidence`: what the review found,
- * weighed, on one line that opens its findings (ADR 0059). Priorities with none are left out,
- * a finding with no confidence is not counted as high, and no findings means no line. It is the
- * same in both trial arms, and it counts a finding's stored priority before the table's.
+ * weighed, on one line that opens its findings (ADR 0059). Groups with none are left out,
+ * a finding with no confidence is not counted as high, and no findings means no line. The priority
+ * arm (the default) counts by priority word and counts a finding's stored priority before the
+ * table's. The trial's word arm counts by tier word instead, `**9 findings:** 5 Important, 3 Nit,
+ * 1 Pre-existing · 6 at high confidence`, so no priority word appears in a word-arm review.
  */
-export function summaryLine(findings: (Finding & { priority?: Priority })[]): string | null {
+export function summaryLine(findings: (Finding & { priority?: Priority; origin?: Origin })[], arm?: Arm): string | null {
   if (findings.length === 0) return null;
-  const words = findings.map((f) => f.priority ?? priorityOf(f).priority);
-  const groups = (["must", "should", "could", "fyi"] as const)
-    .map((p) => [words.filter((w) => w === p).length, PRIORITY_WORD[p]] as const)
-    .filter(([n]) => n > 0)
-    .map(([n, word]) => `${n} ${word}`);
+  const groups =
+    arm === "word"
+      ? (["Important", "Nit", "Pre-existing"] as const).map((t) => [findings.filter((f) => tierWord(f) === t).length, t] as const)
+      : (["must", "should", "could", "fyi"] as const).map(
+          (p) => [findings.filter((f) => (f.priority ?? priorityOf(f).priority) === p).length, PRIORITY_WORD[p]] as const,
+        );
+  const shown = groups.filter(([n]) => n > 0).map(([n, word]) => `${n} ${word}`);
   const high = findings.filter((f) => f.confidence === "high").length;
-  return `**${countOf(findings.length, "finding")}:** ${groups.join(", ")} · ${high} at high confidence`;
+  return `**${countOf(findings.length, "finding")}:** ${shown.join(", ")} · ${high} at high confidence`;
 }
 
 /** The `<summary>` of the contracts block; `trimMiddle` finds the block by it. */
@@ -1410,7 +1414,7 @@ export function buildReview(input: {
   parts.push(
     `${countLine(output.findings)}; ${comments.length} on their lines. Reply in a comment's thread to answer it.`,
   );
-  const summary = summaryLine(output.findings);
+  const summary = summaryLine(output.findings, input.arm);
   if (summary) parts.push(summary);
   if (input.fidelity) parts.push(fidelitySummary(input.fidelity));
   if (input.verification?.status === "failed") {

@@ -102,7 +102,10 @@ until a track record exists. Each review's findings open with one line of counts
 
 Setting `WACHIMAN_PRIORITY_TRIAL=1` assigns each pull request, by a hash of its repository and
 number, either the priority word or the former tier word (the `arm` field of the result), so the
-two can be compared. Only the word differs between arms.
+two can be compared. The priority arm adds a Priority row to the inline table and drops the tier
+word from the Severity cell; the word arm keeps `· Important` or `· Nit` in the Severity cell. The
+summary line counts by each arm's own word (`1 Must, 4 Should` against `5 Important, 3 Nit`). The
+Track record row and the order of findings are the same in both arms.
 
 ### The tier word
 

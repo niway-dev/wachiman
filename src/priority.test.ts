@@ -108,7 +108,7 @@ describe("floors and caps (spec decision 10, AC10)", () => {
   }
 
   test("a rate raises above the floor: a fix cell calibrated to must stays must on a medium defect", () => {
-    expect(priorityOf({ severity: "fix", topic: "bug", confidence: "high" }, glowing).priority).toBe("must");
+    expect(priorityOf({ severity: "fix", topic: "bug", confidence: "medium" }, glowing).priority).toBe("must");
   });
 
   test("a low table cannot lower a blocker or a defect fix; it can lower a non-defect fix", () => {

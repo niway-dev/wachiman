@@ -78,6 +78,15 @@ describe("the summary line (AC16)", () => {
     expect(summaryLine([f("fix"), f("info")])).toBe("**2 findings:** 1 Should, 1 FYI · 0 at high confidence");
   });
 
+  test("the word arm counts by tier word, zero counts left out, singular for one", () => {
+    const pre = { ...f("fix", "high"), origin: "pre-existing" as const };
+    const findings = [f("blocker", "high"), f("fix", "high"), f("consider", "medium"), f("info"), pre];
+    expect(summaryLine(findings, "word")).toBe("**5 findings:** 2 Important, 2 Nit, 1 Pre-existing · 3 at high confidence");
+    expect(summaryLine(findings, "priority")).toBe(summaryLine(findings));
+    expect(summaryLine([f("consider", "low")], "word")).toBe("**1 finding:** 1 Nit · 0 at high confidence");
+    expect(summaryLine([f("fix", "high")], "word")).toBe("**1 finding:** 1 Important · 1 at high confidence");
+  });
+
   test("no findings, no line", () => {
     expect(summaryLine([])).toBeNull();
   });
@@ -86,11 +95,11 @@ describe("the summary line (AC16)", () => {
     expect(summaryLine([{ ...f("fix", "high"), priority: "could" as const }])).toBe("**1 finding:** 1 Could · 1 at high confidence");
   });
 
-  test("the review body carries it right after the count line, the same in both arms; none without findings", () => {
+  test("the review body carries it right after the count line, each arm in its own word; none without findings", () => {
     const result = fixture();
-    const expected = summaryLine(result.findings) as string;
-    expect(expected).toStartWith(`**${result.findings.length} finding`);
+    expect(summaryLine(result.findings) as string).toStartWith(`**${result.findings.length} finding`);
     for (const arm of [undefined, "priority", "word"] as const) {
+      const expected = summaryLine(result.findings, arm) as string;
       const body = githubReview(arm ? { ...result, arm } : result, github).body;
       expect(body).toContain(expected);
       expect(body.indexOf(expected)).toBeGreaterThan(body.indexOf("finding(s)"));
