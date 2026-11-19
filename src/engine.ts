@@ -3995,7 +3995,11 @@ async function matchExceptions<F extends Finding>(
       () => runProvider(deps, options, ctx.headDir, { operation: "review", label: "memory match", ...ctx.costTags }, buildMatchPrompt({ describe: ctx.describe, request }), dir, cap, MATCH_SCHEMA),
       cap,
     );
-    if (!call.ok) return finish({ ...none, costUsd: call.costUsd }, call.error);
+    if (!call.ok) {
+      // As for a returned error: what the provider said stays in the local log, the summary gets the generic reason.
+      deps.warn(`Memory matching call failed: ${oneLine(call.error, 300)}`);
+      return finish({ ...none, costUsd: call.costUsd }, "the call failed");
+    }
     const result = call.value;
     const spend = { costUsd: result.costUsd, usage: result.usage ?? NO_USAGE };
     if (result.isError || result.terminalReason === "budget" || result.terminalReason === "turns" || result.terminalReason === "timeout") {
