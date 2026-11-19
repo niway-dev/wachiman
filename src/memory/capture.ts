@@ -107,7 +107,7 @@ function parsePr(v: string | undefined): number | undefined {
 const need = (c: Candidate, minEvidence: number) => proposability(c, minEvidence);
 
 /** `propose --from-personal [<id>...]`: the personal entries (or those ids) go to the team's memory pull request through the same write path as `propose <id>`. Personal memory is left as it is. */
-function sendPersonal(ids: string[], repoDir: string, home: string, io: CaptureIo, ctx: CaptureContext): number {
+function sendPersonal(ids: string[], repoDir: string, home: string, key: string, io: CaptureIo, ctx: CaptureContext): number {
   for (const id of ids) if (!/^[0-9a-f]{7}$/.test(id)) throw new UsageError(`"${id}" is not a memory entry id (seven hex characters).`);
   const dir = personalMemoryDir(home, repoDir);
   if (dir === undefined) {
@@ -126,6 +126,11 @@ function sendPersonal(ids: string[], repoDir: string, home: string, io: CaptureI
     io.stdout(`sending ${c.id} to the team's memory pull request:\n${renderEntry(c)}`);
     const result = proposeCandidate(c, repoDir, io, ctx.deps);
     if (!result.recorded || result.pullRequestFailed) failed = true;
+    if (result.recorded) {
+      // As after a team propose: the local candidate of this entry, if there is one, is marked as proposed.
+      const local = readCandidate(home, key, c.id);
+      if (local) writeCandidate(home, key, { ...local, proposed: { at: (ctx.now ?? (() => new Date()))().toISOString() } });
+    }
   }
   return failed ? 1 : 0;
 }
@@ -176,7 +181,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     const parsed = parseOptions(rest, sub, CAPTURE_OPTIONS.propose.values, CAPTURE_OPTIONS.propose.flags);
     if (parsed.flags.has("--from-personal")) {
       if (parsed.flags.has("--personal") || parsed.flags.has("--team")) throw new UsageError("--from-personal already sends to the team's memory pull request; it cannot be combined with --personal or --team.");
-      return sendPersonal(parsed.positional, repoDir, home, io, ctx);
+      return sendPersonal(parsed.positional, repoDir, home, key, io, ctx);
     }
     const id = oneId(parsed, sub);
     if (parsed.flags.has("--personal") && parsed.flags.has("--team")) throw new UsageError("--personal and --team exclude each other: choose where the entry goes.");

@@ -858,7 +858,8 @@ only after the owner approves it.
   `wrong` verdict with a reason, or the loop's `probably-fixed` mark) and its reference is the loop's
   branch or `--pr`. A fix supports only a convention, never an exception. Reactions and silence are
   not a source. `--agent` records that an agent wrote the reply.
-- `memory candidates` lists them and says which can be proposed: a candidate found by the tool needs
+- `memory candidates` lists them and says which can be proposed, which were proposed, and which were
+  written to your personal memory (`personal <date>`, still proposable to the team): a candidate found by the tool needs
   `memory.min_evidence` pieces of evidence (default 2) from different pull requests or branches;
   `--format json` prints `wachiman.memory-candidates/1`. `wachiman loop --format json` adds a
   `memoryCandidates` list (`id`, `title`) when a proposable candidate that has not been proposed yet
@@ -1070,14 +1071,16 @@ request, and nothing appears in `git status`; `memory candidates` then lists the
 that would make `memory check` fail on the folder is refused.
 
 **The first question.** In a repository whose default branch has no `.wachiman/memory/` (and whose
-`origin` has no `wachiman/memory` branch), `propose` without a flag never pushes a branch unasked.
+`origin` has no `wachiman/memory` branch), `propose` without a flag never pushes a branch unasked when Wachiman can tell that the team has no
+memory; when it cannot tell (see below), it takes the team path.
 On a terminal it asks where the entry should go (1 personal, 2 team) and stores the answer for that
 repository in `<home>/memory-choice/<repository key>.json`; later proposals use the stored answer and do
 not ask again (delete the file to be asked again). A stored `personal` answer holds only while the team
 has no memory: once `.wachiman/memory/` is on the default branch (the same check the question uses), a
 plain `propose` goes to the team again and says so in one line; `--personal` still keeps an entry on
-your machine. A plain `propose` finds out whether the team has memory with a read-only fetch of
-origin's default branch (and of `wachiman/memory` when it exists), and does so only when the answer
+your machine. A plain `propose` finds out whether the team has memory with a fetch from origin of its default branch
+(and of `wachiman/memory` when it exists). The fetch changes no branch, file or commit of yours, but it
+does update the remote-tracking refs `refs/remotes/origin/*`, and it runs only when the answer
 matters: never with `--personal` or `--team`, and never with a stored `team` answer. With no terminal to ask on, and no stored answer, it
 exits 1 and writes and pushes nothing, telling you to run it again with `--personal` or `--team`. Those
 two flags choose explicitly, never ask and never store an answer; passing both is a usage error. If

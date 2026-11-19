@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { extractRepoDir, runResetConfidence } from "./cli";
+import { canAskOnTerminal, extractRepoDir, runResetConfidence } from "./cli";
 import { UsageError } from "./config";
 import type { GhFn } from "./engine";
 
@@ -328,5 +328,15 @@ describe("reset-confidence", () => {
     }
     expect(error).toBeInstanceOf(UsageError);
     expect((error as UsageError).message).toContain("--commit <sha>");
+  });
+});
+
+describe("canAskOnTerminal", () => {
+  test("asks only when stdin, stdout and stderr are all terminals, because the prompt writes to stdout", () => {
+    expect(canAskOnTerminal({ isTTY: true }, { isTTY: true }, { isTTY: true })).toBe(true);
+    expect(canAskOnTerminal({ isTTY: true }, { isTTY: false }, { isTTY: true })).toBe(false);
+    expect(canAskOnTerminal({ isTTY: true }, { isTTY: true }, { isTTY: false })).toBe(false);
+    expect(canAskOnTerminal({ isTTY: false }, { isTTY: true }, { isTTY: true })).toBe(false);
+    expect(canAskOnTerminal({}, {}, {})).toBe(false);
   });
 });

@@ -3,14 +3,14 @@
  * the URL of `origin`. Every Wachiman home here is a temporary directory; nothing touches a network.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { emptyRepo, git, commit, removeTempRepos } from "../../test/support/temp-repo";
 import { parseMemoryFile } from "./entries";
 import { runMemory } from "./command";
 import { repositoryKey } from "../history/store";
-import { personalMemoryDir, personalMemorySource, readPersonalFiles, writeMemoryChoice } from "./personal";
+import { candidatesFromPersonal, personalMemoryDir, personalMemorySource, readPersonalFiles, writeMemoryChoice } from "./personal";
 import { teamHasMemory } from "./propose";
 
 const temps: string[] = [];
@@ -382,6 +382,9 @@ describe("memory propose --from-personal", () => {
     expect(w.created).toEqual(["pr"]);
     // Personal memory is left as it was: a committed copy wins at load time, so nothing is lost or doubled.
     expect(readFileSync(w.personalFile, "utf8")).toBe(personalText);
+    // The local candidates are marked as proposed, as after a team propose.
+    const json = JSON.parse(w.run("candidates", "--format", "json").stdout);
+    for (const c of json.candidates) expect(c.proposed).toBe("2026-11-18T10:00:00.000Z");
   }, 60_000);
 
   test("with ids it sends only those, and an id that is not in personal memory is a usage error", () => {
@@ -550,5 +553,35 @@ describe("the personal folder reader", () => {
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("is not a plain directory");
     expect(readdirSync(target)).toEqual([]);
+  });
+});
+
+describe("personal files in a review and in --from-personal", () => {
+  test("a personal file over the size cap is cut and named, like committed memory", () => {
+    const dir = temp("wachiman-pm-");
+    writeFileSync(join(dir, "index.md"), `# Memory\n${"x".repeat(70 * 1024)}\n`);
+    const warned: string[] = [];
+    const source = personalMemorySource(dir, (l) => warned.push(l));
+    expect(source.read("index.md")!.length).toBeLessThanOrEqual(64 * 1024);
+    expect(warned.join("\n")).toContain("index.md");
+    expect(warned.join("\n")).toContain("64 KB");
+  });
+
+  test("a write never starts from a cut file", () => {
+    const dir = temp("wachiman-pm-");
+    writeFileSync(join(dir, "index.md"), `# Memory\n${"x".repeat(70 * 1024)}\n`);
+    expect(readPersonalFiles(dir)["index.md"].length).toBeGreaterThan(64 * 1024);
+  });
+
+  test("--from-personal does not read archive.md, as the report does not", () => {
+    const dir = repoWithOrigin();
+    const home = temp("wachiman-home-");
+    const run = cli(dir, home);
+    const id = run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+    expect(run("propose", id, "--personal").code).toBe(0);
+    const folder = personalMemoryDir(home, dir)!;
+    expect(candidatesFromPersonal(folder, []).candidates.map((c) => c.id)).toEqual([id]);
+    renameSync(join(folder, "index.md"), join(folder, "archive.md"));
+    expect(candidatesFromPersonal(folder, []).candidates).toEqual([]);
   });
 });

@@ -10,11 +10,12 @@
  */
 import { type Dirent, chmodSync, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, writeSync } from "node:fs";
 import { join, sep } from "node:path";
+import { instructionFileOf, MAX_INSTRUCTION_BYTES } from "../engine";
 import { spawnGit, type GitRunner } from "../evidence";
 import { normaliseRemote } from "../history/store";
 import { candidateProblem, CANDIDATE_FORMAT, type Candidate } from "./candidates";
 import { parseMemoryFile } from "./entries";
-import { type MemorySource } from "./load";
+import { ARCHIVE_FILE, cutMemoryNote, type MemorySource } from "./load";
 import { applyCandidate, introducedProblems, Refused, type ProposeIo, type ProposeResult } from "./propose";
 
 const GIT_TIMEOUT_MS = 30_000;
@@ -62,7 +63,9 @@ export function personalMemoryDir(home: string, repoDir: string, git: GitRunner 
 /**
  * The plain `.md` files directly inside `dir`: not links, not hidden. Without `warn`, a file or
  * folder that cannot be read throws (a write must never start from a partial picture). With
- * `warn`, it is named there and left out, so a review goes on without it.
+ * `warn`, it is named there and left out, so a review goes on without it, and a file over the size
+ * cap of committed memory is cut at it with the same notice. Without `warn` a file is never cut:
+ * a write must not save a partial copy.
  */
 export function readPersonalFiles(dir: string, warn?: (line: string) => void): Record<string, string> {
   if (!existsSync(dir)) return {};
@@ -80,7 +83,14 @@ export function readPersonalFiles(dir: string, warn?: (line: string) => void): R
   for (const e of entries) {
     if (!(e.isFile() && !e.isSymbolicLink() && !e.name.startsWith(".") && e.name.endsWith(".md"))) continue;
     try {
-      out[e.name] = readFileSync(join(dir, e.name), "utf8");
+      const bytes = readFileSync(join(dir, e.name));
+      if (!warn) {
+        out[e.name] = bytes.toString("utf8");
+        continue;
+      }
+      const file = instructionFileOf(e.name, bytes);
+      if (file.truncated) warn(cutMemoryNote(e.name, MAX_INSTRUCTION_BYTES / 1024));
+      out[e.name] = file.content;
     } catch (error) {
       skip(join(dir, e.name), error);
     }
@@ -213,7 +223,8 @@ export const FIRST_PROPOSE_QUESTION = [
  * from what would be committed is skipped and named in `skipped`.
  */
 export function candidatesFromPersonal(dir: string, only: string[]): { candidates: Candidate[]; unknown: string[]; skipped: string[] } {
-  const entries = Object.entries(readPersonalFiles(dir)).flatMap(([name, text]) => parseMemoryFile(name, text).entries);
+  // archive.md is never loaded into a review, so it is not memory to send (the report leaves it out too).
+  const entries = Object.entries(readPersonalFiles(dir)).filter(([name]) => name !== ARCHIVE_FILE).flatMap(([name, text]) => parseMemoryFile(name, text).entries);
   const seen = new Set<string>();
   const candidates: Candidate[] = [];
   const skipped: string[] = [];

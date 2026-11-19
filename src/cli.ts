@@ -121,7 +121,12 @@ export function requestedRepoDir(argv: string[]): string {
   return resolve(value || ".");
 }
 
-/** Asks one question on the terminal and returns the typed answer (Bun's synchronous `prompt`); only used when stdin and stderr are terminals. */
+/** Whether a question can be asked: Bun's `prompt` reads stdin and writes to stdout, and the question itself goes to stderr, so all three must be terminals. */
+export function canAskOnTerminal(stdin: { isTTY?: boolean }, stdout: { isTTY?: boolean }, stderr: { isTTY?: boolean }): boolean {
+  return stdin.isTTY === true && stdout.isTTY === true && stderr.isTTY === true;
+}
+
+/** Asks one question on the terminal and returns the typed answer (Bun's synchronous `prompt`); only used when `canAskOnTerminal`. */
 function askOnTerminal(question: string): string | undefined {
   console.error(question);
   return prompt("Your choice (1 or 2):") ?? undefined;
@@ -377,7 +382,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "memory") {
       // No model, no provider. `check`, `candidates`, `add` and `show` read files and git; `propose` also pushes with the developer's git credentials and calls `gh`.
-      return runMemory(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { env, ...(process.stdin.isTTY && process.stderr.isTTY ? { ask: askOnTerminal } : {}) });
+      return runMemory(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { env, ...(canAskOnTerminal(process.stdin, process.stdout, process.stderr) ? { ask: askOnTerminal } : {}) });
     }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);
