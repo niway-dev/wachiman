@@ -1,8 +1,9 @@
 # ADR 0010: The name Wachiman and a brand line on every comment
 
 - **Status:** accepted. Supersedes decision 1 of [ADR 0005](0005-name-wachi-reviewer.md).
-  **Decision 2 amended** by the [review comment layout spec](../specs/2026-11-14-review-comment-layout-design.md)
-  (2026-11-14): on an inline finding the brand is the first cell of the table's first row.
+  **Decision 2 amended** (2026-11-18) by the [review comment layout spec](../specs/2026-11-14-review-comment-layout-design.md),
+  recorded in [ADR 0055](0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md)
+  (proposed, not accepted yet): on an inline finding the brand is the first cell of the table's first row.
 - **Date:** 2026-10-31
 - **Numbering:** accepted as "ADR 0009" on 2026-10-31. A second record
   ([ADR 0009](0009-investigation-is-requested-by-the-model-and-admitted-by-the-engine.md)) took the
