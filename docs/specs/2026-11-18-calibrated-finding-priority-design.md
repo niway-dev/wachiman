@@ -56,9 +56,9 @@ flowchart LR
 | 10 | A rate can raise a priority, never lower it below a floor set by severity and topic: Blocker is Must, Fix on a defect or security topic is Should | A rare severe defect must never rank under a frequent cleanup | 0059 |
 | 11 | Each cell records the model family and prompt version it was measured on; a review on another configuration shows `not measured for this configuration` and uses the seed | A cell's contents change when the model or prompt changes | 0059 |
 | 12 | A cell counts as measured only when n ≥ 20 from at least 5 PRs and the lower end of its 90% Wilson interval clears the band; a word changes only when the interval moves past the band edge | Twenty correlated outcomes near an edge would flip words between releases | 0059 |
+| 13 | The trial is an A/B in the owner's repositories: each PR is assigned the old word or the priority at random, recorded in the result, for at least two weeks | The only way to tell the word's effect from the findings' | — |
 | 14 | Pre-existing is an origin badge beside the priority, never a priority | Keeps Claude Code's one stated reason (a bug the PR did not introduce is not the author's fault) without hiding its severity | 0059 |
 | 15 | The cell rate is rendered in the finding's body, never on the title line | `precision.ts` reads confidence anchored to the end of the title line | 0059 |
-| 13 | The trial is an A/B in the owner's repositories: each PR is assigned the old word or the priority at random, recorded in the result, for at least two weeks | The only way to tell the word's effect from the findings' | — |
 
 ## Layers
 
