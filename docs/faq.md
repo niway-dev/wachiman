@@ -57,9 +57,9 @@ your model provider, which have their own policies.
 
 ### Does it learn from my reviews or store anything?
 
-It does not learn by itself and it has no database. It stores nothing outside your repository and the
-pull request, except the optional local history: off by default for `wachiman local`, where you enable it with `--history`, and always written by `wachiman loop`. Either way it
-is saved under the Wachiman home (`~/.wachiman/history`) on your machine only. What persists between runs is:
+It does not learn by itself and keeps no server-side database. Nothing persists outside your repository
+and the pull request, except the optional local history: off by default for `wachiman local`, where you enable it with `--history`, and always written by `wachiman loop`. Either way it
+is saved under the Wachiman home (`~/.wachiman/history`) on your machine only, with a rebuildable SQLite index beside the run files. What persists between runs is:
 
 - Each complete review ends with a hidden line recording the commit it covered; the next review
   reads it from the pull request's own review history.
