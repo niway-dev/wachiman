@@ -16,7 +16,8 @@ import {
   type Deps,
   type GhFn,
 } from "./engine";
-import type { ProviderAdapter, ProviderAuth, ProviderErrorClass, ProviderRequest, ProviderResult } from "./providers/types";
+import type { ProviderErrorClass } from "./providers/errors";
+import type { ProviderAdapter, ProviderAuth, ProviderRequest, ProviderResult } from "./providers/types";
 
 // Not-reviewed notices and the base-update notice (ADR 0055): the "What to do" table, a $0 refusal
 // edited in place with one PUT, and the one-line notice that makes no model call.
