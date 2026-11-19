@@ -489,7 +489,7 @@ const MEMORY_USAGE = [
 ].join("\n");
 const memoryPage: Page = {
   usage: MEMORY_USAGE,
-  summary: "Check the repository memory in .wachiman/memory/ (Markdown files that teach Wachiman how code is written here), and propose new entries from the laptop. No model is called. `add` writes only a file under the Wachiman home; `propose` is the only subcommand that writes to a remote, and only to a branch on origin. A review loads this memory from the base commit: conventions go into the review prompt, and findings an exception covers are muted after discovery (see the docs).",
+  summary: "Check the repository memory in .wachiman/memory/ (Markdown files that teach Wachiman how code is written here), and propose new entries from the laptop. No model is called. `add` writes only a file under the Wachiman home; `propose` is the only subcommand that writes to a remote, and only a branch on origin and a draft pull request. A review loads this memory from the base commit: conventions go into the review prompt, and findings an exception covers are muted after discovery (see the docs).",
   options: [REPO_DIR],
   exit: MEMORY_EXIT,
   examples: ["wachiman memory check", "wachiman memory candidates", "wachiman memory show 4c1e9a2", "wachiman memory propose 4c1e9a2"],

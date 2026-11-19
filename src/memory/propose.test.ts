@@ -250,6 +250,26 @@ describe("memory propose", () => {
     expect(d.run("candidates").stdout).toContain("proposed 2026-11-18");
   }, 60_000);
 
+  test("when the proposed mark cannot be saved after the push the entry stays recorded, the exit is 0 and the reason is said", () => {
+    const w = world();
+    const fake = fakePulls();
+    const d = developer(w, "ana", fake);
+    const id = d.add("Prefer named exports.", ["--pr", "709"]);
+    // A lock held by a live run while the pull request step runs makes the mark fail.
+    const locking: PullRequests = {
+      list: fake.pulls.list,
+      createDraft: (input, cwd) => {
+        mkdirSync(join(d.home, "memory-candidates", readdirSync(join(d.home, "memory-candidates"))[0]!, `${id}.lock`));
+        return fake.pulls.createDraft(input, cwd);
+      },
+    };
+    let err = "";
+    const code = runMemory(["propose", id], d.dir, { stdout: () => {}, stderr: (l) => (err += `${l}\n`) }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: locking } });
+    expect(code).toBe(0);
+    expect(err).toContain("the entry was recorded, but candidate");
+    expect(remoteLog(w.bare)).toHaveLength(2);
+  }, 60_000);
+
   test("a push refused for a reason other than a race is reported once, not retried or blamed on colleagues", () => {
     const w = world();
     const d = developer(w, "ana");

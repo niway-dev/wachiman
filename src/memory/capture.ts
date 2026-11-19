@@ -19,6 +19,7 @@ import {
   readCandidates,
   renderEntry,
   today,
+  withCandidateLock,
   withEvidence,
   writeCandidate,
   type Candidate,
@@ -145,8 +146,16 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     const result = proposeCandidate(c, repoDir, io, ctx.deps);
     if (result.recorded) {
       // Read again: evidence added by `memory add` while the push was in flight must not be overwritten.
-      const latest = readCandidate(home, key, id) ?? c;
-      writeCandidate(home, key, { ...latest, proposed: { at: (ctx.now ?? (() => new Date()))().toISOString() } });
+      const at = (ctx.now ?? (() => new Date()))().toISOString();
+      try {
+        withCandidateLock(home, key, id, () => {
+          const latest = readCandidate(home, key, id) ?? c;
+          writeCandidate(home, key, { ...latest, proposed: { at } });
+        });
+      } catch (error) {
+        // The entry is already on origin: say so rather than turn the run into a usage error. A second propose is idempotent.
+        io.stderr(`memory propose: the entry was recorded, but candidate ${id} could not be marked as proposed (${(error as Error).message}).`);
+      }
     }
     return result.recorded ? (result.pullRequestFailed ? 1 : 0) : 1;
   }
@@ -201,11 +210,14 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     first,
     date,
   );
-  const existing = readCandidate(home, key, fresh.id);
-  const saved = existing ? withEvidence(existing, [first]) : fresh;
-  const problem = candidateProblem(saved);
-  if (problem) throw new UsageError(problem);
-  writeCandidate(home, key, saved);
+  const saved = withCandidateLock(home, key, fresh.id, () => {
+    const existing = readCandidate(home, key, fresh.id);
+    const next = existing ? withEvidence(existing, [first]) : fresh;
+    const problem = candidateProblem(next);
+    if (problem) throw new UsageError(problem);
+    writeCandidate(home, key, next);
+    return next;
+  });
   const q = need(saved, minEvidence);
   io.stdout(`candidate ${saved.id} saved: ${saved.title}\n${q.proposable ? "proposable: show it to the owner with `wachiman memory show " + saved.id + "`, then `wachiman memory propose " + saved.id + "`." : `not proposable yet: ${q.why}.`}\n`);
   return 0;

@@ -3,13 +3,13 @@
  * `candidates`, `add` and `show` commands. No model, no network, no GitHub.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { appendVerdict, historyRoot, repositoryKey, writeLoopFile } from "../history/store";
 import { branchRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { parseMemoryFile } from "./entries";
-import { newCandidate, proposability, readCandidate, renderEntry, withEvidence, writeCandidate, type Evidence } from "./candidates";
+import { candidatesDir, newCandidate, proposability, readCandidate, renderEntry, withCandidateLock, withEvidence, writeCandidate, type Evidence } from "./candidates";
 import { runMemory } from "./command";
 
 const temps: string[] = [];
@@ -265,5 +265,31 @@ describe("input that the format cannot carry", () => {
     rmSync(path, { recursive: true });
     writeFileSync(path, "not json");
     expect(s.run("show", c.id).stderr).toContain("is not a memory candidate; remove it");
+  });
+});
+
+describe("the candidate lock", () => {
+  test("a held lock makes a second change wait and then fail with a usage error, and is released afterwards", () => {
+    const s = setup();
+    const lock = join(candidatesDir(s.home, s.key), "abcdef0.lock");
+    mkdirSync(candidatesDir(s.home, s.key), { recursive: true });
+    mkdirSync(lock);
+    let ran = false;
+    expect(() => withCandidateLock(s.home, s.key, "abcdef0", () => (ran = true))).toThrow("Another wachiman memory command is changing candidate abcdef0");
+    expect(ran).toBe(false);
+    expect(existsSync(lock)).toBe(true);
+  }, 20_000);
+
+  test("a lock left by a run that died is taken over, and the lock is removed even when the change throws", () => {
+    const s = setup();
+    const lock = join(candidatesDir(s.home, s.key), "abcdef0.lock");
+    mkdirSync(candidatesDir(s.home, s.key), { recursive: true });
+    mkdirSync(lock);
+    const old = new Date(Date.now() - 120_000);
+    utimesSync(lock, old, old);
+    expect(withCandidateLock(s.home, s.key, "abcdef0", () => 7)).toBe(7);
+    expect(existsSync(lock)).toBe(false);
+    expect(() => withCandidateLock(s.home, s.key, "abcdef0", () => { throw new Error("boom"); })).toThrow("boom");
+    expect(existsSync(lock)).toBe(false);
   });
 });

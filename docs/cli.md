@@ -811,13 +811,14 @@ only after the owner approves it.
   opens the draft pull request `chore(wachiman): memory` unless one is open. Your branch, index and
   uncommitted changes are not touched, and only files under `.wachiman/memory/` can be written. A
   colleague who pushed first is handled by fetching and applying the same entry on the new head (up to
-  five times). An entry whose id is already on the branch is not written twice: your evidence lines
+  five attempts in all). An entry whose id is already on the branch is not written twice: your evidence lines
   are added to it. If the pull request for the branch was closed without merging, it says so and writes
-  nothing until a person reopens it or deletes the branch. Before committing it runs the same checks
+  nothing until a person reopens it or deletes the branch; when the pull request was squash-merged but `wachiman/memory` still holds commits the default branch lacks, it refuses too, and the branch on origin has to be deleted. Before committing it runs the same checks
   as `memory check` on the resulting files and refuses an entry that would add a problem (for example
-  a scope that matches no file). **It runs none of your git hooks** (`pre-commit`, `commit-msg`,
-  `pre-push`, `post-checkout`): `core.hooksPath` points at an empty folder for the worktree, commit and
-  push only. The commit touches only `.wachiman/memory/`, the temporary worktree has none of your
+  a scope that matches no file). **It runs none of your git hooks for the worktree, the commit or the push** (`pre-commit`,
+  `commit-msg`, `pre-push`, `post-checkout`): `core.hooksPath` points at an empty folder for those
+  calls. The `ls-remote` and `fetch` it runs in your own checkout are ordinary git calls, so a hook
+  such as `reference-transaction` can still run there. The commit touches only `.wachiman/memory/`, the temporary worktree has none of your
   installed tooling, and a hook that rewrites files would break "written as shown". Policy the
   repository enforces on the server (branch protection, required checks on the pull request) still
   applies; a policy that needs a local hook to pass cannot be met by this command, so propose through

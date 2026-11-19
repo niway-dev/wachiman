@@ -9,7 +9,7 @@
  *
  * Reactions and silence are never evidence; there is no source for them.
  */
-import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, writeSync } from "node:fs";
+import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import { loopFiles, readVerdicts } from "../history/store";
@@ -218,6 +218,42 @@ function privateDirs(...dirs: string[]) {
     if (existsSync(dir)) continue;
     mkdirSync(dir, { mode: 0o700 });
     chmodSync(dir, 0o700);
+  }
+}
+
+const LOCK_WAIT_MS = 5_000;
+const LOCK_STALE_MS = 30_000;
+
+/**
+ * Runs `fn` while holding a lock on one candidate, so two runs that read, change and write the same
+ * candidate (`add` with new evidence, the `proposed` mark of `propose`) cannot drop each other's
+ * change. The lock is a directory made with `mkdir`, which is atomic; one left by a run that died is
+ * taken over after 30 seconds. Waiting longer than 5 seconds is a usage error, never a silent write.
+ */
+export function withCandidateLock<T>(home: string, key: string, id: string, fn: () => T): T {
+  const dir = candidatesDir(home, key);
+  privateDirs(home, join(home, "memory-candidates"), dir);
+  const lock = join(dir, `${id}.lock`);
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      mkdirSync(lock, { mode: 0o700 });
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      try {
+        if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) rmSync(lock, { recursive: true, force: true });
+      } catch {
+        // Released between the two calls: try again.
+      }
+      if (Date.now() > deadline) throw new UsageError(`Another wachiman memory command is changing candidate ${id}; try again in a moment.`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
   }
 }
 
