@@ -56,7 +56,7 @@ the word ignores it. A reader who sees only "Nit" also concludes the review was 
    configuration falls back to the seed and says so.
 9. Eligibility and movement are separate. A cell is eligible with n ≥ 20 judgements, accumulated
    across releases, from at least 5 pull requests on a matching configuration. An eligible cell's
-   word is the band of its 90% Wilson interval's lower end; it moves up only when that band is higher than the current word,
+   word moves up to the band of its 90% Wilson interval's lower end only when that band is higher than the current word,
    and down only when the band of the upper end is lower than the current word.
    Seeds are set by decision 4, not computed from fix rates, because a fix rate measures compliance.
 10. Result `/2` adds `priority`, `rank` and, while the trial runs, `arm` (`word` or `priority`,
