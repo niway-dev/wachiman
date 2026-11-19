@@ -10,7 +10,7 @@ import { DEFAULT_MAX_DEPTH, localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile, runLocal, sizeWarning } from "./local";
 import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
-import { A_HEAD, branchRepo, commit, emptyCommits, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
+import { A_BASE, A_HEAD, PNG_BASE, PNG_HEAD, branchRepo, commit, emptyCommits, emptyRepo, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
 
 const temps: string[] = [];
 const temp = (prefix: string) => {
@@ -500,6 +500,43 @@ describe("wachiman local", () => {
     const r = local("ok");
     expect(r.code).toBe(0);
     expect(r.stderr).not.toContain("GH_TOKEN");
+  }, 30_000);
+});
+
+describe("wachiman local memory selection", () => {
+  const INDEX = "# Memory\n\n| Glob | File |\n| --- | --- |\n| `**/*.png` | `images.md` |\n| `src/**` | `src.md` |\n";
+
+  const loadedMemory = (stdout: string): string[] =>
+    (JSON.parse(stdout).memory.files as { path: string }[]).map((f) => f.path.replace(".wachiman/memory/", "")).sort();
+
+  function memoryRepo(changed: Record<string, string | Buffer>): BranchRepo {
+    const dir = emptyRepo();
+    const mergeBase = commit(
+      dir,
+      {
+        ".wachiman/memory/index.md": INDEX,
+        ".wachiman/memory/images.md": "IMAGE-AREA-RULES\n",
+        ".wachiman/memory/src.md": "SRC-AREA-RULES\n",
+        "img.png": PNG_BASE,
+        "src/a.ts": A_BASE,
+      },
+      "base",
+    );
+    git(dir, "switch", "-q", "-c", "feat/x");
+    const head = commit(dir, changed, "change");
+    return { dir, mergeBase, mainTip: mergeBase, head, subjects: ["change"] };
+  }
+
+  test("a binary file that matches an area glob does not pull that area in", () => {
+    const r = local("ok", ["--format", "json", "--result-version", "2"], {}, memoryRepo({ "img.png": PNG_HEAD, "src/a.ts": A_HEAD }));
+    expect(r.code).toBe(0);
+    expect(loadedMemory(r.stdout)).toEqual(["index.md", "src.md"]);
+  }, 30_000);
+
+  test("a text file that matches the same glob does pull its area in", () => {
+    const r = local("ok", ["--format", "json", "--result-version", "2"], {}, memoryRepo({ "img.png": PNG_HEAD, "src/a.ts": A_HEAD, "src/pic.png": "not really an image\n" }));
+    expect(r.code).toBe(0);
+    expect(loadedMemory(r.stdout)).toEqual(["images.md", "index.md", "src.md"]);
   }, 30_000);
 });
 

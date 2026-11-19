@@ -3,8 +3,8 @@
  *
  * `init` writes it with plain string handling (`src/init/settings.ts`); everything that reads it
  * goes through `parseRepoSettings`, so what counts as valid is decided in one place. The keys are
- * `kind` (metadata), `model`, `effort` and `paths` (the maintainer's path rules, ADR 0058).
- * Unknown keys are ignored.
+ * `kind` (metadata), `model`, `effort`, `paths` (the maintainer's path rules, ADR 0058) and
+ * `memory`. Unknown keys are ignored.
  *
  * Where the file is read from is a spend decision, not a convenience: in Actions it comes from the
  * pull request's base commit and locally from the merge-base, never from the head, so a change
@@ -35,11 +35,31 @@ export interface PathRule {
   reason: string;
 }
 
+/** The `memory` settings after defaults (ADR 0056 decision 10). */
+export interface MemorySettings {
+  /** Pieces of evidence a tool-found candidate needs. Used by capture, not by the reader. */
+  minEvidence: number;
+  maxIndexLines: number;
+  maxLoadedLines: number;
+  archiveAfterDays: number;
+}
+
+export const MEMORY_DEFAULTS: MemorySettings = { minEvidence: 2, maxIndexLines: 150, maxLoadedLines: 400, archiveAfterDays: 90 };
+
+/** The engine's ceiling for `max_loaded_lines`: it sets prompt size, so a merged change cannot raise the bill without limit. */
+export const MAX_LOADED_LINES_CEILING = 1000;
+
+const MEMORY_KEYS = { min_evidence: "minEvidence", max_index_lines: "maxIndexLines", max_loaded_lines: "maxLoadedLines", archive_after_days: "archiveAfterDays" } as const;
+
 export interface RepoSettings {
   /** `monorepo` or `single` when `init` wrote it; any text a person typed otherwise. Metadata only. */
   kind?: string;
   model?: string;
   effort?: Effort;
+  /** The `memory` values that were valid; the rest keep their defaults (`resolveMemorySettings`). */
+  memory?: Partial<MemorySettings>;
+  /** Why a `memory` value was ignored, one line each. Set only when something was. */
+  memoryNotices?: string[];
   /** The maintainer's path rules; absent when the file has none. */
   paths?: PathRule[];
 }
@@ -155,7 +175,7 @@ export function parseRepoSettings(content: string): RepoSettings {
   }
   if (doc === null || doc === undefined) return {};
   if (typeof doc !== "object" || Array.isArray(doc)) {
-    throw new UsageError(`${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, paths), like \`effort: high\`.`);
+    throw new UsageError(`${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, paths, memory), like \`effort: high\`.`);
   }
   const map = doc as Record<string, unknown>;
   const settings: RepoSettings = {};
@@ -178,7 +198,36 @@ export function parseRepoSettings(content: string): RepoSettings {
     const paths = parsePathRules(map.paths);
     if (paths.length > 0) settings.paths = paths;
   }
+  const memory = parseMemorySettings(map.memory);
+  if (memory.values) settings.memory = memory.values;
+  if (memory.notices.length > 0) settings.memoryNotices = memory.notices;
   return settings;
+}
+
+/** The `memory` map: a value that is not a positive whole number is ignored with a notice, never an error. */
+function parseMemorySettings(raw: unknown): { values?: Partial<MemorySettings>; notices: string[] } {
+  if (raw === undefined || raw === null) return { notices: [] };
+  if (typeof raw !== "object" || Array.isArray(raw)) return { notices: [`${SETTINGS_PATH}: memory must be a mapping of settings; ignored`] };
+  const values: Partial<MemorySettings> = {};
+  const notices: string[] = [];
+  for (const [key, name] of Object.entries(MEMORY_KEYS)) {
+    const value = (raw as Record<string, unknown>)[key];
+    if (value === undefined || value === null) continue;
+    if (typeof value === "number" && Number.isInteger(value) && value > 0) values[name] = value;
+    else notices.push(`${SETTINGS_PATH}: memory.${key} must be a positive whole number, got ${JSON.stringify(value)}; using ${MEMORY_DEFAULTS[name]}`);
+  }
+  return { ...(Object.keys(values).length > 0 ? { values } : {}), notices };
+}
+
+/** The memory settings a run uses: the file's valid values over the defaults, `max_loaded_lines` clamped. */
+export function resolveMemorySettings(settings: RepoSettings | undefined): { settings: MemorySettings; notices: string[] } {
+  const notices = [...(settings?.memoryNotices ?? [])];
+  const merged = { ...MEMORY_DEFAULTS, ...settings?.memory };
+  if (merged.maxLoadedLines > MAX_LOADED_LINES_CEILING) {
+    notices.push(`${SETTINGS_PATH}: memory.max_loaded_lines ${merged.maxLoadedLines} is above the limit; using ${MAX_LOADED_LINES_CEILING}`);
+    merged.maxLoadedLines = MAX_LOADED_LINES_CEILING;
+  }
+  return { settings: merged, notices };
 }
 
 /** The warning for a broken file that a run ignores (it never blocks a review): what was wrong, and that defaults apply. */

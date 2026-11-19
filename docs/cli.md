@@ -93,6 +93,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `upgrade [--check] [--repo-only] [--to <version>]` | Updates the CLI, then moves the workflow pin in this repository to the new release. See [`upgrade`](#upgrade). |
 | `skills install\|uninstall` | Copies the `wachiman-review`, `wachiman-loop` and `wachiman-audit` agent skills into place, or removes the copies it made. See [`skills`](#skills). |
 | `pr-template show\|install\|status\|check\|format\|risk\|strip` | Installs the PR description template, reports its state, checks and reorders a description, and computes the risk floor. No model call. See [`pr-template`](#pr-template) and [the guide](pr-template.md). |
+| `memory check` | Checks the repository memory in `.wachiman/memory/`: malformed entries, globs that match no file, budget overruns. No model call. See [`memory`](#memory). |
 | `--setup-profile [<name>]` | The same as `profile create [<name>]`: creates `~/.wachiman/claude-<name>` (default name `isolated`) and starts `claude` in it so you can sign in. |
 
 ### Incremental reviews
@@ -688,6 +689,64 @@ commit of the files it wrote. `wachiman init --pr-template` runs the same instal
 done or passing, 1 a finding (`check`) or a state that is not `current` (`status`), 2 a usage or
 configuration error. The whole guide, with the states, the findings and the risk rules, is
 [pr-template.md](pr-template.md).
+
+### `memory`
+
+```
+wachiman memory check [--repo-dir <dir>]
+```
+
+Repository memory is a set of Markdown files in `.wachiman/memory/` at the repository root
+([ADR 0056](adr/0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md),
+[the design](specs/2026-11-18-repository-memory-design.md)). The folder name is fixed.
+
+- `index.md` is always loaded. It holds repository-wide entries and a table that maps a path glob to
+  an area file, one row per file: ``| `apps/desktop/**` | `apps-desktop.md` |``.
+- An area file is loaded only when its glob, in that table, matches a path the review reads. A file
+  the table does not list is never loaded.
+- `archive.md` is never loaded.
+
+An entry is a heading `### <id> <title>` followed by fields:
+
+```markdown
+### 4c1e9a2 ADR wording edits do not need a status or date bump
+
+- kind: exception
+- scope: docs/adr/**
+- rule: Only a change to the Decision section requires updating the status line.
+- why: ADRs version themselves when a decision changes, not on every wording edit.
+- holds while: docs/adr/README.md
+- evidence:
+  - 2026-11-18 operator instruction, pull request 709
+- added: 2026-11-18
+```
+
+`kind` is `convention` or `exception`; `scope` is a glob (or several, separated by commas); `holds while`
+is optional. The `id` is the first seven hex characters of a SHA-256 digest of the kind, scope, rule,
+why and `holds while` text with whitespace collapsed. Evidence and the date are not part of it, so adding
+evidence keeps the id. `check` reports an entry whose heading id is not its digest. The example's id is illustrative.
+
+**What a review does with memory today (layer 1).** Memory is read from the base commit only: the
+merge-base for `local`, the pull request's base commit in Actions, so an entry added or changed by the
+change under review has no effect on it. The review loads `index.md` and the area files its changed
+files select, within `memory.max_loaded_lines` (most specific glob first; files that do not fit are
+left out), and records it: the JSON result (format /2; the /1 result has no such field) carries a `memory` object with the revision (the base commit),
+the files loaded, the files left out and whether the memory was over budget. When it was, the summary
+says so and names what was left out. A repository without `.wachiman/memory/` is reviewed exactly as
+before, with no extra field and no extra text. The settings are in
+[configuration.md](configuration.md#the-settings-file-wachimanyml).
+
+**What it does not do yet.** The loaded entries are not put into the review prompt, and no exception
+mutes a finding: those come in a later layer. Nothing proposes or writes memory. Today the folder is
+read, selected, budgeted and recorded, and checked by `memory check`.
+
+`memory check` reads the folder from the working tree and prints each problem as
+`<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope or an
+index glob that matches no file of the repository, an index row that names a missing file, an area file
+the index does not list, a missing `index.md`, an `index.md` over `memory.max_index_lines`, and an area
+file that cannot fit beside the index within `memory.max_loaded_lines`. No model is called and nothing
+is written. Exit codes: 0 clean, or no memory folder; 1 problems found; 2 a usage error or an invalid
+`.wachiman.yml`.
 
 ### `history`
 

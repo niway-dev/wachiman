@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig, UsageError } from "./config";
 import { GhError, readBaseSettings, withBaseSettings, type GhFn } from "./engine";
-import { applyRepoSettings, effectiveSettings, fileSettingsNote, matchPathRule, parsePathRules, parseRepoSettings, wantsRepoSettings, type PathRule } from "./repo-settings";
+import { applyRepoSettings, effectiveSettings, fileSettingsNote, matchPathRule, parsePathRules, parseRepoSettings, resolveMemorySettings, wantsRepoSettings, type PathRule } from "./repo-settings";
 import { settingsContent } from "./init/settings";
 
 const BASE = "b".repeat(40);
@@ -323,5 +323,39 @@ describe("the Actions read: the base commit, never the head", () => {
   test("a file too large for the contents API is a usage error", () => {
     const gh: GhFn = () => JSON.stringify({ type: "file", encoding: "none", content: "" });
     expect(() => readBaseSettings(gh, "o/r", BASE)).toThrow(/too large/);
+  });
+});
+
+describe("the memory key", () => {
+  test("defaults are 2, 150, 400 and 90 when nothing is set", () => {
+    expect(resolveMemorySettings(undefined)).toEqual({ settings: { minEvidence: 2, maxIndexLines: 150, maxLoadedLines: 400, archiveAfterDays: 90 }, notices: [] });
+    expect(parseRepoSettings("model: x\n")).toEqual({ model: "x" });
+  });
+
+  test("valid values override the defaults one by one", () => {
+    const parsed = parseRepoSettings("memory:\n  min_evidence: 3\n  max_loaded_lines: 600\n");
+    expect(parsed.memory).toEqual({ minEvidence: 3, maxLoadedLines: 600 });
+    expect(resolveMemorySettings(parsed).settings).toEqual({ minEvidence: 3, maxIndexLines: 150, maxLoadedLines: 600, archiveAfterDays: 90 });
+  });
+
+  test.each([["0"], ["-5"], ["2.5"], ['"many"'], ["true"], ["[1]"]])("a value of %s is ignored with a notice and the default applies", (value) => {
+    const parsed = parseRepoSettings(`memory:\n  max_index_lines: ${value}\n  archive_after_days: 30\n`);
+    expect(parsed.memory).toEqual({ archiveAfterDays: 30 });
+    expect(parsed.memoryNotices).toHaveLength(1);
+    expect(parsed.memoryNotices![0]).toContain("memory.max_index_lines must be a positive whole number");
+    expect(resolveMemorySettings(parsed).settings.maxIndexLines).toBe(150);
+  });
+
+  test("a memory key that is not a mapping is ignored with a notice", () => {
+    const parsed = parseRepoSettings("memory: 5\n");
+    expect(parsed.memory).toBeUndefined();
+    expect(parsed.memoryNotices![0]).toContain("memory must be a mapping");
+  });
+
+  test("max_loaded_lines is clamped to 1000 with a notice", () => {
+    const resolved = resolveMemorySettings(parseRepoSettings("memory:\n  max_loaded_lines: 50000\n"));
+    expect(resolved.settings.maxLoadedLines).toBe(1000);
+    expect(resolved.notices).toHaveLength(1);
+    expect(resolved.notices[0]).toContain("above the limit");
   });
 });

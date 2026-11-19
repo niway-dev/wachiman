@@ -18,6 +18,7 @@ import {
   buildLocalInput,
   DEFAULT_MAX_DEPTH,
   EMPTY_TREE_LABEL,
+  localMemory,
   localRepoSettings,
   localSettingsCommit,
   type LocalRefs,
@@ -26,7 +27,7 @@ import {
   snapshotHead,
   warnSnapshotDifferences,
 } from "./connectors/local-git";
-import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, type ReviewInput, type ReviewResult } from "./engine";
+import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, splitUnreviewable, type ReviewInput, type ReviewResult } from "./engine";
 import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
@@ -579,7 +580,11 @@ export async function runLocal(
         : "verify: off",
     );
 
-    const result = await reviewChange(input, reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), {
+    // The memory of the commit the diff starts at (the merge-base), selected by the files this run reviews, binaries
+    // excluded as the Actions path does (ADR 0056).
+    const reviewable = splitUnreviewable(kept, input.headDir).reviewable;
+    const memory = localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr);
+    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}) }, {
       provider,
       ...(verifier ? { verifier } : {}),
       // The verifier reads the code before the change too; made once, only when there is something to check.

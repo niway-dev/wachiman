@@ -35,6 +35,7 @@ import { join } from "node:path";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
+import { MEMORY_DIR, cutMemoryNote, loadMemory, memoryNotice, memoryRecord, type MemoryLoad, type MemorySource } from "./memory/load";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -1900,6 +1901,39 @@ export function headEditsPathRules(gh: GhFn, repo: string, headSha: string, base
 }
 
 /**
+ * The memory folder and `.wachiman.yml` at the pull request's base commit, read through the
+ * contents API. Never the head: a pull request cannot change the memory it is reviewed under.
+ */
+export function githubMemorySource(gh: GhFn, repo: string, sha: string, warn: (line: string) => void = () => {}): MemorySource {
+  return {
+    list: () => {
+      let raw: string;
+      try {
+        raw = gh(["api", `repos/${repo}/contents/${MEMORY_DIR}?ref=${sha}`]);
+      } catch (error) {
+        if (error instanceof GhError && error.status === 404) return [];
+        throw error;
+      }
+      const listing = JSON.parse(raw) as unknown;
+      if (!Array.isArray(listing)) return [];
+      return listing.flatMap((e: { type?: string; name?: string }) => (e.type === "file" && typeof e.name === "string" ? [e.name] : []));
+    },
+    read: (name) => {
+      const file = fileAtBase(gh, repo, `${MEMORY_DIR}/${name}`, sha);
+      if (!file) return null;
+      if (file.truncated) warn(file.content === "" ? `${MEMORY_DIR}/${name} is over 1 MB, which GitHub does not return; it is not loaded. Split it into area files.` : cutMemoryNote(name, MAX_INSTRUCTION_BYTES / 1024));
+      return file.truncated && file.content === "" ? null : file.content;
+    },
+    settings: () => readBaseSettings(gh, repo, sha),
+  };
+}
+
+/** The memory a review of `changedPaths` loads at the base commit `sha`; undefined without a memory folder. */
+export function readBaseMemory(gh: GhFn, repo: string, sha: string, changedPaths: string[], warn: (line: string) => void): MemoryLoad | undefined {
+  return loadMemory(githubMemorySource(gh, repo, sha, warn), sha, changedPaths, warn);
+}
+
+/**
  * `config` with the model and the effort the base commit's `.wachiman.yml` sets, wherever no
  * explicit `WACHIMAN_MODEL` / `WACHIMAN_EFFORT` (a workflow input) did. Reads nothing when both
  * were explicit. Logs one line when the file decided something, so the job log says so. A broken
@@ -3223,6 +3257,12 @@ export interface ReviewOptions {
    * never joins the trial, and a change that is not a pull request has no arm either way.
    */
   priorityTrial?: boolean;
+  /**
+   * The repository's memory, loaded from the base commit by the connector (ADR 0056). It is
+   * recorded in the result and, when over budget, announced in the summary. Layer 1 puts nothing
+   * of it in a prompt. Absent when the repository has no `.wachiman/memory/` folder.
+   */
+  memory?: MemoryLoad;
 }
 
 /** Today's settings as the core's options. */
@@ -3703,8 +3743,9 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     },
     findings,
     contracts: merged.contracts ?? [],
-    summary: merged.summary,
+    summary: withMemoryNotice(merged.summary, options.memory),
     riskMap,
+    ...(options.memory ? { memory: memoryRecord(options.memory) } : {}),
     batches: reports,
     threadReplies,
     instructionChanges: {
@@ -3889,6 +3930,13 @@ async function verifyFindings(
     baseSnap?.release();
     if (dir) rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** The summary, with the over-budget notice of the loaded memory after it; the summary itself when there is no notice. */
+function withMemoryNotice(summary: string, memory: MemoryLoad | undefined) {
+  const notice = memory ? memoryNotice(memoryRecord(memory)) : undefined;
+  if (!notice) return summary;
+  return summary === "" ? notice : `${summary}\n\n${notice}`;
 }
 
 /** The GitHub connector: today's pull request facts as a `ReviewInput`. Pure; `review()` read them. */
@@ -4234,6 +4282,9 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const automatic = isAutomatic(config.trigger);
   const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
+  // The memory of the base commit, selected by the files this run reviews (ADR 0056): not the
+  // excluded, out-of-scope or binary ones that `files` still holds.
+  const memory = readBaseMemory(gh, repo, base, allBinary.reviewable.map((f) => f.filename), deps.warn);
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
   // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
@@ -4265,6 +4316,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const totalBudget = Math.min(config.budgetUsd, ceiling.room, grant.roomUsd);
   const options: ReviewOptions = {
     ...reviewOptionsOf(config, totalBudget),
+    ...(memory ? { memory } : {}),
     ...(config.confidence && fullReview ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
     ...(config.priorityTrial ? { priorityTrial: true } : {}),
   };
