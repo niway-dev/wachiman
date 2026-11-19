@@ -722,7 +722,7 @@ An entry is a heading `### <id> <title>` followed by fields:
 ```
 
 `kind` is `convention` or `exception`; `scope` is a glob (or several, separated by commas); `holds while`
-is optional. The `id` is the first seven hex characters of a SHA-256 digest of the kind, scope, rule,
+is optional: a comma-separated list of path globs. When the diff touches one of them, the entry is flagged as possibly out of date and mutes nothing in that review. The `id` is the first seven hex characters of a SHA-256 digest of the kind, scope, rule,
 why and `holds while` text with whitespace collapsed. Evidence and the date are not part of it, so adding
 evidence keeps the id. `check` reports an entry whose heading id is not its digest. The example's id is illustrative.
 
@@ -744,7 +744,7 @@ before, with no extra field, no extra text and no extra call. The settings are i
   exceptions whose `scope` covers a finding's path. It is made only when there is at least one such
   exception and at least one finding of severity Consider or Info; otherwise no call is made. It runs
   after verification, so it sees each finding's final severity, and it counts as a call of the review
-  (its cost is in the totals; its cap is `$0.25`, or a quarter of the budget left after the verifier's reserve when that is less, reserved out of the budget when an exception can apply).
+  (its cost is in the totals). Its money is reserved out of the budget before the batches run, whenever an exception can apply: `$0.25`, or a quarter of the budget left after the verifier's reserve when that is less, so a small budget shrinks the reserve. The call's own cap is `$0.25`, or the budget still unspent when it starts when that is less; below the minimum batch budget it is not made, and every finding is posted with a notice that matching did not run.
 - **The floor is in the engine, not in the prompt.** Only a Consider or Info finding can be muted. A
   Blocker or Fix finding, and a finding of any severity with the security topic, are never offered to the
   matching call, and if its answer names one anyway the engine posts the finding with a note naming the
