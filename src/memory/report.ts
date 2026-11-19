@@ -1,7 +1,7 @@
 /**
  * `wachiman memory report` (layer 7, AC13): what the local history says about how memory changes the
  * reviews. Pure: `command.ts` reads the history and the working tree's memory folder and hands them
- * here. No model is called and nothing is written.
+ * here. No model is called. The command writes nothing except what every history read does: a run file that cannot be read is set aside under a new name, with a warning.
  *
  * A comment is a finding a run posted. It is counted once, in the month of the run that first saw it
  * (the history's own matching decides when the same finding comes back), and by its outcome today:

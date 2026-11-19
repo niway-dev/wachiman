@@ -46,7 +46,7 @@ with no `.wachiman/memory/` folder; it is the only difference between the arms.
    inside the window. Check it before running:
 
    ```sh
-   git log --oneline F..L -- .wachiman/memory     # must print nothing
+   git log --oneline F..<last evaluated commit> -- .wachiman/memory     # must print nothing
    ```
 
 3. The evaluated commits are the next N commits on the default branch after F (`git rev-list
@@ -152,7 +152,7 @@ experiment otherwise shows no difference.
 
 ### Cost and how to bound it
 
-Every review costs model calls: 2 arms x 3 runs x (N + 1) reviews, 48 to 78 for N between 8 and 12,
+Every review costs model calls: 2 arms x 3 runs x (N + 1) reviews, 54 to 78 for N between 8 and 12,
 plus the one-off judging. The reviews run on the signed-in subscription, so the cost is quota, and
 each result records its own figure under `execution`.
 
