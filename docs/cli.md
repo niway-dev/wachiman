@@ -1061,10 +1061,10 @@ pull request; exit 2 for a usage error such as a missing variable.
 
 **Personal memory (layer 8).** For a developer whose team has not adopted Wachiman, `memory propose
 <id> --personal` writes the entry to a folder outside the repository, with the same format and the
-same approval of the exact text: `<home>/memory/<host>/<owner>/<repository>/index.md`, where `<home>` is
+same approval of the exact text: `<home>/memory/<host>/<owner>/<repository>/index.md` (a nested group such as GitLab's `group/sub/repo` gets one folder per part), where `<home>` is
 the Wachiman home (`WACHIMAN_HOME`, else `~/.wachiman`). The folder is keyed by the URL of the
 remote named `origin`, without credentials, so every clone and worktree of one repository shares it and
-no other repository sees it. A clone with no `origin` has no personal memory: `propose --personal`
+no other repository sees it. A clone with no `origin`, or one whose URL names no host, owner and repository (a local path), has no personal memory: `propose --personal`
 says so, exits 1 and writes nothing. The write itself makes no commit, no push, no fetch and no pull
 request, and nothing appears in `git status`; `memory candidates` then lists the candidate as
 `personal <date>` (not `proposed`), and it stays proposable to the team with `--from-personal`. An entry already there only gains the evidence it lacks, and an entry

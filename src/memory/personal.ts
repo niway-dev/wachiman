@@ -35,7 +35,7 @@ function originOf(repoDir: string, git: GitRunner): string | undefined {
 }
 
 /**
- * `<home>/memory/<host>/<owner>/<repository>` for the repository at `repoDir`, or undefined when it
+ * `<home>/memory/<host>/<owner>.../<repository>` (one folder per owner part, as GitLab nests groups) for the repository at `repoDir`, or undefined when it
  * has no `origin`, or one whose URL does not name a host, an owner and a repository. `home` is the
  * Wachiman home itself (`wachimanHome(env)`).
  */
@@ -54,10 +54,11 @@ export function personalMemoryDir(home: string, repoDir: string, git: GitRunner 
   });
   if (parts.length < 2) return undefined;
   const host = segment(`${url.hostname}${url.port ? `-${url.port}` : ""}`);
-  const owner = segment(parts.slice(0, -1).join("-"));
+  // Each owner part is its own folder, so GitLab's `group-sub/repo` and `group/sub/repo` do not share one.
+  const owners = parts.slice(0, -1).map(segment);
   const repository = segment(parts[parts.length - 1]);
-  if (host === "" || owner === "" || repository === "") return undefined;
-  return join(home, "memory", host, owner, repository);
+  if (host === "" || owners.includes("") || repository === "") return undefined;
+  return join(home, "memory", host, ...owners, repository);
 }
 
 /**

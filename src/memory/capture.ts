@@ -106,6 +106,22 @@ function parsePr(v: string | undefined): number | undefined {
 
 const need = (c: Candidate, minEvidence: number) => proposability(c, minEvidence);
 
+/**
+ * Marks a candidate after its entry was written: `proposed` once the team's pull request has it, `personal` when it only went to
+ * this machine. Read again under the candidate's lock, so evidence added by `memory add` while the push was in flight is not
+ * overwritten. A failure is said, never thrown: the entry is already written, and a second propose is idempotent.
+ */
+function markCandidate(home: string, key: string, id: string, fallback: Candidate | undefined, mark: "proposed" | "personal", at: string, io: CaptureIo) {
+  try {
+    withCandidateLock(home, key, id, () => {
+      const latest = readCandidate(home, key, id) ?? fallback;
+      if (latest) writeCandidate(home, key, { ...latest, [mark]: { at } });
+    });
+  } catch (error) {
+    io.stderr(`memory propose: the entry was recorded, but candidate ${id} could not be marked as ${mark === "personal" ? "written to personal memory" : "proposed"} (${(error as Error).message}).`);
+  }
+}
+
 /** `propose --from-personal [<id>...]`: the personal entries (or those ids) go to the team's memory pull request through the same write path as `propose <id>`. Personal memory is left as it is. */
 function sendPersonal(ids: string[], repoDir: string, home: string, key: string, io: CaptureIo, ctx: CaptureContext): number {
   for (const id of ids) if (!/^[0-9a-f]{7}$/.test(id)) throw new UsageError(`"${id}" is not a memory entry id (seven hex characters).`);
@@ -126,11 +142,8 @@ function sendPersonal(ids: string[], repoDir: string, home: string, key: string,
     io.stdout(`sending ${c.id} to the team's memory pull request:\n${renderEntry(c)}`);
     const result = proposeCandidate(c, repoDir, io, ctx.deps);
     if (!result.recorded || result.pullRequestFailed) failed = true;
-    if (result.recorded) {
-      // As after a team propose: the local candidate of this entry, if there is one, is marked as proposed.
-      const local = readCandidate(home, key, c.id);
-      if (local) writeCandidate(home, key, { ...local, proposed: { at: (ctx.now ?? (() => new Date()))().toISOString() } });
-    }
+    // As after a team propose: the local candidate of this entry, if there is one, is marked as proposed.
+    if (result.recorded && readCandidate(home, key, c.id)) markCandidate(home, key, c.id, undefined, "proposed", (ctx.now ?? (() => new Date()))().toISOString(), io);
   }
   return failed ? 1 : 0;
 }
@@ -215,18 +228,8 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     }
     const result = personal ? proposePersonal(c, repoDir, home, io) : proposeCandidate(c, repoDir, io, ctx.deps);
     if (result.recorded) {
-      // Read again: evidence added by `memory add` while the push was in flight must not be overwritten.
-      const at = (ctx.now ?? (() => new Date()))().toISOString();
-      try {
-        withCandidateLock(home, key, id, () => {
-          const latest = readCandidate(home, key, id) ?? c;
-          // A personal write is kept on this machine: the team never received it, so it stays proposable (`--from-personal`).
-          writeCandidate(home, key, personal ? { ...latest, personal: { at } } : { ...latest, proposed: { at } });
-        });
-      } catch (error) {
-        // The entry is already written: say so rather than turn the run into a usage error. A second propose is idempotent.
-        io.stderr(`memory propose: the entry was recorded, but candidate ${id} could not be marked as ${personal ? "written to personal memory" : "proposed"} (${(error as Error).message}).`);
-      }
+      // A personal write is kept on this machine: the team never received it, so it stays proposable (`--from-personal`).
+      markCandidate(home, key, id, c, personal ? "personal" : "proposed", (ctx.now ?? (() => new Date()))().toISOString(), io);
     }
     return result.recorded ? (result.pullRequestFailed ? 1 : 0) : 1;
   }

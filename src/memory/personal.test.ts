@@ -56,6 +56,15 @@ describe("personalMemoryDir", () => {
     }
   });
 
+  test("nested owner groups get nested folders, so group-sub/repo and group/sub/repo never share one", () => {
+    const home = "/h/.wachiman";
+    const flat = personalMemoryDir(home, repoWithOrigin("https://gitlab.com/group-sub/repo.git"));
+    const nested = personalMemoryDir(home, repoWithOrigin("https://gitlab.com/group/sub/repo.git"));
+    expect(flat).toBe(join(home, "memory", "gitlab.com", "group-sub", "repo"));
+    expect(nested).toBe(join(home, "memory", "gitlab.com", "group", "sub", "repo"));
+    expect(personalMemoryDir(home, repoWithOrigin("https://gitlab.com/group/../repo.git"))).toBeUndefined();
+  });
+
   test("is keyed by the URL as configured, so an insteadOf rewrite does not change it", () => {
     const dir = repoWithOrigin("https://github.com/acme/widgets.git");
     const before = personalMemoryDir("/h", dir);
@@ -385,6 +394,19 @@ describe("memory propose --from-personal", () => {
     // The local candidates are marked as proposed, as after a team propose.
     const json = JSON.parse(w.run("candidates", "--format", "json").stdout);
     for (const c of json.candidates) expect(c.proposed).toBe("2026-11-18T10:00:00.000Z");
+  }, 60_000);
+
+  test("a candidate whose mark cannot be saved after the send is reported, and the send still succeeds", () => {
+    const w = worldWithPersonal();
+    // A lock held by a live run on one candidate makes its mark fail, as for a team propose.
+    mkdirSync(join(w.home, "memory-candidates", readdirSync(join(w.home, "memory-candidates"))[0]!, `${w.ids[0]}.lock`));
+    const r = w.run("propose", "--from-personal");
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain(`the entry was recorded, but candidate ${w.ids[0]} could not be marked as proposed`);
+    const team = git(w.bare, "show", "refs/heads/wachiman/memory:.wachiman/memory/index.md");
+    for (const id of w.ids) expect(team).toContain(`### ${id}`);
+    const json = JSON.parse(w.run("candidates", "--format", "json").stdout);
+    expect(json.candidates.find((c: { id: string }) => c.id === w.ids[1]).proposed).toBe("2026-11-18T10:00:00.000Z");
   }, 60_000);
 
   test("with ids it sends only those, and an id that is not in personal memory is a usage error", () => {
