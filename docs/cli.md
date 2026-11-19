@@ -870,7 +870,7 @@ only after the owner approves it.
   zero-width or direction-changing character in any field, or an id that is not the digest of the
   fields, is refused by `add`, `show` and `propose`, because a terminal could display it differently
   from what is committed. A value that starts with `--` is written `--rule=--strict`.
-- `memory propose <id>` fetches `origin`, builds one commit in a temporary worktree on the head of
+- `memory propose <id>` (with `--team`, or when the team already has `.wachiman/memory/`, and see "Personal memory" below for `--personal`) fetches `origin`, builds one commit in a temporary worktree on the head of
   `origin/wachiman/memory` (the default branch when that branch does not exist or was already merged),
   appends the shown text to `.wachiman/memory/index.md` (created when absent), pushes without force, and
   opens the draft pull request `chore(wachiman): memory` unless one is open. Your branch, index and

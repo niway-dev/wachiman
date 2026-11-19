@@ -143,7 +143,7 @@ function sendPersonal(ids: string[], repoDir: string, home: string, key: string,
     const result = proposeCandidate(c, repoDir, io, ctx.deps);
     if (!result.recorded || result.pullRequestFailed) failed = true;
     // As after a team propose: the local candidate of this entry, if there is one, is marked as proposed.
-    if (result.recorded && readCandidate(home, key, c.id)) markCandidate(home, key, c.id, undefined, "proposed", (ctx.now ?? (() => new Date()))().toISOString(), io);
+    if (result.recorded) markCandidate(home, key, c.id, undefined, "proposed", (ctx.now ?? (() => new Date()))().toISOString(), io);
   }
   return failed ? 1 : 0;
 }
