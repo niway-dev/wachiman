@@ -722,23 +722,45 @@ An entry is a heading `### <id> <title>` followed by fields:
 ```
 
 `kind` is `convention` or `exception`; `scope` is a glob (or several, separated by commas); `holds while`
-is optional. The `id` is the first seven hex characters of a SHA-256 digest of the kind, scope, rule,
+is optional: a comma-separated list of path globs. When the diff touches one of them, the entry is flagged as possibly out of date and mutes nothing in that review. The `id` is the first seven hex characters of a SHA-256 digest of the kind, scope, rule,
 why and `holds while` text with whitespace collapsed. Evidence and the date are not part of it, so adding
 evidence keeps the id. `check` reports an entry whose heading id is not its digest. The example's id is illustrative.
 
-**What a review does with memory today (layer 1).** Memory is read from the base commit only: the
+**What a review does with memory.** Memory is read from the base commit only: the
 merge-base for `local`, the pull request's base commit in Actions, so an entry added or changed by the
 change under review has no effect on it. The review loads `index.md` and the area files its changed
 files select, within `memory.max_loaded_lines` (most specific glob first; files that do not fit are
 left out), and records it: the JSON result (format /2; the /1 result has no such field) carries a `memory` object with the revision (the base commit),
 the files loaded, the files left out and whether the memory was over budget. When it was, the summary
 says so and names what was left out. A repository without `.wachiman/memory/` is reviewed exactly as
-before, with no extra field and no extra text. The settings are in
+before, with no extra field, no extra text and no extra call. The settings are in
 [configuration.md](configuration.md#the-settings-file-wachimanyml).
 
-**What it does not do yet.** The loaded entries are not put into the review prompt, and no exception
-mutes a finding: those come in a later layer. Nothing proposes or writes memory. Today the folder is
-read, selected, budgeted and recorded, and checked by `memory check`.
+- **Conventions** go into the review prompt, in a section labelled "Learned conventions" that follows the
+  hand-written instruction files. When a hand-written file disagrees with a convention, the hand-written
+  file wins, and the model is asked to say in its summary which entry it set aside.
+- **Exceptions** never go into a prompt that looks for findings. The whole diff is reviewed without
+  them. Afterwards, one small model call (the *matching call*) compares the candidate findings with the
+  exceptions whose `scope` covers a finding's path. It is made only when there is at least one such
+  exception and at least one finding of severity Consider or Info whose topic is not security; otherwise no call is made. It runs
+  after verification, so it sees each finding's final severity, and it counts as a call of the review
+  (its cost is in the totals). Its money is reserved out of the budget before the batches run, whenever an exception can apply: `$0.25`, or a quarter of the budget left after the verifier's reserve when that is less, so a small budget shrinks the reserve. The call's own cap is `$0.25`, or the budget still unspent when it starts when that is less; below the minimum batch budget it is not made, and every finding is posted with a notice that matching did not run.
+- **The floor is in the engine, not in the prompt.** Only a Consider or Info finding can be muted. A
+  Blocker or Fix finding, and a finding of any severity with the security topic, are never offered to the
+  matching call, and if its answer names one anyway the engine posts the finding with a note naming the
+  exception that tried to mute it. An answer that names a finding or an entry the engine did not offer, or
+  an entry whose `scope` does not cover the finding's path, is ignored. An exception cannot change which
+  files a review reads.
+- **A muted finding is listed, never silent.** It is not posted as a comment. The summary lists it under
+  "Muted by memory" with its title, its location and the id of the entry; the section is absent when
+  nothing was muted. The JSON result carries the same list in `muted` (result format 2 only).
+- **Fails open.** When the matching call fails, stops or answers something that cannot be read, nothing
+  is muted and the summary says that matching did not run.
+- **`holds while`.** When an exception has a `holds while` line and the diff touches one of those paths,
+  that exception mutes nothing in this review and the summary says the entry may be out of date.
+
+**What it does not do yet.** Nothing proposes or writes memory, and the only hygiene notice is the
+`holds while` one above.
 
 `memory check` reads the folder from the working tree and prints each problem as
 `<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope or an

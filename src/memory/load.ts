@@ -9,8 +9,9 @@
  * most specific globs go first and the rest are named as left out.
  *
  * This layer loads, selects, budgets and records. It does not put anything into a prompt and does
- * not mute anything: `MemoryLoad.entries` is what the review prompt (conventions) and the exception
- * matching will consume.
+ * not mute anything: `MemoryLoad.entries` is what the review prompt consumes for conventions, and
+ * what the engine's matching step consumes after discovery to mute Consider and Info findings that
+ * an in-scope exception covers.
  */
 import { UsageError } from "../config";
 import { ignoredSettingsNote, resolveMemorySettings, type MemorySettings, type RepoSettings } from "../repo-settings";
@@ -68,21 +69,26 @@ export const cutMemoryNote = (name: string, kb: number) =>
 
 const WILDCARD = /[*?[\]{}!]/;
 
-/** The globs of a `scope` or an index row: one, or several separated by commas outside braces. */
+/**
+ * The globs of a `scope` or an index row: one, or several separated by commas. A comma inside
+ * braces (`src/{a,b}/**`) belongs to the glob; with unbalanced braces every comma separates.
+ */
 export function globsOf(scope: string): string[] {
-  const globs: string[] = [];
+  const parts: string[] = [];
   let depth = 0;
-  let current = "";
-  for (const char of scope) {
-    if (char === "{") depth++;
-    else if (char === "}" && depth > 0) depth--;
-    if (char === "," && depth === 0) {
-      globs.push(current);
-      current = "";
-    } else current += char;
+  let start = 0;
+  for (let i = 0; i < scope.length; i++) {
+    const c = scope[i];
+    if (c === "{") depth++;
+    else if (c === "}" && depth > 0) depth--;
+    else if (c === "," && depth === 0) {
+      parts.push(scope.slice(start, i));
+      start = i + 1;
+    }
   }
-  globs.push(current);
-  return globs.map((g) => g.trim()).filter(Boolean);
+  parts.push(scope.slice(start));
+  const split = depth === 0 ? parts : scope.split(",");
+  return split.map((g) => g.trim()).filter(Boolean);
 }
 
 const compiled = new Map<string, Bun.Glob>();
@@ -142,7 +148,8 @@ export function loadMemory(source: MemorySource, revision: string, changedPaths:
 
   const indexText = names.includes(INDEX_FILE) ? source.read(INDEX_FILE) : null;
   if (indexText === null) {
-    warn(`${MEMORY_DIR} has no ${INDEX_FILE}, so no memory is loaded.`);
+    // The source may have said why a listed index could not be read; this note says what it means.
+    warn(names.includes(INDEX_FILE) ? `${MEMORY_DIR}/${INDEX_FILE} could not be read, so no memory is loaded.` : `${MEMORY_DIR} has no ${INDEX_FILE}, so no memory is loaded.`);
     return { revision, files: [], leftOut: [], overBudget: false, indexOverBudget: false, budget: { maxIndexLines: budget.maxIndexLines, maxLoadedLines: budget.maxLoadedLines, loadedLines: 0 }, entries: [] };
   }
 
@@ -199,7 +206,7 @@ export function memoryNotice(record: MemoryRecord): string | undefined {
   const index = record.files[0];
   const doesNotFit = record.leftOut.length > 0 || index?.truncated === true;
   if (!doesNotFit) {
-    return `⚠️ **Memory over budget**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget (it was still loaded whole). Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
+    return `⚠️ **Memory over budget**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget. Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
   }
   if (record.leftOut.length > 0) parts.push(`left out for lack of room: ${record.leftOut.map((p) => `\`${p}\``).join(", ")}`);
   if (index?.truncated) parts.push(`\`${index.path}\` was cut to its first ${index.lines} lines`);

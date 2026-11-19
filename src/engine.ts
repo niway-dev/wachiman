@@ -36,6 +36,7 @@ import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
 import { MEMORY_DIR, cutMemoryNote, loadMemory, memoryNotice, memoryRecord, type MemoryLoad, type MemorySource } from "./memory/load";
+import { MATCH_SCHEMA, applyMatches, buildMatchPrompt, matchRequest, parseMatches, planExceptions, MUTED_HEADING, renderConventions, renderMuting, type ExceptionPlan, type MutedFinding } from "./memory/mute";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -1579,6 +1580,23 @@ function trimHead(head: string, cut: number) {
 }
 
 /**
+ * The "Muted by memory" paragraph (with its leading blank line) within `room` characters: the
+ * count line, then as many entries as fit. The count stays even when no entry fits.
+ */
+function fitMuted(block: string, room: number): string {
+  const items = block.trim().split("\n").slice(1);
+  const count = `**${items.length} finding${items.length === 1 ? "" : "s"} muted by memory** (not posted as comments; the list is cut to fit GitHub's size limit):`;
+  const kept: string[] = [];
+  let used = 2 + count.length;
+  for (const item of items) {
+    if (used + 1 + item.length > room) break;
+    kept.push(item);
+    used += 1 + item.length;
+  }
+  return `\n\n${[count, ...kept].join("\n")}`;
+}
+
+/**
  * Makes the part of a review body between the first findings and the footer (`### Summary`, the
  * contracts block, the coverage table) at least `cut` characters shorter. The footer (`<sub>`
  * line, signature, marker) is kept whole. The contracts block goes first, then the coverage
@@ -1592,23 +1610,30 @@ function trimMiddle(tail: string, cut: number) {
   const trimmed = "\n\n(Trimmed: this review is at GitHub's size limit.)";
   const target = middle.length - cut - trimmed.length;
   // The text before the first collapsed block is the Summary; each block after it starts at `<details>`.
-  const [summary, ...blocks] = middle.split(/(?=\n\n<details>)/);
+  const [whole, ...blocks] = middle.split(/(?=\n\n<details>)/);
+  // The "Muted by memory" list ends the Summary and is protected (ADR 0057: every muted finding is shown): the text before it is cut first, then the list shrinks to a count and the entries that fit.
+  const mutedAt = whole.lastIndexOf(`\n\n${MUTED_HEADING}`);
+  const summary = mutedAt === -1 ? whole : whole.slice(0, mutedAt);
+  let muted = mutedAt === -1 ? "" : whole.slice(mutedAt);
   const dropOrder = [
     ...blocks.filter((b) => b.includes(`<summary>${CONTRACTS_SUMMARY}`)),
     ...blocks.filter((b) => !b.includes(`<summary>${CONTRACTS_SUMMARY}`)),
   ];
   let kept = blocks;
-  const size = () => summary.length + kept.reduce((n, b) => n + b.length, 0);
+  const size = () => summary.length + muted.length + kept.reduce((n, b) => n + b.length, 0);
   for (const block of dropOrder) {
     if (size() <= target) break;
     kept = kept.filter((b) => b !== block);
   }
   let text = summary;
   if (size() > target) {
-    const cutAt = summary.lastIndexOf("\n", Math.max(target, 0));
+    const room = target - muted.length - kept.reduce((n, b) => n + b.length, 0);
+    const cutAt = summary.lastIndexOf("\n", Math.max(room, 0));
     text = summary.slice(0, Math.max(cutAt, 0));
   }
-  return `${text}${kept.join("")}${trimmed}${footer}`;
+  const keptLength = kept.reduce((n, b) => n + b.length, 0);
+  if (muted && text.length + muted.length + keptLength > target) muted = fitMuted(muted, target - text.length - keptLength);
+  return `${text}${muted}${kept.join("")}${trimmed}${footer}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -3019,6 +3044,11 @@ export interface CriticalPath {
 /** How many critical paths the size-gate comment lists before "and N more". */
 const MAX_CRITICAL_LISTED = 20;
 
+/** Every name a list of changed files uses: the current one, and the one before a rename. */
+export const touchedPathsOf = (files: readonly { filename: string; previous_filename?: string | null }[]): string[] => [
+  ...new Set(files.flatMap((f) => (f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]))),
+];
+
 /** The changed files a `critical` rule of `rules` matches, in the order given. Never lifts the gate: it only names. */
 export function criticalPathsOf(files: readonly { filename: string; previous_filename?: string | null }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
   return files.flatMap((f) => {
@@ -3259,10 +3289,17 @@ export interface ReviewOptions {
   priorityTrial?: boolean;
   /**
    * The repository's memory, loaded from the base commit by the connector (ADR 0056). It is
-   * recorded in the result and, when over budget, announced in the summary. Layer 1 puts nothing
-   * of it in a prompt. Absent when the repository has no `.wachiman/memory/` folder.
+   * recorded in the result and, when over budget, announced in the summary. Its conventions go
+   * into the discovery prompt; its exceptions are matched against the findings afterwards, in one
+   * small call, and never reach a discovery prompt (ADR 0057). Absent when the repository has no `.wachiman/memory/` folder.
    */
   memory?: MemoryLoad;
+  /**
+   * Every path the whole change touches, for the memory exceptions' `holds while` check (ADR 0057
+   * decision 4): the names before and after a rename, and the deleted files, also when this run
+   * reviews only what changed since the last review. Absent: the paths of `input.files`.
+   */
+  changedPaths?: string[];
 }
 
 /** Today's settings as the core's options. */
@@ -3314,7 +3351,11 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   // The verifier's reserve is taken first, so the batches cannot spend it; at most half the total,
   // so a small budget still reviews something (a review with no findings has nothing to verify).
   const reserve = options.verify ? Math.min(options.verify.budgetUsd, totalBudget / 2) : 0;
-  const batchTotal = totalBudget - reserve;
+  // The memory exceptions that may act on this diff (ADR 0057). When there are any, the matching
+  // call's money is reserved too, so the batches cannot spend it; no exception, no reserve.
+  const exceptionPlan = planExceptions(options.memory, options.changedPaths ?? touchedPathsOf(input.files), kept.map((f) => f.filename));
+  const matchReserve = exceptionPlan.active.length > 0 ? Math.min(MEMORY_MATCH_BUDGET_USD, (totalBudget - reserve) / 4) : 0;
+  const batchTotal = totalBudget - reserve - matchReserve;
   const batchBudget = options.batchBudgetUsd;
   const batches = planBatches(
     kept,
@@ -3344,7 +3385,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     dropped: dropped.length,
     everyFile,
     meta: { title: change.title, body: change.description, author: change.author },
-    instructions: renderInstructions(input.instructions),
+    // The hand-written files first, then the learned conventions, which they outrank (ADR 0057). No exception is ever here.
+    instructions: renderInstructions(input.instructions) + renderConventions(options.memory),
     ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
     costTags: { repo: change.repository.name, ...(number ? { pr: Number(number) } : {}) },
   };
@@ -3628,12 +3670,18 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   let verification: ResultVerificationV2 | undefined;
   let checked: VerifiedFinding[];
   if (options.verify && parts.length > 0) {
-    const verified = await verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent, 0), refused?.text);
+    const verified = await verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent - matchReserve, 0), refused?.text);
     spent += verified.record.costUsd;
     usage = addUsage(usage, verified.usage);
     checked = verified.findings;
     verification = verified.record;
   } else checked = annotateUnverified(merged.findings);
+  // After verification, so the floor applies to the final severity (ADR 0057). Muted findings leave
+  // the list here: nothing below, the anchors, the fidelity grade or the posting, ever sees them.
+  const memoryStep = await matchExceptions(core, options, context, exceptionPlan, checked, Math.max(totalBudget - spent, 0), refused?.text);
+  spent += memoryStep.costUsd;
+  usage = addUsage(usage, memoryStep.usage);
+  checked = memoryStep.findings;
   for (const path of notRun)
     merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
   // A file the model listed itself, with a reason of its own, is replaced: the run's own cause comes first.
@@ -3743,9 +3791,10 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     },
     findings,
     contracts: merged.contracts ?? [],
-    summary: withMemoryNotice(merged.summary, options.memory),
+    summary: withMemoryNotices(merged.summary, options.memory, memoryStep.text),
     riskMap,
     ...(options.memory ? { memory: memoryRecord(options.memory) } : {}),
+    ...(memoryStep.muted.length > 0 ? { muted: memoryStep.muted } : {}),
     batches: reports,
     threadReplies,
     instructionChanges: {
@@ -3932,11 +3981,71 @@ async function verifyFindings(
   }
 }
 
-/** The summary, with the over-budget notice of the loaded memory after it; the summary itself when there is no notice. */
-function withMemoryNotice(summary: string, memory: MemoryLoad | undefined) {
-  const notice = memory ? memoryNotice(memoryRecord(memory)) : undefined;
-  if (!notice) return summary;
-  return summary === "" ? notice : `${summary}\n\n${notice}`;
+/** The most the matching call may spend (ADR 0057): a small call, since it compares a few findings with a few entries. */
+export const MEMORY_MATCH_BUDGET_USD = 0.25;
+
+/**
+ * The matching step of ADR 0057: one call, after discovery and verification, that says which
+ * Consider and Info findings an in-scope memory exception covers. The engine decides what the
+ * answer does (`applyMatches`): the floor, the known ids and the exception's scope are checked in
+ * code. No call is made without a candidate and an exception that can cover it. The step fails
+ * open: a call that fails, stops or answers nothing usable mutes nothing, and the summary and the
+ * notices say matching did not run.
+ */
+async function matchExceptions<F extends Finding>(
+  deps: CoreDeps,
+  options: ReviewOptions,
+  ctx: ReviewContext,
+  plan: ExceptionPlan,
+  findings: F[],
+  budgetUsd: number,
+  refused?: string,
+): Promise<{ findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage; text?: string }> {
+  const request = matchRequest(plan.active, findings);
+  // `failure` is a generic reason and goes to the public summary; `detail` (provider text) goes to the local log only.
+  const finish = (rest: { findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage }, failure?: string, detail?: string) => {
+    if (failure) deps.warn(`Memory exceptions were not applied: matching did not run (${oneLine(failure, 200)}${detail ? `: ${oneLine(detail, 300)}` : ""}); every finding is posted.`);
+    const text = renderMuting({ muted: rest.muted, stale: plan.stale, ...(failure ? { failure } : {}) });
+    return { ...rest, ...(text ? { text } : {}) };
+  };
+  const none = { findings, muted: [] as MutedFinding[], costUsd: 0, usage: NO_USAGE };
+  if (!request) return finish(none);
+  // The same account refused a batch; the matching call would most likely be refused too.
+  if (refused) return finish(none, "the provider rejected an earlier call", refused);
+  const cap = Math.min(MEMORY_MATCH_BUDGET_USD, budgetUsd);
+  if (cap < MIN_BATCH_USD) return finish(none, "no budget left for the matching call");
+  const dir = mkdtempSync(join(tmpdir(), "agent-memory-"));
+  try {
+    const call = await attempt(
+      () => runProvider(deps, options, ctx.headDir, { operation: "review", label: "memory match", ...ctx.costTags }, buildMatchPrompt({ describe: ctx.describe, request }), dir, cap, MATCH_SCHEMA),
+      cap,
+    );
+    if (!call.ok) {
+      // As for a returned error: what the provider said stays in the local log, the summary gets the generic reason.
+      deps.warn(`Memory matching call failed: ${oneLine(call.error, 300)}`);
+      return finish({ ...none, costUsd: call.costUsd }, "the call failed");
+    }
+    const result = call.value;
+    const spend = { costUsd: result.costUsd, usage: result.usage ?? NO_USAGE };
+    if (result.isError || result.terminalReason === "budget" || result.terminalReason === "turns" || result.terminalReason === "timeout") {
+      // The provider's text is for the local log only; the public summary gets the generic reason.
+      if (result.isError && result.errorText) deps.warn(`Memory matching call failed (${result.providerError ?? "other"}): ${oneLine(result.errorText, 300)}`);
+      return finish({ ...none, ...spend }, `the call ended on ${result.isError ? "an error" : `its ${result.terminalReason} limit`}`);
+    }
+    const matches = parseMatches(result.structuredOutput);
+    if (!matches) return finish({ ...none, ...spend }, "the answer was not usable");
+    const applied = applyMatches(findings, plan.active, matches);
+    deps.log(`Memory: ${applied.muted.length} finding(s) muted by an exception, ${applied.protectedBy.length} posted although an exception matched them.`);
+    return finish({ findings: applied.posted, muted: applied.muted, ...spend });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The summary, then the memory's notices after it: the over-budget notice, and what exceptions did. Absent notices add nothing. */
+function withMemoryNotices(summary: string, memory: MemoryLoad | undefined, muting?: string) {
+  const notices = [memory ? memoryNotice(memoryRecord(memory)) : undefined, muting].filter((n): n is string => n !== undefined);
+  return notices.reduce((text, notice) => (text === "" ? notice : `${text}\n\n${notice}`), summary);
 }
 
 /** The GitHub connector: today's pull request facts as a `ReviewInput`. Pure; `review()` read them. */
@@ -4317,6 +4426,8 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const options: ReviewOptions = {
     ...reviewOptionsOf(config, totalBudget),
     ...(memory ? { memory } : {}),
+    // The check of `holds while` reads the whole pull request, not the delta this run reviews.
+    changedPaths: touchedPathsOf(prFiles),
     ...(config.confidence && fullReview ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
     ...(config.priorityTrial ? { priorityTrial: true } : {}),
   };

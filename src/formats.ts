@@ -10,6 +10,7 @@ import type { Contract } from "./contracts";
 import type { TokenUsage } from "./cost";
 import type { Fidelity } from "./fidelity/types";
 import type { MemoryRecord } from "./memory/load";
+import type { MutedFinding } from "./memory/mute";
 import type {
   BaseInstructions,
   BatchReport,
@@ -292,6 +293,11 @@ export interface ReviewResultV2 {
    * Only `/2` has it: `toResultV1` leaves it out.
    */
   memory?: MemoryRecord;
+  /**
+   * The findings a memory exception muted (ADR 0057): not posted as comments, listed in the summary
+   * under "Muted by memory" with the id of the entry. Absent when nothing was muted. Only `/2` has it.
+   */
+  muted?: MutedFinding[];
   /** Totals include the coverage calls and the verifier call. */
   execution: Execution;
   /** Absent when verification was off. */
@@ -357,7 +363,7 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
     throw new UsageError("A working-tree review has no result /1: its head is a tree id, not a commit. Use --result-version 2.");
   }
   const { account: _account, ...provider } = result.provider;
-  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, ...rest } = result;
+  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, muted: _muted, ...rest } = result;
   return {
     ...rest,
     format: REVIEW_RESULT_V1,
