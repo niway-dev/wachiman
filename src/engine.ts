@@ -3020,6 +3020,11 @@ export interface CriticalPath {
 /** How many critical paths the size-gate comment lists before "and N more". */
 const MAX_CRITICAL_LISTED = 20;
 
+/** Every name a list of changed files uses: the current one, and the one before a rename. */
+export const touchedPathsOf = (files: readonly { filename: string; previous_filename?: string | null }[]): string[] => [
+  ...new Set(files.flatMap((f) => (f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]))),
+];
+
 /** The changed files a `critical` rule of `rules` matches, in the order given. Never lifts the gate: it only names. */
 export function criticalPathsOf(files: readonly { filename: string; previous_filename?: string | null }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
   return files.flatMap((f) => {
@@ -3265,6 +3270,12 @@ export interface ReviewOptions {
    * small call, and never reach a discovery prompt (ADR 0057). Absent when the repository has no `.wachiman/memory/` folder.
    */
   memory?: MemoryLoad;
+  /**
+   * Every path the whole change touches, for the memory exceptions' `holds while` check (ADR 0057
+   * decision 4): the names before and after a rename, and the deleted files, also when this run
+   * reviews only what changed since the last review. Absent: the paths of `input.files`.
+   */
+  changedPaths?: string[];
 }
 
 /** Today's settings as the core's options. */
@@ -3318,7 +3329,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const reserve = options.verify ? Math.min(options.verify.budgetUsd, totalBudget / 2) : 0;
   // The memory exceptions that may act on this diff (ADR 0057). When there are any, the matching
   // call's money is reserved too, so the batches cannot spend it; no exception, no reserve.
-  const exceptionPlan = planExceptions(options.memory, input.files.map((f) => f.filename), kept.map((f) => f.filename));
+  const exceptionPlan = planExceptions(options.memory, options.changedPaths ?? touchedPathsOf(input.files), kept.map((f) => f.filename));
   const matchReserve = exceptionPlan.active.length > 0 ? Math.min(MEMORY_MATCH_BUDGET_USD, (totalBudget - reserve) / 4) : 0;
   const batchTotal = totalBudget - reserve - matchReserve;
   const batchBudget = options.batchBudgetUsd;
@@ -4386,6 +4397,8 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const options: ReviewOptions = {
     ...reviewOptionsOf(config, totalBudget),
     ...(memory ? { memory } : {}),
+    // The check of `holds while` reads the whole pull request, not the delta this run reviews.
+    changedPaths: touchedPathsOf(prFiles),
     ...(config.confidence && fullReview ? { confidence: { budgetUsd: CLAIMS_BUDGET_USD } } : {}),
     ...(config.priorityTrial ? { priorityTrial: true } : {}),
   };

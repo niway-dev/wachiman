@@ -8,6 +8,7 @@ import type { WachimanConfigV1 } from "./accounts/config";
 import { toResultV1 } from "./formats";
 import { DEFAULT_MAX_DEPTH, localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile, runLocal, sizeWarning } from "./local";
+import { entryId } from "./memory/entries";
 import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
 import { A_BASE, A_HEAD, PNG_BASE, PNG_HEAD, branchRepo, commit, emptyCommits, emptyRepo, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
@@ -537,6 +538,27 @@ describe("wachiman local memory selection", () => {
     const r = local("ok", ["--format", "json", "--result-version", "2"], {}, memoryRepo({ "img.png": PNG_HEAD, "src/a.ts": A_HEAD, "src/pic.png": "not really an image\n" }));
     expect(r.code).toBe(0);
     expect(loadedMemory(r.stdout)).toEqual(["images.md", "index.md", "src.md"]);
+  }, 30_000);
+});
+
+describe("wachiman local holds while", () => {
+  test("a file the branch renamed away from a holds-while path makes the exception stale", () => {
+    const dir = emptyRepo();
+    const why = "the owner said so";
+    const rule = "Do not report stale comments";
+    const holdsWhile = "legacy/**";
+    const id = entryId({ kind: "exception", scope: "src/**", rule, why, holdsWhile });
+    const entry = `# Memory\n\n### ${id} ${rule}\n\n- kind: exception\n- scope: src/**\n- rule: ${rule}\n- why: ${why}\n- holds while: ${holdsWhile}\n- evidence:\n  - 2026-11-18 operator instruction\n- added: 2026-11-18\n`;
+    const mergeBase = commit(dir, { ".wachiman/memory/index.md": entry, "legacy/gateway.ts": "export const a = 1;\nexport const b = 2;\nexport const c = 3;\n", "src/a.ts": A_BASE }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    mkdirSync(join(dir, "src"), { recursive: true });
+    git(dir, "mv", "legacy/gateway.ts", "src/gateway.ts");
+    git(dir, "commit", "-q", "-m", "move the gateway");
+    const head = commit(dir, { "src/a.ts": A_HEAD }, "change a");
+    const repo: BranchRepo = { dir, mergeBase, mainTip: mergeBase, head, subjects: ["move the gateway", "change a"] };
+    const r = local("ok", ["--format", "json", "--result-version", "2"], {}, repo);
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout).summary).toContain(`\`${id}\` may be out of date`);
   }, 30_000);
 });
 

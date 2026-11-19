@@ -326,6 +326,36 @@ describe("when the exception does not or cannot apply", () => {
     expect(result.summary).toContain("`src/a.ts`");
   });
 
+  test("a path the change renamed away from makes the exception stale, though only the new name is a file of the diff", async () => {
+    const guarded = memoryEntry("exception", "Handlers get validated input", "src/**", "legacy/**");
+    const input = branchInput();
+    input.files[0] = { ...input.files[0], previous_filename: "legacy/gateway.ts" };
+    const provider = new FakeProvider(discover([NIT]), answer({ finding: "f1", entry: guarded.id }));
+    const result = await reviewChange(input, options({ memory: memoryOf([guarded.block]) }), deps(provider).deps);
+    expect(provider.matchingCalls).toHaveLength(0);
+    expect(result.muted).toBeUndefined();
+    expect(result.summary).toContain(`\`${guarded.id}\` may be out of date`);
+    expect(result.summary).toContain("`legacy/gateway.ts`");
+  });
+
+  test("a deleted file the diff lists makes the exception stale", async () => {
+    const guarded = memoryEntry("exception", "Handlers get validated input", "src/**", "src/gateway.ts");
+    const input = branchInput();
+    input.files.push({ filename: "src/gateway.ts", additions: 0, deletions: 3, patch: "@@ -1,3 +0,0 @@\n-a\n-b\n-c" });
+    const provider = new FakeProvider(discover([NIT]), answer({ finding: "f1", entry: guarded.id }));
+    const result = await reviewChange(input, options({ memory: memoryOf([guarded.block]) }), deps(provider).deps);
+    expect(provider.matchingCalls).toHaveLength(0);
+    expect(result.summary).toContain(`\`${guarded.id}\` may be out of date`);
+  });
+
+  test("the whole change's paths decide, not the files this run reviews: an earlier commit's path makes the exception stale", async () => {
+    const guarded = memoryEntry("exception", "Handlers get validated input", "src/**", "src/gateway.ts");
+    const provider = new FakeProvider(discover([NIT]), answer({ finding: "f1", entry: guarded.id }));
+    const result = await reviewChange(branchInput(), options({ memory: memoryOf([guarded.block]), changedPaths: ["src/a.ts", "assets/icon.png", "src/gateway.ts"] }), deps(provider).deps);
+    expect(provider.matchingCalls).toHaveLength(0);
+    expect(result.summary).toContain(`\`${guarded.id}\` may be out of date`);
+  });
+
   test("a holds-while path the diff does not touch leaves the exception active", async () => {
     const guarded = memoryEntry("exception", "Handlers get validated input", "src/**", "src/gateway.ts");
     const provider = new FakeProvider(discover([NIT]), answer({ finding: "f1", entry: guarded.id }));
