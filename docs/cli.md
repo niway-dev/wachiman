@@ -742,7 +742,7 @@ before, with no extra field, no extra text and no extra call. The settings are i
 - **Exceptions** never go into a prompt that looks for findings. The whole diff is reviewed without
   them. Afterwards, one small model call (the *matching call*) compares the candidate findings with the
   exceptions whose `scope` covers a finding's path. It is made only when there is at least one such
-  exception and at least one finding of severity Consider or Info; otherwise no call is made. It runs
+  exception and at least one finding of severity Consider or Info whose topic is not security; otherwise no call is made. It runs
   after verification, so it sees each finding's final severity, and it counts as a call of the review
   (its cost is in the totals). Its money is reserved out of the budget before the batches run, whenever an exception can apply: `$0.25`, or a quarter of the budget left after the verifier's reserve when that is less, so a small budget shrinks the reserve. The call's own cap is `$0.25`, or the budget still unspent when it starts when that is less; below the minimum batch budget it is not made, and every finding is posted with a notice that matching did not run.
 - **The floor is in the engine, not in the prompt.** Only a Consider or Info finding can be muted. A
