@@ -81,7 +81,7 @@ flowchart LR
 
 | # | What it builds | Criteria | Risk | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | `priority` and `rank` on findings, `priorityOf` with floors, table v1 as data with provenance, Priority and Track record rows in the inline table, the summary line, origin badge, `tier` deprecated, A/B assignment | AC1–AC5, AC10, AC11, AC13, AC15–AC17 | 🟡 Medium | The inline finding table (branch `feat/inline-finding-table`, not yet a PR) |
+| 1 | `priority` and `rank` on findings, `priorityOf` with floors, table v1 as data with provenance, Priority and Track record rows in the inline table, the summary line, origin badge, `tier` deprecated, A/B assignment | AC1–AC5, AC10, AC11, AC13, AC15–AC17 | 🟡 Medium | The inline finding table ([#266](https://github.com/niway-dev/wachiman/pull/266)); built in [#267](https://github.com/niway-dev/wachiman/pull/267) |
 | 2 | `wachiman calibrate`: outcome rates per cell from local history, verdicts and PR threads; a blind judging sample; proposes table vN+1 as a diff | AC6–AC8, AC12, AC14 | 🟡 Medium | 1 |
 | 3 | Prompt: the test that separates Fix from Consider, measured on the benchmark before and after | AC9 | 🟢 Low | 2 |
 
