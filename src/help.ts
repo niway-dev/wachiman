@@ -136,6 +136,7 @@ const localPage: Page = {
     ["--verify | --no-verify", "One more call tries to refute each finding above info. Default: follows WACHIMAN_VERIFY (off)"],
     ["--result-version 1|2", "With --format json only. Default: 1 for committed changes, 2 for --working-tree"],
     ["--history", "Save the run under ~/.wachiman/history and label each finding new or open. Default: off (or WACHIMAN_HISTORY=1)"],
+    ["--no-memory", "Ignore .wachiman/memory/ for this run, as if the repository had none (the control arm of the memory replay). Default: off"],
     REPO_DIR,
   ],
   env: [
@@ -212,7 +213,7 @@ const historyPage: Page = {
     ["--since <n>d", "Only findings seen in the last n days"],
     ["--all-repos", "Every repository in the history, not just this clone's"],
     ["--json", "The replayed state as wachiman.history-state/1"],
-    ["--verdict <id> correct|partial|wrong", "Record your judgement of a finding (the id is in the report and the listing)"],
+    ["--verdict <id> correct|partial|wrong|intentional|not-important", "Record your judgement of a finding (the id is in the report and the listing)"],
     ["--reason <text>", "With --verdict: why"],
     ["--forget [--all]", "Delete this repository's history, or all of it with --all. Takes no --all-repos, --json or --since"],
     REPO_DIR,
@@ -484,6 +485,7 @@ const MEMORY_EXIT: readonly Row[] = [
 const MEMORY_USAGE = [
   "wachiman memory check [--repo-dir <dir>]",
   "wachiman memory archive <id> [--repo-dir <dir>]",
+  "wachiman memory report [--since <date>] [--format terminal|json] [--repo-dir <dir>]",
   "wachiman memory candidates [--format terminal|json] [--repo-dir <dir>]",
   "wachiman memory add --kind convention|exception --scope <glob> --rule <text> --why <text> [options]",
   "wachiman memory show <id> [--repo-dir <dir>]",
@@ -497,6 +499,18 @@ const memoryPage: Page = {
   examples: ["wachiman memory check", "wachiman memory candidates", "wachiman memory show 4c1e9a2", "wachiman memory propose 4c1e9a2"],
   docs: MEMORY_DOCS,
   subs: {
+    report: {
+      usage: "wachiman memory report [--since <date>] [--format terminal|json] [--repo-dir <dir>]",
+      summary: "Print, per month and in total, what the local review history says about memory: comments by outcome (fixed, wrong, intentional, not important, unjudged), findings muted by memory with the entry ids, the memory's size in the working tree, and the entries no review used. Outcomes come from `wachiman local --history` runs and `wachiman history --verdict`; with no history it says so and exits 0. No model is called.",
+      options: [
+        ["--since <date>", "Only runs saved on or after this day (YYYY-MM-DD)"],
+        ["--format terminal|json", "Default: terminal. json prints wachiman.memory-report/1"],
+        REPO_DIR,
+      ],
+      exit: MEMORY_EXIT,
+      examples: ["wachiman memory report", "wachiman memory report --since 2026-11-01 --format json"],
+      docs: MEMORY_DOCS,
+    },
     check: {
       usage: "wachiman memory check [--repo-dir <dir>]",
       summary: "Read .wachiman/memory/ from the working tree and print every problem as <path>:<line>: <message>: a malformed entry, an entry id that is not its digest, a glob that matches no file, an index row that names a missing file, an area file index.md does not list, and a line-budget overrun (memory.max_index_lines, memory.max_loaded_lines). After the problems it prints suggestions, which never change the exit code: likely duplicates (same kind, overlapping scopes, rules at least 80% alike by word overlap; contradictions are not detected) and entries not used in memory.archive_after_days (from the laptop's record of use; not made in GitHub Actions, nor when that record is missing or unreadable, where a note says use is unknown).",

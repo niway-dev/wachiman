@@ -900,6 +900,51 @@ describe("--history", () => {
   }, 30_000);
 });
 
+describe("--no-memory", () => {
+  const INDEX = "# Memory\n\n### 4c1e9a2 Prefer named exports\n\n- kind: convention\n- scope: src/**\n- rule: Prefer named exports in src.\n- why: Renames show up in every importer.\n- evidence:\n  - 2026-11-18 operator instruction, pull request 1\n- added: 2026-11-18\n";
+  /** The same two commits twice: the base commit holds a memory folder, or it does not. */
+  function repoWith(memory: boolean): BranchRepo {
+    const dir = emptyRepo();
+    commit(dir, { "src/a.ts": A_BASE, ...(memory ? { ".wachiman/memory/index.md": INDEX } : {}) }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    const head = commit(dir, { "src/a.ts": A_HEAD }, "edit a");
+    return { dir, mergeBase: "", mainTip: "", head, subjects: ["edit a"] };
+  }
+  const scrub = (text: string) => text.replace(/(wachiman-review|wachiman-snapshot)-[A-Za-z0-9]+/g, "$1-X").replace(/wachiman-repo-[A-Za-z0-9]+/g, "REPO").replace(/\b[0-9a-f]{7,40}\b/g, "SHA");
+
+  test("parses, and is off by default", () => {
+    expect(parseLocalArgs(["--no-memory"]).noMemory).toBe(true);
+    expect(parseLocalArgs([]).noMemory).toBeUndefined();
+  });
+
+  test("the review of a repository with memory carries it; with --no-memory the prompt is identical to a repository without a memory folder", () => {
+    const withMemory = local("ok", [], {}, repoWith(true));
+    const skipped = local("ok", ["--no-memory"], {}, repoWith(true));
+    const without = local("ok", [], {}, repoWith(false));
+    expect([withMemory.code, skipped.code, without.code]).toEqual([0, 0, 0]);
+    const prompt = (r: { read: (s: string) => string | undefined }) => scrub(r.read("prompt") as string);
+    expect(prompt(withMemory)).toContain("Prefer named exports");
+    expect(prompt(withMemory)).not.toBe(prompt(without));
+    expect(prompt(skipped)).toBe(prompt(without));
+    // The provider is called the same way too: same arguments apart from the scratch directories.
+    const args = (r: { read: (s: string) => string | undefined }) => r.read("args")?.split("\n").filter((a) => !a.startsWith("/"));
+    expect(args(skipped)).toEqual(args(without));
+  }, 60_000);
+
+  test("the JSON result records no memory with --no-memory, and does with it", () => {
+    const flags = ["--format", "json", "--result-version", "2"];
+    expect(JSON.parse(local("ok", flags, {}, repoWith(true)).stdout).memory?.files?.[0]?.path).toBe(".wachiman/memory/index.md");
+    const skipped = JSON.parse(local("ok", [...flags, "--no-memory"], {}, repoWith(true)).stdout);
+    expect("memory" in skipped).toBe(false);
+    expect("muted" in skipped).toBe(false);
+  }, 60_000);
+
+  test("says on stderr that memory is off, and only then", () => {
+    expect(local("ok", ["--no-memory"], {}, repoWith(true)).stderr).toContain("memory: off (--no-memory)");
+    expect(local("ok", [], {}, repoWith(true)).stderr).not.toContain("memory: off");
+  }, 60_000);
+});
+
 describe("--commit and --from", () => {
   const sha = (dir: string, rev: string) => git(dir, "rev-parse", rev).trim();
   const noReview = (r: { calls: () => string[]; canary: string }) => {

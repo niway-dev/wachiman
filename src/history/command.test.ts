@@ -92,6 +92,24 @@ describe("wachiman history", () => {
     expect(lines[4]).toBe("verdicts: 0 correct, 0 partial, 0 wrong, 2 unjudged");
   });
 
+  test("--verdict also takes intentional and not-important; the listing counts them, and a listing with none keeps its four-word line", () => {
+    const { home, repo, root, key } = seeded();
+    expect(history(["--verdict", "a1a1a1a1a1", "intentional", "--reason", "the guard is upstream", "--repo-dir", repo], home).code).toBe(0);
+    expect(history(["--verdict", "b2b2b2b2b2", "not-important", "--repo-dir", repo], home).code).toBe(0);
+    expect(readVerdicts(root, key).get("a1a1a1a1a1")).toMatchObject({ verdict: "intentional", reason: "the guard is upstream" });
+    const listing = history(["--repo-dir", repo], home).stdout.split("\n");
+    expect(listing[2]).toEndWith("Off-by-one in the loop   verdict: intentional");
+    expect(listing[3]).toEndWith("Unchecked cast   verdict: not-important");
+    expect(listing[4]).toBe("verdicts: 0 correct, 0 partial, 0 wrong, 0 unjudged, 1 intentional, 1 not-important");
+    expect(JSON.parse(history(["--json", "--repo-dir", repo], home).stdout).repositories[0].counts).toEqual({ correct: 0, partial: 0, wrong: 0, unjudged: 0, intentional: 1, notImportant: 1 });
+  });
+
+  test("a verdicts file written before the new words is still read", () => {
+    const { home, repo, root, key } = seeded();
+    writeFileSync(join(root, key, "verdicts.jsonl"), `${JSON.stringify({ at: "2026-01-01T00:00:00.000Z", firstId: "a1a1a1a1a1", verdict: "partial" })}\n`, { mode: 0o600 });
+    expect(history(["--repo-dir", repo], home).stdout).toContain("verdicts: 0 correct, 1 partial, 0 wrong, 1 unjudged\n");
+  });
+
   test("--repo-dir resolves the key from the clone; --all-repos lists every key", () => {
     const { home, repo, root } = seeded();
     // A second repository's history under the same home.

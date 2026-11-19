@@ -71,7 +71,7 @@ export const EXPECTED = {
     { key: BETA.key, name: BETA.name, runs: 1, costUsdEstimate: 0.75 },
   ],
   totals: { repositories: 2, runs: 4, costUsdEstimate: 2.5 },
-  findings: { total: 4, bySeverity: { blocker: 1, fix: 1, consider: 1, info: 1 }, byVerdict: { correct: 1, partial: 0, wrong: 1, unjudged: 2 } },
+  findings: { total: 4, bySeverity: { blocker: 1, fix: 1, consider: 1, info: 1 }, byVerdict: { correct: 1, partial: 0, wrong: 1, intentional: 0, notImportant: 0, unjudged: 2 } },
   loops: { totals: { branches: 2, rounds: 5, converged: 1, open: 1 } },
 };
 

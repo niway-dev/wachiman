@@ -6,7 +6,8 @@
  * After the problems, `check` prints hygiene suggestions (likely duplicates, entries not used in
  * `memory.archive_after_days`); they never change the exit code. `archive <id>` (layer 6) moves one
  * entry to `archive.md` in the working tree, only when the developer runs it.
- * `candidates`, `add`, `show` and `propose` (layer 3, laptop capture) are in `capture.ts`.
+ * `report` (layer 7) prints what the local history says about memory (`report.ts`). `candidates`, `add`, `show` and
+ * `propose` (layer 3, laptop capture) are in `capture.ts`.
  */
 import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -14,18 +15,19 @@ import { wachimanHome } from "../accounts/config";
 import { UsageError } from "../config";
 import { spawnGit } from "../evidence";
 import { commandHelp } from "../help";
-import { repositoryKey } from "../history/store";
+import { historyRoot, readRuns, readVerdicts, repositoryKey } from "../history/store";
 import { parseRepoSettings, resolveMemorySettings, SETTINGS_PATH } from "../repo-settings";
 import { parseMemoryFile, type MemoryEntry, type MemoryProblem } from "./entries";
 import { inspectMemory, type CheckInput, type CheckResult } from "./inspect";
 import { CAPTURE_SUBCOMMANDS, runCapture, type CaptureContext } from "./capture";
 import { repositoryRoot } from "./settings";
 import { archiveEntry, archiveSuggestions, findDuplicates, readMemoryUse, writeFileAtomically, type MemoryUse } from "./hygiene";
+import { buildReport, parseReportArgs, renderReport } from "./report";
 import { ARCHIVE_FILE, MEMORY_DIR } from "./load";
 
 export { inspectMemory, type CheckInput, type CheckResult };
 
-export const MEMORY_SUBCOMMANDS = ["check", "archive", ...CAPTURE_SUBCOMMANDS] as const;
+export const MEMORY_SUBCOMMANDS = ["check", "archive", "report", ...CAPTURE_SUBCOMMANDS] as const;
 
 export interface MemoryIo {
   stdout: (text: string) => void;
@@ -75,6 +77,16 @@ export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: Ca
   if (first === "archive") {
     if (rest.includes("--help") || rest.includes("-h")) return (io.stdout(commandHelp(["memory", "archive"])!), 0);
     return runArchive(rest, repoDir, io);
+  }
+  if (first === "report") {
+    if (rest.includes("--help") || rest.includes("-h")) return (io.stdout(commandHelp(["memory", "report"])!), 0);
+    const args = parseReportArgs(rest);
+    const root = repositoryRoot(repoDir);
+    const key = repositoryKey(repoDir).key;
+    const home = historyRoot(wachimanHome(ctx.env ?? process.env));
+    const report = buildReport({ runs: readRuns(home, key, (line) => io.stderr(line)), verdicts: readVerdicts(home, key), files: readMemoryFolder(root), use: readMemoryUse(wachimanHome(ctx.env ?? process.env), key), since: args.since });
+    io.stdout(args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report));
+    return 0;
   }
   if (first !== "check") {
     if (rest.includes("--help") || rest.includes("-h")) return (io.stdout(commandHelp(["memory", first])!), 0);

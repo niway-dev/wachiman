@@ -6,7 +6,7 @@
 import { UsageError } from "../config";
 import { SEVERITY, TOPIC } from "../engine";
 import { location, sha7 } from "../sinks/common";
-import { replay, type Replayed, type ReplayedFinding } from "./match";
+import { countVerdicts, replay, type Replayed, type ReplayedFinding } from "./match";
 import { wachimanHome } from "../accounts/config";
 import { appendVerdict, forget, historyRoot, listKeys, readRuns, readVerdicts, repositoryKey } from "./store";
 import { VERDICT_WORDS, type HistoryRun, type VerdictWord } from "./types";
@@ -14,7 +14,7 @@ import { VERDICT_WORDS, type HistoryRun, type VerdictWord } from "./types";
 export const HISTORY_STATE_FORMAT = "wachiman.history-state/1";
 
 export const historyUsage = `wachiman history [--repo-dir <dir>] [--since <n>d] [--all-repos] [--json]
-                 [--verdict <id> correct|partial|wrong [--reason <text>]]
+                 [--verdict <id> correct|partial|wrong|intentional|not-important [--reason <text>]]
                  [--forget [--all]]`;
 
 export interface HistoryArgs {
@@ -104,7 +104,8 @@ function table(l: Listed) {
     lines.push(`  ${pad(r.status, ws)}  ${pad(r.first, wf)}  ${pad(r.last, wl)}  ${pad(r.runs, wr)}  ${pad(r.id, wi)}  ${r.text}${r.verdict}`);
   }
   const c = l.state.counts;
-  lines.push(`verdicts: ${c.correct} correct, ${c.partial} partial, ${c.wrong} wrong, ${c.unjudged} unjudged`);
+  const extra = [c.intentional ? `${c.intentional} intentional` : "", c.notImportant ? `${c.notImportant} not-important` : ""].filter(Boolean);
+  lines.push(`verdicts: ${[`${c.correct} correct`, `${c.partial} partial`, `${c.wrong} wrong`, `${c.unjudged} unjudged`, ...extra].join(", ")}`);
   return lines.join("\n");
 }
 
@@ -142,8 +143,7 @@ export function runHistory(
     const state = replay(runs, readVerdicts(root, key));
     if (cutoff !== undefined) {
       state.findings = state.findings.filter((f) => Date.parse(f.lastSeenAt) >= cutoff);
-      state.counts = { correct: 0, partial: 0, wrong: 0, unjudged: 0 };
-      for (const f of state.findings) state.counts[f.verdict?.verdict ?? "unjudged"]++;
+      state.counts = countVerdicts(state.findings);
     }
     listed.push({ key, runs, state });
   }

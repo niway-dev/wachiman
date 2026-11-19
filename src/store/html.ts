@@ -247,7 +247,7 @@ export function renderHtml(doc: DashboardDocument): string {
   );
   const byVerdict = table(
     ["Your verdict", "Findings", ""],
-    (["correct", "partial", "wrong", "unjudged"] as const).map((v) => [esc(v), String(findings.byVerdict[v]), bar(findings.byVerdict[v], maxVerdict)]),
+    (["correct", "partial", "wrong", "intentional", "notImportant", "unjudged"] as const).map((v) => [esc(v === "notImportant" ? "not important" : v), String(findings.byVerdict[v]), bar(findings.byVerdict[v], maxVerdict)]),
     [1],
   );
 

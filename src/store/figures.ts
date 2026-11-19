@@ -4,7 +4,7 @@
  */
 import { Database } from "bun:sqlite";
 import { GRADES, type Grade } from "../fidelity/types";
-import { VERDICT_WORDS } from "../history/types";
+import { VERDICT_WORDS, type VerdictWord } from "../history/types";
 
 export const SEVERITY_ORDER = ["blocker", "fix", "consider", "info"] as const;
 export const LOOP_STATUSES = ["new", "open", "probably-fixed", "not-repeated", "unknown"] as const;
@@ -45,7 +45,7 @@ export interface Figures {
   findings: {
     total: number;
     bySeverity: Record<(typeof SEVERITY_ORDER)[number], number>;
-    byVerdict: Record<"correct" | "partial" | "wrong" | "unjudged", number>;
+    byVerdict: Record<"correct" | "partial" | "wrong" | "intentional" | "notImportant" | "unjudged", number>;
   };
   loops: {
     branches: LoopBranch[];
@@ -77,10 +77,11 @@ export function readFigures(indexPath: string): Figures {
     for (const r of all<{ severity: string; n: number }>("SELECT severity, COUNT(*) AS n FROM findings GROUP BY severity")) {
       if (r.severity in bySeverity) bySeverity[r.severity as keyof typeof bySeverity] = r.n;
     }
-    const byVerdict = { correct: 0, partial: 0, wrong: 0, unjudged: 0 };
+    const byVerdict: Figures["findings"]["byVerdict"] = { correct: 0, partial: 0, wrong: 0, intentional: 0, notImportant: 0, unjudged: 0 };
     for (const r of all<{ verdict: string | null; n: number }>("SELECT verdict, COUNT(*) AS n FROM findings GROUP BY verdict")) {
       const word = r.verdict ?? "unjudged";
-      if (word === "unjudged" || (VERDICT_WORDS as readonly string[]).includes(word)) byVerdict[word as keyof typeof byVerdict] = r.n;
+      if (word === "unjudged") byVerdict.unjudged += r.n;
+      else if ((VERDICT_WORDS as readonly string[]).includes(word)) byVerdict[word === "not-important" ? "notImportant" : (word as Exclude<VerdictWord, "not-important">)] += r.n;
     }
     const findingsTotal = (db.query("SELECT COUNT(*) AS n FROM findings").get() as { n: number }).n;
 
