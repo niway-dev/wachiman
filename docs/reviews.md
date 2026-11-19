@@ -126,8 +126,9 @@ the contract is in [cli.md](cli.md#finding-labels).
 These are the only labels. A repository's instructions cannot add one
 ([review-policy.md](review-policy.md)).
 
-A finding also shows how sure the reviewer is: a Confidence row (`High`, `Medium` or `Low`), left out when
-the model gave none; the one-line label shows it after the title as `(confidence high)`, `medium` or `low`. Severity says how bad the finding is if it is true; confidence says how sure the reviewer
+A finding also shows how sure the reviewer is: a Confidence row (`High`, `Medium` or `Low`), left
+out when the model gave none. The one-line label shows it after the title, as `(confidence high)`,
+`medium` or `low`. Severity says how bad the finding is if it is true; confidence says how sure the reviewer
 is that it is true. A finding the reviewer is not sure of at Fix or above is posted as a ❓
 question. Definitions: [cli.md](cli.md#finding-labels).
 
