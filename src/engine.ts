@@ -3277,7 +3277,14 @@ export type RefusalKind = "billing" | "auth" | "rate_limit";
  * an edit would erase it.
  */
 export const refusalMarker = (kind: RefusalKind) => `<!-- wachi:refusal kind=${kind} -->`;
-const REFUSAL_MARKER = /<!-- wachi:refusal kind=(?:billing|auth|rate_limit) -->/;
+/**
+ * A refusal notice of an automatic run: the marker is a block of its own, and the engine's review
+ * signature ends the body (an attempt line may follow). Anchored like the other footer readers, so
+ * text that merely contains the marker, or a signature somewhere in the middle, never matches.
+ */
+const REFUSAL_NOTICE = new RegExp(
+  `\\n\\n<!-- wachi:refusal kind=(?:billing|auth|rate_limit) -->\\n\\n[\\s\\S]*\\n\\n${SIGNATURE_REVIEW_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`,
+);
 
 const RERUN = 'the "Wachiman review" job in the Actions tab, or push again';
 
@@ -3353,8 +3360,10 @@ export function refusalNotice(o: {
  * carries `refusalMarker`), that review's body is replaced with one `PUT` instead of a new review:
  * the same refusal on each push was 68 identical reviews in three days. A `PUT` with the same body
  * is idempotent, so a transient error repeats it with no `wachi:attempt` check. Any other latest
- * review, or a `PUT` that fails, posts a new review. Only the engine's own signed reviews count, so
+ * review, or a `PUT` that fails, posts a new review. Only the engine's own signed notices count, so
  * a person cannot plant the marker; the bot's login is shared by every workflow of the repository.
+ * Only an automatic run's notice is edited or edited over: it carries the cost line and the
+ * signature the ceiling reads, and a manual run's body has neither.
  */
 export function postRefusalReview(deps: Deps, repo: string, pr: number, headSha: string, review: Review): string | undefined {
   if (deps.config.dryRun) return postReview(deps, repo, pr, headSha, review);
@@ -3369,8 +3378,7 @@ export function postRefusalReview(deps: Deps, repo: string, pr: number, headSha:
   } catch (error) {
     deps.warn(`Could not list the reviews to look for an earlier refusal; posting a new review. ${error}`);
   }
-  const earlier = latest?.body ?? "";
-  if (latest && REFUSAL_MARKER.test(earlier) && earlier.includes(SIGNATURE.review)) {
+  if (latest && REFUSAL_NOTICE.test((latest.body ?? "").trimEnd())) {
     for (let retry = 0; ; retry++) {
       try {
         const answer = deps.gh(
@@ -4623,8 +4631,10 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
         spentUsd: spent,
         ...(prior ? { priorSpentUsd: prior.spent } : {}),
       });
-      // Only a notice that spent nothing may be replaced by the next one, and only it carries the marker.
-      const free = spent === 0;
+      // Only an automatic run's notice that spent nothing may be replaced by the next one, and only it
+      // carries the marker. A manual run's body has no signature and no cost line, so replacing an
+      // automatic notice with it would erase that run from the ceiling.
+      const free = spent === 0 && isAutomatic(config.trigger);
       sendNotice([branded(headline), table, ...(free ? [refusalMarker(refused.kind)] : [])], free);
       if (config.onProviderUnavailable === "fail") {
         throw new Error(`Not reviewed: the provider rejected the call (${refused.kind}): ${detail || "no error text"}`);

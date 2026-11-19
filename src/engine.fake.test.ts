@@ -406,7 +406,7 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
           "| **Spent** | Nothing this run |",
           `| **Provider said** | \`${CREDIT}\` |`,
         ].join("\n"),
-        "<!-- wachi:refusal kind=billing -->",
+        // A run started by comment is not counted by the ceiling and is never edited over: no marker.
       ].join("\n\n"),
     );
   });
@@ -416,7 +416,7 @@ describe("provider rejections (no credit, bad key, rate limit)", () => {
     await review(t.deps, "o/r", 7, []);
     expect(t.posted.review?.body).toContain("⛔ **Not reviewed**: the API key was rejected");
     expect(t.posted.review?.body).toContain("| **Fix** | Check the `ANTHROPIC_API_KEY` secret, then re-run");
-    expect(t.posted.review?.body).toContain("<!-- wachi:refusal kind=auth -->");
+    expect(t.posted.review?.body).not.toContain("wachi:refusal");
     expect(t.provider.requests).toHaveLength(1);
   });
 
@@ -1314,7 +1314,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       const r = await run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits });
       expect(r.provider.requests).toHaveLength(1);
       expect(r.prompts[0]).toContain("+guard()");
-      expect(r.posted?.body).not.toContain("Brought up to date");
+      expect(r.posted?.body).not.toContain("No new changes to review");
     }
   });
 
@@ -1331,7 +1331,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
         const r = await run({ status: "ahead", old, current: [current], since: [pushed], commits });
         expect(r.provider.requests, `${name}, commits ${commits}`).toHaveLength(1);
         expect(r.prompts[0]).toContain("+guard()");
-        expect(r.posted?.body).not.toContain("Brought up to date");
+        expect(r.posted?.body).not.toContain("No new changes to review");
       }
   });
 
@@ -1368,7 +1368,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       const r = await run({ status: "ahead", old: [reviewed], current: [current], since: [pushed], commits });
       expect(r.provider.requests).toHaveLength(1);
       expect(r.prompts[0]).toContain("-GUARD");
-      expect(r.posted?.body).not.toContain("Brought up to date");
+      expect(r.posted?.body).not.toContain("No new changes to review");
     }
     // The rename cannot be matched to a reviewed file (the old name is not the one compare lists
     // for the review): the full current patch is sent rather than nothing.

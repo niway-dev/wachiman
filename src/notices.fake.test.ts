@@ -237,9 +237,11 @@ describe("a $0 refusal is edited in place", () => {
     w.push(HEAD2);
     const second = await run(w, new Refusing("billing", CREDIT));
     expect(w.writes.map((x) => x.kind)).toEqual(["post", "put"]);
-    expect(w.calls.filter((c) => c.includes("-X PUT"))).toHaveLength(3);
     expect(second.sleeps).toEqual([1_000, 3_000]);
-    // Nothing looked for the attempt line: the reviews were listed once to find the refusal, once for the ceiling.
+    // Nothing looked for the attempt line: no review was listed between the first PUT and the last.
+    const puts = w.calls.flatMap((c, i) => (c.includes("-X PUT") ? [i] : []));
+    expect(puts).toHaveLength(3);
+    expect(w.calls.slice(puts[0], puts[2] + 1).filter((c) => c.includes("/pulls/7/reviews") && !c.includes("-X PUT"))).toEqual([]);
     expect(w.reviews).toHaveLength(1);
   });
 
@@ -265,6 +267,26 @@ describe("a $0 refusal is edited in place", () => {
     expect(paid).toContain("| **Spent** | $0.07 this run · PR so far $0.07 |");
     expect(readAutoCost(paid)).toBe(0.07);
     expect(automaticSpend(w.gh, "o/r", 7).spent).toBeCloseTo(0.07);
+  });
+
+  test("a run someone started by comment never edits an automatic notice, and carries no marker", async () => {
+    const w = world();
+    await run(w, new Refusing("billing", CREDIT));
+    w.push(HEAD2);
+    await run(w, new Refusing("billing", CREDIT), { WACHIMAN_TRIGGER: "comment" });
+    expect(w.writes.map((x) => x.kind)).toEqual(["post", "post"]);
+    // The automatic notice is still there, still read by the ceiling; the manual one is not counted.
+    expect(w.bodies()[0]).toBe(billingNotice("$0.00", "1 automatic run"));
+    expect(w.bodies()[1]).not.toContain("wachi:refusal");
+    expect(automaticSpend(w.gh, "o/r", 7).runs).toBe(1);
+  });
+
+  test("the marker counts only as its own block of an engine-signed notice", async () => {
+    const inMiddle = `👮 **Wachiman** · a review that quotes ${refusalMarker("billing")} in a sentence\n\n<sub>x</sub>\n\n${SIGNATURE.review}\n\n${marker(HEAD1)}`;
+    const w = world([{ id: 3, user: { login: BOT }, body: inMiddle }]);
+    await run(w, new Refusing("billing", CREDIT));
+    expect(w.writes.map((x) => x.kind)).toEqual(["post"]);
+    expect(w.reviews[0].body).toBe(inMiddle);
   });
 
   test("a dry run edits and posts nothing", async () => {
@@ -392,10 +414,11 @@ describe("the base-update notice", () => {
     const prior = `👮 **Wachiman** · review\n\n<sub>x</sub>\n\n${SIGNATURE.review}\n\n${marker(HEAD1)}`;
     const w = world([{ id: 1, user: { login: BOT }, body: prior }]);
     w.push(HEAD2);
-    const calls = w.calls;
+    const calls: string[] = [];
     const gh = w.gh;
     const wrapped: GhFn = (args, input) => {
       const line = args.join(" ");
+      calls.push(line);
       const compare = line.match(/compare\/(\S+?)\.\.\.(\S+)/);
       if (compare) return JSON.stringify({ status: "ahead", files: [] });
       return gh(args, input);
@@ -422,6 +445,7 @@ describe("the base-update notice", () => {
         marker(HEAD2),
       ].join("\n\n"),
     );
-    expect(calls.filter((c) => c.includes("ledger") || c.includes("-X PUT"))).toEqual([]);
+    // No spend lookup (the ceiling reads the bot's comments) and no edit of an earlier review.
+    expect(calls.filter((c) => c.includes("/pulls/7/comments") || c.includes("-X PUT"))).toEqual([]);
   });
 });
