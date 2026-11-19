@@ -16,7 +16,7 @@ recorded outcomes. The model never picks the priority. The loop's stop rule and 
 not change in this version.
 
 The priority lives in the inline finding table, as its own row under the title, next to the rows
-the table already has (Severity, Area, Confidence), plus a Track record row with the measured rate.
+the table already has (Severity, Area, Confidence), plus a Track record row. In layer 1 that row reads `no record yet · seed`; the measured rate appears once layer 2 counts outcomes.
 How it looks, before and after: [the labels mockup](https://claude.ai/artifact/5KzGQKtSXYGP5m9VBkr1oK).
 
 The priority changes what a finding means to its reader, not whether it is read. Every finding is
