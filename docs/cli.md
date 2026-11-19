@@ -788,8 +788,8 @@ before, with no extra field, no extra text and no extra call. The settings are i
 Actions are later layers.
 
 `memory check` reads the folder from the working tree and prints each problem as
-`<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope or an
-index glob that matches no file of the repository, an index row that names a missing file, an area file
+`<path>:<line>: <message>`: a malformed entry, an entry id that is not its digest, an entry scope (not checked in
+`archive.md`, which no review loads) or an index glob that matches no file of the repository, an index row that names a missing file, an area file
 the index does not list, a missing `index.md`, an `index.md` over `memory.max_index_lines`, and an area
 file that cannot fit beside the index within `memory.max_loaded_lines`. No model is called and nothing
 is written. Exit codes: 0 clean, or no memory folder; 1 problems found; 2 a usage error or an invalid

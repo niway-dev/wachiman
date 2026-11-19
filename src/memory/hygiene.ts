@@ -277,10 +277,10 @@ export function archiveEntry(current: Record<string, string>, id: string): Archi
     // Only the entry's own lines go, with the one blank line that separated it; the rest of the file keeps every byte.
     let rest: string;
     if (rows.slice(contentEnd).every((r) => r.trim() === "")) {
-      const from = start > 0 && rows[start - 1] === "" ? start - 1 : start;
+      const from = start > 0 && rows[start - 1].trim() === "" ? start - 1 : start;
       rest = [...rows.slice(0, from), ...(text.endsWith("\n") ? [""] : [])].join("\n");
     } else {
-      const cut = rows[contentEnd] === "" ? contentEnd + 1 : contentEnd;
+      const cut = rows[contentEnd].trim() === "" ? contentEnd + 1 : contentEnd;
       rest = [...rows.slice(0, start), ...rows.slice(cut)].join("\n");
     }
     const archive = current[ARCHIVE_FILE];

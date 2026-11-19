@@ -210,6 +210,17 @@ describe("archiveEntry", () => {
     expect(r.files["index.md"]).toBe(`# Memory\n\n${note}\n## Other area\n\n${b.text}`);
   });
 
+  test("a file with CRLF line endings loses only the entry and its separating blank line", () => {
+    const a = block("Rule A");
+    const b = block("Rule B");
+    const crlf = (t: string) => t.replace(/\n/g, "\r\n");
+    const index = crlf(`# Memory\n\n${a.text}\n${b.text}`);
+    const r = archiveEntry({ "index.md": index }, b.id);
+    expect(r.ok && r.files["index.md"]).toBe(crlf(`# Memory\n\n${a.text}`));
+    const first = archiveEntry({ "index.md": index }, a.id);
+    expect(first.ok && first.files["index.md"]).toBe(crlf(`# Memory\n\n${b.text}`));
+  });
+
   test("appends to an existing archive.md; an unknown or already archived id is refused", () => {
     const a = block("Rule A");
     const b = block("Rule B");
@@ -337,6 +348,16 @@ describe("wachiman memory check suggestions and memory archive", () => {
     const before = readFileSync(path, "utf8");
     expect(() => s.run(["archive", a.id])).toThrow();
     expect(readFileSync(path, "utf8")).toBe(before);
+  });
+
+  test("archiving an entry whose scope matches no file clears that check problem", () => {
+    const a = block("Rule A", { scope: "gone/**" });
+    const s = setup([a.text]);
+    expect(s.run(["check"]).stderr).toContain("matches no file in the repository");
+    expect(s.run(["archive", a.id]).code).toBe(0);
+    const r = s.run(["check"]);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toBe("");
   });
 
   test("a symbolic link at a guessable temporary name is not followed when archiving", () => {
