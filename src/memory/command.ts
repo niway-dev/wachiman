@@ -8,7 +8,7 @@
  * entry to `archive.md` in the working tree, only when the developer runs it.
  * `candidates`, `add`, `show` and `propose` (layer 3, laptop capture) are in `capture.ts`.
  */
-import { existsSync, lstatSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { wachimanHome } from "../accounts/config";
 import { UsageError } from "../config";
@@ -20,7 +20,7 @@ import { parseMemoryFile, type MemoryEntry, type MemoryProblem } from "./entries
 import { inspectMemory, type CheckInput, type CheckResult } from "./inspect";
 import { CAPTURE_SUBCOMMANDS, runCapture, type CaptureContext } from "./capture";
 import { repositoryRoot } from "./settings";
-import { archiveEntry, archiveSuggestions, findDuplicates, readMemoryUse } from "./hygiene";
+import { archiveEntry, archiveSuggestions, findDuplicates, readMemoryUse, writeFileAtomically, type MemoryUse } from "./hygiene";
 import { ARCHIVE_FILE, MEMORY_DIR } from "./load";
 
 export { inspectMemory, type CheckInput, type CheckResult };
@@ -123,16 +123,22 @@ function printSuggestions(files: Record<string, string>, settings: { archiveAfte
     lines.push(`suggestion: ${a.id} and ${b.id} look like duplicates (same kind, overlapping scopes, rules ${Math.round(similarity * 100)}% alike): "${a.title}" (${where(a)}) and "${b.title}" (${where(b)}). Keep one; \`wachiman memory archive <id>\` moves the other to ${ARCHIVE_FILE}.`);
   }
   if (env.GITHUB_ACTIONS !== "true") {
-    let used: Record<string, string> = {};
+    let use: MemoryUse;
     try {
-      used = readMemoryUse(wachimanHome(env), repositoryKey(root).key);
-    } catch {
-      // no repository key: every entry is measured from its added date
+      use = readMemoryUse(wachimanHome(env), repositoryKey(root).key);
+    } catch (error) {
+      use = { known: false, reason: `this checkout has no repository key (${error instanceof Error ? error.message : error})` };
     }
     const date = (ctx.now ?? (() => new Date()))().toISOString().slice(0, 10);
-    for (const s of archiveSuggestions(entries, used, settings.archiveAfterDays, date)) {
-      const last = s.usedEver ? `last used ${s.since}` : `never used in a review since it was added ${s.since}`;
-      lines.push(`suggestion: ${s.entry.id} ${last} (${plural(s.days)} ago), over memory.archive_after_days (${settings.archiveAfterDays}): "${s.entry.title}" (${where(s.entry)}). \`wachiman memory archive ${s.entry.id}\` moves it to ${ARCHIVE_FILE}.`);
+    if (!use.known) {
+      // Without a record nothing is known about use: an entry must not be called unused, so none is suggested. Said only when some entry is old enough for the answer to matter.
+      const old = archiveSuggestions(entries, {}, settings.archiveAfterDays, date).length;
+      if (old > 0) lines.push(`note: ${old} entr${old === 1 ? "y is" : "ies are"} older than memory.archive_after_days (${settings.archiveAfterDays}) by added date, but whether ${old === 1 ? "it was" : "they were"} used is unknown, so no archive suggestion is made: ${use.reason}.`);
+    } else {
+      for (const s of archiveSuggestions(entries, use.used, settings.archiveAfterDays, date)) {
+        const last = s.usedEver ? `last used ${s.since}` : `no use recorded on this laptop since it was added ${s.since}`;
+        lines.push(`suggestion: ${s.entry.id} ${last} (${plural(s.days)} ago), over memory.archive_after_days (${settings.archiveAfterDays}): "${s.entry.title}" (${where(s.entry)}). \`wachiman memory archive ${s.entry.id}\` moves it to ${ARCHIVE_FILE}.`);
+      }
     }
   }
   if (lines.length === 0) return;
@@ -164,8 +170,8 @@ function runArchive(rest: string[], repoDir: string, io: MemoryIo): number {
   // archive.md first, then the source: a failure in between leaves the entry in both files, never in neither.
   for (const [name, text] of Object.entries(moved.files).sort(([a], [b]) => Number(b === ARCHIVE_FILE) - Number(a === ARCHIVE_FILE))) {
     const path = join(root, MEMORY_DIR, name);
-    writeFileSync(`${path}.tmp`, text);
-    renameSync(`${path}.tmp`, path);
+    // A new randomly named temporary file in the same directory, renamed over the target: a symbolic link planted at a guessable temporary name is never followed.
+    writeFileAtomically(path, text, existsSync(path) ? statSync(path).mode & 0o777 : 0o644);
   }
   io.stdout(`archived: ${rest[0]} moved from ${moved.from} to ${ARCHIVE_FILE} in ${MEMORY_DIR}/ (working tree only, not committed). Commit it, or leave it out of the change.\n`);
   return 0;

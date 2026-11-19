@@ -1432,7 +1432,9 @@ describe("memory use", () => {
     const r = local("ok", ["--history"], { HOME: home }, repo);
     expect(r.code).toBe(0);
     const key = repositoryKey(repo.dir).key;
-    const used = readMemoryUse(join(home, ".wachiman"), key);
+    const record = readMemoryUse(join(home, ".wachiman"), key);
+    if (!record.known) throw new Error(record.reason);
+    const used = record.used;
     expect(Object.keys(used)).toEqual([id]);
     expect(used[id]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   }, 30_000);
@@ -1441,7 +1443,8 @@ describe("memory use", () => {
     const { repo } = repoWithMemory("docs/**");
     const home = temp("wachiman-home-");
     expect(local("ok", ["--history"], { HOME: home }, repo).code).toBe(0);
-    expect(readMemoryUse(join(home, ".wachiman"), repositoryKey(repo.dir).key)).toEqual({});
+    // The review loaded memory and used nothing: the record exists and is empty, which is not the same as no record.
+    expect(readMemoryUse(join(home, ".wachiman"), repositoryKey(repo.dir).key)).toEqual({ known: true, used: {} });
     const plain = temp("wachiman-home-");
     expect(local("ok", [], { HOME: plain }).code).toBe(0);
     expect(existsSync(join(plain, ".wachiman"))).toBe(false);

@@ -3,7 +3,7 @@
  * and `wachiman memory archive`. Deterministic; no model, no network.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { git } from "../../test/support/temp-repo";
@@ -90,23 +90,46 @@ describe("archive suggestions", () => {
 describe("last use", () => {
   test("is recorded per repository under the history store, 0600, keeping the latest date per id", () => {
     const home = temp("wachiman-use-home-");
-    expect(readMemoryUse(home, "repo-1")).toEqual({});
+    expect(readMemoryUse(home, "repo-1").known).toBe(false);
     recordMemoryUse(home, "repo-1", ["aaaaaaa", "bbbbbbb"], "2026-11-10");
     recordMemoryUse(home, "repo-1", ["aaaaaaa"], "2026-11-05");
     recordMemoryUse(home, "repo-1", ["bbbbbbb"], "2026-11-12");
-    expect(readMemoryUse(home, "repo-1")).toEqual({ aaaaaaa: "2026-11-10", bbbbbbb: "2026-11-12" });
-    expect(readMemoryUse(home, "repo-2")).toEqual({});
+    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, used: { aaaaaaa: "2026-11-10", bbbbbbb: "2026-11-12" } });
+    expect(readMemoryUse(home, "repo-2").known).toBe(false);
     expect(memoryUsePath(home, "repo-1")).toBe(join(home, "history", "repo-1", "memory-use.json"));
     expect(statSync(memoryUsePath(home, "repo-1")).mode & 0o777).toBe(0o600);
   });
 
-  test("recording nothing creates nothing, and a corrupt record reads as empty", () => {
+  test("a missing record and an unreadable one are unknown, never an empty record", () => {
     const home = temp("wachiman-use-home-");
-    recordMemoryUse(home, "repo-1", [], "2026-11-10");
-    expect(existsSync(join(home, "history"))).toBe(false);
+    const missing = readMemoryUse(home, "repo-1");
+    expect(missing).toMatchObject({ known: false });
+    expect(!missing.known && missing.reason).toContain("no use record");
     mkdirSync(join(home, "history", "repo-1"), { recursive: true });
     writeFileSync(memoryUsePath(home, "repo-1"), "{not json");
-    expect(readMemoryUse(home, "repo-1")).toEqual({});
+    const corrupt = readMemoryUse(home, "repo-1");
+    expect(corrupt).toMatchObject({ known: false });
+    expect(!corrupt.known && corrupt.reason).toContain("could not be read");
+    writeFileSync(memoryUsePath(home, "repo-1"), JSON.stringify({ format: "wachiman.memory-use/2", used: {} }));
+    expect(readMemoryUse(home, "repo-1")).toMatchObject({ known: false });
+  });
+
+  test("recording no ids still creates the record, so a review that used nothing is known as such", () => {
+    const home = temp("wachiman-use-home-");
+    recordMemoryUse(home, "repo-1", [], "2026-11-10");
+    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, used: {} });
+  });
+
+  test("a symbolic link at the old temporary name is not followed, and no temporary file is left", () => {
+    const home = temp("wachiman-use-home-");
+    const victim = join(temp("wachiman-use-victim-"), "victim.txt");
+    writeFileSync(victim, "untouched");
+    mkdirSync(join(home, "history", "repo-1"), { recursive: true });
+    symlinkSync(victim, `${memoryUsePath(home, "repo-1")}.tmp`);
+    recordMemoryUse(home, "repo-1", ["aaaaaaa"], "2026-11-10");
+    expect(readFileSync(victim, "utf8")).toBe("untouched");
+    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, used: { aaaaaaa: "2026-11-10" } });
+    expect(readdirSync(join(home, "history", "repo-1")).sort()).toEqual(["memory-use.json", "memory-use.json.tmp"]);
   });
 
   test("an unreadable or foreign-format record is never overwritten: recording throws and the file stays as it was", () => {
@@ -192,15 +215,42 @@ describe("wachiman memory check suggestions and memory archive", () => {
     const b = block(`${A}.`, { scope: "src/**" });
     const old = block("Name files after their module", { added: "2026-05-01" });
     const s = setup([a.text, b.text, old.text]);
+    recordMemoryUse(s.home, s.key(), [], "2026-11-17"); // a review loaded memory and used no entry: the record exists
     const r = s.run(["check"]);
     expect(r.code).toBe(0);
     expect(r.stderr).toBe("");
     expect(r.stdout).toContain("memory ok");
     expect(r.stdout).toContain(`suggestion: ${a.id} and ${b.id} look like duplicates`);
     expect(r.stdout).toContain(`suggestion: ${old.id}`);
-    expect(r.stdout).toContain("never used");
+    expect(r.stdout).toContain("no use recorded on this laptop since it was added 2026-05-01");
     expect(r.stdout).toContain(`wachiman memory archive ${old.id}`);
     expect(r.stdout).not.toContain(`suggestion: ${a.id} not used`);
+  });
+
+  test("without a use record nothing is called unused: no archive suggestion, a note that use is unknown", () => {
+    const old = block("Name files after their module", { added: "2026-05-01" });
+    const fresh = block("Keep tests next to code", { added: "2026-11-10" });
+    const r = setup([old.text, fresh.text]).run(["check"]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).not.toContain("suggestion:");
+    expect(r.stdout).not.toContain("never used");
+    expect(r.stdout).not.toContain("no use recorded");
+    expect(r.stdout).toContain("note: 1 entry is older than memory.archive_after_days (90) by added date, but whether it was used is unknown");
+    expect(r.stdout).toContain("no use record at");
+    expect(setup([fresh.text]).run(["check"]).stdout).toBe(`memory ok: 1 file, 1 entry\n`);
+  });
+
+  test("an unreadable use record is reported as unreadable, not as never used, and is not overwritten", () => {
+    const old = block("Name files after their module", { added: "2026-05-01" });
+    const s = setup([old.text]);
+    mkdirSync(join(s.home, "history", s.key()), { recursive: true });
+    writeFileSync(memoryUsePath(s.home, s.key()), "{not json");
+    const r = s.run(["check"]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).not.toContain("suggestion:");
+    expect(r.stdout).toContain("whether it was used is unknown");
+    expect(r.stdout).toContain("could not be read");
+    expect(readFileSync(memoryUsePath(s.home, s.key()), "utf8")).toBe("{not json");
   });
 
   test("a recorded use postpones the archive suggestion; memory.archive_after_days sets the limit", () => {
@@ -219,12 +269,14 @@ describe("wachiman memory check suggestions and memory archive", () => {
     const old = block("Name files after their module", { added: "2026-05-01" });
     const r = setup([a.text, b.text, old.text]).run(["check"], { GITHUB_ACTIONS: "true" });
     expect(r.stdout).toContain("look like duplicates");
-    expect(r.stdout).not.toContain("never used");
+    expect(r.stdout).not.toContain("no use recorded");
+    expect(r.stdout).not.toContain("unknown");
   });
 
   test("a problem still exits 1 and suggestions are printed after it", () => {
     const old = block("Name files after their module", { added: "2026-05-01" });
     const s = setup([old.text], { ".wachiman/memory/extra.md": "# not listed\n" });
+    recordMemoryUse(s.home, s.key(), [], "2026-11-17");
     const r = s.run(["check"]);
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("extra.md:1: is not listed in index.md");
@@ -254,6 +306,48 @@ describe("wachiman memory check suggestions and memory archive", () => {
     const before = readFileSync(path, "utf8");
     expect(() => s.run(["archive", a.id])).toThrow();
     expect(readFileSync(path, "utf8")).toBe(before);
+  });
+
+  test("a symbolic link at a guessable temporary name is not followed when archiving", () => {
+    const a = block("Rule A");
+    const s = setup([a.text]);
+    const dir = join(s.dir, ".wachiman/memory");
+    const victim = join(temp("memory-victim-"), "victim.txt");
+    writeFileSync(victim, "untouched");
+    symlinkSync(victim, join(dir, "archive.md.tmp"));
+    symlinkSync(victim, join(dir, "index.md.tmp"));
+    expect(s.run(["archive", a.id]).code).toBe(0);
+    expect(readFileSync(victim, "utf8")).toBe("untouched");
+    expect(readFileSync(join(dir, "archive.md"), "utf8")).toContain(a.text);
+    expect(lstatSync(join(dir, "archive.md")).isSymbolicLink()).toBe(false);
+    expect(readFileSync(join(dir, "index.md"), "utf8")).not.toContain(a.id);
+    expect(readdirSync(dir).filter((n) => n.endsWith(".tmp")).sort()).toEqual(["archive.md.tmp", "index.md.tmp"]);
+  });
+
+  test("archive refuses an archive.md that is a symbolic link and writes nothing", () => {
+    const a = block("Rule A");
+    const s = setup([a.text]);
+    const dir = join(s.dir, ".wachiman/memory");
+    const victim = join(temp("memory-victim-"), "victim.txt");
+    writeFileSync(victim, "untouched");
+    symlinkSync(victim, join(dir, "archive.md"));
+    const before = readFileSync(join(dir, "index.md"), "utf8");
+    const r = s.run(["archive", a.id]);
+    expect(r.code).toBe(1);
+    expect(r.stderr).toContain("symbolic link");
+    expect(readFileSync(victim, "utf8")).toBe("untouched");
+    expect(readFileSync(join(dir, "index.md"), "utf8")).toBe(before);
+  });
+
+  test("archive keeps the file mode of the source and leaves no temporary file", () => {
+    const a = block("Rule A");
+    const b = block("Rule B");
+    const s = setup([a.text, b.text]);
+    const dir = join(s.dir, ".wachiman/memory");
+    chmodSync(join(dir, "index.md"), 0o640);
+    expect(s.run(["archive", a.id]).code).toBe(0);
+    expect(statSync(join(dir, "index.md")).mode & 0o777).toBe(0o640);
+    expect(readdirSync(dir).sort()).toEqual(["archive.md", "index.md"]);
   });
 
   test("archive of an unknown id or without an id writes nothing and fails", () => {

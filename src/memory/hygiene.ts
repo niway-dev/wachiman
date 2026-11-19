@@ -5,12 +5,14 @@
  * - Likely duplicates: two entries of the same kind whose scopes overlap and whose rule text is
  *   near-identical (`similarity` at or above `DUPLICATE_THRESHOLD`). Likely contradictions are not
  *   detected: telling that two rules disagree needs a model.
- * - Archive suggestions: an entry whose last recorded use (or, with none, its `added` date) is older
- *   than `memory.archive_after_days`. Uses are recorded only on the laptop (`recordMemoryUse`).
+ * - Archive suggestions: an entry whose last recorded use (or, with none recorded, its `added` date) is
+ *   older than `memory.archive_after_days`. Uses are recorded only on the laptop (`recordMemoryUse`).
+ *   When the record itself is missing or unreadable, the use of every entry is unknown and none is suggested.
  * - `archiveEntry` is the one function that moves text, and only on the developer's explicit command.
  */
-import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { randomBytes } from "node:crypto";
+import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { historyRoot } from "../history/store";
 import { parseMemoryFile, type MemoryEntry } from "./entries";
 import { ARCHIVE_FILE, globsOf, matchesGlob, type MemoryLoad } from "./load";
@@ -85,6 +87,7 @@ export interface ArchiveSuggestion {
   entry: MemoryEntry;
   /** The date the age is counted from: the last recorded use, else the `added` date. */
   since: string;
+  /** Whether a use was recorded after the entry was added; false means no use is recorded, not that none happened off this laptop. */
   usedEver: boolean;
   days: number;
 }
@@ -119,30 +122,71 @@ function loadMemoryUse(home: string, key: string): Record<string, string> {
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    throw new Error(`${path} could not be read (${error instanceof Error ? error.message : error}); it was left as it is`);
+    throw new Error(`${path} could not be read (${error instanceof Error ? error.message : error})`);
   }
   if (parsed?.format !== MEMORY_USE_FORMAT || typeof parsed.used !== "object" || parsed.used === null) {
-    throw new Error(`${path} is not a ${MEMORY_USE_FORMAT} record; it was left as it is`);
+    throw new Error(`${path} is not a ${MEMORY_USE_FORMAT} record`);
   }
   return Object.fromEntries(Object.entries(parsed.used).filter(([id, d]) => ID.test(id) && typeof d === "string" && DATE.test(d))) as Record<string, string>;
 }
 
-/** Entry id to the date of its last recorded use. A missing or unreadable record is empty. */
-export function readMemoryUse(home: string, key: string): Record<string, string> {
+/** What the laptop knows about use: the dates by entry id, or why it knows nothing (no record, or one that cannot be read). */
+export type MemoryUse = { known: true; used: Record<string, string> } | { known: false; reason: string };
+
+/**
+ * The record of last use. A missing or unreadable record is `known: false`, never an empty record:
+ * "no record" must not be read as "no entry was ever used".
+ */
+export function readMemoryUse(home: string, key: string): MemoryUse {
+  const path = memoryUsePath(home, key);
+  if (!existsSync(path)) return { known: false, reason: `no use record at ${path}: no laptop review with history on has loaded memory yet` };
   try {
-    return loadMemoryUse(home, key);
-  } catch {
-    return {};
+    return { known: true, used: loadMemoryUse(home, key) };
+  } catch (error) {
+    return { known: false, reason: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Writes `text` to `path` through a new, randomly named temporary file in the same directory, then renames it over `path`.
+ * The temporary file is created exclusively (it never opens an existing path, so a symbolic link planted at a guessable
+ * name is not followed) and the rename replaces `path` itself, even when `path` is a symbolic link, instead of writing through it.
+ */
+export function writeFileAtomically(path: string, text: string, mode: number): void {
+  const tmp = join(dirname(path), `.${basename(path)}.${process.pid}-${randomBytes(6).toString("hex")}.tmp`);
+  const fd = openSync(tmp, "wx", mode);
+  try {
+    try {
+      writeSync(fd, text);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    chmodSync(tmp, mode);
+    renameSync(tmp, path);
+  } catch (error) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+      // already gone
+    }
+    throw error;
   }
 }
 
 /**
  * Records that these entries were used on `date`; a later date replaces an earlier one, never the reverse.
+ * With no ids it still creates the record when absent: a review that loaded memory and used nothing is
+ * knowledge ("not used"), unlike having no record at all ("unknown").
  * Throws, writing nothing, when an existing record cannot be read or is another format: it is never overwritten.
  */
 export function recordMemoryUse(home: string, key: string, ids: string[], date: string): void {
-  if (ids.length === 0) return;
-  const used = loadMemoryUse(home, key);
+  let used: Record<string, string>;
+  try {
+    used = loadMemoryUse(home, key);
+  } catch (error) {
+    throw new Error(`${error instanceof Error ? error.message : error}; it was left as it is`);
+  }
   for (const id of ids) if (!used[id] || used[id] < date) used[id] = date;
   const path = memoryUsePath(home, key);
   for (const dir of [dirname(dirname(path)), dirname(path)]) {
@@ -150,16 +194,7 @@ export function recordMemoryUse(home: string, key: string, ids: string[], date: 
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     chmodSync(dir, 0o700);
   }
-  const tmp = `${path}.tmp`;
-  const fd = openSync(tmp, "w", 0o600);
-  try {
-    writeSync(fd, `${JSON.stringify({ format: MEMORY_USE_FORMAT, used }, null, 2)}\n`);
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
-  }
-  chmodSync(tmp, 0o600);
-  renameSync(tmp, path);
+  writeFileAtomically(path, `${JSON.stringify({ format: MEMORY_USE_FORMAT, used }, null, 2)}\n`, 0o600);
 }
 
 /**

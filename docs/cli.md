@@ -809,15 +809,22 @@ problems: they do not change the exit code, and Wachiman never applies one. No m
 - *Contradictions are not detected.* Telling that two rules disagree needs a model, and `check` calls
   none. Only duplicates are found deterministically.
 - *Archive suggestions.* An entry whose last use is more than `memory.archive_after_days` (default 90)
-  days before today. An entry with no recorded use is measured from its `added` date. A use is recorded
+  days before today. An entry with no recorded use is measured from its `added` date and reported as "no use
+  recorded on this laptop", which is all the record can say (a use in a pull request review is not in it). When the
+  record itself is missing or cannot be read, the use of every entry is unknown: `check` makes no archive
+  suggestion and, if some entry is older than the limit by its `added` date, prints one `note:` line saying so
+  and why (no record yet, or what made it unreadable); it never calls such an entry unused. An unreadable record
+  is left as it is. A use is recorded
   when a laptop review (`wachiman local`) runs with history on (`--history`, ADR 0020), loads memory and an entry was used: a convention whose scope
   matches a file of the diff (it was in the prompt for that diff), or an exception that muted a finding.
+  A review that loads memory with history on creates the record even when no entry was used, so "nothing used"
+  is known and "no record" is not mistaken for it.
   The record is entry id and date, per repository, in `<home>/history/<repository
   key>/memory-use.json`, written with mode 0600. It exists only on the laptop. **With history off, or in GitHub Actions
   where nothing persists between runs, no use is recorded; archive suggestions need history on, and `check` makes none
   when `GITHUB_ACTIONS` is `true`;** an entry used only in pull request reviews looks unused to
   the laptop. Forgetting the history (`wachiman history --forget`) forgets the record, and every entry
-  is then measured from its `added` date again.
+  is then unknown until the next laptop review with history on records one.
 
 `memory archive <id>` moves the entry's text, unchanged, from its file to `.wachiman/memory/archive.md`
 (created when absent), which no review loads. It runs only when you ask. It changes the working tree

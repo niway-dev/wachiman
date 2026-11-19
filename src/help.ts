@@ -499,7 +499,7 @@ const memoryPage: Page = {
   subs: {
     check: {
       usage: "wachiman memory check [--repo-dir <dir>]",
-      summary: "Read .wachiman/memory/ from the working tree and print every problem as <path>:<line>: <message>: a malformed entry, an entry id that is not its digest, a glob that matches no file, an index row that names a missing file, an area file index.md does not list, and a line-budget overrun (memory.max_index_lines, memory.max_loaded_lines). After the problems it prints suggestions, which never change the exit code: likely duplicates (same kind, overlapping scopes, rules at least 80% alike by word overlap; contradictions are not detected) and entries not used in memory.archive_after_days (from the laptop's record of use; not made in GitHub Actions).",
+      summary: "Read .wachiman/memory/ from the working tree and print every problem as <path>:<line>: <message>: a malformed entry, an entry id that is not its digest, a glob that matches no file, an index row that names a missing file, an area file index.md does not list, and a line-budget overrun (memory.max_index_lines, memory.max_loaded_lines). After the problems it prints suggestions, which never change the exit code: likely duplicates (same kind, overlapping scopes, rules at least 80% alike by word overlap; contradictions are not detected) and entries not used in memory.archive_after_days (from the laptop's record of use; not made in GitHub Actions, nor when that record is missing or unreadable, where a note says use is unknown).",
       options: [REPO_DIR],
       exit: MEMORY_EXIT,
       examples: ["wachiman memory check"],
