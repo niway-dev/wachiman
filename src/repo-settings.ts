@@ -175,7 +175,7 @@ export function parseRepoSettings(content: string): RepoSettings {
   }
   if (doc === null || doc === undefined) return {};
   if (typeof doc !== "object" || Array.isArray(doc)) {
-    throw new UsageError(`${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, paths), like \`effort: high\`.`);
+    throw new UsageError(`${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, paths, memory), like \`effort: high\`.`);
   }
   const map = doc as Record<string, unknown>;
   const settings: RepoSettings = {};
