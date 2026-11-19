@@ -1444,7 +1444,7 @@ describe("memory use", () => {
     const home = temp("wachiman-home-");
     expect(local("ok", ["--history"], { HOME: home }, repo).code).toBe(0);
     // The review loaded memory and used nothing: the record exists and is empty, which is not the same as no record.
-    expect(readMemoryUse(join(home, ".wachiman"), repositoryKey(repo.dir).key)).toEqual({ known: true, used: {} });
+    expect(readMemoryUse(join(home, ".wachiman"), repositoryKey(repo.dir).key)).toMatchObject({ known: true, used: {} });
     const plain = temp("wachiman-home-");
     expect(local("ok", [], { HOME: plain }).code).toBe(0);
     expect(existsSync(join(plain, ".wachiman"))).toBe(false);

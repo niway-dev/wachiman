@@ -81,6 +81,22 @@ describe("archive suggestions", () => {
     expect(archiveSuggestions([x], {}, 89, "2026-11-18")).toHaveLength(1);
   });
 
+  test("a use dated before the entry was added counts for nothing and is not reported as the last use", () => {
+    const x = e("2026-06-01");
+    const s = archiveSuggestions([x], { [x.id]: "2026-01-01" }, 90, "2026-11-18");
+    expect(s).toHaveLength(1);
+    expect(s[0]).toMatchObject({ since: "2026-06-01", usedEver: false, days: 170 });
+    expect(archiveSuggestions([x], { [x.id]: "2026-06-01" }, 90, "2026-11-18")[0]).toMatchObject({ since: "2026-06-01", usedEver: true });
+  });
+
+  test("an entry with no recorded use is measured from when recording began if that is later than its added date", () => {
+    const x = e("2026-01-01");
+    expect(archiveSuggestions([x], {}, 90, "2026-11-18", "2026-11-10")).toEqual([]);
+    expect(archiveSuggestions([x], {}, 90, "2026-11-18", "2026-02-01")[0]).toMatchObject({ since: "2026-02-01", usedEver: false });
+    expect(archiveSuggestions([x], {}, 90, "2026-11-18", "2025-12-01")[0]).toMatchObject({ since: "2026-01-01" });
+    expect(archiveSuggestions([x], { [x.id]: "2026-03-01" }, 90, "2026-11-18", "2026-11-10")[0]).toMatchObject({ since: "2026-03-01", usedEver: true });
+  });
+
   test("a use older than the added date does not make the entry look older", () => {
     const x = e("2026-11-01");
     expect(archiveSuggestions([x], { [x.id]: "2025-01-01" }, 90, "2026-11-18")).toEqual([]);
@@ -94,7 +110,7 @@ describe("last use", () => {
     recordMemoryUse(home, "repo-1", ["aaaaaaa", "bbbbbbb"], "2026-11-10");
     recordMemoryUse(home, "repo-1", ["aaaaaaa"], "2026-11-05");
     recordMemoryUse(home, "repo-1", ["bbbbbbb"], "2026-11-12");
-    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, used: { aaaaaaa: "2026-11-10", bbbbbbb: "2026-11-12" } });
+    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, since: "2026-11-05", used: { aaaaaaa: "2026-11-10", bbbbbbb: "2026-11-12" } });
     expect(readMemoryUse(home, "repo-2").known).toBe(false);
     expect(memoryUsePath(home, "repo-1")).toBe(join(home, "history", "repo-1", "memory-use.json"));
     expect(statSync(memoryUsePath(home, "repo-1")).mode & 0o777).toBe(0o600);
@@ -117,7 +133,7 @@ describe("last use", () => {
   test("recording no ids still creates the record, so a review that used nothing is known as such", () => {
     const home = temp("wachiman-use-home-");
     recordMemoryUse(home, "repo-1", [], "2026-11-10");
-    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, used: {} });
+    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, since: "2026-11-10", used: {} });
   });
 
   test("a symbolic link at the old temporary name is not followed, and no temporary file is left", () => {
@@ -128,7 +144,7 @@ describe("last use", () => {
     symlinkSync(victim, `${memoryUsePath(home, "repo-1")}.tmp`);
     recordMemoryUse(home, "repo-1", ["aaaaaaa"], "2026-11-10");
     expect(readFileSync(victim, "utf8")).toBe("untouched");
-    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, used: { aaaaaaa: "2026-11-10" } });
+    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, since: "2026-11-10", used: { aaaaaaa: "2026-11-10" } });
     expect(readdirSync(join(home, "history", "repo-1")).sort()).toEqual(["memory-use.json", "memory-use.json.tmp"]);
   });
 
@@ -179,6 +195,21 @@ describe("archiveEntry", () => {
     expect(last.ok && last.files["index.md"]).toBe(`# Memory\n\n\n\nIntro  text.\n\n\n${a.text}\n${b.text}\n\n`);
   });
 
+  test("an entry's own fenced code with a # line is moved whole; prose after the entry stays in the source file", () => {
+    const a = block("Rule A");
+    const b = block("Rule B");
+    const fenced = a.text.replace("- why: because\n", "- why: because\n  ```sh\n  # a comment, not a heading\n  ```\n");
+    const note = "A note about the area that is not part of any entry.\n\n| a | b |\n| - | - |\n";
+    const index = `# Memory\n\n${fenced}\n${note}\n## Other area\n\n${b.text}`;
+    expect(parseMemoryFile("index.md", index).entries.map((x) => x.id)).toEqual([a.id, b.id]);
+    const r = archiveEntry({ "index.md": index }, a.id);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.files["archive.md"]).toContain(fenced);
+    expect(r.files["archive.md"]).not.toContain("A note about");
+    expect(r.files["index.md"]).toBe(`# Memory\n\n${note}\n## Other area\n\n${b.text}`);
+  });
+
   test("appends to an existing archive.md; an unknown or already archived id is refused", () => {
     const a = block("Rule A");
     const b = block("Rule B");
@@ -215,14 +246,14 @@ describe("wachiman memory check suggestions and memory archive", () => {
     const b = block(`${A}.`, { scope: "src/**" });
     const old = block("Name files after their module", { added: "2026-05-01" });
     const s = setup([a.text, b.text, old.text]);
-    recordMemoryUse(s.home, s.key(), [], "2026-11-17"); // a review loaded memory and used no entry: the record exists
+    recordMemoryUse(s.home, s.key(), [], "2026-05-01"); // a review loaded memory and used no entry: the record exists, since before the entry was added
     const r = s.run(["check"]);
     expect(r.code).toBe(0);
     expect(r.stderr).toBe("");
     expect(r.stdout).toContain("memory ok");
     expect(r.stdout).toContain(`suggestion: ${a.id} and ${b.id} look like duplicates`);
     expect(r.stdout).toContain(`suggestion: ${old.id}`);
-    expect(r.stdout).toContain("no use recorded on this laptop since it was added 2026-05-01");
+    expect(r.stdout).toContain("no use recorded on this laptop since 2026-05-01");
     expect(r.stdout).toContain(`wachiman memory archive ${old.id}`);
     expect(r.stdout).not.toContain(`suggestion: ${a.id} not used`);
   });
@@ -276,7 +307,7 @@ describe("wachiman memory check suggestions and memory archive", () => {
   test("a problem still exits 1 and suggestions are printed after it", () => {
     const old = block("Name files after their module", { added: "2026-05-01" });
     const s = setup([old.text], { ".wachiman/memory/extra.md": "# not listed\n" });
-    recordMemoryUse(s.home, s.key(), [], "2026-11-17");
+    recordMemoryUse(s.home, s.key(), [], "2026-05-01");
     const r = s.run(["check"]);
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("extra.md:1: is not listed in index.md");

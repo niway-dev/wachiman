@@ -809,7 +809,8 @@ problems: they do not change the exit code, and Wachiman never applies one. No m
 - *Contradictions are not detected.* Telling that two rules disagree needs a model, and `check` calls
   none. Only duplicates are found deterministically.
 - *Archive suggestions.* An entry whose last use is more than `memory.archive_after_days` (default 90)
-  days before today. An entry with no recorded use is measured from its `added` date and reported as "no use
+  days before today. An entry with no recorded use is measured from its `added` date, or from the day the
+  record began if that is later (the record keeps the date of its first recording), and reported as "no use
   recorded on this laptop", which is all the record can say (a use in a pull request review is not in it). When the
   record itself is missing or cannot be read, the use of every entry is unknown: `check` makes no archive
   suggestion and, if some entry is older than the limit by its `added` date, prints one `note:` line saying so
@@ -826,7 +827,7 @@ problems: they do not change the exit code, and Wachiman never applies one. No m
   the laptop. Forgetting the history (`wachiman history --forget`) forgets the record, and every entry
   is then unknown until the next laptop review with history on records one.
 
-`memory archive <id>` moves the entry's text, unchanged, from its file to `.wachiman/memory/archive.md`
+`memory archive <id>` moves the entry's own lines (its heading, fields and their continuations), unchanged, from its file to `.wachiman/memory/archive.md`
 (created when absent), which no review loads. It runs only when you ask. It changes the working tree
 only: nothing is committed, pushed or put in the memory pull request, because the propose write path
 builds a commit on `wachiman/memory` around a new entry and has no step for "apply this change to

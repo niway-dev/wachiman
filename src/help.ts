@@ -478,7 +478,7 @@ const prTemplatePageRoot: Page = {
 const MEMORY_DOCS = `${DOCS}/cli.md#memory`;
 const MEMORY_EXIT: readonly Row[] = [
   ["0", "Done: the memory is clean (or the repository has no .wachiman/memory/ folder; suggestions do not count), the entry was recorded, or the entry was archived"],
-  ["1", "check found a problem; archive found no such entry; or propose refused or failed and wrote nothing (not proposable, pull request closed, push failed), or it recorded the entry but could not open the draft pull request"],
+  ["1", "check found a problem; archive could not move the entry (no such entry, already archived, no memory folder, or a symbolic link in the way) and wrote nothing; or propose refused or failed and wrote nothing (not proposable, pull request closed, push failed), or it recorded the entry but could not open the draft pull request"],
   ["2", "Usage or configuration error: an unknown subcommand, an unknown id, a bad flag, or an invalid .wachiman.yml"],
 ];
 const MEMORY_USAGE = [

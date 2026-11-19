@@ -85,21 +85,25 @@ const daysBetween = (from: string, to: string) => Math.floor((Date.parse(`${to}T
 
 export interface ArchiveSuggestion {
   entry: MemoryEntry;
-  /** The date the age is counted from: the last recorded use, else the `added` date. */
+  /** The date the age is counted from: the last recorded use, else the later of the `added` date and when recording began. */
   since: string;
-  /** Whether a use was recorded after the entry was added; false means no use is recorded, not that none happened off this laptop. */
+  /** Whether a use was recorded on or after the entry's added date; false means no use is recorded, not that none happened off this laptop. */
   usedEver: boolean;
   days: number;
 }
 
-/** Live entries whose last use is more than `afterDays` days before `today`, oldest first. */
-export function archiveSuggestions(entries: MemoryEntry[], lastUse: Record<string, string>, afterDays: number, today: string): ArchiveSuggestion[] {
+/** Live entries whose last use is more than `afterDays` days before `today`, oldest first. `recordingSince` is the date the record began (see `MemoryUse`). */
+export function archiveSuggestions(entries: MemoryEntry[], lastUse: Record<string, string>, afterDays: number, today: string, recordingSince?: string): ArchiveSuggestion[] {
   return entries
     .filter((e) => e.file !== ARCHIVE_FILE)
     .map((entry) => {
       const used = lastUse[entry.id];
-      const since = used && used > entry.added ? used : entry.added;
-      return { entry, since, usedEver: used !== undefined, days: daysBetween(since, today) };
+      // A use dated before the entry was added cannot be a use of this entry (an id reused after an archive and re-add): it counts for nothing.
+      const usedSince = used !== undefined && used >= entry.added;
+      // With no use recorded, the entry is measured from when it was added or when the laptop began recording, whichever is later: before that the record cannot tell.
+      const unusedSince = recordingSince !== undefined && recordingSince > entry.added ? recordingSince : entry.added;
+      const since = usedSince ? used : unusedSince;
+      return { entry, since, usedEver: usedSince, days: daysBetween(since, today) };
     })
     .filter((s) => s.days > afterDays)
     .sort((a, b) => b.days - a.days || a.entry.id.localeCompare(b.entry.id));
@@ -114,10 +118,16 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** `<home>/history/<repo key>/memory-use.json`: the local history store; it never exists in Actions. */
 export const memoryUsePath = (home: string, key: string) => join(historyRoot(home), key, "memory-use.json");
 
-/** The parsed record, `{}` when the file is missing; throws when it exists but cannot be read or is not this format. */
-function loadMemoryUse(home: string, key: string): Record<string, string> {
+interface UseRecord {
+  used: Record<string, string>;
+  /** The date of the first recording; absent in a record written without one. */
+  since?: string;
+}
+
+/** The parsed record, empty when the file is missing; throws when it exists but cannot be read or is not this format. */
+function loadMemoryUse(home: string, key: string): UseRecord {
   const path = memoryUsePath(home, key);
-  if (!existsSync(path)) return {};
+  if (!existsSync(path)) return { used: {} };
   let parsed: any;
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
@@ -127,11 +137,12 @@ function loadMemoryUse(home: string, key: string): Record<string, string> {
   if (parsed?.format !== MEMORY_USE_FORMAT || typeof parsed.used !== "object" || parsed.used === null) {
     throw new Error(`${path} is not a ${MEMORY_USE_FORMAT} record`);
   }
-  return Object.fromEntries(Object.entries(parsed.used).filter(([id, d]) => ID.test(id) && typeof d === "string" && DATE.test(d))) as Record<string, string>;
+  const used = Object.fromEntries(Object.entries(parsed.used).filter(([id, d]) => ID.test(id) && typeof d === "string" && DATE.test(d))) as Record<string, string>;
+  return { used, ...(typeof parsed.since === "string" && DATE.test(parsed.since) ? { since: parsed.since } : {}) };
 }
 
 /** What the laptop knows about use: the dates by entry id, or why it knows nothing (no record, or one that cannot be read). */
-export type MemoryUse = { known: true; used: Record<string, string> } | { known: false; reason: string };
+export type MemoryUse = { known: true; used: Record<string, string>; since?: string } | { known: false; reason: string };
 
 /**
  * The record of last use. A missing or unreadable record is `known: false`, never an empty record:
@@ -141,7 +152,7 @@ export function readMemoryUse(home: string, key: string): MemoryUse {
   const path = memoryUsePath(home, key);
   if (!existsSync(path)) return { known: false, reason: `no use record at ${path}: no laptop review with history on has loaded memory yet` };
   try {
-    return { known: true, used: loadMemoryUse(home, key) };
+    return { known: true, ...loadMemoryUse(home, key) };
   } catch (error) {
     return { known: false, reason: error instanceof Error ? error.message : String(error) };
   }
@@ -181,20 +192,22 @@ export function writeFileAtomically(path: string, text: string, mode: number): v
  * Throws, writing nothing, when an existing record cannot be read or is another format: it is never overwritten.
  */
 export function recordMemoryUse(home: string, key: string, ids: string[], date: string): void {
-  let used: Record<string, string>;
+  let record: UseRecord;
   try {
-    used = loadMemoryUse(home, key);
+    record = loadMemoryUse(home, key);
   } catch (error) {
     throw new Error(`${error instanceof Error ? error.message : error}; it was left as it is`);
   }
+  const used = record.used;
   for (const id of ids) if (!used[id] || used[id] < date) used[id] = date;
+  const since = record.since !== undefined && record.since < date ? record.since : date;
   const path = memoryUsePath(home, key);
   for (const dir of [dirname(dirname(path)), dirname(path)]) {
     if (existsSync(dir)) continue;
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     chmodSync(dir, 0o700);
   }
-  writeFileAtomically(path, `${JSON.stringify({ format: MEMORY_USE_FORMAT, used }, null, 2)}\n`, 0o600);
+  writeFileAtomically(path, `${JSON.stringify({ format: MEMORY_USE_FORMAT, since, used }, null, 2)}\n`, 0o600);
 }
 
 /**
@@ -214,10 +227,42 @@ export function entriesUsed(memory: MemoryLoad | undefined, changedPaths: string
 export type ArchiveResult = { ok: true; from: string; files: Record<string, string> } | { ok: false; reason: string };
 
 const ANY_HEADING = /^#{1,6}\s/;
+const FIELD = /^- [a-z][a-z ]*:/;
+const FENCE_OPENER = /^ {0,3}(`{3,}|~{3,})/;
 
 /**
- * The memory files after entry `id` moves from its file to `archive.md`. The entry's text is moved
- * as it is written; nothing is rewritten. Pure: the caller writes the files.
+ * The index of the last line that belongs to the entry whose heading is at `start`: the heading, its
+ * `- field:` lines and their indented continuations. It stops at the next heading, as the entry parser does,
+ * and skips fenced code blocks the way the parser does (a `#` line inside a fence is not a heading). Free prose or
+ * a table after the fields, up to the next heading, is not part of the entry and is not returned.
+ */
+function lastEntryLine(rows: string[], start: number): number {
+  let last = start;
+  let fence: string | undefined;
+  let seenField = false;
+  for (let i = start + 1; i < rows.length; i++) {
+    const raw = rows[i];
+    const opener = FENCE_OPENER.exec(raw);
+    if (fence !== undefined) {
+      if (opener && opener[1][0] === fence[0] && opener[1].length >= fence.length && raw.trim() === opener[1]) fence = undefined;
+      continue;
+    }
+    if (opener) {
+      fence = opener[1];
+      continue;
+    }
+    if (ANY_HEADING.test(raw)) break;
+    if (FIELD.test(raw)) {
+      seenField = true;
+      last = i;
+    } else if (seenField && /^ {2}\S/.test(raw)) last = i;
+  }
+  return last;
+}
+
+/**
+ * The memory files after entry `id` moves from its file to `archive.md`. The entry's own lines are moved
+ * as they are written; nothing else is rewritten or removed. Pure: the caller writes the files.
  */
 export function archiveEntry(current: Record<string, string>, id: string): ArchiveResult {
   const archived = current[ARCHIVE_FILE] !== undefined && parseMemoryFile(ARCHIVE_FILE, current[ARCHIVE_FILE]).entries.some((e) => e.id === id);
@@ -227,19 +272,11 @@ export function archiveEntry(current: Record<string, string>, id: string): Archi
     if (!entry) continue;
     const rows = text.split("\n");
     const start = entry.line - 1;
-    let end = rows.length;
-    for (let i = start + 1; i < rows.length; i++) {
-      if (ANY_HEADING.test(rows[i])) {
-        end = i;
-        break;
-      }
-    }
-    const block = rows.slice(start, end).join("\n").replace(/\n+$/, "\n");
-    // Only the entry's own block goes, with the one blank line that separated it; the rest of the file keeps every byte.
-    let contentEnd = end;
-    while (contentEnd > start + 1 && rows[contentEnd - 1].trim() === "") contentEnd--;
+    const contentEnd = lastEntryLine(rows, start) + 1;
+    const block = `${rows.slice(start, contentEnd).join("\n")}\n`;
+    // Only the entry's own lines go, with the one blank line that separated it; the rest of the file keeps every byte.
     let rest: string;
-    if (end === rows.length) {
+    if (rows.slice(contentEnd).every((r) => r.trim() === "")) {
       const from = start > 0 && rows[start - 1] === "" ? start - 1 : start;
       rest = [...rows.slice(0, from), ...(text.endsWith("\n") ? [""] : [])].join("\n");
     } else {

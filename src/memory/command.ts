@@ -135,8 +135,8 @@ function printSuggestions(files: Record<string, string>, settings: { archiveAfte
       const old = archiveSuggestions(entries, {}, settings.archiveAfterDays, date).length;
       if (old > 0) lines.push(`note: ${old} entr${old === 1 ? "y is" : "ies are"} older than memory.archive_after_days (${settings.archiveAfterDays}) by added date, but whether ${old === 1 ? "it was" : "they were"} used is unknown, so no archive suggestion is made: ${use.reason}.`);
     } else {
-      for (const s of archiveSuggestions(entries, use.used, settings.archiveAfterDays, date)) {
-        const last = s.usedEver ? `last used ${s.since}` : `no use recorded on this laptop since it was added ${s.since}`;
+      for (const s of archiveSuggestions(entries, use.used, settings.archiveAfterDays, date, use.since)) {
+        const last = s.usedEver ? `last used ${s.since}` : `no use recorded on this laptop since ${s.since}`;
         lines.push(`suggestion: ${s.entry.id} ${last} (${plural(s.days)} ago), over memory.archive_after_days (${settings.archiveAfterDays}): "${s.entry.title}" (${where(s.entry)}). \`wachiman memory archive ${s.entry.id}\` moves it to ${ARCHIVE_FILE}.`);
       }
     }
