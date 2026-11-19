@@ -84,7 +84,7 @@ export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: Ca
     const root = repositoryRoot(repoDir);
     const key = repositoryKey(repoDir).key;
     const home = historyRoot(wachimanHome(ctx.env ?? process.env));
-    const report = buildReport({ runs: readRuns(home, key, (line) => io.stderr(line)), verdicts: readVerdicts(home, key), files: readMemoryFolder(root), used: readMemoryUse(wachimanHome(ctx.env ?? process.env), key), since: args.since });
+    const report = buildReport({ runs: readRuns(home, key, (line) => io.stderr(line)), verdicts: readVerdicts(home, key), files: readMemoryFolder(root), use: readMemoryUse(wachimanHome(ctx.env ?? process.env), key), since: args.since });
     io.stdout(args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report));
     return 0;
   }

@@ -12,7 +12,7 @@ import { appendVerdict, repositoryKey, writeRun } from "../history/store";
 import { HISTORY_RUN_FORMAT, type HistoryRun, type VerdictLine } from "../history/types";
 import { runMemory } from "./command";
 import { entryId } from "./entries";
-import { recordMemoryUse } from "./hygiene";
+import { recordMemoryUse, type MemoryUse } from "./hygiene";
 import { buildReport, parseReportArgs, renderReport } from "./report";
 
 const temps: string[] = [];
@@ -29,7 +29,7 @@ afterAll(() => {
 const entryText = (kind: string, scope: string, rule: string) => {
   const why = `${rule} because.`;
   const id = entryId({ kind, scope, rule, why });
-  return { id, text: `### ${id} ${rule}\n\n- kind: ${kind}\n- scope: ${scope}\n- rule: ${rule}\n- why: ${why}\n- evidence:\n  - 2026-11-01 operator instruction, pull request 1\n- added: 2026-11-01\n` };
+  return { id, text: `### ${id} ${rule}\n\n- kind: ${kind}\n- scope: ${scope}\n- rule: ${rule}\n- why: ${why}\n- evidence:\n  - 2026-11-01 operator instruction, pull request 1\n- added: 2026-10-01\n` };
 };
 const MUTER = entryText("exception", "docs/**", "Do not report stale dates on wording edits");
 const IDLE = entryText("exception", "src/legacy/**", "Do not report the legacy naming");
@@ -41,7 +41,8 @@ const FILES = {
   "apps.md": IDLE_CONVENTION.text,
 };
 /** Layer 6's record of use: two entries were used, the other two never. */
-const USED: Record<string, string> = { [MUTER.id]: "2026-11-03", [USED_CONVENTION.id]: "2026-10-20" };
+const USED_DATES: Record<string, string> = { [MUTER.id]: "2026-11-03", [USED_CONVENTION.id]: "2026-10-20" };
+const USED: MemoryUse = { known: true, used: USED_DATES };
 const lines = (text: string) => text.replace(/\n$/, "").split("\n").length;
 const FILE_LINES = Object.values(FILES).reduce((n, t) => n + lines(t), 0);
 
@@ -78,7 +79,7 @@ const VERDICTS = new Map([verdict("f3", "wrong"), verdict("f4", "not-important")
 
 describe("buildReport", () => {
   test("counts each comment once, in the month of its first run, by its outcome today", () => {
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED });
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED });
     const [october, november] = report.periods;
     expect(october).toMatchObject({ period: "2026-10", comments: 3, outcomes: { fixed: 1, wrong: 1, intentional: 0, notImportant: 0, unjudged: 1 } });
     expect(november).toMatchObject({ period: "2026-11", comments: 1, outcomes: { fixed: 0, wrong: 0, intentional: 0, notImportant: 1, unjudged: 0 } });
@@ -86,25 +87,25 @@ describe("buildReport", () => {
   });
 
   test("a verdict beats the loop's own settling, and correct or partial without a fix stays unjudged", () => {
-    const report = buildReport({ runs: runs(), verdicts: new Map([verdict("f2", "intentional"), verdict("f1", "correct")]), files: FILES, used: USED });
+    const report = buildReport({ runs: runs(), verdicts: new Map([verdict("f2", "intentional"), verdict("f1", "correct")]), files: FILES, use: USED });
     expect(report.periods[0].outcomes).toEqual({ fixed: 0, wrong: 0, intentional: 1, notImportant: 0, unjudged: 2 });
   });
 
   test("findings muted by memory: the count, and each entry id with its count", () => {
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED });
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED });
     expect(report.periods[0].muted).toEqual({ count: 0, byEntry: {} });
     expect(report.periods[1].muted).toEqual({ count: 3, byEntry: { [MUTER.id]: 2, "0000000": 1 } });
     expect(report.total.muted).toEqual({ count: 3, byEntry: { [MUTER.id]: 2, "0000000": 1 } });
   });
 
   test("memory size is the working tree's, and each period says how many lines its last run loaded", () => {
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED });
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED });
     expect(report.memory).toEqual({ present: true, files: 3, entries: 4, lines: FILE_LINES });
     expect(report.periods.map((p) => p.memoryLoadedLines)).toEqual([30, 40]);
   });
 
   test("entries never used: the entries layer 6's record of use has no date for", () => {
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED });
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED });
     expect(report.neverUsed.map((e) => e.id).sort()).toEqual([IDLE.id, IDLE_CONVENTION.id].sort());
     expect(report.neverUsed.find((e) => e.id === IDLE.id)).toMatchObject({ kind: "exception", file: "index.md" });
   });
@@ -112,57 +113,71 @@ describe("buildReport", () => {
   test("archive.md is never loaded: its entries are not live memory and are not listed as never used", () => {
     const archived = entryText("convention", "lib/**", "Keep helpers pure");
     const files = { ...FILES, "archive.md": archived.text };
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files, used: USED });
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files, use: USED });
     expect(report.memory).toEqual({ present: true, files: 3, entries: 4, lines: FILE_LINES });
     expect(report.neverUsed.map((e) => e.id)).not.toContain(archived.id);
   });
 
   test("--since keeps the runs and comments from that date on, the way the whole history does", () => {
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED, since: "2026-11-01" });
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED, since: "2026-11-01" });
     expect(report.periods.map((p) => p.period)).toEqual(["2026-11"]);
     expect(report.total.comments).toBe(1);
     expect(report.since).toBe("2026-11-01");
   });
 
   test("--since counts an entry as used only when its last use is on or after that day", () => {
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED, since: "2026-11-01" });
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED, since: "2026-11-01" });
     expect(report.neverUsed.map((e) => e.id).sort()).toEqual([IDLE.id, IDLE_CONVENTION.id, USED_CONVENTION.id].sort());
   });
 
-  test("no record of use at all: never-used is unknown, not every entry", () => {
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: {} });
-    expect(report.neverUsed).toBeNull();
-    expect(report.neverUsedReason).toBe("no-use-recorded");
-    const text = renderReport(report);
-    expect(text).toContain("Entries never used: unknown, no use was recorded");
-    expect(text).not.toContain(IDLE.id);
-    const withUse = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED });
+  test("no readable record of use: never-used is unknown, not every entry", () => {
+    for (const use of [{ known: false, reason: "no use record" }, { known: false, reason: "memory-use.json is not valid JSON" }] as MemoryUse[]) {
+      const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use });
+      expect(report.neverUsed).toBeNull();
+      expect(report.neverUsedReason).toBe("no-use-recorded");
+      const text = renderReport(report);
+      expect(text).toContain("Entries never used: unknown, this laptop has no readable record of use");
+      expect(text).not.toContain(IDLE.id);
+    }
+    const withUse = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED });
     expect(withUse.neverUsedReason).toBeNull();
+  });
+
+  test("a readable record with no dates is a real answer: every entry is listed as never used", () => {
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: { known: true, used: {} } });
+    expect(report.neverUsed).toHaveLength(4);
+    expect(report.neverUsedReason).toBeNull();
+  });
+
+  test("a use dated before the entry was added is not a use of it", () => {
+    const early = { known: true, used: { ...USED_DATES, [IDLE.id]: "2026-09-30" } } as MemoryUse;
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: early });
+    expect(report.neverUsed!.map((e) => e.id)).toContain(IDLE.id);
   });
 
   test("memory lines is the period's last run's value, null when that run recorded none", () => {
     const all = runs();
     delete (all[1].result as unknown as { memory?: unknown }).memory;
-    const report = buildReport({ runs: all, verdicts: VERDICTS, files: FILES, used: USED });
+    const report = buildReport({ runs: all, verdicts: VERDICTS, files: FILES, use: USED });
     expect(report.periods.map((p) => p.memoryLoadedLines)).toEqual([30, null]);
     expect(report.total.memoryLoadedLines).toBeNull();
   });
 
   test("a repository with no memory folder reports zero size and nothing never used", () => {
-    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: undefined, used: USED });
+    const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: undefined, use: USED });
     expect(report.memory).toEqual({ present: false, files: 0, entries: 0, lines: 0 });
     expect(report.neverUsed).toEqual([]);
   });
 
   test("no runs: empty, and the text says so", () => {
-    const report = buildReport({ runs: [], verdicts: new Map(), files: FILES, used: USED });
+    const report = buildReport({ runs: [], verdicts: new Map(), files: FILES, use: USED });
     expect(report.empty).toBe(true);
     expect(report.periods).toEqual([]);
     expect(renderReport(report)).toContain("No review history");
   });
 
   test("the table has one row per period and a total, and lists the entries", () => {
-    const text = renderReport(buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, used: USED }));
+    const text = renderReport(buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED }));
     expect(text).toMatch(/period\s+comments\s+fixed\s+wrong\s+intentional\s+not important\s+unjudged\s+muted/);
     expect(text).toMatch(/2026-10\s+3\s+1\s+1\s+0\s+0\s+1\s+0/);
     expect(text).toMatch(/2026-11\s+1\s+0\s+0\s+0\s+1\s+0\s+3/);

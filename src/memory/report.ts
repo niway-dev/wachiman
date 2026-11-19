@@ -14,6 +14,7 @@ import { replay } from "../history/match";
 import type { HistoryRun, VerdictLine } from "../history/types";
 import { parseMemoryFile, type MemoryKind } from "./entries";
 import { ARCHIVE_FILE, lineCount, MEMORY_DIR } from "./load";
+import type { MemoryUse } from "./hygiene";
 
 export const MEMORY_REPORT_FORMAT = "wachiman.memory-report/1";
 
@@ -56,7 +57,7 @@ export interface MemoryReport {
   memory: { present: boolean; files: number; entries: number; lines: number };
   /** Entries of that folder no run used: see `buildReport`. Null when no use was recorded at all, so none can be called unused. */
   neverUsed: NeverUsedEntry[] | null;
-  /** `no-use-recorded` when `neverUsed` is null (history off, or never run), else null. */
+  /** `no-use-recorded` when `neverUsed` is null (no record of use, or one that cannot be read), else null. */
   neverUsedReason: "no-use-recorded" | null;
 }
 
@@ -65,8 +66,8 @@ export interface ReportInput {
   verdicts: Map<string, VerdictLine>;
   /** The text of every `.md` file directly in `.wachiman/memory/`; undefined without the folder. */
   files: Record<string, string> | undefined;
-  /** Layer 6's local record of use (`readMemoryUse`): entry id to the date of its last use. The only source for "never used". */
-  used: Record<string, string>;
+  /** Layer 6's local record of use (`readMemoryUse`): entry id to the date of its last use, or why none is known. The only source for "never used". */
+  use: MemoryUse;
   /** `YYYY-MM-DD`: only runs saved on or after this day count. */
   since?: string;
 }
@@ -76,7 +77,9 @@ const blank = (period: string): ReportPeriod => ({ period, comments: 0, outcomes
 
 /**
  * `neverUsed` reads the layer 6 record of use, not the runs: an entry is used when the record has a
- * last-use date for its id on or after `since` (any date without `since`).
+ * last-use date for its id on or after `since` (any date without `since`) and not before the entry was
+ * added (an id reused after an archive and re-add; the same rule as `memory check`). A missing or
+ * unreadable record is unknown, never "no entry was used"; a readable record with no dates is a real "none used".
  */
 export function buildReport(input: ReportInput): MemoryReport {
   const inWindow = (run: HistoryRun) => input.since === undefined || run.savedAt.slice(0, 10) >= input.since;
@@ -127,10 +130,14 @@ export function buildReport(input: ReportInput): MemoryReport {
   const entries = [...names]
     .sort()
     .flatMap((name) => parseMemoryFile(name, input.files![name]).entries);
-  // An empty record means use was never recorded (history off, or no review since): that is not "no entry was used".
-  const unknown = Object.keys(input.used).length === 0;
+  // A missing or unreadable record means use is unknown: that is not "no entry was used".
+  const unknown = !input.use.known;
+  const lastUse = input.use.known ? input.use.used : {};
   const neverUsed: NeverUsedEntry[] = entries
-    .filter((e) => input.used[e.id] === undefined || (input.since !== undefined && input.used[e.id] < input.since))
+    .filter((e) => {
+      const used = lastUse[e.id];
+      return used === undefined || used < e.added || (input.since !== undefined && used < input.since);
+    })
     .map((e) => ({ id: e.id, title: e.title, kind: e.kind, scope: e.scope, file: e.file }));
 
   return {
@@ -163,7 +170,7 @@ export function renderReport(report: MemoryReport): string {
   out.push(muters.length === 0 ? "Muted by memory: nothing." : `Muted by memory, by entry: ${muters.map(([id, n]) => `${id}: ${n}`).join(", ")}`);
   const m = report.memory;
   out.push(m.present ? `Memory now (${MEMORY_DIR}/ in the working tree): ${m.files} files, ${m.entries} entries, ${m.lines} lines.` : `Memory now: no ${MEMORY_DIR}/ folder in the working tree.`);
-  if (report.neverUsed === null) out.push("Entries never used: unknown, no use was recorded (run `wachiman local --history` to start recording it).");
+  if (report.neverUsed === null) out.push("Entries never used: unknown, this laptop has no readable record of use (run `wachiman local --history` to start recording it).");
   else if (report.neverUsed.length === 0) out.push("Entries never used: none.");
   else {
     out.push(`Entries never used (${report.neverUsed.length}):`);

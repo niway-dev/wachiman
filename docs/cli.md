@@ -913,9 +913,11 @@ or after that day. With no history in the window it prints `No review history ..
 - **Entries never used.** Read from the laptop's record of when each entry was last used (the
   `memory-use.json` file in the history folder that `memory check` also reads, so the two never
   disagree): an entry is used when that record has a last-use date for it, on or after `--since` when
-  given. When that record is empty (history off, or no review since it was turned on) nothing is
-  known about use: the text says so and the JSON has `"neverUsed": null` with
-  `"neverUsedReason": "no-use-recorded"`, instead of listing every entry. An entry that is used often and wrong is not caught by this; the `holds while` notice is
+  given, and not before the entry's `added` date. When there is no record, or it cannot be read,
+  nothing is known about use: the text says so and the JSON has `"neverUsed": null` with
+  `"neverUsedReason": "no-use-recorded"`, instead of listing every entry. A record that exists and
+  has no dates (history was on, nothing was used) is a real answer: every entry is listed. An entry
+  that is used often and wrong is not caught by this; the `holds while` notice is
   for that.
 
 `--format json` prints `wachiman.memory-report/1`:
