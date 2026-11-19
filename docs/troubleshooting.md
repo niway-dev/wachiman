@@ -203,13 +203,14 @@ and check that the key is active and that the workspace has credit and no exhaus
 ### The subscription token is rejected, or the plan's limit is reached
 
 On a run that passes `CLAUDE_CODE_OAUTH_TOKEN`, a refused call posts a notice worded for the
-subscription, never one that tells you to check `ANTHROPIC_API_KEY`:
+subscription, never one that tells you to check `ANTHROPIC_API_KEY`. Each notice names who acts and
+what to do in a "What to do" table:
 
-- "the reviewer's Claude subscription token was rejected": the token expired (they last one year),
+- "the Claude subscription token was rejected": the token expired (they last one year),
   was revoked, or was copied wrong. Make a new one with `claude setup-token` while signed in to the
   account whose plan should pay, save it with `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo OWNER/REPO`,
   and re-run.
-- "the reviewer's Claude subscription refused the call (usage limit or plan access)": the plan's
+- "the Claude subscription refused the call (usage limit or plan access)": the plan's
   usage limit is spent, or the plan no longer allows Claude Code. Wait for the limit to reset and
   re-run. The review never switches to an API key by itself, even if one is also set in the
   repository. The exact text Claude Code prints for a usage limit has not been captured in a real
@@ -263,7 +264,7 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
 | `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log of that call has a readable line (`❌ batch 1/1: the Anthropic API refused the call: the account has no credit…`) next to a JSON line with `error_class` and `error`. Batches that were already running when the call was refused finish; none starts after it. Fix the account, then re-run. |
 
-If **no** batch produced a review because the provider refused the calls, the job posts one notice ("Not reviewed: the reviewer's Anthropic account has no credit", "...API key was rejected" or "...kept rate-limiting the reviewer"; on a subscription token, the notices of the section above) with the provider's message quoted, and the check passes. Set `on_provider_unavailable: fail` to make it fail instead. A failed check blocks a merge only when the repository's branch rules require `Wachiman review`; otherwise it is only a red mark. The classification matches the CLI's error text against a short list of phrases (`src/providers/errors.ts`). Only the no-credit message (`Credit balance is too low`) is confirmed against a live run; the others are from memory of Anthropic's messages; an error it does not recognise is `other` and always fails the job, with the text in the error message.
+If **no** batch produced a review because the provider refused the calls, the job posts one notice ("⛔ Not reviewed: the Anthropic account has no credit", "...the API key was rejected" or "...the Anthropic API kept rate-limiting the reviewer"; on a subscription token, the notices of the section above) and the check passes. A "What to do" table says who acts, the fix, what this run spent and what the provider said, quoted. When an automatic run's refusal spent nothing, its review carries a hidden marker. If that review is still the latest review of the bot when the next refusal comes, the next refusal edits it in place instead of adding an identical one. The footer's "over N automatic runs" counts review bodies, so after repeated edits it stops growing (one body stands for all the refusals it replaced); the dollars are unaffected. After any other review, a refusal that spent money, or a refusal on a run someone started by comment, it is a new review. Set `on_provider_unavailable: fail` to make the job fail instead. A failed check blocks a merge only when the repository's branch rules require `Wachiman review`; otherwise it is only a red mark. The classification matches the CLI's error text against a short list of phrases (`src/providers/errors.ts`). Only the no-credit message (`Credit balance is too low`) is confirmed against a live run; the others are from memory of Anthropic's messages; an error it does not recognise is `other` and always fails the job, with the text in the error message.
 
 The source also defines the labels `ran out of its budget`, `hit the turn limit`, `timed out`,
 `the call failed` and `returned no review`, but the retry logic replaces them with one of the statuses above whenever a batch has a

@@ -302,7 +302,7 @@ through its `WACHIMAN_PUSH_DEBOUNCE_SECONDS` variable.
 | The push… | …and the engine does |
 | --- | --- |
 | Adds commits on top of the last reviewed one | Reviews only the files changed since it. The first line says "review of the changes since `…`". |
-| Rebases or force-pushes with no change in the pull request's own lines (also a stacked pull request after its parent merged) | Calls no model. Posts one line, "Rebased onto `…`, no new changes since `…`", so the marker moves to the new head and the next push is compared with it. |
+| Rebases or force-pushes with no change in the pull request's own lines (also a stacked pull request after its parent merged) | Calls no model. Posts one line, "No new changes to review: the branch was updated from `main` (`old` → `new`). The previous review still applies.", so the marker moves to the new head and the next push is compared with it. It records no cost, so the spend ceiling does not count it. |
 | Rebases and changes some files | Reviews only the files whose added or removed lines differ from the last review, and every file that is new or has no diff. The first line says "(after a rebase)". |
 | Rebases and the old commit cannot be compared (GitHub no longer has it, or the old change lists 300 or more files) | Reviews the whole pull request. |
 
@@ -321,8 +321,8 @@ top, and GitHub's compare lists the merged branch's files. Those are not part of
 files, only the ones whose change differs from the reviewed one are candidates. In a candidate file
 both branches changed, compare also shows the merged branch's lines as added: only the rows the
 author wrote go to the model, the merged branch's added lines are shown as context and its deleted
-lines are left out. A merge that leaves no row of the author's posts a one-line "Brought up to date
-with the base branch" marker and calls no model. This narrowing applies only when a merge commit is
+lines are left out. A merge that leaves no row of the author's posts the same one-line "No new changes
+to review" notice and calls no model. This narrowing applies only when a merge commit is
 among the commits since the last review, or when those commits cannot be read in full (GitHub lists
 at most 250); a push with no merge commit sends each candidate file's patch as it is.
 

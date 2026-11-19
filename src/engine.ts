@@ -113,7 +113,7 @@ import { fidelitySummary } from "./fidelity/summary";
 import { publishConfidence } from "./fidelity/sink";
 import type { Fidelity } from "./fidelity/types";
 import type { ProviderErrorClass } from "./providers/errors";
-import type { Effort, ProviderAdapter } from "./providers/types";
+import type { Effort, ProviderAdapter, ProviderAuth } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 import { buildRiskMap, renderRiskMap, wellFormed, type JudgementItem, type RiskFact, type RiskMap } from "./risk";
 import { ASK_SCHEMA, buildAskPrompt, checkRefs, isAskAnswer, renderAnswer } from "./ask";
@@ -3193,6 +3193,24 @@ function reviewUrlOf(answer: string): string | undefined {
   }
 }
 
+/**
+ * The review a push posts when nothing in it needs reading: the branch was only brought up to date
+ * with its base (a merge, or a rebase with the same changes). One wording for both. It makes no
+ * model call, so it carries no cost line, no automatic flag and no model: the ceiling does not
+ * count it. It still carries the marker, so the next push is compared with this head.
+ */
+export function baseUpdateNotice(o: { base?: string; from: string; to: string; version?: string }, headMarker: string) {
+  const base = o.base ? `\`${o.base.replaceAll("`", "'")}\`` : "the base branch";
+  return [
+    branded(
+      `No new changes to review: the branch was updated from ${base} (\`${short(o.from)}\` → \`${short(o.to)}\`). The previous review still applies.`,
+    ),
+    `<sub>Wachiman ${o.version ?? "unknown"}</sub>`,
+    SIGNATURE.review,
+    headMarker,
+  ].join("\n\n");
+}
+
 /** Posts the review. Returns its address when GitHub gave one (the description block links to it). */
 export function postReview(deps: Deps, repo: string, pr: number, headSha: string, review: Review): string | undefined {
   if (deps.config.dryRun) {
@@ -3247,6 +3265,139 @@ export function postReview(deps: Deps, repo: string, pr: number, headSha: string
     sendWithRetry(moveCommentsToBody(review));
   }
   return url;
+}
+
+/** What a provider can refuse with: no money or quota, a rejected credential, or a rate limit that outlasted the retry. */
+export type RefusalKind = "billing" | "auth" | "rate_limit";
+
+/**
+ * The hidden marker of a $0 refusal notice (billing, auth, rate limit). The next refusal finds it
+ * on the latest bot review and edits that review in place instead of posting an identical one
+ * (ADR 0055). A notice that spent money never carries it: the ceiling counts its cost line, and
+ * an edit would erase it.
+ */
+export const refusalMarker = (kind: RefusalKind) => `<!-- wachi:refusal kind=${kind} -->`;
+/**
+ * A refusal notice of an automatic run: the marker is a block of its own, and the engine's review
+ * signature ends the body (an attempt line may follow). Anchored like the other footer readers, so
+ * text that merely contains the marker, or a signature somewhere in the middle, never matches.
+ */
+const REFUSAL_NOTICE = new RegExp(
+  `\\n\\n<!-- wachi:refusal kind=(?:billing|auth|rate_limit) -->\\n\\n[\\s\\S]*\\n\\n${SIGNATURE_REVIEW_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`,
+);
+
+const RERUN = 'the "Wachiman review" job in the Actions tab, or push again';
+
+/**
+ * The notice for a provider that refused the call: a headline that says what happened, and a
+ * "What to do" table that says who acts, what to do, what was spent and what the provider said.
+ * Who and Fix branch on how the reviewer pays: a Claude subscription token or an API key.
+ */
+export function refusalNotice(o: {
+  kind: RefusalKind;
+  /** `oauth-token` is a Claude subscription; anything else is an API key. */
+  auth: ProviderAuth | undefined;
+  /** The provider's own text, if any; it is neutralised and cut here. */
+  detail: string;
+  /** What this run spent, in dollars. */
+  spentUsd: number;
+  /** What the pull request's automatic runs have spent before this one; absent for a run the ceiling does not count. */
+  priorSpentUsd?: number;
+}): { headline: string; table: string } {
+  const owner = (secret: string) => `The repository owner, who holds the \`${secret}\` secret`;
+  const subscription = o.auth === "oauth-token";
+  const [headline, who, fix] = (
+    subscription
+      ? {
+          billing: [
+            "the Claude subscription refused the call (usage limit or plan access)",
+            owner("CLAUDE_CODE_OAUTH_TOKEN"),
+            `Wait for the usage limit to reset, or check that the plan gives access, then re-run ${RERUN}. Wachiman does not fall back to an API key`,
+          ],
+          auth: [
+            "the Claude subscription token was rejected",
+            owner("CLAUDE_CODE_OAUTH_TOKEN"),
+            `Replace the \`CLAUDE_CODE_OAUTH_TOKEN\` secret (a token lasts a year; \`claude setup-token\` makes a new one), then re-run ${RERUN}`,
+          ],
+          rate_limit: ["Claude kept rate-limiting the reviewer", "Anyone who can re-run workflows", `Re-run later: ${RERUN}`],
+        }
+      : {
+          billing: [
+            "the Anthropic account has no credit",
+            owner("ANTHROPIC_API_KEY"),
+            `Add credit to that Anthropic account, then re-run ${RERUN}`,
+          ],
+          auth: [
+            "the API key was rejected",
+            owner("ANTHROPIC_API_KEY"),
+            `Check the \`ANTHROPIC_API_KEY\` secret, then re-run ${RERUN}`,
+          ],
+          rate_limit: [
+            "the Anthropic API kept rate-limiting the reviewer",
+            "Anyone who can re-run workflows",
+            `Re-run later: ${RERUN}`,
+          ],
+        }
+  )[o.kind];
+  const thisRun = o.spentUsd === 0 ? "Nothing this run" : `$${o.spentUsd.toFixed(2)} this run`;
+  const total = o.priorSpentUsd === undefined ? "" : ` · PR so far $${(o.priorSpentUsd + o.spentUsd).toFixed(2)}`;
+  // The provider's own text: comments defused and cut to one short line here, whatever the caller did, then escaped for a table cell.
+  const text = oneLine(o.detail, 300).replaceAll("`", "'");
+  const said = text ? `\`${cell(text)}\`` : "no text";
+  const table = [
+    "| What to do | |",
+    "| --- | --- |",
+    `| **Who** | ${who} |`,
+    `| **Fix** | ${fix} |`,
+    `| **Spent** | ${thisRun}${total} |`,
+    `| **Provider said** | ${said} |`,
+  ].join("\n");
+  return { headline: `⛔ **Not reviewed**: ${headline}`, table };
+}
+
+/**
+ * Posts a $0 refusal notice. When the latest review of the bot is itself a $0 refusal notice (it
+ * carries `refusalMarker`), that review's body is replaced with one `PUT` instead of a new review:
+ * the same refusal on each push was 68 identical reviews in three days. A `PUT` with the same body
+ * is idempotent, so a transient error repeats it with no `wachi:attempt` check. Any other latest
+ * review, or a `PUT` that fails, posts a new review. Only the engine's own signed notices count, so
+ * a person cannot plant the marker; the bot's login is shared by every workflow of the repository.
+ * Only an automatic run's notice is edited or edited over: it carries the cost line and the
+ * signature the ceiling reads, and a manual run's body has neither.
+ */
+export function postRefusalReview(deps: Deps, repo: string, pr: number, headSha: string, review: Review): string | undefined {
+  if (deps.config.dryRun) return postReview(deps, repo, pr, headSha, review);
+  const sleep = deps.sleep ?? blockingSleep;
+  const jq = '.[] | select(.user.login == "github-actions[bot]") | {id, body} | @json';
+  let latest: { id: number; body: string | null } | undefined;
+  try {
+    const reviews = jsonLines<{ id: number; body: string | null }>(
+      deps.gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/reviews`, "--jq", jq]),
+    );
+    latest = reviews[reviews.length - 1];
+  } catch (error) {
+    deps.warn(`Could not list the reviews to look for an earlier refusal; posting a new review. ${error}`);
+  }
+  if (latest && REFUSAL_NOTICE.test((latest.body ?? "").trimEnd())) {
+    for (let retry = 0; ; retry++) {
+      try {
+        const answer = deps.gh(
+          ["api", "-X", "PUT", `repos/${repo}/pulls/${pr}/reviews/${latest.id}`, "--input", "-"],
+          JSON.stringify({ body: review.body }),
+        );
+        return reviewUrlOf(answer);
+      } catch (error) {
+        const delay = REVIEW_RETRY_DELAYS_MS[retry];
+        if (!isTransientReviewError(error) || delay === undefined) {
+          deps.warn(`Could not edit the earlier refusal notice; posting a new review. ${error}`);
+          break;
+        }
+        deps.warn(`GitHub answered with a transient error; retrying in ${delay / 1000} s. ${error}`);
+        sleep(delay);
+      }
+    }
+  }
+  return postReview(deps, repo, pr, headSha, review);
 }
 
 /**
@@ -4191,7 +4342,7 @@ export function githubReview(
 export async function review(deps: Deps, repo: string, pr: number, words: string[], force = false) {
   const { gh, config } = deps;
   const meta = JSON.parse(
-    gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,title,body,author"]),
+    gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,baseRefName,title,body,author"]),
   );
   const headSha: string = meta.headRefOid;
   const bodyOnly = (body: string) =>
@@ -4262,11 +4413,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
         deps.log(why);
         // The marker moves so that the next push is compared with this head, not with the old one.
         postReview(deps, repo, pr, headSha, {
-          body: [
-            branded(`Brought up to date with the base branch, no new changes since \`${short(last)}\`.`),
-            SIGNATURE.review,
-            marker(headSha),
-          ].join("\n\n"),
+          body: baseUpdateNotice({ base: meta.baseRefName, from: last, to: headSha, version: deps.engineVersion }, marker(headSha)),
           comments: [],
         });
       };
@@ -4327,11 +4474,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
         );
         // The marker moves so that the next push is compared with this head, not with the old one.
         postReview(deps, repo, pr, headSha, {
-          body: [
-            branded(`Rebased onto \`${short(base)}\`, no new changes since \`${short(last)}\`.`),
-            SIGNATURE.review,
-            marker(headSha),
-          ].join("\n\n"),
+          body: baseUpdateNotice({ base: meta.baseRefName, from: last, to: headSha, version: deps.engineVersion }, marker(headSha)),
           comments: [],
         });
         return;
@@ -4453,50 +4596,46 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
 
   if (result.execution.callsWithOutput === 0) {
     // A failed automatic run still spent money: its notice carries the cost line the ceiling sums.
-    const spentNotice = (text: string) =>
-      isAutomatic(config.trigger)
-        ? postReview(deps, repo, pr, headSha, {
-            body: [
-              branded(text),
-              ...(receiptLine ? [receiptLine] : []),
-              costLine({
-                modelLabel: result.provider.label,
-                effort: config.effort,
-                operation,
-                extra: prior ? [prSoFar(prior, spent)] : [],
-                usage,
-                estimate: onSubscription(deps),
-                costUsd: spent,
-              }),
-              SIGNATURE.auto,
-              SIGNATURE.review,
-            ].join("\n\n"),
-            comments: [],
-          })
-        : // A manual run keeps its receipt and forced/bypass lines, but not `SIGNATURE.auto`: the ceiling does not count it.
-          receiptLine
-          ? postReview(deps, repo, pr, headSha, { body: [branded(text), receiptLine].join("\n\n"), comments: [] })
-          : bodyOnly(text);
+    // A manual run keeps its receipt and forced/bypass lines, but not `SIGNATURE.auto`: the ceiling does not count it.
+    // `replaceable` is for a $0 refusal only: it may edit the earlier refusal notice in place.
+    const sendNotice = (blocks: string[], replaceable = false) => {
+      const body = isAutomatic(config.trigger)
+        ? [
+            ...blocks,
+            ...(receiptLine ? [receiptLine] : []),
+            costLine({
+              modelLabel: result.provider.label,
+              effort: config.effort,
+              operation,
+              extra: prior ? [prSoFar(prior, spent)] : [],
+              usage,
+              estimate: onSubscription(deps),
+              costUsd: spent,
+            }),
+            SIGNATURE.auto,
+            SIGNATURE.review,
+          ].join("\n\n")
+        : [...blocks, ...(receiptLine ? [receiptLine] : [])].join("\n\n");
+      return (replaceable ? postRefusalReview : postReview)(deps, repo, pr, headSha, { body, comments: [] });
+    };
+    const spentNotice = (text: string) => sendNotice([branded(text)]);
     const { rejection, stop } = result.execution;
     const refused = rejection && rejection.kind !== "other" ? { kind: rejection.kind, text: rejection.text } : undefined;
     if (refused) {
-      // On a subscription token the key is not the credential: say what fits it, and that nothing falls back to a key.
-      const headline = (
-        deps.provider.auth === "oauth-token"
-          ? {
-              billing: "**Not reviewed: the reviewer's Claude subscription refused the call (usage limit or plan access).** Re-run after the limit resets. Wachiman does not fall back to an API key.",
-              auth: "**Not reviewed: the reviewer's Claude subscription token was rejected.** Check the `CLAUDE_CODE_OAUTH_TOKEN` secret (a token lasts a year; make a new one with `claude setup-token`), then re-run.",
-              rate_limit: "**Not reviewed: Claude kept rate-limiting the reviewer.** Re-run later.",
-            }
-          : {
-              billing: "**Not reviewed: the reviewer's Anthropic account has no credit.** Top up, then re-run this job.",
-              auth: "**Not reviewed: the reviewer's API key was rejected.** Check the `ANTHROPIC_API_KEY` secret, then re-run.",
-              rate_limit: "**Not reviewed: the Anthropic API kept rate-limiting the reviewer.** Re-run later.",
-            }
-      )[refused.kind];
       // `oneLine` neutralises the text and cuts it at 300 characters.
       const detail = oneLine(refused.text, 300);
-      spentNotice(detail ? `${headline}\n\n> ${detail}` : headline);
+      const { headline, table } = refusalNotice({
+        kind: refused.kind,
+        auth: deps.provider.auth,
+        detail,
+        spentUsd: spent,
+        ...(prior ? { priorSpentUsd: prior.spent } : {}),
+      });
+      // Only an automatic run's notice that spent nothing may be replaced by the next one, and only it
+      // carries the marker. A manual run's body has no signature and no cost line, so replacing an
+      // automatic notice with it would erase that run from the ceiling.
+      const free = spent === 0 && isAutomatic(config.trigger);
+      sendNotice([branded(headline), table, ...(free ? [refusalMarker(refused.kind)] : [])], free);
       if (config.onProviderUnavailable === "fail") {
         throw new Error(`Not reviewed: the provider rejected the call (${refused.kind}): ${detail || "no error text"}`);
       }

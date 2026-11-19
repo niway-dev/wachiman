@@ -519,9 +519,11 @@ describe("review() under the ceiling", () => {
     await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(0);
     expect(t.posted).toHaveLength(1);
-    expect(t.posted[0]).toContain("no new changes since");
+    expect(t.posted[0]).toContain("No new changes to review: the branch was updated from");
     expect(t.posted[0]).toContain(marker(HEAD));
     expect(t.posted[0]).not.toContain("paused");
+    // No model call: the notice records no cost, so the ceiling neither sums nor counts it.
+    expect(readAutoCost(t.posted[0])).toBeNull();
   });
 
   test("an automatic run that ends without a review still records what it spent", async () => {

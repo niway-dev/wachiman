@@ -286,7 +286,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     const second = reviewsEverything();
     const r = await run(world, second);
     expect(sentFiles(second).sort()).toEqual([F13, F14, F15, F16].sort());
-    expect(r.posted[0]).not.toContain("Rebased onto");
+    expect(r.posted[0]).not.toContain("No new changes to review");
     expect(r.posted[0]).toContain("did not reach");
     expect(r.posted[0]).toContain(COMPLETE_MARKER("aaaa0002"));
   });
@@ -298,7 +298,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     const second = reviewsEverything();
     const r = await run(world, second);
     expect(second.requests).toHaveLength(0);
-    expect(r.posted[0]).toContain("Rebased onto");
+    expect(r.posted[0]).toContain("No new changes to review: the branch was updated from");
     expect(r.posted[0]).toContain(COMPLETE_MARKER("aaaa0002"));
   });
 
