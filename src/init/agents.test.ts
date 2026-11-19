@@ -123,6 +123,14 @@ describe("planPointer chooses the file", () => {
     expect(planPointer(dir)).toMatchObject({ action: "append", file: "AGENTS.md", writePath: "docs/rules.md" });
   });
 
+  test("a file that is not valid UTF-8 is skipped, never rewritten with replacement characters", () => {
+    const dir = fresh();
+    const latin1 = Buffer.from([0x23, 0x20, 0x43, 0x61, 0x66, 0xe9, 0x0a]); // "# Caf" + Latin-1 e-acute
+    writeFileSync(join(dir, "AGENTS.md"), latin1);
+    expect(planPointer(dir)).toMatchObject({ action: "skip", reason: expect.stringContaining("not valid UTF-8") });
+    expect(readFileSync(join(dir, "AGENTS.md")).equals(latin1)).toBe(true);
+  });
+
   test("a malformed block is a skip with the way to add it by hand", () => {
     const dir = fresh();
     write(dir, { "AGENTS.md": `${POINTER_BEGIN}\nno end\n` });

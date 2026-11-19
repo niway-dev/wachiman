@@ -53,7 +53,7 @@ describe("init --mode local --dry-run", () => {
 
   test("without --json and with nothing to preview, it says so on stderr and prints nothing on stdout", async () => {
     const w = world();
-    expect(await init(w, ["--mode", "local", "--dry-run"])).toBe(0);
+    expect(await init(w, ["--mode", "local", "--dry-run", "--no-agent-pointer"])).toBe(0);
     expect(w.out.join("")).toBe("");
     expect(w.err.join("\n")).toContain("dry run: nothing would be written");
     expect(w.err.join("\n")).toContain("wachiman setup");

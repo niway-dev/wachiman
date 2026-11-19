@@ -481,7 +481,8 @@ outside the markers is kept as it is. A file with CRLF line endings gets the blo
 through to its target when the target is inside the repository; a link that leaves the repository or does not resolve is
 skipped. The pointer never fails `init`: a file whose markers are not one pair, in order, on lines of their own, a skipped
 link, or a failed write is reported on stderr with how to add the block by hand, and `init` keeps its exit code for
-everything else it did. It is written in every mode, after the workflow and the settings file, with no question;
+everything else it did. It is written in every mode, after the workflow and the settings file. Without a terminal it is written with no question; on a terminal `init`
+shows the block and asks (default yes), and a no or a cancel at that question leaves the file as it was.
 `--no-agent-pointer` skips it. `--dry-run` writes nothing and prints what it would write (or skip) on stderr.
 Init does not commit it.
 
@@ -528,7 +529,7 @@ command that binds the repository later.
 | `--version <tag>` | `vX.Y.Z` or a 40-character commit SHA, written after `review.yml@`. Default: the release tag bundled in this build (`DEFAULT_WORKFLOW_REF`, moved by release-please at each release commit); the CLI's own version is never used as a tag |
 | `--path <file>` | Default `.github/workflows/wachiman-review.yml`, relative to the repository top level (also when run from a subdirectory); a `.yml` or `.yaml` file directly in `.github/workflows/` |
 | `--force` | Replaces an existing workflow after copying it to `<file>.bak-<YYYYMMDD-HHMMSS>` (an existing backup is never overwritten); without it, an existing file that differs is exit 2 (one that is identical is reported unchanged). With `--project-kind` it also lets a run without a terminal change a different `kind:` in `.wachiman.yml` (no backup; only that line changes), and it is accepted in `--mode local` for that |
-| `--dry-run` | Writes nothing. With `--mode github` or `both` it prints the rendered workflow to stdout. With `--mode local` there is no workflow: it reports on stderr that it would write `.wachiman.yml` (when `--project-kind` is given) and that `--pr-template` would install the template, and exits 0. With neither flag it prints `dry run: nothing would be written` and the `setup` command to run next, on stderr. It writes nothing in the repository or in the Wachiman home |
+| `--dry-run` | Writes nothing. With `--mode github` or `both` it prints the rendered workflow to stdout. With `--mode local` there is no workflow: it reports on stderr that it would write `.wachiman.yml` (when `--project-kind` is given) and that `--pr-template` would install the template, and exits 0. The agent pointer is previewed on stderr in every mode. With none of those to write (no flag, and `--no-agent-pointer` or a pointer already in place) it prints `dry run: nothing would be written` and the `setup` command to run next, on stderr. It writes nothing in the repository or in the Wachiman home |
 | `--pr-template` / `--no-pr-template` | Also install the [PR description template](pr-template.md) (`wachiman pr-template install`, files only, no commit), in any mode; or do not. On a terminal, without either flag, `init` asks (default yes); a script that gives neither gets no template. A refusal (a hand-edited template, an invalid `.github/pr-template.json`) is reported and does not fail the rest of `init`. `--dry-run` installs nothing |
 | `--no-agent-pointer` | Do not write the pointer into `AGENTS.md` or `CLAUDE.md` (see above). For a repository whose team has not adopted Wachiman, where a shared instruction file must not change |
 | `--yes` | No prompts |

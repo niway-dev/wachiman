@@ -102,7 +102,13 @@ export function planPointer(repoDir: string): PointerPlan {
     }
     const inspected = inspectTarget(repoDir, writePath);
     if (!inspected.exists) return { action: "create", file, writePath, content: withPointer("", file), inspected };
-    const current = readFileSync(inspected.target, "utf8");
+    let current: string;
+    try {
+      // Strict decoding: a file in another encoding must not be rewritten with replacement characters.
+      current = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(inspected.target));
+    } catch {
+      return { action: "skip", file, reason: `${file} is not valid UTF-8; init does not rewrite it. ${manualHint()}` };
+    }
     const content = withPointer(current, file);
     if (content === current) return { action: "same", file };
     return { action: current.includes(POINTER_BEGIN) ? "replace" : "append", file, writePath, content, inspected };

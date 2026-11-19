@@ -973,6 +973,16 @@ describe("the agent instruction pointer", () => {
     expect(w.err.join("\n")).toContain(POINTER_BEGIN);
   });
 
+  test("a local --dry-run reports the pointer it would write and does not claim nothing would be written", async () => {
+    const w = world();
+    const before = snapshotTree(w.repo);
+    expect(await init(w, ["--mode", "local", "--dry-run"])).toBe(0);
+    expect(snapshotTree(w.repo)).toEqual(before);
+    const err = w.err.join("\n");
+    expect(err).toContain("would create AGENTS.md");
+    expect(err).not.toContain("dry run: nothing would be written");
+  });
+
   test("a malformed pointer block does not fail init: the workflow is written, the problem is reported", async () => {
     const w = world();
     write(w.repo, { "AGENTS.md": `${POINTER_BEGIN}\nno end marker\n` });
@@ -985,11 +995,13 @@ describe("the agent instruction pointer", () => {
 
   test("a symlinked CLAUDE.md is written through to AGENTS.md inside the repository", async () => {
     const w = world();
-    write(w.repo, { "AGENTS.md": "# Rules\n" });
-    symlinkSync("AGENTS.md", join(w.repo, "CLAUDE.md"));
+    // No AGENTS.md: the planner falls back to CLAUDE.md, which is a link to a file in the repository.
+    write(w.repo, { "docs/rules.md": "# Rules\n" });
+    symlinkSync("docs/rules.md", join(w.repo, "CLAUDE.md"));
     expect(await init(w, ["--mode", "local"])).toBe(0);
-    expect(readFileSync(join(w.repo, "AGENTS.md"), "utf8")).toBe(`# Rules\n\n${pointerBlock()}`);
+    expect(readFileSync(join(w.repo, "docs/rules.md"), "utf8")).toBe(`# Rules\n\n${pointerBlock()}`);
     expect(lstatSync(join(w.repo, "CLAUDE.md")).isSymbolicLink()).toBe(true);
+    expect(existsSync(join(w.repo, "AGENTS.md"))).toBe(false);
   });
 
   test("a symlink to a file outside the repository is skipped with a message and init still succeeds", async () => {

@@ -451,8 +451,11 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     // A local dry run previews the files init would write and writes none (decision 4 of the agent-operated setup spec).
     if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
     previewTemplate();
-    if (!options.settings && !options.prTemplate) {
-      io.stderr("dry run: nothing would be written. Local mode has no workflow; a project kind or the PR template are the only files it writes.");
+    if (pointer) for (const line of describePointer(pointer)) io.stderr(line);
+    else io.stderr("note: --no-agent-pointer: no wachiman pointer would be written to AGENTS.md or CLAUDE.md.");
+    const pointerWrites = pointer?.action === "create" || pointer?.action === "append" || pointer?.action === "replace";
+    if (!options.settings && !options.prTemplate && !pointerWrites) {
+      io.stderr("dry run: nothing would be written. Local mode has no workflow; a project kind, the PR template or the agent pointer are the only files it writes.");
       for (const command of projectCommands("setup", options.repoDir, cwd)) io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
     }
     return 0;

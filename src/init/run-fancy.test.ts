@@ -26,7 +26,7 @@ function world(answers: (number | string | boolean | null)[]) {
 
 describe("init on a terminal session", () => {
   test("asks through the Ui, shows the workflow as a titled note, and writes the file on confirm", async () => {
-    const w = world([0, "octocat", false, true, true]); // kind (Monorepo), operator, PR template (no), Write it?
+    const w = world([0, "octocat", false, true, true]); // kind (Monorepo), operator, PR template (no), Write it? (yes), pointer (yes)
     expect(await w.run()).toBe(0);
     const note = w.ui.of("note")[0];
     expect(note.title).toBe(".github/workflows/wachiman-review.yml (new)");
