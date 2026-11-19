@@ -317,19 +317,39 @@ export function readCandidate(home: string, key: string, id: string): Candidate 
   throw new UsageError(`${path} is not a memory candidate; remove it to start that candidate again.`);
 }
 
-/** Every readable candidate of the repository, by id. A file that is not a candidate is skipped. */
-export function readCandidates(home: string, key: string): Candidate[] {
+/**
+ * Every usable candidate of the repository, by id: the same checks `readCandidate` makes (the id is the
+ * file name, the text is terminal-safe and reads back as one entry). A file that fails them is not
+ * listed, so `candidates` never offers what `show` and `propose` refuse; `skipped` is told which files
+ * were left out and why, so that the listing can say so instead of hiding them.
+ */
+export function readCandidates(home: string, key: string, skipped: (name: string, why: string) => void = () => {}): Candidate[] {
   const dir = candidatesDir(home, key);
   if (!existsSync(dir)) return [];
   const out: Candidate[] = [];
   for (const name of readdirSync(dir).sort()) {
     if (!/^[0-9a-f]{7}\.json$/.test(name)) continue;
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(readFileSync(join(dir, name), "utf8"));
-      if (validCandidate(parsed)) out.push(parsed);
-    } catch {
-      // not a candidate
+      parsed = JSON.parse(readFileSync(join(dir, name), "utf8"));
+    } catch (error) {
+      skipped(name, error instanceof SyntaxError ? "it is not JSON" : `it cannot be read (${error instanceof Error ? error.message : error})`);
+      continue;
     }
+    if (!validCandidate(parsed)) {
+      skipped(name, "it is not a memory candidate");
+      continue;
+    }
+    if (`${parsed.id}.json` !== name) {
+      skipped(name, "its id is not its file name");
+      continue;
+    }
+    const problem = candidateProblem(parsed);
+    if (problem) {
+      skipped(name, problem);
+      continue;
+    }
+    out.push(parsed);
   }
   return out;
 }

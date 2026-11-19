@@ -105,7 +105,7 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     if (p.positional.length > 0) throw new UsageError(`wachiman memory candidates takes no argument, got "${p.positional[0]}".`);
     const format = p.values.get("--format") ?? "terminal";
     if (format !== "terminal" && format !== "json") throw new UsageError(`--format must be terminal or json, got "${format}".`);
-    const list = readCandidates(home, key);
+    const list = readCandidates(home, key, (name, why) => io.stderr(`note: ${name} is not listed: ${why}; remove it to start that candidate again.`));
     if (format === "json") {
       const candidates = list.map((c) => {
         const q = need(c, minEvidence);

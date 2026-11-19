@@ -233,8 +233,15 @@ describe("what show prints is what propose commits", () => {
     writeCandidate(s.home, s.key, { ...c, rule: `${c.rule}\u001b[2J` });
     expect(s.run("show", c.id).stderr).toContain("U+001B");
     expect(s.run("propose", c.id).code).toBe(2);
+    // The listing does not offer it, prints no escape sequence, and says why it was left out.
+    const listed = s.run("candidates");
+    expect(listed.stdout).toContain("no memory candidates");
+    expect(listed.stdout).not.toContain("\u001b");
+    expect(listed.stderr).toContain(`${c.id}.json is not listed`);
+    expect(JSON.parse(s.run("candidates", "--format", "json").stdout).candidates).toEqual([]);
     writeCandidate(s.home, s.key, { ...c, rule: "Prefer default exports." });
     expect(s.run("show", c.id).stderr).toContain("is not the digest");
+    expect(s.run("candidates").stderr).toContain(`${c.id}.json is not listed`);
     writeCandidate(s.home, s.key, c);
     expect(s.run("show", c.id).stdout).toBe(renderEntry(c));
   });
