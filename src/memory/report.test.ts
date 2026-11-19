@@ -3,7 +3,7 @@
  * entries never used, per month and in total. The scenario below is invented for the test.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
@@ -271,6 +271,23 @@ describe("wachiman memory report", () => {
     expect(json.personal.map((e: { id: string }) => e.id)).toEqual([mine.id]);
     expect(json.memory.entries).toBe(4);
     expect(json.neverUsed.map((e: { id: string }) => e.id)).not.toContain(mine.id);
+  });
+
+  test("an unreadable personal file is warned about and the report still prints", () => {
+    if (process.getuid?.() === 0) return;
+    const { home } = seeded(true);
+    const folder = join(home, "memory", "github.com", "o", "demo");
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "locked.md"), "secret\n");
+    chmodSync(join(folder, "locked.md"), 0o000);
+    const repo = emptyRepo();
+    git(repo, "remote", "add", "origin", "https://github.com/o/demo.git");
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = runMemory(["report"], repo, { stdout: (t) => out.push(t), stderr: (l) => err.push(l) }, { env: { WACHIMAN_HOME: home } });
+    expect(code).toBe(0);
+    expect(err.join("\n")).toContain("locked.md");
+    expect(out.join("")).not.toBe("");
   });
 
   test("reads the local history and the working tree's memory folder", () => {

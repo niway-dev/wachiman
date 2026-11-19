@@ -87,7 +87,7 @@ export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: Ca
     const key = repositoryKey(repoDir).key;
     const home = historyRoot(wachimanHome(ctx.env ?? process.env));
     const personalDir = personalMemoryDir(wachimanHome(ctx.env ?? process.env), repoDir);
-    const report = buildReport({ runs: readRuns(home, key, (line) => io.stderr(line)), verdicts: readVerdicts(home, key), files: readMemoryFolder(root), personalFiles: personalDir === undefined ? undefined : readPersonalFiles(personalDir), use: readMemoryUse(wachimanHome(ctx.env ?? process.env), key), since: args.since });
+    const report = buildReport({ runs: readRuns(home, key, (line) => io.stderr(line)), verdicts: readVerdicts(home, key), files: readMemoryFolder(root), personalFiles: personalDir === undefined ? undefined : readPersonalFiles(personalDir, (line) => io.stderr(line)), use: readMemoryUse(wachimanHome(ctx.env ?? process.env), key), since: args.since });
     io.stdout(args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report));
     return 0;
   }
