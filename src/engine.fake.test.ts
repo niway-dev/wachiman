@@ -212,7 +212,7 @@ describe("the batch loop against a fake provider", () => {
     // Every comment opens with the brand, so a reader sees it is Wachi's despite the bot account.
     expect(body.startsWith("👮 **Wachiman** · ")).toBe(true);
     expect(posted.review?.comments[0].body.startsWith("| 👮 **Wachiman** | ")).toBe(true);
-    expect(posted.review?.comments[0].body).toContain("| **Severity** | 🟠 Fix · Important |");
+    expect(posted.review?.comments[0].body).toContain("| **Priority** | **Should** · a change is expected; answer if you disagree |\n| **Severity** | 🟠 Fix |");
     expect(body.split("\n")[0]).not.toContain("Partial review");
     expect(body.split("\n")[0]).toContain(`all 3 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
     expect(body).toContain("wachiman sha=");
@@ -787,12 +787,14 @@ describe("the confidence rule through review()", () => {
       warn: () => {},
     };
     await review(deps, "o/r", 7, []);
-    const tables = (posted.review?.comments ?? []).map((c) => c.body.split("\n").slice(0, 5).join("\n"));
-    const table = (title: string, severity: string, area: string, confidence: string) =>
-      `| 👮 **Wachiman** | ${title} |\n|:--|:--|\n| **Severity** | ${severity} |\n| **Area** | ${area} |\n| **Confidence** | ${confidence} |`;
-    expect(tables).toContain(table("Maybe leaks", "🟠 Fix · Important", "❓ question", "🟥⬜⬜ Low"));
-    expect(tables).toContain(table("Off by one", "🟠 Fix · Important", "🐛 bug", "🟥🟥🟥 High"));
-    expect(tables).toContain(table("Name", "🟡 Consider · Nit", "🧹 cleanup", "🟥⬜⬜ Low"));
+    const tables = (posted.review?.comments ?? []).map((c) => c.body.split("\n").slice(0, 7).join("\n"));
+    const table = (title: string, priority: string, severity: string, area: string, confidence: string) =>
+      `| 👮 **Wachiman** | ${title} |\n|:--|:--|\n| **Priority** | ${priority} |\n| **Severity** | ${severity} |\n| **Area** | ${area} |\n| **Confidence** | ${confidence} |\n| **Track record** | no record yet · seed |`;
+    const COULD = "**Could** · worth a look; change on the merits";
+    const SHOULD = "**Should** · a change is expected; answer if you disagree";
+    expect(tables).toContain(table("Maybe leaks", COULD, "🟠 Fix", "❓ question", "🟥⬜⬜ Low"));
+    expect(tables).toContain(table("Off by one", SHOULD, "🟠 Fix", "🐛 bug", "🟥🟥🟥 High"));
+    expect(tables).toContain(table("Name", COULD, "🟡 Consider", "🧹 cleanup", "🟥⬜⬜ Low"));
     expect(posted.review?.comments.find((c) => c.line === 2)?.body).toContain("Is the handle closed on error?");
     expect(logs.filter((l) => l.startsWith("Confidence rule:"))).toEqual([
       "Confidence rule: 1 finding(s) with low confidence at severity fix or above posted as questions.",
@@ -854,7 +856,7 @@ describe("the ADR notice", () => {
     const body = posted?.body ?? "";
     expect(posted?.comments).toEqual([]);
     expect(body).toContain("### For your information");
-    expect(body).toContain(`Nit · ⚪🏛️ **Info · adr: Edits an accepted decision record** (\`${ADR}\`)`);
+    expect(body).toContain(`FYI · ⚪🏛️ **Info · adr: Edits an accepted decision record** (\`${ADR}\`)`);
     expect(body).not.toContain("ADR edited");
     expect(body).toContain("1 finding(s); 0 on their lines");
   });

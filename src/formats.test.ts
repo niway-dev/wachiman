@@ -120,6 +120,33 @@ describe("review result /2", () => {
     expect(v1.findings.map((f) => f.title)).toEqual(fixtures.resultV2.findings.map((f) => f.title));
   });
 
+  test("a /2 result with priority, rank and arm validates, an old one without them still does, and /1 carries none (AC4)", () => {
+    const old = clone();
+    expect(JSON.stringify(old)).not.toContain('"priority"');
+    expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(old)))).toEqual([]);
+    const fresh = clone();
+    fresh.arm = "priority";
+    fresh.findings = fresh.findings.map((f) => ({ ...f, priority: "should" as const, rank: 70 }));
+    expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(fresh)))).toEqual([]);
+    // A fixture file with the new fields, written by hand, is the contract's own example.
+    expect(validate(resultSchemaV2, json("test/fixtures/formats/review-result.v2.priority.example.json"))).toEqual([]);
+    // Negative controls: a word the engine does not know, a rank outside 0-100, an arm that is not an arm.
+    const word = clone();
+    (word.findings[0] as { priority: string }).priority = "urgent";
+    expect(validate(resultSchemaV2, word).length).toBeGreaterThan(0);
+    const rank = clone();
+    (rank.findings[0] as { rank: number }).rank = 101;
+    expect(validate(resultSchemaV2, rank).length).toBeGreaterThan(0);
+    const arm = clone();
+    (arm as { arm: string }).arm = "both";
+    expect(validate(resultSchemaV2, arm).length).toBeGreaterThan(0);
+    // The /1 downgrade drops all three, and the closed /1 root accepts what is left.
+    const v1 = toResultV1(fresh);
+    const text = JSON.stringify(v1);
+    for (const key of ["priority", "rank", "arm", "tier"]) expect(text, key).not.toContain(`"${key}"`);
+    expect(validate(resultSchema, JSON.parse(text))).toEqual([]);
+  });
+
   test("a /2 result carries fidelity for a pull request review, validated by the schema, and /1 never does", () => {
     const withFidelity = clone();
     expect(withFidelity.fidelity?.grade).toBe("B");

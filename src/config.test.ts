@@ -38,11 +38,18 @@ describe("loadConfig", () => {
       verifyBudgetUsd: 1,
       verifierModel: "claude-opus-5-5",
       confidence: false,
+      priorityTrial: false,
       limitMode: "fail",
       limitBypass: false,
       ledgerUnavailable: "run",
     });
     expect(warnings).toEqual([]);
+  });
+
+  test("the priority trial is on only with the exact value 1", () => {
+    expect(load({}).config.priorityTrial).toBe(false);
+    expect(load({ WACHIMAN_PRIORITY_TRIAL: "1" }).config.priorityTrial).toBe(true);
+    for (const value of ["0", "true", "yes", ""]) expect(load({ WACHIMAN_PRIORITY_TRIAL: value }).config.priorityTrial).toBe(false);
   });
 
   test("the ledger settings: unset means no ledger, mode defaults to fail, bypass to false, unavailable to run", () => {

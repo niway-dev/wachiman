@@ -919,14 +919,15 @@ implemented.
 ## Finding labels
 
 Every finding is labelled on two axes, each an emoji followed by its word, and starts with a
-**tier word**, for example `Important · 🟠📝 **Fix · docs: stale 'Read by' cell**`. The two-axis
+**priority word** (Must, Should, Could or FYI; see [reviews.md](reviews.md#the-priority-word)),
+for example `Should · 🟠📝 **Fix · docs: stale 'Read by' cell**`. The two-axis
 decision is [ADR 0003](adr/0003-two-axis-finding-labels.md); the tier word and the result
 version that carries it are [ADR 0030](adr/0030-review-result-2-carries-verification-and-origin-with-an-explicit-downgrade-to-1.md).
 
 The tier word is derived by code, never written by the model: `Pre-existing` when verification
 showed the defect in the base commit (origin `pre-existing`), else `Important` for `blocker` and
-`fix`, else `Nit`. On GitHub it sits outside the bold part, so older readers of the label still
-parse it. The terminal and Markdown reports add what the verifier found after the confidence
+`fix`, else `Nit`. The displayed label leads with the priority; the tier word remains only in the label
+given back to the model and in the trial's word arm, and `tier` stays in `/2` as deprecated. The terminal and Markdown reports add what the verifier found after the confidence
 (`(confidence high, supported)` or `(…, inconclusive)`), a `Verified:` or `Inconclusive:` line
 with the lines it read, and group `Inconclusive` and `Pre-existing` findings after the findings
 of the change. On GitHub those two groups are listed in the review body and open no thread; a
@@ -965,7 +966,7 @@ Two tests settle a severity that feels uncertain, and apply before the list abov
 
 A finding also carries a **confidence**, separate from severity: severity says how bad the finding
 is if it is true, confidence says how sure the reviewer is that it is true, given what it read.
-It is shown after the title, for example `Important · 🟠🐛 **Fix · bug: Face is lost (confidence high)**`.
+It is shown after the title, for example `Should · 🟠🐛 **Fix · bug: Face is lost (confidence high)**`.
 
 | Confidence | Meaning |
 | --- | --- |

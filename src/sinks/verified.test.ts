@@ -28,13 +28,13 @@ const withInconclusiveFix = (): ReviewResult => {
 };
 
 describe("terminal", () => {
-  test("every label leads with its tier word and ends with what the verifier found", () => {
+  test("every label leads with its priority word and ends with what the verifier found", () => {
     const text = renderTerminal(fixture(), { agentPrompt: false });
-    expect(text).toContain("Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high, supported)");
-    expect(text).toContain("Pre-existing · 🟠🐛 Fix · bug: The manager never closes the store (confidence high, supported)");
-    expect(text).toContain("Nit · 🟡🧪 Consider · tests: No test covers the export (confidence low, inconclusive)");
+    expect(text).toContain("Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high, supported)");
+    expect(text).toContain("Should · Pre-existing · 🟠🐛 Fix · bug: The manager never closes the store (confidence high, supported)");
+    expect(text).toContain("Could · 🟡🧪 Consider · tests: No test covers the export (confidence low, inconclusive)");
     // An info notice nobody verified shows no status.
-    expect(text).toContain("Nit · ⚪🏛️ Info · adr: Edits an accepted decision record\n");
+    expect(text).toContain("FYI · ⚪🏛️ Info · adr: Edits an accepted decision record\n");
   });
 
   test("a supported finding shows why and the lines the verifier read; an inconclusive one shows what it could not settle", () => {
@@ -49,7 +49,7 @@ describe("terminal", () => {
   test("pre-existing and inconclusive fixes are grouped after the findings of this change", () => {
     const text = renderTerminal(withInconclusiveFix(), { agentPrompt: false });
     const at = (needle: string) => text.indexOf(needle);
-    expect(at("Important · 🟠🐛 Fix · bug: The store drops")).toBeLessThan(at("Inconclusive (the verifier could not settle these):"));
+    expect(at("Should · 🟠🐛 Fix · bug: The store drops")).toBeLessThan(at("Inconclusive (the verifier could not settle these):"));
     expect(at("Inconclusive (the verifier could not settle these):")).toBeLessThan(at("The flush may race"));
     expect(at("The flush may race")).toBeLessThan(at("Pre-existing (true, but not introduced by this change):"));
     expect(at("Pre-existing (true, but not introduced by this change):")).toBeLessThan(at("The manager never closes"));
@@ -66,7 +66,7 @@ describe("terminal", () => {
     delete r.verification;
     r.findings = r.findings.map((f) => ({ ...f, origin: "unknown", tier: "Important", verification: { status: "unverified", reason: "", checked: [] } }));
     const text = renderTerminal(r, { agentPrompt: false });
-    expect(text).toContain("Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high)\n");
+    expect(text).toContain("Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high)\n");
     expect(text).not.toContain("Pre-existing (true");
     expect(text).not.toContain("Verified:");
   });
@@ -75,12 +75,12 @@ describe("terminal", () => {
 describe("markdown", () => {
   test("labels, verification lines and sections", () => {
     const md = renderMarkdown(withInconclusiveFix(), {});
-    expect(md).toContain("### Important · 🟠🐛 **Fix · bug: The store drops the last session (confidence high, supported)**");
-    expect(md).toContain("### Nit · 🟡🧪 **Consider · tests: No test covers the export (confidence low, inconclusive)**");
+    expect(md).toContain("### Should · 🟠🐛 **Fix · bug: The store drops the last session (confidence high, supported)**");
+    expect(md).toContain("### Could · 🟡🧪 **Consider · tests: No test covers the export (confidence low, inconclusive)**");
     expect(md).toContain("Verified: Line 2 assigns y over x before the flush on line 3.\n\nChecked: `apps/api/src/main/session/store.ts:2`, `apps/api/src/main/session/store.ts:3`");
-    expect(md).toContain("## Inconclusive\n\nThe verifier looked at these and could not settle them.\n\n### Important · ");
+    expect(md).toContain("## Inconclusive\n\nThe verifier looked at these and could not settle them.\n\n### Should · ");
     expect(md).toContain("Inconclusive: The lock on line 9 may serialise it.");
-    expect(md).toContain("## Pre-existing\n\nTrue, but not introduced by this change.\n\n### Pre-existing · 🟠🐛 **Fix · bug: The manager never closes the store (confidence high, supported)**");
+    expect(md).toContain("## Pre-existing\n\nTrue, but not introduced by this change.\n\n### Should · Pre-existing · 🟠🐛 **Fix · bug: The manager never closes the store (confidence high, supported)**");
     expect(md.indexOf("## Findings")).toBeLessThan(md.indexOf("## Inconclusive"));
     expect(md.indexOf("## Inconclusive")).toBeLessThan(md.indexOf("## Pre-existing"));
     expect(md.indexOf("## Pre-existing")).toBeLessThan(md.indexOf("## Summary"));
@@ -97,7 +97,7 @@ describe("markdown", () => {
 });
 
 describe("the agent prompt", () => {
-  test("carries the tier word and the status", () => {
-    expect(agentPrompt(fixture())).toContain("1. apps/api/src/main/session/store.ts:2 · Important · 🟠🐛 Fix · bug: The store drops the last session (confidence high, supported)");
+  test("carries the priority word and the status", () => {
+    expect(agentPrompt(fixture())).toContain("1. apps/api/src/main/session/store.ts:2 · Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high, supported)");
   });
 });

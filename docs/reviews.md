@@ -78,19 +78,42 @@ An inline finding, on its line in the diff, is a small table followed by the rea
 ```text
 | 👮 **Wachiman** | Zero limit breaks the page count |
 |:--|:--|
-| **Severity** | 🟠 Fix · Important |
+| **Priority** | **Should** · a change is expected; answer if you disagree |
+| **Severity** | 🟠 Fix |
 | **Area** | 🐛 bug |
 | **Confidence** | 🟥🟥🟥 High |
+| **Track record** | no record yet · seed |
 
 …the reasoning, citing the lines it rests on…
 ```
 
-The model and the local sinks still use the one-line label (`👮 **Wachiman** · Important · 🟠🐛 **Fix · bug: …**`).
+The local sinks print the one-line label instead, without the brand (`Should · 🟠🐛 **Fix · bug: …**`).
+
+### The priority word
+
+A label starts with a priority word the engine derives from the severity, the topic and the
+confidence: **Must** (blocks the merge), **Should** (a change is expected; answer if you disagree),
+**Could** (worth a look; change on the merits) or **FYI** (context, no code decision). Every
+finding is read and answered; the word says how much weight it carries, not whether to read it.
+A low-confidence blocker or fix is never above Could, and a blocker is never below Must otherwise.
+The words come from a versioned table of seeds, and the inline table shows `no record yet · seed`
+until a track record exists. Each review's findings open with one line of counts, for example
+`**9 findings:** 1 Must, 4 Should, 3 Could, 1 FYI · 6 at high confidence`.
+
+Setting `WACHIMAN_PRIORITY_TRIAL=1` assigns each pull request, by a hash of its repository and
+number, either the priority word or the former tier word (the `arm` field of the result), so the
+two can be compared. The priority arm adds a Priority row to the inline table and drops the tier
+word from the Severity cell; the word arm keeps the tier word (`· Important`, `· Nit` or
+`· Pre-existing`) in the Severity cell. The summary line counts by each arm's own word
+(`1 Must, 4 Should` against `5 Important, 3 Nit, 1 Pre-existing`). The
+Track record row and the order of findings are the same in both arms.
 
 ### The tier word
 
-The engine derives a tier word, shown in the Severity row of the table and at the start of the
-one-line label: **Important** for Blocker and Fix, **Nit** for
+The tier word is deprecated but still derived and still in the result as `tier`, and the model
+still reads it in its own prompts. In the trial's word arm it sits in the Severity row of the
+table; the one-line label starts with the priority word instead. The engine derives it:
+**Important** for Blocker and Fix, **Nit** for
 Consider and Info, and **Pre-existing** for a true bug that verification found in the base commit
 as well, which this change neither caused nor made worse. Pre-existing findings and fixes the
 verifier could not settle are listed in the review body, under "Pre-existing" and
