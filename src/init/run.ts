@@ -237,6 +237,18 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     report.template = [{ path: TEMPLATE_FILE, action: { create: "would-create", replace: "would-replace", unchanged: "unchanged", refused: "refused" }[preview] as FileAction }];
   };
 
+  /** Records the pointer file in the report: a dry run says what would happen, a real run what did (a skip is a refusal). */
+  const reportPointer = (outcome: "plan" | "written" | "failed") => {
+    if (!report || !pointer) return;
+    const path = pointer.action === "skip" || pointer.action === "same" ? pointer.file : pointer.writePath;
+    const action: FileAction =
+      pointer.action === "skip" || outcome === "failed" ? "refused"
+      : pointer.action === "same" ? "unchanged"
+      : outcome === "plan" ? (pointer.action === "create" ? "would-create" : "would-replace")
+      : pointer.action === "create" ? "created" : "replaced";
+    report.agentPointer = { path, action };
+  };
+
   // The settings file: planned first (a link or a non-file in the way fails before anything is written), written under the same confirm.
   const plan = options.settings ? planSettings(root, options.settings.kind) : undefined;
   let settingsToWrite = plan && plan.action !== "same" ? plan : undefined;
@@ -286,10 +298,12 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const writePointer = async (): Promise<number | undefined> => {
     if (!pointer) return undefined;
     if (pointer.action === "skip") {
+      reportPointer("failed");
       io.stderr(`wachiman pointer not written: ${pointer.reason}`);
       return undefined;
     }
     if (pointer.action === "same") {
+      reportPointer("written");
       io.stderr(`${pointer.file} already has the wachiman pointer; unchanged.`);
       return undefined;
     }
@@ -315,9 +329,11 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     try {
       writeManagedFile({ repoDir: root, relativePath: pointer.writePath, content: pointer.content, inspected: pointer.inspected, now: (deps.now ?? (() => new Date().toISOString()))(), label: "init", backup: false, hooks: deps.hooks });
     } catch (error) {
+      reportPointer("failed");
       io.stderr(`wachiman pointer not written: ${error instanceof Error ? error.message : String(error)} The rest of init is unaffected. ${manualHint()}`);
       return undefined;
     }
+    reportPointer("written");
     const how = pointer.action === "create" ? "created" : pointer.action === "append" ? "added to" : "replaced in";
     io.stderr(`wrote the wachiman pointer: ${how} ${pointer.file}${pointer.writePath !== pointer.file ? ` (through the link, to ${pointer.writePath})` : ""}.`);
     return undefined;
@@ -363,6 +379,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       else if (inspected.exists && !github.force && !prompter) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
       if (pointer) for (const line of describePointer(pointer)) io.stderr(line);
       else io.stderr("note: --no-agent-pointer: no wachiman pointer would be written to AGENTS.md or CLAUDE.md.");
+      reportPointer("plan");
       if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
       if (report) {
         const refused = inspected.exists && !unchanged && !github.force;
@@ -453,6 +470,7 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     previewTemplate();
     if (pointer) for (const line of describePointer(pointer)) io.stderr(line);
     else io.stderr("note: --no-agent-pointer: no wachiman pointer would be written to AGENTS.md or CLAUDE.md.");
+    reportPointer("plan");
     const pointerWrites = pointer?.action === "create" || pointer?.action === "append" || pointer?.action === "replace";
     if (!options.settings && !options.prTemplate && !pointerWrites) {
       io.stderr("dry run: nothing would be written. Local mode has no workflow; a project kind, the PR template or the agent pointer are the only files it writes.");

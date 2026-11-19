@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
@@ -89,6 +89,7 @@ describe("init --json", () => {
       { path: ".github/workflows/wachiman-review.yml", action: "created" },
       { path: ".wachiman.yml", action: "created" },
       { path: ".github/pull_request_template.md", action: "created" },
+      { path: "AGENTS.md", action: "created" },
     ]);
     expect(d.local.status).toBe("pending");
     expect(d.local.pending).toEqual([`wachiman setup --profile <name> --yes --repo-dir ${realpathSync(w.repo)}`]);
@@ -102,7 +103,7 @@ describe("init --json", () => {
   test("local mode has no GitHub work and github mode has no local work", async () => {
     const local = world();
     expect(await init(local, ["--mode", "local", "--json"])).toBe(0);
-    expect(doc(local)).toMatchObject({ files: [], github: { status: "not-used", pending: [] }, local: { status: "pending" } });
+    expect(doc(local)).toMatchObject({ files: [{ path: "AGENTS.md", action: "created" }], github: { status: "not-used", pending: [] }, local: { status: "pending" } });
     const gh = world();
     expect(await init(gh, ["--mode", "github", "--operator", "me", "--json"])).toBe(0);
     expect(doc(gh)).toMatchObject({ local: { status: "not-used", pending: [] }, github: { status: "pending" } });
@@ -118,6 +119,7 @@ describe("init --json", () => {
       [".github/workflows/wachiman-review.yml", "would-create"],
       [".wachiman.yml", "would-create"],
       [".github/pull_request_template.md", "would-create"],
+      ["AGENTS.md", "would-create"],
     ]);
     expect(d.files[0].content).toContain("/wachiman");
     expect(snapshotTree(w.repo)).toEqual(before);
@@ -130,6 +132,7 @@ describe("init --json", () => {
     expect(doc(w).files).toEqual([
       { path: ".wachiman.yml", action: "would-create" },
       { path: ".github/pull_request_template.md", action: "would-create" },
+      { path: "AGENTS.md", action: "would-create" },
     ]);
     expect(snapshotTree(w.repo)).toEqual(before);
     expect(snapshotTree(w.home)).toEqual({});
@@ -143,7 +146,7 @@ describe("init --json", () => {
     w.out.length = 0;
     expect(await init(w, argv, { now: () => "2027-01-01T00:00:00.000Z" })).toBe(0);
     const d = doc(w);
-    expect(d.files.map((f: any) => f.action)).toEqual(["unchanged", "unchanged", "unchanged"]);
+    expect(d.files.map((f: any) => f.action)).toEqual(["unchanged", "unchanged", "unchanged", "unchanged"]);
     expect(snapshotTree(w.repo)).toEqual(after);
   });
 
@@ -254,6 +257,27 @@ describe("init --json: PR template outcomes", () => {
   });
 });
 
+describe("init --json: the agent pointer", () => {
+  test("a skipped pointer is listed as refused, a turned-off one is not listed", async () => {
+    const w = world();
+    writeFileSync(join(w.repo, "AGENTS.md"), "<!-- wachiman:begin -->\nno end marker\n");
+    expect(await init(w, ["--mode", "local", "--json"])).toBe(0);
+    expect(doc(w).files).toEqual([{ path: "AGENTS.md", action: "refused" }]);
+    const off = world();
+    expect(await init(off, ["--mode", "local", "--no-agent-pointer", "--json"])).toBe(0);
+    expect(doc(off).files).toEqual([]);
+  });
+
+  test("a block added to an existing file is reported as replaced, and a link is reported by its target", async () => {
+    const w = world();
+    mkdirSync(join(w.repo, "docs"));
+    writeFileSync(join(w.repo, "docs", "rules.md"), "# Rules\n");
+    symlinkSync("docs/rules.md", join(w.repo, "CLAUDE.md"));
+    expect(await init(w, ["--mode", "local", "--json"])).toBe(0);
+    expect(doc(w).files).toEqual([{ path: "docs/rules.md", action: "replaced" }]);
+  });
+});
+
 describe("init --json: workflow and settings outcomes", () => {
   test("a dry run with a different workflow or a different kind reports refused and would-replace, and still says ok with exit 0", async () => {
     const w = world();
@@ -261,10 +285,10 @@ describe("init --json: workflow and settings outcomes", () => {
     w.out.length = 0;
     expect(await init(w, ["--mode", "both", "--operator", "you", "--project-kind", "monorepo", "--dry-run", "--json"])).toBe(0);
     expect(doc(w)).toMatchObject({ ok: true });
-    expect(actions(w)).toEqual([[".github/workflows/wachiman-review.yml", "refused"], [".wachiman.yml", "refused"]]);
+    expect(actions(w)).toEqual([[".github/workflows/wachiman-review.yml", "refused"], [".wachiman.yml", "refused"], ["AGENTS.md", "unchanged"]]);
     w.out.length = 0;
     expect(await init(w, ["--mode", "both", "--operator", "you", "--project-kind", "monorepo", "--force", "--dry-run", "--json"])).toBe(0);
-    expect(actions(w)).toEqual([[".github/workflows/wachiman-review.yml", "would-replace"], [".wachiman.yml", "would-replace"]]);
+    expect(actions(w)).toEqual([[".github/workflows/wachiman-review.yml", "would-replace"], [".wachiman.yml", "would-replace"], ["AGENTS.md", "unchanged"]]);
   });
 
   test("a different kind in .wachiman.yml without --force is refused in a real run: exit 2 and the file is listed", async () => {
