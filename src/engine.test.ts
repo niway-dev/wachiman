@@ -1625,6 +1625,29 @@ describe("contracts in the review body", () => {
       expect(moved.body).toContain(SIGNATURE.review);
     });
 
+    describe("the Muted by memory list", () => {
+      const muted = (n: number) =>
+        ["**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):", ...Array.from({ length: n }, (_, i) => `- muted finding ${i} (\`src/a.ts:${i + 1}\`): muted by entry \`e${i}\``)].join("\n");
+
+      test("survives a body at the limit: the text before it is cut, the list stays whole", () => {
+        const roomy = body(`Ok.\n\n${muted(5)}`);
+        const filler = Array.from({ length: Math.ceil((MAX_BODY_CHARS - roomy.length + 2000) / 50) }, () => "y".repeat(49)).join("\n");
+        const moved = moveCommentsToBody({ body: body(`${filler}\n\n${muted(5)}`), comments });
+        expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+        expect(moved.body).toContain("(Trimmed: this review is at GitHub's size limit.)");
+        for (let i = 0; i < 5; i++) expect(moved.body).toContain(`- muted finding ${i} `);
+      });
+
+      test("a list too long for the body becomes a count and the entries that fit", () => {
+        const moved = moveCommentsToBody({ body: body(`Ok.\n\n${muted(2000)}`), comments });
+        expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+        expect(moved.body).toContain("2000 findings muted by memory");
+        expect(moved.body).toContain("- muted finding 0 ");
+        expect(moved.body).not.toContain("- muted finding 1999 ");
+        expect(moved.body).toContain(SIGNATURE.review);
+      });
+    });
+
     test("a bigger overflow takes the coverage table next, then the summary, and keeps the footer", () => {
       const roomy = body("Ok.");
       const input = body(`Ok.${"y".repeat(MAX_BODY_CHARS - roomy.length + (block.length + coverage.length + 300))}`);

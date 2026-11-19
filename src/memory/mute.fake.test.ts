@@ -281,13 +281,33 @@ describe("when the exception does not or cannot apply", () => {
     const input = branchInput();
     writeFileSync(join(input.headDir, "src/b.ts"), "const x = 1;\nconst y = 2;\n");
     input.files.push({ filename: "src/b.ts", additions: 2, deletions: 0, patch: "@@ -0,0 +1,2 @@\n+const x = 1;\n+const y = 2;" });
-    const { deps: d } = deps(provider);
+    const { deps: d, warnings } = deps(provider);
     const result = await reviewChange(input, options({ memory: memoryOf([EXCEPTION.block]), batchLines: 2 }), d);
     expect(provider.requests.length).toBe(2);
     expect(provider.matchingCalls).toHaveLength(0);
     expect(result.muted).toBeUndefined();
     expect(result.findings.map((f) => f.title)).toEqual(["stale comment"]);
-    expect(result.summary).toContain("matching did not run");
+    expect(result.summary).toContain("matching did not run (the provider rejected an earlier call)");
+    expect(result.summary).not.toContain("credit balance");
+    expect(warnings.some((w) => w.includes("credit balance is too low"))).toBe(true);
+  });
+
+  test("no matching failure path puts provider text in the summary: refusal, error result and throw", async () => {
+    const secret = "sk-secret-text";
+    const runs: Step[] = [
+      () => ({ isError: true, terminalReason: "error", providerError: "other", errorText: secret }),
+      () => {
+        throw new Error(secret);
+      },
+    ];
+    for (const step of runs) {
+      const provider = new FakeProvider(discover([NIT]), step);
+      const { deps: d, warnings } = deps(provider);
+      const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]) }), d);
+      expect(result.summary).toContain("matching did not run");
+      expect(result.summary).not.toContain(secret);
+      expect(warnings.some((w) => w.includes(secret))).toBe(true);
+    }
   });
 
   test("an unparseable answer, an error result and a stopped call mute nothing", async () => {

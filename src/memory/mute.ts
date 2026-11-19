@@ -222,6 +222,9 @@ export function applyMatches<F extends Finding>(findings: F[], active: MemoryEnt
   return { posted, muted, protectedBy };
 }
 
+/** The start of the "Muted by memory" paragraph; the engine finds the list by it when it trims a long body. */
+export const MUTED_HEADING = "**Muted by memory**";
+
 /**
  * The summary's text about memory exceptions, or undefined when there is nothing to say: the
  * entries that may be out of date, the matching step that did not run, and the "Muted by memory"
@@ -236,7 +239,7 @@ export function renderMuting(p: { muted: MutedFinding[]; stale: ExceptionPlan["s
   if (p.failure) parts.push(`⚠️ **Memory exceptions were not applied**: matching did not run (${oneLine(p.failure)}), so every finding is posted.`);
   if (p.muted.length > 0) {
     const items = p.muted.map((m) => `- ${m.title ? oneLine(m.title) : "(untitled)"} (\`${oneLine(m.line > 0 ? `${m.path}:${m.line}` : m.path)}\`): muted by entry \`${m.entry}\``);
-    parts.push(["**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):", ...items].join("\n"));
+    parts.push([`${MUTED_HEADING} (not posted as comments; each was matched by an exception the owner approved):`, ...items].join("\n"));
   }
   return parts.length > 0 ? parts.join("\n\n") : undefined;
 }

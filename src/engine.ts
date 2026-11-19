@@ -36,7 +36,7 @@ import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
 import { MEMORY_DIR, cutMemoryNote, loadMemory, memoryNotice, memoryRecord, type MemoryLoad, type MemorySource } from "./memory/load";
-import { MATCH_SCHEMA, applyMatches, buildMatchPrompt, matchRequest, parseMatches, planExceptions, renderConventions, renderMuting, type ExceptionPlan, type MutedFinding } from "./memory/mute";
+import { MATCH_SCHEMA, applyMatches, buildMatchPrompt, matchRequest, parseMatches, planExceptions, MUTED_HEADING, renderConventions, renderMuting, type ExceptionPlan, type MutedFinding } from "./memory/mute";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -1580,6 +1580,23 @@ function trimHead(head: string, cut: number) {
 }
 
 /**
+ * The "Muted by memory" paragraph (with its leading blank line) within `room` characters: the
+ * count line, then as many entries as fit. The count stays even when no entry fits.
+ */
+function fitMuted(block: string, room: number): string {
+  const items = block.trim().split("\n").slice(1);
+  const count = `**${items.length} finding${items.length === 1 ? "" : "s"} muted by memory** (not posted as comments; the list is cut to fit GitHub's size limit):`;
+  const kept: string[] = [];
+  let used = 2 + count.length;
+  for (const item of items) {
+    if (used + 1 + item.length > room) break;
+    kept.push(item);
+    used += 1 + item.length;
+  }
+  return `\n\n${[count, ...kept].join("\n")}`;
+}
+
+/**
  * Makes the part of a review body between the first findings and the footer (`### Summary`, the
  * contracts block, the coverage table) at least `cut` characters shorter. The footer (`<sub>`
  * line, signature, marker) is kept whole. The contracts block goes first, then the coverage
@@ -1593,23 +1610,30 @@ function trimMiddle(tail: string, cut: number) {
   const trimmed = "\n\n(Trimmed: this review is at GitHub's size limit.)";
   const target = middle.length - cut - trimmed.length;
   // The text before the first collapsed block is the Summary; each block after it starts at `<details>`.
-  const [summary, ...blocks] = middle.split(/(?=\n\n<details>)/);
+  const [whole, ...blocks] = middle.split(/(?=\n\n<details>)/);
+  // The "Muted by memory" list ends the Summary and is protected (ADR 0057: every muted finding is shown): the text before it is cut first, then the list shrinks to a count and the entries that fit.
+  const mutedAt = whole.lastIndexOf(`\n\n${MUTED_HEADING}`);
+  const summary = mutedAt === -1 ? whole : whole.slice(0, mutedAt);
+  let muted = mutedAt === -1 ? "" : whole.slice(mutedAt);
   const dropOrder = [
     ...blocks.filter((b) => b.includes(`<summary>${CONTRACTS_SUMMARY}`)),
     ...blocks.filter((b) => !b.includes(`<summary>${CONTRACTS_SUMMARY}`)),
   ];
   let kept = blocks;
-  const size = () => summary.length + kept.reduce((n, b) => n + b.length, 0);
+  const size = () => summary.length + muted.length + kept.reduce((n, b) => n + b.length, 0);
   for (const block of dropOrder) {
     if (size() <= target) break;
     kept = kept.filter((b) => b !== block);
   }
   let text = summary;
   if (size() > target) {
-    const cutAt = summary.lastIndexOf("\n", Math.max(target, 0));
+    const room = target - muted.length - kept.reduce((n, b) => n + b.length, 0);
+    const cutAt = summary.lastIndexOf("\n", Math.max(room, 0));
     text = summary.slice(0, Math.max(cutAt, 0));
   }
-  return `${text}${kept.join("")}${trimmed}${footer}`;
+  const keptLength = kept.reduce((n, b) => n + b.length, 0);
+  if (muted && text.length + muted.length + keptLength > target) muted = fitMuted(muted, target - text.length - keptLength);
+  return `${text}${muted}${kept.join("")}${trimmed}${footer}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -3978,15 +4002,16 @@ async function matchExceptions<F extends Finding>(
   refused?: string,
 ): Promise<{ findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage; text?: string }> {
   const request = matchRequest(plan.active, findings);
-  const finish = (rest: { findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage }, failure?: string) => {
-    if (failure) deps.warn(`Memory exceptions were not applied: matching did not run (${oneLine(failure, 200)}); every finding is posted.`);
+  // `failure` is a generic reason and goes to the public summary; `detail` (provider text) goes to the local log only.
+  const finish = (rest: { findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage }, failure?: string, detail?: string) => {
+    if (failure) deps.warn(`Memory exceptions were not applied: matching did not run (${oneLine(failure, 200)}${detail ? `: ${oneLine(detail, 300)}` : ""}); every finding is posted.`);
     const text = renderMuting({ muted: rest.muted, stale: plan.stale, ...(failure ? { failure } : {}) });
     return { ...rest, ...(text ? { text } : {}) };
   };
   const none = { findings, muted: [] as MutedFinding[], costUsd: 0, usage: NO_USAGE };
   if (!request) return finish(none);
   // The same account refused a batch; the matching call would most likely be refused too.
-  if (refused) return finish(none, `the provider rejected an earlier call: ${refused}`);
+  if (refused) return finish(none, "the provider rejected an earlier call", refused);
   const cap = Math.min(MEMORY_MATCH_BUDGET_USD, budgetUsd);
   if (cap < MIN_BATCH_USD) return finish(none, "no budget left for the matching call");
   const dir = mkdtempSync(join(tmpdir(), "agent-memory-"));
