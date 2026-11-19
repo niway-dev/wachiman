@@ -9,6 +9,7 @@ const CHECKED = new Set([
   "const",
   "enum",
   "minimum",
+  "maximum",
   "minLength",
   "properties",
   "required",
@@ -70,6 +71,9 @@ export function validate(schema: Schema, value: unknown, rootSchema: Schema = sc
   }
   if (typeof schema.minimum === "number" && typeof value === "number" && value < schema.minimum) {
     problems.push(`${path}: ${value} is below ${schema.minimum}`);
+  }
+  if (typeof schema.maximum === "number" && typeof value === "number" && value > schema.maximum) {
+    problems.push(`${path}: ${value} is above ${schema.maximum}`);
   }
   if (typeof schema.minLength === "number" && typeof value === "string" && value.length < schema.minLength) {
     problems.push(`${path}: is shorter than ${schema.minLength}`);

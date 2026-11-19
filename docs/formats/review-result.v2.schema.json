@@ -509,6 +509,13 @@
         }
       }
     },
+    "arm": {
+      "description": "The trial arm of this pull request while WACHIMAN_PRIORITY_TRIAL=1 runs: `word` shows the Important/Nit word, `priority` the priority row. Absent otherwise.",
+      "enum": [
+        "word",
+        "priority"
+      ]
+    },
     "pathPolicyChanged": {
       "description": "True when the change edits the path rules in `.wachiman.yml`; the review ran under the rules at change.base.sha. Optional; absent otherwise.",
       "const": true
@@ -867,6 +874,21 @@
             "Nit",
             "Pre-existing"
           ]
+        },
+        "priority": {
+          "description": "The finding priority, derived by the engine from the final severity, confidence and topic after verification (ADR 0059); never taken from a model. Optional: a result written before it existed has none.",
+          "enum": [
+            "must",
+            "should",
+            "could",
+            "fyi"
+          ]
+        },
+        "rank": {
+          "description": "0-100; sorts findings within a priority. Never displayed, never a gate.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
         },
         "id": {
           "description": "The finding's history id, the one `wachiman history --verdict` accepts. Present only in the JSON `wachiman local --history` writes.",

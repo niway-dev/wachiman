@@ -21,6 +21,7 @@ import type {
   Unreviewable,
 } from "./engine";
 import type { ProviderErrorClass } from "./providers/errors";
+import type { Priority } from "./priority";
 import type { PathRule } from "./repo-settings";
 import type { RiskMap } from "./risk";
 
@@ -189,8 +190,15 @@ export interface VerifiedFields {
   originReason?: string;
   originEvidence?: Citation[];
   verification: FindingVerification;
-  /** Derived by `tierWord`, never trusted from a model. */
+  /** Derived by `tierWord`, never trusted from a model. Deprecated beside `priority`; `/3` drops it (ADR 0059). */
   tier: Tier;
+  /**
+   * The finding priority (ADR 0059), derived by `priorityOf` from the final severity, confidence
+   * and topic, after verification; never trusted from a model. Optional: a result written before it existed has none.
+   */
+  priority?: Priority;
+  /** 0-100, sorts findings within a priority; never displayed and never a gate. Present with `priority`. */
+  rank?: number;
 }
 
 export interface ResultFindingV2 extends Finding, VerifiedFields {
@@ -281,6 +289,12 @@ export interface ReviewResultV2 {
   execution: Execution;
   /** Absent when verification was off. */
   verification?: ResultVerificationV2;
+  /**
+   * The trial arm of this pull request (ADR 0059 decision 10): `word` renders today's Important/Nit
+   * word, `priority` the priority row. Only a pull request review under `WACHIMAN_PRIORITY_TRIAL=1`
+   * has it; `toResultV1` leaves it out.
+   */
+  arm?: "word" | "priority";
 }
 
 /** What the core returns and every sink renders: the `/2` result. `toResultV1` makes the `/1` form. */
@@ -327,7 +341,7 @@ function verificationNotice(result: ReviewResultV2, v: ResultVerificationV2) {
 /**
  * The `/1` form of a result, for committed-change JSON (ADR 0030). Pure. It keeps the surviving
  * findings and every `/1` field, drops what `/1` has no place for (the account, the root
- * verification, each finding's origin, verification and tier) and says in one notice what the
+ * verification, each finding's origin, verification, tier, priority and rank, the trial arm) and says in one notice what the
  * verifier did. A working-tree result has no `/1` form: its head is a tree id, and a tree id must
  * never pass for a commit.
  */
@@ -336,7 +350,7 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
     throw new UsageError("A working-tree review has no result /1: its head is a tree id, not a commit. Use --result-version 2.");
   }
   const { account: _account, ...provider } = result.provider;
-  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, ...rest } = result;
+  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, ...rest } = result;
   return {
     ...rest,
     format: REVIEW_RESULT_V1,

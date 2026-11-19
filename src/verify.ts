@@ -12,6 +12,7 @@
 import { readFileSync } from "node:fs";
 import { countLines, type LineCounter, repoFileResolver } from "./contracts";
 import type { Confidence, Finding, ReviewFile, Severity } from "./engine";
+import { priorityOf } from "./priority";
 import type {
   Citation,
   Claimed,
@@ -110,6 +111,15 @@ export function tierWord(f: { severity: Severity; origin?: Origin }): Tier {
   return f.severity === "blocker" || f.severity === "fix" ? "Important" : "Nit";
 }
 
+/**
+ * The priority fields of a finding as it will be posted. Called wherever `tier` is set, with the
+ * severity and confidence verification left it, so a finding the verifier lowered is ranked as lowered.
+ */
+export function priorityFields(f: Pick<Finding, "severity" | "topic" | "confidence">): Pick<VerifiedFields, "priority" | "rank"> {
+  const { priority, rank } = priorityOf(f);
+  return { priority, rank };
+}
+
 /** Where a finding is listed: the main list, or one of the two sections that keep it out of the threads. */
 export type Section = "main" | "inconclusive" | "pre-existing";
 
@@ -130,7 +140,7 @@ const UNVERIFIED: FindingVerification = { status: "unverified", reason: "", chec
 
 /** Findings nobody verified (verification off, or an info notice): origin unknown, status unverified. */
 export function annotateUnverified(findings: Finding[]): VerifiedFinding[] {
-  return findings.map((f) => ({ ...f, origin: "unknown", verification: { ...UNVERIFIED, checked: [] }, tier: tierWord(f) }));
+  return findings.map((f) => ({ ...f, origin: "unknown", verification: { ...UNVERIFIED, checked: [] }, tier: tierWord(f), ...priorityFields(f) }));
 }
 
 /** Every finding above `info`, in order, with an id. Info notices (the engine's ADR notices included) are never verified. */
@@ -321,7 +331,15 @@ export function applyVerdicts(
       });
       const verification: FindingVerification = { candidateId: id, status, reason, checked, ...(extra.claimed ? { claimed: extra.claimed } : {}), ...(extra.unreached ? { unreached: true as const } : {}) };
       const confidence: Confidence | undefined = outcome === "degraded" ? "low" : f.confidence;
-      changed.set(f, { ...f, severity, ...(confidence ? { confidence } : {}), ...origin, verification, tier: tierWord({ severity, origin: origin.origin }) });
+      changed.set(f, {
+        ...f,
+        severity,
+        ...(confidence ? { confidence } : {}),
+        ...origin,
+        verification,
+        tier: tierWord({ severity, origin: origin.origin }),
+        ...priorityFields({ severity, topic: f.topic, confidence }),
+      });
     };
     const unanswered = (why: string) => settle("inconclusive", `not verified: ${why}`, stop ? "kept" : "degraded", { claimed: "none", unreached: true });
 
