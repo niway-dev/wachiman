@@ -81,7 +81,7 @@ class FakeProvider implements ProviderAdapter {
 
 interface LedgerOpts {
   /** The answer to `/v1/reserve`; default grants what was wanted. */
-  reserve?: (wanted: number) => { status: number; body: unknown };
+  reserve?: (wanted: number) => { status: number; body: unknown; raw?: boolean };
   /** Make the id-token request fail: `true` is GitHub's endpoint answering 403, a number is that status. */
   noToken?: boolean | number;
   /** After the reserve, every `gh` call whose arguments contain this text fails with a 502. */
@@ -123,7 +123,8 @@ function fakeLedger(events: string[], opts: LedgerOpts = {}) {
         body: { reservationId: "res-1", grantedUsd: wanted, accountLeftUsd: 10, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null },
       };
       reserved = answered.status === 200;
-      return reply(answered.status, answered.body);
+      // `raw` sends the body as is (a firewall page, an empty body) instead of as JSON.
+      return answered.raw ? { status: 0, stdout: `${String(answered.body)}\n${answered.status}`, stderr: "" } : reply(answered.status, answered.body);
     }
     if (url === `${LEDGER}/v1/settle`) {
       events.push("settle");
@@ -541,6 +542,48 @@ describe("configuration errors are not outages", () => {
 });
 
 describe("an unreachable ledger", () => {
+  for (const unavailable of ["run", "stop"]) {
+    test(`a 403 HTML page from a firewall is an unreachable ledger, not "not linked" (ledger_unavailable: ${unavailable})`, async () => {
+      const env = { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable };
+      const t = setup({ env, ledger: { reserve: () => ({ status: 403, body: "<html>Just a moment...</html>", raw: true }), recordFails: true } });
+      if (unavailable === "stop") {
+        const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
+        expect(thrown).toBeInstanceOf(LedgerStopped);
+        expect((thrown as Error).message).toContain("could not be reached");
+        expect((thrown as Error).message).toContain("answered HTTP 403 with a page that did not come from the ledger");
+        expect((thrown as Error).message).not.toContain("not linked");
+        expect(t.provider.requests).toHaveLength(0);
+        expect(t.posted).toHaveLength(0);
+      } else {
+        const warned: string[] = [];
+        t.deps.warn = (line) => void warned.push(line);
+        await review(t.deps, "o/r", 7, []);
+        expect(t.provider.requests.length).toBeGreaterThan(0);
+        expect(warned.join("\n")).toContain("answered HTTP 403 with a page that did not come from the ledger");
+        expect(t.notes.join("\n")).not.toContain("not linked");
+      }
+    });
+  }
+
+  for (const unavailable of ["run", "stop"]) {
+    test(`a 402 with a reason this client does not know stops the review, ledger_unavailable: ${unavailable}`, async () => {
+      const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable }, ledger: { reserve: () => ({ status: 402, body: { reason: "suspended" } }) } });
+      const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
+      expect(thrown).toBeInstanceOf(LedgerStopped);
+      expect((thrown as Error).message).toContain("(reason: suspended)");
+      expect(t.provider.requests).toHaveLength(0);
+      expect(t.posted).toHaveLength(0);
+    });
+  }
+
+  test("a 401 with an empty body is unreachable, not unauthorized", async () => {
+    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: "stop" }, ledger: { reserve: () => ({ status: 401, body: "", raw: true }) } });
+    const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
+    expect(thrown).toBeInstanceOf(LedgerStopped);
+    expect((thrown as Error).message).toContain("could not be reached");
+    expect((thrown as Error).message).not.toContain("identity token");
+  });
+
   test("ledger_unavailable run (the default): the review runs under its normal budgets, says it was not counted, and records the run", async () => {
     const t = setup({ env: WITH_LEDGER, ledger: { down: true } });
     // The ledger is down for every call, the record at the end included: nothing reaches it.
