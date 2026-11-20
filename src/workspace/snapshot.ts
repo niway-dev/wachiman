@@ -3,15 +3,17 @@
  * siblings" step 5). The review reads this directory, never the sibling's clone: untracked files,
  * `.git`, uncommitted edits and anything outside the chosen globs are not in it. Symbolic links
  * are dropped and listed, because a link could point out of the tree; submodules are dropped.
+ * Each file is the blob stored in the commit, written by Wachiman: `git archive` is not used,
+ * because it applies `export-ignore` and `export-subst` from attributes the sibling controls.
  * Nothing is fetched.
  */
 import { spawnSync } from "node:child_process";
-import { lstatSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { tarCommand, snapshotTimeoutMs } from "../connectors/local-git";
-import type { GitRunner } from "../evidence";
-import { isMissingObject, MISSING_OBJECT_MESSAGE, workspaceGit } from "./git";
+import { dirname, isAbsolute, join } from "node:path";
+import { snapshotTimeoutMs } from "../connectors/local-git";
+import { GIT_BASE_ARGS, type GitRunner } from "../evidence";
+import { isMissingObject, MISSING_OBJECT_MESSAGE, workspaceGit, workspaceGitEnv } from "./git";
 
 export interface SiblingSnapshot {
   /** A fresh temporary directory with no `.git`. */
@@ -27,11 +29,10 @@ export interface SiblingSnapshot {
 }
 
 const MAX_BYTES = 512 * 1024 * 1024;
-/** A command line this long is safe on every platform that runs Wachiman (Windows allows about 32 KB). */
-const ARGS_BUDGET = 24_000;
 
 interface TreeEntry {
   mode: string;
+  oid: string;
   path: string;
 }
 
@@ -42,80 +43,84 @@ function treeOf(git: GitRunner, repoDir: string, sha: string): TreeEntry[] {
   for (const record of out.stdout.split("\0")) {
     const tab = record.indexOf("\t");
     if (tab < 0) continue;
-    entries.push({ mode: record.slice(0, record.indexOf(" ")), path: record.slice(tab + 1) });
+    const [mode, , oid] = record.slice(0, tab).split(" ");
+    entries.push({ mode: mode ?? "", oid: oid ?? "", path: record.slice(tab + 1) });
   }
   return entries;
 }
 
-/** Splits `paths` into groups whose total length fits one command line. */
-function chunks(paths: string[]): string[][] {
-  const groups: string[][] = [];
-  let current: string[] = [];
-  let size = 0;
-  for (const path of paths) {
-    if (current.length > 0 && size + path.length + 1 > ARGS_BUDGET) {
-      groups.push(current);
-      current = [];
-      size = 0;
-    }
-    current.push(path);
-    size += path.length + 1;
+/** Defensive: a tree entry that could write outside the snapshot directory is refused. */
+function assertInside(path: string) {
+  if (isAbsolute(path) || /^([\\/]|[A-Za-z]:)/.test(path) || path.split(/[\\/]/).includes(".."))
+    throw new Error(`Refusing the tree entry "${path}": it is absolute or has a ".." segment.`);
+}
+
+/** The contents of each blob, by id, from one `git cat-file --batch`; throws when one is absent locally. */
+function readBlobs(memberDir: string, oids: string[], timeoutMs: number): Buffer[] {
+  if (oids.length === 0) return [];
+  const run = spawnSync("git", [...GIT_BASE_ARGS, "cat-file", "--batch"], {
+    cwd: memberDir,
+    input: `${oids.join("\n")}\n`,
+    timeout: Math.max(1, Math.floor(timeoutMs)),
+    maxBuffer: MAX_BYTES,
+    env: workspaceGitEnv(),
+  });
+  const stderr = run.stderr?.toString("utf8") ?? "";
+  if (run.error || run.status !== 0) {
+    if (isMissingObject(stderr)) throw new Error(`${MISSING_OBJECT_MESSAGE}: a blob is absent in ${memberDir}.`);
+    throw new Error(`git cat-file --batch failed in ${memberDir}: ${run.error?.message ?? (stderr.trim() || `status ${run.status}`)}`);
   }
-  if (current.length > 0) groups.push(current);
-  return groups;
+  const out = run.stdout;
+  const blobs: Buffer[] = [];
+  let at = 0;
+  for (const oid of oids) {
+    const eol = out.indexOf(10, at);
+    if (eol < 0) throw new Error(`git cat-file --batch answered too little in ${memberDir}.`);
+    const header = out.toString("utf8", at, eol).split(" ");
+    if (header[1] === "missing") throw new Error(`${MISSING_OBJECT_MESSAGE}: blob ${oid} is absent in ${memberDir}.`);
+    const size = Number(header[2]);
+    if (header[0] !== oid || header[1] !== "blob" || !Number.isInteger(size)) throw new Error(`git cat-file --batch gave "${header.join(" ")}" for ${oid} in ${memberDir}.`);
+    blobs.push(out.subarray(eol + 1, eol + 1 + size));
+    at = eol + 1 + size + 1;
+  }
+  return blobs;
 }
 
 /**
- * Extracts the tracked files of `sha` in the clone at `memberDir` that `globs` select into a fresh
- * temporary directory. `sha` must be a full commit id (the version rules return one). An empty
- * selection gives an empty directory and no paths. Throws when the commit cannot be read.
+ * Writes the tracked files of `sha` in the clone at `memberDir` that `globs` select into a fresh
+ * temporary directory, as the bytes of the committed blobs. `sha` must be a full commit id (the
+ * version rules return one). An empty selection gives an empty directory and no paths. Throws when
+ * the commit cannot be read, or a blob is not present locally.
  */
 export function snapshotSibling(memberDir: string, sha: string, globs: string[], git: GitRunner = workspaceGit): SiblingSnapshot {
   if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) throw new Error(`A sibling snapshot needs a full commit id, got "${sha}".`);
   const matchers = globs.map((g) => new Bun.Glob(g));
-  const selected: string[] = [];
+  const selected: TreeEntry[] = [];
   const droppedSymlinks: string[] = [];
   const droppedSubmodules: string[] = [];
-  for (const { mode, path } of treeOf(git, memberDir, sha)) {
-    if (!matchers.some((m) => m.match(path))) continue;
-    if (mode === "120000") droppedSymlinks.push(path);
-    else if (mode === "160000") droppedSubmodules.push(path);
-    else selected.push(path);
+  for (const entry of treeOf(git, memberDir, sha)) {
+    if (!matchers.some((m) => m.match(entry.path))) continue;
+    if (entry.mode === "120000") droppedSymlinks.push(entry.path);
+    else if (entry.mode === "160000") droppedSubmodules.push(entry.path);
+    else if (entry.mode === "100644" || entry.mode === "100755") {
+      assertInside(entry.path);
+      selected.push(entry);
+    }
   }
 
+  const blobs = readBlobs(memberDir, selected.map((e) => e.oid), snapshotTimeoutMs(selected.length));
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-sibling-")));
-  const tar = `${dir}.tar`;
-  const remove = () => {
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(tar, { force: true });
-  };
+  const remove = () => rmSync(dir, { recursive: true, force: true });
   try {
-    const limit = snapshotTimeoutMs(selected.length);
-    for (const group of chunks(selected)) {
-      // Literal pathspecs: a file named `*.ts` or `:(top)x` is a name, not a pattern. CRLF conversion is off so the bytes are the committed ones.
-      const archive = git(["--literal-pathspecs", "-c", "core.autocrlf=false", "-c", "core.eol=lf", "archive", "--format=tar", `--output=${tar}`, sha, "--", ...group], {
-        cwd: memberDir,
-        timeoutMs: limit,
-        maxBytes: MAX_BYTES,
-      });
-      if (archive.status !== 0 && isMissingObject(archive.stderr)) throw new Error(`${MISSING_OBJECT_MESSAGE}: snapshot of ${sha} in ${memberDir} is incomplete.`);
-      if (archive.status !== 0 || archive.error) throw new Error(`git archive ${sha} failed in ${memberDir}: ${archive.error ?? archive.stderr?.trim() ?? `status ${archive.status}`}`);
-      const untar = spawnSync(tarCommand(), ["-xf", tar], { cwd: dir, encoding: "utf8", timeout: limit });
-      if (untar.error || untar.status !== 0) throw new Error(`tar -xf failed for the snapshot of ${sha}: ${untar.error?.message ?? untar.stderr}`);
-      rmSync(tar, { force: true });
-    }
+    selected.forEach((entry, i) => {
+      const target = join(dir, entry.path);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, blobs[i]!);
+      chmodSync(target, entry.mode === "100755" ? 0o755 : 0o644);
+    });
   } catch (error) {
     remove();
     throw error;
   }
-  // `export-ignore` in the sibling's .gitattributes can leave a selected path out of the archive.
-  const present = selected.filter((p) => {
-    try {
-      lstatSync(join(dir, p));
-      return true;
-    } catch {
-      return false;
-    }
-  });
-  return { dir, paths: present, droppedSymlinks, droppedSubmodules, remove };
+  return { dir, paths: selected.map((e) => e.path), droppedSymlinks, droppedSubmodules, remove };
 }

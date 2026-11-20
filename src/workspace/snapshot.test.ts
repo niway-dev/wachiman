@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, renameSync, symlinkSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, renameSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
@@ -122,7 +122,7 @@ describe("snapshotSibling", () => {
     expect(existsSync(join(s.dir, "a.ts"))).toBe(false);
   });
 
-  test("a large selection is archived in several command lines", () => {
+  test("a large selection is written without any command-line limit", () => {
     const dir = emptyRepo("wachiman-sibling-many-");
     const many: Record<string, string> = {};
     for (let i = 0; i < 700; i++) many[`generated/some/rather/long/directory/name/for/testing/file-number-${i}.txt`] = `${i}\n`;
@@ -133,11 +133,41 @@ describe("snapshotSibling", () => {
     expect(files(s.dir)).toHaveLength(700);
   });
 
-  test("export-ignore in the sibling's attributes leaves the file out of paths", () => {
-    const dir = emptyRepo("wachiman-sibling-ignore-");
-    commit(dir, { ".gitattributes": "secret.txt export-ignore\n", "secret.txt": "s\n", "keep.txt": "k\n" }, "attrs");
+  test("export-ignore and export-subst, in the tree or in .git/info/attributes, do not change the committed blobs", () => {
+    const dir = emptyRepo("wachiman-sibling-attrs-");
+    commit(
+      dir,
+      { ".gitattributes": "secret.txt export-ignore\nstamp.txt export-subst\n", "secret.txt": "s\n", "keep.txt": "k\n", "stamp.txt": "version $Format:%H$\n", "local.txt": "l\n" },
+      "attrs",
+    );
+    write(dir, { ".git/info/attributes": "local.txt export-ignore\n" });
     const head = git(dir, "rev-parse", "HEAD").trim();
-    expect(snap(dir, head, ["**"]).paths.sort()).toEqual([".gitattributes", "keep.txt"]);
+    const s = snap(dir, head, ["**"]);
+    expect(s.paths.sort()).toEqual([".gitattributes", "keep.txt", "local.txt", "secret.txt", "stamp.txt"]);
+    expect(readFileSync(join(s.dir, "stamp.txt"), "utf8")).toBe("version $Format:%H$\n");
+    expect(readFileSync(join(s.dir, "local.txt"), "utf8")).toBe("l\n");
+  });
+
+  test("the executable bit is kept and other files are not executable", () => {
+    const dir = emptyRepo("wachiman-sibling-exec-");
+    write(dir, { "bin/run.sh": "#!/bin/sh\n", "bin/data.txt": "d\n" });
+    chmodSync(join(dir, "bin/run.sh"), 0o755);
+    git(dir, "add", "-A");
+    git(dir, "commit", "-qm", "exec");
+    const head = git(dir, "rev-parse", "HEAD").trim();
+    const s = snap(dir, head, ["bin/**"]);
+    expect(statSync(join(s.dir, "bin/run.sh")).mode & 0o111).not.toBe(0);
+    expect(statSync(join(s.dir, "bin/data.txt")).mode & 0o111).toBe(0);
+  });
+
+  test("an entry path with a .. segment is refused", () => {
+    const dir = emptyRepo("wachiman-sibling-dotdot-");
+    const first = commit(dir, { "a.txt": "a\n" }, "first");
+    const blob = git(dir, "rev-parse", `${first}:a.txt`).trim();
+    // A tree whose entry is named "..": git writes it with `hash-object` and no fsck.
+    const bad = spawnSync("git", ["hash-object", "-w", "-t", "tree", "--literally", "--stdin"], { cwd: dir, input: Buffer.concat([Buffer.from("100644 ..\0"), Buffer.from(blob, "hex")]), encoding: "utf8" }).stdout.trim();
+    const commitId = git(dir, "commit-tree", bad, "-m", "dotdot").trim();
+    expect(() => snapshotSibling(dir, commitId, ["**"])).toThrow(/Refusing the tree entry "\.\."/);
   });
 
   test("a commit that does not exist, or a name that is not a full id, is an error and leaves no directory", () => {
