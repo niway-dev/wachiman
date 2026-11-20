@@ -1060,6 +1060,12 @@ export function readSignedState(body: string): ReviewState | null {
   return decodePartialState(found[2], found[3]);
 }
 
+/** Whether a signed review's footer holds a partial marker (`wachi:partial`) and not the complete one. */
+export function isPartialFooter(body: string): boolean {
+  const found = body.trimEnd().match(SIGNED_FOOTER);
+  return found !== null && found[1] === undefined;
+}
+
 /** The commit in a signed review's footer, complete or partial, or null when the body does not end with that footer. */
 export function readSignedMarker(body: string) {
   return readSignedState(body)?.sha ?? null;
@@ -2242,7 +2248,7 @@ export interface Deps extends CoreDeps {
 
 const blockingSleep = (ms: number) => void Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-const jsonLines = <T>(text: string) =>
+export const jsonLines = <T>(text: string) =>
   text
     .split("\n")
     .filter(Boolean)
@@ -2621,7 +2627,7 @@ export interface RawThread {
 const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 /** A thread that opens with one of the engine's findings (open or resolved). */
-const isBotFinding = (t: RawThread) =>
+export const isBotFinding = (t: RawThread) =>
   t.comments.nodes[0]?.author?.login === "github-actions" &&
   isWachiFinding(t.comments.nodes[0].body, t.comments.nodes[0].createdAt);
 

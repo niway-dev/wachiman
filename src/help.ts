@@ -19,6 +19,7 @@ import { checkUsage, riskUsage, stripUsage } from "./pr-template/check-run";
 import { formatUsage } from "./pr-template/format";
 import { installUsage, showUsage, statusUsage as prTemplateStatusUsage } from "./pr-template/install";
 import { statusUsage } from "./status/command";
+import { prStateUsage } from "./pr-state";
 import { upgradeUsage } from "./upgrade/command";
 
 export const DOCS = "https://github.com/niway-dev/wachiman/blob/main/docs";
@@ -591,11 +592,33 @@ const memoryPage: Page = {
   },
 };
 
+const prStatePage: Page = {
+  usage: prStateUsage,
+  summary:
+    "Say what Wachiman's own review of a pull request needs next, as one JSON object (wachiman.pr-state/1) and an exit code: wait, act, blocked, done or closed. Read-only: it reads the pull request through `gh`, never posts, resolves, replies or edits, and stores nothing. `done` means only that Wachiman has nothing pending on the current head; other reviewers, CI and merge conflicts are not read.",
+  options: [
+    ["<pr>", "The pull request number. Default: the pull request of the current branch"],
+    ["--repo <owner/repo>", "The repository. Default: the one `gh` resolves for the current directory"],
+    ["--json", "Accepted; JSON is the only output"],
+  ],
+  env: [["GH_TOKEN", "Optional: `gh` uses its own sign-in when it is not set"]],
+  exit: [
+    ["0", "done (nothing pending on the head) or closed (the pull request is closed or merged)"],
+    ["20", "act: an unresolved Wachiman finding thread, or a Blocker or Fix finding with no thread"],
+    ["21", "wait: no review of the current head yet, or the head moved while reading"],
+    ["22", "blocked: the review was refused, skipped or partial, or its job finished without one"],
+    ["1", "GitHub or `gh` failed; nothing is printed on stdout"],
+    ["2", "Usage error"],
+  ],
+  examples: ["wachiman pr-state 42 --json", "wachiman pr-state --repo niway-dev/wachiman 42 --json", "wachiman pr-state --json   # the current branch's pull request"],
+  docs: `${DOCS}/pr-state.md`,
+};
+
 /** The commands a GitHub Actions run uses; they are not in the root help. */
 export const CI_COMMANDS = ["review", "comment", "threads", "reset-confidence"] as const;
 
 const PAGES: Readonly<Record<string, Page>> = {
-  local: localPage, loop: loopPage, ask: askPage,
+  local: localPage, loop: loopPage, ask: askPage, "pr-state": prStatePage,
   history: historyPage, status: statusPage, dashboard: dashboardPage, ledger: ledgerPageWithSubs,
   setup: setupPage, init: initPage, doctor: doctorPage, profile: profilePage, project: projectPage, skills: skillsPage, upgrade: upgradePage, "pr-template": prTemplatePageRoot, memory: memoryPage,
   review: reviewPage, comment: commentPage, threads: threadsPage, "reset-confidence": resetConfidencePage,
@@ -667,7 +690,7 @@ export function rootHelp(paint: Paint = plain): string {
     ...rows([["local", "Review a branch, commit, or working-tree changes"], ["loop", "Run one round of a tracked review loop"], ["ask", "Explain a change or ask a question"]]),
     "",
     paint("Results", "strong"),
-    ...rows([["history", "Browse findings and record verdicts"], ["status", "Show local usage and estimated cost"], ["dashboard", "Export a local usage dashboard"], ["ledger", "Download GitHub Actions spend from the ledger"]]),
+    ...rows([["history", "Browse findings and record verdicts"], ["status", "Show local usage and estimated cost"], ["dashboard", "Export a local usage dashboard"], ["ledger", "Download GitHub Actions spend from the ledger"], ["pr-state", "Read what Wachiman needs next on a pull request"]]),
     "",
     paint("Configuration", "strong"),
     ...rows([

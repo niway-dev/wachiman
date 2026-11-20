@@ -13,8 +13,8 @@ const run = (args: string[], env: Record<string, string> = {}) => {
 describe("root help", () => {
   test("is short, names every public command and hides the CI commands and --setup-profile", () => {
     const text = rootHelp();
-    expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(28);
-    for (const name of ["local", "loop", "ask", "history", "status", "dashboard", "ledger", "setup", "init", "doctor", "profile", "project", "skills", "upgrade", "pr-template", "memory"]) {
+    expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(29);
+    for (const name of ["local", "loop", "ask", "history", "status", "dashboard", "ledger", "setup", "init", "doctor", "profile", "project", "skills", "upgrade", "pr-template", "memory", "pr-state"]) {
       expect(text).toContain(`  ${name} `);
     }
     for (const name of CI_COMMANDS) expect(text).not.toMatch(new RegExp(`^  ${name} `, "m"));
