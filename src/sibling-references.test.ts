@@ -226,6 +226,24 @@ describe("settleModelText", () => {
     expect(out.removed).toBe(14);
   });
 
+  test("a reason copied onto a finding and its verifier entry counts one removed reference", () => {
+    const reason = `Confirmed at ${bad}`;
+    const out = settleModelText([sibling()], {
+      findings: [{ title: "t", body: "b", verification: { reason } }],
+      summary: "",
+      contracts: [],
+      riskFacts: [],
+      judgement: [],
+      verification: { status: "verified", entries: [{ title: "t", reason }] },
+      muted: [],
+      threadReplies: [],
+      skipped: [],
+    });
+    expect(out.findings[0]!.verification!.reason).toBe(`Confirmed at ${REMOVED_REFERENCE}`);
+    expect(out.verification!.entries[0]!.reason).toBe(`Confirmed at ${REMOVED_REFERENCE}`);
+    expect(out.removed).toBe(1);
+  });
+
   test("a result with nothing to settle comes back with no verification invented", () => {
     const out = settleModelText([sibling()], { findings: [], summary: "", contracts: [], riskFacts: [], judgement: [], muted: [], threadReplies: [], skipped: [] });
     expect(out.verification).toBeUndefined();

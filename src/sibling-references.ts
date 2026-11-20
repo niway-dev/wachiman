@@ -81,7 +81,20 @@ function referenceChecker(siblings: readonly ResolvedSibling[]) {
   const withoutDirectories = snapshotDirectories(siblings);
   let removed = 0;
   const kept: SiblingReference[] = [];
-  const settle = (text: string) =>
+  // The same text is often copied into several places (a verifier's reason sits on the finding and on its entry), so a text is settled once and every copy gets that result: one bad reference counts once.
+  const settled = new Map<string, { out: string; kept: SiblingReference[] }>();
+  const settle = (text: string): string => {
+    const hit = settled.get(text);
+    if (hit) {
+      kept.push(...hit.kept);
+      return hit.out;
+    }
+    const start = kept.length;
+    const out = settleOnce(text);
+    settled.set(text, { out, kept: kept.slice(start) });
+    return out;
+  };
+  const settleOnce = (text: string) =>
     withoutDirectories(text).replace(pattern, (token, member: string, sha: string, path: string, line: string, end?: string) => {
       const found = readable.find((s) => s.member === member && s.sha!.startsWith(sha));
       const first = Number(line);
@@ -100,10 +113,9 @@ function referenceChecker(siblings: readonly ResolvedSibling[]) {
     const title = settle(f.title);
     const body = settle(f.body);
     const references = kept.filter((r, i) => kept.findIndex((o) => o.member === r.member && o.sha === r.sha && o.path === r.path && o.line === r.line) === i);
-    const before = removed;
     const reason = f.verification ? settle(f.verification.reason) : undefined;
     const originReason = f.originReason !== undefined ? settle(f.originReason) : undefined;
-    if (title === f.title && body === f.body && reason === f.verification?.reason && originReason === f.originReason && references.length === 0 && removed === before) return f;
+    if (title === f.title && body === f.body && reason === f.verification?.reason && originReason === f.originReason && references.length === 0) return f;
     return {
       ...f,
       title,
