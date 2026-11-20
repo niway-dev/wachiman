@@ -8,6 +8,7 @@
 import { UsageError } from "./config";
 import type { Contract } from "./contracts";
 import type { TokenUsage } from "./cost";
+import type { DistributedResultFields, SiblingReference } from "./distributed";
 import type { Fidelity } from "./fidelity/types";
 import type { MemoryRecord } from "./memory/load";
 import type { MutedFinding } from "./memory/mute";
@@ -211,6 +212,12 @@ export interface ResultFindingV2 extends Finding, VerifiedFields {
    * `local` JSON `/2` written with history on carries it; the core never sets it.
    */
   id?: string;
+  /**
+   * The references into a sibling this finding makes in its text, as `member@sha:path:line`, each
+   * checked against the snapshot of that member at that commit (ADR 0043). Only a distributed-repo
+   * run has it; a reference that could not be checked is not here and is counted in the result.
+   */
+  references?: SiblingReference[];
 }
 
 export interface VerificationEntryV2 {
@@ -266,7 +273,7 @@ export interface ProviderV2 {
 }
 
 /** `wachiman.review-result/2`: what the core produces and every sink renders. */
-export interface ReviewResultV2 {
+export interface ReviewResultV2 extends Partial<DistributedResultFields> {
   format: typeof REVIEW_RESULT_V2;
   change: ReviewChange & { snapshot?: string };
   engine: { version: string };
@@ -361,6 +368,10 @@ function verificationNotice(result: ReviewResultV2, v: ResultVerificationV2) {
 export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
   if ((result.change as { kind: string }).kind === "working-tree") {
     throw new UsageError("A working-tree review has no result /1: its head is a tree id, not a commit. Use --result-version 2.");
+  }
+  // /1 has no place for the siblings or the private-context label, and dropping the label would hide it.
+  if (result.siblings !== undefined) {
+    throw new UsageError("A distributed-repo review has no result /1: it carries its siblings and a private-context label that /1 cannot hold. Use --result-version 2.");
   }
   const { account: _account, ...provider } = result.provider;
   const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, muted: _muted, ...rest } = result;

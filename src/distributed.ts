@@ -96,6 +96,22 @@ export interface DistributedContext {
   siblings: ResolvedSibling[];
 }
 
+/** One sibling as the result carries it: the row of the run without the snapshot's directory, which is for this run only. */
+export type ResultSibling = Omit<ResolvedSibling, "dir">;
+
+/** What a result of a distributed-repo run adds (the optional fields of result `/2`); the engine puts these on it. */
+export interface DistributedResultFields {
+  siblings: ResultSibling[];
+  /** The names of the workspace contracts the change applied. */
+  workspaceContractsApplied: string[];
+  /** Present, and true, when none applied. */
+  noWorkspaceContractApplied?: true;
+  /** Present when a sibling that was read is not public: its members (ADR 0042 decision 5). */
+  privateContext?: { members: string[] };
+  /** How many references into a sibling could not be checked and were removed. */
+  removedSiblingReferences: number;
+}
+
 const readable = (s: ResolvedSibling) => s.dir !== undefined && s.sha !== undefined && (s.status === "read" || s.status === "uncommitted-not-read");
 const short = (sha: string) => sha.slice(0, 7);
 
@@ -189,3 +205,22 @@ export function verifierDistributed(context: DistributedContext | undefined): { 
   ];
   return { section: lines.join("\n"), dirs: unique(read.map((s) => s.dir)) };
 }
+
+/**
+ * The fields a distributed-repo run adds to its result. A sibling is private unless the manifest
+ * says `public` (the row already carries that), and only a sibling that was read counts: one that
+ * was not cloned, not watched or unreadable put nothing into the review.
+ */
+export function distributedResultFields(context: DistributedContext, removedReferences: number): DistributedResultFields {
+  const private_ = [...new Set(context.siblings.filter((s) => readable(s) && s.visibility !== "public").map((s) => s.member))];
+  return {
+    siblings: context.siblings.map(({ dir: _dir, ...row }) => row),
+    workspaceContractsApplied: context.contracts.map((c) => c.name),
+    ...(context.contracts.length === 0 ? { noWorkspaceContractApplied: true as const } : {}),
+    ...(private_.length > 0 ? { privateContext: { members: private_ } } : {}),
+    removedSiblingReferences: removedReferences,
+  };
+}
+
+/** The label of ADR 0042 decision 5, as the terminal, the Markdown report and the review loop print it. */
+export const privateContextLine = (members: string[]) => `Built with private context from: ${members.join(", ")}. Do not paste its text into a public place.`;

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { loadConfig } from "./config";
 import type { ContractReading, DistributedContext, ResolvedSibling } from "./distributed";
 import { reviewChange, reviewOptionsOf, type CoreDeps, type ReviewInput, type ReviewOptions, type ReviewOutput } from "./engine";
+import { REMOVED_REFERENCE } from "./sibling-references";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
 // Distributed-repo design, "How a run picks its siblings" step 6: only the batches that hold a file
@@ -266,5 +267,80 @@ describe("the verifier of a distributed-repo run", () => {
     const noneRead = await run(context([missing], [palette(missing)]));
     expect(scrub(noneRead.prompt)).toBe(scrub(plain.prompt));
     expect(noneRead.addDirs).toHaveLength(plain.addDirs.length);
+  });
+});
+
+describe("the result of a distributed-repo run", () => {
+  const cited = (body: string) => ({ path: "src/a.ts", line: 1, severity: "fix", topic: "bug", confidence: "high", title: "The accent drifts", body }) as const;
+  const reviewer = (body: string) =>
+    new FakeProvider((request) => ({ costUsd: 0.1, structuredOutput: out({ files_reviewed: filesIn(request.prompt), findings: filesIn(request.prompt).includes("src/a.ts") ? [cited(body)] : [], summary: "s" }) }));
+  const palette2 = '{\n  "accent": "#112233"\n}\n';
+
+  test("carries the siblings without their directories, the contracts, the private-context label and the checked references", async () => {
+    const headDir = reviewedHead();
+    const desktop = sibling({ member: "desktop-app", ruleSource: "user-file", fetchedAt: "2026-11-18T09:30:00.000Z", dir: snapshotDir("Assets/palette.json", palette2) });
+    const missing = sibling({ member: "brand-assets", visibility: "public", status: "not-cloned", sha: undefined, paths: [] });
+    const provider = reviewer("The source says desktop-app@3f2a9c1:Assets/palette.json:2, and also desktop-app@3f2a9c1:Assets/palette.json:30.");
+    const result = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([desktop, missing], [palette(desktop)]) }), coreDeps(provider));
+
+    expect(result.format).toBe("wachiman.review-result/2");
+    expect(result.siblings?.map((s) => [s.member, s.status, s.ruleSource, s.sha?.slice(0, 7), s.fetchedAt])).toEqual([
+      ["desktop-app", "read", "user-file", "3f2a9c1", "2026-11-18T09:30:00.000Z"],
+      ["brand-assets", "not-cloned", "default", undefined, undefined],
+    ]);
+    for (const row of result.siblings!) expect(row).not.toHaveProperty("dir");
+    expect(JSON.stringify(result)).not.toContain(desktop.dir!);
+    expect(result.workspaceContractsApplied).toEqual(["brand-palette"]);
+    expect(result).not.toHaveProperty("noWorkspaceContractApplied");
+    // A private sibling that was read labels the result; a public one that was not read does not.
+    expect(result.privateContext).toEqual({ members: ["desktop-app"] });
+    expect(result.removedSiblingReferences).toBe(1);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]!.references).toEqual([{ member: "desktop-app", sha: SHA_A, path: "Assets/palette.json", line: 2 }]);
+    expect(result.findings[0]!.body).toBe(`The source says desktop-app@3f2a9c1:Assets/palette.json:2, and also ${REMOVED_REFERENCE}.`);
+  });
+
+  test("a result that read only public siblings, or none, has no private-context label", async () => {
+    const headDir = reviewedHead();
+    const open = sibling({ member: "desktop-app", visibility: "public", dir: snapshotDir("Assets/palette.json", palette2) });
+    const publicOnly = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([open], [palette(open)]) }), coreDeps(new FakeProvider(answersForItsFiles)));
+    expect(publicOnly.siblings).toHaveLength(1);
+    expect(publicOnly).not.toHaveProperty("privateContext");
+    const missing = sibling({ member: "desktop-app", status: "not-cloned", sha: undefined, paths: [] });
+    const notRead = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([missing], [palette(missing)]) }), coreDeps(new FakeProvider(answersForItsFiles)));
+    expect(notRead).not.toHaveProperty("privateContext");
+  });
+
+  test("a run that applied no contract says so, and still lists its siblings and the removed count", async () => {
+    const headDir = reviewedHead();
+    const result = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([], []) }), coreDeps(new FakeProvider(answersForItsFiles)));
+    expect(result.siblings).toEqual([]);
+    expect(result.workspaceContractsApplied).toEqual([]);
+    expect(result.noWorkspaceContractApplied).toBe(true);
+    expect(result.removedSiblingReferences).toBe(0);
+    expect(result).not.toHaveProperty("privateContext");
+  });
+
+  test("a finding whose only sibling reference was removed stays, without the reference", async () => {
+    const headDir = reviewedHead();
+    const desktop = sibling({ member: "desktop-app", dir: snapshotDir("Assets/palette.json", palette2) });
+    const result = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([desktop], [palette(desktop)]) }), coreDeps(reviewer("Compare with desktop-app@3f2a9c1:Assets/nowhere.json:1.")));
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0]).not.toHaveProperty("references");
+    expect(result.findings[0]!.body).toBe(`Compare with ${REMOVED_REFERENCE}.`);
+    expect(result.removedSiblingReferences).toBe(1);
+  });
+
+  test("without the mode the result has none of the new fields and is what it was", async () => {
+    const headDir = reviewedHead();
+    // The text a model could write is left alone too: nothing is checked, nothing is removed.
+    const body = "Compare with desktop-app@3f2a9c1:Assets/palette.json:2.";
+    const result = await reviewChange(input(headDir, TWO_FILES), options(), coreDeps(reviewer(body)));
+    for (const key of ["siblings", "workspaceContractsApplied", "noWorkspaceContractApplied", "privateContext", "removedSiblingReferences"]) expect(result, key).not.toHaveProperty(key);
+    expect(result.findings[0]!.body).toBe(body);
+    expect(result.findings[0]).not.toHaveProperty("references");
+    expect(Object.keys(JSON.parse(JSON.stringify(result))).sort()).toEqual(
+      ["batches", "change", "contracts", "coverage", "engine", "execution", "findings", "format", "instructionChanges", "provider", "riskMap", "summary", "threadReplies"].sort(),
+    );
   });
 });

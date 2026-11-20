@@ -78,7 +78,8 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
-import { batchDistributed, verifierDistributed, type DistributedContext } from "./distributed";
+import { batchDistributed, distributedResultFields, verifierDistributed, type DistributedContext } from "./distributed";
+import { checkSiblingReferences } from "./sibling-references";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
 import {
   annotateUnverified,
@@ -3872,7 +3873,12 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
 
   // The anchor is decided here, so a sink needs no patch to know which findings sit on a diff line.
   const commentable = new Map(kept.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
-  const findings: ResultFinding[] = checked.map((f) => ({
+  // A distributed-repo run (ADR 0043): a reference into a sibling stays only if its line exists in that
+  // member's snapshot at that commit. The snapshots are still on disk here; the caller removes them after.
+  const siblingRefs = options.distributed ? checkSiblingReferences(options.distributed.siblings, checked) : undefined;
+  if (siblingRefs && siblingRefs.removed > 0)
+    core.log(`Sibling references: ${siblingRefs.removed} removed: the member was not read, the commit is not its snapshot's, or the line does not exist there.`);
+  const findings: ResultFinding[] = (siblingRefs?.findings ?? checked).map((f) => ({
     ...f,
     anchor: commentable.get(f.path)?.has(f.line) ? "diff" : "outside",
   }));
@@ -3977,6 +3983,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       baseSha: input.instructions.baseSha,
     },
     ...(input.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
+    ...(options.distributed ? distributedResultFields(options.distributed, siblingRefs?.removed ?? 0) : {}),
     execution: {
       costUsdEstimate: spent,
       usage,
