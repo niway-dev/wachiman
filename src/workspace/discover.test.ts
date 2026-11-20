@@ -148,6 +148,18 @@ describe("findWorkspace", () => {
     expect(findWorkspace(repo, "https://github.com/acme/web-site.git", noUserFile, [], root)).toBeUndefined();
   });
 
+  test("the walk up stops at the ceiling, so a manifest above it that lists the repository is none", () => {
+    const root = tmp();
+    writeFileSync(join(root, MANIFEST_FILE), JSON.stringify(MANIFEST));
+    const ceiling = join(root, "ceiling");
+    const repo = join(ceiling, "web-site");
+    mkdirSync(repo, { recursive: true });
+    const origin = "https://github.com/acme/web-site.git";
+    // Control: without a ceiling the same manifest is found, so the ceiling is what makes the result none.
+    expect(findWorkspace(repo, origin, noUserFile, [])?.coordinator).toBe(root);
+    expect(findWorkspace(repo, origin, noUserFile, [], ceiling)).toBeUndefined();
+  });
+
   test("a per-user entry whose manifest file is gone is skipped with a warning naming its path", () => {
     const coordinator = workspace();
     const gone = userWorkspace(join(tmp(), "nowhere"));
