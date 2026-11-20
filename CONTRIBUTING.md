@@ -23,12 +23,10 @@ The rest of this page applies when outside contributions open.
   the project will not take.
 - Read [docs/architecture.md](docs/architecture.md) and the [ADRs](docs/adr/). A change that
   contradicts an ADR needs to say which one and why.
-- Security problems go through GitHub's private vulnerability reporting, never a public issue.
-  See [SECURITY.md](SECURITY.md).
 
 ## The contributor license agreement
 
-This applies when outside contributions open. Outside contributors must accept [CLA.md](CLA.md) once by ticking the PR-template checkbox.
+Outside contributors must accept [CLA.md](CLA.md) once by ticking the PR-template checkbox.
 Acceptance covers later contributions until withdrawn for future submissions; NIWAY checks the
 acceptance record before merging. You keep the copyright to your work. NIWAY gets a license
 broad enough to keep licensing the whole project, including selling commercial licenses that cover
