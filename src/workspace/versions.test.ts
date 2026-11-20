@@ -88,6 +88,19 @@ describe("pinned", () => {
     expect(resolveVersion(context(consumer(), p, { rule: "pinned", ref: p.tip })).sha).toBe(p.tip);
   });
 
+  test("a replacement ref in the sibling does not change which commit a tag names", () => {
+    const p = provider();
+    git(p.dir, "tag", "-d", "v1.2.0");
+    git(p.dir, "tag", "-a", "-m", "real", "v1.2.0", p.tagged);
+    git(p.dir, "tag", "-a", "-m", "decoy", "decoy", p.tip);
+    const real = git(p.dir, "rev-parse", "refs/tags/v1.2.0").trim();
+    const decoy = git(p.dir, "rev-parse", "refs/tags/decoy").trim();
+    git(p.dir, "replace", real, decoy);
+    // Without the replacement, v1.2.0 peels to the first commit; with it, git would read the decoy tag and report the tip.
+    expect(git(p.dir, "rev-parse", "refs/tags/v1.2.0^{commit}").trim()).toBe(p.tip);
+    expect(resolveVersion(context(consumer("1.2.0"), p, pinSpec)).sha).toBe(p.tagged);
+  });
+
   test("a key with a dot in the package name is read as a literal key", () => {
     const p = provider();
     const c = consumer();

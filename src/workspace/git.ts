@@ -1,12 +1,13 @@
 /**
  * The one place every `git` the workspace modules run gets its environment. A sibling's clone is
  * read as it is: Wachiman never fetches (ADR 0019, ADR 0043), so a partial clone must not fetch a
- * missing blob on the side.
+ * missing blob on the side, and replacement refs (`git replace`) must not change what a commit
+ * or tag contains.
  */
 import { gitEnv, spawnGit, type GitRunner } from "../evidence";
 
-/** The engine's minimal git environment, plus: no lazy fetch from a promisor remote. */
-export const workspaceGitEnv = () => ({ ...gitEnv(), GIT_NO_LAZY_FETCH: "1" });
+/** The engine's minimal git environment, plus: no lazy fetch from a promisor remote, no replacement objects. */
+export const workspaceGitEnv = () => ({ ...gitEnv(), GIT_NO_LAZY_FETCH: "1", GIT_NO_REPLACE_OBJECTS: "1" });
 
 /**
  * The `GitRunner` of the workspace modules. It delegates to the engine's runner so the options
