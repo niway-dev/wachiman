@@ -159,9 +159,8 @@ describe("AC14: at most one state read per interval, however many events arrive"
     };
     const r = await run(w, ARGS, { openListener: () => listener });
     expect(r.json.next).toBe("done");
-    // First read at 0; the event at 41 s is clamped to one interval after the last read, so the second read is at 41 s... it cannot be before 30 s.
-    expect(w.readsAt[1]).toBeGreaterThanOrEqual(30_000);
-    expect(w.readsAt[1]).toBeLessThan(90_000);
+    // Polling alone would read at 30 s and again at 60 s. The event at 41 s brings the second read to 41 s: after one interval, before the safety poll.
+    expect(w.readsAt).toEqual([0, 41_000]);
   });
 
   test("an event is only a wake signal: its content is never read, the state is read again", async () => {
@@ -271,7 +270,12 @@ describe("AC15: the process listener, over a fake process", () => {
 
   test("this machine's gh has no event command, so the real opener returns null (or a listener that fails into polling)", () => {
     // Skipped in effect on a gh that has it: only the missing case is asserted.
-    const has = Bun.spawnSync(["gh", "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore" }).exitCode === 0;
+    let has = false;
+    try {
+      has = Bun.spawnSync(["gh", "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore" }).exitCode === 0;
+    } catch {
+      // No gh at all: the opener must return null too.
+    }
     if (!has) expect(openGhEventListener(REPO)).toBeNull();
   });
 });
