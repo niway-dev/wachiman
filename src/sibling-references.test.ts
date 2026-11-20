@@ -146,4 +146,39 @@ describe("checkSiblingReferences", () => {
     expect(findings[0]!.references).toBeUndefined();
     expect(texts).toEqual([`Summary: ${REMOVED_REFERENCE} and ${good}`]);
   });
+
+  describe("a member whose dir has several components", () => {
+    const nested = () => sibling({ member: "apps/desktop" });
+
+    test("is checked like any other: a good reference stays, a missing line is removed and counted", () => {
+      const good = check("See apps/desktop@3f2a9c1:Assets/palette.json:2 for the source.", [nested()]);
+      expect(good.removed).toBe(0);
+      expect(good.finding.references).toEqual([{ member: "apps/desktop", sha: SHA, path: "Assets/palette.json", line: 2 }]);
+      const bad = check("See apps/desktop@3f2a9c1:Assets/palette.json:999 for the source.", [nested()]);
+      expect(bad.removed).toBe(1);
+      expect(bad.finding.references).toBeUndefined();
+      expect(bad.finding.body).toBe(`See ${REMOVED_REFERENCE} for the source.`);
+    });
+
+    test("does not let a shorter member name match the end of a longer one", () => {
+      const short = sibling({ member: "desktop", dir: snapshot({ "x.json": "1\n" }), paths: ["x.json"] });
+      const { finding: f, removed } = check("apps/desktop@3f2a9c1:Assets/palette.json:2 and desktop@3f2a9c1:x.json:1", [nested(), short]);
+      expect(removed).toBe(0);
+      expect(f.references?.map((r) => r.member)).toEqual(["apps/desktop", "desktop"]);
+    });
+
+    test("one that names no member of the run is removed and counted, however many components it has", () => {
+      for (const token of ["apps/mobile@3f2a9c1:Assets/palette.json:2", "a/b/c@3f2a9c1:Assets/palette.json:2", "apps/desktop/extra@3f2a9c1:Assets/palette.json:2"]) {
+        const { finding: f, removed } = check(`Look at ${token}.`, [nested()]);
+        expect(removed).toBe(1);
+        expect(f.body).toBe(`Look at ${REMOVED_REFERENCE}.`);
+      }
+    });
+
+    test("a member name with regular-expression characters matches only itself", () => {
+      const odd = sibling({ member: "c++.app" });
+      expect(check("c++.app@3f2a9c1:Assets/palette.json:2", [odd]).removed).toBe(0);
+      expect(check("cxx.app@3f2a9c1:Assets/palette.json:2", [odd]).removed).toBe(1);
+    });
+  });
 });

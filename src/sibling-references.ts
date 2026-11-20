@@ -15,11 +15,23 @@ import type { ResolvedSibling, SiblingReference } from "./distributed";
 /** What the text says in place of a reference that could not be checked. */
 export const REMOVED_REFERENCE = "[sibling reference removed: it could not be checked]";
 
+/** Any name that could be a member, of one component or several: what a reference to a member this run does not have looks like. */
+const ANY_MEMBER = "[A-Za-z0-9][A-Za-z0-9._\\/-]*";
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\\/-]/g, "\\$&");
+
 /**
- * `member@sha:path:line`, with an optional `-line` range end. The member is a manifest `dir` name; the
- * path has no whitespace, quote or bracket, which is how the prompt asks for it to be written.
+ * `member@sha:path:line`, with an optional `-line` range end. The member is a manifest `dir`, which
+ * may have several components (`apps/desktop`), so the names of this run's members come first, longest
+ * first and escaped; any other name of that shape is matched too, to be removed. The path has no
+ * whitespace, quote or bracket, which is how the prompt asks for it to be written.
  */
-const REFERENCE = /(?<![\w@.\/-])([A-Za-z0-9][A-Za-z0-9._-]*)@([0-9a-f]{7,40}):([^\s`'"()<>\[\],;]+?):(\d+)(?:-(\d+))?(?![\w-])/g;
+function referencePattern(members: readonly string[]): RegExp {
+  const names = [...new Set(members)].sort((a, b) => b.length - a.length).map(escapeRegExp);
+  return new RegExp(
+    `(?<![\\w@.\\/-])(${[...names, ANY_MEMBER].join("|")})@([0-9a-f]{7,40}):([^\\s\`'"()<>\\[\\],;]+?):(\\d+)(?:-(\\d+))?(?![\\w-])`,
+    "g",
+  );
+}
 
 /** `repoLineCounter` says a file over 8 MiB has every line (it does not read it): for a sibling, that is a file whose lines cannot be checked. */
 export const countable = (count: number | null) => (count === Number.MAX_SAFE_INTEGER ? null : count);
@@ -46,10 +58,11 @@ export function checkSiblingReferences<T extends { title: string; body: string; 
     return count(path);
   };
 
+  const pattern = referencePattern(siblings.map((s) => s.member));
   let removed = 0;
   const kept: SiblingReference[] = [];
   const settle = (text: string) =>
-    text.replace(REFERENCE, (token, member: string, sha: string, path: string, line: string, end?: string) => {
+    text.replace(pattern, (token, member: string, sha: string, path: string, line: string, end?: string) => {
       const found = readable.find((s) => s.member === member && s.sha!.startsWith(sha));
       const first = Number(line);
       const last = end === undefined ? first : Number(end);
