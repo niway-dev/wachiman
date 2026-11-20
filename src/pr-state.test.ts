@@ -127,7 +127,7 @@ describe("AC7: the rule table, row by row, and its exit code", () => {
     expect(err[0]).toContain("pr-state");
     expect(() => parsePrStateArgs(["abc"])).toThrow(/pull request number/);
     expect(() => parsePrStateArgs(["1", "2"])).toThrow(/one pull request/);
-    expect(() => parsePrStateArgs(["--wait"])).toThrow(/Unknown option/);
+    expect(() => parsePrStateArgs(["--bogus"])).toThrow(/Unknown option/);
     expect(() => parsePrStateArgs(["--repo", "nope"])).toThrow(/owner/);
   });
 });

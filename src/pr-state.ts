@@ -5,8 +5,8 @@
  * decides `next` with a fixed, ordered rule table (`decide`). It never posts, resolves, replies or
  * edits anything and stores nothing: every field is derived from GitHub on each call.
  *
- * `readPrState` is one complete state read. `--wait` (a later layer) loops it; nothing in here keeps
- * state between calls.
+ * `readPrState` is one complete state read. `--wait` (`pr-state-wait.ts`) loops it; nothing in here
+ * keeps state between calls.
  */
 import { UsageError } from "./config";
 import {
@@ -45,7 +45,9 @@ export type Why =
   | "findings_open"
   | "partial"
   | "clean"
-  | "clean_legacy";
+  | "clean_legacy"
+  /** Only `--wait`: the timeout passed while `next` was still `wait`. */
+  | "timeout";
 
 export interface OpenFinding {
   thread_id: string;
@@ -347,21 +349,39 @@ export function readPrState(gh: GhFn, repo: string, pr: number): PrState {
 
 // ----- The command ------------------------------------------------------------------------------
 
-export const prStateUsage = "wachiman pr-state [<pr>] [--repo <owner/repo>] [--json]";
+export const prStateUsage = "wachiman pr-state [<pr>] [--repo <owner/repo>] [--json] [--wait [--timeout <s>] [--interval <s>]]";
+
+/** `--wait` defaults (AC13): under ten minutes, and never faster than 20 s between reads. */
+export const DEFAULT_TIMEOUT_S = 540;
+export const MIN_INTERVAL_S = 20;
+export const DEFAULT_INTERVAL_S = 30;
 
 export interface PrStateArgs {
   pr?: number;
   repo?: string;
+  wait?: boolean;
+  timeoutS?: number;
+  intervalS?: number;
 }
 
-/** The arguments after `pr-state`. `--json` is accepted: JSON is the only format. */
+function seconds(flag: string, v: string | undefined, min: number): number {
+  if (v === undefined || !/^[1-9]\d*$/.test(v) || !Number.isSafeInteger(Number(v)) || Number(v) < min) {
+    throw new UsageError(`${flag} must be a whole number of seconds${min > 1 ? ` of at least ${min}` : ""}, got "${v ?? ""}".`);
+  }
+  return Number(v);
+}
+
+/** The arguments after `pr-state`. `--json` is accepted: JSON is the only format. `--wait` fills in its defaults. */
 export function parsePrStateArgs(argv: string[]): PrStateArgs | { help: true } {
   const args: PrStateArgs = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--help" || arg === "-h") return { help: true };
     if (arg === "--json") continue;
-    if (arg === "--repo" || arg.startsWith("--repo=")) {
+    if (arg === "--wait") args.wait = true;
+    else if (arg === "--timeout" || arg.startsWith("--timeout=")) args.timeoutS = seconds("--timeout", arg === "--timeout" ? argv[++i] : arg.slice("--timeout=".length), 1);
+    else if (arg === "--interval" || arg.startsWith("--interval=")) args.intervalS = seconds("--interval", arg === "--interval" ? argv[++i] : arg.slice("--interval=".length), MIN_INTERVAL_S);
+    else if (arg === "--repo" || arg.startsWith("--repo=")) {
       const v = arg === "--repo" ? argv[++i] : arg.slice("--repo=".length);
       if (v === undefined || !/^[\w.-]+\/[\w.-]+$/.test(v)) throw new UsageError(`--repo must be <owner>/<repo>, got "${v ?? ""}".`);
       args.repo = v;
@@ -369,6 +389,13 @@ export function parsePrStateArgs(argv: string[]): PrStateArgs | { help: true } {
     else if (args.pr !== undefined) throw new UsageError(`pr-state takes one pull request number, got a second argument "${arg}".`);
     else if (!/^[1-9]\d*$/.test(arg) || !Number.isSafeInteger(Number(arg))) throw new UsageError(`pr-state needs a pull request number, got "${arg}".`);
     else args.pr = Number(arg);
+  }
+  if (!args.wait) {
+    if (args.timeoutS !== undefined) throw new UsageError("--timeout only applies with --wait.");
+    if (args.intervalS !== undefined) throw new UsageError("--interval only applies with --wait.");
+  } else {
+    args.timeoutS ??= DEFAULT_TIMEOUT_S;
+    args.intervalS ??= DEFAULT_INTERVAL_S;
   }
   return args;
 }

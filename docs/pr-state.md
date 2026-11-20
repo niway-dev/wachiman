@@ -11,10 +11,44 @@ is derived from GitHub on each call
 wachiman pr-state 42 --json                       # the pull request of the current repository
 wachiman pr-state --repo niway-dev/wachiman 42    # another repository
 wachiman pr-state --json                          # the pull request of the current branch
+wachiman pr-state 42 --wait                       # until Wachiman's review of the head lands, or 540 s
 ```
 
 `<pr>` is digits only. Without `--repo`, the repository is the one `gh` resolves for the current
 directory. `--json` is accepted; JSON is the only output. `gh` must be installed and signed in.
+
+## Waiting: `--wait`, `--timeout`, `--interval`
+
+Without `--wait`, one call is one read and the answer may be `wait`. With `--wait`, the command reads
+again until `next` is not `wait`, then prints that state once and exits with its code.
+
+| Flag | Default | Rule |
+| --- | --- | --- |
+| `--wait` | off | Loop. `--timeout` and `--interval` are a usage error (exit 2) without it |
+| `--timeout <s>` | 540 | Whole seconds, at least 1. Under ten minutes by default so a harness's foreground time limit does not end the wait first |
+| `--interval <s>` | 30 | Whole seconds, at least 20 (the minimum). A bad value is a usage error, exit 2 |
+
+- **On timeout** it prints the last state read with `why: timeout` (still `next: wait`) and exits 21. It does not read after the deadline.
+- **At most one state read per interval.** A read is one GraphQL query for the threads, extra pages only when there are more than 100 threads, the other `gh api` calls of a read, and the head check at its end. Two reads are never closer than one interval, whatever else happens.
+- **Stdout is always one JSON object**, printed at the end. Notes about the wait go to stderr. A GitHub error while waiting is exit 1 with nothing on stdout.
+
+### `gh event listen` (optional acceleration, unverified)
+
+When this `gh` has `gh event listen` (v2.105.0 or later, a preview, github.com only), `--wait` starts
+it for the repository and treats each event as a wake signal only. With a listener the loop still
+reads at least every three intervals (the command has no replay and drops events while it is
+disconnected), and an event can bring the next read forward, but never sooner than one interval
+after the last read. The content of an event is never read or trusted: the state is read again.
+
+When the command is missing, not supported, or stops (including its 24 h subscription ending, exit
+8), `--wait` polls every interval and says so once on stderr, for example `gh event listen is not
+available; polling every 30 s.`
+
+**Unverified against a real `gh event listen`.** It was written from the announced interface and was
+developed with `gh` 2.100.0, which has no `event` command. The polling path and the loop are covered
+by tests with a fake clock and a fake GitHub; the listener path is covered with a fake process. The
+exact command line (`gh event listen --repo <owner/repo>`) is an assumption: if the real command
+rejects it, the wait falls back to polling and nothing else changes.
 
 ## What it covers, and what `done` means
 
@@ -29,7 +63,7 @@ run, conflicts and mergeability are not read.
 | --- | --- | --- |
 | `0` | `done` or `closed` | Nothing pending from Wachiman on this head, or the pull request is closed or merged |
 | `20` | `act` | At least one Wachiman finding thread is unresolved, or the review counts Blocker or Fix findings that have no thread |
-| `21` | `wait` | No review of the current head yet, or the head moved while reading |
+| `21` | `wait` | No review of the current head yet, or the head moved while reading. With `--wait`, also the timeout (`why: timeout`) |
 | `22` | `blocked` | The review was refused or skipped (see `why`), it is partial, or its job finished without a review |
 | `1` | | GitHub or `gh` failed. One line on stderr, nothing on stdout |
 | `2` | | Usage error |
