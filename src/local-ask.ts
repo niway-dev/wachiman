@@ -14,15 +14,20 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { wachimanHome } from "./accounts/config";
-import { ASK_SCHEMA, buildAskPrompt, checkRefs, isAskAnswer, renderAnswer } from "./ask";
+import { type AskAnswer, askSchema, buildAskPrompt, checkRefs, isAskAnswer, renderAnswer } from "./ask";
 import { repoLineCounter } from "./contracts";
 import { UsageError } from "./config";
+import { askDistributed, type ResolvedSibling } from "./distributed";
 import { annotateDiff, DEFAULT_EXCLUDE, filterFiles, renderInstructions, runProvider, type ReviewInput, type ReviewResult } from "./engine";
 import { historyRoot, readRuns, repositoryKey } from "./history/store";
 import { type LocalArgs, type LocalDeps, localScopeInput, openLocalSession, parseFlags } from "./local";
-import { costSentence } from "./sinks/common";
+import { checkSiblingReferences, countable } from "./sibling-references";
+import { costSentence, manifestText, privateNote } from "./sinks/common";
 import { renderJson } from "./sinks/json";
 import { renderMarkdown } from "./sinks/markdown";
+import { rematerialiseSiblings } from "./workspace/ask";
+import { workspaceGit } from "./workspace/git";
+import { decideDistributed, homeRelative } from "./workspace/run";
 
 export const ASK_FORMAT = "wachiman.ask-result/1";
 
@@ -77,6 +82,46 @@ export function storedReviewOf(
   return undefined;
 }
 
+const RUN_LOCAL_FIRST = 'Run "wachiman local --distributed-repo --history" first.';
+
+/**
+ * The flag rules of "`ask` and history" (ADR 0043 decision 5). `ask` selects no sibling: it reads what the
+ * stored review read. `--distributed-repo` on a change whose stored review read no sibling, or has none, is a
+ * usage error. A per-user default of `on` in that situation does nothing, and one line says so.
+ */
+function checkDistributedFlag(args: AskArgs, stored: ReviewResult | undefined, repoDir: string, home: string, io: { stderr: (line: string) => void }) {
+  if ((stored?.siblings ?? []).length > 0) return;
+  const why = stored === undefined ? "there is no stored review of this change" : "the stored review of this change read no sibling";
+  if (args.distributedRepo === true) {
+    throw new UsageError(`--distributed-repo reads only what a stored review read, and ${why}. ${RUN_LOCAL_FIRST}`);
+  }
+  let decision;
+  try {
+    decision = decideDistributed({ flag: undefined, siblings: [], repoDir, home, git: workspaceGit, warn: io.stderr });
+  } catch {
+    return; // The line is a courtesy: a broken workspace file never fails an answer.
+  }
+  if (decision.on) {
+    io.stderr(
+      `distributed-repo: on (default from ${homeRelative(decision.defaultFile!)}) does nothing for ask: it reads only what a stored review read, and ${why}. ${RUN_LOCAL_FIRST}`,
+    );
+  }
+}
+
+/** One note per sibling the answer could not read again, to print under it. */
+function notReadNotes(siblings: readonly ResolvedSibling[]): string[] {
+  const seen = new Set<string>();
+  const notes: string[] = [];
+  for (const s of siblings) {
+    if (s.dir !== undefined && s.sha !== undefined && s.status === "read") continue;
+    const name = `${manifestText(s.member)}${s.sha ? `@${s.sha.slice(0, 7)}` : ""}`;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    notes.push(`Could not read sibling ${name}: ${manifestText(s.unreadable ?? "unknown reason")}. A reference into it is removed and counted.`);
+  }
+  return notes;
+}
+
 export async function runAsk(
   args: AskArgs,
   repoDir: string,
@@ -103,6 +148,7 @@ export async function runAsk(
   };
   process.on("SIGINT", onSigint);
   let release: (() => void) | undefined;
+  let releaseSiblings: (() => void) | undefined;
   let material: string | undefined;
   try {
     const scope = localScopeInput({
@@ -140,7 +186,16 @@ export async function runAsk(
         2,
       )}\n`,
     );
-    const stored = storedReviewOf(historyRoot(wachimanHome(env)), repoDir, input, kept.map((f) => f.filename), io.stderr);
+    const home = wachimanHome(env);
+    const stored = storedReviewOf(historyRoot(home), repoDir, input, kept.map((f) => f.filename), io.stderr);
+    // The flag rules come before anything is written or paid for.
+    checkDistributedFlag(args, stored, repoDir, home, io);
+    // A review that read siblings is answered on the same evidence: their snapshots are re-created at the stored
+    // commits, flag or not. Never fetches; a sibling that cannot be read again is named, not fatal.
+    const rematerialised = stored?.siblings?.length ? rematerialiseSiblings(stored.siblings, { repoDir, home, warn: io.stderr }) : undefined;
+    releaseSiblings = rematerialised?.release;
+    const siblings = rematerialised?.siblings ?? [];
+    const sibling = askDistributed(siblings);
     if (stored) {
       writeFileSync(join(material, "review.json"), renderJson(stored, 2));
       writeFileSync(join(material, "review.md"), renderMarkdown(stored));
@@ -157,7 +212,10 @@ export async function runAsk(
       question: args.question,
       hasReview: stored !== undefined,
       local: true,
+      siblings: sibling.section,
     });
+    // A review that listed siblings may be answered with a reference into one, even when none could be read again: that reference is then removed and counted.
+    const schema = askSchema(siblings.length > 0);
 
     // One call, read-only, in the snapshot of the head: the same place the review reads from.
     let result: Awaited<ReturnType<typeof runProvider>> | undefined;
@@ -171,7 +229,8 @@ export async function runAsk(
         prompt,
         material,
         config.answerBudgetUsd,
-        ASK_SCHEMA,
+        schema,
+        sibling.dirs,
       );
     } catch (error) {
       failure = error instanceof Error ? error.message : String(error);
@@ -181,18 +240,50 @@ export async function runAsk(
       return 130;
     }
     const parsed = result && !result.isError ? result.structuredOutput : undefined;
-    if (!result || !isAskAnswer(parsed)) {
+    if (!result || !isAskAnswer(parsed, schema)) {
       const reason = result ? (result.isError ? result.terminalReason || "the call failed" : "its output was not an answer") : failure;
       io.stderr(`Wachiman could not answer (${reason}).`);
       return 1;
     }
 
-    // A reference is kept only if its file exists in the head snapshot and the line is in the file.
+    // A reference is kept only if its file exists in the head snapshot and the line is in the file; one into a
+    // sibling, only if the member is one this answer read, the commit is its snapshot's and the line is in it.
     const lineCount = repoLineCounter(input.headDir);
-    const checked = checkRefs(parsed, (path, line) => {
-      const count = lineCount(path);
+    const readable = siblings.filter((s) => s.dir !== undefined && s.sha !== undefined && s.status === "read");
+    const siblingCounters = new Map<string, ReturnType<typeof repoLineCounter>>();
+    const siblingOf = (member: string, sha: string) => (sha.length >= 7 ? readable.find((s) => s.member === member && s.sha!.startsWith(sha)) : undefined);
+    const checkedRefs = checkRefs(parsed, (path, line, ref) => {
+      if (ref.member === undefined && ref.sha === undefined) {
+        const count = lineCount(path);
+        return count !== null && line <= count;
+      }
+      const found = ref.member !== undefined && ref.sha !== undefined ? siblingOf(ref.member, ref.sha) : undefined;
+      if (!found) return false;
+      let counter = siblingCounters.get(found.dir!);
+      if (!counter) siblingCounters.set(found.dir!, (counter = repoLineCounter(found.dir!)));
+      const count = countable(counter(path));
       return count !== null && line <= count;
     });
+    // The kept ones name their commit in full; then the text is checked for `member@sha:path:line`, whose removals count too.
+    let answer: AskAnswer = {
+      ...checkedRefs.answer,
+      sections: checkedRefs.answer.sections.map((section) => ({
+        ...section,
+        refs: section.refs.map((r) => (r.member !== undefined && r.sha !== undefined ? { ...r, sha: siblingOf(r.member, r.sha)!.sha! } : r)),
+      })),
+    };
+    let removedRefs = checkedRefs.removed;
+    if (siblings.length > 0) {
+      const texts = answer.sections.flatMap((section) => [section.title, section.body]);
+      const settled = checkSiblingReferences(siblings, [], [...texts, answer.not_answered]);
+      answer = {
+        sections: answer.sections.map((section, i) => ({ ...section, title: settled.texts[2 * i], body: settled.texts[2 * i + 1] })),
+        not_answered: settled.texts[settled.texts.length - 1],
+      };
+      removedRefs += settled.removed;
+    }
+    const notes = notReadNotes(siblings);
+    const label = stored ? privateNote(stored) : null;
     const cost = { costUsdEstimate: result.costUsd, calls: 1, turns: result.turns, durationMs: result.durationMs };
     const text =
       args.format === "json"
@@ -202,22 +293,34 @@ export async function runAsk(
               question: args.question,
               walkthrough: args.question === "",
               hasReview: stored !== undefined,
-              sections: checked.answer.sections.map((s) => ({
+              sections: answer.sections.map((s) => ({
                 title: s.title,
                 body: s.body,
-                refs: s.refs.map((r) => ({ path: r.path, line: r.line })),
+                refs: s.refs.map((r) => ({ path: r.path, line: r.line, ...(r.member !== undefined ? { member: r.member, sha: r.sha } : {}) })),
               })),
-              notAnswered: checked.answer.not_answered,
-              removedRefs: checked.removed,
+              notAnswered: answer.not_answered,
+              removedRefs,
+              ...(siblings.length > 0
+                ? {
+                    siblings: siblings.map((s) => ({
+                      member: s.member,
+                      ...(s.sha ? { sha: s.sha } : {}),
+                      read: s.dir !== undefined && s.status === "read",
+                      ...(s.unreadable ? { unreadable: s.unreadable } : {}),
+                    })),
+                  }
+                : {}),
+              ...(stored?.privateContext ? { privateContext: stored.privateContext } : {}),
               provider: { label: provider.modelLabel(), model: config.model, costUsd: result.costUsd },
             },
             null,
             2,
           )}\n`
-        : `${renderAnswer(checked.answer, {
-            removed: checked.removed,
-            style: args.format === "markdown" ? "markdown" : "plain",
-          })}\n\n${costSentence(cost)}\n`;
+        : `${[
+            renderAnswer(answer, { removed: removedRefs, style: args.format === "markdown" ? "markdown" : "plain" }),
+            ...notes,
+            ...(label ? [label] : []),
+          ].join("\n\n")}\n\n${costSentence(cost)}\n`;
     if (args.output !== undefined) {
       const path = resolve(args.output);
       writeFileSync(path, text);
@@ -226,6 +329,7 @@ export async function runAsk(
     return 0;
   } finally {
     process.off("SIGINT", onSigint);
+    releaseSiblings?.();
     release?.();
     if (material !== undefined) rmSync(material, { recursive: true, force: true });
   }

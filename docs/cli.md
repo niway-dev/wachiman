@@ -359,11 +359,35 @@ against what was reviewed, not against a file edited during the run.
 | `--profile <name>` | see "Which account" | As `local` |
 | `--format terminal\|markdown\|json` | `terminal` | Plain text with the cost line; Markdown; or the JSON below |
 | `--output <file>` | stdout | Write the answer to a file; its path is printed on stderr |
+| `--distributed-repo` | off | Assert that the stored review read sibling repositories. `ask` never selects a sibling itself, flag or not (see below); with no stored review, or one that read no sibling, this exits 2 |
 
 `--format json` prints exactly these keys: `format` (`wachiman.ask-result/1`), `question`,
-`walkthrough`, `hasReview`, `sections` (each `title`, `body` and `refs` of `path` and `line`),
-`notAnswered` (why a part could not be answered, or `""`), `removedRefs` (how many references were
-removed) and `provider` (`label`, `model`, `costUsd`, an API-price estimate).
+`walkthrough`, `hasReview`, `sections` (each `title`, `body` and `refs` of `path` and `line`, and
+`member` and `sha` for a line in a sibling), `notAnswered` (why a part could not be answered, or `""`),
+`removedRefs` (how many references were removed) and `provider` (`label`, `model`, `costUsd`, an
+API-price estimate). For an answer grounded in a distributed-repo review it adds `siblings` (each
+`member`, `sha`, `read` and, when it could not be read again, `unreadable`) and, when the review read
+a non-public sibling, `privateContext`.
+
+#### `ask` on a distributed-repo review
+
+A stored review made with `local --distributed-repo --history` keeps its `siblings` (member,
+commit, paths, status) and its `privateContext`. `ask` on that review, with or without
+`--distributed-repo`, snapshots the same commits again from each sibling's clone, so the answer
+stands on the same evidence as the review. A reference may name a sibling line as `member@sha:path:line`
+(in `refs` with `member` and `sha`, or in the text); it is kept only if the member is one it read,
+the commit is that snapshot's and the line exists there.
+
+- A sibling it cannot read again (the member is not cloned or not watched, is no longer in the
+  manifest, or the commit is gone from the clone) is named under the answer with the reason. A
+  reference into it is removed and counted in `removedRefs`. The answer still comes. Nothing is
+  fetched, pulled or cloned: a commit `git cat-file` cannot find counts as gone.
+- An answer grounded in a review with a non-public sibling carries the same
+  `Built with private context from: …` line as the review.
+- `--distributed-repo` with no stored review, or a stored review that read no sibling, exits 2 and
+  says to run `wachiman local --distributed-repo --history` first. A per-user default of `on`
+  there changes nothing and prints one line saying so. `--no-distributed-repo` and `--sibling` are
+  not options of `ask`.
 
 Two differences from `local` that matter:
 
