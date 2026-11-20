@@ -4576,11 +4576,11 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       const upToDate = (why: string) => {
         deps.log(why);
         // The marker moves so that the next push is compared with this head, not with the old one.
-        const carried = baseUpdateState(gh, repo, pr, last);
+        const earlierState = baseUpdateState(gh, repo, pr, last);
         postReview(deps, repo, pr, headSha, {
           body: baseUpdateNotice({ base: meta.baseRefName, from: last, to: headSha, version: deps.engineVersion }, marker(headSha)),
           comments: [],
-          ...(carried ? { state: carried } : {}),
+          ...(earlierState ? { state: earlierState } : {}),
         });
       };
       if (delta.kind === "unchanged" && carried.length === 0) {
@@ -4639,11 +4639,11 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
           `The last reviewed commit ${short(last)} is not behind the head (${status}), but the pull request's changes are the same${delta.removed.length > 0 ? ` (no longer in it: ${delta.removed.join(", ")})` : ""}; rebased with no content change, nothing to review.`,
         );
         // The marker moves so that the next push is compared with this head, not with the old one.
-        const carried = baseUpdateState(gh, repo, pr, last);
+        const earlierState = baseUpdateState(gh, repo, pr, last);
         postReview(deps, repo, pr, headSha, {
           body: baseUpdateNotice({ base: meta.baseRefName, from: last, to: headSha, version: deps.engineVersion }, marker(headSha)),
           comments: [],
-          ...(carried ? { state: carried } : {}),
+          ...(earlierState ? { state: earlierState } : {}),
         });
         return;
       } else if (delta.kind === "changed") {
