@@ -30,6 +30,8 @@ export interface ResolvedVersion {
   unreadable?: string;
   /** `local` only: the sibling has uncommitted changes to tracked files. They are not read. */
   uncommitted?: boolean;
+  /** `local` only: `git status` failed or timed out, so whether the sibling has uncommitted changes is not known. */
+  uncommittedUnknown?: boolean;
   /** `tip` only: when the sibling was last fetched (`FETCH_HEAD`'s modification time, ISO 8601), or `"unknown"`. */
   fetchedAt?: string;
 }
@@ -177,5 +179,6 @@ export function resolveVersion(ctx: VersionContext, git: GitRunner = workspaceGi
   if (reasons.length) result.fallback = `${reasons.join("; ")}; read local HEAD instead`;
   if (!sha) return { ...result, unreadable: `${ctx.member.dir} has no commit at HEAD to read` };
   const dirty = text(git, ctx.siblingDir, ["status", "--porcelain", "--untracked-files=no"]);
-  return { ...result, sha, ...(dirty ? { uncommitted: true } : {}) };
+  // `text` gives undefined when git failed or timed out, and "" when the tree is clean: only the latter is clean.
+  return { ...result, sha, ...(dirty === undefined ? { uncommittedUnknown: true } : dirty ? { uncommitted: true } : {}) };
 }

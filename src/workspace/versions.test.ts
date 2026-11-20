@@ -5,6 +5,7 @@ import { spawnGit, type GitRunner } from "../evidence";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import type { Contract, Member, VersionSpec } from "./manifest";
 import type { UserWorkspace } from "./user-file";
+import { workspaceGit } from "./git";
 import { chooseRule, resolveVersion, type VersionContext } from "./versions";
 
 afterAll(removeTempRepos);
@@ -228,6 +229,15 @@ describe("local", () => {
     writeFileSync(join(p.dir, "src/a.ts"), "edited, not committed\n");
     const result = resolveVersion(context(consumer(), p, { rule: "local" }));
     expect(result).toMatchObject({ sha: p.tip, uncommitted: true });
+  });
+
+  test("a git status that fails is reported as unknown, never as clean", () => {
+    const p = provider();
+    const failing: GitRunner = (args, opts) => (args[0] === "status" ? { status: null, stdout: "", error: "timed out", timedOut: true } : workspaceGit(args, opts));
+    const result = resolveVersion(context(consumer(), p, { rule: "local" }), failing);
+    expect(result).toMatchObject({ sha: p.tip, uncommittedUnknown: true });
+    expect(result.uncommitted).toBeUndefined();
+    expect(resolveVersion(context(consumer(), p, { rule: "local" })).uncommittedUnknown).toBeUndefined();
   });
 
   test("a staged change counts; an untracked file does not", () => {
