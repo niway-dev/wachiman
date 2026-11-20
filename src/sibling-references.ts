@@ -26,12 +26,15 @@ export type CheckedText<T> = T & { references?: SiblingReference[] };
 /**
  * `findings` with each sibling reference checked against `siblings`. A finding with no reference is
  * returned unchanged; one with a kept reference gets `references`; a removed one is replaced in the
- * `title` and the `body`. `removed` counts every removed occurrence.
+ * `title` and the `body`. A removed one is also replaced in the verifier's reason and the origin reason
+ * of a finding, and in `texts` (the run summary); those never add to `references`. `removed` counts every
+ * removed occurrence.
  */
-export function checkSiblingReferences<T extends { title: string; body: string }>(
+export function checkSiblingReferences<T extends { title: string; body: string; verification?: { reason: string }; originReason?: string }>(
   siblings: readonly ResolvedSibling[],
   findings: readonly T[],
-): { findings: CheckedText<T>[]; removed: number } {
+  texts: readonly string[] = [],
+): { findings: CheckedText<T>[]; removed: number; texts: string[] } {
   const readable = siblings.filter((s) => s.dir !== undefined && s.sha !== undefined && (s.status === "read" || s.status === "uncommitted-not-read"));
   const counters = new Map<string, LineCounter>();
   const lines = (dir: string, path: string) => {
@@ -60,9 +63,20 @@ export function checkSiblingReferences<T extends { title: string; body: string }
     kept.length = 0;
     const title = settle(finding.title);
     const body = settle(finding.body);
-    if (title === finding.title && body === finding.body && kept.length === 0) return finding;
     const references = kept.filter((r, i) => kept.findIndex((o) => o.member === r.member && o.sha === r.sha && o.path === r.path && o.line === r.line) === i);
-    return { ...finding, title, body, ...(references.length > 0 ? { references } : {}) };
+    const before = removed;
+    const reason = finding.verification ? settle(finding.verification.reason) : undefined;
+    const originReason = finding.originReason !== undefined ? settle(finding.originReason) : undefined;
+    if (title === finding.title && body === finding.body && references.length === 0 && removed === before) return finding;
+    return {
+      ...finding,
+      title,
+      body,
+      ...(finding.verification ? { verification: { ...finding.verification, reason: reason! } } : {}),
+      ...(originReason !== undefined ? { originReason } : {}),
+      ...(references.length > 0 ? { references } : {}),
+    };
   });
-  return { findings: out, removed };
+  const settled = texts.map(settle);
+  return { findings: out, removed, texts: settled };
 }

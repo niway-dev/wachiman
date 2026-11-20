@@ -3875,7 +3875,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const commentable = new Map(kept.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
   // A distributed-repo run (ADR 0043): a reference into a sibling stays only if its line exists in that
   // member's snapshot at that commit. The snapshots are still on disk here; the caller removes them after.
-  const siblingRefs = options.distributed ? checkSiblingReferences(options.distributed.siblings, checked) : undefined;
+  const siblingRefs = options.distributed ? checkSiblingReferences(options.distributed.siblings, checked, [merged.summary]) : undefined;
   if (siblingRefs && siblingRefs.removed > 0)
     core.log(`Sibling references: ${siblingRefs.removed} removed: the member was not read, the commit is not its snapshot's, or the line does not exist there.`);
   const findings: ResultFinding[] = (siblingRefs?.findings ?? checked).map((f) => ({
@@ -3972,7 +3972,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     },
     findings,
     contracts: merged.contracts ?? [],
-    summary: withMemoryNotices(merged.summary, options.memory, memoryStep.text),
+    summary: withMemoryNotices(siblingRefs?.texts[0] ?? merged.summary, options.memory, memoryStep.text),
     riskMap,
     ...(options.memory ? { memory: memoryRecord(options.memory) } : {}),
     ...(memoryStep.muted.length > 0 ? { muted: memoryStep.muted } : {}),

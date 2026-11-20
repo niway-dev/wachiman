@@ -128,4 +128,16 @@ describe("checkSiblingReferences", () => {
     expect(removed).toBe(1);
     expect(f.references).toEqual([{ member: "desktop-app", sha: OTHER, path: "x.json", line: 3 }]);
   });
+
+  test("the verifier's reasons and the summary are checked too, and their removals count", () => {
+    const bad = "desktop-app@3f2a9c1:Assets/palette.json:40";
+    const good = "desktop-app@3f2a9c1:Assets/palette.json:2";
+    const input = [{ title: "t", body: "b", verification: { reason: `Confirmed at ${bad}` }, originReason: `Introduced near ${bad}` }];
+    const { findings, removed, texts } = checkSiblingReferences([sibling()], input, [`Summary: ${bad} and ${good}`]);
+    expect(removed).toBe(3);
+    expect(findings[0]!.verification!.reason).toBe(`Confirmed at ${REMOVED_REFERENCE}`);
+    expect(findings[0]!.originReason).toBe(`Introduced near ${REMOVED_REFERENCE}`);
+    expect(findings[0]!.references).toBeUndefined();
+    expect(texts).toEqual([`Summary: ${REMOVED_REFERENCE} and ${good}`]);
+  });
 });
