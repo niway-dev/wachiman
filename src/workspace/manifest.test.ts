@@ -107,6 +107,15 @@ describe("parseManifest", () => {
     expect(refusal((m) => (m.contracts[0].sourceOfTruth.member = "ghost")).message).toContain('"ghost"');
   });
 
+  test("a contract member reference is normalised like a member dir, so ./app and app/ name app", () => {
+    const manifest = parse((m) => {
+      m.contracts[0].sides[0].member = "./billing-service";
+      m.contracts[0].sourceOfTruth.member = "api-client/";
+    });
+    expect(manifest.contracts[0].sides[0].member).toBe("billing-service");
+    expect(manifest.contracts[0].sourceOfTruth.member).toBe("api-client");
+  });
+
   test("a contract without a source of truth or with empty paths is refused", () => {
     expect(() => parse((m) => delete (m.contracts[0] as Record<string, unknown>).sourceOfTruth)).toThrow(/sourceOfTruth/);
     expect(() => parse((m) => (m.contracts[0].sides[0].paths = []))).toThrow(/paths/);

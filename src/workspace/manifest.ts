@@ -165,8 +165,9 @@ function parseContract(raw: unknown, index: number, dirs: Set<string>): Contract
   if (!isNonEmptyString(raw.name)) throw invalid(`${where}.name must be a non-empty string.`);
   const name = raw.name;
   const known = (member: unknown, at: string) => {
-    if (!isNonEmptyString(member) || !dirs.has(member)) throw invalid(`${at} names member ${JSON.stringify(member)}, which is not in "members" (contract "${name}").`);
-    return member;
+    const dir = isNonEmptyString(member) ? normaliseDir(member) : undefined;
+    if (dir === undefined || !dirs.has(dir)) throw invalid(`${at} names member ${JSON.stringify(member)}, which is not in "members" (contract "${name}").`);
+    return dir;
   };
   if (!Array.isArray(raw.sides)) throw invalid(`${where}.sides must be a list (contract "${name}").`);
   const sides: ContractSide[] = raw.sides.map((side, i) => {
