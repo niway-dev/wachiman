@@ -21,6 +21,9 @@ export const REMOVED_REFERENCE = "[sibling reference removed: it could not be ch
  */
 const REFERENCE = /(?<![\w@.\/-])([A-Za-z0-9][A-Za-z0-9._-]*)@([0-9a-f]{7,40}):([^\s`'"()<>\[\],;]+?):(\d+)(?:-(\d+))?(?![\w-])/g;
 
+/** `repoLineCounter` says a file over 8 MiB has every line (it does not read it): for a sibling, that is a file whose lines cannot be checked. */
+export const countable = (count: number | null) => (count === Number.MAX_SAFE_INTEGER ? null : count);
+
 export type CheckedText<T> = T & { references?: SiblingReference[] };
 
 /**

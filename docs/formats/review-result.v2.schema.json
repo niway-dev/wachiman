@@ -1230,6 +1230,15 @@
         "line": {
           "type": "integer",
           "minimum": 1
+        },
+        "member": {
+          "type": "string",
+          "description": "A distributed-repo review only: the sibling the line is in, by its `dir` in the workspace manifest. Absent means the reviewed repository."
+        },
+        "sha": {
+          "type": "string",
+          "minLength": 40,
+          "description": "With `member`: the full commit of the sibling snapshot the line was checked in."
         }
       }
     },

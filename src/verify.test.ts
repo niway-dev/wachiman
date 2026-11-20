@@ -14,6 +14,7 @@ import {
   VERDICTS,
   verificationSegment,
   VERIFY_SCHEMA,
+  verifySchema,
   type Snapshots,
   type VerifierVerdict,
 } from "./verify";
@@ -371,6 +372,68 @@ describe("the prompt", () => {
     const relative = join("..", outside.split("/").pop() ?? "", "secret.txt");
     for (const path of [relative, "link.txt", join(outside, "secret.txt")])
       expect(snippet(head, { path, line: 1 })).toBe("(the file is not in the head)");
+  });
+});
+
+// ADR 0043 decision 4: in a distributed-repo run the verifier may cite a line of a sibling snapshot, as
+// `{snapshot: "head", member, sha, path, line}`, checked against this run's snapshots like any citation.
+describe("citations into a sibling", () => {
+  const SHA = "3f2a9c1".padEnd(40, "0");
+  const sibling = { member: "billing-service", sha: SHA, dir: "/siblings/billing", lines: lines({ "src/routes/x.ts": 6 }) };
+  const snapshots: Snapshots = { headDir: "/head", head: lines({ "a.ts": 10 }), siblings: [sibling] };
+  const at = (path: string, line: number, over: Record<string, unknown> = {}) => ({ snapshot: "head" as const, member: "billing-service", sha: "3f2a9c1", path, line, ...over });
+  const run = (verdict: Partial<VerifierVerdict>, over: Partial<Snapshots> = {}) => {
+    const findings = [f({ line: 1 })];
+    return applyVerdicts(findings, selectCandidates(findings), [{ id: "c1", verdict: "refuted", reason: "r", checked: [head("a.ts", 1)], ...verdict }], { ...snapshots, ...over });
+  };
+
+  test("a disproof that exists in a sibling snapshot drops the finding, and the entry records member and the full commit", () => {
+    const { findings, entries } = run({ disproof: at("src/routes/x.ts", 6) });
+    expect(findings).toEqual([]);
+    expect(entries[0].disproof).toEqual({ snapshot: "head", member: "billing-service", sha: SHA, path: "src/routes/x.ts", line: 6 });
+  });
+
+  test("a path under the sibling's directory is read as the relative one", () => {
+    expect(run({ disproof: at("/siblings/billing/src/routes/x.ts", 2) }).entries[0].disproof).toMatchObject({ path: "src/routes/x.ts", line: 2 });
+  });
+
+  test("a sibling citation also counts in checked and origin evidence", () => {
+    const { entries } = run({ verdict: "supported", checked: [at("src/routes/x.ts", 3)], origin: "introduced", originReason: "o", originEvidence: [at("src/routes/x.ts", 4)] });
+    expect(entries[0].checked).toEqual([{ snapshot: "head", member: "billing-service", sha: SHA, path: "src/routes/x.ts", line: 3 }]);
+    expect(entries[0].originEvidence).toMatchObject([{ member: "billing-service", line: 4 }]);
+  });
+
+  test("a line past the file, a file that is not there, a member the run did not read and a commit that is not the snapshot's are not evidence", () => {
+    for (const disproof of [at("src/routes/x.ts", 7), at("src/routes/gone.ts", 1), at("src/routes/x.ts", 1, { member: "other-service" }), at("src/routes/x.ts", 1, { sha: "9d8e7f6" }), at("src/routes/x.ts", 1, { sha: "3f2a9" }), at("../x.ts", 1)]) {
+      const { findings, entries } = run({ disproof });
+      expect(findings).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ status: "inconclusive", claimed: "refuted", outcome: "degraded" });
+    }
+  });
+
+  test("a base citation naming a member, a member without a commit and a commit without a member are not evidence", () => {
+    for (const disproof of [at("src/routes/x.ts", 1, { snapshot: "base" }), { snapshot: "head" as const, member: "billing-service", path: "src/routes/x.ts", line: 1 }, { snapshot: "head" as const, sha: "3f2a9c1", path: "src/routes/x.ts", line: 1 }])
+      expect(run({ disproof } as Partial<VerifierVerdict>).entries[0].outcome).toBe("degraded");
+  });
+
+  test("without sibling snapshots, a citation with a member is not evidence", () => {
+    expect(run({ disproof: at("src/routes/x.ts", 1) }, { siblings: undefined }).entries[0].outcome).toBe("degraded");
+  });
+
+  test("a sibling file that is too big to count cannot be cited", () => {
+    const big = { ...sibling, lines: () => Number.MAX_SAFE_INTEGER };
+    expect(run({ disproof: at("src/routes/x.ts", 5) }, { siblings: [big] }).entries[0].outcome).toBe("degraded");
+  });
+});
+
+describe("verifySchema", () => {
+  test("without sibling snapshots it is the schema as it always was; with them, a citation may also carry member and sha", () => {
+    expect(verifySchema(false)).toBe(VERIFY_SCHEMA);
+    expect(JSON.stringify(VERIFY_SCHEMA)).not.toContain("member");
+    const citation = verifySchema(true).properties.verdicts.items.properties.disproof;
+    expect(citation.required).toEqual(["snapshot", "path", "line"]);
+    expect(Object.keys(citation.properties)).toEqual(["snapshot", "path", "line", "member", "sha"]);
+    for (const key of ["checked", "originEvidence"] as const) expect(verifySchema(true).properties.verdicts.items.properties[key].items).toEqual(citation);
   });
 });
 

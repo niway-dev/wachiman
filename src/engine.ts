@@ -89,6 +89,7 @@ import {
   selectCandidates,
   tierWord,
   VERIFY_SCHEMA,
+  verifySchema,
   verificationSegment,
   sectionOf,
   type Snapshots,
@@ -4051,8 +4052,8 @@ function stopOf(result: { terminalReason: string; isError: boolean; providerErro
  * A complete, schema-valid envelope (ADR 0030 §5): the whole answer is checked against
  * `VERIFY_SCHEMA`, so one violation anywhere voids it. Nothing is salvaged from anything else.
  */
-function verdictsOf(structured: unknown): VerifierVerdict[] | undefined {
-  if (validateSchema(VERIFY_SCHEMA, structured).length > 0) return undefined;
+function verdictsOf(structured: unknown, schema: object = VERIFY_SCHEMA): VerifierVerdict[] | undefined {
+  if (validateSchema(schema, structured).length > 0) return undefined;
   return (structured as { verdicts: VerifierVerdict[] }).verdicts;
 }
 
@@ -4127,7 +4128,7 @@ async function verifyFindings(
           prompt,
           runDir,
           budgetUsd,
-          VERIFY_SCHEMA,
+          verifySchema(siblings.snapshots.length > 0),
           [...(baseSnap ? [baseSnap.dir] : []), ...siblings.dirs],
         ),
       budgetUsd,
@@ -4137,11 +4138,13 @@ async function verifyFindings(
     const usage = result.usage ?? NO_USAGE;
     const stop = stopOf(result);
     // A complete, well-formed answer is used even when the call also reports a stop; anything else is not salvaged.
-    const verdicts = verdictsOf(result.structuredOutput);
+    const verdicts = verdictsOf(result.structuredOutput, verifySchema(siblings.snapshots.length > 0));
     if (!verdicts) return unanswered("failed", stop ?? { kind: "error", detail: result.terminalReason || "no answer" }, result.costUsd, usage);
-    const snapshots: Snapshots = baseSnap
-      ? { ...headOnly, baseDir: baseSnap.dir, base: repoLineCounter(baseSnap.dir) }
-      : headOnly;
+    const snapshots: Snapshots = {
+      ...(baseSnap ? { ...headOnly, baseDir: baseSnap.dir, base: repoLineCounter(baseSnap.dir) } : headOnly),
+      // A distributed-repo run: a citation may name a sibling snapshot of the run (ADR 0043 decision 4).
+      ...(siblings.snapshots.length > 0 ? { siblings: siblings.snapshots.map((s) => ({ ...s, lines: repoLineCounter(s.dir) })) } : {}),
+    };
     const applied = applyVerdicts(findings, candidates, verdicts, snapshots, stop);
     if (applied.answered === 0) {
       return unanswered("failed", stop ?? { kind: "error", detail: "the verifier returned no usable verdict" }, result.costUsd, usage);

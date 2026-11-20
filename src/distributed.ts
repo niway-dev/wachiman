@@ -194,9 +194,9 @@ export function batchDistributed(context: DistributedContext | undefined, files:
 }
 
 /** What the verifier gets: every sibling snapshot of the run, whichever contract or batch it came from. */
-export function verifierDistributed(context: DistributedContext | undefined): { section: string; dirs: string[] } {
+export function verifierDistributed(context: DistributedContext | undefined): { section: string; dirs: string[]; snapshots: { member: string; sha: string; dir: string }[] } {
   const read = (context?.siblings ?? []).filter(readable);
-  if (read.length === 0) return { section: "", dirs: [] };
+  if (read.length === 0) return { section: "", dirs: [], snapshots: [] };
   const lines = [
     "",
     "## Sibling repositories (read-only)",
@@ -204,8 +204,10 @@ export function verifierDistributed(context: DistributedContext | undefined): { 
     "The review of this change read other repositories of the same workspace, as plain files frozen at the commit named. They are context, not part of the change. A finding can rest on a premise that lives there: check it there with Read, Glob and Grep before you refute it, and never write to them.",
     ...read.map((s) => `- ${s.member}@${short(s.sha!)}: ${s.dir} (${s.byHand ? "added by hand" : `contract${s.contracts.length === 1 ? "" : "s"} ${s.contracts.join(", ")}`})`),
     "",
+    `To cite a line of a sibling, in \`checked\`, \`disproof\` or \`originEvidence\`, write it as \`{ "snapshot": "head", "member": <the name before the @ above>, "sha": <the first 7 characters of the commit after the @>, "path": <relative to that sibling>, "line": <1 or more> }\`. A line of a sibling can be the \`disproof\` of a finding whose premise lives there. It is accepted only if the member is listed above, the commit is that one and the line exists in it.`,
+    "",
   ];
-  return { section: lines.join("\n"), dirs: unique(read.map((s) => s.dir)) };
+  return { section: lines.join("\n"), dirs: unique(read.map((s) => s.dir)), snapshots: read.map((s) => ({ member: s.member, sha: s.sha!, dir: s.dir! })) };
 }
 
 /**

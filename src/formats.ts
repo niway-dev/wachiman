@@ -167,6 +167,12 @@ export interface Citation {
   path: string;
   /** Positive: line 0 is not evidence. */
   line: number;
+  /**
+   * A distributed-repo review only (ADR 0043 decision 2): the sibling the line is in, by its manifest
+   * `dir`, with `sha`, the full commit of its snapshot. Absent means the reviewed repository, as always.
+   */
+  member?: string;
+  sha?: string;
 }
 export type Claimed = "supported" | "refuted" | "inconclusive" | "none";
 export type Tier = "Important" | "Nit" | "Pre-existing";

@@ -6,6 +6,7 @@ import { loadConfig } from "./config";
 import type { ContractReading, DistributedContext, ResolvedSibling } from "./distributed";
 import { reviewChange, reviewOptionsOf, type CoreDeps, type ReviewInput, type ReviewOptions, type ReviewOutput } from "./engine";
 import { REMOVED_REFERENCE } from "./sibling-references";
+import { VERIFY_SCHEMA, verifySchema } from "./verify";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
 // Distributed-repo design, "How a run picks its siblings" step 6: only the batches that hold a file
@@ -262,6 +263,38 @@ describe("the verifier of a distributed-repo run", () => {
     expect(call.prompt).toContain("billing-service@9d8e7f6");
   });
 
+  test("a disproof found only in a sibling snapshot can be cited, and drops the finding; the schema and prompt say how", async () => {
+    const headDir = reviewedHead();
+    const billing = sibling({ member: "billing-service", contracts: ["billing-api"], sha: SHA_B, paths: ["src/routes/x.ts"], dir: snapshotDir("src/routes/x.ts", "export {};\nexport const guard = 1;\n") });
+    const contract: ContractReading = {
+      name: "billing-api",
+      triggerPaths: ["src/a.ts"],
+      reviewedMember: "web-site",
+      reviewedRoles: ["consumer"],
+      holdsSource: false,
+      sides: [{ member: "billing-service", role: "provider", paths: ["src/routes/**"] }, { member: "web-site", role: "consumer", paths: ["src/**"] }],
+      sourceOfTruth: { member: "billing-service", paths: ["src/routes/**"] },
+    };
+    const cite = (line: number, over: Record<string, unknown> = {}) => ({ snapshot: "head", member: "billing-service", sha: "9d8e7f6", path: "src/routes/x.ts", line, ...over });
+    const run = async (disproof: object) => {
+      const provider = new FakeProvider((request) => ({ costUsd: 0.1, structuredOutput: out({ files_reviewed: filesIn(request.prompt), findings: filesIn(request.prompt).includes("src/b.ts") ? [finding] : [], summary: "s" }) }));
+      const verifier = new FakeProvider(() => ({ costUsd: 0.1, structuredOutput: { verdicts: [{ id: "c1", verdict: "refuted", reason: "guarded in billing-service", checked: [cite(2)], disproof }] } }));
+      const result = await reviewChange(input(headDir, TWO_FILES), options({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5), batchLines: 1, distributed: context([billing], [contract]) }), coreDeps(provider, verifier));
+      return { result, call: verifier.requests[0] };
+    };
+    const good = await run(cite(2));
+    expect(good.result.findings).toHaveLength(0);
+    expect(good.result.verification?.entries[0]).toMatchObject({ outcome: "dropped", disproof: { member: "billing-service", sha: SHA_B, path: "src/routes/x.ts", line: 2 } });
+    expect(good.call.outputSchema).toEqual(verifySchema(true));
+    expect(good.call.prompt).toContain('"member"');
+    // The same citation with a line the sibling does not have, or a commit that is not its snapshot's, is not evidence: the finding stays, inconclusive.
+    for (const bad of [cite(3), cite(2, { sha: "3f2a9c1" }), cite(2, { member: "web-site" })]) {
+      const { result } = await run(bad);
+      expect(result.findings).toHaveLength(1);
+      expect(result.findings[0].verification.status).toBe("inconclusive");
+    }
+  });
+
   test("without siblings read, the verifier's prompt and directories are the usual ones", async () => {
     const headDir = reviewedHead();
     const run = async (distributed?: DistributedContext) => {
@@ -275,6 +308,9 @@ describe("the verifier of a distributed-repo run", () => {
     const noneRead = await run(context([missing], [palette(missing)]));
     expect(scrub(noneRead.prompt)).toBe(scrub(plain.prompt));
     expect(noneRead.addDirs).toHaveLength(plain.addDirs.length);
+    // The schema is the one a run without the feature sends, not a copy with member and sha in it.
+    expect(noneRead.outputSchema).toBe(VERIFY_SCHEMA);
+    expect(plain.outputSchema).toBe(VERIFY_SCHEMA);
   });
 });
 
