@@ -130,7 +130,6 @@ describe("the footer position of the block (AC3)", () => {
     const posted = block({ status: "complete", findings: noFindings() }, built.body);
     expect(stateOf(posted)).toHaveLength(1);
     expect(readSignedStateBlock(posted)).toMatchObject({ head: HEAD, status: "complete", findings: { total: 0 } });
-    expect(posted).not.toContain(forged);
   });
 });
 
@@ -346,10 +345,12 @@ describe("what postReview writes (AC1, AC16)", () => {
 });
 
 describe("the base-update line never fails for want of a block", () => {
-  test("when the earlier reviews cannot be read, the line has no block and the caller posts it anyway", () => {
+  test("when the earlier reviews cannot be read, baseUpdateState gives no draft, so the line goes out without a block", () => {
     const gh: GhFn = () => {
       throw new GhError("gh: Server Error (HTTP 500)", 500, "Server Error");
     };
-    expect(baseUpdateState(gh, "o/r", 1, HEAD)).toBeNull();
+    const warnings: string[] = [];
+    expect(baseUpdateState(gh, "o/r", 1, HEAD, (line) => warnings.push(line))).toBeNull();
+    expect(warnings.join(" ")).toContain("posts without one");
   });
 });

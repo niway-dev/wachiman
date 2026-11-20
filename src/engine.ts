@@ -2314,12 +2314,13 @@ export function lastEngineState(reviews: { body: string; created_at?: string }[]
  * before the block): its counts are unknown, and the line is posted without a block so that a reader
  * falls back to its marker instead of reading invented zero counts.
  */
-export function baseUpdateState(gh: GhFn, repo: string, pr: number, from: string): ReviewStateDraft | null {
+export function baseUpdateState(gh: GhFn, repo: string, pr: number, from: string, warn?: (line: string) => void): ReviewStateDraft | null {
   // A failure to read the earlier reviews must not lose the line that moves the marker: no block, and a reader falls back.
   let reviews: ReturnType<typeof botReviews>;
   try {
     reviews = botReviews(gh, repo, pr);
-  } catch {
+  } catch (error) {
+    warn?.(`Could not read the earlier reviews for the state block; the base-update line posts without one. ${String(error).slice(0, 200)}`);
     return null;
   }
   const earlier = reviews
@@ -4585,7 +4586,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       const upToDate = (why: string) => {
         deps.log(why);
         // The marker moves so that the next push is compared with this head, not with the old one.
-        const earlierState = baseUpdateState(gh, repo, pr, last);
+        const earlierState = baseUpdateState(gh, repo, pr, last, deps.warn);
         postReview(deps, repo, pr, headSha, {
           body: baseUpdateNotice({ base: meta.baseRefName, from: last, to: headSha, version: deps.engineVersion }, marker(headSha)),
           comments: [],
@@ -4648,7 +4649,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
           `The last reviewed commit ${short(last)} is not behind the head (${status}), but the pull request's changes are the same${delta.removed.length > 0 ? ` (no longer in it: ${delta.removed.join(", ")})` : ""}; rebased with no content change, nothing to review.`,
         );
         // The marker moves so that the next push is compared with this head, not with the old one.
-        const earlierState = baseUpdateState(gh, repo, pr, last);
+        const earlierState = baseUpdateState(gh, repo, pr, last, deps.warn);
         postReview(deps, repo, pr, headSha, {
           body: baseUpdateNotice({ base: meta.baseRefName, from: last, to: headSha, version: deps.engineVersion }, marker(headSha)),
           comments: [],
