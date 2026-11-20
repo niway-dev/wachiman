@@ -23,13 +23,15 @@ const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\\/-]/g, "\
 /**
  * `member@sha:path:line`, with an optional `-line` range end. The member is a manifest `dir`, which
  * may have several components (`apps/desktop`), so the names of this run's members come first, longest
- * first and escaped; any other name of that shape is matched too, to be removed. The path has no
- * whitespace, quote or bracket, which is how the prompt asks for it to be written.
+ * first and escaped; any other name of that shape is matched too, to be removed. The commit is 4 to 40 hex
+ * characters, so one under 7 is always matched and removed (it can never be kept). The path has no
+ * whitespace, backtick, quote, `<`, `>`, comma or semicolon, but may hold parentheses and brackets
+ * (`app/(auth)/login.tsx`, `app/[id]/page.tsx`); the `:<line>` after it is what anchors its end.
  */
 function referencePattern(members: readonly string[]): RegExp {
   const names = [...new Set(members)].sort((a, b) => b.length - a.length).map(escapeRegExp);
   return new RegExp(
-    `(?<![\\w@.\\/-])(${[...names, ANY_MEMBER].join("|")})@([0-9a-f]{7,40}):([^\\s\`'"()<>\\[\\],;]+?):(\\d+)(?:-(\\d+))?(?![\\w-])`,
+    `(?<![\\w@.\\/-])(${[...names, ANY_MEMBER].join("|")})@([0-9a-f]{4,40}):([^\\s\`'"<>,;]+?):(\\d+)(?:-(\\d+))?(?![\\w-])`,
     "g",
   );
 }
@@ -96,7 +98,7 @@ function referenceChecker(siblings: readonly ResolvedSibling[]) {
   };
   const settleOnce = (text: string) =>
     withoutDirectories(text).replace(pattern, (token, member: string, sha: string, path: string, line: string, end?: string) => {
-      const found = readable.find((s) => s.member === member && s.sha!.startsWith(sha));
+      const found = sha.length < 7 ? undefined : readable.find((s) => s.member === member && s.sha!.startsWith(sha));
       const first = Number(line);
       const last = end === undefined ? first : Number(end);
       const count = found ? lines(found.dir!, path) : null;

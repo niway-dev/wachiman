@@ -94,10 +94,35 @@ describe("checkSiblingReferences", () => {
     expect(f.body).toBe(`Look at ${REMOVED_REFERENCE} for the source.`);
   });
 
-  test("a commit shorter than 7 characters never matches, whatever it is a prefix of", () => {
-    const { removed } = check("desktop-app@3f2a:Assets/palette.json:2");
-    // Not a reference shape at all: nothing to remove or keep.
+  test.each([
+    ["a 4-character commit", "desktop-app@3f2a:Assets/palette.json:2"],
+    ["a 6-character commit", "desktop-app@3f2a9c:Assets/palette.json:2"],
+  ])("replaces and counts %s: it is too short to keep", (_, token) => {
+    const { finding: f, removed } = check(`See ${token} now.`);
+    expect(removed).toBe(1);
+    expect(f.references).toBeUndefined();
+    expect(f.body).toBe(`See ${REMOVED_REFERENCE} now.`);
+  });
+
+  test.each([
+    ["a route group", "app/(auth)/login.tsx"],
+    ["a dynamic segment", "app/[id]/page.tsx"],
+  ])("keeps a reference to a path with %s when the line exists, and removes and counts it when not", (_, path) => {
+    const web = sibling({ member: "web-site", paths: [path], dir: snapshot({ [path]: "one\ntwo\nthree\n" }) });
+    const ok = check(`See web-site@3f2a9c1:${path}:3 here.`, [web]);
+    expect(ok.removed).toBe(0);
+    expect(ok.finding.references).toEqual([{ member: "web-site", sha: SHA, path, line: 3 }]);
+    const bad = check(`See web-site@3f2a9c1:${path}:40 here.`, [web]);
+    expect(bad.removed).toBe(1);
+    expect(bad.finding.references).toBeUndefined();
+    expect(bad.finding.body).toBe(`See ${REMOVED_REFERENCE} here.`);
+  });
+
+  test("a reference in parentheses keeps the closing one out of the path", () => {
+    const web = sibling({ member: "web-site", paths: ["a.ts"], dir: snapshot({ "a.ts": "x\ny\nz\n" }) });
+    const { finding: f, removed } = check("(see web-site@3f2a9c1:a.ts:3)", [web]);
     expect(removed).toBe(0);
+    expect(f.references).toEqual([{ member: "web-site", sha: SHA, path: "a.ts", line: 3 }]);
   });
 
   test("a sibling that was not read has nothing to check a reference against", () => {
