@@ -187,6 +187,8 @@ describe("review() of a pull request with a workspace around it", () => {
     writeFileSync(userFilePath(home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(coordinator, MANIFEST_FILE), distributedRepo: "on" }] }));
     const after = await withHome(home, () => githubReview(head));
 
+    // A harness that never reached the provider would compare two empty lists.
+    expect(before.length).toBeGreaterThan(0);
     expect(after).toHaveLength(before.length);
     for (const [i, request] of after.entries()) {
       expect(request.prompt).not.toContain("sibling");
@@ -196,7 +198,9 @@ describe("review() of a pull request with a workspace around it", () => {
     }
     // A GitHub review does not even look at the per-user file: a broken one must not matter.
     writeFileSync(userFilePath(home), "{ not json");
-    await withHome(home, () => githubReview(head));
+    const broken = await withHome(home, () => githubReview(head));
+    expect(broken).toHaveLength(before.length);
+    for (const [i, request] of broken.entries()) expect(request.addDirs).toHaveLength(before[i]!.addDirs.length);
   });
 });
 
