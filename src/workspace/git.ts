@@ -11,7 +11,7 @@ export const workspaceGitEnv = () => ({ ...gitEnv(), GIT_NO_LAZY_FETCH: "1", GIT
 
 /**
  * The `GitRunner` of the workspace modules. It delegates to the engine's runner so the options
- * stay the same, with the workspace environment layered over the process one for the call.
+ * stay the same, but with the workspace environment as the whole environment of the call: the process environment (proxy or credential variables, for instance) is not inherited.
  */
 export const workspaceGit: GitRunner = (args, opts) => spawnGit(args, opts, workspaceGitEnv());
 
