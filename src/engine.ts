@@ -2627,7 +2627,7 @@ export interface RawThread {
 const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 /** A thread that opens with one of the engine's findings (open or resolved). */
-export const isBotFinding = (t: RawThread) =>
+const isBotFinding = (t: RawThread) =>
   t.comments.nodes[0]?.author?.login === "github-actions" &&
   isWachiFinding(t.comments.nodes[0].body, t.comments.nodes[0].createdAt);
 
