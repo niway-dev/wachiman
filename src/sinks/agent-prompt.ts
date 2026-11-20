@@ -2,6 +2,7 @@
  * The "prompt for your agent" block (spec, from Greptile's output idea 1): the review as a task
  * for the developer's own coding agent. Text only; Wachiman launches nothing.
  */
+import { privateContextLine } from "../distributed";
 import { neutralise, type ReviewResult } from "../engine";
 import { indent, location, plainLabel, sha7 } from "./common";
 
@@ -12,7 +13,9 @@ export function agentPrompt(result: ReviewResult): string {
   const entries = result.findings.map(
     (f, i) => `${i + 1}. ${location(f)} · ${plainLabel(f)}\n${indent(neutralise(f.body), "   ")}`,
   );
-  return [AGENT_PROMPT_INTRO(sha7(result.change.head.sha)), "", ...(entries.length > 0 ? entries : ["The review has no findings."])].join(
+  return [
+    ...(result.privateContext ? [privateContextLine(result.privateContext.members), ""] : []),
+    AGENT_PROMPT_INTRO(sha7(result.change.head.sha)), "", ...(entries.length > 0 ? entries : ["The review has no findings."])].join(
     "\n",
   );
 }

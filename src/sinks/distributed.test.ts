@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { privateContextLine } from "../distributed";
 import type { ReviewResult } from "../engine";
+import { agentPrompt } from "./agent-prompt";
 import { renderMarkdown } from "./markdown";
 import { renderTerminal } from "./terminal";
 
@@ -132,5 +133,12 @@ describe("a review without the mode", () => {
       expect(at, line).toBeGreaterThanOrEqual(0);
       from = at;
     }
+  });
+
+  test("the agent prompt block, which is pasted into a coding agent, opens with the private-context line", () => {
+    const r = distributed();
+    expect(agentPrompt(r).startsWith(privateContextLine(r.privateContext!.members))).toBe(true);
+    delete r.privateContext;
+    expect(agentPrompt(r)).not.toContain("private context");
   });
 });
