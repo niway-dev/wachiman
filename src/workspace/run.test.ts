@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { commit, git } from "../../test/support/temp-repo";
 import { UsageError } from "../config";
 import type { ReviewFile } from "../engine";
-import { spawnGit } from "../evidence";
+import { spawnGit, type GitRunner } from "../evidence";
+import { workspaceGit } from "./git";
 import { WorkspaceError } from "./discover";
 import { MANIFEST_FILE } from "./manifest";
 import { decideDistributed, prepareDistributed } from "./run";
@@ -321,6 +322,19 @@ describe("prepareDistributed", () => {
       expect(prepared.context.siblings[0]!.unreadable).toBeTruthy();
       expect(prepared.context.siblings[0]!.dir).toBeUndefined();
       expect(warnings.join("\n")).toContain("desktop-app");
+    } finally {
+      prepared.release();
+    }
+  });
+
+  test("a sibling whose git status fails is read as committed, with a warning that names the member", () => {
+    const f = fixture(local);
+    const failing: GitRunner = (args, opts) => (args[0] === "status" ? { status: null, stdout: "", error: "timed out", timedOut: true } : workspaceGit(args, opts));
+    const warnings: string[] = [];
+    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: (w) => warnings.push(w), git: failing });
+    try {
+      expect(prepared.context.siblings[0]).toMatchObject({ member: "desktop-app", status: "read", sha: f.desktopSha });
+      expect(warnings.join("\n")).toContain(`could not check desktop-app for uncommitted changes; read ${f.desktopSha.slice(0, 7)} as committed`);
     } finally {
       prepared.release();
     }

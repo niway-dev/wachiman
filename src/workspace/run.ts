@@ -265,6 +265,7 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
             droppedSubmodules: snapshot.droppedSubmodules,
             status: resolved.uncommitted ? "uncommitted-not-read" : "read",
           });
+          if (resolved.uncommittedUnknown) request.warn(`distributed-repo: could not check ${read.member.dir} for uncommitted changes; read ${resolved.sha.slice(0, 7)} as committed.`);
         } catch (error) {
           const why = error instanceof Error ? error.message : String(error);
           siblings.push({ ...row, sha: resolved.sha, status: "unreadable", unreadable: why });
