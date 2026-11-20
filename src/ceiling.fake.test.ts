@@ -550,13 +550,13 @@ describe("review() under the ceiling", () => {
   });
 
   // ADR 0060, AC1: the notices of a run that stopped before any batch finished say so in a block.
-  for (const [stop, reason, extra] of [
-    ["budget", "budget", {}],
-    ["turns", "turn_limit", {}],
-    ["timeout", "timeout", {}],
+  for (const [stop, reason] of [
+    ["budget", "budget"],
+    ["turns", "turn_limit"],
+    ["timeout", "timeout"],
   ] as const) {
     test(`an automatic run that stops at its ${stop} limit posts a not-reviewed block with reason ${reason}; a manual run's notice has none`, async () => {
-      const call = () => ({ costUsd: 0.1, terminalReason: stop, isError: true, ...extra });
+      const call = () => ({ costUsd: 0.1, terminalReason: stop, isError: true });
       const t = setup({ env: { WACHIMAN_TRIGGER: "synchronize" }, script: [call, call] });
       t.provider.record = false;
       await review(t.deps, "o/r", 7, []);
