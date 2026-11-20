@@ -15,12 +15,15 @@ import {
   location,
   notReviewed,
   plainLabel,
+  privateNote,
   profileText,
   sections,
   verificationNotes,
+  workspaceLines,
   providerLine,
   type SettingsFrom,
   sha7,
+  siblingReferences,
   sinceLastRunText,
   stopLine,
   type HistoryAnnotation,
@@ -35,16 +38,21 @@ export function renderTerminal(result: ReviewResult, opts: { profileNote?: strin
       countLine(result.findings),
     ].join("\n"),
   );
+  const priv = privateNote(result);
+  if (priv) blocks.push(priv);
   const note = instructionNote(result);
   if (note) blocks.push(note);
   const policy = policyNote(result);
   if (policy) blocks.push(policy);
+  const workspace = workspaceLines(result);
+  if (workspace.length > 0) blocks.push(`Workspace:\n${indent(workspace.map((l) => `- ${l}`).join("\n"), "  ")}`);
   if (result.riskMap) blocks.push(renderRiskMap(result.riskMap, "Risk map:", { style: PLAIN_STYLE }));
   const grouped = sections(result);
   const finding = ({ f, index }: (typeof grouped.main)[number]) => {
     const entry = opts.history?.byIndex.get(index);
     const notes = verificationNotes(f).flatMap((n) => [`${n.name}: ${n.text}`, ...(n.cites ? [`Checked: ${n.cites.join(", ")}`] : [])]);
-    return `${location(f)}  ${plainLabel(f)}${entry ? `  ${historyLabel(entry)}` : ""}\n${indent([neutralise(f.body), ...notes].join("\n"), "    ")}`;
+    const refs = siblingReferences(f);
+    return `${location(f)}  ${plainLabel(f)}${entry ? `  ${historyLabel(entry)}` : ""}\n${indent([neutralise(f.body), ...(refs.length > 0 ? [`Sibling references: ${refs.join(", ")}`] : []), ...notes].join("\n"), "    ")}`;
   };
   blocks.push(...grouped.main.map(finding));
   if (grouped.inconclusive.length > 0) blocks.push("Inconclusive (the verifier could not settle these):", ...grouped.inconclusive.map(finding));
