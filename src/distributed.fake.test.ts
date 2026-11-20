@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "./config";
@@ -42,7 +42,15 @@ const answersForItsFiles = (request: ProviderRequest) => ({ costUsd: 0.1, struct
 const SHA_A = "3f2a9c1".padEnd(40, "0");
 const SHA_B = "9d8e7f6".padEnd(40, "0");
 
-const tmp = (prefix: string) => mkdtempSync(join(tmpdir(), prefix));
+const made: string[] = [];
+const tmp = (prefix: string) => {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  made.push(dir);
+  return dir;
+};
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
+});
 
 function reviewedHead() {
   const headDir = tmp("distributed-head-");
