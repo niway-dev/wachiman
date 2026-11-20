@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { spawnGit, type GitRunner } from "../evidence";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import type { Contract, Member, VersionSpec } from "./manifest";
 import type { UserWorkspace } from "./user-file";
@@ -234,13 +235,21 @@ describe("tip", () => {
     expect(result.fetchedAt).toBeUndefined();
   });
 
-  test("never fetches: a remote that does not exist is never contacted", () => {
+  test("never fetches: no rule runs fetch, pull or clone, and a remote that does not exist is never contacted", () => {
     const p = provider();
     git(p.dir, "remote", "add", "origin", "https://127.0.0.1:9/never.git");
-    const before = Date.now();
-    const result = resolveVersion(context(consumer(), p, { rule: "tip" }));
-    expect(result.sha).toBe(p.tip);
-    expect(Date.now() - before).toBeLessThan(5000);
+    const calls: string[][] = [];
+    const guarded: GitRunner = (args, opts) => {
+      calls.push(args);
+      if (args.some((a) => ["fetch", "pull", "clone"].includes(a))) throw new Error(`git ${args.join(" ")} must never run`);
+      return spawnGit(args, opts);
+    };
+    const c = consumer();
+    for (const version of [{ rule: "tip" }, { rule: "local" }, pinSpec] as VersionSpec[]) {
+      expect(resolveVersion(context(c, p, version), guarded).sha).toBeDefined();
+    }
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.filter((args) => args.some((a) => ["fetch", "pull", "clone"].includes(a)))).toEqual([]);
   });
 });
 
