@@ -2197,7 +2197,7 @@ export class GhTimeoutError extends GhError {
 }
 
 function runGh(args: string[], input: string | undefined, timeoutMs?: number): string {
-  const run = spawnSync("gh", args, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, timeoutMs), killSignal: "SIGKILL" as const }) });
+  const run = spawnSync("gh", args, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, Math.ceil(timeoutMs)), killSignal: "SIGKILL" as const }) });
   if ((run.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") throw new GhTimeoutError(args);
   if (run.status !== 0) {
     const { status, message, errors } = parseGhFailure(run.stderr ?? "", run.stdout ?? "");

@@ -39,7 +39,7 @@ it for the repository and treats each event as a wake signal only. With a listen
 reads at least every three intervals (the command has no replay and drops events while it is
 disconnected), and an event can bring the next read forward, but never sooner than one interval
 after the last read. The content of an event is never read or trusted: the state is read again.
-The listener is killed when the wait ends, on every path, and on SIGINT or SIGTERM (the handlers exist only while waiting). A signal is handled between `gh` calls, so it can take up to the end of the read in progress.
+The listener is killed when the wait ends, on every path, and on SIGINT or SIGTERM (the handlers exist only while waiting). While a `gh` call is running the process is blocked, so a signal is handled when that call ends (at most the time left before the deadline).
 
 When the command is missing, not supported, or stops (including its 24 h subscription ending, exit
 8), `--wait` polls every interval and says so once on stderr, for example `gh event listen is not

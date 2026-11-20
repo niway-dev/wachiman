@@ -358,6 +358,8 @@ describe("the deadline bounds a read in progress, not only the sleeps", () => {
       const started = Date.now();
       expect(() => ghWithin(() => 300)(["api", "x"])).toThrow(GhTimeoutError);
       expect(Date.now() - started).toBeLessThan(5_000);
+      // The clock is fractional (performance.now): spawnSync only takes whole milliseconds.
+      expect(() => ghWithin(() => 300.7)(["api", "x"])).toThrow(GhTimeoutError);
       expect(() => ghWithin(() => 0)(["api", "x"])).toThrow(GhTimeoutError);
     } finally {
       process.env.PATH = saved;
