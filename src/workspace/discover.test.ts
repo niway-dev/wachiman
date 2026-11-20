@@ -135,14 +135,33 @@ describe("findWorkspace", () => {
     expect(findWorkspace(tmp(), "https://github.com/acme/web-site.git", noUserFile)).toBeUndefined();
   });
 
-  test("a per-user entry whose manifest file is gone is skipped; an invalid one is refused", () => {
+  test("a per-user entry whose manifest file is gone is skipped with a warning naming its path", () => {
     const coordinator = workspace();
     const gone = userWorkspace(join(tmp(), "nowhere"));
-    const found = findWorkspace(join(coordinator, "web-site"), undefined, { version: 1, workspaces: [gone, userWorkspace(coordinator)] });
+    const warnings: string[] = [];
+    const found = findWorkspace(join(coordinator, "web-site"), undefined, { version: 1, workspaces: [gone, userWorkspace(coordinator)] }, warnings);
     expect(found?.reviewed.dir).toBe("web-site");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(gone.manifest);
+  });
+
+  test("an invalid per-user manifest is a warning and is skipped, so an unrelated repository still reviews", () => {
+    const coordinator = workspace();
     const broken = tmp();
     writeFileSync(join(broken, MANIFEST_FILE), "{}");
-    expect(() => findWorkspace(tmp(), undefined, { version: 1, workspaces: [userWorkspace(broken)] })).toThrow(/format/);
+    const warnings: string[] = [];
+    const found = findWorkspace(join(coordinator, "web-site"), undefined, { version: 1, workspaces: [userWorkspace(broken), userWorkspace(coordinator)] }, warnings);
+    expect(found?.coordinator).toBe(coordinator);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain(join(broken, MANIFEST_FILE));
+    expect(warnings[0]).toMatch(/format/);
+  });
+
+  test("an invalid manifest found by walking up is still refused", () => {
+    const coordinator = tmp();
+    writeFileSync(join(coordinator, MANIFEST_FILE), "{}");
+    mkdirSync(join(coordinator, "web-site"));
+    expect(() => findWorkspace(join(coordinator, "web-site"), undefined, noUserFile, [])).toThrow(/format/);
   });
 
   test("the per-user entry wins over a manifest found by walking up", () => {

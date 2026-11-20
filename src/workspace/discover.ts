@@ -8,7 +8,7 @@ import { existsSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { UsageError } from "../config";
 import { normaliseRemote } from "../history/store";
-import { MANIFEST_FILE, readManifest, type Contract, type Manifest, type Member } from "./manifest";
+import { MANIFEST_FILE, ManifestError, readManifest, type Contract, type Manifest, type Member } from "./manifest";
 import { own, type UserFile, type UserWorkspace } from "./user-file";
 
 export class WorkspaceError extends UsageError {
@@ -65,22 +65,32 @@ function memberOf(manifest: Manifest, coordinator: string, repoTop: string, slug
 }
 
 const isMissing = (error: unknown) => (error as { code?: string }).code === "unreadable" && /ENOENT/.test((error as Error).message);
+const isManifestError = (error: unknown): error is ManifestError => error instanceof ManifestError;
 
 /**
  * The workspace the repository at `repoTop` belongs to: the first per-user entry whose manifest
  * lists it (by `repo` against `origin`, then by directory), else the first manifest met walking up
  * from the parent of `repoTop`. Undefined when there is none, or when the manifest found by walking
- * up does not list this repository. A per-user entry whose manifest file is gone is skipped; one
- * that exists but is invalid is refused, so a broken workspace is never silently ignored.
+ * up does not list this repository. A per-user entry whose manifest file is gone, or is invalid, is
+ * skipped and a message naming its path is pushed to `warnings`, so one broken entry never fails
+ * the review of a repository that is not in it. A manifest found by walking up that is invalid is
+ * refused.
  */
-export function findWorkspace(repoTop: string, origin: string | undefined, userFile: UserFile): FoundWorkspace | undefined {
+export function findWorkspace(repoTop: string, origin: string | undefined, userFile: UserFile, warnings: string[] = []): FoundWorkspace | undefined {
   const slug = repoSlug(origin);
   for (const user of userFile.workspaces) {
     let manifest: Manifest;
     try {
       manifest = readManifest(user.manifest);
     } catch (error) {
-      if (isMissing(error)) continue;
+      if (isMissing(error)) {
+        warnings.push(`The workspace manifest ${user.manifest} listed in workspaces.json does not exist; skipping it.`);
+        continue;
+      }
+      if (isManifestError(error)) {
+        warnings.push(`The workspace manifest ${user.manifest} listed in workspaces.json is invalid and was skipped: ${error.message}`);
+        continue;
+      }
       throw error;
     }
     const coordinator = dirname(user.manifest);
