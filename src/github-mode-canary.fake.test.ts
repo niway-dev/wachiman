@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { commit, git } from "../test/support/temp-repo";
 import { loadConfig } from "./config";
-import { GhError, review, type Deps, type ReviewOutput } from "./engine";
+import { GhError, githubReview as buildGithubReview, review, type Deps, type ReviewOutput, type ReviewResult } from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 import { MANIFEST_FILE } from "./workspace/manifest";
 import { userFilePath } from "./workspace/user-file";
@@ -211,3 +211,44 @@ async function withHome<T>(home: string, body: () => Promise<T>): Promise<T> {
     else process.env.WACHIMAN_HOME = was;
   }
 }
+
+describe("the GitHub sink and a distributed-repo result (ADR 0042 decision 6)", () => {
+  const distributed = (): ReviewResult => JSON.parse(readFileSync(join(SRC, "../test/fixtures/formats/review-result.v2.distributed.example.json"), "utf8"));
+  const plain = (): ReviewResult => JSON.parse(readFileSync(join(SRC, "../test/fixtures/formats/review-result.v2.example.json"), "utf8"));
+  const github = {
+    since: null,
+    rebased: false,
+    scoped: false,
+    mention: "@wachiman",
+    automatic: false,
+    instructionChanges: { files: [], baseSha: "b".repeat(40) },
+  };
+
+  test("refuses a result that carries privateContext, and says why, before it builds anything", () => {
+    const result = distributed();
+    expect(result.privateContext).toBeDefined();
+    expect(() => buildGithubReview(result, github)).toThrow(/private context/);
+    expect(() => buildGithubReview(result, github)).toThrow(/desktop-app/);
+  });
+
+  test("refuses any result of the mode, also one that read only public siblings or none: the destination is the laptop", () => {
+    const publicOnly = distributed();
+    delete publicOnly.privateContext;
+    publicOnly.siblings = publicOnly.siblings!.map((s) => ({ ...s, visibility: "public" as const }));
+    expect(() => buildGithubReview(publicOnly, github)).toThrow(/distributed-repo/);
+    const none = distributed();
+    delete none.privateContext;
+    none.siblings = [];
+    expect(() => buildGithubReview(none, github)).toThrow(/distributed-repo/);
+    // The label alone, however it got there, is enough.
+    const labelOnly = plain();
+    labelOnly.privateContext = { members: ["desktop-app"] };
+    expect(() => buildGithubReview(labelOnly, github)).toThrow(/private context/);
+  });
+
+  test("a result without the mode builds the review it always did", () => {
+    const built = buildGithubReview(plain(), github);
+    expect(built.body).toContain("Wachiman");
+    expect(JSON.stringify(built)).not.toContain("private context");
+  });
+});

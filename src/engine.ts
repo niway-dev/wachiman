@@ -4288,6 +4288,22 @@ export function githubReviewInput(p: {
   };
 }
 
+/**
+ * ADR 0042 decision 6: a result that read a non-public sibling is for the laptop only, and so is any
+ * result of the distributed-repo mode, whose destination is fixed before anything is read. Nothing
+ * in the GitHub path produces one today; this keeps it so when a path that reuses a local result is added.
+ */
+function refuseDistributed(result: ReviewResult): void {
+  if (result.privateContext) {
+    throw new Error(
+      `Refusing to post a review built with private context from ${result.privateContext.members.join(", ")}: it is for the laptop, not for a pull request (ADR 0042).`,
+    );
+  }
+  if (result.siblings !== undefined || result.workspaceContractsApplied !== undefined || result.noWorkspaceContractApplied !== undefined) {
+    throw new Error("Refusing to post a distributed-repo review: its siblings were read for the laptop, not for a pull request (ADR 0042).");
+  }
+}
+
 /** The GitHub sink: a `ReviewResult` as the review `postReview` posts, through `buildReview`. */
 export function githubReview(
   result: ReviewResult,
@@ -4315,6 +4331,7 @@ export function githubReview(
     estimate?: boolean;
   },
 ): Review {
+  refuseDistributed(result);
   return buildReview({
     output: {
       files_reviewed: result.coverage.reviewed,
