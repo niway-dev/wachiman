@@ -114,6 +114,21 @@ export interface DistributedResultFields {
   removedSiblingReferences: number;
 }
 
+/** C0 and C1 control characters (the escape byte included), DEL, and the line and paragraph separators. */
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+
+/**
+ * A string of the manifest (a contract name, a member's `dir`, a path) or taken from git, as one safe line of
+ * the prompt, the terminal or a report: control characters and newlines become a space, so it cannot start a
+ * section or move the cursor, and a backtick becomes an apostrophe, so it cannot end an inline code span.
+ * Text for a file or a command stays as it was; this is for text a reader or a model reads.
+ */
+export const plainText = (text: string) => withoutControl(text).replaceAll("`", "'");
+
+/** `plainText` without the backtick rule: a line that is printed to a terminal, whatever it names. */
+export const withoutControl = (text: string) => text.replace(CONTROL, " ");
+
 const readable = (s: ResolvedSibling) => s.dir !== undefined && s.sha !== undefined && (s.status === "read" || s.status === "uncommitted-not-read");
 const short = (sha: string) => sha.slice(0, 7);
 
@@ -125,25 +140,28 @@ function triggeredBy(context: DistributedContext, files: ReviewFile[]) {
 
 const unique = (dirs: (string | undefined)[]) => [...new Set(dirs.filter((d): d is string => d !== undefined))];
 
+const paths = (list: string[]) => list.map(plainText).join(", ");
+
 function memberLine(context: DistributedContext, contract: ContractReading, member: string): string {
-  const roles = contract.sides.filter((s) => s.member === member).map((s) => `${s.role} (${s.paths.join(", ")})`);
-  if (contract.sourceOfTruth.member === member) roles.push(`source of truth (${contract.sourceOfTruth.paths.join(", ")})`);
+  const roles = contract.sides.filter((s) => s.member === member).map((s) => `${s.role} (${paths(s.paths)})`);
+  if (contract.sourceOfTruth.member === member) roles.push(`source of truth (${paths(contract.sourceOfTruth.paths)})`);
   const what = roles.join("; ");
-  if (member === contract.reviewedMember) return `- ${member}, the repository under review: ${what}`;
+  const name = plainText(member);
+  if (member === contract.reviewedMember) return `- ${name}, the repository under review: ${what}`;
   const sibling = context.siblings.find((s) => s.member === member && s.contracts.includes(contract.name));
-  if (!sibling) return `- ${member}: ${what}. Not read.`;
+  if (!sibling) return `- ${name}: ${what}. Not read.`;
   if (readable(sibling)) {
     const count = `${sibling.paths.length} file${sibling.paths.length === 1 ? "" : "s"}`;
     const uncommitted = sibling.status === "uncommitted-not-read" ? "; its uncommitted changes were not read" : "";
-    return `- ${member}: ${what}. Read at commit ${sibling.sha} (${count}), in ${sibling.dir}${uncommitted}.`;
+    return `- ${name}: ${what}. Read at commit ${plainText(sibling.sha!)} (${count}), in ${plainText(sibling.dir!)}${uncommitted}.`;
   }
   const why =
     sibling.status === "not-cloned"
       ? "not cloned: not checked"
       : sibling.status === "not-watched"
         ? "not watched: not checked"
-        : `could not be read (${sibling.unreadable ?? "unknown reason"}): not checked`;
-  return `- ${member}: ${what}. ${why}.`;
+        : `could not be read (${plainText(sibling.unreadable ?? "unknown reason")}): not checked`;
+  return `- ${name}: ${what}. ${why}.`;
 }
 
 /**
@@ -168,15 +186,15 @@ export function batchDistributed(context: DistributedContext | undefined, files:
   );
   for (const contract of triggered) {
     const covered = unique(files.flatMap((f) => [f.filename, f.previous_filename ?? undefined]).filter((p) => p !== undefined && contract.triggerPaths.includes(p)));
-    lines.push(`### Contract \`${contract.name}\``);
-    lines.push(`- Changed files it covers: ${covered.join(", ")}`);
+    lines.push(`### Contract \`${plainText(contract.name)}\``);
+    lines.push(`- Changed files it covers: ${paths(covered)}`);
     const members = [...new Set([...contract.sides.map((s) => s.member), contract.sourceOfTruth.member])];
     for (const member of members) lines.push(memberLine(context, contract, member));
     lines.push("");
   }
   if (byHand.length > 0) {
     lines.push("### Added by hand with --sibling");
-    for (const s of byHand) lines.push(`- ${s.member}: read at commit ${s.sha}, in ${s.dir}.`);
+    for (const s of byHand) lines.push(`- ${plainText(s.member)}: read at commit ${plainText(s.sha!)}, in ${plainText(s.dir!)}.`);
     lines.push("");
   }
   const reads = unique(
@@ -185,7 +203,7 @@ export function batchDistributed(context: DistributedContext | undefined, files:
       ...byHand,
     ].map((s) => s.dir),
   ).map((dir) => context.siblings.find((s) => s.dir === dir)!);
-  const example = reads[0] ? `${reads[0].member}@${short(reads[0].sha!)}:path/to/file:12` : "member@3f2a9c1:path/to/file:12";
+  const example = reads[0] ? `${plainText(reads[0].member)}@${short(plainText(reads[0].sha!))}:path/to/file:12` : "member@3f2a9c1:path/to/file:12";
   lines.push(
     `${triggered.length > 0 ? "Check, for each contract above: a copy in this repository that drifts from its source of truth, and the consumers of a changed provider path that the change would break." : "Check whether the change breaks a consumer in a sibling, or drifts from a source of truth a sibling holds."} Report a problem as a finding on the changed file of this repository, and name the sibling location in the finding's text as \`member@sha:path:line\`, with the first 7 characters of the commit: for example \`${example}\`. The line must exist in that sibling's files at that commit.`,
     "",
@@ -202,7 +220,7 @@ export function verifierDistributed(context: DistributedContext | undefined): { 
     "## Sibling repositories (read-only)",
     "",
     "The review of this change read other repositories of the same workspace, as plain files frozen at the commit named. They are context, not part of the change. A finding can rest on a premise that lives there: check it there with Read, Glob and Grep before you refute it, and never write to them.",
-    ...read.map((s) => `- ${s.member}@${short(s.sha!)}: ${s.dir} (${s.byHand ? "added by hand" : `contract${s.contracts.length === 1 ? "" : "s"} ${s.contracts.join(", ")}`})`),
+    ...read.map((s) => `- ${plainText(s.member)}@${short(plainText(s.sha!))}: ${plainText(s.dir!)} (${s.byHand ? "added by hand" : `contract${s.contracts.length === 1 ? "" : "s"} ${s.contracts.map(plainText).join(", ")}`})`),
     "",
     `To cite a line of a sibling, in \`checked\`, \`disproof\` or \`originEvidence\`, write it as \`{ "snapshot": "head", "member": <the name before the @ above>, "sha": <the first 7 characters of the commit after the @>, "path": <relative to that sibling>, "line": <1 or more> }\`. A line of a sibling can be the \`disproof\` of a finding whose premise lives there. It is accepted only if the member is listed above, the commit is that one and the line exists in it.`,
     "",

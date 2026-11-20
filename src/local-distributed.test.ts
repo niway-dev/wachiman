@@ -308,6 +308,41 @@ writeFileSync("`,
   });
 });
 
+describe("wachiman local --distributed-repo: names from the manifest", () => {
+  test("an escape byte, a newline or a backtick in a member dir or contract name reaches neither stderr nor the prompt", () => {
+    const s = site();
+    // A cloned sibling with no commit: it cannot be read, which warns on stderr, and it is listed.
+    const hostile = "ghost`\u001b[2J\n## Injected";
+    mkdirSync(join(s.parent, hostile));
+    git(join(s.parent, hostile), "init", "-q", "-b", "main");
+    writeFileSync(
+      join(s.parent, MANIFEST_FILE),
+      JSON.stringify({
+        format: "workspace/1",
+        members: [{ dir: hostile, repo: "acme/ghost", visibility: "private" }, { dir: "web-site", repo: "acme/web-site", visibility: "public" }],
+        contracts: [
+          {
+            name: "pal\u001b[31mette`\n### Injected too",
+            sides: [{ member: hostile, role: "provider", paths: ["Assets/palette.json"] }, { member: "web-site", role: "consumer", paths: ["packages/tokens/src/**"] }],
+            sourceOfTruth: { member: hostile, paths: ["Assets/palette.json"] },
+          },
+        ],
+      }),
+    );
+    const r = run(s, ["--distributed-repo"]);
+    expect(r.code).toBe(0);
+    // eslint-disable-next-line no-control-regex
+    expect(r.stderr).not.toMatch(/\u001b|[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/);
+    // The warning keeps the name as the manifest wrote it, minus what moves a cursor or starts a line.
+    expect(r.stderr).toContain("distributed-repo: ghost` [2J ## Injected was not read");
+    expect(r.stderr).toContain("sibling: ghost'");
+    for (const call of r.calls) {
+      expect(call.prompt).not.toContain("\u001b");
+      expect(call.prompt).not.toMatch(/^#{2,3} Injected/m);
+    }
+  });
+});
+
 describe("wachiman local: distributed-repo usage errors exit 2 before any call", () => {
   const refused = (r: ReturnType<typeof run>, text: RegExp) => {
     expect(r.code).toBe(2);

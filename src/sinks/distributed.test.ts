@@ -142,3 +142,42 @@ describe("a review without the mode", () => {
     expect(agentPrompt(r)).not.toContain("private context");
   });
 });
+
+describe("names from the manifest in the terminal, the Markdown report and the agent prompt", () => {
+  // A manifest name is text of the reviewed repository: an escape byte must not reach the terminal, a
+  // newline must not start a line of its own, and a backtick must not end an inline code span.
+  const BAD = "web`\u001b[2J\n## Injected";
+  const hostile = () => {
+    const r = distributed();
+    r.siblings = [
+      { ...r.siblings![0]!, member: BAD, contracts: [BAD], fallback: `pin\u001b[0m\nmissing`, fetchedAt: "now\u0007" },
+      { ...r.siblings![1]!, member: `${BAD}-2`, status: "unreadable", unreadable: `bad\u001b[31m\nfile`, contracts: [BAD] },
+    ];
+    r.workspaceContractsApplied = [BAD];
+    r.privateContext = { members: [BAD] };
+    r.findings[0]!.references = [{ member: BAD, sha: "3f2a9c1".padEnd(40, "0"), path: `a\`b\n.ts`, line: 2 }];
+    return r;
+  };
+  // eslint-disable-next-line no-control-regex
+  const CONTROL = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029]/;
+
+  test.each(["terminal", "markdown", "agent prompt"] as const)("%s: no control character, and no line that a name started", (kind) => {
+    const r = hostile();
+    const text = { terminal: renderTerminal(r, { agentPrompt: false }), markdown: renderMarkdown(r, {}), "agent prompt": agentPrompt(r) }[kind];
+    // The agent prompt and the report keep their own newlines; ESC and the other control characters are never there.
+    expect(CONTROL.test(text)).toBe(false);
+    expect(text).not.toMatch(/^## Injected/m);
+  });
+
+  test("the references of a finding stay inside their code span in Markdown", () => {
+    const text = renderMarkdown(hostile(), {});
+    const line = text.split("\n").find((l) => l.startsWith("Sibling references:"))!;
+    expect(line.match(/`/g)).toHaveLength(2);
+    expect(line).toContain("a'b .ts:2");
+  });
+
+  test("the private-context line names the member on one line", () => {
+    const line = agentPrompt(hostile()).split("\n")[0]!;
+    expect(line).toBe("Built with private context from: web' [2J ## Injected. Do not paste its text into a public place.");
+  });
+});

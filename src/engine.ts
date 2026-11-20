@@ -78,7 +78,7 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
-import { batchDistributed, distributedResultFields, verifierDistributed, type DistributedContext } from "./distributed";
+import { batchDistributed, distributedResultFields, plainText, verifierDistributed, type DistributedContext } from "./distributed";
 import { settleModelText } from "./sibling-references";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
 import {
@@ -4315,7 +4315,7 @@ export function githubReviewInput(p: {
 function refuseDistributed(result: ReviewResult): void {
   if (result.privateContext) {
     throw new Error(
-      `Refusing to post a review built with private context from ${result.privateContext.members.join(", ")}: it is for the laptop, not for a pull request (ADR 0042).`,
+      `Refusing to post a review built with private context from ${result.privateContext.members.map(plainText).join(", ")}: it is for the laptop, not for a pull request (ADR 0042).`,
     );
   }
   if (result.siblings !== undefined || result.workspaceContractsApplied !== undefined || result.noWorkspaceContractApplied !== undefined) {

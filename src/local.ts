@@ -36,7 +36,7 @@ import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parsePathRule
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
 import { historyRoot, historySettings, saveRun } from "./history";
 import { readConfig, wachimanHome } from "./accounts/config";
-import type { DistributedContext, ResolvedSibling } from "./distributed";
+import { plainText, withoutControl, type DistributedContext, type ResolvedSibling } from "./distributed";
 import { decideDistributed, homeRelative, prepareDistributed } from "./workspace/run";
 import { confirmProfile, type SpawnFn } from "./accounts/confirm";
 import { failureText, profileLine, resolveProfile, type ResolvedProfile } from "./accounts/resolve";
@@ -544,7 +544,7 @@ export async function runLocal(
     repoDir,
     home,
     git: spawnGit,
-    warn: io.stderr,
+    warn: (line) => io.stderr(withoutControl(line)),
   });
   if (distributed.on) {
     io.stderr(
@@ -636,7 +636,7 @@ export async function runLocal(
     // The workspace: which contracts this change applies and which sibling snapshots to read for them. Never fetches.
     let siblingContext: DistributedContext | undefined;
     if (distributed.on) {
-      const prepared = prepareDistributed(distributed, { files: kept, headSha: input.change.head.sha, siblings: args.siblings ?? [], warn: io.stderr });
+      const prepared = prepareDistributed(distributed, { files: kept, headSha: input.change.head.sha, siblings: args.siblings ?? [], warn: (line) => io.stderr(withoutControl(line)) });
       releaseSiblings = prepared.release;
       siblingContext = prepared.context;
       // A result that carries siblings or applied contracts has no /1 (the label and the siblings have no place there). Known here, before any call.
@@ -738,21 +738,22 @@ const shortSha = (sha: string) => sha.slice(0, 7);
 
 /** One stderr line per fact about the workspace of a distributed-repo run: the manifest, the contracts, each sibling. */
 export function distributedLines(context: DistributedContext): string[] {
-  const lines = [`workspace: ${context.manifestPath} (this repository is ${context.reviewed})`];
+  const lines = [`workspace: ${plainText(context.manifestPath)} (this repository is ${plainText(context.reviewed)})`];
   if (context.contracts.length === 0) lines.push("distributed-repo: no workspace contract applied to this change");
-  else lines.push(`contracts: ${context.contracts.map((c) => c.name).join(", ")}`);
+  else lines.push(`contracts: ${context.contracts.map((c) => plainText(c.name)).join(", ")}`);
   for (const sibling of context.siblings) lines.push(siblingLine(sibling));
   return lines;
 }
 
 function siblingLine(s: ResolvedSibling): string {
-  const why = s.byHand && s.contracts.length === 0 ? "added by hand" : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.join(", ")}`;
+  const member = plainText(s.member);
+  const why = s.byHand && s.contracts.length === 0 ? "added by hand" : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.map(plainText).join(", ")}`;
   const rule = `${s.rule} (${s.ruleSource})`;
-  if (s.status === "not-cloned" || s.status === "not-watched") return `sibling: ${s.member}, ${s.status}, rule ${rule}, ${why}`;
-  if (s.status === "unreadable") return `sibling: ${s.member}, unreadable (${s.unreadable ?? "unknown reason"}), rule ${rule}, ${why}`;
+  if (s.status === "not-cloned" || s.status === "not-watched") return `sibling: ${member}, ${s.status}, rule ${rule}, ${why}`;
+  if (s.status === "unreadable") return `sibling: ${member}, unreadable (${plainText(s.unreadable ?? "unknown reason")}), rule ${rule}, ${why}`;
   const read = s.readAs === s.rule ? `rule ${rule}` : `rule ${rule}, read as ${s.readAs}`;
-  const age = s.fetchedAt ? `, last fetched ${s.fetchedAt}` : "";
+  const age = s.fetchedAt ? `, last fetched ${plainText(s.fetchedAt)}` : "";
   const dirty = s.status === "uncommitted-not-read" ? ", uncommitted changes not read" : "";
-  const fallback = s.fallback ? `, ${s.fallback}` : "";
-  return `sibling: ${s.member}, commit ${shortSha(s.sha!)}, ${s.paths.length} file${s.paths.length === 1 ? "" : "s"}, ${read}${age}${dirty}${fallback}, ${why}`;
+  const fallback = s.fallback ? `, ${plainText(s.fallback)}` : "";
+  return `sibling: ${member}, commit ${shortSha(s.sha!)}, ${s.paths.length} file${s.paths.length === 1 ? "" : "s"}, ${read}${age}${dirty}${fallback}, ${why}`;
 }
