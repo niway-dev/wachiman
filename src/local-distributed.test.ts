@@ -336,3 +336,84 @@ describe("wachiman local: distributed-repo usage errors exit 2 before any call",
     refused(run(site({ sibling: true }), ["--distributed-repo"]), /found no workspace/);
   });
 });
+
+describe("wachiman local --distributed-repo: the result", () => {
+  const json = (r: ReturnType<typeof run>) => JSON.parse(r.stdout);
+  const NEW_KEYS = ["siblings", "workspaceContractsApplied", "noWorkspaceContractApplied", "privateContext", "removedSiblingReferences"];
+
+  test("--format json writes result /2 without being asked, with the siblings, the contract and the private-context label", () => {
+    const s = site({ manifest: true, sibling: true });
+    const r = run(s, ["--distributed-repo", "--format", "json"]);
+    expect(r.code).toBe(0);
+    const result = json(r);
+    expect(result.format).toBe("wachiman.review-result/2");
+    expect(result.workspaceContractsApplied).toEqual(["brand-palette"]);
+    expect(result).not.toHaveProperty("noWorkspaceContractApplied");
+    expect(result.siblings).toHaveLength(1);
+    const [row] = result.siblings;
+    expect(row).toMatchObject({ member: "desktop-app", repo: "acme/desktop-app", visibility: "private", status: "read", contracts: ["brand-palette"], ruleSource: "default" });
+    expect(row.sha).toBe(git(s.desktopApp!, "rev-parse", "HEAD").trim());
+    expect(row).not.toHaveProperty("dir");
+    expect(r.stdout).not.toMatch(/wachiman-sibling|distributed-snapshot/);
+    expect(result.privateContext).toEqual({ members: ["desktop-app"] });
+    expect(result.removedSiblingReferences).toBe(0);
+  });
+
+  test("a sibling that is not cloned is a row with its status, and labels nothing", () => {
+    const result = json(run(site({ manifest: true }), ["--distributed-repo", "--format", "json"]));
+    expect(result.siblings.map((x: { member: string; status: string }) => [x.member, x.status])).toEqual([["desktop-app", "not-cloned"]]);
+    expect(result).not.toHaveProperty("privateContext");
+  });
+
+  test("a change no contract covers says so in the result", () => {
+    const s = site({ manifest: true, sibling: true });
+    git(s.webSite, "reset", "-q", "--hard", "main");
+    commit(s.webSite, { [OTHER]: "# readme\n\nOnly this.\n" }, "readme only");
+    const result = json(run(s, ["--distributed-repo", "--format", "json"]));
+    expect(result.siblings).toEqual([]);
+    expect(result.workspaceContractsApplied).toEqual([]);
+    expect(result.noWorkspaceContractApplied).toBe(true);
+  });
+
+  test("--result-version 1 with the mode is exit 2 before any call: /1 cannot carry the label", () => {
+    const r = run(site({ manifest: true, sibling: true }), ["--distributed-repo", "--format", "json", "--result-version", "1"]);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/distributed-repo.*result \/1|result \/1.*distributed-repo/s);
+    expect(r.calls).toHaveLength(0);
+    expect(r.stdout).toBe("");
+  });
+
+  test("the terminal and the Markdown report print the sibling line, the contract and the private-context line", () => {
+    const s = site({ manifest: true, sibling: true });
+    const sha = git(s.desktopApp!, "rev-parse", "HEAD").trim().slice(0, 7);
+    for (const format of ["terminal", "markdown"]) {
+      const r = run(s, ["--distributed-repo", "--format", format]);
+      expect(r.code).toBe(0);
+      expect(r.stdout).toContain("Workspace contracts applied: brand-palette");
+      expect(r.stdout).toContain(`desktop-app: rule `);
+      expect(r.stdout).toContain(`commit ${sha}`);
+      expect(r.stdout).toContain("Built with private context from: desktop-app. Do not paste its text into a public place.");
+    }
+    const missing = run(site({ manifest: true }), ["--distributed-repo"]);
+    expect(missing.stdout).toContain("desktop-app: not cloned: not checked");
+    expect(missing.stdout).not.toContain("private context");
+  });
+
+  test("without the mode the JSON is what it was: /1 by default, and /2 with none of the new fields", () => {
+    const s = site({ manifest: true, sibling: true });
+    const v1 = json(run(s, ["--format", "json"]));
+    expect(v1.format).toBe("wachiman.review-result/1");
+    const v2 = json(run(s, ["--format", "json", "--result-version", "2"]));
+    expect(v2.format).toBe("wachiman.review-result/2");
+    for (const key of NEW_KEYS) {
+      expect(v1, key).not.toHaveProperty(key);
+      expect(v2, key).not.toHaveProperty(key);
+    }
+  });
+
+  test.each(["terminal", "markdown"])("without the mode the %s report prints none of it", (format) => {
+    const text = run(site({ manifest: true, sibling: true }), ["--format", format]).stdout;
+    expect(text.length).toBeGreaterThan(0);
+    for (const word of ["ibling", "private context", "orkspace contract"]) expect(text, word).not.toContain(word);
+  });
+});

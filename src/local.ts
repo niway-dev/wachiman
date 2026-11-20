@@ -546,6 +546,10 @@ export async function runLocal(
     git: spawnGit,
     warn: io.stderr,
   });
+  // A distributed-repo result carries the siblings and the private-context label, which /1 has no place for.
+  if (distributed.on && args.resultVersion === 1) {
+    throw new UsageError("A distributed-repo review has no result /1: it carries its siblings and a private-context label that /1 cannot hold. Use --result-version 2, or leave it out.");
+  }
   if (distributed.on) {
     io.stderr(
       distributed.reason === "default"
@@ -707,7 +711,7 @@ export async function runLocal(
       args.format === "json"
         ? renderJson(
             result,
-            args.resultVersion ?? (input.change.kind === "working-tree" ? 2 : 1),
+            args.resultVersion ?? (input.change.kind === "working-tree" || siblingContext ? 2 : 1),
             // ADR 0034: with history on, a `/2` finding names itself by the id `history --verdict` takes.
             annotation ? result.findings.map((_, i) => annotation!.byIndex.get(i)?.id) : undefined,
           )
