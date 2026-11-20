@@ -36,6 +36,8 @@ import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parsePathRule
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
 import { historyRoot, historySettings, saveRun } from "./history";
 import { readConfig, wachimanHome } from "./accounts/config";
+import type { DistributedContext, ResolvedSibling } from "./distributed";
+import { decideDistributed, homeRelative, prepareDistributed } from "./workspace/run";
 import { confirmProfile, type SpawnFn } from "./accounts/confirm";
 import { failureText, profileLine, resolveProfile, type ResolvedProfile } from "./accounts/resolve";
 import { repositoryKey } from "./history/store";
@@ -533,6 +535,24 @@ export async function runLocal(
   // A bad WACHIMAN_HISTORY_DAYS stops here, before any call is paid for.
   const history = historySettings(env, args.history);
   const home = wachimanHome(env);
+  // The mode is decided before anything is built or paid for, so its exit-2 rules (a --sibling with no mode, a flag
+  // with no workspace, a --sibling that is not a member) stop the run here. Without the flag and without a per-user
+  // default of `on` this reads at most the per-user file: no manifest and no sibling.
+  const distributed = decideDistributed({
+    flag: args.distributedRepo,
+    siblings: args.siblings ?? [],
+    repoDir,
+    home,
+    git: spawnGit,
+    warn: io.stderr,
+  });
+  if (distributed.on) {
+    io.stderr(
+      distributed.reason === "default"
+        ? `distributed-repo: on (default from ${homeRelative(distributed.defaultFile!)})`
+        : "distributed-repo: on (--distributed-repo)",
+    );
+  }
   const { config, profile, profileNote, provider, verifier, state } = openLocalSession({
     profile: args.profile,
     verify: args.verify,
@@ -551,6 +571,8 @@ export async function runLocal(
   });
 
   let release: (() => void) | undefined;
+  // The sibling snapshots of a distributed-repo run; removed with the head snapshot, on every way out.
+  let releaseSiblings: (() => void) | undefined;
   const onSigint = () => {
     state.interrupted = true;
   };
@@ -611,13 +633,22 @@ export async function runLocal(
         : "verify: off",
     );
 
+    // The workspace: which contracts this change applies and which sibling snapshots to read for them. Never fetches.
+    let siblingContext: DistributedContext | undefined;
+    if (distributed.on) {
+      const prepared = prepareDistributed(distributed, { files: kept, headSha: input.change.head.sha, siblings: args.siblings ?? [], warn: io.stderr });
+      releaseSiblings = prepared.release;
+      siblingContext = prepared.context;
+      for (const line of distributedLines(prepared.context)) io.stderr(line);
+    }
+
     // The memory of the commit the diff starts at (the merge-base), selected by the files this run reviews, binaries
     // excluded as the Actions path does (ADR 0056).
     const reviewable = splitUnreviewable(kept, input.headDir).reviewable;
     if (args.noMemory) io.stderr("memory: off (--no-memory)");
     // The developer's personal memory for this repository (keyed by `origin`) is loaded after it, on the laptop only.
     const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr, spawnGit, personalSourceFor(home, repoDir, spawnGit, io.stderr));
-    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}) }, {
+    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}), ...(siblingContext ? { distributed: siblingContext } : {}) }, {
       provider,
       ...(verifier ? { verifier } : {}),
       // The verifier reads the code before the change too; made once, only when there is something to check.
@@ -696,6 +727,30 @@ export async function runLocal(
     return exitCodeOf(result);
   } finally {
     process.off("SIGINT", onSigint);
+    releaseSiblings?.();
     release?.();
   }
+}
+
+const shortSha = (sha: string) => sha.slice(0, 7);
+
+/** One stderr line per fact about the workspace of a distributed-repo run: the manifest, the contracts, each sibling. */
+export function distributedLines(context: DistributedContext): string[] {
+  const lines = [`workspace: ${context.manifestPath} (this repository is ${context.reviewed})`];
+  if (context.contracts.length === 0) lines.push("distributed-repo: no workspace contract applied to this change");
+  else lines.push(`contracts: ${context.contracts.map((c) => c.name).join(", ")}`);
+  for (const sibling of context.siblings) lines.push(siblingLine(sibling));
+  return lines;
+}
+
+function siblingLine(s: ResolvedSibling): string {
+  const why = s.byHand && s.contracts.length === 0 ? "added by hand" : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.join(", ")}`;
+  const rule = `${s.rule} (${s.ruleSource})`;
+  if (s.status === "not-cloned" || s.status === "not-watched") return `sibling: ${s.member}, ${s.status}, rule ${rule}, ${why}`;
+  if (s.status === "unreadable") return `sibling: ${s.member}, unreadable (${s.unreadable ?? "unknown reason"}), rule ${rule}, ${why}`;
+  const read = s.readAs === s.rule ? `rule ${rule}` : `rule ${rule}, read as ${s.readAs}`;
+  const age = s.fetchedAt ? `, last fetched ${s.fetchedAt}` : "";
+  const dirty = s.status === "uncommitted-not-read" ? ", uncommitted changes not read" : "";
+  const fallback = s.fallback ? `, ${s.fallback}` : "";
+  return `sibling: ${s.member}, commit ${shortSha(s.sha!)}, ${s.paths.length} file${s.paths.length === 1 ? "" : "s"}, ${read}${age}${dirty}${fallback}, ${why}`;
 }
