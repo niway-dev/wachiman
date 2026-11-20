@@ -340,6 +340,30 @@ describe("prepareDistributed", () => {
     }
   });
 
+  test("a member split into two rows by version lists, on each row, only that row's source-of-truth contracts", () => {
+    const f = fixture({ distributedRepo: "off", versions: { "brand-palette": { rule: "local" } } });
+    const manifest = JSON.parse(readFileSync(join(f.coordinator, MANIFEST_FILE), "utf8"));
+    manifest.contracts.push({
+      name: "icon-set",
+      sides: [
+        { member: "desktop-app", role: "provider", paths: ["Assets/palette.json"] },
+        { member: "web-site", role: "consumer", paths: ["packages/icons/**"] },
+      ],
+      sourceOfTruth: { member: "desktop-app", paths: ["Assets/palette.json"] },
+    });
+    writeFileSync(join(f.coordinator, MANIFEST_FILE), JSON.stringify(manifest));
+    const files = [file("packages/tokens/src/palette.ts"), file("packages/icons/a.svg")];
+    const prepared = prepareDistributed(decideOn(f), { files, headSha: f.webHead, siblings: [], warn: () => {} });
+    try {
+      const rows = prepared.context.siblings.filter((s) => s.member === "desktop-app");
+      expect(rows).toHaveLength(2);
+      for (const row of rows) expect(row.sourceOfTruthOf).toEqual(row.contracts);
+      expect(rows.map((r) => r.contracts).sort()).toEqual([["brand-palette"], ["icon-set"]]);
+    } finally {
+      prepared.release();
+    }
+  });
+
   test("--sibling reads that member's whole tracked tree, marked as added by hand, even when no contract applied", () => {
     const f = fixture(local);
     const prepared = prepareDistributed(decideOn(f, { siblings: ["desktop-app"] }), { files: [file("docs/readme.md")], headSha: f.webHead, siblings: ["desktop-app"], warn: () => {} });

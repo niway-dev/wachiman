@@ -210,7 +210,6 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
         repo: read.member.repo,
         visibility: read.member.visibility,
         byHand: hand,
-        ...(sourceOfTruthOf.length > 0 ? { sourceOfTruthOf } : {}),
         droppedSymlinks: [] as string[],
         droppedSubmodules: [] as string[],
       };
@@ -218,7 +217,7 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
       if (read.status !== "ready") {
         // Not read, so no version: the row says which rule would have applied, for the report.
         const { rule, ruleSource } = ruleOf(found, contractOf(entries[0]!.name), read);
-        siblings.push({ ...base, contracts: read.contracts.map((c) => c.name), rule, ruleSource, readAs: rule, paths: [], status: read.status });
+        siblings.push({ ...base, ...(sourceOfTruthOf.length > 0 ? { sourceOfTruthOf } : {}), contracts: read.contracts.map((c) => c.name), rule, ruleSource, readAs: rule, paths: [], status: read.status });
         continue;
       }
 
@@ -237,8 +236,11 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
       }
 
       for (const { resolved, contracts, globs } of groups.values()) {
+        // Only the contracts this row stands for: a member split by version must not list another row's contract.
+        const rowSourceOfTruth = sourceOfTruthOf.filter((name) => contracts.includes(name));
         const row: ResolvedSibling = {
           ...base,
+          ...(rowSourceOfTruth.length > 0 ? { sourceOfTruthOf: rowSourceOfTruth } : {}),
           contracts,
           rule: resolved.rule,
           ruleSource: resolved.ruleSource,
