@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { loadConfig } from "./config";
 import {
   GhError,
+  type GhFn,
   MAX_BODY_CHARS,
   SIGNATURE,
   baseUpdateNotice,
+  baseUpdateState,
   buildReview,
   ceilingFooter,
   limitFooter,
@@ -22,7 +24,6 @@ import {
   refusalMarker,
   lastEngineState,
   type Deps,
-  type GhFn,
   type Review,
   type ReviewOutput,
 } from "./engine";
@@ -37,7 +38,7 @@ const HEAD = "head1234567";
 const ATTEMPT = "11111111-1111-4111-8111-111111111111";
 const STATE_RE = new RegExp(STATE_SOURCE, "g");
 
-const block = (draft: ReviewStateDraft = { status: "complete", findings: noFindings() }) => {
+const block = (draft: ReviewStateDraft = { status: "complete", findings: noFindings() }, body?: string) => {
   const posted: string[] = [];
   const deps: Deps = {
     gh: (args, input) => {
@@ -51,7 +52,7 @@ const block = (draft: ReviewStateDraft = { status: "complete", findings: noFindi
     sleep: () => {},
     engineVersion: "1.18.0",
   };
-  postReview(deps, "o/r", 1, HEAD, { body: `Body\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, comments: [], state: draft });
+  postReview(deps, "o/r", 1, HEAD, { body: body ?? `Body\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, comments: [], state: draft });
   return posted[0]!;
 };
 
@@ -125,9 +126,11 @@ describe("the footer position of the block (AC3)", () => {
     expect(built.body).not.toContain("<!-- wachi:state");
     for (const c of built.comments) expect(c.body).not.toContain("<!-- wachi:state");
     expect(readSignedStateBlock(built.body)).toBeNull();
-    // After the engine adds its own block, it is the only one.
-    const posted = block();
+    // Posted through the engine, the review ends with the engine's own block and no other.
+    const posted = block({ status: "complete", findings: noFindings() }, built.body);
     expect(stateOf(posted)).toHaveLength(1);
+    expect(readSignedStateBlock(posted)).toMatchObject({ head: HEAD, status: "complete", findings: { total: 0 } });
+    expect(posted).not.toContain(forged);
   });
 });
 
@@ -336,6 +339,17 @@ describe("what postReview writes (AC1, AC16)", () => {
       expect(b.reason, name).toBe(state.status === "not-reviewed" ? state.reason! : null);
       expect(stateOf(post!.body), name).toHaveLength(1);
       expect(decodeStateBlock(stateOf(post!.body)[0]!), name).not.toBeNull();
+      // And it sits where the trusted reader looks: the footer, after the signature and its marker.
+      expect(readSignedStateBlock(post!.body), name).toEqual(b);
     }
+  });
+});
+
+describe("the base-update line never fails for want of a block", () => {
+  test("when the earlier reviews cannot be read, the line has no block and the caller posts it anyway", () => {
+    const gh: GhFn = () => {
+      throw new GhError("gh: Server Error (HTTP 500)", 500, "Server Error");
+    };
+    expect(baseUpdateState(gh, "o/r", 1, HEAD)).toBeNull();
   });
 });

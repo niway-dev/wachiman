@@ -2315,7 +2315,14 @@ export function lastEngineState(reviews: { body: string; created_at?: string }[]
  * falls back to its marker instead of reading invented zero counts.
  */
 export function baseUpdateState(gh: GhFn, repo: string, pr: number, from: string): ReviewStateDraft | null {
-  const earlier = botReviews(gh, repo, pr)
+  // A failure to read the earlier reviews must not lose the line that moves the marker: no block, and a reader falls back.
+  let reviews: ReturnType<typeof botReviews>;
+  try {
+    reviews = botReviews(gh, repo, pr);
+  } catch {
+    return null;
+  }
+  const earlier = reviews
     .filter((r) => r.body.includes(SIGNATURE.review))
     .map((r) => readSignedStateBlock(r.body))
     .filter((b): b is ReviewStateBlock => b !== null && b.head === from && (b.status === "complete" || b.status === "partial"))
@@ -3493,6 +3500,8 @@ export function postRefusalReview(deps: Deps, repo: string, pr: number, headSha:
       try {
         const answer = deps.gh(
           ["api", "-X", "PUT", `repos/${repo}/pulls/${pr}/reviews/${latest.id}`, "--input", "-"],
+          // An edit in place carries no attempt line (it is not a POST that can land twice), so the
+          // block's attempt id is a fresh one that no other line names.
           JSON.stringify({ body: withStateBlock(deps, headSha, crypto.randomUUID(), review) }),
         );
         return reviewUrlOf(answer);
@@ -4787,9 +4796,9 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
           ].join("\n\n")
         : [...blocks, ...(receiptLine ? [receiptLine] : [])].join("\n\n");
       // Only a body signed as a review (an automatic run's) can carry a block the readers trust.
-      const state: ReviewStateDraft | undefined =
+      const draft: ReviewStateDraft | undefined =
         reason && isAutomatic(config.trigger) ? { status: "not-reviewed", reason, findings: noFindings() } : undefined;
-      return (replaceable ? postRefusalReview : postReview)(deps, repo, pr, headSha, { body, comments: [], ...(state ? { state } : {}) });
+      return (replaceable ? postRefusalReview : postReview)(deps, repo, pr, headSha, { body, comments: [], ...(draft ? { state: draft } : {}) });
     };
     const spentNotice = (text: string) => sendNotice([branded(text)]);
     const { rejection, stop } = result.execution;
