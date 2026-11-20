@@ -13,7 +13,7 @@ import {
   GhError,
   SIGNATURE,
   beforeLegacyCutoff,
-  isBotFinding,
+  isWachiFinding,
   isPartialFooter,
   jsonLines,
   parseInlineTable,
@@ -21,7 +21,6 @@ import {
   readSignedMarker,
   readSignedStateBlock,
   type GhFn,
-  type RawThread,
 } from "./engine";
 import type { NotReviewedReason, ReviewStateBlock } from "./review-state";
 
@@ -239,9 +238,8 @@ export function openFindings(threads: ThreadNode[]): OpenFinding[] {
     if (t.isResolved) continue;
     const first = t.first?.nodes?.[0];
     if (!first) continue;
-    // The engine's own test, over the same shape it reads elsewhere (`openBotThreads`).
-    const asRaw: RawThread = { isResolved: false, path: t.path ?? "", line: t.line, comments: { nodes: [{ databaseId: 0, author: first.author, authorAssociation: "", body: first.body, createdAt: first.createdAt }] } };
-    if (!isBotFinding(asRaw) || first.author?.login !== OWN_THREAD_LOGIN) continue;
+    // The engine's own test for a finding (`isBotFinding`), over the fields this query has.
+    if (first.author?.login !== OWN_THREAD_LOGIN || !isWachiFinding(first.body, first.createdAt)) continue;
     const last = t.last?.nodes?.[0] ?? first;
     out.push({
       thread_id: t.id,
