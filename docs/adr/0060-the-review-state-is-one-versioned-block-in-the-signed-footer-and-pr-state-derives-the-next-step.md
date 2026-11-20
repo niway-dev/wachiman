@@ -35,7 +35,8 @@ owned by the party that writes the markers.
    comments.
 2. The block holds the engine version, the reviewed head, the attempt id, a `status` (`complete`,
    `partial`, `scoped`, `not-reviewed`), a `reason` when not reviewed, the earlier head a
-   base-update line carries over, and finding counts by severity and by placement, built from what
+   base-update line carries over, and finding counts by severity and by placement plus the Blocker and Fix findings that got no
+   thread (`unthreaded_blocking`), built from what
    was actually posted. It never holds finding text. A scoped review never decides the head's state.
 3. The block is trusted only under the existing rule of ADR 0036 decision 1: at the end of a body authored by the engine's
    own author and signed as a review. Any `wachi:state` text elsewhere is neutralised like every
@@ -49,7 +50,9 @@ owned by the party that writes the markers.
 6. Its `next` is one of `wait`, `act`, `blocked`, `done`, `closed`, chosen by an ordered rule table
    in code. `done` means only that Wachiman has nothing pending on this head: a complete review
    of it, no unresolved Wachiman finding thread (whoever replied last), and no Blocker or Fix
-   finding that the block counts outside a thread. Exit codes: 0 done or
+   finding that the block counts outside a thread (`why: clean`). A review from an engine without
+   the block carries no such count; with no open thread it is `done` with `why: clean_legacy`, so a
+   caller can tell the count is missing. Exit codes: 0 done or
    closed, 20 act, 21 wait, 22 blocked, 1 GitHub error, 2 usage.
 7. `pr-state` covers Wachiman's own review only. Other reviewers, CI and merge conflicts are not
    read.

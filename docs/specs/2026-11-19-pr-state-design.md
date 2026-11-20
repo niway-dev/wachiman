@@ -33,8 +33,9 @@ flowchart TD
   R5 -- no --> R7{7 Unresolved Wachiman thread,<br/>or unthreaded Blocker/Fix?}
   R7 -- yes --> A[act · findings_open · exit 20]
   R7 -- no --> R8{Block status}
-  R8 -- partial --> B3[8 blocked · partial · exit 22]
+  R8 -- partial, block or legacy marker --> B3[8 blocked · partial · exit 22]
   R8 -- complete --> D[9 done · clean · exit 0]
+  R8 -- legacy review, not partial --> D2[10 done · clean_legacy · exit 0]
 ```
 
 ## What changes
@@ -110,21 +111,21 @@ flowchart TD
 ## Acceptance criteria
 
 - [ ] **AC1** Every review body the engine POSTs (full review, re-review, partial, base-update line, all-binary notice, refusal, ceiling, limit, and the turn-limit, call-timeout and budget notices that report nothing was reviewed) ends its signed footer with exactly one `<!-- wachi:state … -->` whose decoded JSON validates against `wachiman.review-state/1` (fake-GitHub tests per kind).
-- [ ] **AC2** The block holds `format`, `engine`, `head`, `attempt`, `status` (`complete`, `partial`, `scoped`, `not-reviewed`), `reason` (required when `not-reviewed`: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout`, `budget`), `carried_from` (the earlier head, on a base-update line, which is `complete` and repeats that head's counts), `scope` (`binary_only` on the all-binary notice, which is `complete` with zero findings; the path count on a scoped review), and `findings` counts by severity and by placement (`inline`, `body`, `outside_diff`) that add up to the headline count (unit tests over fixtures, including the by-design gap between the headline and the inline count).
+- [ ] **AC2** The block holds `format`, `engine`, `head`, `attempt`, `status` (`complete`, `partial`, `scoped`, `not-reviewed`), `reason` (required when `not-reviewed`: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout`, `budget`), `carried_from` (the earlier head, on a base-update line, which is `complete` and repeats that head's counts), `scope` (`binary_only` on the all-binary notice, which is `complete` with zero findings; the path count on a scoped review), and `findings` counts by severity and by placement (`inline`, `body`, `outside_diff`) that add up to the headline count, and a separate `unthreaded_blocking`, the number of Blocker and Fix findings within `body` plus `outside_diff` (unit tests over fixtures, including the by-design gap between the headline and the inline count).
 - [ ] **AC16** The block is built from the body actually posted: when GitHub refuses the inline comments and `moveCommentsToBody` moves them, the retried post carries a block with `inline: 0` and the moved findings counted under `body` (fake-GitHub test of the 422 fallback).
 - [ ] **AC3** A `wachi:state` string in model output, a finding body, a file name or the PR description is neutralised and never read; a block outside the signed footer or from another author is ignored (tests reuse the forgery fixtures of the existing marker tests).
 - [ ] **AC4** When the encoded block would exceed its cap, the engine keeps the counts and drops nothing else from the review; the post never fails because of the block (test with a synthetic large review).
 - [ ] **AC5** The re-review starting point, ceiling sum, limit notice and refusal edit-in-place give the same results with and without the new block on the same fixtures (existing tests pass unchanged, plus one run with the block present).
 - [ ] **AC6** `wachiman pr-state <pr> --json` prints one object that validates against `wachiman.pr-state/1`: `format`, `repo`, `pr`, `head`, `review` (`state`: `none`, `running`, `complete`, `partial`, `scoped`, `not-reviewed`, `stale`; `reason`; `reviewed_head`; `attempt`; `engine`; `source`: `block` or `legacy-markers`), `findings.open` (one entry per unresolved Wachiman finding thread, whoever wrote last: `thread_id`, `url`, `path`, `line`, `severity`, `outdated`, `awaiting`: `fix_or_reply` when Wachiman wrote the last comment, `resolve` when someone else did), `findings.unthreaded` (counts from the block), `next`, and `why` (a fixed code, not prose).
 - [ ] **AC7** `next` follows the rule table in the spec's detail, in order, and the exit code matches it: `closed` and `done` exit 0, `act` 20, `wait` 21, `blocked` 22, a GitHub error 1, a usage error 2 (table-driven test over every row).
-- [ ] **AC8** `done` is returned only when the current head has a `complete` block and no Wachiman finding thread is unresolved, whoever wrote its last comment, and the block counts no Blocker or Fix finding outside a thread (`unthreaded_blocking` is 0); a `partial` or `not-reviewed` head never yields `done`; zero findings on a non-complete review yields `blocked` or `wait`, never `done`.
+- [ ] **AC8** `done` with `why: clean` is returned only when the current head has a `complete` block and no Wachiman finding thread is unresolved, whoever wrote its last comment, and the block counts no Blocker or Fix finding outside a thread (`unthreaded_blocking` is 0); a `partial` or `not-reviewed` head never yields `done`; zero findings on a non-complete review yields `blocked` or `wait`, never `done`. The only other `done` is `clean_legacy` (AC11).
 - [ ] **AC17** A `scoped` block never decides the head's state: `pr-state` skips it when choosing the head's block, and still lists its threads under `findings.open` (test: a scoped review on the current head after a complete review of an older head answers `wait` or `blocked`, not `done`).
 - [ ] **AC9** If the PR head read at the end differs from the head read at the start, the answer is `wait` with `why: head_moved`.
 - [ ] **AC10** With several own reviews on the same head, the block of the most recent attempt by creation time decides; a newer push makes every older block `stale`.
-- [ ] **AC11** Reviews posted by an engine without the block are read from `wachiman sha=` and `wachi:partial` with `source: legacy-markers`; a legacy notice without a sha yields `review.state: none`, never `complete`.
+- [ ] **AC11** Reviews posted by an engine without the block are read from `wachiman sha=` and `wachi:partial` with `source: legacy-markers`; a legacy notice without a sha yields `review.state: none`, never `complete`. A legacy review of the current head has no counts, so `findings.unthreaded` is `null`, and with no unresolved Wachiman finding thread it yields `done` with `why: clean_legacy`, never `clean`.
 - [ ] **AC12** Threads and their comments are read with pagination, so an unresolved finding thread beyond the first 100 threads or comments is reported (fake-GitHub test with 150 threads).
 - [ ] **AC13** `pr-state --wait` returns as soon as `next` is not `wait`; on timeout it prints the last state with `why: timeout` and exits 21; the default timeout is under 10 minutes and the default interval at least 20 seconds.
-- [ ] **AC14** `--wait` makes one state read per interval: one GraphQL query, plus extra pages only when threads or comments exceed 100, plus the end-of-read head check of AC9; never a second state read inside an interval (counted in a fake-GitHub test).
+- [ ] **AC14** `--wait` makes at most one state read per interval; an event from `gh event listen` only moves the next read earlier, never sooner than one interval after the last read. A read is one GraphQL query, plus extra pages only when threads or comments exceed 100, plus the end-of-read head check of AC9; never two state reads within one interval, however many events arrive (counted in a fake-GitHub test).
 - [ ] **AC15** When `gh event listen` is missing or fails, `--wait` falls back to polling and says so once on stderr; stdout stays a single JSON object.
 
 ---
@@ -143,8 +144,9 @@ code in the last column.
 | 5 | The latest block for the head is `not-reviewed` | `blocked` | 22 | the block's `reason` |
 | 6 | The check run on the head finished and no own review exists for it | `blocked` | 22 | `review_missing` |
 | 7 | At least one Wachiman finding thread is unresolved, or the block counts Blocker or Fix findings outside a thread | `act` | 20 | `findings_open` |
-| 8 | The block is `partial` | `blocked` | 22 | `partial` |
+| 8 | The block is `partial`, or a legacy review of the head carries `wachi:partial` | `blocked` | 22 | `partial` |
 | 9 | The block is `complete` | `done` | 0 | `clean` |
+| 10 | A legacy review (`wachiman sha=` for the head, no block, no `wachi:partial`) covers the head | `done` | 0 | `clean_legacy` |
 
 "The latest block for the head" skips `scoped` blocks: a review an operator asked for on some
 paths says nothing about the rest of the head. A base-update line counts as `complete` for its
