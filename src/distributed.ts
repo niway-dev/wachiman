@@ -31,7 +31,7 @@ export interface ResolvedSibling {
   repo: string;
   /** A missing or unknown visibility is already `private`. */
   visibility: "public" | "private";
-  /** The names of the contracts that asked for it; `--sibling` for a member added by hand. */
+  /** The names of the contracts that asked for it; empty for a member added by hand with `--sibling` alone. */
   contracts: string[];
   /** The contracts (of those above) whose source of truth is this member. Absent when none is. */
   sourceOfTruthOf?: string[];
