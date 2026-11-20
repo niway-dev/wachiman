@@ -44,6 +44,19 @@ describe("parseUserFile", () => {
     expect(parse(file({ distributedRepo: "on" })).workspaces[0].distributedRepo).toBe("on");
   });
 
+  test("members and versions have no inherited keys; a declared constructor key is still an own entry", () => {
+    const [workspace] = parse(file({ members: {}, versions: {} })).workspaces;
+    expect(Object.getPrototypeOf(workspace.members)).toBeNull();
+    expect(Object.getPrototypeOf(workspace.versions)).toBeNull();
+    expect("constructor" in workspace.members).toBe(false);
+    expect("toString" in workspace.versions).toBe(false);
+
+    const declared = parse(file({ members: { constructor: { watch: false } }, versions: { constructor: { rule: "tip" } } })).workspaces[0];
+    expect(Object.hasOwn(declared.members, "constructor")).toBe(true);
+    expect(declared.members.constructor).toEqual({ watch: false });
+    expect(declared.versions.constructor).toEqual({ rule: "tip" });
+  });
+
   test("an empty workspaces list is valid", () => {
     expect(parse({ version: 1, workspaces: [] }).workspaces).toEqual([]);
   });
