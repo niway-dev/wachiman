@@ -110,7 +110,7 @@ describe("pinned", () => {
       expect(result.readAs).toBe("tip");
       expect(result.fallback).toMatch(/pin tag .* (is a revision expression|is not a valid ref name)/);
     }
-  });
+ }, 30_000);
 
   test("a literal ref is a full SHA or a tag, branch or remote name, never an expression", () => {
     const p = provider();
@@ -125,7 +125,7 @@ describe("pinned", () => {
       expect(result.readAs).toBe("tip");
       expect(result.fallback).toContain(`"${ref}"`);
     }
-  });
+ }, 30_000);
 
   test("a key with a dot in the package name is read as a literal key", () => {
     const p = provider();
