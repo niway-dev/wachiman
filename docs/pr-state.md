@@ -77,7 +77,7 @@ Exits 3, 10, 11 and 130 mean other things in other commands and are never used h
 | `head` | The pull request's head commit, read at the start of the call |
 | `review.state` | `none` (no review of this head and none of another), `running` (the check run is queued or in progress), `complete`, `partial`, `not-reviewed`, `scoped` (only a scoped review exists for this head; it never decides), `stale` (reviews exist, none for this head) |
 | `review.reason` | Why nothing was reviewed: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout` or `budget`. Null otherwise |
-| `review.reviewed_head` | The head the deciding review covers; for `scoped`, `stale` and `running`, the latest other review's head. Null when there is none |
+| `review.reviewed_head` | The head the deciding review covers; for `scoped`, that review's own head; for `stale` and `running`, the latest other review's head. Null when there is none |
 | `review.attempt`, `review.engine` | From the block. Null for `legacy-markers` |
 | `review.source` | `block`, or `legacy-markers` for a review posted by an engine without the block. Null when no review is read |
 | `findings.open` | One entry per unresolved Wachiman finding thread, from any review, whoever replied last |
@@ -107,7 +107,7 @@ Evaluated in order; the first row that matches decides.
 
 Rules the table does not repeat:
 
-- **Only the engine's own reviews count.** A review counts when its author is `github-actions[bot]`, it carries the review signature, and the state block sits in its signed footer. A `wachi:state` text anywhere else (a finding, a file name, the pull request description, another author's comment) is ignored.
+- **Only the engine's own reviews count.** A review counts when its author is `github-actions[bot]`, it carries the review signature, and the state block sits in its signed footer. (Reviews from before signatures existed count only under the engine's own deprecation window: before the first signed review and before 2026-11-01.) A `wachi:state` text anywhere else (a finding, a file name, the pull request description, another author's comment) is ignored.
 - **The latest attempt decides.** With several own reviews of the same head, the most recent by creation time decides. A push makes every older review `stale`.
 - **A `scoped` review never decides.** A review an operator asked for on some paths says nothing about the rest of the head. It is skipped when choosing the head's review, and its threads are still listed under `findings.open`.
 - **A base-update line counts as `complete`** for its head: the engine carries the earlier review over (`carried_from`) and repeats its counts.

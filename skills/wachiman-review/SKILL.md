@@ -13,7 +13,7 @@ laptop that tracks which findings were real. Your own session carries the develo
 `CLAUDE.md` and plugins, so **you never review the code yourself: you choose the range, run the
 CLI, and present its result.**
 
-When you are woken on a pull request that Wachiman reviews on GitHub (a review, a check or a comment event), do not read the review's comments to learn what it wants: run `wachiman pr-state <pr> --json` and follow `next` (`act` 20, `wait` 21, `blocked` 22, `done` and `closed` 0; see `docs/pr-state.md`). `done` means only that Wachiman has nothing pending on that head, not that the pull request can merge.
+This skill's own rules about GitHub apply to reviewing on the laptop; reading Wachiman's state on a pull request is a different, read-only job. When you are woken on a pull request that Wachiman reviews on GitHub (a review, a check or a comment event), do not read the review's comments to learn what it wants: run `wachiman pr-state <pr> --json` and follow `next` (`act` 20, `wait` 21, `blocked` 22, `done` and `closed` 0; see `docs/pr-state.md`). `done` means only that Wachiman has nothing pending on that head, not that the pull request can merge.
 
 ## The one command
 
