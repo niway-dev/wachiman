@@ -78,6 +78,7 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
+import { batchDistributed, verifierDistributed, type DistributedContext } from "./distributed";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
 import {
   annotateUnverified,
@@ -3454,6 +3455,14 @@ export interface ReviewOptions {
    */
   priorityTrial?: boolean;
   /**
+   * A distributed-repo run (ADR 0042 to 0044): the workspace contracts the change applied and the
+   * sibling snapshots read for them. Set by the local review only, never by the pull request path or
+   * `reviewOptionsOf`. Only the batches that hold a file which triggered a contract get the
+   * snapshots (`--add-dir`) and the contract section; the verifier gets every snapshot. Absent, every
+   * prompt and argument is what it was before the feature.
+   */
+  distributed?: DistributedContext;
+  /**
    * The repository's memory, loaded from the base commit by the connector (ADR 0056). It is
    * recorded in the result and, when over budget, announced in the summary. Its conventions go
    * into the discovery prompt; its exceptions are matched against the findings afterwards, in one
@@ -4096,7 +4105,9 @@ async function verifyFindings(
   }
   let dir: string | undefined;
   try {
-    const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files });
+    // Every sibling snapshot of a distributed-repo run, whichever batch it came from: the premise of a finding may be in one.
+    const siblings = verifierDistributed(options.distributed);
+    const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files }) + siblings.section;
     dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
     const runDir = dir;
     const call = await attempt(
@@ -4110,7 +4121,7 @@ async function verifyFindings(
           runDir,
           budgetUsd,
           VERIFY_SCHEMA,
-          baseSnap ? [baseSnap.dir] : [],
+          [...(baseSnap ? [baseSnap.dir] : []), ...siblings.dirs],
         ),
       budgetUsd,
     );
@@ -5276,7 +5287,7 @@ function gatherEvidence(deps: CoreDeps, headDir: string, files: ReviewFile[], di
 }
 
 /** The settings a provider call reads. `EngineConfig` and the core's options both carry them. */
-type CallLimits = Pick<EngineConfig, "maxTurns" | "callTimeoutS" | "model" | "trigger">;
+type CallLimits = Pick<EngineConfig, "maxTurns" | "callTimeoutS" | "model" | "trigger"> & { distributed?: DistributedContext };
 
 /** One provider call over one batch, with the batch's diff inside the prompt. */
 async function reviewBatch(
@@ -5308,16 +5319,19 @@ async function reviewBatch(
     deps.log(
       `Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`,
     );
-    const prompt = buildBatchPrompt(
-      ctx,
-      files,
-      threads.length > 0,
-      part,
-      dir,
-      ctx.instructions,
-      evidence,
-      questions,
-    );
+    // The sibling snapshots and their section, only when a file of this call triggered a contract.
+    const siblings = batchDistributed(limits.distributed, files);
+    const prompt =
+      buildBatchPrompt(
+        ctx,
+        files,
+        threads.length > 0,
+        part,
+        dir,
+        ctx.instructions,
+        evidence,
+        questions,
+      ) + siblings.section;
 
     const label = `batch ${part.index}/${part.total}${part.retry ? " retry" : ""}`;
     const call = await attempt(
@@ -5331,6 +5345,7 @@ async function reviewBatch(
           dir,
           budgetUsd,
           ctx.claims ? { ...SCHEMA, properties: { ...SCHEMA.properties, claim_assignments: ASSIGNMENTS_SCHEMA } } : SCHEMA,
+          siblings.dirs,
         ),
       budgetUsd,
     );
@@ -5416,7 +5431,7 @@ export async function runProvider(
   dir: string,
   budgetUsd: number,
   schema?: object,
-  /** More directories the agent may read: the verifier's base snapshot. */
+  /** More directories the agent may read: the verifier's base snapshot, and sibling snapshots of a distributed-repo run. */
   extraDirs: string[] = [],
 ) {
   const started = Date.now();
