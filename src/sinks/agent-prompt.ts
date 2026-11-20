@@ -14,7 +14,7 @@ export function agentPrompt(result: ReviewResult): string {
     (f, i) => `${i + 1}. ${location(f)} · ${plainLabel(f)}\n${indent(neutralise(f.body), "   ")}`,
   );
   return [
-    ...(result.privateContext ? [privateContextLine(result.privateContext.members), ""] : []),
+    ...(result.privateContext ? [privateContextLine(result.privateContext.members.map(neutralise)), ""] : []),
     AGENT_PROMPT_INTRO(sha7(result.change.head.sha)), "", ...(entries.length > 0 ? entries : ["The review has no findings."])].join(
     "\n",
   );
