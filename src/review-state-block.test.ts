@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   MAX_STATE_BLOCK_CHARS,
+  NOT_REVIEWED_REASONS,
   REVIEW_STATE_FORMAT,
   STATE_SOURCE,
   buildStateBlock,
@@ -147,6 +148,14 @@ describe("the encoded comment", () => {
     expect(rejects((b) => ((b.findings as { by_severity: { fix: number } }).by_severity.fix = 0.5))).toBeNull();
     expect(rejects((b) => ((b.findings as { unthreaded_blocking: number }).unthreaded_blocking = 5))).toBeNull();
     expect(rejects((b) => delete (b.findings as { by_placement?: unknown }).by_placement)).toBeNull();
+  });
+
+  test("every reason of the spec round-trips, the stop reasons included", () => {
+    expect(NOT_REVIEWED_REASONS).toEqual(["billing", "auth", "rate_limit", "ceiling", "limit", "size_gate", "turn_limit", "timeout", "budget"]);
+    for (const reason of NOT_REVIEWED_REASONS) {
+      const notice = buildStateBlock({ status: "not-reviewed", reason, findings: noFindings() }, CTX, 0);
+      expect(decodeStateBlock(encodedOf(encodeStateBlock(notice)))?.reason).toBe(reason);
+    }
   });
 
   test("requires a reason on a notice and none on a review", () => {

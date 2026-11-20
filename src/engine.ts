@@ -4801,7 +4801,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
         reason && isAutomatic(config.trigger) ? { status: "not-reviewed", reason, findings: noFindings() } : undefined;
       return (replaceable ? postRefusalReview : postReview)(deps, repo, pr, headSha, { body, comments: [], ...(draft ? { state: draft } : {}) });
     };
-    const spentNotice = (text: string) => sendNotice([branded(text)]);
+    const spentNotice = (text: string, reason: NotReviewedReason) => sendNotice([branded(text)], false, reason);
     const { rejection, stop } = result.execution;
     const refused = rejection && rejection.kind !== "other" ? { kind: rejection.kind, text: rejection.text } : undefined;
     if (refused) {
@@ -4831,12 +4831,14 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
           : `was killed at the ${config.callTimeoutS} s time limit on a call`;
       spentNotice(
         `**The agent ${why}** before finishing any batch: nothing here was reviewed reliably. Review part of it: \`${config.mention} review <path> [path…]\`.`,
+        stop === "turns" ? "turn_limit" : "timeout",
       );
       return;
     }
     if (stop === "budget") {
       spentNotice(
         `**The agent ran out of its budget** ($${batchBudget} a batch, $${totalBudget} the pull request) before finishing any batch: nothing here was reviewed reliably. Review part of it: \`${config.mention} review <path> [path…]\`.`,
+        "budget",
       );
       return;
     }

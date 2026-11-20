@@ -28,7 +28,7 @@ export const MAX_STATE_BLOCK_CHARS = 2_000;
 export const REVIEW_STATUSES = ["complete", "partial", "scoped", "not-reviewed"] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
-export const NOT_REVIEWED_REASONS = ["billing", "auth", "rate_limit", "ceiling", "limit", "size_gate"] as const;
+export const NOT_REVIEWED_REASONS = ["billing", "auth", "rate_limit", "ceiling", "limit", "size_gate", "turn_limit", "timeout", "budget"] as const;
 export type NotReviewedReason = (typeof NOT_REVIEWED_REASONS)[number];
 
 export const SEVERITIES = ["blocker", "fix", "consider", "info"] as const;
