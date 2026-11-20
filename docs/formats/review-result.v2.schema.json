@@ -1558,7 +1558,7 @@
           "items": {
             "type": "string"
           },
-          "description": "The workspace contracts that asked for it; `--sibling` for a member added by hand."
+          "description": "The workspace contracts that asked for it; empty for a member added only with `--sibling` (see `byHand`)."
         },
         "byHand": {
           "type": "boolean",
