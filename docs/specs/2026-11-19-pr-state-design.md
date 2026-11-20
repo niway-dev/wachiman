@@ -1,7 +1,7 @@
 # A machine-readable review state and `wachiman pr-state`
 
 - **Status:** proposed (2026-11-19). Tracker: [NIW2-881](https://linear.app/niway/issue/NIW2-881/wachiman-a-machine-readable-review-state-and-wachiman-pr-state-so-any).
-- **ADRs:** [the review state is one versioned block in the signed footer, and `pr-state` derives the next step from it](../adr/0060-the-review-state-is-one-versioned-block-in-the-signed-footer-and-pr-state-derives-the-next-step.md) (new; extends the marker trust rule of [ADR 0011](../adr/0011-review-every-push-incrementally.md) decision 2 to one more marker, and reuses the advisory posture of [ADR 0034](../adr/0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md)).
+- **ADRs:** [the review state is one versioned block in the signed footer, and `pr-state` derives the next step from it](../adr/0060-the-review-state-is-one-versioned-block-in-the-signed-footer-and-pr-state-derives-the-next-step.md) (new; extends the signed-footer-only reading rule of [ADR 0036](../adr/0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md) decision 1 to one more marker, and reuses the advisory posture of [ADR 0034](../adr/0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md)).
 
 ## Summary (one minute)
 
@@ -19,16 +19,22 @@ is no longer `wait`.
 
 ```mermaid
 flowchart TD
-  P[pr-state reads: PR head, Wachiman reviews, Wachiman threads, check run] --> C{PR open?}
-  C -- no --> X[closed · exit 0]
-  C -- yes --> H{Signed state block for the current head?}
-  H -- no, check run queued or running --> W[wait · exit 21]
-  H -- no, nothing started --> W
-  H -- yes, status not-reviewed --> B[blocked + reason · exit 22]
-  H -- yes, complete or partial --> T{Unresolved Wachiman threads,<br/>or unthreaded Blocker/Fix findings?}
-  T -- yes, any unresolved Wachiman thread --> A[act + list · exit 20]
-  T -- no, partial --> B
-  T -- no, complete --> D[done · exit 0]
+  P[pr-state reads: PR head, Wachiman reviews, Wachiman threads, check run] --> R1{1 PR open?}
+  R1 -- no --> X[closed · exit 0]
+  R1 -- yes --> R2{2 Head moved during the read?}
+  R2 -- yes --> W1[wait · head_moved · exit 21]
+  R2 -- no --> R3{Own block or legacy marker<br/>for the current head?}
+  R3 -- no --> K{Check run on the head?}
+  K -- queued or running --> W2[3 wait · review_running · exit 21]
+  K -- none --> W3[4 wait · review_not_started · exit 21]
+  K -- finished --> B2[6 blocked · review_missing · exit 22]
+  R3 -- yes, scoped blocks skipped --> R5{5 Latest block not-reviewed?}
+  R5 -- yes --> B1[blocked + reason · exit 22]
+  R5 -- no --> R7{7 Unresolved Wachiman thread,<br/>or unthreaded Blocker/Fix?}
+  R7 -- yes --> A[act · findings_open · exit 20]
+  R7 -- no --> R8{Block status}
+  R8 -- partial --> B3[8 blocked · partial · exit 22]
+  R8 -- complete --> D[9 done · clean · exit 0]
 ```
 
 ## What changes
@@ -48,7 +54,7 @@ flowchart TD
 | # | Decision | Why | ADR |
 | --- | --- | --- | --- |
 | 1 | Every review the engine POSTs carries one versioned state block in the signed footer, including notices | Notices (refusal, ceiling, limit, base update) carry no sha today, so "not reviewed, and why" is unreadable by code | 0060 (new) |
-| 2 | The block counts only inside the signed footer of an own-author review, under the existing trust rule; model text is neutralised as today | A forged block in a finding or a PR description must never change the state | 0060, extends 0011 |
+| 2 | The block counts only inside the signed footer of an own-author review, under the existing trust rule; model text is neutralised as today | A forged block in a finding or a PR description must never change the state | 0060, extends 0036 |
 | 3 | The block lives beside today's markers for one minor release, then the engine's own readers move to it | The engine reads `wachiman sha=` and `wachi:partial` to pick re-review starting points; changing both at once is an avoidable risk | 0060 |
 | 4 | `pr-state` covers Wachiman's own review and findings only; `done` means "Wachiman has nothing pending on this head" | The owner's scope; other bots, CI and conflicts have their own sources, and a `done` read as "ready to merge" would be wrong | 0060 |
 | 5 | `pr-state` stores nothing; it derives every field from GitHub on each call | A local copy goes stale with every push from another machine and cannot be the authority on a thread | 0060 |
@@ -111,7 +117,7 @@ flowchart TD
 - [ ] **AC5** The re-review starting point, ceiling sum, limit notice and refusal edit-in-place give the same results with and without the new block on the same fixtures (existing tests pass unchanged, plus one run with the block present).
 - [ ] **AC6** `wachiman pr-state <pr> --json` prints one object that validates against `wachiman.pr-state/1`: `format`, `repo`, `pr`, `head`, `review` (`state`: `none`, `running`, `complete`, `partial`, `scoped`, `not-reviewed`, `stale`; `reason`; `reviewed_head`; `attempt`; `engine`; `source`: `block` or `legacy-markers`), `findings.open` (one entry per unresolved Wachiman finding thread, whoever wrote last: `thread_id`, `url`, `path`, `line`, `severity`, `outdated`, `awaiting`: `fix_or_reply` when Wachiman wrote the last comment, `resolve` when someone else did), `findings.unthreaded` (counts from the block), `next`, and `why` (a fixed code, not prose).
 - [ ] **AC7** `next` follows the rule table in the spec's detail, in order, and the exit code matches it: `closed` and `done` exit 0, `act` 20, `wait` 21, `blocked` 22, a GitHub error 1, a usage error 2 (table-driven test over every row).
-- [ ] **AC8** `done` is returned only when the current head has a `complete` block and no Wachiman finding thread is unresolved, whoever wrote its last comment; a `partial` or `not-reviewed` head never yields `done`; zero findings on a non-complete review yields `blocked` or `wait`, never `done`.
+- [ ] **AC8** `done` is returned only when the current head has a `complete` block and no Wachiman finding thread is unresolved, whoever wrote its last comment, and the block counts no Blocker or Fix finding outside a thread (`unthreaded_blocking` is 0); a `partial` or `not-reviewed` head never yields `done`; zero findings on a non-complete review yields `blocked` or `wait`, never `done`.
 - [ ] **AC17** A `scoped` block never decides the head's state: `pr-state` skips it when choosing the head's block, and still lists its threads under `findings.open` (test: a scoped review on the current head after a complete review of an older head answers `wait` or `blocked`, not `done`).
 - [ ] **AC9** If the PR head read at the end differs from the head read at the start, the answer is `wait` with `why: head_moved`.
 - [ ] **AC10** With several own reviews on the same head, the block of the most recent attempt by creation time decides; a newer push makes every older block `stale`.
@@ -151,6 +157,16 @@ or answers. When someone else wrote last, `awaiting` is `resolve`: the operator,
 for them, resolves it or waits for Wachiman's automatic reply (ADR 0008 keeps resolving with the
 operator). A thread never drops out of the answer because someone replied.
 
+Unthreaded findings belong to the reviewed head. There is no thread to resolve for them: the agent
+fixes the code and pushes, and the review of the new head decides. On the same head the answer
+stays `act` with `why: findings_open`, so an agent that decides such a finding is not its to fix
+stops and asks the operator instead of waiting.
+
+When a rerun on the same head leaves two own blocks, the block of the most recent attempt by
+creation time wins (AC10), so a rerun's block replaces the earlier one. A rerun that is refused or
+partial therefore makes the head `blocked`, deliberately: the latest attempt is what the operator
+asked for.
+
 Row 4 answers `wait`, not `blocked`, because the workflow's push debounce can delay the check run.
 `--wait` bounds it with its timeout; a caller without `--wait` decides how long to accept it.
 
@@ -173,6 +189,7 @@ Row 4 answers `wait`, not `blocked`, because the workflow's push debounce can de
 }
 ```
 
+`unthreaded_blocking` counts the Blocker and Fix findings placed in the body or outside the diff, the placements that get no thread.
 It is built last, from the body and inline comments actually sent: if GitHub refuses the inline
 comments and the engine moves them into the body, the retried post carries a rebuilt block.
 It is base64url-encoded so its content cannot close the HTML comment. It sits after the review

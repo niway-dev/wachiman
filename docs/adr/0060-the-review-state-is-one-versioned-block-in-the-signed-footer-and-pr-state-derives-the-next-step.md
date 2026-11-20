@@ -1,7 +1,9 @@
 # ADR 0060: The review state is one versioned block in the signed footer, and `pr-state` derives the next step from it
 
-- **Status:** proposed 2026-11-19. Not implemented. Extends the marker trust rule of
-  [ADR 0011](0011-review-every-push-incrementally.md) decision 2 to one more marker; reuses the
+- **Status:** proposed 2026-11-19. Not implemented. Extends the signed-footer-only
+  reading rule of [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
+  decision 1 (a marker is read only from the engine's signed footer; the code is `SIGNED_FOOTER`
+  and `neutralise` in `src/engine.ts`) to one more marker; reuses the
   advisory posture of [ADR 0034](0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md) and
   the thread authority of [ADR 0008](0008-thread-follow-up-authority.md). Design:
   [pr-state spec](../specs/2026-11-19-pr-state-design.md).
@@ -35,7 +37,7 @@ owned by the party that writes the markers.
    `partial`, `scoped`, `not-reviewed`), a `reason` when not reviewed, the earlier head a
    base-update line carries over, and finding counts by severity and by placement, built from what
    was actually posted. It never holds finding text. A scoped review never decides the head's state.
-3. The block is trusted only under the existing rule: at the end of a body authored by the engine's
+3. The block is trusted only under the existing rule of ADR 0036 decision 1: at the end of a body authored by the engine's
    own author and signed as a review. Any `wachi:state` text elsewhere is neutralised like every
    other marker.
 4. The block lives beside today's markers for one minor release. The engine's own readers
@@ -46,7 +48,8 @@ owned by the party that writes the markers.
    run, and prints one `wachiman.pr-state/1` object.
 6. Its `next` is one of `wait`, `act`, `blocked`, `done`, `closed`, chosen by an ordered rule table
    in code. `done` means only that Wachiman has nothing pending on this head: a complete review
-   of it and no unresolved Wachiman finding thread, whoever replied last. Exit codes: 0 done or
+   of it, no unresolved Wachiman finding thread (whoever replied last), and no Blocker or Fix
+   finding that the block counts outside a thread. Exit codes: 0 done or
    closed, 20 act, 21 wait, 22 blocked, 1 GitHub error, 2 usage.
 7. `pr-state` covers Wachiman's own review only. Other reviewers, CI and merge conflicts are not
    read.
@@ -57,7 +60,10 @@ owned by the party that writes the markers.
 ## Alternatives rejected
 
 - **A babysit or listener service in Wachiman.** Harnesses already wake agents, and GitHub ships an
-  event stream. A hosted receiver is a non-goal of ADR 0001. The missing piece is Wachiman's state,
+  event stream. A hosted receiver stays out: ADR 0001 names a hosted service as a non-goal, and
+  [ADR 0021](0021-a-daily-spend-limit-kept-by-a-ledger-service.md) supersedes that only for the
+  optional spend ledger, which never sees the key or the review; a webhook receiver is a different
+  thing and nothing accepted allows it. The missing piece is Wachiman's state,
   not the wake.
 - **A local database of pull-request rounds.** It duplicates GitHub, goes stale on a push from
   another machine, and cannot be the authority on a thread. ADR 0035 already keeps the local index
