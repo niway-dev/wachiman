@@ -25,8 +25,8 @@ flowchart TD
   H -- no, check run queued or running --> W[wait · exit 21]
   H -- no, nothing started --> W
   H -- yes, status not-reviewed --> B[blocked + reason · exit 22]
-  H -- yes, complete or partial --> T{Wachiman threads waiting for the author,<br/>or unthreaded Blocker/Fix findings?}
-  T -- yes --> A[act + list · exit 20]
+  H -- yes, complete or partial --> T{Unresolved Wachiman threads,<br/>or unthreaded Blocker/Fix findings?}
+  T -- yes, any unresolved Wachiman thread --> A[act + list · exit 20]
   T -- no, partial --> B
   T -- no, complete --> D[done · exit 0]
 ```
@@ -61,8 +61,8 @@ flowchart TD
 
 | # | What it builds | Criteria | Risk | Depends on |
 | --- | --- | --- | --- | --- |
-| 1 | `src/review-state.ts` (schema, writer, reader, size cap); the engine appends the block to every review POST; footer regex accepts it; fixtures | AC1, AC2, AC3, AC4, AC5 | 🟡 Medium | — |
-| 2 | `wachiman pr-state [<pr>] [--repo] --json`, the rule table, exit codes, help page, `docs/cli.md` row, `docs/pr-state.md` reference with the schema, a line in the shipped skills telling agents to call it after a wake | AC6, AC7, AC8, AC9, AC10, AC11, AC12 | 🟡 Medium | 1 |
+| 1 | `src/review-state.ts` (schema, writer, reader, size cap); the engine appends the block to every review POST; footer regex accepts it; fixtures | AC1, AC2, AC3, AC4, AC5, AC16 | 🟡 Medium | — |
+| 2 | `wachiman pr-state [<pr>] [--repo] --json`, the rule table, exit codes, help page, `docs/cli.md` row, `docs/pr-state.md` reference with the schema, a line in the shipped skills telling agents to call it after a wake | AC6, AC7, AC8, AC9, AC10, AC11, AC12, AC17 | 🟡 Medium | 1 |
 | 3 | `--wait`, `--timeout`, `--interval`; optional `gh event listen` acceleration | AC13, AC14, AC15 | 🟢 Low | 2 |
 
 ## Open questions
@@ -92,25 +92,31 @@ flowchart TD
 - "No findings" on a refused or partial review is read as clean.
 - The block grows past what a review body can hold on a large review and breaks the post.
 - A review from an engine version without the block is reported as `not-reviewed` instead of falling back to its sha and partial markers.
-- More than 100 threads, or a thread with more than 100 comments, hides a finding still waiting for the author.
+- More than 100 threads, or a thread with more than 100 comments, hides an unresolved Wachiman finding thread.
 - An outdated but unresolved Wachiman thread disappears from the answer.
 - `--wait` exceeds the GitHub rate limit or a harness's foreground time limit.
 - An agent reads `done` as "ready to merge".
+- A base-update line read as a refusal turns every rebased pull request `blocked`.
+- Placement counts written before the 422 fallback moves inline comments into the body.
+- A scoped review of a few paths read as a review of the whole head.
+- A thread drops out of the answer because the author replied, and the pull request reads `done` with the thread still open.
 
 ## Acceptance criteria
 
 - [ ] **AC1** Every review body the engine POSTs (full review, re-review, partial, base-update line, all-binary notice, refusal, ceiling, limit) ends its signed footer with exactly one `<!-- wachi:state … -->` whose decoded JSON validates against `wachiman.review-state/1` (fake-GitHub tests per kind).
-- [ ] **AC2** The block holds `format`, `engine`, `head`, `attempt`, `status` (`complete`, `partial`, `not-reviewed`), `reason` (required when `not-reviewed`: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `binary_only`, `base_update`), and `findings` counts by severity and by placement (`inline`, `body`, `outside_diff`) that add up to the headline count (unit tests over fixtures, including the by-design gap between the headline and the inline count).
+- [ ] **AC2** The block holds `format`, `engine`, `head`, `attempt`, `status` (`complete`, `partial`, `scoped`, `not-reviewed`), `reason` (required when `not-reviewed`: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`), `carried_from` (the earlier head, on a base-update line, which is `complete` and repeats that head's counts), `scope` (`binary_only` on the all-binary notice, which is `complete` with zero findings; the path count on a scoped review), and `findings` counts by severity and by placement (`inline`, `body`, `outside_diff`) that add up to the headline count (unit tests over fixtures, including the by-design gap between the headline and the inline count).
+- [ ] **AC16** The block is built from the body actually posted: when GitHub refuses the inline comments and `moveCommentsToBody` moves them, the retried post carries a block with `inline: 0` and the moved findings counted under `body` (fake-GitHub test of the 422 fallback).
 - [ ] **AC3** A `wachi:state` string in model output, a finding body, a file name or the PR description is neutralised and never read; a block outside the signed footer or from another author is ignored (tests reuse the forgery fixtures of the existing marker tests).
 - [ ] **AC4** When the encoded block would exceed its cap, the engine keeps the counts and drops nothing else from the review; the post never fails because of the block (test with a synthetic large review).
 - [ ] **AC5** The re-review starting point, ceiling sum, limit notice and refusal edit-in-place give the same results with and without the new block on the same fixtures (existing tests pass unchanged, plus one run with the block present).
-- [ ] **AC6** `wachiman pr-state <pr> --json` prints one object that validates against `wachiman.pr-state/1`: `format`, `repo`, `pr`, `head`, `review` (`state`: `none`, `running`, `complete`, `partial`, `not-reviewed`, `stale`; `reason`; `reviewed_head`; `attempt`; `engine`; `source`: `block` or `legacy-markers`), `findings.waiting` (one entry per unresolved Wachiman thread whose last comment is Wachiman's: `thread_id`, `url`, `path`, `line`, `severity`, `outdated`), `findings.unthreaded` (counts from the block), `next`, and `why` (a fixed code, not prose).
+- [ ] **AC6** `wachiman pr-state <pr> --json` prints one object that validates against `wachiman.pr-state/1`: `format`, `repo`, `pr`, `head`, `review` (`state`: `none`, `running`, `complete`, `partial`, `scoped`, `not-reviewed`, `stale`; `reason`; `reviewed_head`; `attempt`; `engine`; `source`: `block` or `legacy-markers`), `findings.open` (one entry per unresolved Wachiman finding thread, whoever wrote last: `thread_id`, `url`, `path`, `line`, `severity`, `outdated`, `awaiting`: `fix_or_reply` when Wachiman wrote the last comment, `resolve` when someone else did), `findings.unthreaded` (counts from the block), `next`, and `why` (a fixed code, not prose).
 - [ ] **AC7** `next` follows the rule table in the spec's detail, in order, and the exit code matches it: `closed` and `done` exit 0, `act` 20, `wait` 21, `blocked` 22, a GitHub error 1, a usage error 2 (table-driven test over every row).
-- [ ] **AC8** `done` is returned only when the current head has a `complete` block and no Wachiman thread waits for the author; a `partial` or `not-reviewed` head never yields `done`; zero findings on a non-complete review yields `blocked` or `wait`, never `done`.
+- [ ] **AC8** `done` is returned only when the current head has a `complete` block and no Wachiman finding thread is unresolved, whoever wrote its last comment; a `partial` or `not-reviewed` head never yields `done`; zero findings on a non-complete review yields `blocked` or `wait`, never `done`.
+- [ ] **AC17** A `scoped` block never decides the head's state: `pr-state` skips it when choosing the head's block, and still lists its threads under `findings.open` (test: a scoped review on the current head after a complete review of an older head answers `wait` or `blocked`, not `done`).
 - [ ] **AC9** If the PR head read at the end differs from the head read at the start, the answer is `wait` with `why: head_moved`.
 - [ ] **AC10** With several own reviews on the same head, the block of the most recent attempt by creation time decides; a newer push makes every older block `stale`.
 - [ ] **AC11** Reviews posted by an engine without the block are read from `wachiman sha=` and `wachi:partial` with `source: legacy-markers`; a legacy notice without a sha yields `review.state: none`, never `complete`.
-- [ ] **AC12** Threads and their comments are read with pagination, so a waiting finding beyond the first 100 threads or comments is reported (fake-GitHub test with 150 threads).
+- [ ] **AC12** Threads and their comments are read with pagination, so an unresolved finding thread beyond the first 100 threads or comments is reported (fake-GitHub test with 150 threads).
 - [ ] **AC13** `pr-state --wait` returns as soon as `next` is not `wait`; on timeout it prints the last state with `why: timeout` and exits 21; the default timeout is under 10 minutes and the default interval at least 20 seconds.
 - [ ] **AC14** `--wait` makes one state read at start and one after every event or interval, never more than one GraphQL query per interval (counted in a fake-GitHub test).
 - [ ] **AC15** When `gh event listen` is missing or fails, `--wait` falls back to polling and says so once on stderr; stdout stays a single JSON object.
@@ -130,14 +136,20 @@ code in the last column.
 | 4 | No own review for the current head and no check run on it | `wait` | 21 | `review_not_started` |
 | 5 | The latest block for the head is `not-reviewed` | `blocked` | 22 | the block's `reason` |
 | 6 | The check run on the head finished and no own review exists for it | `blocked` | 22 | `review_missing` |
-| 7 | At least one Wachiman thread waits for the author, or the block counts Blocker or Fix findings outside a thread | `act` | 20 | `findings_waiting` |
+| 7 | At least one Wachiman finding thread is unresolved, or the block counts Blocker or Fix findings outside a thread | `act` | 20 | `findings_open` |
 | 8 | The block is `partial` | `blocked` | 22 | `partial` |
 | 9 | The block is `complete` | `done` | 0 | `clean` |
 
-A thread "waits for the author" when it is unresolved, its first comment carries `wachi:finding`
-from the own author, and its last comment is also the own author's. When someone else wrote the last
-comment, the thread waits for Wachiman's automatic reply and does not count; if that reply never
-comes, the thread is still listed under `findings.waiting` on the next push's review.
+"The latest block for the head" skips `scoped` blocks: a review an operator asked for on some
+paths says nothing about the rest of the head. A base-update line counts as `complete` for its
+head, because the engine carries the earlier review over (`carried_from`).
+
+A Wachiman finding thread is one whose first comment carries `wachi:finding` from the own author.
+Every unresolved one is listed under `findings.open` and keeps the answer at `act`, whoever wrote
+its last comment. When Wachiman wrote last, `awaiting` is `fix_or_reply`: the agent fixes the code
+or answers. When someone else wrote last, `awaiting` is `resolve`: the operator, or an agent acting
+for them, resolves it or waits for Wachiman's automatic reply (ADR 0008 keeps resolving with the
+operator). A thread never drops out of the answer because someone replied.
 
 Row 4 answers `wait`, not `blocked`, because the workflow's push debounce can delay the check run.
 `--wait` bounds it with its timeout; a caller without `--wait` decides how long to accept it.
@@ -161,6 +173,8 @@ Row 4 answers `wait`, not `blocked`, because the workflow's push debounce can de
 }
 ```
 
+It is built last, from the body and inline comments actually sent: if GitHub refuses the inline
+comments and the engine moves them into the body, the retried post carries a rebuilt block.
 It is base64url-encoded so its content cannot close the HTML comment. It sits after the review
 signature and before the attempt footer, so the signed-footer pattern grows by one optional line.
 `partial` keeps the existing `wachi:partial` marker for the engine's own continuation logic; the
