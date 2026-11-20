@@ -9,6 +9,7 @@
  * evidence for it (ADR 0043 decision 3). Pure over the snapshot directories, so it runs before the
  * local command removes them, and it imports nothing from `src/workspace/`.
  */
+import { realpathSync } from "node:fs";
 import { repoLineCounter, type LineCounter } from "./contracts";
 import type { ResolvedSibling, SiblingReference } from "./distributed";
 
@@ -38,6 +39,32 @@ export const countable = (count: number | null) => (count === Number.MAX_SAFE_IN
 
 export type CheckedText<T> = T & { references?: SiblingReference[] };
 
+/**
+ * The directories the prompts name for the snapshots (this run's only, and the same one spelled through its
+ * symlinks), each with what the text says in its place: `member@sha7`. A model may repeat one; it must not
+ * reach the result, which is stored and printed after the directories are gone.
+ */
+function snapshotDirectories(siblings: readonly ResolvedSibling[]) {
+  const spellings = new Map<string, string>();
+  for (const s of siblings) {
+    if (s.dir === undefined) continue;
+    const name = s.sha === undefined ? s.member : `${s.member}@${s.sha.slice(0, 7)}`;
+    for (const dir of [s.dir, safeRealpath(s.dir)]) if (dir !== undefined && dir !== "" && dir !== "/") spellings.set(dir.replace(/\/+$/, ""), name);
+  }
+  const ordered = [...spellings].sort((a, b) => b[0].length - a[0].length);
+  if (ordered.length === 0) return (text: string) => text;
+  const pattern = new RegExp(`(${ordered.map(([dir]) => escapeRegExp(dir)).join("|")})(\\/|(?![\\w-]))`, "g");
+  return (text: string) => text.replace(pattern, (_, dir: string, slash: string) => `${spellings.get(dir)}${slash === "/" ? ":" : ""}`);
+}
+
+function safeRealpath(dir: string) {
+  try {
+    return realpathSync(dir);
+  } catch {
+    return undefined;
+  }
+}
+
 type FindingText = { title: string; body: string; verification?: { reason: string }; originReason?: string };
 
 /** The checker over one run's siblings: `settle` for any text, `finding` for a finding, and the running count of removals. */
@@ -51,10 +78,11 @@ function referenceChecker(siblings: readonly ResolvedSibling[]) {
   };
 
   const pattern = referencePattern(siblings.map((s) => s.member));
+  const withoutDirectories = snapshotDirectories(siblings);
   let removed = 0;
   const kept: SiblingReference[] = [];
   const settle = (text: string) =>
-    text.replace(pattern, (token, member: string, sha: string, path: string, line: string, end?: string) => {
+    withoutDirectories(text).replace(pattern, (token, member: string, sha: string, path: string, line: string, end?: string) => {
       const found = readable.find((s) => s.member === member && s.sha!.startsWith(sha));
       const first = Number(line);
       const last = end === undefined ? first : Number(end);

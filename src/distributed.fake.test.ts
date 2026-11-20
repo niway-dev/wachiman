@@ -386,6 +386,17 @@ describe("the result of a distributed-repo run", () => {
     expect(JSON.stringify(result)).not.toContain(bad);
   });
 
+  test("a snapshot's temporary directory the model repeats never reaches the result", async () => {
+    const headDir = reviewedHead();
+    const desktop = sibling({ member: "desktop-app", dir: snapshotDir("Assets/palette.json", palette2) });
+    const provider = reviewer(`The source is in ${desktop.dir}/Assets/palette.json:2 and ${desktop.dir}/Assets/palette.json:50; the folder is ${desktop.dir}.`);
+    const result = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([desktop], [palette(desktop)]) }), coreDeps(provider));
+    expect(result.findings[0]!.body).toBe(`The source is in desktop-app@3f2a9c1:Assets/palette.json:2 and ${REMOVED_REFERENCE}; the folder is desktop-app@3f2a9c1.`);
+    expect(result.findings[0]!.references).toEqual([{ member: "desktop-app", sha: SHA_A, path: "Assets/palette.json", line: 2 }]);
+    expect(result.removedSiblingReferences).toBe(1);
+    expect(JSON.stringify(result)).not.toContain(desktop.dir!);
+  });
+
   test("a result that read only public siblings, or none, has no private-context label", async () => {
     const headDir = reviewedHead();
     const open = sibling({ member: "desktop-app", visibility: "public", dir: snapshotDir("Assets/palette.json", palette2) });

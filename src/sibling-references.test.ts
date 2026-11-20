@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ResolvedSibling } from "./distributed";
@@ -230,5 +230,51 @@ describe("settleModelText", () => {
     const out = settleModelText([sibling()], { findings: [], summary: "", contracts: [], riskFacts: [], judgement: [], muted: [], threadReplies: [], skipped: [] });
     expect(out.verification).toBeUndefined();
     expect(out.removed).toBe(0);
+  });
+});
+
+describe("a snapshot's temporary directory in the model's text", () => {
+  // The prompt names each snapshot's directory; a model may repeat it. It must not reach the result.
+  test("is rewritten to member@commit form before the check, so a good line stays as a reference and a bad one is removed", () => {
+    const one = sibling();
+    const dir = one.dir!;
+    const good = check(`The copy differs from ${dir}/Assets/palette.json:2 in the accent.`, [one]);
+    expect(good.removed).toBe(0);
+    expect(good.finding.body).toBe("The copy differs from desktop-app@3f2a9c1:Assets/palette.json:2 in the accent.");
+    expect(good.finding.references).toEqual([{ member: "desktop-app", sha: SHA, path: "Assets/palette.json", line: 2 }]);
+    const bad = check(`See ${dir}/Assets/palette.json:99.`, [one]);
+    expect(bad.removed).toBe(1);
+    expect(bad.finding.body).toBe(`See ${REMOVED_REFERENCE}.`);
+  });
+
+  test("is rewritten without a path too, in the title, and under the other spelling of the same directory", () => {
+    const one = sibling();
+    const real = realpathSync(one.dir!);
+    const { finding: f } = check(`Read ${real}/Assets/palette.json and then ${one.dir} itself`, [one], `Look in ${one.dir}/x`);
+    expect(f.body).toBe("Read desktop-app@3f2a9c1:Assets/palette.json and then desktop-app@3f2a9c1 itself");
+    expect(f.title).toBe("Look in desktop-app@3f2a9c1:x");
+    for (const text of [f.body, f.title]) expect(text).not.toContain(tmpdir());
+  });
+
+  test("is rewritten in every text the result carries, not only in findings", () => {
+    const one = sibling();
+    const out = settleModelText([one], {
+      findings: [],
+      summary: `s ${one.dir}/Assets/palette.json:2`,
+      contracts: [{ before_after: `c ${one.dir}/a` } as Record<string, string>],
+      riskFacts: [{ why: `r ${one.dir}/a` }],
+      judgement: [],
+      muted: [],
+      threadReplies: [],
+      skipped: [],
+    });
+    expect(out.summary).toBe("s desktop-app@3f2a9c1:Assets/palette.json:2");
+    expect(out.contracts[0]).toEqual({ before_after: "c desktop-app@3f2a9c1:a" });
+    expect(out.riskFacts[0]).toEqual({ why: "r desktop-app@3f2a9c1:a" });
+  });
+
+  test("a directory that merely starts like another one is left alone", () => {
+    const one = sibling();
+    expect(check(`${one.dir}-other/x`, [one]).finding.body).toBe(`${one.dir}-other/x`);
   });
 });
