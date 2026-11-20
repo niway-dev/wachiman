@@ -143,10 +143,22 @@ describe("reserve", () => {
         expect(thrown).toBeInstanceOf(LedgerUnavailable);
         const message = (thrown as Error).message;
         expect(message).toContain(`https://ledger.example answered HTTP ${status}`);
-        expect(message).toContain("firewall or bot challenge");
         expect(message).not.toContain("Just a moment");
+        if (body.startsWith("<") || body === "") expect(message).toContain("firewall or bot challenge");
       }
     }
+  });
+
+  test("a JSON refusal with a reason the client does not know is unreachable too, and the message does not blame a firewall", () => {
+    let thrown: unknown;
+    try {
+      reserve("https://ledger.example", "tok", req, fakeCurl(402, JSON.stringify({ reason: "mystery" })).curl);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toBeInstanceOf(LedgerUnavailable);
+    expect((thrown as Error).message).toContain("refusal reason this client does not know");
+    expect((thrown as Error).message).not.toContain("firewall");
   });
 
   test("settle and record read a refusal status without a ledger body as unreachable too", () => {

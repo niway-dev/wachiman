@@ -43,7 +43,10 @@ export interface LedgerEnv {
   ACTIONS_ID_TOKEN_REQUEST_TOKEN?: string;
 }
 
-/** The ledger cannot answer: a network error, a timeout, a 5xx or a 429. Only these are an outage. */
+/**
+ * The ledger cannot answer: a network error, a timeout, a 5xx or a 429, or a 401, 402 or 403 without a
+ * refusal reason the client knows (something in front of the ledger answered). Only these are an outage.
+ */
 export class LedgerUnavailable extends Error {}
 
 /**
@@ -128,7 +131,7 @@ const b64url = (text: string) => Buffer.from(text, "utf8").toString("base64url")
 /** The ledger url as configured, minus any trailing slashes, so `${base}/v1/...` has one slash. */
 const base = (ledgerUrl: string) => ledgerUrl.replace(/\/+$/, "");
 
-/** Whether an HTTP status means "try later": a server error or a rate limit. Anything else unexpected is not an outage. */
+/** Whether an HTTP status means "try later": a server error or a rate limit. Anything else unexpected is not an outage, except a refusal status without a reason (see `unusable`). */
 const isOutage = (status: number) => status >= 500 || status === 429;
 
 /** The statuses a ledger refusal uses; the body must carry a known `reason` for one to count as a refusal. */
@@ -140,10 +143,12 @@ const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 402, 403]);
  * JSON body with a `reason`, so such an answer came from something in front of it (a firewall or bot
  * challenge). A wrong-address problem for the rest.
  */
-function unusable(ledgerUrl: string, route: string, status: number, what: string): Error {
+function unusable(ledgerUrl: string, route: string, status: number, what: string, body = ""): Error {
   if (REFUSAL_STATUSES.has(status)) {
     return new LedgerUnavailable(
-      `${base(ledgerUrl)} answered HTTP ${status} with a page that did not come from the ledger, which usually means a firewall or bot challenge in front of it.`,
+      parseObject(body)
+        ? `${base(ledgerUrl)} answered HTTP ${status} with a refusal reason this client does not know, so the answer cannot be used (a newer or different ledger?).`
+        : `${base(ledgerUrl)} answered HTTP ${status} with a page that did not come from the ledger, which usually means a firewall or bot challenge in front of it.`,
     );
   }
   return isOutage(status)
@@ -234,7 +239,7 @@ export function reserve(ledgerUrl: string, token: string, req: ReserveRequest, c
   }
   const json = parseObject(body);
   if (status !== 200 || !json || typeof json.reservationId !== "string" || typeof json.grantedUsd !== "number") {
-    throw unusable(ledgerUrl, "/v1/reserve", status, "reserve");
+    throw unusable(ledgerUrl, "/v1/reserve", status, "reserve", body);
   }
   // A grant that is not a finite, non-negative amount is a malformed answer: never a budget.
   if (!Number.isFinite(json.grantedUsd) || json.grantedUsd < 0) {
@@ -265,7 +270,7 @@ export function settle(
   const json = parseObject(body);
   const receipt = json?.receipt;
   if (status !== 200 || !isReceipt(receipt) || typeof json?.signature !== "string") {
-    throw unusable(ledgerUrl, "/v1/settle", status, "settle");
+    throw unusable(ledgerUrl, "/v1/settle", status, "settle", body);
   }
   return { receipt, signature: json.signature };
 }
@@ -287,8 +292,8 @@ export function record(
     ...(run.pr === undefined ? {} : { pr: run.pr }),
     reason: "unreserved",
   };
-  const { status } = post(ledgerUrl, "/v1/record", token, payload, curl);
-  if (status !== 200) throw unusable(ledgerUrl, "/v1/record", status, "record the run");
+  const { status, body } = post(ledgerUrl, "/v1/record", token, payload, curl);
+  if (status !== 200) throw unusable(ledgerUrl, "/v1/record", status, "record the run", body);
 }
 
 function isReceipt(value: unknown): value is Receipt {

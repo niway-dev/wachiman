@@ -81,7 +81,7 @@ class FakeProvider implements ProviderAdapter {
 
 interface LedgerOpts {
   /** The answer to `/v1/reserve`; default grants what was wanted. */
-  reserve?: (wanted: number) => { status: number; body: unknown };
+  reserve?: (wanted: number) => { status: number; body: unknown; raw?: boolean };
   /** Make the id-token request fail: `true` is GitHub's endpoint answering 403, a number is that status. */
   noToken?: boolean | number;
   /** After the reserve, every `gh` call whose arguments contain this text fails with a 502. */
@@ -123,7 +123,8 @@ function fakeLedger(events: string[], opts: LedgerOpts = {}) {
         body: { reservationId: "res-1", grantedUsd: wanted, accountLeftUsd: 10, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null },
       };
       reserved = answered.status === 200;
-      return reply(answered.status, answered.body);
+      // `raw` sends the body as is (a firewall page, an empty body) instead of as JSON.
+      return answered.raw ? { status: 0, stdout: `${String(answered.body)}\n${answered.status}`, stderr: "" } : reply(answered.status, answered.body);
     }
     if (url === `${LEDGER}/v1/settle`) {
       events.push("settle");
@@ -544,7 +545,7 @@ describe("an unreachable ledger", () => {
   for (const unavailable of ["run", "stop"]) {
     test(`a 403 HTML page from a firewall is an unreachable ledger, not "not linked" (ledger_unavailable: ${unavailable})`, async () => {
       const env = { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable };
-      const t = setup({ env, ledger: { reserve: () => ({ status: 403, body: "<html>Just a moment...</html>" }), recordFails: true } });
+      const t = setup({ env, ledger: { reserve: () => ({ status: 403, body: "<html>Just a moment...</html>", raw: true }), recordFails: true } });
       if (unavailable === "stop") {
         const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
         expect(thrown).toBeInstanceOf(LedgerStopped);
@@ -565,7 +566,7 @@ describe("an unreachable ledger", () => {
   }
 
   test("a 401 with an empty body is unreachable, not unauthorized", async () => {
-    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: "stop" }, ledger: { reserve: () => ({ status: 401, body: "" }) } });
+    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: "stop" }, ledger: { reserve: () => ({ status: 401, body: "", raw: true }) } });
     const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
     expect(thrown).toBeInstanceOf(LedgerStopped);
     expect((thrown as Error).message).toContain("could not be reached");
