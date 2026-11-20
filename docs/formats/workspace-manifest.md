@@ -98,7 +98,10 @@ key it cannot read is refused.
 A rule is an object: `{ "rule": "pinned" | "local" | "tip" }`, with, for `pinned`, either
 `"ref": "<ref>"` (a literal ref of the sibling) or `"pin": { "file", "key", "tag" }`. `key` is an
 array of literal keys, never a dotted string (package names contain dots). `tag` has `{version}`
-replaced by the pinned version. The rule for a (contract, member) is the first match of:
+replaced by the pinned version. A `ref`, and the tag a `pin` produces, must be a full commit SHA
+(40 or 64 hex digits) or a literal tag, branch or remote-tracking name (`v1.2.0`, `release/2`,
+`origin/main`). A revision expression (`HEAD`, `v1~1`, `main@{0}`, `a..b`) is not accepted: the
+rule falls back to `tip`, and the fallback reason is in the result. The rule for a (contract, member) is the first match of:
 per-user file by contract, per-user file by member, manifest contract, manifest member, then the
 default `pinned`. The report records the source as `user-file`, `manifest` or `default`.
 
