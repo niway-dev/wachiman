@@ -10,8 +10,18 @@ The code is `src/workspace/`.
 
 ## `workspace.manifest.json`
 
-Lives in the coordinator folder. Wachiman finds it by walking up from the reviewed repository, or
-from the path in the per-user file.
+Lives in the coordinator folder. Wachiman looks for it in this order:
+
+1. The entries of the per-user file, in order. An entry matches when its manifest lists the
+   reviewed repository, by `repo` against the normalised `origin` first, then by `dir` (where the
+   repository is cloned).
+2. Otherwise, the first `workspace.manifest.json` found walking up from the repository's parent
+   folder. If that manifest does not list the repository, there is no workspace and the review
+   runs as before.
+
+A per-user entry whose manifest file does not exist, or is invalid, is skipped with a warning that
+names its path, so a broken entry never fails the review of a repository that is not in it. An
+invalid manifest found by walking up is refused.
 
 ```json
 {
