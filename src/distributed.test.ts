@@ -100,7 +100,10 @@ describe("the stderr lines of a distributed-repo run", () => {
   test("a hostile name stays on its own line, with no escape byte", () => {
     const lines = distributedLines(context([sibling({ fallback: "no pin\n\u001b[2Jhere", fetchedAt: "x\u001b]0;t\u0007" }), sibling({ status: "unreadable", sha: undefined, dir: undefined, unreadable: "bad\nfile\u001b[0m" })]));
     expect(lines).toHaveLength(2 + 2);
-    for (const line of lines) expect(CONTROL.test(line)).toBe(false);
+    for (const line of lines) {
+      expect(CONTROL.test(line)).toBe(false);
+      expect(line).not.toContain("\n");
+    }
     expect(lines[0]).toStartWith("workspace: /work/space'");
   });
 });
