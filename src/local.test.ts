@@ -239,9 +239,13 @@ describe("parseLocalArgs: the distributed-repo flags", () => {
     expect(() => parseLocalArgs(argv)).toThrow(message);
   });
 
-  test("ask does not take them yet", () => {
-    expect(() => parseAskArgs(["--distributed-repo"])).toThrow("Unknown option --distributed-repo for ask.");
+  test("ask takes --distributed-repo, and nothing else of them: it selects no sibling of its own", () => {
+    expect(parseAskArgs(["--distributed-repo"]).distributedRepo).toBe(true);
+    expect(parseAskArgs(["why", "this?", "--distributed-repo"]).question).toBe("why this?");
+    expect(parseAskArgs([]).distributedRepo).toBeUndefined();
+    expect(() => parseAskArgs(["--no-distributed-repo"])).toThrow("Unknown option --no-distributed-repo for ask.");
     expect(() => parseAskArgs(["--sibling", "x"])).toThrow("Unknown option --sibling for ask.");
+    expect(() => parseAskArgs(["--distributed-repo=yes"])).toThrow("Unknown option --distributed-repo for ask.");
   });
 });
 

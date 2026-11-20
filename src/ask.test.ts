@@ -3,6 +3,7 @@ import { asksForWalkthrough } from "./engine";
 import {
   ASK_SCHEMA,
   WALKTHROUGH_SECTIONS,
+  askSchema,
   buildAskPrompt,
   checkRefs,
   isAskAnswer,
@@ -106,6 +107,57 @@ describe("checkRefs", () => {
     ]);
     // The input is not changed.
     expect(answer.sections[0].refs).toHaveLength(5);
+  });
+});
+
+describe("references into a sibling", () => {
+  const sha = "a".repeat(40);
+  const answer: AskAnswer = {
+    sections: [
+      {
+        title: "Overview",
+        body: "text",
+        refs: [
+          { path: "src/a.ts", line: 3 },
+          { path: "Assets/palette.json", line: 1, member: "desktop-app", sha },
+          { path: "Assets/palette.json", line: 1, member: "desktop-app", sha },
+          { path: "Assets/palette.json", line: 9, member: "desktop-app", sha },
+        ],
+      },
+    ],
+    not_answered: "",
+  };
+
+  test("checkRefs hands the whole reference to the check, and a sibling line is a different reference from a head line", () => {
+    const seen: string[] = [];
+    const checked = checkRefs(answer, (path, line, ref) => {
+      seen.push(`${ref.member ?? "head"}:${path}:${line}`);
+      return ref.member === undefined ? true : line === 1;
+    });
+    expect(seen).toEqual(["head:src/a.ts:3", "desktop-app:Assets/palette.json:1", "desktop-app:Assets/palette.json:9"]);
+    expect(checked.removed).toBe(1);
+    expect(checked.answer.sections[0].refs.map((r) => r.line)).toEqual([3, 1]);
+  });
+
+  test("a sibling reference prints as member@sha7:path:line, in plain text and in Markdown", () => {
+    const sections = [{ title: "Overview", body: "b", refs: answer.sections[0].refs.slice(0, 2) }];
+    const plain = renderAnswer({ sections, not_answered: "" }, { removed: 0, style: "plain" });
+    expect(plain).toContain("Refs: src/a.ts:3, desktop-app@aaaaaaa:Assets/palette.json:1");
+    const markdown = renderAnswer({ sections, not_answered: "" }, { removed: 0, style: "markdown", link: (path, line) => `https://x/${path}#L${line}` });
+    expect(markdown).toContain("[`src/a.ts:3`](https://x/src/a.ts#L3), `desktop-app@aaaaaaa:Assets/palette.json:1`");
+  });
+
+  test("the sibling schema also accepts member and sha; the plain one is unchanged and refuses them", () => {
+    expect(askSchema(false)).toBe(ASK_SCHEMA);
+    const withSibling = { sections: [{ title: "T", body: "b", refs: [{ path: "a", line: 1, member: "desktop-app", sha }] }], not_answered: "" };
+    expect(isAskAnswer(withSibling, askSchema(true))).toBe(true);
+    expect(isAskAnswer(withSibling)).toBe(false);
+    expect(isAskAnswer({ sections: [{ title: "T", body: "b", refs: [{ path: "a", line: 1 }] }], not_answered: "" }, askSchema(true))).toBe(true);
+  });
+
+  test("the prompt carries the sibling section only when it is given", () => {
+    expect(buildAskPrompt(base)).not.toContain("SIBLING-SECTION");
+    expect(buildAskPrompt({ ...base, siblings: "SIBLING-SECTION" })).toContain("SIBLING-SECTION");
   });
 });
 

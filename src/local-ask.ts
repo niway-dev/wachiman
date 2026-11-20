@@ -28,10 +28,10 @@ export const ASK_FORMAT = "wachiman.ask-result/1";
 
 export const askUsage = `wachiman ask [question…] [--base <ref> | --from <commit> | --commit <commit> | --working-tree staged|all]
                [--max-depth <n>] [--repo-dir <dir>] [--profile <name>]
-               [--format terminal|markdown|json] [--output <file>]`;
+               [--format terminal|markdown|json] [--output <file>] [--distributed-repo]`;
 
 /** The flags `ask` takes: the scope flags `local` has, and the output and account ones. */
-const ASK_FLAGS = ["--base", "--from", "--commit", "--working-tree", "--max-depth", "--profile", "--format", "--output"] as const;
+const ASK_FLAGS = ["--base", "--from", "--commit", "--working-tree", "--max-depth", "--profile", "--format", "--output", "--distributed-repo"] as const;
 
 export interface AskArgs extends LocalArgs {
   /** The question's words joined with spaces; "" asks for the walkthrough. */
