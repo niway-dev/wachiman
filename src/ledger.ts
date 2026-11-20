@@ -131,8 +131,21 @@ const base = (ledgerUrl: string) => ledgerUrl.replace(/\/+$/, "");
 /** Whether an HTTP status means "try later": a server error or a rate limit. Anything else unexpected is not an outage. */
 const isOutage = (status: number) => status >= 500 || status === 429;
 
-/** The error for an answer the client cannot use: an outage for 5xx and 429, a wrong-address problem for the rest. */
-function unusable(route: string, status: number, what: string): Error {
+/** The statuses a ledger refusal uses; the body must carry a known `reason` for one to count as a refusal. */
+const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 402, 403]);
+
+/**
+ * The error for an answer the client cannot use: an outage for 5xx and 429, and for a 401, 402 or 403
+ * (the ledger's refusal statuses) that carries no refusal reason, because every ledger refusal has a
+ * JSON body with a `reason`, so such an answer came from something in front of it (a firewall or bot
+ * challenge). A wrong-address problem for the rest.
+ */
+function unusable(ledgerUrl: string, route: string, status: number, what: string): Error {
+  if (REFUSAL_STATUSES.has(status)) {
+    return new LedgerUnavailable(
+      `${base(ledgerUrl)} answered HTTP ${status} with a page that did not come from the ledger, which usually means a firewall or bot challenge in front of it.`,
+    );
+  }
   return isOutage(status)
     ? new LedgerUnavailable(`The ledger could not ${what} (HTTP ${status}).`)
     : new LedgerBadAnswer(
@@ -189,12 +202,11 @@ export function requestIdToken(env: LedgerEnv, audience: string, curl: CurlFn): 
 }
 
 const REASONS: readonly RefusalReason[] = ["limit", "weekly_limit", "repository_limit", "not_linked", "unauthorized"];
-const DEFAULT_REASON: Record<number, RefusalReason> = { 402: "limit", 401: "unauthorized", 403: "not_linked" };
 
-/** A refusal from the documented JSON, or from the status alone when the body is something else. */
-function refusalOf(status: number, body: string): Refusal | null {
+/** A refusal from the documented JSON, or null when the body does not carry a known `reason`: it did not come from the ledger. */
+function refusalOf(body: string): Refusal | null {
   const json = parseObject(body) ?? {};
-  const reason = REASONS.find((r) => r === json.reason) ?? DEFAULT_REASON[status];
+  const reason = REASONS.find((r) => r === json.reason);
   if (!reason) return null;
   const refusal: Refusal = { reason };
   if (json.period === "day" || json.period === "week") refusal.period = json.period;
@@ -217,12 +229,12 @@ export function reserve(ledgerUrl: string, token: string, req: ReserveRequest, c
   };
   const { status, body } = post(ledgerUrl, "/v1/reserve", token, payload, curl);
   if (status >= 400 && status < 500) {
-    const refusal = refusalOf(status, body);
+    const refusal = refusalOf(body);
     if (refusal) throw new LedgerRefused(refusal);
   }
   const json = parseObject(body);
   if (status !== 200 || !json || typeof json.reservationId !== "string" || typeof json.grantedUsd !== "number") {
-    throw unusable("/v1/reserve", status, "reserve");
+    throw unusable(ledgerUrl, "/v1/reserve", status, "reserve");
   }
   // A grant that is not a finite, non-negative amount is a malformed answer: never a budget.
   if (!Number.isFinite(json.grantedUsd) || json.grantedUsd < 0) {
@@ -253,7 +265,7 @@ export function settle(
   const json = parseObject(body);
   const receipt = json?.receipt;
   if (status !== 200 || !isReceipt(receipt) || typeof json?.signature !== "string") {
-    throw unusable("/v1/settle", status, "settle");
+    throw unusable(ledgerUrl, "/v1/settle", status, "settle");
   }
   return { receipt, signature: json.signature };
 }
@@ -276,7 +288,7 @@ export function record(
     reason: "unreserved",
   };
   const { status } = post(ledgerUrl, "/v1/record", token, payload, curl);
-  if (status !== 200) throw unusable("/v1/record", status, "record the run");
+  if (status !== 200) throw unusable(ledgerUrl, "/v1/record", status, "record the run");
 }
 
 function isReceipt(value: unknown): value is Receipt {

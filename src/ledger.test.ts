@@ -131,20 +131,30 @@ describe("reserve", () => {
     });
   });
 
-  test("a 402 whose body is not JSON (a proxy page, an empty body) is still LedgerRefused with reason limit", () => {
-    for (const body of ["<html>Payment required</html>", ""]) {
-      let thrown: unknown;
-      try {
-        reserve("https://ledger.example", "tok", req, fakeCurl(402, body).curl);
-      } catch (e) {
-        thrown = e;
+  test("a 401, 402 or 403 whose body is not JSON with a known reason is LedgerUnavailable that names the address and the status", () => {
+    for (const status of [401, 402, 403]) {
+      for (const body of ["<html>Just a moment...</html>", "", JSON.stringify({ detail: "x" }), JSON.stringify({ reason: "mystery" })]) {
+        let thrown: unknown;
+        try {
+          reserve("https://ledger.example/", "tok", req, fakeCurl(status, body).curl);
+        } catch (e) {
+          thrown = e;
+        }
+        expect(thrown).toBeInstanceOf(LedgerUnavailable);
+        const message = (thrown as Error).message;
+        expect(message).toContain(`https://ledger.example answered HTTP ${status}`);
+        expect(message).toContain("firewall or bot challenge");
+        expect(message).not.toContain("Just a moment");
       }
-      expect(thrown).toBeInstanceOf(LedgerRefused);
-      expect((thrown as LedgerRefused).refusal).toEqual({ reason: "limit" });
     }
   });
 
-  test("the reason in the body wins over the status; 401 and 403 default to unauthorized and not_linked", () => {
+  test("settle and record read a refusal status without a ledger body as unreachable too", () => {
+    expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(403, "<html>").curl)).toThrow(LedgerUnavailable);
+    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(401, "").curl)).toThrow(LedgerUnavailable);
+  });
+
+  test("the reason in the body decides the refusal", () => {
     const refusalOf = (status: number, body: string) => {
       try {
         reserve("https://ledger.example", "tok", req, fakeCurl(status, body).curl);
@@ -155,7 +165,6 @@ describe("reserve", () => {
     };
     expect(refusalOf(401, JSON.stringify({ reason: "unauthorized", detail: "expired" }))?.reason).toBe("unauthorized");
     expect(refusalOf(403, JSON.stringify({ reason: "not_linked", repository: "o/r" }))?.reason).toBe("not_linked");
-    expect(refusalOf(403, "<html>")?.reason).toBe("not_linked");
     expect(refusalOf(402, JSON.stringify({ reason: "repository_limit", period: "day" }))).toEqual({ reason: "repository_limit", period: "day" });
   });
 
