@@ -5,7 +5,7 @@
  * glob that climbs out of its folder is refused, never cleaned up.
  */
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { UsageError } from "../config";
 
 export const MANIFEST_FILE = "workspace.manifest.json";
@@ -130,12 +130,13 @@ const inside = (root: string, path: string) => {
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 };
 
-/** The real path when `path` exists, else the path itself; a member that is not cloned has no real path yet. */
-function realOrSelf(path: string) {
+/** The real path of `path`: its deepest existing ancestor is resolved and the missing segments are appended, so a member that is not cloned still compares by real path. */
+function realOrSelf(path: string): string {
   try {
     return realpathSync(path);
   } catch {
-    return path;
+    const parent = dirname(path);
+    return parent === path ? path : join(realOrSelf(parent), basename(path));
   }
 }
 

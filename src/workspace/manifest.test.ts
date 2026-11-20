@@ -159,6 +159,14 @@ describe("parseManifest", () => {
       expect(parse(() => {}, dir).members).toHaveLength(3);
     });
 
+    test("a coordinator reached through a symlink accepts a member that is not cloned", () => {
+      const real = coordinator();
+      const holder = coordinator();
+      const link = join(holder, "link");
+      symlinkSync(real, link);
+      expect(parse(() => {}, link).members).toHaveLength(3);
+    });
+
     test("a missing member dir is fine (not cloned is reported later)", () => {
       expect(parse().members).toHaveLength(3);
     });
