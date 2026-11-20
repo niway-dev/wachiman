@@ -89,7 +89,7 @@ describe("findWorkspace", () => {
     const coordinator = workspace();
     const elsewhere = tmp();
     const user = userWorkspace(coordinator);
-    const found = findWorkspace(elsewhere, "git@github.com:acme/web-site.git", { version: 1, workspaces: [user] });
+    const found = findWorkspace(elsewhere, "git@github.com:acme/web-site.git", { version: 1, workspaces: [user] }, []);
     expect(found?.reviewed.dir).toBe("web-site");
     expect(found?.coordinator).toBe(coordinator);
     expect(found?.user).toBe(user);
@@ -98,7 +98,7 @@ describe("findWorkspace", () => {
 
   test("by the per-user file, matching dir when origin does not match", () => {
     const coordinator = workspace();
-    const found = findWorkspace(join(coordinator, "web-site"), "https://github.com/fork/web-site.git", { version: 1, workspaces: [userWorkspace(coordinator)] });
+    const found = findWorkspace(join(coordinator, "web-site"), "https://github.com/fork/web-site.git", { version: 1, workspaces: [userWorkspace(coordinator)] }, []);
     expect(found?.reviewed.dir).toBe("web-site");
   });
 
@@ -107,12 +107,12 @@ describe("findWorkspace", () => {
     const clone = tmp();
     git(clone, "init", "-q");
     const user = userWorkspace(coordinator, { members: { "web-site": { dir: clone } } });
-    expect(findWorkspace(clone, undefined, { version: 1, workspaces: [user] })?.reviewed.dir).toBe("web-site");
+    expect(findWorkspace(clone, undefined, { version: 1, workspaces: [user] }, [])?.reviewed.dir).toBe("web-site");
   });
 
   test("without a per-user entry, walks up from the parent of the top level", () => {
     const coordinator = workspace();
-    const found = findWorkspace(join(coordinator, "billing-service"), "https://github.com/acme/billing-service.git", noUserFile);
+    const found = findWorkspace(join(coordinator, "billing-service"), "https://github.com/acme/billing-service.git", noUserFile, []);
     expect(found?.coordinator).toBe(coordinator);
     expect(found?.reviewed.dir).toBe("billing-service");
     expect(found?.user).toBeUndefined();
@@ -120,7 +120,7 @@ describe("findWorkspace", () => {
 
   test("walks up through nested folders and matches by dir without an origin", () => {
     const coordinator = workspace();
-    expect(findWorkspace(join(coordinator, "desktop-app"), undefined, noUserFile)?.reviewed.dir).toBe("desktop-app");
+    expect(findWorkspace(join(coordinator, "desktop-app"), undefined, noUserFile, [])?.reviewed.dir).toBe("desktop-app");
   });
 
   test("a manifest above a repository that is not one of its members is none", () => {
@@ -128,11 +128,11 @@ describe("findWorkspace", () => {
     const stranger = join(coordinator, "stranger");
     mkdirSync(stranger);
     git(stranger, "init", "-q");
-    expect(findWorkspace(stranger, "https://github.com/other/stranger.git", noUserFile)).toBeUndefined();
+    expect(findWorkspace(stranger, "https://github.com/other/stranger.git", noUserFile, [])).toBeUndefined();
   });
 
   test("no manifest anywhere is none", () => {
-    expect(findWorkspace(tmp(), "https://github.com/acme/web-site.git", noUserFile)).toBeUndefined();
+    expect(findWorkspace(tmp(), "https://github.com/acme/web-site.git", noUserFile, [])).toBeUndefined();
   });
 
   test("a per-user entry whose manifest file is gone is skipped with a warning naming its path", () => {
@@ -167,7 +167,7 @@ describe("findWorkspace", () => {
   test("the per-user entry wins over a manifest found by walking up", () => {
     const coordinator = workspace();
     const other = workspace();
-    const found = findWorkspace(join(coordinator, "web-site"), "https://github.com/acme/web-site.git", { version: 1, workspaces: [userWorkspace(other)] });
+    const found = findWorkspace(join(coordinator, "web-site"), "https://github.com/acme/web-site.git", { version: 1, workspaces: [userWorkspace(other)] }, []);
     expect(found?.coordinator).toBe(other);
   });
 });

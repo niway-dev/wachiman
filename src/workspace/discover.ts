@@ -76,7 +76,7 @@ const isManifestError = (error: unknown): error is ManifestError => error instan
  * the review of a repository that is not in it. A manifest found by walking up that is invalid is
  * refused.
  */
-export function findWorkspace(repoTop: string, origin: string | undefined, userFile: UserFile, warnings: string[] = []): FoundWorkspace | undefined {
+export function findWorkspace(repoTop: string, origin: string | undefined, userFile: UserFile, warnings: string[]): FoundWorkspace | undefined {
   const slug = repoSlug(origin);
   for (const user of userFile.workspaces) {
     let manifest: Manifest;
