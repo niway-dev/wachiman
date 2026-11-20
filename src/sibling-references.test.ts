@@ -181,4 +181,15 @@ describe("checkSiblingReferences", () => {
       expect(check("cxx.app@3f2a9c1:Assets/palette.json:2", [odd]).removed).toBe(1);
     });
   });
+
+  test("a file too big to count lines in cannot be checked: its reference is removed and counted, whatever the line", () => {
+    const dir = snapshot({ "small.json": "1\n2\n" });
+    writeFileSync(join(dir, "big.log"), Buffer.alloc(8 * 1024 * 1024 + 1, "a\n"));
+    const siblings = [sibling({ dir, paths: ["small.json", "big.log"] })];
+    const big = check("See desktop-app@3f2a9c1:big.log:999999999", siblings);
+    expect(big.removed).toBe(1);
+    expect(big.finding.references).toBeUndefined();
+    expect(big.finding.body).toBe(`See ${REMOVED_REFERENCE}`);
+    expect(check("See desktop-app@3f2a9c1:small.json:2", siblings).removed).toBe(0);
+  });
 });

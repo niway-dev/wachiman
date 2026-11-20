@@ -55,7 +55,7 @@ export function checkSiblingReferences<T extends { title: string; body: string; 
   const lines = (dir: string, path: string) => {
     let count = counters.get(dir);
     if (!count) counters.set(dir, (count = repoLineCounter(dir)));
-    return count(path);
+    return countable(count(path));
   };
 
   const pattern = referencePattern(siblings.map((s) => s.member));
