@@ -309,7 +309,13 @@ wachiman loop --max-rounds 5 --format json
   the head of each round and the findings seen. `--base` always starts a new loop; `--history
   --forget` removes the state with the history.
 - **Flags:** `--base`, `--max-rounds <n>` (default 3), `--max-depth`, `--format terminal|json`,
-  `--profile`, `--verify|--no-verify`, `--repo-dir`. It takes no paths, `--commit` or `--from`.
+  `--profile`, `--verify|--no-verify`, `--distributed-repo|--no-distributed-repo`, `--sibling <dir>`,
+  `--repo-dir`. It takes no paths, `--commit` or `--from`.
+- **Distributed-repo mode:** the three mode flags mean what they mean in `local` and follow its exit-2
+  rules; each round passes them to its review exactly as `local` would, so the per-user default in
+  `~/.wachiman/workspaces.json` applies the same way. With no flag and no default, no sibling is read. A
+  round whose review read a non-public sibling prints the private-context line in its summary (and as
+  `privateContext` in `--format json`), once per round.
 - **The loop stays open** while a 🔴 Blocker or 🟠 Fix is new, open or not-repeated, not refuted by
   the verifier and not judged `wrong` with a reason (`wachiman history --verdict <id> wrong
   --reason "<why>"`). The loop decides from each round's own result and the code, not from the
