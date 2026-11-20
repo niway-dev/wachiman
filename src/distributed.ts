@@ -129,7 +129,8 @@ export const plainText = (text: string) => withoutControl(text).replaceAll("`", 
 /** `plainText` without the backtick rule: a line that is printed to a terminal, whatever it names. */
 export const withoutControl = (text: string) => text.replace(CONTROL, " ");
 
-const readable = (s: ResolvedSibling) => s.dir !== undefined && s.sha !== undefined && (s.status === "read" || s.status === "uncommitted-not-read");
+/** A sibling with a snapshot directory and a commit to read from. */
+export const readable = (s: ResolvedSibling) => s.dir !== undefined && s.sha !== undefined && (s.status === "read" || s.status === "uncommitted-not-read");
 const short = (sha: string) => sha.slice(0, 7);
 
 /** The contracts of the run that a file of this batch triggered, by its new name or the one it had before a rename. */

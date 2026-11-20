@@ -11,7 +11,7 @@
  */
 import { realpathSync } from "node:fs";
 import { repoLineCounter, type LineCounter } from "./contracts";
-import type { ResolvedSibling, SiblingReference } from "./distributed";
+import { readable, type ResolvedSibling, type SiblingReference } from "./distributed";
 
 /** What the text says in place of a reference that could not be checked. */
 export const REMOVED_REFERENCE = "[sibling reference removed: it could not be checked]";
@@ -71,7 +71,7 @@ type FindingText = { title: string; body: string; verification?: { reason: strin
 
 /** The checker over one run's siblings: `settle` for any text, `finding` for a finding, and the running count of removals. */
 function referenceChecker(siblings: readonly ResolvedSibling[]) {
-  const readable = siblings.filter((s) => s.dir !== undefined && s.sha !== undefined && (s.status === "read" || s.status === "uncommitted-not-read"));
+  const readableSiblings = siblings.filter(readable);
   const counters = new Map<string, LineCounter>();
   const lines = (dir: string, path: string) => {
     let count = counters.get(dir);
@@ -98,7 +98,7 @@ function referenceChecker(siblings: readonly ResolvedSibling[]) {
   };
   const settleOnce = (text: string) =>
     withoutDirectories(text).replace(pattern, (token, member: string, sha: string, path: string, line: string, end?: string) => {
-      const found = sha.length < 7 ? undefined : readable.find((s) => s.member === member && s.sha!.startsWith(sha));
+      const found = sha.length < 7 ? undefined : readableSiblings.find((s) => s.member === member && s.sha!.startsWith(sha));
       const first = Number(line);
       const last = end === undefined ? first : Number(end);
       const count = found ? lines(found.dir!, path) : null;
