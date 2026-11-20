@@ -22,7 +22,7 @@ import { historyRoot, readRuns, readVerdicts, repositoryKey } from "../history/s
 import { LOCAL_FLAGS, parseFlags, runLocal, type LocalArgs, type LocalDeps } from "../local";
 import { candidatesForRound } from "../memory/candidates";
 import { loadMemorySettings } from "../memory/settings";
-import { location, privateNote, sha7 } from "../sinks/common";
+import { location, privateLineFor, privateNote, sha7 } from "../sinks/common";
 import { LOOP_STATE_FORMAT, readLoop, writeLoop, type LedgerEntry, type LoopState } from "./state";
 import { evaluate, isRefutedBy, roundCapReached, type Decision, type LoopFinding, type LoopStatus, type OpenFinding, type Released } from "./stop-rule";
 
@@ -102,7 +102,7 @@ export interface RoundReport {
   exitCode: 0 | 10 | 11;
   /** Proposable memory candidates that cite a finding of this loop or whose scope matches its files. Absent when there are none. */
   memoryCandidates?: { id: string; title: string }[];
-  /** The private-context line of the round's review, when it read a non-public sibling. */
+  /** The private-context line: the round's review read a non-public sibling, or the retained findings came from one that did. */
   privateContext?: string;
 }
 
@@ -228,7 +228,10 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   const roundsRun = state.rounds.length;
   const render = (report: RoundReport) => {
     const candidates = memoryCandidatesOf(state, home, key, repoDir);
-    const full: RoundReport = candidates.length > 0 ? { ...report, memoryCandidates: candidates } : report;
+    // Retained findings may hold private sibling text, so any call that prints them carries the label.
+    const retained = report.privateContext ? null : state.ledger.length > 0 ? privateLineFor(state.privateContext?.members) : null;
+    const labelled: RoundReport = retained ? { ...report, privateContext: retained } : report;
+    const full: RoundReport = candidates.length > 0 ? { ...labelled, memoryCandidates: candidates } : labelled;
     io.stdout(args.format === "json" ? renderJson(full) : renderTerminal(full));
     return report.exitCode;
   };
@@ -297,11 +300,15 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
 
   const { result } = made;
   const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts());
+  // A labelled round that reported findings makes the retained set private; an emptied ledger holds nothing.
+  const members = [...new Set([...(state.privateContext?.members ?? []), ...(result.findings.length > 0 ? result.privateContext?.members ?? [] : [])])];
+  const { privateContext: _before, ...stateWithout } = state;
   state = {
-    ...state,
+    ...stateWithout,
     rounds: [...state.rounds, { round, head: result.change.head.sha, at: now() }],
     ledger: decision.ledger,
     status: decision.decision.converged ? "converged" : "open",
+    ...(members.length > 0 && decision.ledger.length > 0 ? { privateContext: { members } } : {}),
   };
   writeLoop(root, key, state);
   const range: RoundReport["range"] = previous ? { kind: "since-previous-round", from: previous.head } : { kind: "whole", base: from };

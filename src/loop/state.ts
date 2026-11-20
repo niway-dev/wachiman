@@ -44,6 +44,13 @@ export interface LoopState {
   status: "open" | "converged";
   rounds: LoopRound[];
   ledger: LedgerEntry[];
+  /**
+   * The non-public siblings whose text may be in the retained findings. Set when a round that read
+   * them reported findings; kept while the ledger holds any; cleared when the ledger is emptied.
+   * Absent in states written before the mode existed. Whenever the loop prints findings from this
+   * state it prints the private-context line.
+   */
+  privateContext?: { members: string[] };
 }
 
 const STATUSES: readonly string[] = ["new", "open", "probably-fixed", "not-repeated", "unknown"];
@@ -58,6 +65,7 @@ function valid(s: any, branch: string): s is LoopState {
     (s.status === "open" || s.status === "converged") &&
     Array.isArray(s.rounds) &&
     s.rounds.every((r: any) => r && Number.isInteger(r.round) && typeof r.head === "string" && typeof r.at === "string") &&
+    (s.privateContext === undefined || (s.privateContext && Array.isArray(s.privateContext.members) && s.privateContext.members.every((m: any) => typeof m === "string"))) &&
     Array.isArray(s.ledger) &&
     s.ledger.every(
       (e: any) =>
