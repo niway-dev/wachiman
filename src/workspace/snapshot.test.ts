@@ -1,5 +1,7 @@
+import { spawnSync } from "node:child_process";
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, lstatSync, readFileSync, readdirSync, symlinkSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, renameSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
 import { snapshotSibling, type SiblingSnapshot } from "./snapshot";
@@ -158,5 +160,23 @@ describe("snapshotSibling", () => {
     const before = git(dir, "status", "--porcelain");
     snap(dir, head, ["**"]);
     expect(git(dir, "status", "--porcelain")).toBe(before);
+  });
+
+  test("a blob a partial clone never downloaded fails the snapshot with the missing-object error, and nothing is fetched", () => {
+    const origin = emptyRepo("wachiman-sibling-origin-");
+    git(origin, "config", "uploadpack.allowFilter", "true");
+    git(origin, "config", "uploadpack.allowAnySHA1InWant", "true");
+    const sha = commit(origin, { "src/a.ts": "a\n" }, "one");
+    const parent = mkdtempSync(join(tmpdir(), "wachiman-sibling-partial-"));
+    const clone = join(parent, "clone");
+    const run = spawnSync("git", ["clone", "-q", "--no-checkout", "--filter=blob:none", `file://${origin}`, clone], { encoding: "utf8" });
+    expect(run.status).toBe(0);
+    // The origin is gone: any attempt to fetch the blob would fail with a transport error, not the missing-object one.
+    renameSync(origin, `${origin}.gone`);
+    try {
+      expect(() => snapshotSibling(clone, sha, ["src/**"])).toThrow(/object not present locally; Wachiman never fetches/);
+    } finally {
+      renameSync(`${origin}.gone`, origin);
+    }
   });
 });

@@ -6,7 +6,8 @@
  */
 import { statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { spawnGit, type GitRunner } from "../evidence";
+import type { GitRunner } from "../evidence";
+import { workspaceGit } from "./git";
 import type { Contract, Member, VersionRuleName, VersionSpec } from "./manifest";
 import { own, type UserWorkspace } from "./user-file";
 
@@ -131,7 +132,7 @@ function fetchedAt(git: GitRunner, dir: string): string {
  * reads the tag the reviewed head pins and otherwise falls back to `tip`, and `tip` without a
  * recorded remote default falls back to `local`. The reason of every fallback is in the result.
  */
-export function resolveVersion(ctx: VersionContext, git: GitRunner = spawnGit): ResolvedVersion {
+export function resolveVersion(ctx: VersionContext, git: GitRunner = workspaceGit): ResolvedVersion {
   const { spec, source } = chooseRule(ctx.contract, ctx.member, ctx.user);
   const result: ResolvedVersion = { contract: ctx.contract.name, member: ctx.member.dir, rule: spec.rule, ruleSource: source, readAs: spec.rule };
   const reasons: string[] = [];

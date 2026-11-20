@@ -345,13 +345,13 @@ export const gitEnv = () => ({
 export const GIT_BASE_ARGS = ["-c", "core.quotepath=off", "-c", "core.fsmonitor=false"] as const;
 
 /** Runs `git` with a minimal environment: the checked-out head is untrusted, the engine's token is not its business. */
-export const spawnGit: GitRunner = (args, { cwd, timeoutMs, maxBytes }) => {
+export const spawnGit = (args: string[], { cwd, timeoutMs, maxBytes }: { cwd: string; timeoutMs: number; maxBytes?: number }, env: Record<string, string> = gitEnv()): GitResult => {
   const run = spawnSync("git", [...GIT_BASE_ARGS, ...args], {
     cwd,
     encoding: "utf8",
     timeout: Math.max(1, Math.floor(timeoutMs)),
     maxBuffer: maxBytes ?? GIT_OUTPUT_LIMIT,
-    env: gitEnv(),
+    env,
   });
   const code = (run.error as NodeJS.ErrnoException | undefined)?.code;
   return {

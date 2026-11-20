@@ -10,7 +10,8 @@ import { lstatSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { tarCommand, snapshotTimeoutMs } from "../connectors/local-git";
-import { spawnGit, type GitRunner } from "../evidence";
+import type { GitRunner } from "../evidence";
+import { isMissingObject, MISSING_OBJECT_MESSAGE, workspaceGit } from "./git";
 
 export interface SiblingSnapshot {
   /** A fresh temporary directory with no `.git`. */
@@ -69,7 +70,7 @@ function chunks(paths: string[]): string[][] {
  * temporary directory. `sha` must be a full commit id (the version rules return one). An empty
  * selection gives an empty directory and no paths. Throws when the commit cannot be read.
  */
-export function snapshotSibling(memberDir: string, sha: string, globs: string[], git: GitRunner = spawnGit): SiblingSnapshot {
+export function snapshotSibling(memberDir: string, sha: string, globs: string[], git: GitRunner = workspaceGit): SiblingSnapshot {
   if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) throw new Error(`A sibling snapshot needs a full commit id, got "${sha}".`);
   const matchers = globs.map((g) => new Bun.Glob(g));
   const selected: string[] = [];
@@ -97,6 +98,7 @@ export function snapshotSibling(memberDir: string, sha: string, globs: string[],
         timeoutMs: limit,
         maxBytes: MAX_BYTES,
       });
+      if (archive.status !== 0 && isMissingObject(archive.stderr)) throw new Error(`${MISSING_OBJECT_MESSAGE}: snapshot of ${sha} in ${memberDir} is incomplete.`);
       if (archive.status !== 0 || archive.error) throw new Error(`git archive ${sha} failed in ${memberDir}: ${archive.error ?? archive.stderr?.trim() ?? `status ${archive.status}`}`);
       const untar = spawnSync(tarCommand(), ["-xf", tar], { cwd: dir, encoding: "utf8", timeout: limit });
       if (untar.error || untar.status !== 0) throw new Error(`tar -xf failed for the snapshot of ${sha}: ${untar.error?.message ?? untar.stderr}`);
