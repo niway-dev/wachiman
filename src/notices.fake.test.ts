@@ -10,6 +10,7 @@ import {
   baseUpdateNotice,
   marker,
   readAutoCost,
+  readSignedStateBlock,
   refusalMarker,
   refusalNotice,
   review,
@@ -118,8 +119,13 @@ function world(initial: Item[] = []) {
     calls,
     putErrors,
     push: (sha: string) => void (head = sha),
-    /** The bodies, without the `wachi:attempt` line a POST adds. */
-    bodies: () => reviews.map((r) => r.body.replace(/\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/, "")),
+    /** The bodies, without the `wachi:attempt` line a POST adds and without the `wachi:state` block (ADR 0060; see `states`). */
+    bodies: () =>
+      reviews.map((r) =>
+        r.body.replace(/\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/, "").replace(/\n\n<!-- wachi:state [A-Za-z0-9_-]+ -->$/, ""),
+      ),
+    /** The state block of each body, or null. */
+    states: () => reviews.map((r) => readSignedStateBlock(r.body)),
   };
 }
 
@@ -376,6 +382,62 @@ describe("the refusal notice names who acts and what to do", () => {
   });
 });
 
+describe("the state block on a not-reviewed notice (ADR 0060, AC1)", () => {
+  test("an automatic refusal carries a not-reviewed block with its reason and the head", async () => {
+    const w = world();
+    await run(w, new Refusing("billing", CREDIT));
+    expect(w.states()).toHaveLength(1);
+    expect(w.states()[0]).toMatchObject({
+      format: "wachiman.review-state/1",
+      engine: "1.2.3",
+      head: HEAD1,
+      status: "not-reviewed",
+      reason: "billing",
+      findings: { total: 0 },
+    });
+    // After the signature, last in the body: this POST also carries its attempt line after it.
+    expect(w.reviews[0].body).toMatch(/<!-- wachi:review -->\n\n<!-- wachi:state [A-Za-z0-9_-]+ -->\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/);
+  });
+
+  test("each provider refusal states its own reason", async () => {
+    for (const kind of ["billing", "auth", "rate_limit"] as const) {
+      const w = world();
+      await run(w, new Refusing(kind, "refused"));
+      expect(w.states()[0]).toMatchObject({ status: "not-reviewed", reason: kind });
+    }
+  });
+
+  test("the notice edited in place carries the block of the new head (AC5: the edit still happens)", async () => {
+    const w = world();
+    await run(w, new Refusing("billing", CREDIT));
+    w.push(HEAD2);
+    await run(w, new Refusing("billing", CREDIT));
+    expect(w.writes.map((x) => x.kind)).toEqual(["post", "put"]);
+    expect(w.reviews).toHaveLength(1);
+    expect(w.states()[0]).toMatchObject({ head: HEAD2, status: "not-reviewed", reason: "billing" });
+    expect(w.reviews[0].body.match(/wachi:state/g)).toHaveLength(1);
+    // The edited body still reads as a refusal notice, so a third push edits it again, and the ceiling still sums it at $0.
+    w.push("3333333" + "0".repeat(33));
+    await run(w, new Refusing("billing", CREDIT));
+    expect(w.writes.map((x) => x.kind)).toEqual(["post", "put", "put"]);
+    expect(automaticSpend(w.gh, "o/r", 7)).toEqual({ spent: 0, runs: 1, notified: new Set() });
+  });
+
+  test("a notice that spent money is a new review with a block, and the ceiling reads its cost", async () => {
+    const w = world();
+    await run(w, new Refusing("rate_limit", "429", undefined, 0.25));
+    expect(w.states()[0]).toMatchObject({ status: "not-reviewed", reason: "rate_limit" });
+    expect(automaticSpend(w.gh, "o/r", 7).spent).toBeGreaterThan(0);
+  });
+
+  test("a run someone started by comment posts a notice with no signature, so it carries no block", async () => {
+    const w = world();
+    await run(w, new Refusing("billing", CREDIT), { WACHIMAN_TRIGGER: "comment" });
+    expect(w.states()).toEqual([null]);
+    expect(w.reviews[0].body).not.toContain("wachi:state");
+  });
+});
+
 describe("the base-update notice", () => {
   const LINE =
     "👮 **Wachiman** · No new changes to review: the branch was updated from `main` (`aaaaaaa` → `bbbbbbb`). The previous review still applies.";
@@ -448,5 +510,108 @@ describe("the base-update notice", () => {
     );
     // No spend lookup (the ceiling reads the bot's comments) and no edit of an earlier review.
     expect(calls.filter((c) => c.includes("/pulls/7/comments") || c.includes("-X PUT"))).toEqual([]);
+  });
+});
+
+describe("the state block on the base-update line (ADR 0060, AC1, AC2)", () => {
+  const earlierBody = (head: string, state: string | null) =>
+    [
+      "👮 **Wachiman** · review of the whole pull request: all 1 files reviewed.",
+      "<sub>x · $0.10</sub>",
+      SIGNATURE.auto,
+      SIGNATURE.review,
+      marker(head),
+      ...(state ? [state] : []),
+    ].join("\n\n");
+  const stateLine = (head: string, over: Record<string, unknown> = {}) =>
+    `<!-- wachi:state ${Buffer.from(
+      JSON.stringify({
+        format: "wachiman.review-state/1",
+        engine: "1.0.0",
+        head,
+        attempt: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        status: "complete",
+        reason: null,
+        findings: {
+          total: 3,
+          by_severity: { blocker: 0, fix: 1, consider: 1, info: 1 },
+          by_placement: { inline: 2, body: 1, outside_diff: 0 },
+          unthreaded_blocking: 0,
+        },
+        ...over,
+      }),
+    ).toString("base64url")} -->`;
+
+  async function rebaseOnto(prior: Item[], pushes: string[] = [HEAD2]) {
+    const w = world(prior);
+    const gh = w.gh;
+    const wrapped: GhFn = (args, input) => {
+      if (/compare\/(\S+?)\.\.\.(\S+)/.test(args.join(" "))) return JSON.stringify({ status: "ahead", files: [] });
+      return gh(args, input);
+    };
+    const deps: Deps = {
+      gh: wrapped,
+      provider: new Refusing("other", "must not be called"),
+      config: loadConfig({ WACHIMAN_VERIFY: "0", WACHIMAN_TRIGGER: "synchronize", WACHIMAN_MODEL: "claude-sonnet-5-5" }),
+      repoDir: mkdtempSync(join(tmpdir(), "notices-head-")),
+      log: () => {},
+      warn: () => {},
+      lineCounter: () => 100,
+      sleep: () => {},
+      engineVersion: "1.2.3",
+    };
+    for (const head of pushes) {
+      w.push(head);
+      await review(deps, "o/r", 7, []);
+    }
+    return w;
+  }
+
+  test("is complete, names the earlier head and repeats that head's counts", async () => {
+    const w = await rebaseOnto([{ id: 1, user: { login: BOT }, body: earlierBody(HEAD1, stateLine(HEAD1)) }]);
+    expect(w.reviews).toHaveLength(2);
+    expect(w.states()[1]).toMatchObject({
+      head: HEAD2,
+      engine: "1.2.3",
+      status: "complete",
+      reason: null,
+      carried_from: HEAD1,
+      findings: { total: 3, by_severity: { fix: 1, consider: 1, info: 1 }, by_placement: { inline: 2, body: 1, outside_diff: 0 } },
+    });
+    // The marker the next push reads is still there, ahead of the block.
+    expect(w.reviews[1].body).toMatch(new RegExp(`<!-- wachiman sha=${HEAD2} -->\\n\\n<!-- wachi:state [A-Za-z0-9_-]+ -->\\n\\n<!-- wachi:attempt`));
+  });
+
+  test("a chain of rebases keeps carrying the same counts, each from the head before", async () => {
+    const HEAD3 = "3333333" + "0".repeat(33);
+    const w = await rebaseOnto([{ id: 1, user: { login: BOT }, body: earlierBody(HEAD1, stateLine(HEAD1)) }], [HEAD2, HEAD3]);
+    expect(w.states().map((b) => b?.carried_from)).toEqual([undefined, HEAD1, HEAD2]);
+    expect(w.states()[2]?.findings).toEqual(w.states()[0]?.findings);
+    expect(w.states()[2]).toMatchObject({ head: HEAD3, status: "complete" });
+  });
+
+  test("a review from before the block has no counts to repeat: the line is posted with its marker and no block", async () => {
+    const w = await rebaseOnto([{ id: 1, user: { login: BOT }, body: earlierBody(HEAD1, null) }]);
+    expect(w.reviews).toHaveLength(2);
+    expect(w.states()[1]).toBeNull();
+    expect(w.reviews[1].body).toContain(marker(HEAD2));
+  });
+
+  test("a block in a review by someone else, or at another head, is not carried", async () => {
+    const stranger = { id: 1, user: { login: "someone" }, body: earlierBody(HEAD1, stateLine(HEAD1)) };
+    const bot = { id: 2, user: { login: BOT }, body: earlierBody(HEAD1, null) };
+    expect((await rebaseOnto([stranger, bot])).states()[2]).toBeNull();
+    const otherHead = { id: 3, user: { login: BOT }, body: earlierBody(HEAD1, stateLine("9".repeat(40))) };
+    expect((await rebaseOnto([otherHead])).states()[1]).toBeNull();
+  });
+
+  test("a scoped block never supplies the counts: it says nothing about the rest of the head", async () => {
+    const scoped = earlierBody(HEAD1, stateLine(HEAD1, { status: "scoped", scope: 1 }));
+    expect((await rebaseOnto([{ id: 1, user: { login: BOT }, body: scoped }])).states()[1]).toBeNull();
+  });
+
+  test("a forged block in the middle of a review body is not read", async () => {
+    const forged = `${earlierBody(HEAD1, null).replace("all 1 files reviewed.", `all 1 files reviewed. ${stateLine(HEAD1)}`)}`;
+    expect((await rebaseOnto([{ id: 1, user: { login: BOT }, body: forged }])).states()[1]).toBeNull();
   });
 });

@@ -32,6 +32,17 @@ import { spawnSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  buildStateBlock,
+  countFindings,
+  decodeStateBlock,
+  encodeStateBlock,
+  noFindings,
+  STATE_SOURCE,
+  type NotReviewedReason,
+  type ReviewStateBlock,
+  type ReviewStateDraft,
+} from "./review-state";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
@@ -256,6 +267,12 @@ export interface InlineComment {
 export interface Review {
   body: string;
   comments: InlineComment[];
+  /**
+   * What the review's `wachi:state` block says (ADR 0060). `postReview` adds the block, built from
+   * the comments it actually sends. Absent on a body that is not signed as a review: the block is
+   * trusted only in a signed footer, so a body without the signature gets none.
+   */
+  state?: ReviewStateDraft;
 }
 
 /** `force` is `--force` after `review`: spend past a spent limit. Only the operator's comment may honour it. */
@@ -918,6 +935,13 @@ function decodePartialState(sha: string, encoded: string): ReviewState | null {
  */
 const SIGNATURE_REVIEW_SOURCE = "<!-- wachi:review -->";
 const ATTEMPT_SOURCE = "<!-- wachi:attempt id=[0-9a-f-]{36} -->";
+/**
+ * The two optional lines that end a signed body, in this order: the state block (ADR 0060), then
+ * the attempt line. Every footer reader below ends with them, so a body reads the same with or
+ * without either. The state pattern is group-free here: the readers' capture groups stay where they were.
+ */
+const STATE_LINE = `(?:\\n\\n${STATE_SOURCE.replace("([A-Za-z0-9_-]+)", "[A-Za-z0-9_-]+")})?`;
+const ATTEMPT_LINE = `(?:\\n\\n${ATTEMPT_SOURCE})?`;
 const SIGNATURE_REPLY_SOURCE = "<!-- wachi:reply -->";
 const AUTO_SOURCE = "<!-- wachi:auto -->";
 const ANSWER_SOURCE = "<!-- wachi:answer -->";
@@ -964,7 +988,7 @@ export const neutralise = (text: string) =>
  * if some string slipped past `neutralise`.
  */
 const SIGNED_FOOTER = new RegExp(
-  `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n(?:${MARKER_SOURCE}|${PARTIAL_SOURCE})(?:\\n\\n${ATTEMPT_SOURCE})?$`,
+  `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n(?:${MARKER_SOURCE}|${PARTIAL_SOURCE})${STATE_LINE}${ATTEMPT_LINE}$`,
 );
 /** A review written before signatures existed ended with `</sub>`, a blank line and the marker. */
 const LEGACY_FOOTER = new RegExp(`</sub>\\n\\n${MARKER_SOURCE}$`);
@@ -976,7 +1000,7 @@ const LEGACY_FOOTER = new RegExp(`</sub>\\n\\n${MARKER_SOURCE}$`);
  * is never read; and the flag is an HTML comment, which `neutralise` defuses in model text.
  */
 const AUTO_FOOTER = new RegExp(
-  `(?:^|\\n\\n)<sub>[^\\n]*\\$(\\d+(?:\\.\\d+)?)</sub>\\n\\n${AUTO_SOURCE}\\n\\n(?:${SIGNATURE_REVIEW_SOURCE}(?:\\n\\n(?:${MARKER_SOURCE}|${PARTIAL_SOURCE}))?(?:\\n\\n${ATTEMPT_SOURCE})?|${SIGNATURE_REPLY_SOURCE})$`,
+  `(?:^|\\n\\n)<sub>[^\\n]*\\$(\\d+(?:\\.\\d+)?)</sub>\\n\\n${AUTO_SOURCE}\\n\\n(?:${SIGNATURE_REVIEW_SOURCE}(?:\\n\\n(?:${MARKER_SOURCE}|${PARTIAL_SOURCE}))?${STATE_LINE}${ATTEMPT_LINE}|${SIGNATURE_REPLY_SOURCE})$`,
 );
 
 /** The dollars an engine-signed body records as spent by an automatic run, or null when it records none. */
@@ -985,15 +1009,19 @@ export function readAutoCost(body: string) {
   return cost === undefined ? null : Number(cost);
 }
 
+/** The footer of the notice a spend limit posts; read by `readLimitNotice`, defined here so the state block's anchor can use it. */
+const LIMIT_SOURCE = "<!-- wachi:limit reason=(limit|weekly_limit|repository_limit) on=(\\d{4}-\\d{2}-\\d{2}) -->";
+export const limitFooter = (reason: string, on: string) => `<!-- wachi:limit reason=${reason} on=${on} -->`;
+
 /**
  * The notice an automatic run posts instead of reviewing once the pull request's ceiling is
  * spent. Its footer names the ceiling it was posted for, so a second notice for the same ceiling
  * is not posted; raising the ceiling makes the next notice a new one.
  */
 const CEILING_SOURCE = "<!-- wachi:ceiling usd=(\\d+\\.\\d{2}) -->";
-const ceilingFooter = (usd: number) => `<!-- wachi:ceiling usd=${usd.toFixed(2)} -->`;
+export const ceilingFooter = (usd: number) => `<!-- wachi:ceiling usd=${usd.toFixed(2)} -->`;
 const CEILING_NOTICE = new RegExp(
-  `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${CEILING_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`,
+  `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${CEILING_SOURCE}${STATE_LINE}${ATTEMPT_LINE}$`,
 );
 
 /**
@@ -1035,6 +1063,32 @@ export function readSignedState(body: string): ReviewState | null {
 /** The commit in a signed review's footer, complete or partial, or null when the body does not end with that footer. */
 export function readSignedMarker(body: string) {
   return readSignedState(body)?.sha ?? null;
+}
+
+/** The end of a signed body that holds a state block: the block, then the optional attempt line. */
+const STATE_TAIL = new RegExp(`\\n\\n${STATE_SOURCE}${ATTEMPT_LINE}$`);
+/**
+ * What must come right before the block: the review signature, alone or followed by the one marker
+ * the engine writes after it (the complete or partial marker, the ceiling or the limit notice's).
+ * A refusal notice ends its body with the signature, so it is the bare form.
+ */
+const STATE_ANCHOR = new RegExp(
+  `\\n\\n${SIGNATURE_REVIEW_SOURCE}(?:\\n\\n(?:${MARKER_SOURCE}|${PARTIAL_SOURCE}|${CEILING_SOURCE}|${LIMIT_SOURCE}))?$`,
+);
+
+/**
+ * The state block (ADR 0060) in the footer of a review the engine signed, or null. The same trust
+ * as every other footer marker: the block is the last line of the body (before the attempt line, if
+ * any) and the line before it is the review signature or the marker that follows it. Text anywhere
+ * else is never read, a model cannot write the comment (`neutralise`), and a block that does not
+ * validate against the schema is null. Whose review it is stays the caller's check, as for every
+ * reader here: a caller passes only the bodies of the engine's own author.
+ */
+export function readSignedStateBlock(body: string): ReviewStateBlock | null {
+  const text = body.trimEnd();
+  const tail = text.match(STATE_TAIL);
+  if (!tail || tail.index === undefined || !STATE_ANCHOR.test(text.slice(0, tail.index))) return null;
+  return decodeStateBlock(tail[1]);
 }
 
 /** The marker in the footer a review had before signatures existed (see `lastEngineMarker`). */
@@ -1289,6 +1343,8 @@ export function buildReview(input: {
   rebased?: boolean;
   /** Limited to `<mention> review <paths>`. */
   scoped: boolean;
+  /** With `scoped`: how many paths were asked for, written in the state block. */
+  scopePaths?: number;
   costUsd: number;
   /** What every call of this review used, shown in the footer's cost line. */
   usage?: TokenUsage;
@@ -1347,6 +1403,7 @@ export function buildReview(input: {
   const mention = input.mention ?? DEFAULT_MENTION;
   const commentable = new Map(files.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
   const comments: InlineComment[] = [];
+  const onLines: Finding[] = [];
   const outsideDiff: Finding[] = [];
   const preExisting: Finding[] = [];
   const inconclusive: Finding[] = [];
@@ -1366,6 +1423,7 @@ export function buildReview(input: {
     }
     const onLine = f.anchor ? f.anchor === "diff" : commentable.get(f.path)?.has(f.line);
     if (onLine) {
+      onLines.push(f);
       comments.push({
         path: f.path,
         line: f.line,
@@ -1502,6 +1560,13 @@ export function buildReview(input: {
         `${rest.length} file(s) not reviewed do not fit in a partial marker (more than ${MAX_PARTIAL_MARKER_CHARS} characters): none is written, so the next push reviews the whole pull request again.`,
       );
   }
+  // What the review says about itself, for the state block `postReview` writes (ADR 0060). Counted
+  // from the lists above, which are the review's own layout; the size fitting below cuts text, not findings.
+  const state: ReviewStateDraft = {
+    status: scoped ? "scoped" : notReviewed.length > 0 ? "partial" : "complete",
+    ...(scoped && input.scopePaths ? { scope: input.scopePaths } : {}),
+    ...countFindings(output.findings, onLines, outsideDiff),
+  };
   // A part another text replaces (or `null`, none) while the body is being fitted.
   const replaced = new Map<number, string | null>();
   const render = () =>
@@ -1530,10 +1595,10 @@ export function buildReview(input: {
     }
     body = render();
   }
-  if (body.length <= MAX_BODY_CHARS || notReviewed.length === 0) return { body, comments };
+  if (body.length <= MAX_BODY_CHARS || notReviewed.length === 0) return { body, comments, state };
   // Last, the list of unreviewed files is cut to whatever room the rest of the body left.
   const room = MAX_BODY_CHARS - (body.length - fullList.length);
-  return { body: body.replace(fullList, () => fitList(list, Math.max(room, 0))), comments };
+  return { body: body.replace(fullList, () => fitList(list, Math.max(room, 0))), comments, state };
 }
 
 /**
@@ -1578,7 +1643,7 @@ export function moveCommentsToBody(review: Review): Review {
   }
   if (kept.length < moved.length) kept.push(note(moved.length - kept.length));
   const section = `${heading}\n\n${kept.join("\n")}`;
-  return { body: `${head}\n\n${section}${tail}`, comments: [] };
+  return { body: `${head}\n\n${section}${tail}`, comments: [], ...(review.state ? { state: review.state } : {}) };
 }
 
 /**
@@ -2241,6 +2306,31 @@ export function lastEngineState(reviews: { body: string; created_at?: string }[]
   return found.filter((m): m is ReviewState => m !== null).at(-1) ?? null;
 }
 
+/**
+ * What a base-update line says about itself (ADR 0060): `complete`, carrying over the review at
+ * `from` and repeating its counts, because the previous review still applies. The counts come from
+ * the state block of the engine's latest own review at `from` (not a scoped one: it says nothing
+ * about the rest of the head). Null when that review has no block (it was posted by an engine from
+ * before the block): its counts are unknown, and the line is posted without a block so that a reader
+ * falls back to its marker instead of reading invented zero counts.
+ */
+export function baseUpdateState(gh: GhFn, repo: string, pr: number, from: string): ReviewStateDraft | null {
+  const earlier = botReviews(gh, repo, pr)
+    .filter((r) => r.body.includes(SIGNATURE.review))
+    .map((r) => readSignedStateBlock(r.body))
+    .filter((b): b is ReviewStateBlock => b !== null && b.head === from && (b.status === "complete" || b.status === "partial"))
+    .at(-1);
+  if (!earlier) return null;
+  const { findings } = earlier;
+  return {
+    status: "complete",
+    carriedFrom: from,
+    findings: { ...findings, by_severity: { ...findings.by_severity }, by_placement: { ...findings.by_placement } },
+    // The earlier review's threads are still where they were: nothing moves into the body.
+    threaded: { inline: 0, blocking: 0 },
+  };
+}
+
 /** The commit of the last review the engine wrote, complete or partial, among `github-actions[bot]` reviews in order. */
 export function lastEngineMarker(reviews: { body: string; created_at?: string }[]) {
   return lastEngineState(reviews)?.sha ?? null;
@@ -2743,6 +2833,7 @@ export function ceilingRoom(
       ceilingFooter(ceiling),
     ].join("\n\n"),
     comments: [],
+    state: { status: "not-reviewed", reason: "ceiling", findings: noFindings() },
   });
   return null;
 }
@@ -2802,9 +2893,7 @@ export const LEDGER_BYPASSED_NOTE = "<sub>Spend limit bypassed for this reposito
  * footer names the reason and the day or week it was posted for, so a second run in the same
  * period posts nothing.
  */
-const LIMIT_SOURCE = "<!-- wachi:limit reason=(limit|weekly_limit|repository_limit) on=(\\d{4}-\\d{2}-\\d{2}) -->";
-export const limitFooter = (reason: string, on: string) => `<!-- wachi:limit reason=${reason} on=${on} -->`;
-const LIMIT_NOTICE = new RegExp(`\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${LIMIT_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`);
+const LIMIT_NOTICE = new RegExp(`\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${LIMIT_SOURCE}${STATE_LINE}${ATTEMPT_LINE}$`);
 
 /** `reason:on` of a signed limit notice, or null when the body is not one. */
 export function readLimitNotice(body: string) {
@@ -2880,6 +2969,7 @@ function postLimitNotice(deps: Deps, repo: string, pr: number, headSha: string, 
       limitFooter(refusal.reason, on),
     ].join("\n\n"),
     comments: [],
+    state: { status: "not-reviewed", reason: "limit", findings: noFindings() },
   });
 }
 
@@ -3214,6 +3304,23 @@ export function baseUpdateNotice(o: { base?: string; from: string; to: string; v
   ].join("\n\n");
 }
 
+/**
+ * The body with its state block (ADR 0060) appended, or the body alone when the review has no
+ * draft. Built last, from the review as it is about to be sent: after the 422 fallback moves the
+ * inline comments into the body, the block counts them under `body`. The block never throws: a
+ * review is not lost for want of it.
+ */
+function withStateBlock(deps: Deps, headSha: string, attemptId: string, r: Review): string {
+  if (!r.state) return r.body;
+  try {
+    const block = buildStateBlock(r.state, { engine: deps.engineVersion ?? "unknown", head: headSha, attempt: attemptId }, r.comments.length);
+    return `${r.body}\n\n${encodeStateBlock(block)}`;
+  } catch (error) {
+    deps.warn(`Could not write the review state block; posting the review without it. ${error}`);
+    return r.body;
+  }
+}
+
 /** Posts the review. Returns its address when GitHub gave one (the description block links to it). */
 export function postReview(deps: Deps, repo: string, pr: number, headSha: string, review: Review): string | undefined {
   if (deps.config.dryRun) {
@@ -3232,7 +3339,7 @@ export function postReview(deps: Deps, repo: string, pr: number, headSha: string
       JSON.stringify({
         commit_id: headSha,
         event: "COMMENT",
-        body: `${r.body}\n\n${attemptFooter(attemptId)}`,
+        body: `${withStateBlock(deps, headSha, attemptId, r)}\n\n${attemptFooter(attemptId)}`,
         comments: r.comments,
       }),
     );
@@ -3286,7 +3393,7 @@ export const refusalMarker = (kind: RefusalKind) => `<!-- wachi:refusal kind=${k
  * text that merely contains the marker, or a signature somewhere in the middle, never matches.
  */
 const REFUSAL_NOTICE = new RegExp(
-  `\\n\\n<!-- wachi:refusal kind=(?:billing|auth|rate_limit) -->\\n\\n[\\s\\S]*\\n\\n${SIGNATURE_REVIEW_SOURCE}(?:\\n\\n${ATTEMPT_SOURCE})?$`,
+  `\\n\\n<!-- wachi:refusal kind=(?:billing|auth|rate_limit) -->\\n\\n[\\s\\S]*\\n\\n${SIGNATURE_REVIEW_SOURCE}${STATE_LINE}${ATTEMPT_LINE}$`,
 );
 
 const RERUN = 'the "Wachiman review" job in the Actions tab, or push again';
@@ -3386,7 +3493,7 @@ export function postRefusalReview(deps: Deps, repo: string, pr: number, headSha:
       try {
         const answer = deps.gh(
           ["api", "-X", "PUT", `repos/${repo}/pulls/${pr}/reviews/${latest.id}`, "--input", "-"],
-          JSON.stringify({ body: review.body }),
+          JSON.stringify({ body: withStateBlock(deps, headSha, crypto.randomUUID(), review) }),
         );
         return reviewUrlOf(answer);
       } catch (error) {
@@ -4340,6 +4447,8 @@ export function githubReview(
     /** What the automatic runs before this one spent, for the footer's running total. */
     priorSpend?: { spent: number; runs: number };
     scoped: boolean;
+    /** The number of paths a scoped request named. */
+    scopePaths?: number;
     mention: string;
     automatic: boolean;
     /** The ledger's footer lines, when the run has any. */
@@ -4372,6 +4481,7 @@ export function githubReview(
     priorSpend: github.priorSpend,
     unreviewable: result.coverage.unreviewable,
     scoped: github.scoped,
+    ...(github.scopePaths ? { scopePaths: github.scopePaths } : {}),
     costUsd: result.execution.costUsdEstimate,
     usage: result.execution.usage,
     operation: github.since ? "re-review" : "review",
@@ -4466,9 +4576,11 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       const upToDate = (why: string) => {
         deps.log(why);
         // The marker moves so that the next push is compared with this head, not with the old one.
+        const carried = baseUpdateState(gh, repo, pr, last);
         postReview(deps, repo, pr, headSha, {
           body: baseUpdateNotice({ base: meta.baseRefName, from: last, to: headSha, version: deps.engineVersion }, marker(headSha)),
           comments: [],
+          ...(carried ? { state: carried } : {}),
         });
       };
       if (delta.kind === "unchanged" && carried.length === 0) {
@@ -4527,9 +4639,11 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
           `The last reviewed commit ${short(last)} is not behind the head (${status}), but the pull request's changes are the same${delta.removed.length > 0 ? ` (no longer in it: ${delta.removed.join(", ")})` : ""}; rebased with no content change, nothing to review.`,
         );
         // The marker moves so that the next push is compared with this head, not with the old one.
+        const carried = baseUpdateState(gh, repo, pr, last);
         postReview(deps, repo, pr, headSha, {
           body: baseUpdateNotice({ base: meta.baseRefName, from: last, to: headSha, version: deps.engineVersion }, marker(headSha)),
           comments: [],
+          ...(carried ? { state: carried } : {}),
         });
         return;
       } else if (delta.kind === "changed") {
@@ -4576,6 +4690,8 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
         ...(paths.length === 0 ? [marker(headSha)] : []),
       ].join("\n\n"),
       comments: [],
+      // Nothing was sent to a model and nothing was found. A scoped request read nothing of the rest of the head.
+      state: { status: paths.length === 0 ? "complete" : "scoped", scope: "binary_only", findings: noFindings() },
     });
     return;
   }
@@ -4652,7 +4768,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     // A failed automatic run still spent money: its notice carries the cost line the ceiling sums.
     // A manual run keeps its receipt and forced/bypass lines, but not `SIGNATURE.auto`: the ceiling does not count it.
     // `replaceable` is for a $0 refusal only: it may edit the earlier refusal notice in place.
-    const sendNotice = (blocks: string[], replaceable = false) => {
+    const sendNotice = (blocks: string[], replaceable = false, reason?: NotReviewedReason) => {
       const body = isAutomatic(config.trigger)
         ? [
             ...blocks,
@@ -4670,7 +4786,10 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
             SIGNATURE.review,
           ].join("\n\n")
         : [...blocks, ...(receiptLine ? [receiptLine] : [])].join("\n\n");
-      return (replaceable ? postRefusalReview : postReview)(deps, repo, pr, headSha, { body, comments: [] });
+      // Only a body signed as a review (an automatic run's) can carry a block the readers trust.
+      const state: ReviewStateDraft | undefined =
+        reason && isAutomatic(config.trigger) ? { status: "not-reviewed", reason, findings: noFindings() } : undefined;
+      return (replaceable ? postRefusalReview : postReview)(deps, repo, pr, headSha, { body, comments: [], ...(state ? { state } : {}) });
     };
     const spentNotice = (text: string) => sendNotice([branded(text)]);
     const { rejection, stop } = result.execution;
@@ -4689,7 +4808,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       // carries the marker. A manual run's body has no signature and no cost line, so replacing an
       // automatic notice with it would erase that run from the ceiling.
       const free = spent === 0 && isAutomatic(config.trigger);
-      sendNotice([branded(headline), table, ...(free ? [refusalMarker(refused.kind)] : [])], free);
+      sendNotice([branded(headline), table, ...(free ? [refusalMarker(refused.kind)] : [])], free, refused.kind);
       if (config.onProviderUnavailable === "fail") {
         throw new Error(`Not reviewed: the provider rejected the call (${refused.kind}): ${detail || "no error text"}`);
       }
@@ -4725,6 +4844,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     warn: deps.warn,
     priorSpend: prior,
     scoped: paths.length > 0,
+    scopePaths: paths.length,
     mention: config.mention,
     automatic,
     receiptLine,
