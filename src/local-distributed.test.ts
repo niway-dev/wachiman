@@ -369,16 +369,27 @@ describe("wachiman local --distributed-repo: the result", () => {
     const s = site({ manifest: true, sibling: true });
     git(s.webSite, "reset", "-q", "--hard", "main");
     commit(s.webSite, { [OTHER]: "# readme\n\nOnly this.\n" }, "readme only");
-    const result = json(run(s, ["--distributed-repo", "--format", "json"]));
+    const result = json(run(s, ["--distributed-repo", "--format", "json", "--result-version", "2"]));
     expect(result.siblings).toEqual([]);
     expect(result.workspaceContractsApplied).toEqual([]);
     expect(result.noWorkspaceContractApplied).toBe(true);
   });
 
-  test("--result-version 1 with the mode is exit 2 before any call: /1 cannot carry the label", () => {
+  test("a run that read no sibling and applied no contract writes /1 by default, with none of the new fields", () => {
+    const s = site({ manifest: true, sibling: true });
+    git(s.webSite, "reset", "-q", "--hard", "main");
+    commit(s.webSite, { [OTHER]: "# readme\n\nOnly this.\n" }, "readme only");
+    const result = json(run(s, ["--distributed-repo", "--format", "json"]));
+    expect(result.format).toBe("wachiman.review-result/1");
+    for (const key of NEW_KEYS) expect(result, key).not.toHaveProperty(key);
+    expect(json(run(s, ["--distributed-repo", "--format", "json", "--result-version", "1"])).format).toBe("wachiman.review-result/1");
+  });
+
+  test("--result-version 1 when a sibling is read is exit 2 before any call, and names the way out", () => {
     const r = run(site({ manifest: true, sibling: true }), ["--distributed-repo", "--format", "json", "--result-version", "1"]);
     expect(r.code).toBe(2);
     expect(r.stderr).toMatch(/distributed-repo.*result \/1|result \/1.*distributed-repo/s);
+    expect(r.stderr).toContain("--no-distributed-repo");
     expect(r.calls).toHaveLength(0);
     expect(r.stdout).toBe("");
   });

@@ -31,7 +31,7 @@ import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, r
 import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { personalSourceFor } from "./memory/personal";
-import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
+import { assertReviewInputFormat, NO_V1_DISTRIBUTED, REVIEW_INPUT_V2 } from "./formats";
 import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parsePathRules, wantsRepoSettings, type RepoSettings } from "./repo-settings";
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
 import { historyRoot, historySettings, saveRun } from "./history";
@@ -546,10 +546,6 @@ export async function runLocal(
     git: spawnGit,
     warn: io.stderr,
   });
-  // A distributed-repo result carries the siblings and the private-context label, which /1 has no place for.
-  if (distributed.on && args.resultVersion === 1) {
-    throw new UsageError("A distributed-repo review has no result /1: it carries its siblings and a private-context label that /1 cannot hold. Use --result-version 2, or leave it out.");
-  }
   if (distributed.on) {
     io.stderr(
       distributed.reason === "default"
@@ -643,6 +639,8 @@ export async function runLocal(
       const prepared = prepareDistributed(distributed, { files: kept, headSha: input.change.head.sha, siblings: args.siblings ?? [], warn: io.stderr });
       releaseSiblings = prepared.release;
       siblingContext = prepared.context;
+      // A result that carries siblings or applied contracts has no /1 (the label and the siblings have no place there). Known here, before any call.
+      if (args.resultVersion === 1 && (siblingContext.siblings.length > 0 || siblingContext.contracts.length > 0)) throw new UsageError(NO_V1_DISTRIBUTED);
       for (const line of distributedLines(prepared.context)) io.stderr(line);
     }
 
@@ -711,7 +709,7 @@ export async function runLocal(
       args.format === "json"
         ? renderJson(
             result,
-            args.resultVersion ?? (input.change.kind === "working-tree" || siblingContext ? 2 : 1),
+            args.resultVersion ?? (input.change.kind === "working-tree" || result.siblings?.length || result.workspaceContractsApplied?.length ? 2 : 1),
             // ADR 0034: with history on, a `/2` finding names itself by the id `history --verdict` takes.
             annotation ? result.findings.map((_, i) => annotation!.byIndex.get(i)?.id) : undefined,
           )

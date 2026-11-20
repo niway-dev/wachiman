@@ -358,6 +358,10 @@ function verificationNotice(result: ReviewResultV2, v: ResultVerificationV2) {
   return `Verification (not carried in result /1): ${head}; ${v.dropped} dropped, ${v.inconclusive} inconclusive, ${preExisting} pre-existing; $${v.costUsd.toFixed(2)}.`;
 }
 
+/** The exit-2 text for a result /1 asked of a run that read a sibling or applied a contract. */
+export const NO_V1_DISTRIBUTED =
+  "A distributed-repo review that read a sibling or applied a contract has no result /1: it carries its siblings and a private-context label that /1 cannot hold. Use --result-version 2, leave it out, or pass --no-distributed-repo.";
+
 /**
  * The `/1` form of a result, for committed-change JSON (ADR 0030). Pure. It keeps the surviving
  * findings and every `/1` field, drops what `/1` has no place for (the account, the root
@@ -370,11 +374,9 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
     throw new UsageError("A working-tree review has no result /1: its head is a tree id, not a commit. Use --result-version 2.");
   }
   // /1 has no place for the siblings or the private-context label, and dropping the label would hide it.
-  if (result.siblings !== undefined) {
-    throw new UsageError("A distributed-repo review has no result /1: it carries its siblings and a private-context label that /1 cannot hold. Use --result-version 2.");
-  }
+  if (result.siblings?.length || result.workspaceContractsApplied?.length) throw new UsageError(NO_V1_DISTRIBUTED);
   const { account: _account, ...provider } = result.provider;
-  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, muted: _muted, ...rest } = result;
+  const { siblings: _siblings, workspaceContractsApplied: _applied, noWorkspaceContractApplied: _none, privateContext: _private, removedSiblingReferences: _removed, verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, muted: _muted, ...rest } = result;
   return {
     ...rest,
     format: REVIEW_RESULT_V1,
