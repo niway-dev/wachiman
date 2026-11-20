@@ -114,6 +114,21 @@ describe("references into a sibling", () => {
   });
 });
 
+describe("a citation into a sibling", () => {
+  test.each(["terminal", "markdown"] as const)("%s: is printed as member@sha7:path:line, not as a path of the reviewed repository", (kind) => {
+    const r = distributed();
+    const f = r.findings.find((x) => x.verification?.status === "supported")!;
+    f.verification!.checked = [
+      { snapshot: "head", path: "apps/api/src/main/session/store.ts", line: 2 },
+      { snapshot: "head", path: "Assets/palette.json", line: 2, member: "desktop-app", sha: "3f2a9c1".padEnd(40, "0") },
+    ];
+    const text = outputs(r).find(([k]) => k === kind)![1];
+    expect(text).toContain("desktop-app@3f2a9c1:Assets/palette.json:2");
+    expect(text).toContain("apps/api/src/main/session/store.ts:2");
+    expect(text).not.toMatch(/(^|[^@:\w])Assets\/palette\.json:2/);
+  });
+});
+
 describe("a review without the mode", () => {
   test.each(["terminal", "markdown"] as const)("%s: prints none of it", (kind) => {
     const text = outputs(plain()).find(([k]) => k === kind)![1];

@@ -23,7 +23,13 @@ export const plainLabel = (f: Reported) =>
 /** `Should · 🟠🐛 **Fix · bug: <title> (confidence high, supported)**`: the GitHub label plus the verdict, for a report. */
 export const markdownLabel = (f: Reported) => label(f, statusOf(f));
 
-const cite = (c: Citation) => neutralise(`${c.snapshot === "base" ? "base:" : ""}${c.path}:${c.line}`);
+/** `path:line` (with `base:` for the base commit); a line of a sibling is `member@sha7:path:line`, as the model writes it in text. */
+const cite = (c: Citation) =>
+  neutralise(
+    c.member !== undefined && c.sha !== undefined
+      ? `${c.member}@${sha7(c.sha)}:${c.path}:${c.line}`
+      : `${c.snapshot === "base" ? "base:" : ""}${c.path}:${c.line}`,
+  );
 
 /** One part of what verification says about a finding: a name, a sentence, and the lines it rests on. */
 export interface Note {
