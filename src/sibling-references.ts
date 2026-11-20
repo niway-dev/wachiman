@@ -103,7 +103,7 @@ function referenceChecker(siblings: readonly ResolvedSibling[]) {
     const before = removed;
     const reason = f.verification ? settle(f.verification.reason) : undefined;
     const originReason = f.originReason !== undefined ? settle(f.originReason) : undefined;
-    if (title === f.title && body === f.body && references.length === 0 && removed === before) return f;
+    if (title === f.title && body === f.body && reason === f.verification?.reason && originReason === f.originReason && references.length === 0 && removed === before) return f;
     return {
       ...f,
       title,

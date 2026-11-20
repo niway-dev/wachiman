@@ -273,6 +273,15 @@ describe("a snapshot's temporary directory in the model's text", () => {
     expect(out.riskFacts[0]).toEqual({ why: "r desktop-app@3f2a9c1:a" });
   });
 
+  test("is rewritten in a finding's verifier reason and origin reason", () => {
+    const one = sibling();
+    const dir = one.dir!;
+    const f = { ...finding("plain body"), verification: { reason: `read ${dir}/Assets/palette.json` }, originReason: `old in ${dir}/x` };
+    const out = checkSiblingReferences([one], [f]).findings[0]!;
+    expect(out.verification!.reason).toBe("read desktop-app@3f2a9c1:Assets/palette.json");
+    expect(out.originReason).toBe("old in desktop-app@3f2a9c1:x");
+  });
+
   test("a directory that merely starts like another one is left alone", () => {
     const one = sibling();
     expect(check(`${one.dir}-other/x`, [one]).finding.body).toBe(`${one.dir}-other/x`);
