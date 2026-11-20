@@ -374,11 +374,13 @@ read the others.
 - **Turn it on** for one run with `--distributed-repo`, or for every run with the per-user default
   in `~/.wachiman/workspaces.json`. **Turn it off** for one run with `--no-distributed-repo`.
   `--sibling <dir>` also reads one named member in full. Without any of these, no sibling is read.
-- **Nothing is fetched.** Siblings are read as they are on disk, at their current commit, as
-  read-only snapshots. A member that is not cloned is skipped.
+- **Nothing is fetched.** Each sibling is read from its clone on disk, at the commit its version
+  rule picks (`pinned`, `local` or `tip`; see the manifest format), as a read-only snapshot of
+  committed files. A member that is not cloned is skipped and named.
 - **The report shows** one line per sibling with the member, the contract rule and the commit SHA.
-  A contract that does not apply to the change says "no contract applied". A member that is not on
-  disk says "source of truth not cloned: not checked". If a non-public sibling was read, the report
+  When no contract applied, the report says "No workspace contract applied to this change." A
+  member that is not cloned says "not cloned: not checked", and "source of truth not cloned: not
+  checked" when it holds the source of truth. If a non-public sibling was read, the report
   ends with the private-context line: do not paste its text into a public place.
 - **References into a sibling** read `member@sha7:path:line`, for example
   `web-site@1a2b3c4:src/api.ts:12`. A finding keeps such a reference only if that line exists in
