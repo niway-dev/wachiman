@@ -93,6 +93,7 @@ describe("AC7: the rule table, row by row, and its exit code", () => {
     { row: 2, world: { heads: [HEAD, OLD], reviews: [rev(complete(HEAD), 1)] }, next: "wait", why: "head_moved" },
     { row: 3, world: { checks: [{ name: "Wachiman review", status: "queued" }] }, next: "wait", why: "review_running" },
     { row: 3, world: { checks: [{ name: "Wachiman review", status: "in_progress" }] }, next: "wait", why: "review_running" },
+    { row: 3, world: { checks: [{ name: "review / Wachiman review", status: "in_progress" }] }, next: "wait", why: "review_running" },
     { row: 4, world: {}, next: "wait", why: "review_not_started" },
     { row: 4, world: { checks: [{ name: "Some other job", status: "completed" }] }, next: "wait", why: "review_not_started" },
     { row: 5, world: { reviews: [rev(notice(HEAD, "billing"), 1)] }, next: "blocked", why: "billing" },

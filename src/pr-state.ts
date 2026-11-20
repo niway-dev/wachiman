@@ -125,7 +125,8 @@ function readOwnReviews(gh: GhFn, repo: string, pr: number): OwnReview[] {
 function readCheck(gh: GhFn, repo: string, head: string): "none" | "running" | "finished" {
   const jq = ".check_runs[] | {name, status} | @json";
   const runs = jsonLines<{ name?: string; status?: string }>(gh(["api", "--paginate", `repos/${repo}/commits/${head}/check-runs`, "--jq", jq])).filter(
-    (r) => r.name === REVIEW_CHECK_NAME,
+    // A caller workflow that calls the reusable one reports the job as `<caller job> / Wachiman review`.
+    (r) => typeof r.name === "string" && (r.name === REVIEW_CHECK_NAME || r.name.endsWith(` / ${REVIEW_CHECK_NAME}`)),
   );
   if (runs.length === 0) return "none";
   return runs.some((r) => r.status !== "completed") ? "running" : "finished";
