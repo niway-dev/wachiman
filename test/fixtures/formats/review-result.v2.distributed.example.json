@@ -388,6 +388,9 @@
       "contracts": [
         "brand-palette"
       ],
+      "sourceOfTruthOf": [
+        "brand-palette"
+      ],
       "byHand": false,
       "rule": "tip",
       "ruleSource": "user-file",

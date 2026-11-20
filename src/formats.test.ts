@@ -198,6 +198,7 @@ describe("review result /2", () => {
         ["brand-assets", "not-cloned"],
       ]);
       expect(result.privateContext).toEqual({ members: ["desktop-app"] });
+      expect(result.siblings![0]!.sourceOfTruthOf).toEqual(["brand-palette"]);
       expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(result)))).toEqual([]);
       for (const key of ["siblings", "workspaceContractsApplied", "noWorkspaceContractApplied", "privateContext", "removedSiblingReferences"]) {
         expect(JSON.stringify(fixtures.resultV2), key).not.toContain(`"${key}"`);
