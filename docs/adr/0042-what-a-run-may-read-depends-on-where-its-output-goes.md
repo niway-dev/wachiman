@@ -1,8 +1,8 @@
 # ADR 0042: What a run may read depends on where its output goes
 
-- **Status:** proposed 2026-11-13. **Not implemented.** Phase 1 of the
-  [distributed-repo review design](../specs/2026-11-13-distributed-repo-review-design.md) builds it,
-  after phase 0. Keeps [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
+- **Status:** proposed 2026-11-13, accepted 2026-11-19. **Implemented** by phase 1 of the
+  [distributed-repo review design](../specs/2026-11-13-distributed-repo-review-design.md), local only
+  and behind the explicit mode. Keeps [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
   decision 5 true: local mode makes no GitHub request and sends no telemetry.
 - **Date:** 2026-11-13
 - **Spec:** [Distributed-repo review](../specs/2026-11-13-distributed-repo-review-design.md),
