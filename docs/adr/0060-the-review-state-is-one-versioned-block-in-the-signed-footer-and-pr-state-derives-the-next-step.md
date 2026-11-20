@@ -50,7 +50,7 @@ owned by the party that writes the markers.
    closed, 20 act, 21 wait, 22 blocked, 1 GitHub error, 2 usage.
 7. `pr-state` covers Wachiman's own review only. Other reviewers, CI and merge conflicts are not
    read.
-8. `--wait` polls one GraphQL query per interval until `next` is not `wait` or a timeout under ten
+8. `--wait` makes one state read per interval until `next` is not `wait` or a timeout under ten
    minutes passes. It may use `gh event listen` when available, and always re-reads the state
    after an event.
 

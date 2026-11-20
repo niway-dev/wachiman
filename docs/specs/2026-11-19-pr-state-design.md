@@ -54,7 +54,7 @@ flowchart TD
 | 5 | `pr-state` stores nothing; it derives every field from GitHub on each call | A local copy goes stale with every push from another machine and cannot be the authority on a thread | 0060 |
 | 6 | `next` comes from a fixed, ordered rule table in code; the model is never asked | Determinism is the point of the command | 0060 |
 | 7 | Exit codes 0 (done or closed), 20 (act), 21 (wait), 22 (blocked), 1 (GitHub error), 2 (usage); 20-22 are new | 3, 10, 11 and 130 already mean other things in the CLI | 0060 |
-| 8 | `--wait` polls one GraphQL query at an interval, with a timeout that defaults under ten minutes; it may use `gh event listen` when that command exists and works, and always re-reads state after an event | `gh event listen` is a preview behind a waitlist, drops events during a disconnect and reports nothing that happened before it started | 0060 |
+| 8 | `--wait` makes one state read per interval (one GraphQL query plus pagination and the head check), with a timeout that defaults under ten minutes; it may use `gh event listen` when that command exists and works, and always re-reads state after an event | `gh event listen` is a preview behind a waitlist, drops events during a disconnect and reports nothing that happened before it started | 0060 |
 | 9 | `pr-state` never posts, resolves, replies or edits code | Same posture as the loop (ADR 0034) and thread authority (ADR 0008) | reuses 0034, 0008 |
 
 ## Layers
@@ -118,7 +118,7 @@ flowchart TD
 - [ ] **AC11** Reviews posted by an engine without the block are read from `wachiman sha=` and `wachi:partial` with `source: legacy-markers`; a legacy notice without a sha yields `review.state: none`, never `complete`.
 - [ ] **AC12** Threads and their comments are read with pagination, so an unresolved finding thread beyond the first 100 threads or comments is reported (fake-GitHub test with 150 threads).
 - [ ] **AC13** `pr-state --wait` returns as soon as `next` is not `wait`; on timeout it prints the last state with `why: timeout` and exits 21; the default timeout is under 10 minutes and the default interval at least 20 seconds.
-- [ ] **AC14** `--wait` makes one state read at start and one after every event or interval, never more than one GraphQL query per interval (counted in a fake-GitHub test).
+- [ ] **AC14** `--wait` makes one state read per interval: one GraphQL query, plus extra pages only when threads or comments exceed 100, plus the end-of-read head check of AC9; never a second state read inside an interval (counted in a fake-GitHub test).
 - [ ] **AC15** When `gh event listen` is missing or fails, `--wait` falls back to polling and says so once on stderr; stdout stays a single JSON object.
 
 ---
