@@ -1240,6 +1240,14 @@
           "minLength": 40,
           "description": "With `member`: the full commit of the sibling snapshot the line was checked in."
         }
+      },
+      "dependentRequired": {
+        "member": [
+          "sha"
+        ],
+        "sha": [
+          "member"
+        ]
       }
     },
     "FindingVerification": {

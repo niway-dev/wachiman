@@ -88,6 +88,15 @@ describe("review result /2", () => {
     const lineZero = clone();
     lineZero.findings[0].verification.checked[0].line = 0;
     expect(validate(resultSchemaV2, lineZero)).toEqual(["$.findings[0].verification.checked[0].line: 0 is below 1"]);
+    const withMember = clone();
+    const cited = withMember.findings[0].verification.checked[0] as Record<string, unknown>;
+    cited.member = "desktop-app";
+    expect(validate(resultSchemaV2, withMember)).toEqual(['$.findings[0].verification.checked[0]: "member" requires "sha"']);
+    delete cited.member;
+    cited.sha = "3f2a9c1".padEnd(40, "0");
+    expect(validate(resultSchemaV2, withMember)).toEqual(['$.findings[0].verification.checked[0]: "sha" requires "member"']);
+    cited.member = "desktop-app";
+    expect(validate(resultSchemaV2, withMember)).toEqual([]);
     const noSnapshot = clone();
     (noSnapshot.findings[0].verification.checked[0] as { snapshot: string }).snapshot = "tree";
     expect(validate(resultSchemaV2, noSnapshot)).toEqual(['$.findings[0].verification.checked[0].snapshot: "tree" is not one of ["base","head"]']);

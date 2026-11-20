@@ -13,6 +13,7 @@ const CHECKED = new Set([
   "minLength",
   "properties",
   "required",
+  "dependentRequired",
   "additionalProperties",
   "items",
   "oneOf",
@@ -92,6 +93,12 @@ export function validate(schema: Schema, value: unknown, rootSchema: Schema = sc
     const properties = (schema.properties ?? {}) as Record<string, Schema>;
     for (const name of (schema.required ?? []) as string[]) {
       if (object[name] === undefined) problems.push(`${path}: missing required "${name}"`);
+    }
+    for (const [name, needed] of Object.entries((schema.dependentRequired ?? {}) as Record<string, string[]>)) {
+      if (object[name] === undefined) continue;
+      for (const other of needed) {
+        if (object[other] === undefined) problems.push(`${path}: "${name}" requires "${other}"`);
+      }
     }
     for (const [name, item] of Object.entries(object)) {
       if (item === undefined) continue;
