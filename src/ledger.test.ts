@@ -145,25 +145,16 @@ describe("reserve", () => {
         expect(message).toContain(`https://ledger.example answered HTTP ${status}`);
         expect(message).not.toContain("Just a moment");
         if (body.startsWith("<") || body === "") expect(message).toContain("firewall or bot challenge");
+        else expect(message).not.toContain("firewall");
       }
     }
-  });
-
-  test("a JSON refusal with a reason the client does not know is unreachable too, and the message does not blame a firewall", () => {
-    let thrown: unknown;
-    try {
-      reserve("https://ledger.example", "tok", req, fakeCurl(402, JSON.stringify({ reason: "mystery" })).curl);
-    } catch (e) {
-      thrown = e;
-    }
-    expect(thrown).toBeInstanceOf(LedgerUnavailable);
-    expect((thrown as Error).message).toContain("refusal reason this client does not know");
-    expect((thrown as Error).message).not.toContain("firewall");
   });
 
   test("settle and record read a refusal status without a ledger body as unreachable too", () => {
     expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(403, "<html>").curl)).toThrow(LedgerUnavailable);
     expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(401, "").curl)).toThrow(LedgerUnavailable);
+    expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(401, JSON.stringify({ reason: "unauthorized" })).curl)).toThrow(/\(unauthorized\) on \/v1\/settle/);
+    expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(404, "<html>").curl)).toThrow(LedgerBadAnswer);
   });
 
   test("the reason in the body decides the refusal", () => {

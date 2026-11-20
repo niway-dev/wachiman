@@ -145,10 +145,14 @@ const REFUSAL_STATUSES: ReadonlySet<number> = new Set([401, 402, 403]);
  */
 function unusable(ledgerUrl: string, route: string, status: number, what: string, body = ""): Error {
   if (REFUSAL_STATUSES.has(status)) {
+    const json = parseObject(body);
+    const known = REASONS.find((r) => r === json?.reason);
     return new LedgerUnavailable(
-      parseObject(body)
-        ? `${base(ledgerUrl)} answered HTTP ${status} with a refusal reason this client does not know, so the answer cannot be used (a newer or different ledger?).`
-        : `${base(ledgerUrl)} answered HTTP ${status} with a page that did not come from the ledger, which usually means a firewall or bot challenge in front of it.`,
+      known
+        ? `${base(ledgerUrl)} answered HTTP ${status} (${known}) on ${route}, which does not take a refusal, so the answer cannot be used.`
+        : json
+          ? `${base(ledgerUrl)} answered HTTP ${status} with a refusal reason this client does not know, so the answer cannot be used (a newer or different ledger?).`
+          : `${base(ledgerUrl)} answered HTTP ${status} with a page that did not come from the ledger, which usually means a firewall or bot challenge in front of it.`,
     );
   }
   return isOutage(status)
