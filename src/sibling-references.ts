@@ -134,8 +134,8 @@ export function checkSiblingReferences<T extends FindingText>(
   return { findings: out, removed: check.removed(), texts: settled };
 }
 
-/** Every field of a contract entry that the model wrote as prose (the rest are paths and a status; `evidence_checked` is the engine's). */
-const CONTRACT_TEXT = ["action", "equivalent_path", "before_after", "visible_effect", "failure_mode", "open_question"] as const;
+/** Every field of a contract entry that the model wrote as prose (the rest are paths and a status; `evidence_checked` is the engine's, set before this runs, so rewriting `evidence` here never changes it). */
+const CONTRACT_TEXT = ["action", "equivalent_path", "before_after", "visible_effect", "failure_mode", "open_question", "evidence", "candidates"] as const;
 
 /**
  * The model-written text of a whole result, each field checked as a finding's is: the findings, the
@@ -146,7 +146,7 @@ const CONTRACT_TEXT = ["action", "equivalent_path", "before_after", "visible_eff
  */
 export function settleModelText<
   F extends FindingText,
-  C extends Partial<Record<(typeof CONTRACT_TEXT)[number], string>>,
+  C extends Partial<Record<(typeof CONTRACT_TEXT)[number], string | string[]>>,
   W extends { why: string },
   V extends { entries: { title: string; reason: string; originReason?: string }[] },
   M extends { title: string; reason: string },
@@ -159,7 +159,11 @@ export function settleModelText<
   const check = referenceChecker(siblings);
   const some = <T extends object, K extends keyof T>(item: T, keys: readonly K[]): T => {
     const next = { ...item };
-    for (const key of keys) if (typeof item[key] === "string") next[key] = check.settle(item[key] as string) as T[K];
+    for (const key of keys) {
+      const value = item[key];
+      if (typeof value === "string") next[key] = check.settle(value) as T[K];
+      else if (Array.isArray(value)) next[key] = value.map((v) => (typeof v === "string" ? check.settle(v) : v)) as T[K];
+    }
     return next;
   };
   const findings = input.findings.map(check.finding);

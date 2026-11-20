@@ -282,6 +282,28 @@ describe("a snapshot's temporary directory in the model's text", () => {
     expect(out.originReason).toBe("old in desktop-app@3f2a9c1:x");
   });
 
+  test("is rewritten in a contract's evidence and candidates, and a valid head citation is left alone", () => {
+    const one = sibling();
+    const dir = one.dir!;
+    const out = settleModelText([one], {
+      findings: [],
+      summary: "",
+      contracts: [{ action: "a", evidence: [`${dir}/Assets/palette.json:2`, "src/a.ts:12", `x ${dir}/y:99`], candidates: [`${dir}/z`], evidence_checked: true } as unknown as Record<string, string>],
+      riskFacts: [],
+      judgement: [],
+      muted: [],
+      threadReplies: [],
+      skipped: [],
+    });
+    expect(out.contracts[0]).toEqual({
+      action: "a",
+      evidence: ["desktop-app@3f2a9c1:Assets/palette.json:2", "src/a.ts:12", `x ${REMOVED_REFERENCE}`],
+      candidates: ["desktop-app@3f2a9c1:z"],
+      evidence_checked: true,
+    });
+    expect(out.removed).toBe(1);
+  });
+
   test("a directory that merely starts like another one is left alone", () => {
     const one = sibling();
     expect(check(`${one.dir}-other/x`, [one]).finding.body).toBe(`${one.dir}-other/x`);
