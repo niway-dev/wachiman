@@ -5,6 +5,32 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.17.0](https://github.com/niway-dev/wachiman/compare/v1.16.0...v1.17.0) (2026-11-20)
+
+
+### Features
+
+* a calibrated finding priority (Must, Should, Could, FYI), layer 1 ([#267](https://github.com/niway-dev/wachiman/issues/267)) ([2341d63](https://github.com/niway-dev/wachiman/commit/2341d631fb7c3c6236b3451742fdb0e2c4233b69))
+* **init:** let a coding agent install Wachiman with init --json, a local dry run and an agent guide ([#254](https://github.com/niway-dev/wachiman/issues/254)) ([91afc35](https://github.com/niway-dev/wachiman/commit/91afc35aecffe94e75c9373c377f99a9c9d393ca))
+* let a repository mark its dangerous paths, read from the base branch ([#253](https://github.com/niway-dev/wachiman/issues/253)) ([63e8478](https://github.com/niway-dev/wachiman/commit/63e8478d579a3a8ccf63cde3380e55b0dfc77f7e))
+* **memory:** approve a memory entry from a review thread ([#262](https://github.com/niway-dev/wachiman/issues/262)) ([300f746](https://github.com/niway-dev/wachiman/commit/300f746e72a70099c62d8fd947a92cf47fed522c))
+* **memory:** init points agents at the wachiman-loop skill ([#259](https://github.com/niway-dev/wachiman/issues/259)) ([2aa4279](https://github.com/niway-dev/wachiman/commit/2aa4279bf172e234392c5198196b02d0eab2f8d6))
+* **memory:** keep a memory entry on your own machine ([#263](https://github.com/niway-dev/wachiman/issues/263)) ([ddc41ab](https://github.com/niway-dev/wachiman/commit/ddc41ab38b1fb17f5f3a0e4d1ff746cefe3b4154))
+* **memory:** propose a learned rule as a draft pull request ([#258](https://github.com/niway-dev/wachiman/issues/258)) ([8660bc8](https://github.com/niway-dev/wachiman/commit/8660bc87cb45f4c5ff699bc24fcc28732ac16c33))
+* **memory:** read repository rules from the base commit ([#256](https://github.com/niway-dev/wachiman/issues/256)) ([7d0959e](https://github.com/niway-dev/wachiman/commit/7d0959e2cde8ae8df7ed53568fcfd1113a9b6c09))
+* **memory:** report outcomes and write down the replay ([#261](https://github.com/niway-dev/wachiman/issues/261)) ([2d9973b](https://github.com/niway-dev/wachiman/commit/2d9973b6d28b1db3358f66efaae035d243ee939d))
+* **memory:** reviews follow conventions and mute known exceptions ([#257](https://github.com/niway-dev/wachiman/issues/257)) ([6e4a6f0](https://github.com/niway-dev/wachiman/commit/6e4a6f089cbffb30320ba79ebe1d91089705bc96))
+* **memory:** suggest stale, duplicate and unused entries ([#260](https://github.com/niway-dev/wachiman/issues/260)) ([81709bb](https://github.com/niway-dev/wachiman/commit/81709bb6a75e8a34863cd54e6ecffeaa48a229e8))
+* render an inline finding as a table and keep every reader working ([#266](https://github.com/niway-dev/wachiman/issues/266)) ([e333b15](https://github.com/niway-dev/wachiman/commit/e333b152d14d3858b329f2cebc0741a232d344b4))
+* **review:** one notice template, edit a $0 refusal in place, one base-update line (PR 4a) ([#269](https://github.com/niway-dev/wachiman/issues/269)) ([c224a40](https://github.com/niway-dev/wachiman/commit/c224a40bc6b6eae558560321c07a645dfbf9f130))
+* **workflows:** add wachiman-platform.yml and keep review-platform.yml as an alias ([9846fb6](https://github.com/niway-dev/wachiman/commit/9846fb6f8dcc4844e26228c838c3b497f79658aa))
+
+
+### Bug Fixes
+
+* **cli:** name --commit in the reset-confidence usage error ([ea5f9ab](https://github.com/niway-dev/wachiman/commit/ea5f9ab3aa82ebb11372347c34dc87779db5982b))
+* **cli:** name --commit in the reset-confidence usage error ([6208ae5](https://github.com/niway-dev/wachiman/commit/6208ae586e5e44fef9bb239113655878a8974eb9))
+
 ## [1.16.0](https://github.com/niway-dev/wachiman/compare/v1.15.0...v1.16.0) (2026-11-15)
 
 
