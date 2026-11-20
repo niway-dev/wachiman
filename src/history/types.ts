@@ -1,6 +1,11 @@
 /**
  * The shapes of the history files. The run file is internal and versioned
  * (`wachiman.history-run/1`); the `ReviewResult` it embeds is the public format, unchanged.
+ *
+ * A distributed-repo run's `siblings` (member, SHA, paths, status) and `privateContext` are optional
+ * fields of that embedded result, so they are stored with it and the run format stays `/1`: a run
+ * saved before them has neither and loads as it always did. `wachiman ask` reads them back to
+ * re-create the same snapshots (spec "`ask` and history").
  */
 import type { ReviewResult } from "../engine";
 
