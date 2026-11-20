@@ -57,6 +57,19 @@ export interface ResolvedSibling {
   droppedSubmodules: string[];
 }
 
+/**
+ * A reference into a sibling, as a finding of the result carries it (ADR 0043 decision 2): rendered as
+ * `member@sha:path:line`, with the short commit in text and the full one here.
+ */
+export interface SiblingReference {
+  member: string;
+  /** The full commit of the snapshot the line was checked in. */
+  sha: string;
+  path: string;
+  /** Positive, and inside that snapshot's file. */
+  line: number;
+}
+
 /** A workspace contract that the change applied. */
 export interface ContractReading {
   name: string;
