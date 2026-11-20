@@ -132,8 +132,8 @@ function referenceChecker(siblings: readonly ResolvedSibling[]) {
  * `findings` with each sibling reference checked against `siblings`. A finding with no reference is
  * returned unchanged; one with a kept reference gets `references`; a removed one is replaced in the
  * `title` and the `body`. A removed one is also replaced in the verifier's reason and the origin reason
- * of a finding, and in `texts` (the run summary); those never add to `references`. `removed` counts every
- * removed occurrence.
+ * of a finding, and in `texts` (the run summary); those never add to `references`. `removed` counts each
+ * removed reference once per distinct text, so a text copied to several places counts once.
  */
 export function checkSiblingReferences<T extends FindingText>(
   siblings: readonly ResolvedSibling[],
@@ -153,7 +153,7 @@ const CONTRACT_TEXT = ["action", "equivalent_path", "before_after", "visible_eff
  * The model-written text of a whole result, each field checked as a finding's is: the findings, the
  * summary, the contracts' prose, the risk facts and judgement items, the verifier's entries (the
  * dropped ones too), what the memory step said, the replies to threads the reasons a file was
- * skipped, and any other text (`texts`). A reference that fails is replaced and counted in `removed`, the one total of the run. Only
+ * skipped, and any other text (`texts`). A reference that fails is replaced and counted in `removed` (once per distinct text), the one total of the run. Only
  * a finding keeps the references that pass, in `references`: nothing else has a field for them.
  */
 export function settleModelText<
