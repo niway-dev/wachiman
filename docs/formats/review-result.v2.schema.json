@@ -1547,6 +1547,13 @@
           "type": "boolean",
           "description": "Added with `--sibling`."
         },
+        "sourceOfTruthOf": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The contracts of `contracts` whose source of truth is this member. Absent when none is. A not-cloned sibling with it is reported as \"source of truth not cloned: not checked\"."
+        },
         "rule": {
           "enum": [
             "pinned",

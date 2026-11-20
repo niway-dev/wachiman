@@ -33,6 +33,8 @@ export interface ResolvedSibling {
   visibility: "public" | "private";
   /** The names of the contracts that asked for it; `--sibling` for a member added by hand. */
   contracts: string[];
+  /** The contracts (of those above) whose source of truth is this member. Absent when none is. */
+  sourceOfTruthOf?: string[];
   /** Added with `--sibling`: it reaches every batch, not only those that triggered a contract. */
   byHand: boolean;
   /** The rule that applied by precedence, and where it came from. */

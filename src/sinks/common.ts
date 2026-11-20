@@ -190,8 +190,9 @@ export function siblingText(s: ResultSibling) {
   const rule = `rule ${s.rule} (${RULE_SOURCES[s.ruleSource]})`;
   const why = s.byHand && s.contracts.length === 0 ? "added by hand" : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.map(neutralise).join(", ")}`;
   if (s.status === "not-cloned" || s.status === "not-watched" || s.status === "unreadable" || s.sha === undefined) {
+    const notCloned = s.sourceOfTruthOf?.length ? "source of truth not cloned: not checked" : "not cloned: not checked";
     const said =
-      s.status === "not-cloned" ? "not cloned: not checked" : s.status === "not-watched" ? "not watched: not checked" : `unreadable (${neutralise(s.unreadable ?? "unknown reason")}): not checked`;
+      s.status === "not-cloned" ? notCloned : s.status === "not-watched" ? "not watched: not checked" : `unreadable (${neutralise(s.unreadable ?? "unknown reason")}): not checked`;
     return `${member}: ${said} (${rule}, ${why})`;
   }
   const readAs = s.readAs === s.rule ? "" : `, read as ${s.readAs}`;

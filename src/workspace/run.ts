@@ -200,17 +200,20 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
   try {
     for (const read of plan) {
       const hand = byHand.has(read.member.dir);
+      const entries = read.contracts.length > 0 ? read.contracts : [{ name: "--sibling", globs: read.globs }];
+      const contractOf = (name: string): Contract =>
+        applied.find((a) => a.contract.name === name)?.contract ?? HAND_CONTRACT(found.reviewed.dir);
+      // The contracts that asked for this member and name it their source of truth (a hand-added member never does).
+      const sourceOfTruthOf = read.contracts.map((c) => contractOf(c.name)).filter((c) => c.sourceOfTruth.member === read.member.dir).map((c) => c.name);
       const base = {
         member: read.member.dir,
         repo: read.member.repo,
         visibility: read.member.visibility,
         byHand: hand,
+        ...(sourceOfTruthOf.length > 0 ? { sourceOfTruthOf } : {}),
         droppedSymlinks: [] as string[],
         droppedSubmodules: [] as string[],
       };
-      const entries = read.contracts.length > 0 ? read.contracts : [{ name: "--sibling", globs: read.globs }];
-      const contractOf = (name: string): Contract =>
-        applied.find((a) => a.contract.name === name)?.contract ?? HAND_CONTRACT(found.reviewed.dir);
 
       if (read.status !== "ready") {
         // Not read, so no version: the row says which rule would have applied, for the report.

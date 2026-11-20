@@ -69,6 +69,26 @@ describe("the sibling lines of a distributed-repo review", () => {
   });
 });
 
+describe("a sibling that is not cloned", () => {
+  const notCloned = (sourceOfTruthOf?: string[]) => {
+    const r = distributed();
+    const row = { ...r.siblings![0]!, member: "billing-service", status: "not-cloned" as const, contracts: ["brand-palette"], rule: "pinned" as const, ruleSource: "manifest" as const, readAs: "pinned" as const, sha: undefined, fetchedAt: undefined, fallback: undefined, paths: [] };
+    r.siblings = [sourceOfTruthOf === undefined ? row : { ...row, sourceOfTruthOf }];
+    return r;
+  };
+
+  test.each(["terminal", "markdown"] as const)("%s: a member that is not the source of truth keeps 'not cloned: not checked'", (kind) => {
+    const text = outputs(notCloned()).find(([k]) => k === kind)![1];
+    expect(text).toContain("billing-service: not cloned: not checked (rule pinned (manifest), for brand-palette)");
+    expect(text).not.toContain("source of truth not cloned");
+  });
+
+  test.each(["terminal", "markdown"] as const)("%s: a member that holds the source of truth says so", (kind) => {
+    const text = outputs(notCloned(["brand-palette"])).find(([k]) => k === kind)![1];
+    expect(text).toContain("billing-service: source of truth not cloned: not checked (rule pinned (manifest), for brand-palette)");
+  });
+});
+
 describe("the private-context line", () => {
   test("the wording of ADR 0042", () => {
     expect(privateContextLine(["desktop-app", "billing-service"])).toBe("Built with private context from: desktop-app, billing-service. Do not paste its text into a public place.");

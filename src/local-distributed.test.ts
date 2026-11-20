@@ -395,7 +395,7 @@ describe("wachiman local --distributed-repo: the result", () => {
       expect(r.stdout).toContain("Built with private context from: desktop-app. Do not paste its text into a public place.");
     }
     const missing = run(site({ manifest: true }), ["--distributed-repo"]);
-    expect(missing.stdout).toContain("desktop-app: not cloned: not checked");
+    expect(missing.stdout).toContain("desktop-app: source of truth not cloned: not checked");
     expect(missing.stdout).not.toContain("private context");
   });
 

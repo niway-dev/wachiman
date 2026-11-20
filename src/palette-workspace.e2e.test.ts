@@ -196,7 +196,7 @@ describe("palette workspace: a change in web-site, the copy", () => {
     test.each(["terminal", "markdown"] as const)("the %s output says desktop-app was not cloned and not checked", (format) => {
       const r = review(w.webSite, [], format);
       expect(r.code).toBe(0);
-      expect(r.stdout).toContain("desktop-app: not cloned: not checked");
+      expect(r.stdout).toContain("desktop-app: source of truth not cloned: not checked");
     });
   });
 });
