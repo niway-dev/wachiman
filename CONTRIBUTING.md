@@ -5,14 +5,24 @@ by NIWAY (Niway S.A.C.) under the [Functional Source License](LICENSE) (`FSL-1.1
 source available, not open source. It is a small project handled on a best-effort basis, with no response-time
 promise.
 
+## Pull requests from outside the team are not accepted for now
+
+The code is public, but the repository restricts pull request creation to collaborators, so
+outside pull requests cannot be opened. The contributor license agreement below is still an
+unreviewed draft, and that is why.
+
+- Bugs, questions and ideas: open a [GitHub issue](https://github.com/niway-dev/wachiman/issues).
+- Security reports: use GitHub's private vulnerability reporting, never a public issue. See
+  [SECURITY.md](SECURITY.md).
+
+The rest of this page applies when outside contributions open.
+
 ## Before you write code
 
 - Open an issue first for anything beyond a typo or a documentation fix, so nobody writes a change
   the project will not take.
 - Read [docs/architecture.md](docs/architecture.md) and the [ADRs](docs/adr/). A change that
   contradicts an ADR needs to say which one and why.
-- Security problems go through GitHub's private vulnerability reporting, never a public issue.
-  See [SECURITY.md](SECURITY.md).
 
 ## The contributor license agreement
 

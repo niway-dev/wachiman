@@ -22,6 +22,7 @@ warns you and lets you decide; the Spanish word comes from the English one.
 - [What it will not do](#what-it-will-not-do)
 - [The trust decision, in brief](#the-trust-decision-in-brief)
 - [Providers and platforms](#providers-and-platforms)
+- [Contributing](#contributing)
 - [License](#license)
 - [Commit messages](#commit-messages)
 
@@ -204,6 +205,12 @@ read with a notice; see [docs/upgrading.md](docs/upgrading.md).
   release workflow publishes later versions with one.
 - **Platforms:** macOS and Linux are covered by CI. Windows (Git Bash, PowerShell) is not tested
   in CI and is expected to work wherever Node and Bun run.
+
+## Contributing
+
+The code is public, but pull requests from outside the team are not accepted for now. Report
+bugs and questions in [GitHub Issues](https://github.com/niway-dev/wachiman/issues); see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
