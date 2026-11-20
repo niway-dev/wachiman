@@ -32,8 +32,9 @@ owned by the party that writes the markers.
    attempt footer. Notices carry it too. It is never put on inline comments, replies or issue
    comments.
 2. The block holds the engine version, the reviewed head, the attempt id, a `status` (`complete`,
-   `partial`, `not-reviewed`), a `reason` when not reviewed, and finding counts by severity and by
-   placement. It never holds finding text.
+   `partial`, `scoped`, `not-reviewed`), a `reason` when not reviewed, the earlier head a
+   base-update line carries over, and finding counts by severity and by placement, built from what
+   was actually posted. It never holds finding text. A scoped review never decides the head's state.
 3. The block is trusted only under the existing rule: at the end of a body authored by the engine's
    own author and signed as a review. Any `wachi:state` text elsewhere is neutralised like every
    other marker.
@@ -44,7 +45,8 @@ owned by the party that writes the markers.
    head, the own reviews and their blocks, the own finding threads and the "Wachiman review" check
    run, and prints one `wachiman.pr-state/1` object.
 6. Its `next` is one of `wait`, `act`, `blocked`, `done`, `closed`, chosen by an ordered rule table
-   in code. `done` means only that Wachiman has nothing pending on this head. Exit codes: 0 done or
+   in code. `done` means only that Wachiman has nothing pending on this head: a complete review
+   of it and no unresolved Wachiman finding thread, whoever replied last. Exit codes: 0 done or
    closed, 20 act, 21 wait, 22 blocked, 1 GitHub error, 2 usage.
 7. `pr-state` covers Wachiman's own review only. Other reviewers, CI and merge conflicts are not
    read.
