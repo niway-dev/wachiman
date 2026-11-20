@@ -287,15 +287,17 @@ export function decide(f: Facts): { next: Next; why: Why } {
 // ----- One state read ---------------------------------------------------------------------------
 
 /**
- * One complete read of the pull request's state: the head, the own reviews, the own finding threads
- * and the check run, then the head again. A head that moved while reading answers `wait` with
+ * One complete read of the pull request's state: the head, the check run, the own reviews, the own finding threads,
+ * then the head again. A head that moved while reading answers `wait` with
  * `head_moved` (the rest of the document is then about the head read first). Throws `GhError` when
  * GitHub or `gh` fails.
  */
 export function readPrState(gh: GhFn, repo: string, pr: number): PrState {
   const start = readPull(gh, repo, pr);
-  const reviews = readReviews(readOwnReviews(gh, repo, pr));
+  // The check run is read before the reviews: a review that lands in between is then seen, while the
+  // opposite order could see a finished check run and no review yet, and report a false review_missing.
   const check = readCheck(gh, repo, start.head);
+  const reviews = readReviews(readOwnReviews(gh, repo, pr));
   const open = openFindings(readThreads(gh, repo, pr));
   const end = readPull(gh, repo, pr);
 

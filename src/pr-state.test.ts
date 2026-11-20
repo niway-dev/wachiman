@@ -167,6 +167,24 @@ describe("AC6: the document", () => {
     expect(runPrState({ pr: 3 }, gh, { stdout: () => {}, stderr: () => {} })).toBe(0);
     expect(seen.some((a) => a[0] === "repo")).toBe(true);
   });
+  test("a review that lands between the reads never turns into a false review_missing", () => {
+    // The review posts and the check run finishes right after the first of those two reads.
+    const before: World = { checks: [{ name: "Wachiman review", status: "in_progress" }] };
+    const after: World = { reviews: [rev(complete(HEAD), 1)], checks: [{ name: "Wachiman review", status: "completed" }] };
+    const a = fake(before);
+    const b = fake(after);
+    let landed = false;
+    const gh: GhFn = (args, input) => {
+      const joined = args.join(" ");
+      const racing = joined.includes("/reviews") || joined.includes("/check-runs");
+      const out = (landed ? b : a).gh(args, input);
+      if (racing) landed = true;
+      return out;
+    };
+    const doc = readPrState(gh, REPO, 1);
+    expect(doc.why).not.toBe("review_missing");
+    expect(["wait", "done"]).toContain(doc.next);
+  });
   test("it only reads: every gh call is a GET or a graphql query", () => {
     const f = fake({ reviews: [rev(complete(HEAD), 1)], threads: [thread()] });
     readPrState(f.gh, REPO, 1);
