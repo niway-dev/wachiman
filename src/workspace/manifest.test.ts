@@ -147,6 +147,23 @@ describe("parseManifest", () => {
       }
     });
 
+    test("brace expansion cannot hide a .. segment or an absolute path", () => {
+      for (const glob of ["src/{.,x}./secret", "src/{a,{.,b}.}/x", "{src,{.,x}.}/y", "a/{b,..}/c", "{/etc,src}/x", "src/{.}./x", "src/{a,b}/{..,c}", "{a,b}{/..,c}"]) {
+        expect(refusal((m) => (m.contracts[0].sides[0].paths = [glob])).code).toBe("path-escape");
+      }
+    });
+
+    test("unbalanced braces are refused", () => {
+      for (const glob of ["src/{a,b", "src/a,b}", "}a{", "src/{a,{b,c}"]) {
+        expect(refusal((m) => (m.contracts[0].sides[0].paths = [glob])).code).toBe("invalid");
+      }
+    });
+
+    test("balanced braces that stay inside are fine", () => {
+      const paths = ["src/{a,b}/**", "{src,docs}/{x,y{1,2}}.md", "src/{a..b,c}/*.ts"];
+      expect(parse((m) => (m.contracts[0].sides[0].paths = paths)).contracts[0].sides[0].paths).toEqual(paths);
+    });
+
     test("names that merely contain dots are fine", () => {
       const manifest = parse((m) => (m.contracts[0].sides[0].paths = ["src/..hidden/**", "a..b/*.ts", "...", ".github/**"]));
       expect(manifest.contracts[0].sides[0].paths).toHaveLength(4);

@@ -94,9 +94,67 @@ function assertContained(value: string, where: string) {
   if (climbs(value)) throw escape(`${where} "${value}" contains a ".." segment; it must stay inside its folder.`);
 }
 
+const MAX_EXPANSIONS = 1000;
+
+/**
+ * Every glob a brace pattern can stand for: `a/{b,c{d,e}}` gives `a/b`, `a/cd`, `a/ce`. A group
+ * with no comma is kept both literally and unwrapped, so the check holds whichever way the glob
+ * engine reads it. Throws on an unbalanced brace or on more than `MAX_EXPANSIONS` results.
+ */
+function expandBraces(glob: string): string[] {
+  const open = glob.indexOf("{");
+  const stray = glob.indexOf("}");
+  if (open < 0) {
+    if (stray >= 0) throw new Error("unbalanced braces");
+    return [glob];
+  }
+  if (stray >= 0 && stray < open) throw new Error("unbalanced braces");
+  let depth = 0;
+  let close = -1;
+  const cuts: number[] = [];
+  for (let i = open; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) {
+      close = i;
+      break;
+    } else if (c === "," && depth === 1) cuts.push(i);
+  }
+  if (close < 0) throw new Error("unbalanced braces");
+  const before = glob.slice(0, open);
+  const after = glob.slice(close + 1);
+  const inner = glob.slice(open + 1, close);
+  const bounds = [open, ...cuts, close];
+  const expanded = bounds.slice(0, -1).flatMap((from, i) => expandBraces(glob.slice(from + 1, bounds[i + 1])));
+  if (cuts.length === 0) expanded.push(...expandBraces(inner).map((e) => `{${e}}`));
+  const tails = expandBraces(after);
+  const results: string[] = [];
+  for (const head of expanded) {
+    for (const tail of tails) {
+      results.push(before + head + tail);
+      if (results.length > MAX_EXPANSIONS) throw new Error(`more than ${MAX_EXPANSIONS} brace expansions`);
+    }
+  }
+  return results;
+}
+
+/** Like `assertContained`, for a glob: every alternative its braces expand to must stay inside the folder. */
+function assertGlobContained(glob: string, where: string) {
+  let expansions: string[];
+  try {
+    expansions = expandBraces(glob);
+  } catch (error) {
+    throw invalid(`${where} "${glob}" cannot be checked: ${(error as Error).message}.`);
+  }
+  for (const expansion of expansions) {
+    if (looksAbsolute(expansion)) throw escape(`${where} "${glob}" is an absolute path; it must be relative.`);
+    if (expansion.split(/[\\/]/).includes("..")) throw escape(`${where} "${glob}" contains a ".." segment; it must stay inside its folder.`);
+  }
+}
+
 function parsePaths(raw: unknown, where: string): string[] {
   if (!Array.isArray(raw) || raw.length === 0 || !raw.every(isNonEmptyString)) throw invalid(`${where} must be a non-empty list of path globs.`);
-  for (const glob of raw as string[]) assertContained(glob, `${where} glob`);
+  for (const glob of raw as string[]) assertGlobContained(glob, `${where} glob`);
   return [...(raw as string[])];
 }
 
