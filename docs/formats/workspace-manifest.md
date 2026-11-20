@@ -91,7 +91,7 @@ key it cannot read is refused.
 | `workspaces[].distributedRepo` | `on` or `off` (default `off`): the default when no flag is given. |
 | `workspaces[].members.<dir>.dir` | Absolute path of the clone, when it is not `<coordinator>/<dir>`. |
 | `workspaces[].members.<dir>.watch` | `false` leaves a cloned member out; it is reported as not watched. |
-| `workspaces[].versions` | Version rules keyed by contract name or member `dir`. |
+| `workspaces[].versions` | Version rules keyed by contract name or member `dir`; a `dir` is matched as the manifest normalises it (`./app/` is `app`). |
 
 ## Version rules
 
@@ -108,7 +108,7 @@ default `pinned`. The report records the source as `user-file`, `manifest` or `d
 | Rule | What is read | When it cannot be resolved |
 | --- | --- | --- |
 | `pinned` | When the reviewed repository is a consumer and the sibling a provider: the commit of the `ref`, or of the tag the reviewed head pins (the JSON file is read from the reviewed head commit, not the working tree; the value must be an exact version, no range) | No pin declared, a file, key or value that is not an exact version, the tag or ref not in the sibling's local refs, or any other direction: read `tip`, and say why |
-| `local` | The sibling's `HEAD` commit | Uncommitted changes to tracked files are not read and are flagged `uncommitted`; a sibling with no commit is unreadable |
+| `local` | The sibling's `HEAD` commit | Uncommitted changes to tracked files are not read and are flagged `uncommitted` (`uncommittedUnknown` when `git status` failed or timed out); a sibling with no commit is unreadable |
 | `tip` | The commit `refs/remotes/origin/HEAD` points to, with the modification time of `FETCH_HEAD` as `fetchedAt` (`unknown` when there is none) | No `origin/HEAD` recorded: read `local`, and say why |
 
 Wachiman never fetches, pulls or clones a sibling, so `tip` is as fresh as the user's last fetch.
