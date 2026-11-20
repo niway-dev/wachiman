@@ -471,12 +471,15 @@ describe("runLoop with a fake review", () => {
   /** A `review` seam that answers like `runLocal` with `--format json`, minus the history save. */
   function fakeReview(repo: BranchRepo, outcomes: ("fail" | "throw" | "ok")[], shapes: Shape[] = []) {
     const calls: string[] = [];
+    const distributed: unknown[] = [];
     return {
       calls,
-      review: ((args: { base?: string }, _repo: string, _env: unknown, io: { stdout: (t: string) => void }) => {
+      distributed,
+      review: ((args: { base?: string; distributedRepo?: boolean }, _repo: string, _env: unknown, io: { stdout: (t: string) => void }) => {
         const outcome = outcomes[calls.length] ?? "fail";
         const shape = shapes[calls.length];
         calls.push(args.base ?? "");
+        distributed.push(args.distributedRepo);
         if (outcome === "throw") throw new Error("claude crashed");
         if (outcome === "fail") return 1;
         io.stdout(
@@ -509,6 +512,14 @@ describe("runLoop with a fake review", () => {
       expect(fake.calls).toEqual(["main", "main"]);
       expect(r.err.some((l) => l.includes("trying once more"))).toBe(true);
     }
+  }, 30_000);
+
+  test("every round turns the sibling-repository read off, whatever the per-user default is", async () => {
+    const repo = branchRepo();
+    const fake = fakeReview(repo, ["ok"]);
+    const r = await run(repo, fake, temp("wachiman-home-"), "--base", "main");
+    expect(r.code).toBe(0);
+    expect(fake.distributed).toEqual([false]);
   }, 30_000);
 
   test("a review that fails twice stops with review failed after exactly two attempts", async () => {

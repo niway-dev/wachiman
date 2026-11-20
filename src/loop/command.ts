@@ -260,6 +260,8 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
     resultVersion: 2,
     agentPrompt: false,
     history: true,
+    // The loop has no flag for sibling repositories yet, so it never reads them, whatever the per-user default is.
+    distributedRepo: false,
     verify: args.verify,
     base: from,
     ...(args.profile !== undefined ? { profile: args.profile } : {}),
