@@ -75,9 +75,11 @@ const files = (dir: string): string[] =>
 
 describe("the GitHub mode does not import the workspace code", () => {
   const roots = [join(SRC, "engine.ts"), ...files(join(SRC, "sinks")).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))];
-  const inWorkspace = (reached: Set<string>) => [...reached].filter((p) => relative(SRC, p).startsWith("workspace/") || relative(SRC, p) === "local.ts").map((p) => relative(SRC, p));
+  // The laptop-only commands: `local`, `ask` and `loop` read siblings, so the GitHub path must never reach them.
+  const laptopOnly = (p: string) => ["local.ts", "local-ask.ts"].includes(relative(SRC, p)) || relative(SRC, p).startsWith("loop/");
+  const inWorkspace = (reached: Set<string>) => [...reached].filter((p) => relative(SRC, p).startsWith("workspace/") || laptopOnly(p)).map((p) => relative(SRC, p));
 
-  test("nothing reachable from the review engine or the sinks is in src/workspace or is the local command", () => {
+  test("nothing reachable from the review engine or the sinks is in src/workspace or is a laptop-only command (local, ask, loop)", () => {
     expect(roots.length).toBeGreaterThan(1);
     const reached = closure(roots, readFile);
     // The check reads real files: the engine and its distributed-repo data are in the closure.
@@ -96,12 +98,13 @@ describe("the GitHub mode does not import the workspace code", () => {
     expect(inWorkspace(reached)).toEqual(["workspace/discover.ts"]);
   });
 
-  test("only the local command imports the workspace code outside src/workspace", () => {
+  test("only the laptop-only command modules import the workspace code outside src/workspace", () => {
     const importers = files(SRC)
       .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !relative(SRC, f).startsWith("workspace/"))
       .filter((f) => importsOf(readFileSync(f, "utf8")).some((s) => /(^|\/)workspace(\/|$)/.test(s)))
       .map((f) => relative(SRC, f));
-    expect(importers).toEqual(["local.ts"]);
+    // `wachiman local` and `wachiman ask` are laptop commands (`loop` reaches the workspace through `local.ts`); the GitHub mode never reaches them.
+    expect(importers).toEqual(["local-ask.ts", "local.ts"]);
   });
 });
 
