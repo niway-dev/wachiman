@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ResolvedSibling } from "./distributed";
@@ -11,8 +11,14 @@ import { checkSiblingReferences, REMOVED_REFERENCE } from "./sibling-references"
 const SHA = "3f2a9c1".padEnd(40, "0");
 const OTHER = "9d8e7f6".padEnd(40, "0");
 
+const made: string[] = [];
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
+});
+
 function snapshot(files: Record<string, string>) {
   const dir = mkdtempSync(join(tmpdir(), "sibling-refs-"));
+  made.push(dir);
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(join(dir, path.split("/").slice(0, -1).join("/") || "."), { recursive: true });
     writeFileSync(join(dir, path), text);
