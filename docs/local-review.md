@@ -386,7 +386,11 @@ read the others.
   `web-site@1a2b3c4:src/api.ts:12`. A finding keeps such a reference only if that line exists in
   the snapshot.
 - **`wachiman ask`** re-creates the snapshots the stored review read, by SHA, and labels its answer.
-  **`wachiman loop`** takes the same flags and prints the private-context line each round.
+  **`wachiman loop`** takes the same flags. It prints the private-context line
+  whenever it prints findings that came from a review that read a non-public sibling: in the
+  round that read it, and again on any later call that shows those findings, including a call
+  that reviews nothing, a stop, and a round run with `--no-distributed-repo`. A loop that never
+  read a non-public sibling prints no line.
 - **Results of this mode never go to GitHub.** The GitHub sink refuses them, and they use result
   format `/2` (see [cli.md](cli.md)).
 
