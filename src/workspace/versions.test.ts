@@ -101,6 +101,32 @@ describe("pinned", () => {
     expect(resolveVersion(context(consumer("1.2.0"), p, pinSpec)).sha).toBe(p.tagged);
   });
 
+  test("a pin tag template that makes a revision expression falls back to tip, never the parent", () => {
+    const p = provider();
+    git(p.dir, "tag", "v1.2.0-next", p.tip);
+    for (const tag of ["v{version}~1", "v{version}^", "v{version}^{commit}~0", "v{version}@{0}", "v{version}..HEAD", "v{version}:src", "v{version}*", "v{version}\\x"]) {
+      const result = resolveVersion(context(consumer("1.2.0"), p, { rule: "pinned", pin: { ...PIN, tag } }));
+      expect(result.sha).toBe(p.tip);
+      expect(result.readAs).toBe("tip");
+      expect(result.fallback).toMatch(/pin tag .* (is a revision expression|is not a valid ref name)/);
+    }
+  });
+
+  test("a literal ref is a full SHA or a tag, branch or remote name, never an expression", () => {
+    const p = provider();
+    git(p.dir, "branch", "release/2", p.tagged);
+    git(p.dir, "update-ref", "refs/remotes/origin/feature", p.tagged);
+    expect(resolveVersion(context(consumer(), p, { rule: "pinned", ref: p.tagged })).sha).toBe(p.tagged);
+    expect(resolveVersion(context(consumer(), p, { rule: "pinned", ref: "release/2" })).sha).toBe(p.tagged);
+    expect(resolveVersion(context(consumer(), p, { rule: "pinned", ref: "origin/feature" })).sha).toBe(p.tagged);
+    for (const ref of ["v1.2.0~1", "HEAD", "main~1", "main@{0}", "v1.2.0^{tree}", "main..v1.2.0", "nothing-here"]) {
+      const result = resolveVersion(context(consumer(), p, { rule: "pinned", ref }));
+      expect(result.sha).toBe(p.tip);
+      expect(result.readAs).toBe("tip");
+      expect(result.fallback).toContain(`"${ref}"`);
+    }
+  });
+
   test("a key with a dot in the package name is read as a literal key", () => {
     const p = provider();
     const c = consumer();

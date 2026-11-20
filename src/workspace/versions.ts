@@ -71,9 +71,21 @@ const text = (git: GitRunner, cwd: string, args: string[]) => {
   return out.status === 0 && !out.error ? out.stdout.trim() : undefined;
 };
 
-/** The commit a full ref name or SHA names in `dir`, or undefined. */
+/** The commit a full ref name or SHA names in `dir`, or undefined. Callers pass a validated literal, never user text as an expression; the `^{commit}` is appended here. */
 function commitOf(git: GitRunner, dir: string, name: string) {
   return text(git, dir, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${name}^{commit}`]);
+}
+
+/** A full object id: 40 hex digits (SHA-1) or 64 (SHA-256). */
+const FULL_SHA = /^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/;
+/** Revision syntax that would make a name an expression (`v1~1`, `a..b`, `main@{1}`) instead of a ref name. */
+const REVISION_SYNTAX = /[~^:?*[\\]|@\{|\.\./;
+
+/** Why `name` cannot be used as a literal ref name, or undefined when it can. */
+function badRefName(git: GitRunner, dir: string, name: string): string | undefined {
+  if (name === "" || REVISION_SYNTAX.test(name)) return `"${name}" is a revision expression, not a ref name`;
+  const check = git(["check-ref-format", `refs/tags/${name}`], { cwd: dir, timeoutMs: TIMEOUT_MS });
+  return check.status === 0 && !check.error ? undefined : `"${name}" is not a valid ref name`;
 }
 
 const rolesIn = (contract: Contract, member: string) => new Set(contract.sides.filter((s) => s.member === member).map((s) => s.role));
@@ -87,8 +99,17 @@ function pinned(spec: VersionSpec, ctx: VersionContext, git: GitRunner): Attempt
   if (!rolesIn(ctx.contract, ctx.member.dir).has("provider"))
     return { why: `pinned reads a provider for a consumer, and ${ctx.member.dir} is not a provider in contract ${ctx.contract.name}` };
   if (spec.ref !== undefined) {
-    const sha = commitOf(git, ctx.siblingDir, spec.ref);
-    return sha ? { sha } : { why: `the pinned ref "${spec.ref}" is not in ${ctx.member.dir}'s local refs` };
+    if (FULL_SHA.test(spec.ref)) {
+      const sha = commitOf(git, ctx.siblingDir, spec.ref);
+      return sha ? { sha } : { why: `the pinned commit "${spec.ref}" is not in ${ctx.member.dir}'s local objects` };
+    }
+    const bad = badRefName(git, ctx.siblingDir, spec.ref);
+    if (bad) return { why: `the pinned ref ${bad}` };
+    for (const namespace of ["tags", "heads", "remotes"]) {
+      const sha = commitOf(git, ctx.siblingDir, `refs/${namespace}/${spec.ref}`);
+      if (sha) return { sha };
+    }
+    return { why: `the pinned ref "${spec.ref}" is not in ${ctx.member.dir}'s local refs` };
   }
   const pin = spec.pin;
   if (!pin) return { why: "no pin declared (neither a ref nor a pin with a file, key and tag)" };
@@ -108,6 +129,8 @@ function pinned(spec: VersionSpec, ctx: VersionContext, git: GitRunner): Attempt
   if (typeof value !== "string") return { why: `key ${JSON.stringify(pin.key)} in ${pin.file} is not a string` };
   if (!EXACT_VERSION.test(value)) return { why: `${JSON.stringify(value)} in ${pin.file} is a range or not an exact version` };
   const tag = pin.tag.replaceAll("{version}", value);
+  const bad = badRefName(git, ctx.siblingDir, tag);
+  if (bad) return { why: `the pin tag ${bad}` };
   const sha = commitOf(git, ctx.siblingDir, `refs/tags/${tag}`);
   return sha ? { sha } : { why: `tag ${tag} is not in ${ctx.member.dir}'s local refs` };
 }
