@@ -153,6 +153,15 @@ describe("parseManifest", () => {
       }
     });
 
+    test("a glob that expands to more than 1000 alternatives is refused as invalid", () => {
+      const glob = "{a,b}".repeat(11); // 2048 expansions
+      const error = refusal((m) => (m.contracts[0].sides[0].paths = [glob]));
+      expect(error.code).toBe("invalid");
+      expect(error.message).toMatch(/brace/i);
+      // Nine groups (512) are under the cap.
+      expect(() => parse((m) => (m.contracts[0].sides[0].paths = ["{a,b}".repeat(9)]))).not.toThrow();
+    });
+
     test("unbalanced braces are refused", () => {
       for (const glob of ["src/{a,b", "src/a,b}", "}a{", "src/{a,{b,c}"]) {
         expect(refusal((m) => (m.contracts[0].sides[0].paths = [glob])).code).toBe("invalid");
