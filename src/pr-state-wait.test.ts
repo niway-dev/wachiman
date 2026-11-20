@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { UsageError } from "./config";
-import { SIGNATURE, marker, type GhFn } from "./engine";
+import { mkdtempSync, writeFileSync, chmodSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { GhTimeoutError, SIGNATURE, ghWithin, marker, type GhFn } from "./engine";
 import { buildStateBlock, encodeStateBlock, noFindings } from "./review-state";
-import { parsePrStateArgs } from "./pr-state";
-import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, openGhEventListener, runPrStateWait, type Listener, type WaitDeps } from "./pr-state-wait";
+import { parsePrStateArgs, type PrState } from "./pr-state";
+import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, openGhEventListener, runPrStateWait, type GhProbe, type Listener, type WaitDeps } from "./pr-state-wait";
 
 const REPO = "o/r";
 const HEAD = "a".repeat(40);
@@ -30,6 +33,7 @@ function world(opts: { reviewAtMs: number; closedAtMs?: number }) {
     now: () => now,
     sleep: async (ms) => { sleeps.push(ms); now += ms; },
     openListener: () => null,
+    signals: { install: () => () => {} },
   };
   return { gh, readsAt, sleeps, base, advance: (ms: number) => { now += ms; }, clock: () => now };
 }
@@ -144,14 +148,14 @@ describe("AC14: at most one state read per interval, however many events arrive"
     expect(w.readsAt.length).toBeLessThanOrEqual(1 + 300 / 30);
   });
 
-  test("an event moves the next read earlier than the slower safety poll, never sooner than one interval", async () => {
-    // The review lands at 40 s; an event arrives at 41 s. With a listener the safety poll is slower than the interval,
-    // so only the event can bring the read at 60 s (one interval after the read at 30 s... the last read was at 0 and 30).
+  test("an event inside the interval does not bring the read sooner than one interval after the last read", async () => {
+    // The review lands at 40 s. The one event arrives at 5 s, inside the 30 s interval that follows the read at 0 s.
+    // Without the clamp the second read would happen at 5 s; with it, at 30 s.
     const w = world({ reviewAtMs: 40_000 });
     let fired = false;
     const listener: Listener = {
       wake: async (ms) => {
-        if (!fired && w.clock() >= 0) { fired = true; w.advance(Math.min(ms, 41_000)); return "event"; }
+        if (!fired) { fired = true; w.advance(Math.min(ms, 5_000)); return "event"; }
         w.advance(ms);
         return "elapsed";
       },
@@ -159,16 +163,24 @@ describe("AC14: at most one state read per interval, however many events arrive"
     };
     const r = await run(w, ARGS, { openListener: () => listener });
     expect(r.json.next).toBe("done");
-    // Polling alone would read at 30 s and again at 60 s. The event at 41 s brings the second read to 41 s: after one interval, before the safety poll.
-    expect(w.readsAt).toEqual([0, 41_000]);
+    expect(w.readsAt[1]).toBe(30_000);
+    const gaps = w.readsAt.slice(1).map((t, i) => t - w.readsAt[i]);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(30_000);
   });
 
-  test("an event is only a wake signal: its content is never read, the state is read again", async () => {
+  test("an event's content is never trusted: a payload that says the review is done changes nothing, the state is read again", async () => {
     const w = world({ reviewAtMs: 10 ** 9 });
-    const { listener } = fakeListener(w, { everyMs: 5_000 });
-    const r = await run(w, { ...ARGS, timeoutS: 60 }, { openListener: () => listener });
-    expect(r.json.why).toBe("timeout");
-    expect(w.readsAt.length).toBeGreaterThanOrEqual(2);
+    const encoder = new TextEncoder();
+    let push!: (s: string) => void;
+    const events = new ReadableStream<Uint8Array>({ start: (c) => { push = (t) => c.enqueue(encoder.encode(t)); } });
+    const inner = listenerOver(events, new Promise<void>(() => {}), () => {});
+    const listener: Listener = {
+      wake: async (ms) => { push('{"type":"pull_request_review","state":"done","next":"done"}\n'); await Bun.sleep(1); return inner.wake(ms); },
+      close: () => inner.close(),
+    };
+    const r = await run(w, { ...ARGS, timeoutS: 100 }, { openListener: () => listener });
+    expect([r.json.next, r.json.why]).toEqual(["wait", "timeout"]);
+    expect(w.readsAt.length).toBeGreaterThanOrEqual(3);
   });
 });
 
@@ -268,14 +280,134 @@ describe("AC15: the process listener, over a fake process", () => {
     expect(p.killed()).toBe(true);
   });
 
-  test("this machine's gh has no event command, so the real opener returns null (or a listener that fails into polling)", () => {
-    // Skipped in effect on a gh that has it: only the missing case is asserted.
-    let has = false;
+  test("the opener returns null when gh has no event command, and starts nothing", () => {
+    let started = 0;
+    const probe: GhProbe = { supported: () => false, start: () => (started++, { stdout: new ReadableStream(), exited: new Promise(() => {}), kill: () => {} }) };
+    expect(openGhEventListener(REPO, probe)).toBeNull();
+    expect(started).toBe(0);
+  });
+
+  test("the opener returns null when the probe throws (no gh at all)", () => {
+    const probe: GhProbe = { supported: () => { throw new Error("spawn gh ENOENT"); }, start: () => { throw new Error("unreachable"); } };
+    expect(openGhEventListener(REPO, probe)).toBeNull();
+  });
+
+  test("when gh has the command, the opener starts it for the repository and closing the listener kills it", () => {
+    const p = fakeProcess();
+    const started: string[] = [];
+    const probe: GhProbe = { supported: () => true, start: (repo) => (started.push(repo), { stdout: p.events, exited: p.ended, kill: p.kill }) };
+    const l = openGhEventListener(REPO, probe);
+    expect(l).not.toBeNull();
+    expect(started).toEqual([REPO]);
+    expect(p.killed()).toBe(false);
+    l!.close();
+    expect(p.killed()).toBe(true);
+  });
+});
+
+describe("the deadline bounds a read in progress, not only the sleeps", () => {
+  const neverResolves = () => new Promise<PrState>(() => {});
+
+  test("a later read that never resolves ends at the deadline with the last known state, why timeout, exit 21", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const real = (await run(w, { ...ARGS, timeoutS: 40 })).json as PrState;
+    const w2 = world({ reviewAtMs: 10 ** 9 });
+    let n = 0;
+    const read = (ms: number) => (++n === 1 ? Promise.resolve(real) : (void ms, neverResolves()));
+    const r = await run(w2, { ...ARGS, timeoutS: 100 }, { read });
+    expect([r.code, r.json.next, r.json.why]).toEqual([21, "wait", "timeout"]);
+    expect(r.json.head).toBe(HEAD);
+    expect(w2.clock()).toBeLessThanOrEqual(100_000);
+    expect(r.out).toHaveLength(1);
+  });
+
+  test("a first read that never resolves ends at the deadline with a wait document, why timeout, exit 21", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const asked: number[] = [];
+    const r = await run(w, { ...ARGS, timeoutS: 100 }, { read: (ms) => (asked.push(ms), neverResolves()) });
+    expect([r.code, r.json.format, r.json.next, r.json.why]).toEqual([21, "wachiman.pr-state/1", "wait", "timeout"]);
+    expect(asked).toEqual([100_000]);
+    expect(w.clock()).toBe(100_000);
+  });
+
+  test("each read is given only the time left before the deadline", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const asked: number[] = [];
+    const real = (await run(world({ reviewAtMs: 10 ** 9 }), { ...ARGS, timeoutS: 40 })).json as PrState;
+    await run(w, { ...ARGS, timeoutS: 100 }, { read: (ms) => (asked.push(ms), Promise.resolve(real)) });
+    expect(asked[0]).toBe(100_000);
+    expect(asked.slice(1).every((ms, i) => ms < asked[i])).toBe(true);
+    expect(asked.every((ms) => ms > 0)).toBe(true);
+  });
+
+  test("ghWithin kills the gh subprocess when the time runs out", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wm-gh-"));
+    writeFileSync(join(dir, "gh"), "#!/bin/sh\nexec sleep 20\n");
+    chmodSync(join(dir, "gh"), 0o755);
+    const saved = process.env.PATH;
+    process.env.PATH = `${dir}:${saved}`;
     try {
-      has = Bun.spawnSync(["gh", "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore" }).exitCode === 0;
-    } catch {
-      // No gh at all: the opener must return null too.
+      const started = Date.now();
+      expect(() => ghWithin(() => 300)(["api", "x"])).toThrow(GhTimeoutError);
+      expect(Date.now() - started).toBeLessThan(5_000);
+      expect(() => ghWithin(() => 0)(["api", "x"])).toThrow(GhTimeoutError);
+    } finally {
+      process.env.PATH = saved;
     }
-    if (!has) expect(openGhEventListener(REPO)).toBeNull();
+  });
+
+  test("a gh call that times out on the real wait path is a timeout document, never exit 1", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const r = await run(w, { ...ARGS, timeoutS: 100 }, { limitGh: () => () => { throw new GhTimeoutError(["api", "x"]); } });
+    expect([r.code, r.json.next, r.json.why]).toEqual([21, "wait", "timeout"]);
+  });
+});
+
+describe("the gh event listen child never outlives the wait", () => {
+  test("a SIGTERM or SIGINT while waiting closes the listener, and the handlers are installed only for the wait", async () => {
+    for (const sig of ["SIGTERM", "SIGINT"] as const) {
+      const w = world({ reviewAtMs: 10 ** 9 });
+      const { listener, closed } = fakeListener(w, {});
+      let handler: ((s: "SIGINT" | "SIGTERM") => void) | null = null;
+      let installed = 0;
+      let removed = 0;
+      const signals = { install: (h: (s: "SIGINT" | "SIGTERM") => void) => (installed++, (handler = h), () => { removed++; handler = null; }) };
+      const wrapped: Listener = {
+        wake: async (ms) => { handler?.(sig); return listener.wake(ms); },
+        close: () => listener.close(),
+      };
+      expect(installed).toBe(0);
+      await run(w, { ...ARGS, timeoutS: 100 }, { openListener: () => wrapped, signals });
+      expect(installed).toBe(1);
+      expect(removed).toBe(1);
+      expect(closed()).toBe(true);
+    }
+  });
+
+  test("the signal handler itself kills the child, before the wait ends", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const { listener, closed } = fakeListener(w, {});
+    let handler: ((s: "SIGINT" | "SIGTERM") => void) | null = null;
+    const signals = { install: (h: (s: "SIGINT" | "SIGTERM") => void) => ((handler = h), () => {}) };
+    let closedAtSignal: boolean | null = null;
+    const wrapped: Listener = {
+      wake: async (ms) => { handler?.("SIGTERM"); closedAtSignal = closed(); return listener.wake(ms); },
+      close: () => listener.close(),
+    };
+    await run(w, { ...ARGS, timeoutS: 100 }, { openListener: () => wrapped, signals });
+    expect(closedAtSignal).toBe(true);
+  });
+
+  test("the listener is closed when a read throws, and the handlers are removed", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const { listener, closed } = fakeListener(w, { everyMs: 1_000 });
+    let removed = 0;
+    const signals = { install: () => () => { removed++; } };
+    let n = 0;
+    const flaky: GhFn = (a) => { if (a[1] === "graphql" && ++n === 2) throw new Error("HTTP 502"); return w.gh(a); };
+    const code = await runPrStateWait(ARGS, flaky, { stdout: () => {}, stderr: () => {} }, { ...w.base, openListener: () => listener, signals });
+    expect(code).toBe(1);
+    expect(closed()).toBe(true);
+    expect(removed).toBe(1);
   });
 });

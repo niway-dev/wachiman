@@ -2188,13 +2188,34 @@ export function parseGhFailure(
   return { status: null, message, errors };
 }
 
-export const defaultGh: GhFn = (args, input) => {
-  const run = spawnSync("gh", args, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+/** A `gh` call that was killed because its time ran out. Not a GitHub answer: there is no status to read. */
+export class GhTimeoutError extends GhError {
+  constructor(args: readonly string[]) {
+    super(`gh ${args.slice(0, 3).join(" ")} timed out`, null, "");
+    this.name = "GhTimeoutError";
+  }
+}
+
+function runGh(args: string[], input: string | undefined, timeoutMs?: number): string {
+  const run = spawnSync("gh", args, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, timeoutMs), killSignal: "SIGKILL" as const }) });
+  if ((run.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") throw new GhTimeoutError(args);
   if (run.status !== 0) {
     const { status, message, errors } = parseGhFailure(run.stderr ?? "", run.stdout ?? "");
     throw new GhError(`gh ${args.slice(0, 3).join(" ")} failed: ${run.stderr}`, status, message, errors);
   }
   return run.stdout;
+}
+
+export const defaultGh: GhFn = (args, input) => runGh(args, input);
+
+/**
+ * A `gh` whose every call is killed (SIGKILL) when `remainingMs()` runs out, and refused without
+ * starting once it is zero or less. A call that is killed throws `GhTimeoutError`.
+ */
+export const ghWithin = (remainingMs: () => number): GhFn => (args, input) => {
+  const left = remainingMs();
+  if (left <= 0) throw new GhTimeoutError(args);
+  return runGh(args, input, left);
 };
 
 /** What the review core needs from outside: the agent and the engine's own I/O. No GitHub. */

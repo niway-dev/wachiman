@@ -5,10 +5,13 @@
  * `wait`, or at the timeout. `gh event listen` is optional acceleration: an event only wakes the
  * loop sooner than its slow safety poll, never sooner than one interval after the last read, and its
  * content is never read (the state is read again). Nothing here stores anything or posts anything.
+ *
+ * The timeout bounds the whole call, reads included: each `gh` call of a read is killed when the
+ * time left runs out, and the wait then ends with the last known state and `why: timeout`.
  */
 import { UsageError } from "./config";
-import type { GhFn } from "./engine";
-import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, EXIT_FOR, MIN_INTERVAL_S, readPrState, resolveTarget, type PrState, type PrStateArgs } from "./pr-state";
+import { GhTimeoutError, ghWithin, type GhFn } from "./engine";
+import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, EXIT_FOR, MIN_INTERVAL_S, PR_STATE_FORMAT, readPrState, resolveTarget, type PrState, type PrStateArgs } from "./pr-state";
 
 export { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S };
 
@@ -27,6 +30,18 @@ export interface WaitDeps {
   sleep: (ms: number) => Promise<void>;
   /** Starts a listener for the repository, or returns null when `gh event listen` is missing or unsupported. */
   openListener: (repo: string) => Listener | null;
+  /**
+   * A `gh` whose every call is killed when `remainingMs()` is up. Absent (tests with a fake `gh`): the
+   * `gh` passed to `runPrStateWait` is used as it is.
+   */
+  limitGh?: (remainingMs: () => number) => GhFn;
+  /**
+   * Replaces the state read, with the time left. For a read that cannot be bounded by killing a
+   * subprocess; the loop gives up on it at the deadline. Absent: `readPrState` over the limited `gh`.
+   */
+  read?: (remainingMs: number) => Promise<PrState>;
+  /** Installs a handler for SIGINT and SIGTERM and returns what removes it. Only used while waiting. */
+  signals: { install: (handler: (signal: "SIGINT" | "SIGTERM") => void) => () => void };
 }
 
 export interface PrStateWaitArgs extends PrStateArgs {
@@ -37,14 +52,49 @@ export interface PrStateWaitArgs extends PrStateArgs {
 
 type Io = { stdout: (text: string) => void; stderr: (line: string) => void };
 
+/** What a wait that timed out before any read finished prints: no head is known, nothing is claimed. */
+function timedOutBeforeAnyRead(repo: string, pr: number): PrState {
+  return {
+    format: PR_STATE_FORMAT,
+    repo,
+    pr,
+    head: "",
+    review: { state: "none", reason: null, reviewed_head: null, attempt: null, engine: null, source: null },
+    findings: { open: [], unthreaded: null },
+    next: "wait",
+    why: "timeout",
+  };
+}
+
 /** Waits for `next` to stop being `wait`: the document on stdout, then exit 0, 20, 21 or 22; exit 1 when GitHub fails. */
 export async function runPrStateWait(args: PrStateWaitArgs, gh: GhFn, io: Io, deps: WaitDeps): Promise<number> {
   let listener: Listener | null = null;
+  let removeSignals: (() => void) | null = null;
   try {
-    const { repo, pr } = resolveTarget(args, gh);
-    const interval = args.intervalS * 1000;
     const deadline = deps.now() + args.timeoutS * 1000;
-    let state: PrState = readPrState(gh, repo, pr);
+    const remaining = () => deadline - deps.now();
+    const limited = deps.limitGh ? deps.limitGh(remaining) : gh;
+    // Until the process ends, a signal must not leave `gh event listen` behind.
+    removeSignals = deps.signals.install(() => listener?.close());
+    const interval = args.intervalS * 1000;
+    let target: { repo: string; pr: number };
+    // One read, bounded by the time left: null when the deadline passed before or during it.
+    const read = async (): Promise<PrState | null> => {
+      const left = remaining();
+      if (left <= 0) return null;
+      try {
+        if (!deps.read) return readPrState(limited, target.repo, target.pr);
+        const timedOut = deps.sleep(left).then(() => null);
+        return await Promise.race([deps.read(left), timedOut]);
+      } catch (error) {
+        if (error instanceof GhTimeoutError) return null;
+        throw error;
+      }
+    };
+    // A timeout while only finding the repository is an error (exit 1): nothing is known to report.
+    target = resolveTarget(args, limited);
+    const { repo, pr } = target;
+    let state = await read();
     let lastRead = deps.now();
     let listenerTried = false;
     let said = false;
@@ -53,11 +103,8 @@ export async function runPrStateWait(args: PrStateWaitArgs, gh: GhFn, io: Io, de
       said = true;
     };
 
-    while (state.next === "wait") {
-      if (deps.now() >= deadline) {
-        state = { ...state, why: "timeout" };
-        break;
-      }
+    while (state === null || state.next === "wait") {
+      if (state === null || deps.now() >= deadline) break;
       if (!listenerTried) {
         listenerTried = true;
         listener = deps.openListener(repo);
@@ -76,21 +123,23 @@ export async function runPrStateWait(args: PrStateWaitArgs, gh: GhFn, io: Io, de
       // Whatever woke the loop, the next read is never sooner than one interval after the last one.
       const until = Math.min(Math.max(deps.now(), earliest), deadline);
       if (until > deps.now()) await deps.sleep(until - deps.now());
-      if (deps.now() >= deadline) {
-        state = { ...state, why: "timeout" };
-        break;
-      }
-      state = readPrState(gh, repo, pr);
+      if (deps.now() >= deadline) break;
+      const next = await read();
       lastRead = deps.now();
+      if (next === null) break;
+      state = next;
     }
-    io.stdout(`${JSON.stringify(state, null, 2)}\n`);
-    return EXIT_FOR[state.next];
+    const last = state ?? timedOutBeforeAnyRead(repo, pr);
+    const final: PrState = last.next === "wait" ? { ...last, why: "timeout" } : last;
+    io.stdout(`${JSON.stringify(final, null, 2)}\n`);
+    return EXIT_FOR[final.next];
   } catch (error) {
     if (error instanceof UsageError) throw error;
     io.stderr(`wachiman: pr-state: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
     return 1;
   } finally {
     listener?.close();
+    removeSignals?.();
   }
 }
 
@@ -105,16 +154,29 @@ export async function runPrStateWait(args: PrStateWaitArgs, gh: GhFn, io: Io, de
  * request only wakes the loop, which re-reads this one's state and is clamped by the interval. Every
  * failure (missing command, rejected flag, sign-in, 24 h expiry, exit 8) ends in the polling fallback.
  */
-export function openGhEventListener(repo: string): Listener | null {
+export function openGhEventListener(repo: string, gh: GhProbe = realGhProbe): Listener | null {
   try {
-    const help = Bun.spawnSync(["gh", "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore" });
-    if (help.exitCode !== 0) return null;
-    const proc = Bun.spawn(["gh", "event", "listen", "--repo", repo], { stdin: "ignore", stdout: "pipe", stderr: "ignore" });
-    return listenerOver(proc.stdout, proc.exited.then(() => undefined), () => proc.kill());
+    if (!gh.supported()) return null;
+    const proc = gh.start(repo);
+    return listenerOver(proc.stdout, proc.exited.then(() => undefined), proc.kill);
   } catch {
     return null;
   }
 }
+
+/** How the opener reaches `gh`: whether this `gh` has `event listen`, and a way to start it. Swapped in tests. */
+export interface GhProbe {
+  supported: () => boolean;
+  start: (repo: string) => { stdout: ReadableStream<Uint8Array>; exited: Promise<unknown>; kill: () => void };
+}
+
+const realGhProbe: GhProbe = {
+  supported: () => Bun.spawnSync(["gh", "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore" }).exitCode === 0,
+  start: (repo) => {
+    const proc = Bun.spawn(["gh", "event", "listen", "--repo", repo], { stdin: "ignore", stdout: "pipe", stderr: "ignore" });
+    return { stdout: proc.stdout, exited: proc.exited, kill: () => proc.kill() };
+  },
+};
 
 /**
  * A listener over a stream of event lines and a promise that settles when the process ends. Any bytes
@@ -165,8 +227,33 @@ export function listenerOver(events: ReadableStream<Uint8Array>, ended: Promise<
   };
 }
 
+/**
+ * SIGINT and SIGTERM end the process, but `finally` does not run on a signal, so the handler closes
+ * the listener (killing `gh event listen`) first, removes itself, and passes the signal on so the
+ * exit status is the usual one.
+ */
+const processSignals: WaitDeps["signals"] = {
+  install: (handler) => {
+    const handlers = (["SIGINT", "SIGTERM"] as const).map((signal) => {
+      const fn = () => {
+        handler(signal);
+        remove();
+        process.kill(process.pid, signal);
+      };
+      process.on(signal, fn);
+      return [signal, fn] as const;
+    });
+    const remove = () => {
+      for (const [signal, fn] of handlers) process.off(signal, fn);
+    };
+    return remove;
+  },
+};
+
 export const realWaitDeps: WaitDeps = {
   now: () => performance.now(),
   sleep: (ms) => Bun.sleep(ms),
   openListener: openGhEventListener,
+  limitGh: ghWithin,
+  signals: processSignals,
 };

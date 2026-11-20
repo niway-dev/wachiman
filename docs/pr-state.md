@@ -28,7 +28,7 @@ again until `next` is not `wait`, then prints that state once and exits with its
 | `--timeout <s>` | 540 | Whole seconds, at least 1. Under ten minutes by default so a harness's foreground time limit does not end the wait first |
 | `--interval <s>` | 30 | Whole seconds, at least 20 (the minimum). A bad value is a usage error, exit 2 |
 
-- **On timeout** it prints the last state read with `why: timeout` (still `next: wait`) and exits 21. It does not read after the deadline.
+- **On timeout** it prints the last state read with `why: timeout` (still `next: wait`) and exits 21. The deadline bounds the whole call: it does not start a read after it, and a read in progress when it passes is cut off (each `gh` call is killed with the time left), so the call ends with the last state read (a `wait` document with no head when none finished). A timeout while only finding the repository is exit 1.
 - **At most one state read per interval.** A read is one GraphQL query for the threads, extra pages only when there are more than 100 threads, the other `gh api` calls of a read, and the head check at its end. Two reads are never closer than one interval, whatever else happens.
 - **Stdout is always one JSON object**, printed at the end. Notes about the wait go to stderr. A GitHub error while waiting is exit 1 with nothing on stdout.
 
@@ -39,6 +39,7 @@ it for the repository and treats each event as a wake signal only. With a listen
 reads at least every three intervals (the command has no replay and drops events while it is
 disconnected), and an event can bring the next read forward, but never sooner than one interval
 after the last read. The content of an event is never read or trusted: the state is read again.
+The listener is killed when the wait ends, on every path, and on SIGINT or SIGTERM (the handlers exist only while waiting). A signal is handled between `gh` calls, so it can take up to the end of the read in progress.
 
 When the command is missing, not supported, or stops (including its 24 h subscription ending, exit
 8), `--wait` polls every interval and says so once on stderr, for example `gh event listen is not
