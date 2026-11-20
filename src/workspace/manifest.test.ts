@@ -167,6 +167,21 @@ describe("parseManifest", () => {
       expect(parse(() => {}, link).members).toHaveLength(3);
     });
 
+    test("a member folder whose name starts with two dots is not a climb", () => {
+      const manifest = parse((m) => {
+        m.members[2].dir = "..cache";
+      });
+      expect(manifest.members[2].dir).toBe("..cache");
+    });
+
+    test("a member dir is normalised, so app, app/ and ./app are the same member", () => {
+      expect(parse((m) => (m.members[0].dir = "./api-client/")).members[0].dir).toBe("api-client");
+      for (const dup of ["api-client/", "./api-client"]) {
+        const error = refusal((m) => m.members.push({ ...m.members[0], dir: dup, repo: "acme/other" }));
+        expect(error.message).toContain("appears twice");
+      }
+    });
+
     test("a missing member dir is fine (not cloned is reported later)", () => {
       expect(parse().members).toHaveLength(3);
     });

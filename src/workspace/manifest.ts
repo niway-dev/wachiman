@@ -5,7 +5,7 @@
  * glob that climbs out of its folder is refused, never cleaned up.
  */
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
 import { UsageError } from "../config";
 
 export const MANIFEST_FILE = "workspace.manifest.json";
@@ -127,7 +127,7 @@ export function parseVersionSpec(raw: unknown, where: string, fail: (message: st
 
 const inside = (root: string, path: string) => {
   const rel = relative(root, path);
-  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
 };
 
 /** The real path of `path`: its deepest existing ancestor is resolved and the missing segments are appended, so a member that is not cloned still compares by real path. */
@@ -140,13 +140,16 @@ function realOrSelf(path: string): string {
   }
 }
 
+/** `./app/` and `app` name one folder: strip leading `./` and trailing `/`, collapse `.` and doubled separators. */
+const normaliseDir = (dir: string) => posix.normalize(dir.replaceAll("\\", "/")).replace(/^(\.\/)+/, "").replace(/\/+$/, "") || ".";
+
 function parseMember(raw: unknown, index: number, coordinatorDir: string): Member {
   const where = `members[${index}]`;
   if (!isRecord(raw)) throw invalid(`${where} must be an object.`);
   if (!isNonEmptyString(raw.dir)) throw invalid(`${where}.dir must be a folder name relative to the coordinator.`);
   if (!isNonEmptyString(raw.repo)) throw invalid(`${where}.repo must be "owner/name".`);
-  const dir = raw.dir;
-  assertContained(dir, `${where}.dir`);
+  assertContained(raw.dir, `${where}.dir`);
+  const dir = normaliseDir(raw.dir);
   const lexical = resolve(coordinatorDir, dir);
   if (!inside(resolve(coordinatorDir), lexical)) throw escape(`${where}.dir "${dir}" does not name a folder inside the coordinator.`);
   if (!inside(realOrSelf(coordinatorDir), realOrSelf(lexical)))
