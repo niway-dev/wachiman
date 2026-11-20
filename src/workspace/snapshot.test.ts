@@ -1,14 +1,18 @@
 import { spawnSync } from "node:child_process";
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, renameSync, statSync, symlinkSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
 import { snapshotSibling, type SiblingSnapshot } from "./snapshot";
 
 const made: SiblingSnapshot[] = [];
+const parents: string[] = [];
+/** How many `wachiman-sibling-*` folders the temp dir holds: snapshots and the test repositories share the prefix. */
+const siblingFolders = () => readdirSync(tmpdir()).filter((name) => name.startsWith("wachiman-sibling-")).length;
 afterAll(() => {
   removeTempRepos();
+  for (const dir of parents) rmSync(dir, { recursive: true, force: true });
   for (const s of made) s.remove();
 });
 const snap = (...args: Parameters<typeof snapshotSibling>) => {
@@ -122,7 +126,7 @@ describe("snapshotSibling", () => {
     expect(existsSync(join(s.dir, "a.ts"))).toBe(false);
   });
 
-  test("a large selection is written without any command-line limit", () => {
+  test("a large selection (700 files) is written in full", () => {
     const dir = emptyRepo("wachiman-sibling-many-");
     const many: Record<string, string> = {};
     for (let i = 0; i < 700; i++) many[`generated/some/rather/long/directory/name/for/testing/file-number-${i}.txt`] = `${i}\n`;
@@ -171,11 +175,12 @@ describe("snapshotSibling", () => {
   });
 
   test("a commit that does not exist, or a name that is not a full id, is an error and leaves no directory", () => {
-    const { dir, head } = sibling();
+    const { dir } = sibling();
+    const before = siblingFolders();
     expect(() => snapshotSibling(dir, "0".repeat(40), ["**"])).toThrow(/ls-tree/);
     expect(() => snapshotSibling(dir, "HEAD", ["**"])).toThrow(/full commit id/);
     expect(() => snapshotSibling(dir, "--all", ["**"])).toThrow(/full commit id/);
-    expect(head).toHaveLength(40);
+    expect(siblingFolders()).toBe(before);
   });
 
   test("remove deletes the directory", () => {
@@ -198,13 +203,16 @@ describe("snapshotSibling", () => {
     git(origin, "config", "uploadpack.allowAnySHA1InWant", "true");
     const sha = commit(origin, { "src/a.ts": "a\n" }, "one");
     const parent = mkdtempSync(join(tmpdir(), "wachiman-sibling-partial-"));
+    parents.push(parent);
     const clone = join(parent, "clone");
     const run = spawnSync("git", ["clone", "-q", "--no-checkout", "--filter=blob:none", `file://${origin}`, clone], { encoding: "utf8" });
     expect(run.status).toBe(0);
     // The origin is gone: any attempt to fetch the blob would fail with a transport error, not the missing-object one.
     renameSync(origin, `${origin}.gone`);
+    const before = siblingFolders();
     try {
       expect(() => snapshotSibling(clone, sha, ["src/**"])).toThrow(/object not present locally; Wachiman never fetches/);
+      expect(siblingFolders()).toBe(before);
     } finally {
       renameSync(`${origin}.gone`, origin);
     }
