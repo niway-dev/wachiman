@@ -13,6 +13,8 @@ retries and the stop rule. **You fix the code between calls; the CLI never edits
 review the code yourself.** Choose the account the way `wachiman-review` does ("Choose the
 profile"): ask `wachiman project show --json`, never read inside a profile directory.
 
+When you are woken on a pull request that Wachiman reviews on GitHub (a review, a check or a comment event), do not read the review's comments to learn what it wants: run `wachiman pr-state <pr> --json` and follow `next` (`act` 20, `wait` 21, `blocked` 22, `done` and `closed` 0; see `docs/pr-state.md`). `done` means only that Wachiman has nothing pending on that head, not that the pull request can merge.
+
 ## The command
 
 ```sh
