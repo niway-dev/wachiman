@@ -16,6 +16,10 @@ The JSON Schemas are the contract; the TypeScript types in `src/formats.ts` foll
 history run file embeds a `wachiman.review-result/2` under `result` (and reads `/1` files written
 before it); the wrapper around it (`wachiman.history-run/1`) is internal and has no schema.
 
+The two files that group repositories for a distributed-repo review, `workspace.manifest.json`
+and `workspaces.json`, are inputs read by Wachiman, not review formats: see
+[workspace-manifest.md](workspace-manifest.md).
+
 ## Versioning
 
 - The `format` string is the only version. A producer writes the version it produces; the core
