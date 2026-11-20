@@ -39,14 +39,14 @@ and `workspaces.json`, are inputs read by Wachiman, not review formats: see
   one `wachiman history --verdict` accepts ([ADR 0034](../adr/0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md)).
   Changing the default is a separately announced major release.
   A working-tree review defaults to `/2` and has no `/1` form.
-  A distributed-repo review that read a sibling or applied a contract writes `/2` by default and has
+  A distributed-repo review that lists a sibling (read or not) or applied a contract writes `/2` by default and has
   no `/1` form: `/1` has no place for the siblings or the `privateContext` label, and a downgrade
   that dropped the label would hide it
   ([ADR 0042](../adr/0042-what-a-run-may-read-depends-on-where-its-output-goes.md)). Those fields
-  are optional additions to `/2` (as `riskMap` and `memory` were). A run with the mode on that read
+  are optional additions to `/2` (as `riskMap` and `memory` were). A run with the mode on that lists
   no sibling and applied no contract keeps the usual default (`/1` for a committed change) and
   emits none of them, `noWorkspaceContractApplied` included; the terminal and Markdown reports still
-  say that no contract applied. `--result-version 1` when a sibling was read or a contract applied
+  say that no contract applied. `--result-version 1` when the result lists a sibling (read or not) or applied a contract
   is exit 2, and the message names `--no-distributed-repo`.
 
 ## What is never in a file
