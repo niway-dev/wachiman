@@ -44,6 +44,13 @@ describe("parseUserFile", () => {
     expect(parse(file({ distributedRepo: "on" })).workspaces[0].distributedRepo).toBe("on");
   });
 
+  test("a member or version key written as in the manifest (./app/) is found under the normalised dir", () => {
+    const [workspace] = parse(file({ members: { "./app/": { watch: false } }, versions: { "./web-site": { rule: "local" }, "ui-kit-api": { rule: "tip" } } })).workspaces;
+    expect(workspace.members.app).toEqual({ watch: false });
+    expect(workspace.versions["web-site"]).toEqual({ rule: "local" });
+    expect(workspace.versions["ui-kit-api"]).toEqual({ rule: "tip" });
+  });
+
   test("members and versions have no inherited keys; a declared constructor key is still an own entry", () => {
     const [workspace] = parse(file({ members: {}, versions: {} })).workspaces;
     expect(Object.getPrototypeOf(workspace.members)).toBeNull();

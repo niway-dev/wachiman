@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { UsageError } from "../config";
-import { parseVersionSpec, type VersionSpec } from "./manifest";
+import { normaliseDir, parseVersionSpec, type VersionSpec } from "./manifest";
 
 export class UserFileError extends UsageError {
   constructor(message: string) {
@@ -72,13 +72,19 @@ function parseWorkspace(raw: unknown, index: number): UserWorkspace {
         if (typeof value.watch !== "boolean") throw refuse(`${at}.watch must be true or false, got ${JSON.stringify(value.watch)}.`);
         member.watch = value.watch;
       }
-      members[name] = member;
+      // Keyed like the manifest's normalised `dir`: `./app/` and `app` are one member.
+      members[normaliseDir(name)] = member;
     }
   }
   const versions: Record<string, VersionSpec> = Object.create(null);
   if (raw.versions !== undefined) {
     if (!isRecord(raw.versions)) throw refuse(`${where}.versions must be an object keyed by contract name or member dir.`);
     for (const [name, value] of Object.entries(raw.versions)) versions[name] = parseVersionSpec(value, `${where}.versions.${name}`, refuse);
+    // A key written as a member `dir` in the manifest (`./app/`) also answers to the normalised `dir`; a contract name is never replaced.
+    for (const name of Object.keys(versions)) {
+      const dir = normaliseDir(name);
+      if (dir !== name && !Object.hasOwn(versions, dir)) versions[dir] = versions[name];
+    }
   }
   return { manifest: raw.manifest, distributedRepo, members, versions };
 }

@@ -199,7 +199,7 @@ function realOrSelf(path: string): string {
 }
 
 /** `./app/` and `app` name one folder: strip leading `./` and trailing `/`, collapse `.` and doubled separators. */
-const normaliseDir = (dir: string) => posix.normalize(dir.replaceAll("\\", "/")).replace(/^(\.\/)+/, "").replace(/\/+$/, "") || ".";
+export const normaliseDir = (dir: string) => posix.normalize(dir.replaceAll("\\", "/")).replace(/^(\.\/)+/, "").replace(/\/+$/, "") || ".";
 
 function parseMember(raw: unknown, index: number, coordinatorDir: string): Member {
   const where = `members[${index}]`;
