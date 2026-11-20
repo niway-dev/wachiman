@@ -207,6 +207,10 @@ read with a notice; see [docs/upgrading.md](docs/upgrading.md).
 
 ## License
 
+The code is public, but pull requests from outside the team are not accepted for now. Report
+bugs and questions in [GitHub Issues](https://github.com/niway-dev/wachiman/issues); see
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
 Wachiman is **source available**, not open source. It is licensed under the
 [Functional Source License, Version 1.1, ALv2 Future License](LICENSE) (`FSL-1.1-ALv2`), a
 [Fair Source](https://fair.io/) license. Copyright 2026 Niway S.A.C.

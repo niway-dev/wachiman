@@ -5,6 +5,18 @@ by NIWAY (Niway S.A.C.) under the [Functional Source License](LICENSE) (`FSL-1.1
 source available, not open source. It is a small project handled on a best-effort basis, with no response-time
 promise.
 
+## Pull requests from outside the team are not accepted for now
+
+The code is public, but the repository restricts pull request creation to collaborators, so
+outside pull requests cannot be opened. The contributor license agreement below is still an
+unreviewed draft, and that is why.
+
+- Bugs, questions and ideas: open a [GitHub issue](https://github.com/niway-dev/wachiman/issues).
+- Security reports: use GitHub's private vulnerability reporting, never a public issue. See
+  [SECURITY.md](SECURITY.md).
+
+The rest of this page applies when outside contributions open.
+
 ## Before you write code
 
 - Open an issue first for anything beyond a typo or a documentation fix, so nobody writes a change
@@ -16,7 +28,7 @@ promise.
 
 ## The contributor license agreement
 
-Outside contributors must accept [CLA.md](CLA.md) once by ticking the PR-template checkbox.
+This applies when outside contributions open. Outside contributors must accept [CLA.md](CLA.md) once by ticking the PR-template checkbox.
 Acceptance covers later contributions until withdrawn for future submissions; NIWAY checks the
 acceptance record before merging. You keep the copyright to your work. NIWAY gets a license
 broad enough to keep licensing the whole project, including selling commercial licenses that cover
