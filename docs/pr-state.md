@@ -120,7 +120,7 @@ Exits 3, 10, 11 and 130 mean other things in other commands and are never used h
 | `findings.open[].outdated` | The code the thread points at changed; the thread is still unresolved |
 | `findings.unthreaded` | Counts from the deciding block of findings with no thread: `blocking` (Blocker and Fix), `body` and `outside_diff` placements. Null with no block to count from |
 | `next` | `wait`, `act`, `blocked`, `done` or `closed` |
-| `why` | A fixed code, not prose: see the table below |
+| `why` | A fixed code, not prose: see the table below. `--wait` adds `timeout` (with `next: wait`) when the timeout passes |
 
 ## The rule table
 
