@@ -374,7 +374,7 @@ not from a fork. Exit code 3.
 The address answered, but not the way the ledger does: the job summary shows the HTTP status (a 404 or
 405 usually means a wrong path or host, a 301 or 302 a redirect that is not followed, a 200 an HTML page
 or other JSON). Nothing was reviewed, and `ledger_unavailable` does not apply: only a network error, a
-timeout, a 5xx or a 429 counts as the ledger being unreachable. Fix `ledger_url`, which must be the
+timeout, a 5xx, a 429 or a 401, 402 or 403 without a JSON `reason` counts as the ledger being unreachable. Fix `ledger_url`, which must be the
 ledger's address and start with `https://`. Exit code 3. If the audience is wrong instead, the
 ledger answers `unauthorized`: `ledger_url` without trailing slashes must equal the service's
 `LEDGER_AUDIENCE` exactly.
@@ -386,7 +386,7 @@ refused. Use an `https://` address (`http://localhost` and `http://127.0.0.1` ar
 
 ### The ledger could not be reached
 
-That means a network error, a timeout, a 5xx or a 429. With `ledger_unavailable: run` (the default) the review still happens. Its footer says
+That means a network error, a timeout, a 5xx, a 429, or a 401, 402 or 403 whose body is not JSON with a string `reason`. The last one reads "answered HTTP 403 with a page that did not come from the ledger": a firewall or bot challenge in front of the ledger, so allow the runner's traffic to the ledger address. With `ledger_unavailable: run` (the default) the review still happens. Its footer says
 `Not counted against the spend limit`, and the job summary under **Wachiman spend limit** says whether
 the run was recorded afterwards. With `stop`, the run ends with exit code 3 before any model call and
 posts nothing; re-run it when the ledger is back. If only the settle failed, the review is posted

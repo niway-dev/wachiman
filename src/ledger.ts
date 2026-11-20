@@ -150,7 +150,7 @@ function unusable(ledgerUrl: string, route: string, status: number, what: string
     if (!known && typeof json?.reason === "string") {
       // A real ledger refusal with a reason this client lacks (a newer ledger): fail closed, whatever `ledger_unavailable` says.
       return new LedgerBadAnswer(
-        `The ledger refused the run (reason: ${json.reason.slice(0, 60)}); this client does not know that reason, update Wachiman.`,
+        `The ledger refused the run (reason: ${json.reason.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60)}); this client does not know that reason, update Wachiman.`,
       );
     }
     return new LedgerUnavailable(
