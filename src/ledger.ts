@@ -44,8 +44,8 @@ export interface LedgerEnv {
 }
 
 /**
- * The ledger cannot answer: a network error, a timeout, a 5xx or a 429, or a 401, 402 or 403 without a
- * refusal reason the client knows (something in front of the ledger answered). Only these are an outage.
+ * The ledger cannot answer: a network error, a timeout, a 5xx or a 429, or a 401, 402 or 403 whose body is not
+ * JSON with a string `reason` (something in front of the ledger answered). Only these are an outage.
  */
 export class LedgerUnavailable extends Error {}
 
@@ -147,12 +147,16 @@ function unusable(ledgerUrl: string, route: string, status: number, what: string
   if (REFUSAL_STATUSES.has(status)) {
     const json = parseObject(body);
     const known = REASONS.find((r) => r === json?.reason);
+    if (!known && typeof json?.reason === "string") {
+      // A real ledger refusal with a reason this client lacks (a newer ledger): fail closed, whatever `ledger_unavailable` says.
+      return new LedgerBadAnswer(
+        `The ledger refused the run (reason: ${json.reason.slice(0, 60)}); this client does not know that reason, update Wachiman.`,
+      );
+    }
     return new LedgerUnavailable(
       known
         ? `${base(ledgerUrl)} answered HTTP ${status} (${known}) on ${route}, which does not take a refusal, so the answer cannot be used.`
-        : json
-          ? `${base(ledgerUrl)} answered HTTP ${status} with a refusal reason this client does not know, so the answer cannot be used (a newer or different ledger?).`
-          : `${base(ledgerUrl)} answered HTTP ${status} with a page that did not come from the ledger, which usually means a firewall or bot challenge in front of it.`,
+        : `${base(ledgerUrl)} answered HTTP ${status} with a page that did not come from the ledger, which usually means a firewall or bot challenge in front of it.`,
     );
   }
   return isOutage(status)

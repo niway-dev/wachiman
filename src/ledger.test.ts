@@ -131,9 +131,9 @@ describe("reserve", () => {
     });
   });
 
-  test("a 401, 402 or 403 whose body is not JSON with a known reason is LedgerUnavailable that names the address and the status", () => {
+  test("a 401, 402 or 403 whose body is not JSON with a string reason is LedgerUnavailable that names the address and the status", () => {
     for (const status of [401, 402, 403]) {
-      for (const body of ["<html>Just a moment...</html>", "", JSON.stringify({ detail: "x" }), JSON.stringify({ reason: "mystery" })]) {
+      for (const body of ["<html>Just a moment...</html>", "", JSON.stringify({ detail: "x" }), JSON.stringify({ reason: 7 })]) {
         let thrown: unknown;
         try {
           reserve("https://ledger.example/", "tok", req, fakeCurl(status, body).curl);
@@ -144,9 +144,22 @@ describe("reserve", () => {
         const message = (thrown as Error).message;
         expect(message).toContain(`https://ledger.example answered HTTP ${status}`);
         expect(message).not.toContain("Just a moment");
-        if (body.startsWith("<") || body === "") expect(message).toContain("firewall or bot challenge");
-        else expect(message).not.toContain("firewall");
+        expect(message).toContain("firewall or bot challenge");
       }
+    }
+  });
+
+  test("a JSON body with a string reason the client does not know is a LedgerBadAnswer that stops, not an outage", () => {
+    for (const status of [401, 402, 403]) {
+      let thrown: unknown;
+      try {
+        reserve("https://ledger.example", "tok", req, fakeCurl(status, JSON.stringify({ reason: "suspended" })).curl);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(LedgerBadAnswer);
+      expect((thrown as Error).message).toContain("(reason: suspended)");
+      expect((thrown as Error).message).toContain("update Wachiman");
     }
   });
 

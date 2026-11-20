@@ -565,6 +565,17 @@ describe("an unreachable ledger", () => {
     });
   }
 
+  for (const unavailable of ["run", "stop"]) {
+    test(`a 402 with a reason this client does not know stops the review, ledger_unavailable: ${unavailable}`, async () => {
+      const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable }, ledger: { reserve: () => ({ status: 402, body: { reason: "suspended" } }) } });
+      const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
+      expect(thrown).toBeInstanceOf(LedgerStopped);
+      expect((thrown as Error).message).toContain("(reason: suspended)");
+      expect(t.provider.requests).toHaveLength(0);
+      expect(t.posted).toHaveLength(0);
+    });
+  }
+
   test("a 401 with an empty body is unreachable, not unauthorized", async () => {
     const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: "stop" }, ledger: { reserve: () => ({ status: 401, body: "", raw: true }) } });
     const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
