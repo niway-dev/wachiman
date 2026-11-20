@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { utimesSync, writeFileSync } from "node:fs";
+import { rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawnGit, type GitRunner } from "../evidence";
+import { type GitRunner } from "../evidence";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import type { Contract, Member, VersionSpec } from "./manifest";
 import type { UserWorkspace } from "./user-file";
@@ -81,6 +81,13 @@ describe("pinned", () => {
     const c = consumer("1.2.0");
     writeFileSync(join(c.dir, "package.json"), JSON.stringify({ dependencies: { "@acme/ui-kit": "9.9.9" } }));
     expect(resolveVersion(context(c, p, pinSpec)).sha).toBe(p.tagged);
+  });
+
+  test("a full SHA that is not in the sibling falls back to tip, saying so", () => {
+    const p = provider();
+    const result = resolveVersion(context(consumer(), p, { rule: "pinned", ref: "1".repeat(40) }));
+    expect(result).toMatchObject({ readAs: "tip", sha: p.tip });
+    expect(result.fallback).toMatch(/not in ui-kit's local objects/);
   });
 
   test("a literal ref in the version object", () => {
@@ -276,6 +283,24 @@ describe("tip", () => {
     expect(resolveVersion(context(consumer(), p, { rule: "tip" })).fetchedAt).toBe("2026-11-01T10:00:00.000Z");
   });
 
+  test("fetchedAt takes the newer FETCH_HEAD of the worktree's git dir and the common git dir", () => {
+    const p = provider();
+    const tree = `${p.dir}-worktree`;
+    git(p.dir, "worktree", "add", "-q", "--detach", tree);
+    try {
+      const stamp = (file: string, iso: string) => {
+        writeFileSync(file, "");
+        utimesSync(file, new Date(iso), new Date(iso));
+      };
+      stamp(join(p.dir, ".git", "FETCH_HEAD"), "2026-11-05T10:00:00.000Z");
+      const own = git(tree, "rev-parse", "--absolute-git-dir").trim();
+      stamp(join(own, "FETCH_HEAD"), "2026-11-01T10:00:00.000Z");
+      expect(resolveVersion(context(consumer(), p, { rule: "tip" }, { siblingDir: tree })).fetchedAt).toBe("2026-11-05T10:00:00.000Z");
+    } finally {
+      rmSync(tree, { recursive: true, force: true });
+    }
+  });
+
   test("without origin/HEAD it reads local and says why", () => {
     const p = provider({ originHead: false });
     const result = resolveVersion(context(consumer(), p, { rule: "tip" }));
@@ -291,7 +316,7 @@ describe("tip", () => {
     const guarded: GitRunner = (args, opts) => {
       calls.push(args);
       if (args.some((a) => ["fetch", "pull", "clone"].includes(a))) throw new Error(`git ${args.join(" ")} must never run`);
-      return spawnGit(args, opts);
+      return workspaceGit(args, opts);
     };
     const c = consumer();
     for (const version of [{ rule: "tip" }, { rule: "local" }, pinSpec] as VersionSpec[]) {
@@ -318,7 +343,7 @@ describe("rule sources", () => {
     expect(chooseRule(named, ui, user({ constructor: { rule: "tip" } }))).toEqual({ spec: { rule: "tip" }, source: "user-file" });
   });
 
-  test("a user rule overrides the manifest's even when it is the less specific one", () => {
+  test("a user rule keyed by contract overrides the manifest's contract rule", () => {
     const p = provider();
     const result = resolveVersion(context(consumer(), p, { rule: "local" }, { user: user({ "ui-kit-api": { rule: "tip" } }) }));
     expect(result).toMatchObject({ rule: "tip", ruleSource: "user-file", sha: p.tip });
