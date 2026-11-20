@@ -285,6 +285,25 @@ describe("AC11: reviews from an engine without the block", () => {
       expect(doc.next).toBe("wait");
     }
   });
+  describe("an unsigned review from before signatures existed (the engine's legacy window)", () => {
+    const unsigned = (head: string) => `Review\n\n<sub>m · $0.1</sub>\n\n${marker(head)}`;
+    const BEFORE = "2026-10-15T00:00:00Z";
+    const AFTER = "2026-11-19T00:00:00Z";
+    test("is read as legacy-markers inside the window: before the cutoff and before any signed review", () => {
+      const doc = read({ reviews: [{ body: unsigned(HEAD), at: BEFORE }] });
+      expect(doc).toMatchObject({ next: "done", why: "clean_legacy", review: { state: "complete", source: "legacy-markers" } });
+    });
+    test("is not read after the cutoff", () => {
+      const doc = read({ reviews: [{ body: unsigned(HEAD), at: AFTER }] });
+      expect(doc.review).toMatchObject({ state: "none", source: null });
+      expect(doc.next).toBe("wait");
+    });
+    test("is not read once a signed review came before it, even inside the date window", () => {
+      const signed = { body: complete(OLD, 1), at: "2026-10-14T00:00:00Z" };
+      const doc = read({ reviews: [signed, { body: unsigned(HEAD), at: BEFORE }] });
+      expect(doc.review).toMatchObject({ state: "stale", reviewed_head: OLD });
+    });
+  });
   test("a legacy review of an older head is stale, not a review of this one", () => {
     const doc = read({ reviews: [rev(`R\n\n${SIGNATURE.review}\n\n${marker(OLD)}`, 1)] });
     expect(doc.review).toMatchObject({ state: "stale", source: "legacy-markers" });
