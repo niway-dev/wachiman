@@ -8,6 +8,7 @@ import type { WachimanConfigV1 } from "./accounts/config";
 import { toResultV1 } from "./formats";
 import { DEFAULT_MAX_DEPTH, localFiles } from "./connectors/local-git";
 import { parseLocalArgs, readInputFile, runLocal, sizeWarning } from "./local";
+import { parseAskArgs } from "./local-ask";
 import { entryId } from "./memory/entries";
 import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
@@ -208,6 +209,39 @@ describe("parseLocalArgs", () => {
     expect(parseLocalArgs(["--input", file]).input).toBe(file);
     expect(() => parseLocalArgs(["--input", file, "src"])).toThrow("takes no --base, --from or --commit, and no paths");
     expect(() => parseLocalArgs(["--input", file, "--base", "main"])).toThrow(UsageError);
+  });
+});
+
+describe("parseLocalArgs: the distributed-repo flags", () => {
+  test("--distributed-repo and --no-distributed-repo set the one-run choice; absent leaves it to the per-user default", () => {
+    expect(parseLocalArgs([]).distributedRepo).toBeUndefined();
+    expect(parseLocalArgs(["--distributed-repo"]).distributedRepo).toBe(true);
+    expect(parseLocalArgs(["--no-distributed-repo"]).distributedRepo).toBe(false);
+  });
+
+  test("--sibling repeats, in both spellings, and keeps the order", () => {
+    expect(parseLocalArgs(["--distributed-repo", "--sibling", "web-site", "--sibling=palette"]).siblings).toEqual(["web-site", "palette"]);
+    expect(parseLocalArgs(["--sibling", "web-site"]).siblings).toEqual(["web-site"]);
+    expect(parseLocalArgs([]).siblings).toBeUndefined();
+  });
+
+  test.each([
+    [["--distributed-repo", "--no-distributed-repo"], "cannot be used together"],
+    [["--no-distributed-repo", "--distributed-repo"], "cannot be used together"],
+    [["--no-distributed-repo", "--sibling", "web-site"], "--sibling needs distributed-repo mode"],
+    [["--sibling"], "--sibling needs a value"],
+    [["--distributed-repo", "--sibling", "--base"], "--sibling needs a value"],
+    [["--distributed-repo=yes"], "Unknown option --distributed-repo"],
+    [["--no-distributed-repo=1"], "Unknown option --no-distributed-repo"],
+    [["--distributed-repo", "--sibling", "web-site", "--sibling", "web-site"], "--sibling web-site was given twice"],
+  ])("%p is a usage error: %s", (argv, message) => {
+    expect(() => parseLocalArgs(argv)).toThrow(UsageError);
+    expect(() => parseLocalArgs(argv)).toThrow(message);
+  });
+
+  test("ask does not take them yet", () => {
+    expect(() => parseAskArgs(["--distributed-repo"])).toThrow("Unknown option --distributed-repo for ask.");
+    expect(() => parseAskArgs(["--sibling", "x"])).toThrow("Unknown option --sibling for ask.");
   });
 });
 

@@ -137,6 +137,8 @@ const localPage: Page = {
     ["--result-version 1|2", "With --format json only. Default: 1 for committed changes, 2 for --working-tree"],
     ["--history", "Save the run under ~/.wachiman/history and label each finding new or open. Default: off (or WACHIMAN_HISTORY=1)"],
     ["--no-memory", "Ignore .wachiman/memory/ for this run, as if the repository had none (the control arm of the memory replay). Default: off"],
+    ["--distributed-repo | --no-distributed-repo", "Also read the sibling repositories declared in the workspace manifest, for this run; the other flag turns a per-user default off. Default: off (or the default in ~/.wachiman/workspaces.json)"],
+    ["--sibling <dir>", "With --distributed-repo: also read this member of the workspace manifest in full, by its manifest dir. Repeatable. Exits 2 for a dir that is not a member"],
     REPO_DIR,
   ],
   env: [
@@ -153,7 +155,7 @@ const localPage: Page = {
   exit: [
     ["0", "A report was printed (complete, partial, or ended by the account's usage limit)"],
     ["1", "No call returned a review, or the claude binary did not run"],
-    ["2", "Usage error: an unknown option, ANTHROPIC_API_KEY set, a profile that cannot be resolved, a detached HEAD, a range deeper than --max-depth, no merge-base"],
+    ["2", "Usage error: an unknown option, ANTHROPIC_API_KEY set, a profile that cannot be resolved, a detached HEAD, a range deeper than --max-depth, no merge-base, conflicting --distributed-repo flags, --distributed-repo outside a workspace, a --sibling that is not a member or has no distributed-repo mode"],
     ["130", "Interrupted (Ctrl-C); the snapshot was removed"],
   ],
   examples: ["wachiman local --base main", "wachiman local --working-tree staged --format markdown --output review.md"],

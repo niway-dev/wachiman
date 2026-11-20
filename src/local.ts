@@ -70,13 +70,21 @@ export interface LocalArgs {
   noMemory?: boolean;
   /** `--result-version`: with `--format json`, which result version to write (default 1 for a committed change). */
   resultVersion?: 1 | 2;
+  /**
+   * `--distributed-repo` (true) or `--no-distributed-repo` (false) for this run; unset leaves it to the
+   * per-user default (`workspaces.json`, off unless the user turned it on). Distributed-repo design, decision 1.
+   */
+  distributedRepo?: boolean;
+  /** `--sibling <dir>`, repeatable: members of the workspace manifest to read in full, by `dir`. */
+  siblings?: string[];
   input?: string;
 }
 
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
                [--profile <name>] [--agent-prompt] [--history] [--verify | --no-verify] [--no-memory]
-               [--result-version 1|2] [--working-tree staged|all]`;
+               [--result-version 1|2] [--working-tree staged|all]
+               [--distributed-repo | --no-distributed-repo] [--sibling <dir>]…`;
 
 /** Every flag `local` takes. `ask` takes the subset it names in `ask-command`. */
 export const LOCAL_FLAGS = [
@@ -85,6 +93,9 @@ export const LOCAL_FLAGS = [
   "--verify",
   "--no-verify",
   "--no-memory",
+  "--distributed-repo",
+  "--no-distributed-repo",
+  "--sibling",
   "--result-version",
   "--working-tree",
   "--base",
@@ -120,6 +131,8 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
   let base: string | undefined;
   let sawVerify = false;
   let sawNoVerify = false;
+  let sawDistributed = false;
+  let sawNoDistributed = false;
   const picked: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -138,7 +151,17 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
     else if (name === "--history" && eq === -1) args.history = true;
     else if (name === "--no-memory" && eq === -1) args.noMemory = true;
-    else if (name === "--verify" && eq === -1) {
+    else if (name === "--distributed-repo" && eq === -1) {
+      args.distributedRepo = true;
+      sawDistributed = true;
+    } else if (name === "--no-distributed-repo" && eq === -1) {
+      args.distributedRepo = false;
+      sawNoDistributed = true;
+    } else if (name === "--sibling") {
+      const v = value();
+      if (args.siblings?.includes(v)) throw new UsageError(`--sibling ${v} was given twice.`);
+      args.siblings = [...(args.siblings ?? []), v];
+    } else if (name === "--verify" && eq === -1) {
       args.verify = true;
       sawVerify = true;
     } else if (name === "--no-verify" && eq === -1) {
@@ -177,6 +200,8 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
     } else throw new UsageError(`Unknown option ${name} for ${command}.`);
   }
   if (sawVerify && sawNoVerify) throw new UsageError("--verify and --no-verify cannot be used together.");
+  if (sawDistributed && sawNoDistributed) throw new UsageError("--distributed-repo and --no-distributed-repo cannot be used together.");
+  if (sawNoDistributed && args.siblings) throw new UsageError("--sibling needs distributed-repo mode: it cannot be used with --no-distributed-repo.");
   if (args.resultVersion !== undefined && args.format !== "json") throw new UsageError("--result-version applies only with --format json.");
   if (new Set(picked).size < picked.length) throw new UsageError(`${picked.find((n, i) => picked.indexOf(n) !== i)} was given twice.`);
   if (picked.length > 1) throw new UsageError(`${picked[0]} and ${picked[1]} cannot be used together.`);
