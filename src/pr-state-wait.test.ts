@@ -34,6 +34,12 @@ function world(opts: { reviewAtMs: number; closedAtMs?: number }) {
     sleep: async (ms) => { sleeps.push(ms); now += ms; },
     openListener: () => null,
     signals: { install: () => () => {} },
+    // A read that never settles loses to this timer, which then moves the fake clock to the deadline; a read that settles cancels it first.
+    timeout: (ms) => {
+      let live = true;
+      const promise = new Promise<null>((resolve) => setTimeout(() => { if (live) { now += ms; resolve(null); } }, 5));
+      return { promise, cancel: () => { live = false; } };
+    },
   };
   return { gh, readsAt, sleeps, base, advance: (ms: number) => { now += ms; }, clock: () => now };
 }
@@ -317,7 +323,8 @@ describe("the deadline bounds a read in progress, not only the sleeps", () => {
     const r = await run(w2, { ...ARGS, timeoutS: 100 }, { read });
     expect([r.code, r.json.next, r.json.why]).toEqual([21, "wait", "timeout"]);
     expect(r.json.head).toBe(HEAD);
-    expect(w2.clock()).toBeLessThanOrEqual(100_000);
+    expect(n).toBe(2);
+    expect(w2.clock()).toBe(100_000);
     expect(r.out).toHaveLength(1);
   });
 
@@ -336,6 +343,7 @@ describe("the deadline bounds a read in progress, not only the sleeps", () => {
     const real = (await run(world({ reviewAtMs: 10 ** 9 }), { ...ARGS, timeoutS: 40 })).json as PrState;
     await run(w, { ...ARGS, timeoutS: 100 }, { read: (ms) => (asked.push(ms), Promise.resolve(real)) });
     expect(asked[0]).toBe(100_000);
+    expect(asked.length).toBeGreaterThan(2);
     expect(asked.slice(1).every((ms, i) => ms < asked[i])).toBe(true);
     expect(asked.every((ms) => ms > 0)).toBe(true);
   });

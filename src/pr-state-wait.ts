@@ -40,6 +40,8 @@ export interface WaitDeps {
    * subprocess; the loop gives up on it at the deadline. Absent: `readPrState` over the limited `gh`.
    */
   read?: (remainingMs: number) => Promise<PrState>;
+  /** A timer for the deadline of one read: `promise` resolves to null when `ms` pass, until `cancel` is called. */
+  timeout: (ms: number) => { promise: Promise<null>; cancel: () => void };
   /** Installs a handler for SIGINT and SIGTERM and returns what removes it. Only used while waiting. */
   signals: { install: (handler: (signal: "SIGINT" | "SIGTERM") => void) => () => void };
 }
@@ -84,8 +86,12 @@ export async function runPrStateWait(args: PrStateWaitArgs, gh: GhFn, io: Io, de
       if (left <= 0) return null;
       try {
         if (!deps.read) return readPrState(limited, target.repo, target.pr);
-        const timedOut = deps.sleep(left).then(() => null);
-        return await Promise.race([deps.read(left), timedOut]);
+        const timer = deps.timeout(left);
+        try {
+          return await Promise.race([deps.read(left), timer.promise]);
+        } finally {
+          timer.cancel();
+        }
       } catch (error) {
         if (error instanceof GhTimeoutError) return null;
         throw error;
@@ -171,7 +177,7 @@ export interface GhProbe {
 }
 
 const realGhProbe: GhProbe = {
-  supported: () => Bun.spawnSync(["gh", "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore" }).exitCode === 0,
+  supported: () => Bun.spawnSync(["gh", "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore", timeout: 5_000 }).exitCode === 0,
   start: (repo) => {
     const proc = Bun.spawn(["gh", "event", "listen", "--repo", repo], { stdin: "ignore", stdout: "pipe", stderr: "ignore" });
     return { stdout: proc.stdout, exited: proc.exited, kill: () => proc.kill() };
@@ -254,6 +260,11 @@ export const realWaitDeps: WaitDeps = {
   now: () => performance.now(),
   sleep: (ms) => Bun.sleep(ms),
   openListener: openGhEventListener,
+  timeout: (ms) => {
+    let id: ReturnType<typeof setTimeout>;
+    const promise = new Promise<null>((resolve) => (id = setTimeout(() => resolve(null), ms)));
+    return { promise, cancel: () => clearTimeout(id) };
+  },
   limitGh: ghWithin,
   signals: processSignals,
 };
