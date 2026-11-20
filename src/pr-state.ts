@@ -45,7 +45,8 @@ export type Why =
   | "review_missing"
   | "findings_open"
   | "partial"
-  | "clean";
+  | "clean"
+  | "clean_legacy";
 
 export interface OpenFinding {
   thread_id: string;
@@ -279,7 +280,8 @@ export function decide(f: Facts): { next: Next; why: Why } {
   if (f.deciding.status === "not-reviewed") return { next: "blocked", why: f.deciding.reason ?? "review_missing" };
   if (f.openFindings > 0 || f.unthreadedBlocking > 0) return { next: "act", why: "findings_open" };
   if (f.deciding.status === "partial") return { next: "blocked", why: "partial" };
-  return { next: "done", why: "clean" };
+  // A review from an engine without the block has no counts to check: a narrower `done`, never `clean`.
+  return { next: "done", why: f.deciding.source === "legacy-markers" ? "clean_legacy" : "clean" };
 }
 
 // ----- One state read ---------------------------------------------------------------------------

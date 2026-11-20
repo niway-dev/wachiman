@@ -102,7 +102,10 @@ describe("AC7: the rule table, row by row, and its exit code", () => {
     { row: 7, world: { reviews: [rev(complete(HEAD), 1)], threads: [thread()] }, next: "act", why: "findings_open" },
     { row: 7, world: { reviews: [rev(complete(HEAD, 1, { findings: withCounts(0, 1, 1) }), 1)] }, next: "act", why: "findings_open" },
     { row: 8, world: { reviews: [rev(partial(HEAD), 1)] }, next: "blocked", why: "partial" },
+    { row: 8, world: { reviews: [rev(`Partial\n\n${SIGNATURE.review}\n\n${partialMarker({ sha: HEAD, rest: ["b.ts"], tried: [] })}`, 1)] }, next: "blocked", why: "partial" },
     { row: 9, world: { reviews: [rev(complete(HEAD), 1)] }, next: "done", why: "clean" },
+    { row: 10, world: { reviews: [rev(`R\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, 1)] }, next: "done", why: "clean_legacy" },
+    { row: 10, world: { reviews: [rev(`R\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, 1)], threads: [thread()] }, next: "act", why: "findings_open" },
     { row: 9, world: { reviews: [rev(complete(HEAD, 1, { findings: withCounts(0, 2) }), 1)] }, next: "done", why: "clean" },
   ];
   for (const { row, world, next, why } of rows) {
@@ -253,7 +256,7 @@ describe("AC11: reviews from an engine without the block", () => {
   test("a complete review is read from `wachiman sha=` and a partial one from `wachi:partial`", () => {
     const completeLegacy = `Review\n\n<sub>m · $0.1</sub>\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`;
     const partialLegacy = `Partial\n\n${SIGNATURE.review}\n\n${partialMarker({ sha: HEAD, rest: ["b.ts"], tried: [] })}`;
-    expect(read({ reviews: [rev(completeLegacy, 1)] })).toMatchObject({ next: "done", review: { state: "complete", source: "legacy-markers", attempt: null, engine: null }, findings: { unthreaded: null } });
+    expect(read({ reviews: [rev(completeLegacy, 1)] })).toMatchObject({ next: "done", why: "clean_legacy", review: { state: "complete", source: "legacy-markers", attempt: null, engine: null }, findings: { unthreaded: null } });
     expect(read({ reviews: [rev(partialLegacy, 1)] })).toMatchObject({ next: "blocked", why: "partial", review: { state: "partial", source: "legacy-markers" } });
   });
   test("a legacy notice without a sha is none, never complete", () => {

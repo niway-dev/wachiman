@@ -101,8 +101,9 @@ Evaluated in order; the first row that matches decides.
 | 5 | The latest review of the head is `not-reviewed` | `blocked` | 22 | the review's `reason` |
 | 6 | The check run on the head finished and no review of it exists | `blocked` | 22 | `review_missing` |
 | 7 | An unresolved Wachiman finding thread exists, or the review counts Blocker or Fix findings outside a thread | `act` | 20 | `findings_open` |
-| 8 | The review is `partial` | `blocked` | 22 | `partial` |
-| 9 | The review is `complete` | `done` | 0 | `clean` |
+| 8 | The block is `partial`, or a legacy review of the head carries `wachi:partial` | `blocked` | 22 | `partial` |
+| 9 | The block is `complete` and counts no Blocker or Fix finding outside a thread | `done` | 0 | `clean` |
+| 10 | A legacy review (`wachiman sha=` for the head, no block, no `wachi:partial`) covers the head | `done` | 0 | `clean_legacy` |
 
 Rules the table does not repeat:
 
@@ -112,7 +113,7 @@ Rules the table does not repeat:
 - **A base-update line counts as `complete`** for its head: the engine carries the earlier review over (`carried_from`) and repeats its counts.
 - **Row 4 is `wait`, not `blocked`,** because the workflow's push debounce can delay the check run. A caller decides how long to accept it.
 - **A thread never drops out because someone replied.** Resolving a thread stays with the operator; an agent acting for them resolves it, or waits for Wachiman's automatic reply.
-- **Reviews from an engine without the block** are read from `wachiman sha=` (complete) and `wachi:partial` (partial) with `source: "legacy-markers"`. A notice with no sha (a refusal, ceiling or limit notice from before the block) says nothing about any head and reads as `none`, never `complete`.
+- **Reviews from an engine without the block** are read from `wachiman sha=` (complete) and `wachi:partial` (partial) with `source: "legacy-markers"`. A notice with no sha (a refusal, ceiling or limit notice from before the block) says nothing about any head and reads as `none`, never `complete`. A legacy review of the head has no counts (`findings.unthreaded` is null), so with no unresolved Wachiman finding thread it is `done` with `why: clean_legacy`, never `clean`.
 - **Threads are read in full.** Review threads are read 100 at a time until the last page, and each thread's first and last comment are read by name, so no thread or comment count hides one.
 
 ## The state block: `wachiman.review-state/1`
