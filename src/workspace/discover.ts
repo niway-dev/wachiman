@@ -180,7 +180,7 @@ export interface PlannedRead {
   status: ReadStatus;
 }
 
-function statusOf(found: FoundWorkspace, member: Member, dir: string): ReadStatus {
+export function statusOf(found: FoundWorkspace, member: Member, dir: string): ReadStatus {
   if ((found.user && own(found.user.members, member.dir))?.watch === false) return "not-watched";
   return existsSync(join(dir, ".git")) ? "ready" : "not-cloned";
 }
