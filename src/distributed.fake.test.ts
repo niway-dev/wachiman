@@ -344,6 +344,48 @@ describe("the result of a distributed-repo run", () => {
     expect(result.findings[0]!.body).toBe(`The source says desktop-app@3f2a9c1:Assets/palette.json:2, and also ${REMOVED_REFERENCE}.`);
   });
 
+  test("every model-written text of the result is checked, not only the findings: contracts, risk map, verifier entries, summary; one removed total", async () => {
+    const headDir = reviewedHead();
+    const desktop = sibling({ member: "desktop-app", dir: snapshotDir("Assets/palette.json", palette2) });
+    const bad = "desktop-app@3f2a9c1:Assets/palette.json:99";
+    const good = "desktop-app@3f2a9c1:Assets/palette.json:2";
+    const provider = new FakeProvider((request) => {
+      const hasA = filesIn(request.prompt).includes("src/a.ts");
+      return {
+        costUsd: 0.1,
+        structuredOutput: out({
+          files_reviewed: filesIn(request.prompt),
+          findings: hasA ? [cited("Plain.")] : [],
+          contracts: hasA
+            ? [{ action: "Paint the accent", location: "src/a.ts:1", status: "closed", evidence: ["src/a.ts:1"], before_after: `Before ${bad}, after ${good}.`, visible_effect: `Seen at ${bad}`, failure_mode: `Fails at ${bad}`, open_question: `Ask ${bad}` }]
+            : [],
+          risk_facts: hasA ? [{ kind: "public-contract", path: "src/a.ts", line: 1, why: `Shared with ${bad}` }] : [],
+          judgement: hasA ? [{ kind: "direction", path: "src/a.ts", line: 1, why: `Decide at ${bad}` }] : [],
+          summary: hasA ? `Summary ${bad}` : "",
+        }),
+      };
+    });
+    const verifier = new FakeProvider(() => ({
+      costUsd: 0.1,
+      structuredOutput: { verdicts: [{ id: "c1", verdict: "refuted", reason: `Guarded at ${bad}`, checked: [{ snapshot: "head", path: "src/a.ts", line: 1 }], disproof: { snapshot: "head", path: "src/a.ts", line: 2 } }] },
+    }));
+    const result = await reviewChange(
+      input(headDir, TWO_FILES),
+      options({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5), batchLines: 1, distributed: context([desktop], [palette(desktop)]) }),
+      coreDeps(provider, verifier),
+    );
+    const gone = REMOVED_REFERENCE;
+    expect(result.findings).toHaveLength(0);
+    expect(result.verification?.entries[0]).toMatchObject({ outcome: "dropped", reason: `Guarded at ${gone}` });
+    expect(result.summary).toBe(`Summary ${gone}`);
+    expect(result.contracts[0]).toMatchObject({ before_after: `Before ${gone}, after ${good}.`, visible_effect: `Seen at ${gone}`, failure_mode: `Fails at ${gone}`, open_question: `Ask ${gone}` });
+    expect(result.riskMap.facts[0]?.why).toBe(`Shared with ${gone}`);
+    expect(result.riskMap.judgement[0]?.why).toBe(`Decide at ${gone}`);
+    // summary, entry reason, four contract fields, one fact, one judgement item
+    expect(result.removedSiblingReferences).toBe(8);
+    expect(JSON.stringify(result)).not.toContain(bad);
+  });
+
   test("a result that read only public siblings, or none, has no private-context label", async () => {
     const headDir = reviewedHead();
     const open = sibling({ member: "desktop-app", visibility: "public", dir: snapshotDir("Assets/palette.json", palette2) });

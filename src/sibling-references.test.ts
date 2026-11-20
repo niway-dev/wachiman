@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ResolvedSibling } from "./distributed";
-import { checkSiblingReferences, REMOVED_REFERENCE } from "./sibling-references";
+import { checkSiblingReferences, REMOVED_REFERENCE, settleModelText } from "./sibling-references";
 
 // ADR 0043 decision 3: a reference into a sibling survives only if the member is one the run read,
 // the sha is that snapshot's commit, and the line exists in that snapshot. The names are invented.
@@ -191,5 +191,44 @@ describe("checkSiblingReferences", () => {
     expect(big.finding.references).toBeUndefined();
     expect(big.finding.body).toBe(`See ${REMOVED_REFERENCE}`);
     expect(check("See desktop-app@3f2a9c1:small.json:2", siblings).removed).toBe(0);
+  });
+});
+
+describe("settleModelText", () => {
+  const bad = "desktop-app@3f2a9c1:Assets/palette.json:40";
+  const good = "desktop-app@3f2a9c1:Assets/palette.json:2";
+
+  test("checks every model-written field of the result, leaves the engine's fields alone and counts once", () => {
+    const out = settleModelText([sibling()], {
+      findings: [{ title: `t ${bad}`, body: `b ${good}` }],
+      summary: `s ${bad}`,
+      contracts: [{ action: "a", before_after: `x ${bad}`, open_question: `y ${bad}`, location: `src/a.ts:1 ${bad}` } as Record<string, string>],
+      riskFacts: [{ why: `r ${bad}`, path: `${bad}` }],
+      judgement: [{ why: `j ${bad}` }],
+      verification: { status: "verified", entries: [{ title: `e ${bad}`, reason: `er ${bad}`, originReason: `eo ${bad}`, path: "src/a.ts" }] },
+      muted: [{ title: `m ${bad}`, reason: `mr ${bad}`, entry: "id" }],
+      threadReplies: [{ reply: `p ${bad}`, comment_id: 1 }],
+      skipped: [{ path: "x", reason: `k ${bad}` }],
+      texts: [`n ${bad}`],
+    });
+    const gone = REMOVED_REFERENCE;
+    expect(out.findings[0]).toMatchObject({ title: `t ${gone}`, body: `b ${good}`, references: [{ member: "desktop-app", sha: SHA, path: "Assets/palette.json", line: 2 }] });
+    expect(out.summary).toBe(`s ${gone}`);
+    expect(out.contracts[0]).toEqual({ action: "a", before_after: `x ${gone}`, open_question: `y ${gone}`, location: `src/a.ts:1 ${bad}` });
+    expect(out.riskFacts[0]).toEqual({ why: `r ${gone}`, path: bad });
+    expect(out.judgement[0]).toEqual({ why: `j ${gone}` });
+    expect(out.verification).toEqual({ status: "verified", entries: [{ title: `e ${gone}`, reason: `er ${gone}`, originReason: `eo ${gone}`, path: "src/a.ts" }] });
+    expect(out.muted[0]).toEqual({ title: `m ${gone}`, reason: `mr ${gone}`, entry: "id" });
+    expect(out.threadReplies[0]).toEqual({ reply: `p ${gone}`, comment_id: 1 });
+    expect(out.skipped[0]).toEqual({ path: "x", reason: `k ${gone}` });
+    expect(out.texts).toEqual([`n ${gone}`]);
+    // title, summary, 2 contract fields, fact, judgement, 3 entry fields, 2 muted, reply, skipped, text
+    expect(out.removed).toBe(14);
+  });
+
+  test("a result with nothing to settle comes back with no verification invented", () => {
+    const out = settleModelText([sibling()], { findings: [], summary: "", contracts: [], riskFacts: [], judgement: [], muted: [], threadReplies: [], skipped: [] });
+    expect(out.verification).toBeUndefined();
+    expect(out.removed).toBe(0);
   });
 });

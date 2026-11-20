@@ -38,18 +38,10 @@ export const countable = (count: number | null) => (count === Number.MAX_SAFE_IN
 
 export type CheckedText<T> = T & { references?: SiblingReference[] };
 
-/**
- * `findings` with each sibling reference checked against `siblings`. A finding with no reference is
- * returned unchanged; one with a kept reference gets `references`; a removed one is replaced in the
- * `title` and the `body`. A removed one is also replaced in the verifier's reason and the origin reason
- * of a finding, and in `texts` (the run summary); those never add to `references`. `removed` counts every
- * removed occurrence.
- */
-export function checkSiblingReferences<T extends { title: string; body: string; verification?: { reason: string }; originReason?: string }>(
-  siblings: readonly ResolvedSibling[],
-  findings: readonly T[],
-  texts: readonly string[] = [],
-): { findings: CheckedText<T>[]; removed: number; texts: string[] } {
+type FindingText = { title: string; body: string; verification?: { reason: string }; originReason?: string };
+
+/** The checker over one run's siblings: `settle` for any text, `finding` for a finding, and the running count of removals. */
+function referenceChecker(siblings: readonly ResolvedSibling[]) {
   const readable = siblings.filter((s) => s.dir !== undefined && s.sha !== undefined && (s.status === "read" || s.status === "uncommitted-not-read"));
   const counters = new Map<string, LineCounter>();
   const lines = (dir: string, path: string) => {
@@ -75,24 +67,82 @@ export function checkSiblingReferences<T extends { title: string; body: string; 
       return token;
     });
 
-  const out = findings.map((finding): CheckedText<T> => {
+  const finding = <T extends FindingText>(f: T): CheckedText<T> => {
     kept.length = 0;
-    const title = settle(finding.title);
-    const body = settle(finding.body);
+    const title = settle(f.title);
+    const body = settle(f.body);
     const references = kept.filter((r, i) => kept.findIndex((o) => o.member === r.member && o.sha === r.sha && o.path === r.path && o.line === r.line) === i);
     const before = removed;
-    const reason = finding.verification ? settle(finding.verification.reason) : undefined;
-    const originReason = finding.originReason !== undefined ? settle(finding.originReason) : undefined;
-    if (title === finding.title && body === finding.body && references.length === 0 && removed === before) return finding;
+    const reason = f.verification ? settle(f.verification.reason) : undefined;
+    const originReason = f.originReason !== undefined ? settle(f.originReason) : undefined;
+    if (title === f.title && body === f.body && references.length === 0 && removed === before) return f;
     return {
-      ...finding,
+      ...f,
       title,
       body,
-      ...(finding.verification ? { verification: { ...finding.verification, reason: reason! } } : {}),
+      ...(f.verification ? { verification: { ...f.verification, reason: reason! } } : {}),
       ...(originReason !== undefined ? { originReason } : {}),
       ...(references.length > 0 ? { references } : {}),
     };
-  });
-  const settled = texts.map(settle);
-  return { findings: out, removed, texts: settled };
+  };
+  return { settle, finding, removed: () => removed };
+}
+
+/**
+ * `findings` with each sibling reference checked against `siblings`. A finding with no reference is
+ * returned unchanged; one with a kept reference gets `references`; a removed one is replaced in the
+ * `title` and the `body`. A removed one is also replaced in the verifier's reason and the origin reason
+ * of a finding, and in `texts` (the run summary); those never add to `references`. `removed` counts every
+ * removed occurrence.
+ */
+export function checkSiblingReferences<T extends FindingText>(
+  siblings: readonly ResolvedSibling[],
+  findings: readonly T[],
+  texts: readonly string[] = [],
+): { findings: CheckedText<T>[]; removed: number; texts: string[] } {
+  const check = referenceChecker(siblings);
+  const out = findings.map(check.finding);
+  const settled = texts.map(check.settle);
+  return { findings: out, removed: check.removed(), texts: settled };
+}
+
+/** Every field of a contract entry that the model wrote as prose (the rest are paths and a status; `evidence_checked` is the engine's). */
+const CONTRACT_TEXT = ["action", "equivalent_path", "before_after", "visible_effect", "failure_mode", "open_question"] as const;
+
+/**
+ * The model-written text of a whole result, each field checked as a finding's is: the findings, the
+ * summary, the contracts' prose, the risk facts and judgement items, the verifier's entries (the
+ * dropped ones too), what the memory step said, the replies to threads the reasons a file was
+ * skipped, and any other text (`texts`). A reference that fails is replaced and counted in `removed`, the one total of the run. Only
+ * a finding keeps the references that pass, in `references`: nothing else has a field for them.
+ */
+export function settleModelText<
+  F extends FindingText,
+  C extends Partial<Record<(typeof CONTRACT_TEXT)[number], string>>,
+  W extends { why: string },
+  V extends { entries: { title: string; reason: string; originReason?: string }[] },
+  M extends { title: string; reason: string },
+  R extends { reply: string },
+  S extends { reason: string },
+>(
+  siblings: readonly ResolvedSibling[],
+  input: { findings: readonly F[]; summary: string; contracts: readonly C[]; riskFacts: readonly W[]; judgement: readonly W[]; verification?: V; muted: readonly M[]; threadReplies: readonly R[]; skipped: readonly S[]; texts?: readonly string[] },
+) {
+  const check = referenceChecker(siblings);
+  const some = <T extends object, K extends keyof T>(item: T, keys: readonly K[]): T => {
+    const next = { ...item };
+    for (const key of keys) if (typeof item[key] === "string") next[key] = check.settle(item[key] as string) as T[K];
+    return next;
+  };
+  const findings = input.findings.map(check.finding);
+  const summary = check.settle(input.summary);
+  const contracts = input.contracts.map((c) => some(c, CONTRACT_TEXT));
+  const riskFacts = input.riskFacts.map((f) => some(f, ["why"] as const));
+  const judgement = input.judgement.map((f) => some(f, ["why"] as const));
+  const verification = input.verification && { ...input.verification, entries: input.verification.entries.map((e) => some(e, ["title", "reason", "originReason"] as const)) };
+  const muted = input.muted.map((m) => some(m, ["title", "reason"] as const));
+  const threadReplies = input.threadReplies.map((r) => some(r, ["reply"] as const));
+  const skipped = input.skipped.map((s) => some(s, ["reason"] as const));
+  const texts = (input.texts ?? []).map(check.settle);
+  return { findings, summary, contracts, riskFacts, judgement, verification, muted, threadReplies, skipped, texts, removed: check.removed() };
 }

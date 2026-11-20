@@ -79,7 +79,7 @@ import {
 } from "./contracts";
 import { describeCall } from "./call-message";
 import { batchDistributed, distributedResultFields, verifierDistributed, type DistributedContext } from "./distributed";
-import { checkSiblingReferences } from "./sibling-references";
+import { settleModelText } from "./sibling-references";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
 import {
   annotateUnverified,
@@ -3875,17 +3875,33 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   // The anchor is decided here, so a sink needs no patch to know which findings sit on a diff line.
   const commentable = new Map(kept.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
   // A distributed-repo run (ADR 0043): a reference into a sibling stays only if its line exists in that
-  // member's snapshot at that commit. The snapshots are still on disk here; the caller removes them after.
-  const siblingRefs = options.distributed ? checkSiblingReferences(options.distributed.siblings, checked, [merged.summary]) : undefined;
-  if (siblingRefs && siblingRefs.removed > 0)
-    core.log(`Sibling references: ${siblingRefs.removed} removed: the member was not read, the commit is not its snapshot's, or the line does not exist there.`);
-  const findings: ResultFinding[] = (siblingRefs?.findings ?? checked).map((f) => ({
+  // member's snapshot at that commit, in every text the model wrote that reaches the result. The snapshots
+  // are still on disk here; the caller removes them after.
+  const riskFacts = parts.flatMap((p) => wellFormed<RiskFact>(p.output.risk_facts, RISK_KINDS));
+  const judgement = parts.flatMap((p) => wellFormed<JudgementItem>(p.output.judgement, JUDGEMENT_KINDS));
+  const settled = options.distributed
+    ? settleModelText(options.distributed.siblings, {
+        findings: checked,
+        summary: merged.summary,
+        contracts: merged.contracts ?? [],
+        riskFacts,
+        judgement,
+        ...(verification ? { verification } : {}),
+        muted: memoryStep.muted,
+        threadReplies: merged.thread_replies,
+        skipped: merged.files_skipped,
+        texts: memoryStep.text !== undefined ? [memoryStep.text] : [],
+      })
+    : undefined;
+  if (settled && settled.removed > 0)
+    core.log(`Sibling references: ${settled.removed} removed: the member was not read, the commit is not its snapshot's, or the line does not exist there.`);
+  const findings: ResultFinding[] = (settled?.findings ?? checked).map((f) => ({
     ...f,
     anchor: commentable.get(f.path)?.has(f.line) ? "diff" : "outside",
   }));
   // Only threads the connector handed over: an id the model made up would reply elsewhere.
   const known = new Set(threads.map((t) => t.comment_id));
-  const threadReplies = merged.thread_replies.filter((r) => known.has(r.comment_id));
+  const threadReplies = (settled?.threadReplies ?? merged.thread_replies).filter((r) => known.has(r.comment_id));
 
   const firstRejection = refused ?? (other !== undefined ? { kind: "other" as const, text: other } : undefined);
   // In today's precedence: a refused account stops everything; a review with output, or nothing
@@ -3909,8 +3925,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const riskMap = buildRiskMap({
     ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
     files: kept.map((f) => ({ path: f.filename, changedLines: f.additions + f.deletions, ...(f.previous_filename ? { previousPath: f.previous_filename } : {}) })),
-    facts: parts.flatMap((p) => wellFormed<RiskFact>(p.output.risk_facts, RISK_KINDS)),
-    judgement: parts.flatMap((p) => wellFormed<JudgementItem>(p.output.judgement, JUDGEMENT_KINDS)),
+    facts: settled?.riskFacts ?? riskFacts,
+    judgement: settled?.judgement ?? judgement,
     unreadFiles: expected.filter((f) => !reviewedSet.has(f)).length,
     lineExists: (path, line) => {
       const count = lineCount(path);
@@ -3966,17 +3982,17 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     coverage: {
       expected,
       reviewed: merged.files_reviewed,
-      skipped: merged.files_skipped,
+      skipped: settled?.skipped ?? merged.files_skipped,
       excluded: dropped.length,
       unreviewable,
       partial: expected.some((f) => !reviewedSet.has(f)),
     },
     findings,
-    contracts: merged.contracts ?? [],
-    summary: withMemoryNotices(siblingRefs?.texts[0] ?? merged.summary, options.memory, memoryStep.text),
+    contracts: settled?.contracts ?? merged.contracts ?? [],
+    summary: withMemoryNotices(settled?.summary ?? merged.summary, options.memory, settled ? settled.texts[0] : memoryStep.text),
     riskMap,
     ...(options.memory ? { memory: memoryRecord(options.memory) } : {}),
-    ...(memoryStep.muted.length > 0 ? { muted: memoryStep.muted } : {}),
+    ...(memoryStep.muted.length > 0 ? { muted: settled?.muted ?? memoryStep.muted } : {}),
     batches: reports,
     threadReplies,
     instructionChanges: {
@@ -3984,7 +4000,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       baseSha: input.instructions.baseSha,
     },
     ...(input.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
-    ...(options.distributed ? distributedResultFields(options.distributed, siblingRefs?.removed ?? 0) : {}),
+    ...(options.distributed ? distributedResultFields(options.distributed, settled?.removed ?? 0) : {}),
     execution: {
       costUsdEstimate: spent,
       usage,
@@ -3996,7 +4012,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       ...(firstRejection ? { rejection: firstRejection } : {}),
       notices,
     },
-    ...(verification ? { verification } : {}),
+    ...(verification ? { verification: settled?.verification ?? verification } : {}),
     ...(fidelity ? { fidelity } : {}),
     ...(arm ? { arm } : {}),
   };
