@@ -172,9 +172,16 @@ describe("a distributed-repo run never fetches, pulls, clones or calls gh", () =
     const t = tools();
     const s = workspace({ rule: "local" });
     expect(cliRun(s, t, ["local", "--distributed-repo", "--base", "main", "--history"]).code).toBe(0);
+    const before = t.seen();
     const r = cliRun(s, t, ["ask", "what changed?", "--base", "main"]);
     expect(r.code, r.stderr).toBe(0);
     expect(r.stdout).toContain("It changes the brand colour.");
+    // The calls only `ask` made: it checked the stored commit in the sibling and re-created its snapshot, so the empty refusal log is not vacuous.
+    const calls = t.seen().slice(before.length).split("\n");
+    const stored = calls.map((c) => c.match(/cat-file -e ([0-9a-f]{40})\^\{commit\}/)?.[1]).find((sha) => sha !== undefined);
+    expect(stored).toBeDefined();
+    expect(calls.some((c) => c.includes(`ls-tree -r -z --full-tree ${stored}`))).toBe(true);
+    expect(calls.some((c) => c.endsWith("cat-file --batch"))).toBe(true);
     noFetch(t);
   }, 60_000);
 
