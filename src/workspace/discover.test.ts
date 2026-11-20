@@ -118,9 +118,18 @@ describe("findWorkspace", () => {
     expect(found?.user).toBeUndefined();
   });
 
-  test("walks up through nested folders and matches by dir without an origin", () => {
+  test("matches by dir without an origin", () => {
     const coordinator = workspace();
     expect(findWorkspace(join(coordinator, "desktop-app"), undefined, noUserFile, [])?.reviewed.dir).toBe("desktop-app");
+  });
+
+  test("walks up more than one level to the manifest, for a member nested in a group folder", () => {
+    const coordinator = tmp();
+    writeFileSync(join(coordinator, MANIFEST_FILE), JSON.stringify(MANIFEST).replaceAll('"web-site"', '"group/web-site"'));
+    mkdirSync(join(coordinator, "group/web-site"), { recursive: true });
+    const found = findWorkspace(join(coordinator, "group/web-site"), undefined, noUserFile, []);
+    expect(found?.coordinator).toBe(coordinator);
+    expect(found?.reviewed.dir).toBe("group/web-site");
   });
 
   test("a manifest above a repository that is not one of its members is none", () => {
@@ -132,7 +141,11 @@ describe("findWorkspace", () => {
   });
 
   test("no manifest anywhere is none", () => {
-    expect(findWorkspace(tmp(), "https://github.com/acme/web-site.git", noUserFile, [])).toBeUndefined();
+    // The walk stops at a folder this test owns, so a manifest in /tmp or / of the machine cannot matter.
+    const root = tmp();
+    const repo = join(root, "deep/er/web-site");
+    mkdirSync(repo, { recursive: true });
+    expect(findWorkspace(repo, "https://github.com/acme/web-site.git", noUserFile, [], root)).toBeUndefined();
   });
 
   test("a per-user entry whose manifest file is gone is skipped with a warning naming its path", () => {

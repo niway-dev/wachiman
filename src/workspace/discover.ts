@@ -74,9 +74,9 @@ const isManifestError = (error: unknown): error is ManifestError => error instan
  * up does not list this repository. A per-user entry whose manifest file is gone, or is invalid, is
  * skipped and a message naming its path is pushed to `warnings`, so one broken entry never fails
  * the review of a repository that is not in it. A manifest found by walking up that is invalid is
- * refused.
+ * refused. The walk stops after `ceiling`, when given (a folder above `repoTop`); tests use it to stay inside a folder they own.
  */
-export function findWorkspace(repoTop: string, origin: string | undefined, userFile: UserFile, warnings: string[]): FoundWorkspace | undefined {
+export function findWorkspace(repoTop: string, origin: string | undefined, userFile: UserFile, warnings: string[], ceiling?: string): FoundWorkspace | undefined {
   const slug = repoSlug(origin);
   for (const user of userFile.workspaces) {
     let manifest: Manifest;
@@ -106,7 +106,7 @@ export function findWorkspace(repoTop: string, origin: string | undefined, userF
       return reviewed ? { coordinator: dir, manifestPath, manifest, reviewed } : undefined;
     }
     const parent = dirname(dir);
-    if (parent === dir) return undefined;
+    if (parent === dir || (ceiling !== undefined && dir === resolve(ceiling))) return undefined;
     dir = parent;
   }
 }
