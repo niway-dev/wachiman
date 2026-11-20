@@ -254,6 +254,12 @@ describe("rule sources", () => {
     expect(resolveVersion(context(c, p, { rule: "tip" }, { user: user({ "ui-kit": { rule: "local" } }) }))).toMatchObject({ ruleSource: "user-file", rule: "local" });
   });
 
+  test("a contract or member named like an Object.prototype key is not a rule", () => {
+    const named = { ...contractWith(), name: "constructor" };
+    expect(chooseRule(named, { ...ui, dir: "toString" }, user({}))).toEqual({ spec: { rule: "pinned" }, source: "default" });
+    expect(chooseRule(named, ui, user({ constructor: { rule: "tip" } }))).toEqual({ spec: { rule: "tip" }, source: "user-file" });
+  });
+
   test("a user rule overrides the manifest's even when it is the less specific one", () => {
     const p = provider();
     const result = resolveVersion(context(consumer(), p, { rule: "local" }, { user: user({ "ui-kit-api": { rule: "tip" } }) }));

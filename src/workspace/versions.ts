@@ -8,7 +8,7 @@ import { statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnGit, type GitRunner } from "../evidence";
 import type { Contract, Member, VersionRuleName, VersionSpec } from "./manifest";
-import type { UserWorkspace } from "./user-file";
+import { own, type UserWorkspace } from "./user-file";
 
 export type RuleSource = "default" | "manifest" | "user-file";
 
@@ -38,8 +38,8 @@ const DEFAULT_RULE: VersionSpec = { rule: "pinned" };
 /** The version spec that applies to `member` in `contract`: first match of the spec's precedence. */
 export function chooseRule(contract: Contract, member: Member, user?: UserWorkspace): { spec: VersionSpec; source: RuleSource } {
   const levels: [VersionSpec | undefined, RuleSource][] = [
-    [user?.versions[contract.name], "user-file"],
-    [user?.versions[member.dir], "user-file"],
+    [user && own(user.versions, contract.name), "user-file"],
+    [user && own(user.versions, member.dir), "user-file"],
     [contract.version, "manifest"],
     [member.version, "manifest"],
   ];

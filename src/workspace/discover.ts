@@ -9,7 +9,7 @@ import { dirname, join, resolve } from "node:path";
 import { UsageError } from "../config";
 import { normaliseRemote } from "../history/store";
 import { MANIFEST_FILE, readManifest, type Contract, type Manifest, type Member } from "./manifest";
-import type { UserFile, UserWorkspace } from "./user-file";
+import { own, type UserFile, type UserWorkspace } from "./user-file";
 
 export class WorkspaceError extends UsageError {
   constructor(message: string) {
@@ -54,7 +54,7 @@ export interface FoundWorkspace {
 }
 
 /** Where a member is cloned: the per-user override, else its `dir` in the coordinator. */
-export const memberDir = (coordinator: string, member: Member, user?: UserWorkspace) => user?.members[member.dir]?.dir ?? join(coordinator, member.dir);
+export const memberDir = (coordinator: string, member: Member, user?: UserWorkspace) => (user && own(user.members, member.dir))?.dir ?? join(coordinator, member.dir);
 
 /** The member that is the reviewed repository: by `repo` against the origin, then by where it is cloned. */
 function memberOf(manifest: Manifest, coordinator: string, repoTop: string, slug: string | undefined, user?: UserWorkspace): Member | undefined {
@@ -161,7 +161,7 @@ export interface PlannedRead {
 }
 
 function statusOf(found: FoundWorkspace, member: Member, dir: string): ReadStatus {
-  if (found.user?.members[member.dir]?.watch === false) return "not-watched";
+  if ((found.user && own(found.user.members, member.dir))?.watch === false) return "not-watched";
   return existsSync(join(dir, ".git")) ? "ready" : "not-cloned";
 }
 

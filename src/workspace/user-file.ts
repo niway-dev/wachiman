@@ -44,6 +44,9 @@ export interface UserFile {
 export const USER_FILE_NAME = "workspaces.json";
 export const userFilePath = (wachimanHome: string) => join(wachimanHome, USER_FILE_NAME);
 
+/** An own entry of a record keyed by a name from a file (`constructor` and `toString` are names, not inherited functions). */
+export const own = <T>(record: Record<string, T>, key: string): T | undefined => (Object.hasOwn(record, key) ? record[key] : undefined);
+
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const refuse = (message: string) => new UserFileError(`${USER_FILE_NAME}: ${message}`);
 
@@ -54,7 +57,7 @@ function parseWorkspace(raw: unknown, index: number): UserWorkspace {
   if (!isAbsolute(raw.manifest)) throw refuse(`${where}.manifest must be an absolute path, got "${raw.manifest}".`);
   const distributedRepo = raw.distributedRepo ?? "off";
   if (distributedRepo !== "on" && distributedRepo !== "off") throw refuse(`${where}.distributedRepo must be "on" or "off", got ${JSON.stringify(raw.distributedRepo)}.`);
-  const members: Record<string, UserMember> = {};
+  const members: Record<string, UserMember> = Object.create(null);
   if (raw.members !== undefined) {
     if (!isRecord(raw.members)) throw refuse(`${where}.members must be an object keyed by member dir.`);
     for (const [name, value] of Object.entries(raw.members)) {
@@ -72,7 +75,7 @@ function parseWorkspace(raw: unknown, index: number): UserWorkspace {
       members[name] = member;
     }
   }
-  const versions: Record<string, VersionSpec> = {};
+  const versions: Record<string, VersionSpec> = Object.create(null);
   if (raw.versions !== undefined) {
     if (!isRecord(raw.versions)) throw refuse(`${where}.versions must be an object keyed by contract name or member dir.`);
     for (const [name, value] of Object.entries(raw.versions)) versions[name] = parseVersionSpec(value, `${where}.versions.${name}`, refuse);
