@@ -90,7 +90,7 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
-import { neutralise } from "./review-format/escape";
+import { defuseDetails, neutralise } from "./review-format/escape";
 import { renderReviewBody } from "./review-format/render";
 import { buildView, refusedView, type ReviewView } from "./review-format/view";
 import { batchDistributed, distributedResultFields, plainText, verifierDistributed, type DistributedContext } from "./distributed";
@@ -1173,7 +1173,7 @@ export const CONTRACTS_SUMMARY = "What the change connects to";
 
 /** One line of model text: whitespace collapsed, comments defused, cut at `max` characters. */
 export function oneLine(text: string, max = 280) {
-  const flat = neutralise(text).replace(/\s+/g, " ").trim();
+  const flat = defuseDetails(neutralise(text)).replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
 
@@ -4699,8 +4699,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     scopePaths: paths.length,
     mention: config.mention,
     repo,
-    // A genuine first review has no earlier threads; a full review (no marker read) may.
-    earlierThreads: last || config.fullReview ? earlierThreadCount(gh, repo, pr) : 0,
+    earlierThreads: earlierThreadCount(gh, repo, pr),
     automatic,
     receiptLine,
     instructionChanges: {

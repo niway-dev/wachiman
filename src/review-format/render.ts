@@ -355,13 +355,13 @@ function shownRows(view: ReviewView, fit: Fit) {
   const f = view.findings;
   const { limits, dropped } = fit;
   // Slot 6 shrunk keeps the rows with no thread (they are the only place their finding is); the 422 body has none of those to keep.
-  const considerKept = fit.considerShrunk ? f.consider.filter((r) => !r.inlineThread) : f.consider;
+  const considerKept = (fit.considerShrunk ? f.consider.filter((r) => !r.inlineThread) : f.consider).slice(0, limits.consider);
   return {
     toFix: f.toFix.slice(0, limits.toFix),
     investigate: f.investigate.slice(0, limits.investigate),
     consider: dropped.has("consider") ? [] : considerKept,
     preExisting: dropped.has("preExisting") ? [] : f.preExisting.slice(0, limits.preExisting),
-    info: dropped.has("info") ? [] : f.info,
+    info: dropped.has("info") ? [] : f.info.slice(0, limits.info),
   };
 }
 
@@ -374,7 +374,7 @@ function considerSlot(view: ReviewView, fit: Fit): string | null {
   let inner: string;
   if (rest === 0) inner = findingTable(view, all, "");
   else {
-    const note = view.inlineRefused ? `${rest} more to consider, not shown because of GitHub's size limit.` : `${rest} more to consider, on their lines (see Files changed).`;
+    const note = view.inlineRefused || fit.limits.consider !== undefined ? `${rest} more to consider, not shown because of GitHub's size limit.` : `${rest} more to consider, on their lines (see Files changed).`;
     inner = kept.length > 0 ? `${findingTable(view, kept, "")}\n\n${note}` : note;
   }
   return all.length > CONSIDER_OPEN_ROWS ? collapsed(`To consider (${all.length})`, inner) : visible("To consider", all.length, inner);
@@ -432,7 +432,11 @@ function questions(view: ReviewView): string | null {
 }
 
 /** The first paragraph of a model's text: where a body is cut when the details must shrink. */
-const firstParagraph = (text: string) => text.trim().split(/\n\s*\n/)[0]!;
+const FIRST_PARAGRAPH_MAX = 600;
+const firstParagraph = (text: string) => {
+  const first = text.trim().split(/\n\s*\n/)[0]!;
+  return first.length > FIRST_PARAGRAPH_MAX ? `${first.slice(0, FIRST_PARAGRAPH_MAX - 1).trimEnd()}…` : first;
+};
 
 const demanding = (r: FindingRow) => r.severity === "blocker" || r.severity === "fix";
 
@@ -493,7 +497,7 @@ function notReviewedFiles(view: ReviewView, fit: Fit): string | null {
 // ---- The body --------------------------------------------------------------------------------------
 
 /** How many rows of each cuttable table to show; absent means all. Used only by the size fitting. */
-export type RowLimits = Partial<Record<"toFix" | "investigate" | "preExisting" | "riskFacts", number>>;
+export type RowLimits = Partial<Record<"toFix" | "investigate" | "preExisting" | "riskFacts" | "consider" | "info", number>>;
 
 /** The slots of the review body in their order, empty ones and dropped ones left out. `fit` says what the size fitting has cut. */
 export function renderSlots(view: ReviewView, fit: Fit = WHOLE): Slot[] {
@@ -521,7 +525,7 @@ export function renderSlots(view: ReviewView, fit: Fit = WHOLE): Slot[] {
     const holdsFix = f.preExisting.some(demanding);
     add("preExisting", holdsFix ? visible("Pre-existing", f.preExisting.length, table) : collapsed(`Pre-existing (${f.preExisting.length})`, table));
   }
-  if (f.info.length > 0 && !dropped.has("info")) add("info", collapsed(`For your information (${f.info.length})`, findingTable(view, f.info, "")));
+  if (f.info.length > 0 && !dropped.has("info")) add("info", collapsed(`For your information (${f.info.length})`, findingTable(view, f.info, "", limits.info)));
   const contracts = [...view.contracts.open, ...view.contracts.closed];
   add("connects", renderContracts(contracts));
   if (view.batchProse.trim()) add("checked", collapsed("What the reviewer checked", block(view.batchProse)));
@@ -617,10 +621,10 @@ function fit(view: ReviewView, limit: number): string {
   // Still over. The memory list keeps what fits next to the smallest body the tables can make.
   const f = view.findings;
   const bullets = riskFactBullets(view).length;
-  const sizes: Record<keyof RowLimits, number> = { riskFacts: bullets, preExisting: f.preExisting.length, investigate: f.investigate.length, toFix: f.toFix.length };
+  const sizes: Record<keyof RowLimits, number> = { info: f.info.length, consider: f.consider.length, riskFacts: bullets, preExisting: f.preExisting.length, investigate: f.investigate.length, toFix: f.toFix.length };
   // Risk facts keep the one that sets the level, To fix and Needs investigation their first row (a Blocker when there is one): a body a little over the limit is better than one with no finding in it.
-  const least = (key: keyof RowLimits) => (key === "preExisting" ? 0 : Math.min(1, sizes[key]));
-  const smallest: Fit = { ...state, limits: { riskFacts: least("riskFacts"), preExisting: 0, investigate: least("investigate"), toFix: least("toFix") } };
+  const least = (key: keyof RowLimits) => (key === "preExisting" || key === "consider" || key === "info" ? 0 : Math.min(1, sizes[key]));
+  const smallest: Fit = { ...state, limits: { info: 0, consider: 0, riskFacts: least("riskFacts"), preExisting: 0, investigate: least("investigate"), toFix: least("toFix") } };
   let shownView = view;
   if (view.memoryNotices) {
     const rest = render({ ...view, memoryNotices: "" }, smallest).length;
@@ -630,7 +634,7 @@ function fit(view: ReviewView, limit: number): string {
   const limits: RowLimits = {};
   const at = (k: keyof RowLimits, n: number): Fit => ({ ...state, limits: { ...limits, [k]: n } });
   // Each table in turn keeps the most rows that make the body fit; when none does, it keeps the least and the next one is cut.
-  for (const key of ["riskFacts", "preExisting", "investigate", "toFix"] as const) {
+  for (const key of ["info", "consider", "riskFacts", "preExisting", "investigate", "toFix"] as const) {
     const min = least(key);
     if (render(shownView, { ...state, limits }).length <= limit) break;
     let [low, high] = [min, sizes[key] - 1];

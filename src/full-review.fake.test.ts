@@ -94,11 +94,11 @@ describe("a dry run that ignores the previous-review marker", () => {
     expect(r.posts).toEqual([]);
   });
 
-  test("a full review reads the open threads for its status; a genuine first review makes no thread read", async () => {
+  test("every review reads the open threads for its status, a first review included", async () => {
     const full = await run({ WACHIMAN_DRY_RUN: "1", WACHIMAN_FULL_REVIEW: "1" });
     expect(full.graphql.length).toBeGreaterThan(0);
     const first = await run({ WACHIMAN_DRY_RUN: "1" }, false);
     expect(first.provider.requests).toHaveLength(1);
-    expect(first.graphql).toEqual([]);
+    expect(first.graphql.length).toBeGreaterThan(0);
   });
 });
