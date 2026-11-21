@@ -102,7 +102,8 @@ describe("the GitHub mode does not import the workspace code", () => {
     const importers = files(SRC)
       .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !relative(SRC, f).startsWith("workspace/"))
       .filter((f) => importsOf(readFileSync(f, "utf8")).some((s) => /(^|\/)workspace(\/|$)/.test(s)))
-      .map((f) => relative(SRC, f));
+      .map((f) => relative(SRC, f))
+      .sort();
     // `wachiman local` and `wachiman ask` are laptop commands (`loop` reaches the workspace through `local.ts`); the GitHub mode never reaches them.
     expect(importers).toEqual(["local-ask.ts", "local.ts"]);
   });
