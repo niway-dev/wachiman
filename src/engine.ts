@@ -90,6 +90,7 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
+import { neutralise } from "./review-format/escape";
 import { batchDistributed, distributedResultFields, plainText, verifierDistributed, type DistributedContext } from "./distributed";
 import { settleModelText } from "./sibling-references";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
@@ -966,12 +967,8 @@ export const SIGNATURE = {
 } as const;
 const ANY_SIGNATURE = /<!-- wachi:(?:review|finding|reply|auto|answer|ask|ask-limit) -->/;
 
-/**
- * Defuses HTML comments in text a model wrote, so it cannot forge the incremental marker or a
- * signature: `<!--` becomes `&lt;!--` and `-->` becomes `--&gt;`. Markdown shows both as before.
- */
-export const neutralise = (text: string) =>
-  text.replaceAll("<!--", "&lt;!--").replaceAll("-->", "--&gt;");
+// Defined in the review format, which needs nothing from this module; re-exported for its many readers here.
+export { neutralise };
 
 /**
  * The engine's review footer is the only place a marker is accepted. A signed review ends with
@@ -2683,26 +2680,86 @@ export function openBotThreads(threads: RawThread[]) {
  */
 export type Thread = ReturnType<typeof openBotThreads>[number] & { wachi_replies?: number };
 
-/** The pull request's first 100 review threads (30 comments each), as GitHub's GraphQL sends them. */
-export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
+/** A bound on the loop below: 200 pages of 100 threads. A pull request with more is read as incomplete. */
+const MAX_THREAD_PAGES = 200;
+
+/** What `fetchThreadPages` read, and whether that is every thread of the pull request. */
+export interface ThreadPages {
+  threads: RawThread[];
+  /** False when a page could not be read (or the pages did not end): `threads` is then only what came before. */
+  complete: boolean;
+  /** Why the read stopped, when it did. */
+  error?: unknown;
+  /** How many pages were read. */
+  pages: number;
+}
+
+/**
+ * The pull request's review threads (30 comments each), a page of 100 at a time, as GitHub's GraphQL
+ * sends them. Never throws: a page that fails, an answer that is not a list of threads, or a cursor
+ * that does not advance ends the read with `complete: false` and what was read so far. A caller that
+ * must not mistake a partial list for the whole one (the status of a re-review) reads `complete`.
+ */
+export function fetchThreadPages(gh: GhFn, repo: string, pr: number): ThreadPages {
   const [owner, name] = repo.split("/");
-  const query = `query($owner: String!, $name: String!, $pr: Int!) {
+  const query = `query($owner: String!, $name: String!, $pr: Int!, $after: String) {
     repository(owner: $owner, name: $name) { pullRequest(number: $pr) {
-      reviewThreads(first: 100) { nodes { isResolved path line
+      reviewThreads(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { isResolved path line
         comments(first: 30) { nodes { databaseId author { login } authorAssociation body createdAt } } } } } } }`;
-  const raw = gh([
-    "api",
-    "graphql",
-    "-f",
-    `query=${query}`,
-    "-F",
-    `owner=${owner}`,
-    "-F",
-    `name=${name}`,
-    "-F",
-    `pr=${pr}`,
-  ]);
-  return JSON.parse(raw).data.repository.pullRequest.reviewThreads.nodes;
+  const threads: RawThread[] = [];
+  let after: string | null = null;
+  for (let pages = 0; pages < MAX_THREAD_PAGES; ) {
+    try {
+      const raw: string = gh([
+        "api",
+        "graphql",
+        "-f",
+        `query=${query}`,
+        "-F",
+        `owner=${owner}`,
+        "-F",
+        `name=${name}`,
+        "-F",
+        `pr=${pr}`,
+        // `-f`, not `-F`: a cursor is a string, and `-F` would read a value that looks like a number or `true` as one.
+        ...(after === null ? [] : ["-f", `after=${after}`]),
+      ]);
+      const page = JSON.parse(raw)?.data?.repository?.pullRequest?.reviewThreads;
+      if (!page || !Array.isArray(page.nodes)) throw new GhError(`GitHub answered no review threads for ${repo}#${pr}.`, null, "");
+      threads.push(...page.nodes);
+      pages++;
+      const next: unknown = page.pageInfo?.hasNextPage ? page.pageInfo.endCursor : null;
+      if (next === null) return { threads, complete: true, pages };
+      if (typeof next !== "string" || next === after) {
+        return { threads, complete: false, pages, error: new GhError("GitHub's review-thread pagination did not advance.", null, "") };
+      }
+      after = next;
+    } catch (error) {
+      return { threads, complete: false, pages, error };
+    }
+  }
+  return { threads, complete: false, pages: MAX_THREAD_PAGES, error: new GhError(`More than ${MAX_THREAD_PAGES * 100} review threads on ${repo}#${pr}.`, null, "") };
+}
+
+/**
+ * Every review thread of the pull request that could be read. A first page that fails throws, as it
+ * always has; a later page that fails leaves the pages before it, so a caller that only replies
+ * to threads keeps working. Use `fetchThreadPages` when a missing page changes the answer.
+ */
+export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
+  const read = fetchThreadPages(gh, repo, pr);
+  if (read.pages === 0 && !read.complete) throw read.error;
+  return read.threads;
+}
+
+/**
+ * How many of the engine's own finding threads are still open, for the status of a re-review
+ * (spec failure 6). `unknown` when any page could not be read: a count of the pages that did load
+ * would read as "nothing is open".
+ */
+export function earlierThreadCount(gh: GhFn, repo: string, pr: number): number | "unknown" {
+  const read = fetchThreadPages(gh, repo, pr);
+  return read.complete ? openBotThreads(read.threads).length : "unknown";
 }
 
 export function openThreads(gh: GhFn, repo: string, pr: number) {

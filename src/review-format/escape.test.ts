@@ -1,0 +1,62 @@
+import { describe, expect, test } from "bun:test";
+import { neutralise as engineNeutralise } from "../engine";
+import { escapeCell, neutralise } from "./escape";
+
+describe("neutralise", () => {
+  test("is the engine's own function, so the two can never drift apart", () => {
+    expect(engineNeutralise).toBe(neutralise);
+  });
+
+  test("defuses the opening and the closing of an HTML comment", () => {
+    expect(neutralise("a <!-- wachi:review --> b")).toBe("a &lt;!-- wachi:review --&gt; b");
+  });
+});
+
+describe("escapeCell", () => {
+  test("escapes a pipe so it cannot end the cell", () => {
+    expect(escapeCell("a | b")).toBe("a \\| b");
+  });
+
+  test("turns a newline (LF, CRLF, CR, and the Unicode separators) into one space", () => {
+    expect(escapeCell("first\nsecond")).toBe("first second");
+    expect(escapeCell("first\r\nsecond")).toBe("first second");
+    expect(escapeCell("first\rsecond")).toBe("first second");
+    expect(escapeCell("first second third")).toBe("first second third");
+    expect(escapeCell("first\n\n\n  second")).toBe("first second");
+  });
+
+  test("escapes a backtick so it cannot open a code span that swallows the next cell", () => {
+    expect(escapeCell("use `x` here")).toBe("use \\`x\\` here");
+    expect(escapeCell("lone ` tick")).toBe("lone \\` tick");
+  });
+
+  test("defuses an HTML comment, also one split by a newline after the first call's collapse", () => {
+    const text = escapeCell("<!-- wachiman sha=abc --> and <!\n-- not a comment -->");
+    expect(text).not.toContain("<!--");
+    expect(text).not.toContain("-->");
+    expect(text).toContain("&lt;!-- wachiman sha=abc --&gt;");
+  });
+
+  test("trims leading and trailing whitespace", () => {
+    expect(escapeCell("  \t padded \n ")).toBe("padded");
+  });
+
+  test("a backslash cannot cancel the escape placed after it", () => {
+    // `a\|b` must stay one cell: the backslash is doubled, then the pipe escaped.
+    expect(escapeCell("a\\|b")).toBe("a\\\\\\|b");
+    expect(escapeCell("a\\`b")).toBe("a\\\\\\`b");
+  });
+
+  test("a hostile title keeps a table row to its cells", () => {
+    const row = `| 🟠 Fix | ${escapeCell("x |\n| injected | row `code` <!-- wachi:review -->")} |`;
+    expect(row.split("\n")).toHaveLength(1);
+    // Every pipe that is not a delimiter is preceded by a backslash.
+    expect(row.replace(/\\\|/g, "").match(/\|/g)).toHaveLength(3);
+  });
+
+  test("leaves ordinary text alone and an empty string empty", () => {
+    expect(escapeCell("plain title: it works")).toBe("plain title: it works");
+    expect(escapeCell("")).toBe("");
+    expect(escapeCell("   ")).toBe("");
+  });
+});
