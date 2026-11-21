@@ -11,7 +11,7 @@ jobs:
   # --check step fails when a file it finds would be in no shard or in two, or when a tracked test
   # file is outside what it finds; each shard also checks that Bun ran exactly the files it listed.
   tests:
-    name: tests (shard ${{ matrix.shard }} of 4)
+    name: tests (shard ${{ matrix.shard }} of ${{ strategy.job-total }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -30,13 +30,18 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi
+      # The shard count comes from the matrix itself (strategy.job-total), so the split cannot
+      # disagree with the number of jobs.
       - name: Every test file is in exactly one shard
-        run: bun scripts/test-shard.ts --check 4
+        env:
+          TOTAL: ${{ strategy.job-total }}
+        run: bun scripts/test-shard.ts --check "$TOTAL"
       - name: Run this shard
         env:
           SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ strategy.job-total }}
         run: |
-          mapfile -t files < <(bun scripts/test-shard.ts "$SHARD" 4)
+          mapfile -t files < <(bun scripts/test-shard.ts "$SHARD" "$TOTAL")
           [ "${#files[@]}" -gt 0 ] || { echo "shard $SHARD has no files" >&2; exit 1; }
           bun test "${files[@]}" 2>&1 | tee "$RUNNER_TEMP/shard.log"
           status=${PIPESTATUS[0]}

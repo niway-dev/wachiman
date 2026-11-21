@@ -14,7 +14,8 @@
  *
  * Refresh the timings when the suite changes a lot: read the per-file times from a CI run of
  * `bun test` (the time between one file's header and the next) and rewrite the JSON as
- * `{ "path/to/file.test.ts": seconds }`, rounded to 0.01. \`--check\` warns about files with no entry. Stale entries for deleted files are ignored.
+ * `{ "path/to/file.test.ts": seconds }`, rounded to 0.01.
+ * `--check` warns about files with no entry. Stale entries for deleted files are ignored.
  *
  * Paths are printed with a leading `./`: Bun treats an argument that starts with `./` as a file
  * and any other argument as a substring filter.
