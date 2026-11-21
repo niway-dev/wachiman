@@ -13,8 +13,10 @@ printWidth = 140
 ignorePatterns = ["**/*.md", "**/*.toml", "**/fixtures/**", "templates/**", ".claude/**"]
 
 [lint]
+plugins = ["./scripts/lint/plugin.js"]
 ignorePatterns = ["**/fixtures/**", ".claude/**"]
 
 [lint.rules]
 "no-empty" = "error"
 "max-depth" = ["error", 4]
+"local/comments-point-to-docs" = "error"
