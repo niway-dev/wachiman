@@ -103,7 +103,8 @@ Two facts shape the decision:
 - One formatting commit rewrites about 300 files (11,400 lines added, 4,160 removed). `git blame`
   skips it through `.git-blame-ignore-revs`; GitHub honours that file, and locally
   `git config blame.ignoreRevsFile .git-blame-ignore-revs` turns it on.
-- The baseline starts at 116 lint diagnostics in 50 files and 155 type errors in 46 files. They
+- The baseline started at 116 lint diagnostics (before the comment rule, which adds its own count: see the
+  [code comments](../code-comments.md) page) in 50 files and 155 type errors in 46 files. They
   are real findings, not noise, and each fix lowers the baseline in the same pull request.
   Renaming or moving a file with a baseline entry looks like a rise in the new path; update the
   baseline in that pull request.
@@ -127,8 +128,8 @@ Two facts shape the decision:
 
 - Changing the Bun consumers receive, the Bun the launcher uses, or the Bun the test shards use.
 - Formatting Markdown, or the files a test compares byte for byte.
-- Custom lint rules. The toolchain makes them possible (ESLint plugin API); a rule is added when a
-  pattern we do not want has recurred.
+- Further custom lint rules. The toolchain makes them possible (ESLint plugin API); a rule is added when a
+  pattern we do not want has recurred. The one exception so far is the comment rule in decision 5.
 - Type-aware lint rules (`--type-aware`), and `bun test --check`.
 - A pre-commit hook.
 

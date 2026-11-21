@@ -2,8 +2,8 @@
 import { existsSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-const TOOL_WITH_REASON = /^(?:@ts-(?:expect-error|ignore|nocheck)|(?:eslint|oxlint)-disable(?:-next-line|-line)?)\s+.*\S/;
-const TOOL_BARE = /^(?:@ts-check|(?:eslint|oxlint)-enable)\b/;
+const TS_WITH_REASON = /^@ts-(?:expect-error|ignore|nocheck)\s+\S/;
+const TOOL_BARE = /^(?:@ts-check|(?:eslint|oxlint)-enable(?:\s+[\w@/-]+(?:\s*,\s*[\w@/-]+)*)?)$/;
 const DISABLE = /^(?:eslint|oxlint)-disable(?:-next-line|-line)?\b/;
 const POINTER = /^See\s+([^\s#]+?)(#\S*)?\.?$/;
 
@@ -53,7 +53,7 @@ function classify(comment, root) {
     const reason = body.split(/\s--(?:\s|$)/)[1];
     return reason && reason.trim() ? { ok: true } : { ok: false, messageId: "disableWithoutReason" };
   }
-  if (TOOL_WITH_REASON.test(body) || TOOL_BARE.test(body)) return { ok: true };
+  if (TS_WITH_REASON.test(body) || TOOL_BARE.test(body)) return { ok: true };
   if (/^@ts-(?:expect-error|ignore|nocheck)\b/.test(body)) return { ok: false, messageId: "directiveWithoutReason" };
   const pointer = POINTER.exec(body);
   if (pointer && looksLikePath(pointer[1])) {
@@ -70,7 +70,7 @@ const commentsPointToDocs = {
       prose:
         "Comments are not allowed except a pointer (`See docs/<file>.md#anchor`) or a tool directive. Move the explanation to a document and point to it, or remove it (docs/code-comments.md).",
       missingTarget:
-        "This comment points to `{{target}}`, which does not exist in the repository. Fix the path or write the document (docs/code-comments.md).",
+        "This comment points to `{{target}}`, which is not a file in the repository. Fix the path or write the document (docs/code-comments.md).",
       directiveWithoutReason: "A `@ts-` directive needs a reason after it (docs/code-comments.md).",
       disableWithoutReason: "A lint disable directive needs a reason after ` -- ` (docs/code-comments.md).",
     },

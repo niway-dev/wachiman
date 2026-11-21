@@ -41,6 +41,8 @@ const source = [
   "// See docs/",
   "// See ../outside.md",
   "// See /etc/hosts",
+  "// @ts-check because the types matter here",
+  "// eslint-enable the rule again, see the discussion",
   "",
 ].join("\n");
 
@@ -82,12 +84,16 @@ describe("local/comments-point-to-docs, run through bun lint", () => {
 
   test("a pointer to a directory, outside the repository or to an absolute path is reported as a missing target", () => {
     for (const line of [27, 28, 29])
-      expect(reported(line).map((m) => m.message)).toEqual([expect.stringContaining("which does not exist")]);
+      expect(reported(line).map((m) => m.message)).toEqual([expect.stringContaining("which is not a file in the repository")]);
   });
 
   test("reports a pointer to a missing file with its own message naming the target", () => {
-    expect(reported(6).map((m) => m.message)).toEqual([expect.stringContaining("`docs/missing.md`, which does not exist")]);
-    expect(reported(7).map((m) => m.message)).toEqual([expect.stringContaining("`docs/missing.md`, which does not exist")]);
+    expect(reported(6).map((m) => m.message)).toEqual([
+      expect.stringContaining("`docs/missing.md`, which is not a file in the repository"),
+    ]);
+    expect(reported(7).map((m) => m.message)).toEqual([
+      expect.stringContaining("`docs/missing.md`, which is not a file in the repository"),
+    ]);
   });
 
   test("accepts the shebang, a triple-slash reference and a ts directive or lint directive with a reason", () => {
@@ -101,6 +107,6 @@ describe("local/comments-point-to-docs, run through bun lint", () => {
   });
 
   test("reports nothing else", () => {
-    expect(messages.map((m) => m.line).sort((a, b) => a - b)).toEqual([3, 6, 7, 8, 9, 11, 15, 16, 19, 22, 23, 24, 26, 27, 28, 29]);
+    expect(messages.map((m) => m.line).sort((a, b) => a - b)).toEqual([3, 6, 7, 8, 9, 11, 15, 16, 19, 22, 23, 24, 26, 27, 28, 29, 30, 31]);
   });
 });

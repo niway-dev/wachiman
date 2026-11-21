@@ -37,5 +37,5 @@ contract, and the reasoning belongs in the document the symbol points to.
 
 `scripts/lint/plugin.js` is loaded by the `[lint]` section of `bunfig.toml`. The ratchet
 (`scripts/ratchet.ts`, ADR 0061) records the comments that existed when the rule was adopted in
-`scripts/ratchet-baseline.json`, so a new prose comment fails `bun run lint` and removing an old one lowers the
-baseline. `scripts/lint/plugin.test.ts` runs the rule through the real `bun lint`.
+`scripts/ratchet-baseline.json`, so a new prose comment in a file fails `bun run lint` once that file's count passes its baseline, and the
+pull request that removes comments runs `bun run ratchet:update` to lower it. `scripts/lint/plugin.test.ts` runs the rule through the real `bun lint`.
