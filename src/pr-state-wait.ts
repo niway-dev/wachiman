@@ -28,8 +28,11 @@ export interface WaitDeps {
   /** Milliseconds on a monotonic clock. */
   now: () => number;
   sleep: (ms: number) => Promise<void>;
-  /** Starts a listener for the repository, or returns null when `gh event listen` is missing or unsupported. */
-  openListener: (repo: string) => Listener | null;
+  /**
+   * Starts a listener for the repository, or returns null when `gh event listen` is missing or
+   * unsupported. `remainingMs` is the time left before the deadline: the probe must not outlast it.
+   */
+  openListener: (repo: string, remainingMs: number) => Listener | null;
   /**
    * A `gh` whose every call is killed when `remainingMs()` is up. Absent (tests with a fake `gh`): the
    * `gh` passed to `runPrStateWait` is used as it is.
@@ -115,7 +118,7 @@ export async function runPrStateWait(args: PrStateWaitArgs, gh: GhFn, io: Io, de
       if (state === null || deps.now() >= deadline) break;
       if (!listenerTried) {
         listenerTried = true;
-        listener = deps.openListener(repo);
+        listener = deps.openListener(repo, Math.max(0, remaining()));
         if (!listener) sayOnce(`wachiman: pr-state: gh event listen is not available; polling every ${args.intervalS} s.`);
       }
       const earliest = lastRead + interval;
@@ -162,9 +165,9 @@ export async function runPrStateWait(args: PrStateWaitArgs, gh: GhFn, io: Io, de
  * request only wakes the loop, which re-reads this one's state and is clamped by the interval. Every
  * failure (missing command, rejected flag, sign-in, 24 h expiry, exit 8) ends in the polling fallback.
  */
-export function openGhEventListener(repo: string, gh: GhProbe = realGhProbe): Listener | null {
+export function openGhEventListener(repo: string, gh: GhProbe = realGhProbe, remainingMs: number = PROBE_LIMIT_MS): Listener | null {
   try {
-    if (!gh.supported()) return null;
+    if (!gh.supported(remainingMs)) return null;
     const proc = gh.start(repo);
     return listenerOver(proc.stdout, proc.exited.then(() => undefined), proc.kill);
   } catch {
@@ -174,17 +177,31 @@ export function openGhEventListener(repo: string, gh: GhProbe = realGhProbe): Li
 
 /** How the opener reaches `gh`: whether this `gh` has `event listen`, and a way to start it. Swapped in tests. */
 export interface GhProbe {
-  supported: () => boolean;
+  /** Whether `event listen` exists, answered within `limitMs` (a probe that is still running then is killed: not supported). */
+  supported: (limitMs: number) => boolean;
   start: (repo: string) => { stdout: ReadableStream<Uint8Array>; exited: Promise<unknown>; kill: () => void };
 }
 
-const realGhProbe: GhProbe = {
-  supported: () => Bun.spawnSync(["gh", "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore", timeout: 5_000 }).exitCode === 0,
-  start: (repo) => {
-    const proc = Bun.spawn(["gh", "event", "listen", "--repo", repo], { stdin: "ignore", stdout: "pipe", stderr: "ignore" });
-    return { stdout: proc.stdout, exited: proc.exited, kill: () => proc.kill() };
-  },
-};
+/** The probe never runs longer than this, and never longer than the time left before the deadline. */
+const PROBE_LIMIT_MS = 5_000;
+
+/** `bin` replaces `gh` (and its leading arguments); it exists so a test can run a process that really hangs. */
+export function makeGhProbe(bin: readonly string[] = ["gh"]): GhProbe {
+  return {
+    supported: (limitMs) => {
+      // spawnSync takes whole milliseconds only, and the clock is fractional.
+      const timeout = Math.floor(Math.min(PROBE_LIMIT_MS, limitMs));
+      if (timeout < 1) return false;
+      return Bun.spawnSync([...bin, "event", "listen", "--help"], { stdout: "ignore", stderr: "ignore", timeout }).exitCode === 0;
+    },
+    start: (repo) => {
+      const proc = Bun.spawn([...bin, "event", "listen", "--repo", repo], { stdin: "ignore", stdout: "pipe", stderr: "ignore" });
+      return { stdout: proc.stdout, exited: proc.exited, kill: () => proc.kill() };
+    },
+  };
+}
+
+const realGhProbe = makeGhProbe();
 
 /**
  * A listener over a stream of event lines and a promise that settles when the process ends. Any bytes

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { GhTimeoutError, SIGNATURE, ghWithin, marker, type GhFn } from "./engine";
 import { buildStateBlock, encodeStateBlock, noFindings } from "./review-state";
 import { parsePrStateArgs, type PrState } from "./pr-state";
-import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, openGhEventListener, processSignals, runPrStateWait, type GhProbe, type Listener, type WaitDeps, type WaitSignal } from "./pr-state-wait";
+import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, makeGhProbe, openGhEventListener, processSignals, runPrStateWait, type GhProbe, type Listener, type WaitDeps, type WaitSignal } from "./pr-state-wait";
 
 const REPO = "o/r";
 const HEAD = "a".repeat(40);
@@ -350,6 +350,33 @@ describe("AC15: the process listener, over a fake process", () => {
     expect(p.killed()).toBe(false);
     l!.close();
     expect(p.killed()).toBe(true);
+  });
+});
+
+describe("the gh event listen probe is inside the deadline", () => {
+  const hang = [process.execPath, "-e", "setTimeout(()=>{},30000)", "--"];
+
+  test("a probe that hangs is killed with the time left, and the opener answers null", () => {
+    const started = Date.now();
+    expect(openGhEventListener(REPO, makeGhProbe(hang), 300)).toBeNull();
+    expect(Date.now() - started).toBeLessThan(4_000);
+    // No time left: the probe is not even started.
+    expect(openGhEventListener(REPO, makeGhProbe(hang), 0)).toBeNull();
+  });
+
+  test("a probe that hangs still ends the wait by --timeout", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const started = Date.now();
+    const r = await run(w, { ...ARGS, timeoutS: 1 }, { openListener: (repo, ms) => openGhEventListener(repo, makeGhProbe(hang), ms) });
+    expect(Date.now() - started).toBeLessThan(4_000);
+    expect([r.code, r.json.why]).toEqual([21, "timeout"]);
+  });
+
+  test("the loop gives the opener the time left before the deadline", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const given: number[] = [];
+    await run(w, { ...ARGS, timeoutS: 100 }, { openListener: (_repo, ms) => (given.push(ms), null) });
+    expect(given).toEqual([100_000]);
   });
 });
 
