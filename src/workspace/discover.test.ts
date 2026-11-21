@@ -140,12 +140,20 @@ describe("findWorkspace", () => {
     expect(findWorkspace(stranger, "https://github.com/other/stranger.git", noUserFile, [])).toBeUndefined();
   });
 
+  test("with walkUp off, a manifest above the repository is not read", () => {
+    const coordinator = workspace();
+    expect(findWorkspace(join(coordinator, "web-site"), undefined, noUserFile, [], { walkUp: false })).toBeUndefined();
+    // The per-user entries still count.
+    const user = userWorkspace(coordinator);
+    expect(findWorkspace(join(coordinator, "web-site"), undefined, { version: 1, workspaces: [user] }, [], { walkUp: false })?.reviewed.dir).toBe("web-site");
+  });
+
   test("no manifest anywhere is none", () => {
     // The walk stops at a folder this test owns, so a manifest in /tmp or / of the machine cannot matter.
     const root = tmp();
     const repo = join(root, "deep/er/web-site");
     mkdirSync(repo, { recursive: true });
-    expect(findWorkspace(repo, "https://github.com/acme/web-site.git", noUserFile, [], root)).toBeUndefined();
+    expect(findWorkspace(repo, "https://github.com/acme/web-site.git", noUserFile, [], { ceiling: root })).toBeUndefined();
   });
 
   test("the walk up stops at the ceiling, so a manifest above it that lists the repository is none", () => {
@@ -157,7 +165,7 @@ describe("findWorkspace", () => {
     const origin = "https://github.com/acme/web-site.git";
     // Control: without a ceiling the same manifest is found, so the ceiling is what makes the result none.
     expect(findWorkspace(repo, origin, noUserFile, [])?.coordinator).toBe(root);
-    expect(findWorkspace(repo, origin, noUserFile, [], ceiling)).toBeUndefined();
+    expect(findWorkspace(repo, origin, noUserFile, [], { ceiling })).toBeUndefined();
   });
 
   test("a per-user entry whose manifest file is gone is skipped with a warning naming its path", () => {

@@ -662,6 +662,46 @@
       "description": "True when the change edits the path rules in `.wachiman.yml`; the review ran under the rules at change.base.sha. Optional; absent otherwise.",
       "const": true
     },
+    "siblings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Sibling"
+      },
+      "description": "Present only when the review ran with `--distributed-repo` (ADR 0042 to 0044): every sibling of the run, those read and those not cloned or not watched. Only version 2 has it; a result with it has no version 1 form."
+    },
+    "workspaceContractsApplied": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The names of the workspace manifest's contracts that the change applied. Present with `siblings`; apart from the review's own `contracts`."
+    },
+    "noWorkspaceContractApplied": {
+      "const": true,
+      "description": "True when no workspace contract applied to the change. Optional; absent otherwise."
+    },
+    "privateContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "members"
+      ],
+      "properties": {
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The members that were read and are not `public`."
+        }
+      },
+      "description": "Present when any sibling that was read is not public (ADR 0042 decision 5): the result must not be written to a place others can read. The GitHub sink refuses a result that carries it."
+    },
+    "removedSiblingReferences": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many references into a sibling could not be checked and were removed from the findings. Present with `siblings`."
+    },
     "instructionChanges": {
       "type": "object",
       "additionalProperties": false,
@@ -1035,6 +1075,13 @@
         "id": {
           "description": "The finding's history id, the one `wachiman history --verdict` accepts. Present only in the JSON `wachiman local --history` writes.",
           "type": "string"
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SiblingReference"
+          },
+          "description": "References into a sibling this finding makes in its text, each checked against the snapshot of that member at that commit (ADR 0043). Only a distributed-repo review has it."
         }
       }
     },
@@ -1183,7 +1230,24 @@
         "line": {
           "type": "integer",
           "minimum": 1
+        },
+        "member": {
+          "type": "string",
+          "description": "A distributed-repo review only: the sibling the line is in, by its `dir` in the workspace manifest. Absent means the reviewed repository."
+        },
+        "sha": {
+          "type": "string",
+          "minLength": 40,
+          "description": "With `member`: the full commit of the sibling snapshot the line was checked in."
         }
+      },
+      "dependentRequired": {
+        "member": [
+          "sha"
+        ],
+        "sha": [
+          "member"
+        ]
       }
     },
     "FindingVerification": {
@@ -1423,6 +1487,160 @@
             "consider",
             "info"
           ]
+        }
+      }
+    },
+    "SiblingReference": {
+      "description": "A reference into a sibling repository of a distributed-repo review, rendered `member@sha:path:line` (short commit in text, full commit here). It is here only if that line exists in that member's snapshot at that commit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member",
+        "sha",
+        "path",
+        "line"
+      ],
+      "properties": {
+        "member": {
+          "type": "string",
+          "description": "The member's `dir` in the workspace manifest."
+        },
+        "sha": {
+          "type": "string",
+          "minLength": 40,
+          "description": "The full commit of the snapshot the line was checked in."
+        },
+        "path": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "Sibling": {
+      "description": "One sibling repository of a distributed-repo review: read (or not) for the workspace contracts that asked for it. The directory the snapshot was extracted to is for that run only and is never recorded.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member",
+        "repo",
+        "visibility",
+        "contracts",
+        "byHand",
+        "rule",
+        "ruleSource",
+        "readAs",
+        "paths",
+        "status",
+        "droppedSymlinks",
+        "droppedSubmodules"
+      ],
+      "properties": {
+        "member": {
+          "type": "string",
+          "description": "The member's `dir` in the workspace manifest."
+        },
+        "repo": {
+          "type": "string",
+          "description": "`owner/name`, as the manifest lists it."
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "private"
+          ],
+          "description": "A member the manifest does not mark `public` is `private` (ADR 0042 decision 3)."
+        },
+        "contracts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The workspace contracts that asked for it; empty for a member added only with `--sibling` (see `byHand`)."
+        },
+        "byHand": {
+          "type": "boolean",
+          "description": "Added with `--sibling`."
+        },
+        "sourceOfTruthOf": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The contracts of `contracts` whose source of truth is this member. Absent when none is. A not-cloned sibling with it is reported as \"source of truth not cloned: not checked\"."
+        },
+        "rule": {
+          "enum": [
+            "pinned",
+            "local",
+            "tip"
+          ],
+          "description": "The version rule that applied by precedence."
+        },
+        "ruleSource": {
+          "enum": [
+            "default",
+            "manifest",
+            "user-file"
+          ],
+          "description": "Where the rule came from. `user-file` is the per-user override."
+        },
+        "readAs": {
+          "enum": [
+            "pinned",
+            "local",
+            "tip"
+          ],
+          "description": "The rule actually read; it differs from `rule` after a fallback."
+        },
+        "fallback": {
+          "type": "string",
+          "description": "Why the rule could not be resolved and another was read."
+        },
+        "sha": {
+          "type": "string",
+          "description": "The full commit read. Absent when nothing was read."
+        },
+        "fetchedAt": {
+          "type": "string",
+          "description": "`tip` only: when the sibling was last fetched (ISO 8601), or `unknown`. Wachiman never fetches."
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The tracked paths extracted into the snapshot."
+        },
+        "status": {
+          "enum": [
+            "read",
+            "not-cloned",
+            "not-watched",
+            "uncommitted-not-read",
+            "unreadable"
+          ],
+          "description": "`read`: read at `sha`. `not-cloned` and `not-watched`: nothing was read, and the report says \"not checked\". `uncommitted-not-read`: the `local` rule read the HEAD commit and the sibling has uncommitted changes that were not read. `unreadable`: cloned, but no commit or file could be read."
+        },
+        "unreadable": {
+          "type": "string",
+          "description": "Why a cloned sibling could not be read (`status` is `unreadable`)."
+        },
+        "droppedSymlinks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Symlinks left out of the snapshot."
+        },
+        "droppedSubmodules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Submodules left out of the snapshot."
         }
       }
     }

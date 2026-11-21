@@ -31,11 +31,13 @@ import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, r
 import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { personalSourceFor } from "./memory/personal";
-import { assertReviewInputFormat, REVIEW_INPUT_V2 } from "./formats";
+import { assertReviewInputFormat, NO_V1_DISTRIBUTED, REVIEW_INPUT_V2 } from "./formats";
 import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parsePathRules, wantsRepoSettings, type RepoSettings } from "./repo-settings";
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
 import { historyRoot, historySettings, saveRun } from "./history";
 import { readConfig, wachimanHome } from "./accounts/config";
+import { plainText, withoutControl, type DistributedContext, type ResolvedSibling } from "./distributed";
+import { decideDistributed, homeRelative, prepareDistributed } from "./workspace/run";
 import { confirmProfile, type SpawnFn } from "./accounts/confirm";
 import { failureText, profileLine, resolveProfile, type ResolvedProfile } from "./accounts/resolve";
 import { repositoryKey } from "./history/store";
@@ -70,13 +72,21 @@ export interface LocalArgs {
   noMemory?: boolean;
   /** `--result-version`: with `--format json`, which result version to write (default 1 for a committed change). */
   resultVersion?: 1 | 2;
+  /**
+   * `--distributed-repo` (true) or `--no-distributed-repo` (false) for this run; unset leaves it to the
+   * per-user default (`workspaces.json`, off unless the user turned it on). Distributed-repo design, decision 1.
+   */
+  distributedRepo?: boolean;
+  /** `--sibling <dir>`, repeatable: members of the workspace manifest to read in full, by `dir`. */
+  siblings?: string[];
   input?: string;
 }
 
 export const localUsage = `wachiman local [paths…] [--base <ref> | --from <commit> | --commit <commit>] [--max-depth <n>] [--repo-dir <dir>]
                [--input <file>] [--format terminal|markdown|json] [--output <file>]
                [--profile <name>] [--agent-prompt] [--history] [--verify | --no-verify] [--no-memory]
-               [--result-version 1|2] [--working-tree staged|all]`;
+               [--result-version 1|2] [--working-tree staged|all]
+               [--distributed-repo | --no-distributed-repo] [--sibling <dir>]…`;
 
 /** Every flag `local` takes. `ask` takes the subset it names in `ask-command`. */
 export const LOCAL_FLAGS = [
@@ -85,6 +95,9 @@ export const LOCAL_FLAGS = [
   "--verify",
   "--no-verify",
   "--no-memory",
+  "--distributed-repo",
+  "--no-distributed-repo",
+  "--sibling",
   "--result-version",
   "--working-tree",
   "--base",
@@ -120,6 +133,8 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
   let base: string | undefined;
   let sawVerify = false;
   let sawNoVerify = false;
+  let sawDistributed = false;
+  let sawNoDistributed = false;
   const picked: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -138,7 +153,17 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
     if (name === "--agent-prompt" && eq === -1) args.agentPrompt = true;
     else if (name === "--history" && eq === -1) args.history = true;
     else if (name === "--no-memory" && eq === -1) args.noMemory = true;
-    else if (name === "--verify" && eq === -1) {
+    else if (name === "--distributed-repo" && eq === -1) {
+      args.distributedRepo = true;
+      sawDistributed = true;
+    } else if (name === "--no-distributed-repo" && eq === -1) {
+      args.distributedRepo = false;
+      sawNoDistributed = true;
+    } else if (name === "--sibling") {
+      const v = value();
+      if (args.siblings?.includes(v)) throw new UsageError(`--sibling ${v} was given twice.`);
+      args.siblings = [...(args.siblings ?? []), v];
+    } else if (name === "--verify" && eq === -1) {
       args.verify = true;
       sawVerify = true;
     } else if (name === "--no-verify" && eq === -1) {
@@ -177,6 +202,8 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
     } else throw new UsageError(`Unknown option ${name} for ${command}.`);
   }
   if (sawVerify && sawNoVerify) throw new UsageError("--verify and --no-verify cannot be used together.");
+  if (sawDistributed && sawNoDistributed) throw new UsageError("--distributed-repo and --no-distributed-repo cannot be used together.");
+  if (sawNoDistributed && args.siblings) throw new UsageError("--sibling needs distributed-repo mode: it cannot be used with --no-distributed-repo.");
   if (args.resultVersion !== undefined && args.format !== "json") throw new UsageError("--result-version applies only with --format json.");
   if (new Set(picked).size < picked.length) throw new UsageError(`${picked.find((n, i) => picked.indexOf(n) !== i)} was given twice.`);
   if (picked.length > 1) throw new UsageError(`${picked[0]} and ${picked[1]} cannot be used together.`);
@@ -508,6 +535,24 @@ export async function runLocal(
   // A bad WACHIMAN_HISTORY_DAYS stops here, before any call is paid for.
   const history = historySettings(env, args.history);
   const home = wachimanHome(env);
+  // The mode is decided before anything is built or paid for, so its exit-2 rules (a --sibling with no mode, a flag
+  // with no workspace, a --sibling that is not a member) stop the run here. Without the flag and without a per-user
+  // default of `on` this reads at most the per-user file: no manifest and no sibling.
+  const distributed = decideDistributed({
+    flag: args.distributedRepo,
+    siblings: args.siblings ?? [],
+    repoDir,
+    home,
+    git: spawnGit,
+    warn: (line) => io.stderr(withoutControl(line)),
+  });
+  if (distributed.on) {
+    io.stderr(
+      distributed.reason === "default"
+        ? `distributed-repo: on (default from ${homeRelative(distributed.defaultFile!)})`
+        : "distributed-repo: on (--distributed-repo)",
+    );
+  }
   const { config, profile, profileNote, provider, verifier, state } = openLocalSession({
     profile: args.profile,
     verify: args.verify,
@@ -526,6 +571,8 @@ export async function runLocal(
   });
 
   let release: (() => void) | undefined;
+  // The sibling snapshots of a distributed-repo run; removed with the head snapshot, on every way out.
+  let releaseSiblings: (() => void) | undefined;
   const onSigint = () => {
     state.interrupted = true;
   };
@@ -586,13 +633,24 @@ export async function runLocal(
         : "verify: off",
     );
 
+    // The workspace: which contracts this change applies and which sibling snapshots to read for them. Never fetches.
+    let siblingContext: DistributedContext | undefined;
+    if (distributed.on) {
+      const prepared = prepareDistributed(distributed, { files: kept, headSha: input.change.head.sha, siblings: args.siblings ?? [], warn: (line) => io.stderr(withoutControl(line)) });
+      releaseSiblings = prepared.release;
+      siblingContext = prepared.context;
+      // A result that carries siblings or applied contracts has no /1 (the label and the siblings have no place there). Known here, before any call.
+      if (args.resultVersion === 1 && (siblingContext.siblings.length > 0 || siblingContext.contracts.length > 0)) throw new UsageError(NO_V1_DISTRIBUTED);
+      for (const line of distributedLines(prepared.context)) io.stderr(line);
+    }
+
     // The memory of the commit the diff starts at (the merge-base), selected by the files this run reviews, binaries
     // excluded as the Actions path does (ADR 0056).
     const reviewable = splitUnreviewable(kept, input.headDir).reviewable;
     if (args.noMemory) io.stderr("memory: off (--no-memory)");
     // The developer's personal memory for this repository (keyed by `origin`) is loaded after it, on the laptop only.
     const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr, spawnGit, personalSourceFor(home, repoDir, spawnGit, io.stderr));
-    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}) }, {
+    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}), ...(siblingContext ? { distributed: siblingContext } : {}) }, {
       provider,
       ...(verifier ? { verifier } : {}),
       // The verifier reads the code before the change too; made once, only when there is something to check.
@@ -651,7 +709,7 @@ export async function runLocal(
       args.format === "json"
         ? renderJson(
             result,
-            args.resultVersion ?? (input.change.kind === "working-tree" ? 2 : 1),
+            args.resultVersion ?? (input.change.kind === "working-tree" || result.siblings?.length || result.workspaceContractsApplied?.length ? 2 : 1),
             // ADR 0034: with history on, a `/2` finding names itself by the id `history --verdict` takes.
             annotation ? result.findings.map((_, i) => annotation!.byIndex.get(i)?.id) : undefined,
           )
@@ -671,6 +729,31 @@ export async function runLocal(
     return exitCodeOf(result);
   } finally {
     process.off("SIGINT", onSigint);
+    releaseSiblings?.();
     release?.();
   }
+}
+
+const shortSha = (sha: string) => sha.slice(0, 7);
+
+/** One stderr line per fact about the workspace of a distributed-repo run: the manifest, the contracts, each sibling. */
+export function distributedLines(context: DistributedContext): string[] {
+  const lines = [`workspace: ${plainText(context.manifestPath)} (this repository is ${plainText(context.reviewed)})`];
+  if (context.contracts.length === 0) lines.push("distributed-repo: no workspace contract applied to this change");
+  else lines.push(`contracts: ${context.contracts.map((c) => plainText(c.name)).join(", ")}`);
+  for (const sibling of context.siblings) lines.push(siblingLine(sibling));
+  return lines;
+}
+
+function siblingLine(s: ResolvedSibling): string {
+  const member = plainText(s.member);
+  const why = s.byHand && s.contracts.length === 0 ? "added by hand" : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.map(plainText).join(", ")}`;
+  const rule = `${s.rule} (${s.ruleSource})`;
+  if (s.status === "not-cloned" || s.status === "not-watched") return `sibling: ${member}, ${s.status}, rule ${rule}, ${why}`;
+  if (s.status === "unreadable") return `sibling: ${member}, unreadable (${plainText(s.unreadable ?? "unknown reason")}), rule ${rule}, ${why}`;
+  const read = s.readAs === s.rule ? `rule ${rule}` : `rule ${rule}, read as ${s.readAs}`;
+  const age = s.fetchedAt ? `, last fetched ${plainText(s.fetchedAt)}` : "";
+  const dirty = s.status === "uncommitted-not-read" ? ", uncommitted changes not read" : "";
+  const fallback = s.fallback ? `, ${plainText(s.fallback)}` : "";
+  return `sibling: ${member}, commit ${shortSha(s.sha!)}, ${s.paths.length} file${s.paths.length === 1 ? "" : "s"}, ${read}${age}${dirty}${fallback}, ${why}`;
 }

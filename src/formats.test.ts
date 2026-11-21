@@ -88,6 +88,15 @@ describe("review result /2", () => {
     const lineZero = clone();
     lineZero.findings[0].verification.checked[0].line = 0;
     expect(validate(resultSchemaV2, lineZero)).toEqual(["$.findings[0].verification.checked[0].line: 0 is below 1"]);
+    const withMember = clone();
+    const cited = withMember.findings[0].verification.checked[0] as Record<string, unknown>;
+    cited.member = "desktop-app";
+    expect(validate(resultSchemaV2, withMember)).toEqual(['$.findings[0].verification.checked[0]: "member" requires "sha"']);
+    delete cited.member;
+    cited.sha = "3f2a9c1".padEnd(40, "0");
+    expect(validate(resultSchemaV2, withMember)).toEqual(['$.findings[0].verification.checked[0]: "sha" requires "member"']);
+    cited.member = "desktop-app";
+    expect(validate(resultSchemaV2, withMember)).toEqual([]);
     const noSnapshot = clone();
     (noSnapshot.findings[0].verification.checked[0] as { snapshot: string }).snapshot = "tree";
     expect(validate(resultSchemaV2, noSnapshot)).toEqual(['$.findings[0].verification.checked[0].snapshot: "tree" is not one of ["base","head"]']);
@@ -186,6 +195,70 @@ describe("review result /2", () => {
     badMarker.riskMap.pathReasons[0].rule = true;
     badMarker.riskMap.pathReasons[0].other = 1;
     expect(validate(resultSchemaV2, badMarker).length).toBeGreaterThan(0);
+  });
+
+  describe("a distributed-repo run (ADR 0042, ADR 0043)", () => {
+    const distributed = () => json("test/fixtures/formats/review-result.v2.distributed.example.json") as ReviewResultV2;
+
+    test("the example validates, and the fields are optional: every other /2 fixture still does", () => {
+      const result = distributed();
+      expect(result.siblings?.map((s) => [s.member, s.status])).toEqual([
+        ["desktop-app", "read"],
+        ["brand-assets", "not-cloned"],
+      ]);
+      expect(result.privateContext).toEqual({ members: ["desktop-app"] });
+      expect(result.siblings![0]!.sourceOfTruthOf).toEqual(["brand-palette"]);
+      expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(result)))).toEqual([]);
+      for (const key of ["siblings", "workspaceContractsApplied", "noWorkspaceContractApplied", "privateContext", "removedSiblingReferences"]) {
+        expect(JSON.stringify(fixtures.resultV2), key).not.toContain(`"${key}"`);
+      }
+      expect(validate(resultSchemaV2, fixtures.resultV2)).toEqual([]);
+    });
+
+    test("a run that applied no contract validates, and so does one with a per-user override as the rule's source", () => {
+      const none = distributed();
+      none.workspaceContractsApplied = [];
+      none.noWorkspaceContractApplied = true;
+      none.siblings = [];
+      delete none.privateContext;
+      expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(none)))).toEqual([]);
+      const override = distributed();
+      override.siblings![0]!.ruleSource = "user-file";
+      expect(validate(resultSchemaV2, override)).toEqual([]);
+    });
+
+    test("negative controls: a status, a visibility or a rule source nobody declared, a path, a short commit in a reference, a line 0", () => {
+      const status = distributed();
+      (status.siblings![0] as { status: string }).status = "skipped";
+      expect(validate(resultSchemaV2, status).length).toBeGreaterThan(0);
+      const visibility = distributed();
+      (visibility.siblings![0] as { visibility: string }).visibility = "internal";
+      expect(validate(resultSchemaV2, visibility).length).toBeGreaterThan(0);
+      const source = distributed();
+      (source.siblings![0] as { ruleSource: string }).ruleSource = "flag";
+      expect(validate(resultSchemaV2, source).length).toBeGreaterThan(0);
+      // The snapshot's directory is for this run only and never part of the result.
+      const dir = distributed();
+      (dir.siblings![0] as unknown as { dir: string }).dir = "/tmp/snapshot";
+      expect(validate(resultSchemaV2, dir)).toEqual(['$.siblings[0]: unexpected property "dir"']);
+      const members = distributed();
+      (members.privateContext as unknown as { members: string }).members = "desktop-app";
+      expect(validate(resultSchemaV2, members).length).toBeGreaterThan(0);
+      const short = distributed();
+      short.findings[0]!.references![0]!.sha = "3f2a9c1";
+      expect(validate(resultSchemaV2, short).length).toBeGreaterThan(0);
+      const zero = distributed();
+      zero.findings[0]!.references![0]!.line = 0;
+      expect(validate(resultSchemaV2, zero).length).toBeGreaterThan(0);
+      expect(validate(resultSchemaV2, { ...distributed(), noWorkspaceContractApplied: false }).length).toBeGreaterThan(0);
+    });
+
+    test("/1 has no place for it: the downgrade refuses, because it would drop the private-context label", () => {
+      expect(() => toResultV1(distributed())).toThrow(UsageError);
+      expect(() => toResultV1(distributed())).toThrow(/distributed-repo/);
+      // Without the fields it downgrades as before.
+      expect(() => toResultV1(clone())).not.toThrow();
+    });
   });
 
   test("a /2 result without verification downgrades with no added notice", () => {

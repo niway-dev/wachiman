@@ -14,13 +14,16 @@ import {
   location,
   notReviewed,
   markdownLabel,
+  privateNote,
   profileText,
   providerLine,
   type SettingsFrom,
   SECTION_TITLES,
   sections,
   verificationNotes,
+  workspaceLines,
   sha7,
+  siblingReferences,
   sinceLastRunMarkdown,
   stopLine,
   type HistoryAnnotation,
@@ -39,10 +42,14 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
   const parts: string[] = [];
   parts.push(`# Wachiman review of ${neutralise(result.change.describe)}, at ${sha7(result.change.head.sha)}`);
   parts.push(`${sentenceCase(coverageText(result))}.`, `Profile: ${profileText(result, opts.profileNote)}`, countLine(result.findings));
+  const priv = privateNote(result);
+  if (priv) parts.push(`**${priv}**`);
   const note = instructionNote(result);
   if (note) parts.push(note);
   const policy = policyNote(result);
   if (policy) parts.push(policy);
+  const workspace = workspaceLines(result);
+  if (workspace.length > 0) parts.push("## Workspace", workspace.map((l) => `- ${l}`).join("\n"));
   if (result.riskMap) parts.push(renderRiskMap(result.riskMap, "## Risk map"));
   const grouped = sections(result);
   const finding = ({ f, index }: (typeof grouped.main)[number]) => {
@@ -53,6 +60,8 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
       parts.push(`History: ${where}, id \`${entry.id}\`${entry.verdict ? `, verdict: ${entry.verdict}` : ""}`);
     }
     parts.push(neutralise(f.body));
+    const refs = siblingReferences(f);
+    if (refs.length > 0) parts.push(`Sibling references: ${refs.map((r) => `\`${r}\``).join(", ")}`);
     for (const n of verificationNotes(f)) {
       parts.push(`${n.name}: ${n.text}`);
       if (n.cites) parts.push(`Checked: ${n.cites.map((c) => `\`${c}\``).join(", ")}`);

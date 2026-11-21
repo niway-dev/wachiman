@@ -159,6 +159,14 @@ describe("pinned", () => {
     fallsBack(resolveVersion(context(consumer(), p, { rule: "pinned" })), p, /no pin declared/);
   });
 
+  test("a member added by hand says so instead of naming a contract that does not exist", () => {
+    const p = provider();
+    const hand: Contract = { name: "--sibling", sides: [], sourceOfTruth: { member: "web-site", paths: [] } };
+    const result = resolveVersion({ ...context(consumer(), p), contract: hand });
+    expect(result.sha).toBe(p.tip);
+    expect(result.fallback).toBe("pinned needs a contract; added by hand; read tip instead");
+  });
+
   test("a range, a prefix or a non-string value is not an exact version", () => {
     const p = provider();
     for (const value of ["^1.2.0", "~1.2.0", ">=1.2.0", "1.x", "*", "workspace:*", "latest", "v1.2.0", "1.2.0 || 2.0.0", "1.2"]) {

@@ -88,6 +88,14 @@ describe("agentPrompt", () => {
     r.findings = [];
     expect(agentPrompt(r)).toEndWith("\n\nThe review has no findings.");
   });
+
+  test("a private member name is neutralised in the private-context line, as in the other sinks", () => {
+    const r = local();
+    r.privateContext = { members: ["desk-->vault"] };
+    const text = agentPrompt(r);
+    expect(text.split("\n")[0]).toBe("Built with private context from: desk--&gt;vault. Do not paste its text into a public place.");
+    expect(text).not.toContain("-->");
+  });
 });
 
 describe("renderMarkdown", () => {

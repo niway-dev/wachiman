@@ -8,6 +8,7 @@
 import { UsageError } from "./config";
 import type { Contract } from "./contracts";
 import type { TokenUsage } from "./cost";
+import type { DistributedResultFields, SiblingReference } from "./distributed";
 import type { Fidelity } from "./fidelity/types";
 import type { MemoryRecord } from "./memory/load";
 import type { MutedFinding } from "./memory/mute";
@@ -166,6 +167,12 @@ export interface Citation {
   path: string;
   /** Positive: line 0 is not evidence. */
   line: number;
+  /**
+   * A distributed-repo review only (ADR 0043 decision 2): the sibling the line is in, by its manifest
+   * `dir`, with `sha`, the full commit of its snapshot. Absent means the reviewed repository, as always.
+   */
+  member?: string;
+  sha?: string;
 }
 export type Claimed = "supported" | "refuted" | "inconclusive" | "none";
 export type Tier = "Important" | "Nit" | "Pre-existing";
@@ -211,6 +218,12 @@ export interface ResultFindingV2 extends Finding, VerifiedFields {
    * `local` JSON `/2` written with history on carries it; the core never sets it.
    */
   id?: string;
+  /**
+   * The references into a sibling this finding makes in its text, as `member@sha:path:line`, each
+   * checked against the snapshot of that member at that commit (ADR 0043). Only a distributed-repo
+   * run has it; a reference that could not be checked is not here and is counted in the result.
+   */
+  references?: SiblingReference[];
 }
 
 export interface VerificationEntryV2 {
@@ -266,7 +279,7 @@ export interface ProviderV2 {
 }
 
 /** `wachiman.review-result/2`: what the core produces and every sink renders. */
-export interface ReviewResultV2 {
+export interface ReviewResultV2 extends Partial<DistributedResultFields> {
   format: typeof REVIEW_RESULT_V2;
   change: ReviewChange & { snapshot?: string };
   engine: { version: string };
@@ -351,6 +364,10 @@ function verificationNotice(result: ReviewResultV2, v: ResultVerificationV2) {
   return `Verification (not carried in result /1): ${head}; ${v.dropped} dropped, ${v.inconclusive} inconclusive, ${preExisting} pre-existing; $${v.costUsd.toFixed(2)}.`;
 }
 
+/** The exit-2 text for a result /1 asked of a run that read a sibling or applied a contract. */
+export const NO_V1_DISTRIBUTED =
+  "A distributed-repo review that read a sibling or applied a contract has no result /1: it carries its siblings and a private-context label that /1 cannot hold. Use --result-version 2, leave it out, or pass --no-distributed-repo.";
+
 /**
  * The `/1` form of a result, for committed-change JSON (ADR 0030). Pure. It keeps the surviving
  * findings and every `/1` field, drops what `/1` has no place for (the account, the root
@@ -362,8 +379,10 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
   if ((result.change as { kind: string }).kind === "working-tree") {
     throw new UsageError("A working-tree review has no result /1: its head is a tree id, not a commit. Use --result-version 2.");
   }
+  // /1 has no place for the siblings or the private-context label, and dropping the label would hide it.
+  if (result.siblings?.length || result.workspaceContractsApplied?.length) throw new UsageError(NO_V1_DISTRIBUTED);
   const { account: _account, ...provider } = result.provider;
-  const { verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, muted: _muted, ...rest } = result;
+  const { siblings: _siblings, workspaceContractsApplied: _applied, noWorkspaceContractApplied: _none, privateContext: _private, removedSiblingReferences: _removed, verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, muted: _muted, ...rest } = result;
   return {
     ...rest,
     format: REVIEW_RESULT_V1,

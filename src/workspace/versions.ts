@@ -96,6 +96,8 @@ type Attempt = { sha: string } | { why: string };
 
 /** The `pinned` rule: the commit the consumer's own head says it uses. */
 function pinned(spec: VersionSpec, ctx: VersionContext, git: GitRunner): Attempt {
+  // `--sibling` stands in a contract with no sides; there is nothing to pin against.
+  if (ctx.contract.sides.length === 0) return { why: "pinned needs a contract; added by hand" };
   if (!rolesIn(ctx.contract, ctx.reviewed.dir).has("consumer"))
     return { why: `pinned reads a provider for a consumer, and ${ctx.reviewed.dir} is not a consumer in contract ${ctx.contract.name}` };
   if (!rolesIn(ctx.contract, ctx.member.dir).has("provider"))

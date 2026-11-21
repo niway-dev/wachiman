@@ -3,6 +3,7 @@
  * Markdown report. Every sink reads only the `ReviewResult` and computes no anchor.
  */
 import { detail, label, neutralise, oneLine, priorityLead, SEVERITY, TOPIC, type Finding, type Profile, type ReviewResult } from "../engine";
+import { plainText, privateContextLine, type ResultSibling } from "../distributed";
 import type { Citation, ResultFinding } from "../formats";
 import { sectionOf, verificationSegment, type Section } from "../verify";
 import type { Settled } from "../history/types";
@@ -22,7 +23,13 @@ export const plainLabel = (f: Reported) =>
 /** `Should · 🟠🐛 **Fix · bug: <title> (confidence high, supported)**`: the GitHub label plus the verdict, for a report. */
 export const markdownLabel = (f: Reported) => label(f, statusOf(f));
 
-const cite = (c: Citation) => neutralise(`${c.snapshot === "base" ? "base:" : ""}${c.path}:${c.line}`);
+/** `path:line` (with `base:` for the base commit); a line of a sibling is `member@sha7:path:line`, as the model writes it in text. */
+const cite = (c: Citation) =>
+  neutralise(
+    c.member !== undefined && c.sha !== undefined
+      ? `${c.member}@${sha7(c.sha)}:${c.path}:${c.line}`
+      : `${c.snapshot === "base" ? "base:" : ""}${c.path}:${c.line}`,
+  );
 
 /** One part of what verification says about a finding: a name, a sentence, and the lines it rests on. */
 export interface Note {
@@ -174,6 +181,59 @@ export function policyNote(result: ReviewResult) {
   if (!result.pathPolicyChanged) return null;
   return `Review policy changed: this change edits the path rules in .wachiman.yml. The review ran under the rules at the commit ${sha7(result.instructionChanges.baseSha)} they were read at.`;
 }
+
+/** A manifest name or a reference as one line a reader or an agent reads: no control character, no backtick, no HTML comment. */
+export const manifestText = (text: string) => neutralise(plainText(text));
+
+const RULE_SOURCES = { default: "default", manifest: "manifest", "user-file": "per-user file" } as const;
+
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+/**
+ * One sibling of a distributed-repo review, for a line of the terminal or the Markdown report: the
+ * member, the rule and where it came from, the commit, when it was last fetched, or that nothing was
+ * checked. A rule that fell back says why. Never prints the snapshot's directory: the result has none.
+ */
+export function siblingText(s: ResultSibling) {
+  const member = manifestText(s.member);
+  const rule = `rule ${s.rule} (${RULE_SOURCES[s.ruleSource]})`;
+  const why = s.byHand && s.contracts.length === 0 ? "added by hand" : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.map(manifestText).join(", ")}`;
+  if (s.status === "not-cloned" || s.status === "not-watched" || s.status === "unreadable" || s.sha === undefined) {
+    const notCloned = s.sourceOfTruthOf?.length ? "source of truth not cloned: not checked" : "not cloned: not checked";
+    const said =
+      s.status === "not-cloned" ? notCloned : s.status === "not-watched" ? "not watched: not checked" : `unreadable (${manifestText(s.unreadable ?? "unknown reason")}): not checked`;
+    return `${member}: ${said} (${rule}, ${why})`;
+  }
+  const readAs = s.readAs === s.rule ? "" : `, read as ${s.readAs}`;
+  const fetched = s.fetchedAt === undefined ? "" : s.fetchedAt === "unknown" ? ", last fetch unknown" : `, last fetched ${manifestText(s.fetchedAt)}`;
+  const files = `${s.paths.length} ${plural(s.paths.length, "file", "files")}`;
+  const dirty = s.status === "uncommitted-not-read" ? ", uncommitted changes not read" : "";
+  const fallback = s.fallback ? `, ${manifestText(s.fallback)}` : "";
+  return `${member}: ${rule}${readAs}, commit ${sha7(s.sha)}${fetched}, ${files}${dirty}${fallback}, ${why}`;
+}
+
+/**
+ * The sibling facts of a distributed-repo review as lines, or none for a review without the mode:
+ * the contracts applied (or that none was), one line per sibling, how many references were removed.
+ */
+export function workspaceLines(result: ReviewResult): string[] {
+  if (result.siblings === undefined) return [];
+  const applied = result.workspaceContractsApplied ?? [];
+  const lines = [applied.length > 0 ? `Workspace contracts applied: ${applied.map(manifestText).join(", ")}` : "No workspace contract applied to this change."];
+  lines.push(...result.siblings.map(siblingText));
+  const removed = result.removedSiblingReferences ?? 0;
+  if (removed > 0) lines.push(`${removed} sibling ${plural(removed, "reference was", "references were")} removed: ${plural(removed, "it", "they")} could not be checked.`);
+  return lines;
+}
+
+/** The private-context line, or null when the result read no non-public sibling. */
+export function privateNote(result: ReviewResult) {
+  return result.privateContext ? privateContextLine(result.privateContext.members.map(manifestText)) : null;
+}
+
+/** The checked references a finding makes into a sibling, as `member@sha:path:line` with the short commit. */
+export const siblingReferences = (f: { references?: { member: string; sha: string; path: string; line: number }[] }) =>
+  (f.references ?? []).map((r) => manifestText(`${r.member}@${sha7(r.sha)}:${r.path}:${r.line}`));
 
 /**
  * What a `--history` run adds to its report (ADR 0020): a label per finding and what this run

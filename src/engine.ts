@@ -78,6 +78,8 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
+import { batchDistributed, distributedResultFields, plainText, verifierDistributed, type DistributedContext } from "./distributed";
+import { settleModelText } from "./sibling-references";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
 import {
   annotateUnverified,
@@ -87,6 +89,7 @@ import {
   selectCandidates,
   tierWord,
   VERIFY_SCHEMA,
+  verifySchema,
   verificationSegment,
   sectionOf,
   type Snapshots,
@@ -3454,6 +3457,14 @@ export interface ReviewOptions {
    */
   priorityTrial?: boolean;
   /**
+   * A distributed-repo run (ADR 0042 to 0044): the workspace contracts the change applied and the
+   * sibling snapshots read for them. Set by the local review only, never by the pull request path or
+   * `reviewOptionsOf`. Only the batches that hold a file which triggered a contract get the
+   * snapshots (`--add-dir`) and the contract section; the verifier gets every snapshot. Absent, every
+   * prompt and argument is what it was before the feature.
+   */
+  distributed?: DistributedContext;
+  /**
    * The repository's memory, loaded from the base commit by the connector (ADR 0056). It is
    * recorded in the result and, when over budget, announced in the summary. Its conventions go
    * into the discovery prompt; its exceptions are matched against the findings afterwards, in one
@@ -3863,13 +3874,34 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
 
   // The anchor is decided here, so a sink needs no patch to know which findings sit on a diff line.
   const commentable = new Map(kept.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
-  const findings: ResultFinding[] = checked.map((f) => ({
+  // A distributed-repo run (ADR 0043): a reference into a sibling stays only if its line exists in that
+  // member's snapshot at that commit, in every text the model wrote that reaches the result. The snapshots
+  // are still on disk here; the caller removes them after.
+  const riskFacts = parts.flatMap((p) => wellFormed<RiskFact>(p.output.risk_facts, RISK_KINDS));
+  const judgement = parts.flatMap((p) => wellFormed<JudgementItem>(p.output.judgement, JUDGEMENT_KINDS));
+  const settled = options.distributed
+    ? settleModelText(options.distributed.siblings, {
+        findings: checked,
+        summary: merged.summary,
+        contracts: merged.contracts ?? [],
+        riskFacts,
+        judgement,
+        ...(verification ? { verification } : {}),
+        muted: memoryStep.muted,
+        threadReplies: merged.thread_replies,
+        skipped: merged.files_skipped,
+        texts: memoryStep.text !== undefined ? [memoryStep.text] : [],
+      })
+    : undefined;
+  if (settled && settled.removed > 0)
+    core.log(`Sibling references: ${settled.removed} removed: the member was not read, the commit is not its snapshot's, or the line does not exist there.`);
+  const findings: ResultFinding[] = (settled?.findings ?? checked).map((f) => ({
     ...f,
     anchor: commentable.get(f.path)?.has(f.line) ? "diff" : "outside",
   }));
   // Only threads the connector handed over: an id the model made up would reply elsewhere.
   const known = new Set(threads.map((t) => t.comment_id));
-  const threadReplies = merged.thread_replies.filter((r) => known.has(r.comment_id));
+  const threadReplies = (settled?.threadReplies ?? merged.thread_replies).filter((r) => known.has(r.comment_id));
 
   const firstRejection = refused ?? (other !== undefined ? { kind: "other" as const, text: other } : undefined);
   // In today's precedence: a refused account stops everything; a review with output, or nothing
@@ -3893,8 +3925,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const riskMap = buildRiskMap({
     ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
     files: kept.map((f) => ({ path: f.filename, changedLines: f.additions + f.deletions, ...(f.previous_filename ? { previousPath: f.previous_filename } : {}) })),
-    facts: parts.flatMap((p) => wellFormed<RiskFact>(p.output.risk_facts, RISK_KINDS)),
-    judgement: parts.flatMap((p) => wellFormed<JudgementItem>(p.output.judgement, JUDGEMENT_KINDS)),
+    facts: settled?.riskFacts ?? riskFacts,
+    judgement: settled?.judgement ?? judgement,
     unreadFiles: expected.filter((f) => !reviewedSet.has(f)).length,
     lineExists: (path, line) => {
       const count = lineCount(path);
@@ -3950,17 +3982,17 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     coverage: {
       expected,
       reviewed: merged.files_reviewed,
-      skipped: merged.files_skipped,
+      skipped: settled?.skipped ?? merged.files_skipped,
       excluded: dropped.length,
       unreviewable,
       partial: expected.some((f) => !reviewedSet.has(f)),
     },
     findings,
-    contracts: merged.contracts ?? [],
-    summary: withMemoryNotices(merged.summary, options.memory, memoryStep.text),
+    contracts: settled?.contracts ?? merged.contracts ?? [],
+    summary: withMemoryNotices(settled?.summary ?? merged.summary, options.memory, settled ? settled.texts[0] : memoryStep.text),
     riskMap,
     ...(options.memory ? { memory: memoryRecord(options.memory) } : {}),
-    ...(memoryStep.muted.length > 0 ? { muted: memoryStep.muted } : {}),
+    ...(memoryStep.muted.length > 0 ? { muted: settled?.muted ?? memoryStep.muted } : {}),
     batches: reports,
     threadReplies,
     instructionChanges: {
@@ -3968,6 +4000,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       baseSha: input.instructions.baseSha,
     },
     ...(input.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
+    ...(options.distributed ? distributedResultFields(options.distributed, settled?.removed ?? 0) : {}),
     execution: {
       costUsdEstimate: spent,
       usage,
@@ -3979,7 +4012,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       ...(firstRejection ? { rejection: firstRejection } : {}),
       notices,
     },
-    ...(verification ? { verification } : {}),
+    ...(verification ? { verification: settled?.verification ?? verification } : {}),
     ...(fidelity ? { fidelity } : {}),
     ...(arm ? { arm } : {}),
   };
@@ -4035,8 +4068,8 @@ function stopOf(result: { terminalReason: string; isError: boolean; providerErro
  * A complete, schema-valid envelope (ADR 0030 §5): the whole answer is checked against
  * `VERIFY_SCHEMA`, so one violation anywhere voids it. Nothing is salvaged from anything else.
  */
-function verdictsOf(structured: unknown): VerifierVerdict[] | undefined {
-  if (validateSchema(VERIFY_SCHEMA, structured).length > 0) return undefined;
+function verdictsOf(structured: unknown, schema: object = VERIFY_SCHEMA): VerifierVerdict[] | undefined {
+  if (validateSchema(schema, structured).length > 0) return undefined;
   return (structured as { verdicts: VerifierVerdict[] }).verdicts;
 }
 
@@ -4096,7 +4129,9 @@ async function verifyFindings(
   }
   let dir: string | undefined;
   try {
-    const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files });
+    // Every sibling snapshot of a distributed-repo run, whichever batch it came from: the premise of a finding may be in one.
+    const siblings = verifierDistributed(options.distributed);
+    const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files }) + siblings.section;
     dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
     const runDir = dir;
     const call = await attempt(
@@ -4109,8 +4144,8 @@ async function verifyFindings(
           prompt,
           runDir,
           budgetUsd,
-          VERIFY_SCHEMA,
-          baseSnap ? [baseSnap.dir] : [],
+          verifySchema(siblings.snapshots.length > 0),
+          [...(baseSnap ? [baseSnap.dir] : []), ...siblings.dirs],
         ),
       budgetUsd,
     );
@@ -4119,11 +4154,13 @@ async function verifyFindings(
     const usage = result.usage ?? NO_USAGE;
     const stop = stopOf(result);
     // A complete, well-formed answer is used even when the call also reports a stop; anything else is not salvaged.
-    const verdicts = verdictsOf(result.structuredOutput);
+    const verdicts = verdictsOf(result.structuredOutput, verifySchema(siblings.snapshots.length > 0));
     if (!verdicts) return unanswered("failed", stop ?? { kind: "error", detail: result.terminalReason || "no answer" }, result.costUsd, usage);
-    const snapshots: Snapshots = baseSnap
-      ? { ...headOnly, baseDir: baseSnap.dir, base: repoLineCounter(baseSnap.dir) }
-      : headOnly;
+    const snapshots: Snapshots = {
+      ...(baseSnap ? { ...headOnly, baseDir: baseSnap.dir, base: repoLineCounter(baseSnap.dir) } : headOnly),
+      // A distributed-repo run: a citation may name a sibling snapshot of the run (ADR 0043 decision 4).
+      ...(siblings.snapshots.length > 0 ? { siblings: siblings.snapshots.map((s) => ({ ...s, lines: repoLineCounter(s.dir) })) } : {}),
+    };
     const applied = applyVerdicts(findings, candidates, verdicts, snapshots, stop);
     if (applied.answered === 0) {
       return unanswered("failed", stop ?? { kind: "error", detail: "the verifier returned no usable verdict" }, result.costUsd, usage);
@@ -4270,6 +4307,22 @@ export function githubReviewInput(p: {
   };
 }
 
+/**
+ * ADR 0042 decision 6: a result that read a non-public sibling is for the laptop only, and so is any
+ * result of the distributed-repo mode, whose destination is fixed before anything is read. Nothing
+ * in the GitHub path produces one today; this keeps it so when a path that reuses a local result is added.
+ */
+function refuseDistributed(result: ReviewResult): void {
+  if (result.privateContext) {
+    throw new Error(
+      `Refusing to post a review built with private context from ${result.privateContext.members.map(plainText).join(", ")}: it is for the laptop, not for a pull request (ADR 0042).`,
+    );
+  }
+  if (result.siblings !== undefined || result.workspaceContractsApplied !== undefined || result.noWorkspaceContractApplied !== undefined) {
+    throw new Error("Refusing to post a distributed-repo review: its siblings were read for the laptop, not for a pull request (ADR 0042).");
+  }
+}
+
 /** The GitHub sink: a `ReviewResult` as the review `postReview` posts, through `buildReview`. */
 export function githubReview(
   result: ReviewResult,
@@ -4297,6 +4350,7 @@ export function githubReview(
     estimate?: boolean;
   },
 ): Review {
+  refuseDistributed(result);
   return buildReview({
     output: {
       files_reviewed: result.coverage.reviewed,
@@ -5276,7 +5330,7 @@ function gatherEvidence(deps: CoreDeps, headDir: string, files: ReviewFile[], di
 }
 
 /** The settings a provider call reads. `EngineConfig` and the core's options both carry them. */
-type CallLimits = Pick<EngineConfig, "maxTurns" | "callTimeoutS" | "model" | "trigger">;
+type CallLimits = Pick<EngineConfig, "maxTurns" | "callTimeoutS" | "model" | "trigger"> & { distributed?: DistributedContext };
 
 /** One provider call over one batch, with the batch's diff inside the prompt. */
 async function reviewBatch(
@@ -5308,16 +5362,19 @@ async function reviewBatch(
     deps.log(
       `Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`,
     );
-    const prompt = buildBatchPrompt(
-      ctx,
-      files,
-      threads.length > 0,
-      part,
-      dir,
-      ctx.instructions,
-      evidence,
-      questions,
-    );
+    // The sibling snapshots and their section, only when a file of this call triggered a contract.
+    const siblings = batchDistributed(limits.distributed, files);
+    const prompt =
+      buildBatchPrompt(
+        ctx,
+        files,
+        threads.length > 0,
+        part,
+        dir,
+        ctx.instructions,
+        evidence,
+        questions,
+      ) + siblings.section;
 
     const label = `batch ${part.index}/${part.total}${part.retry ? " retry" : ""}`;
     const call = await attempt(
@@ -5331,6 +5388,7 @@ async function reviewBatch(
           dir,
           budgetUsd,
           ctx.claims ? { ...SCHEMA, properties: { ...SCHEMA.properties, claim_assignments: ASSIGNMENTS_SCHEMA } } : SCHEMA,
+          siblings.dirs,
         ),
       budgetUsd,
     );
@@ -5416,7 +5474,7 @@ export async function runProvider(
   dir: string,
   budgetUsd: number,
   schema?: object,
-  /** More directories the agent may read: the verifier's base snapshot. */
+  /** More directories the agent may read: the verifier's base snapshot, and sibling snapshots of a distributed-repo run. */
   extraDirs: string[] = [],
 ) {
   const started = Date.now();

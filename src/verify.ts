@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { countLines, type LineCounter, repoFileResolver } from "./contracts";
 import type { Confidence, Finding, ReviewFile, Severity } from "./engine";
 import { priorityOf } from "./priority";
+import { countable } from "./sibling-references";
 import type {
   Citation,
   Claimed,
@@ -44,33 +45,57 @@ const CITATION = {
   properties: { snapshot: { enum: ["base", "head"] }, path: { type: "string" }, line: { type: "integer", minimum: 1 } },
 };
 
+/**
+ * A citation in a distributed-repo run (ADR 0043 decision 2): the same, and optionally the sibling it
+ * is in: `member` (the manifest `dir`) and `sha` (7 characters or more of that snapshot's commit).
+ * A citation with neither is in the reviewed repository, as always.
+ */
+const SIBLING_CITATION = {
+  ...CITATION,
+  properties: { ...CITATION.properties, member: { type: "string" }, sha: { type: "string" } },
+};
+
 /** The answer's JSON schema, passed to the provider as `--json-schema`. */
-export const VERIFY_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["verdicts"],
-  properties: {
-    verdicts: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id", "verdict", "reason", "checked"],
-        properties: {
-          id: { type: "string" },
-          verdict: { enum: [...VERDICTS] },
-          reason: { type: "string" },
-          checked: { type: "array", items: CITATION },
-          disproof: CITATION,
-          severity: { enum: ORDER },
-          origin: { enum: [...ORIGINS] },
-          originReason: { type: "string" },
-          originEvidence: { type: "array", items: CITATION },
+export const VERIFY_SCHEMA = verdictSchema(CITATION);
+
+function verdictSchema(citation: typeof CITATION) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["verdicts"],
+    properties: {
+      verdicts: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["id", "verdict", "reason", "checked"],
+          properties: {
+            id: { type: "string" },
+            verdict: { enum: [...VERDICTS] },
+            reason: { type: "string" },
+            checked: { type: "array", items: citation },
+            disproof: citation,
+            severity: { enum: ORDER },
+            origin: { enum: [...ORIGINS] },
+            originReason: { type: "string" },
+            originEvidence: { type: "array", items: citation },
+          },
         },
       },
     },
-  },
-};
+  };
+}
+
+const SIBLING_VERIFY_SCHEMA = verdictSchema(SIBLING_CITATION);
+
+/**
+ * The schema for a run: `VERIFY_SCHEMA` itself, unchanged, unless the run read sibling snapshots
+ * (a distributed-repo run), when a citation may also name the member and commit it is in.
+ */
+export function verifySchema(siblings: boolean) {
+  return siblings ? SIBLING_VERIFY_SCHEMA : VERIFY_SCHEMA;
+}
 
 export interface VerifierVerdict {
   id: string;
@@ -103,6 +128,16 @@ export interface Snapshots {
   head: LineCounter;
   baseDir?: string;
   base?: LineCounter;
+  /** The sibling snapshots a distributed-repo run read (ADR 0043 decision 4): a citation may name one by `member` and `sha`. */
+  siblings?: SiblingSnapshot[];
+}
+
+/** One sibling snapshot a citation can name: the member, its full commit, where it is and how many lines a file of it has. */
+export interface SiblingSnapshot {
+  member: string;
+  sha: string;
+  dir: string;
+  lines: LineCounter;
 }
 
 /** The display word: `Pre-existing` first, then `Important` for blocker and fix, else `Nit`. */
@@ -252,19 +287,37 @@ function stripRoot(path: string, dir: string) {
   return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path.replace(/^\.\//, "");
 }
 
-/** The citation as the engine will report it (an absolute path under its snapshot made relative), or null when it is not one. */
+/**
+ * The citation as the engine will report it (an absolute path under its snapshot made relative), or null when it is not one.
+ * A citation with `member` and `sha` is in a sibling snapshot of this run (a distributed-repo run only): the member must be one
+ * it read, `sha` a prefix of 7 characters or more of that snapshot's commit, and the line one that exists there. It is a `head`
+ * citation: the sibling is read as it is, so it can disprove a claim, and no base of it exists.
+ */
 function citationOf(raw: unknown, snapshots: Snapshots): Citation | null {
   const c = raw as Partial<Citation> | null | undefined;
   if (!c || (c.snapshot !== "head" && c.snapshot !== "base") || typeof c.path !== "string") return null;
   if (typeof c.line !== "number" || !Number.isInteger(c.line) || c.line < 1) return null;
-  const dir = c.snapshot === "head" ? snapshots.headDir : snapshots.baseDir;
-  const lines = c.snapshot === "head" ? snapshots.head : snapshots.base;
+  const sibling = c.member !== undefined || c.sha !== undefined;
+  let dir: string | undefined;
+  let lines: LineCounter | undefined;
+  let found: SiblingSnapshot | undefined;
+  if (sibling) {
+    if (c.snapshot !== "head" || typeof c.member !== "string" || typeof c.sha !== "string" || c.sha.length < 7) return null;
+    found = snapshots.siblings?.find((s) => s.member === c.member && s.sha.startsWith(c.sha!));
+    dir = found?.dir;
+    lines = found?.lines;
+  } else {
+    dir = c.snapshot === "head" ? snapshots.headDir : snapshots.baseDir;
+    lines = c.snapshot === "head" ? snapshots.head : snapshots.base;
+  }
   if (!dir || !lines) return null;
   const path = stripRoot(c.path, dir);
   // The line counter also refuses a path that leaves its directory, but the check is cheap and the path is the model's.
   if (path === "" || path.startsWith("/") || path.includes("\\") || path.split("/").includes("..")) return null;
-  const count = lines(path);
-  return count !== null && c.line <= count ? { snapshot: c.snapshot, path, line: c.line } : null;
+  // A sibling file too big to count cannot be checked, so it is not evidence.
+  const count = found ? countable(lines(path)) : lines(path);
+  if (count === null || c.line > count) return null;
+  return found ? { snapshot: "head", member: found.member, sha: found.sha, path, line: c.line } : { snapshot: c.snapshot, path, line: c.line };
 }
 
 /** The citations of `raw` that name an existing line in the snapshot they say; the rest are not evidence. */
