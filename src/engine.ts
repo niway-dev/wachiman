@@ -1233,7 +1233,7 @@ export function renderContracts(contracts: Contract[], room = Number.POSITIVE_IN
       .map((sec) => {
         const take = sec.lines.slice(0, Math.max(left, 0));
         left -= take.length;
-        return take.length > 0 ? `\n\n${sec.heading}\n${take.join("\n")}` : "";
+        return take.length > 0 ? `\n\n${sec.heading}\n\n${take.join("\n")}` : "";
       })
       .join("");
     const hidden = contracts.length - kept;

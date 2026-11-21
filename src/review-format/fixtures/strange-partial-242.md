@@ -60,6 +60,7 @@
 Questions the reviewer answered about what this change does to the running product. The engine checked that the cited lines exist, not that the answers are true.
 
 **Closed, with the lines they rest on**
+
 - `wachiman init` now optionally installs the PR description template (flag `--pr-template`, `--no-pr-template`, or a terminal question) after the workflow work (`src/init/run.ts:116`) — stderr lines `wrote <file>...` from install, or `pr-template: not installed: <reason>` / `only part of the install was done`. In a fancy session the closing line says whether the template is in place (line 184). If it fails: Any throw from runInstall (UsageError, PrTemplateConfigError, fs errors) is caught and reported; init still returns 0 and the rest of init continues. A failure between the JSON write and the template… Evidence: `src/init/run.ts:116-146`, `src/init/run.ts:182-184`, `src/init/run.ts:193`, `src/init/run.ts:208`, `src/pr-template/install.ts:188-257`, `src/pr-template/install.ts:216-220`, `src/init/prompt.ts:60-66`, `src/wizard/interactive.ts:25`.
 - `wachiman pr-template` is dispatched from main (`src/cli.ts:353`) — New command, new help pages and a new row in the root help. If it fails: An unknown subcommand is a UsageError (run.ts:46). check, risk and strip handle their own tool errors with exit 2. Evidence: `src/cli.ts:297-302`, `src/cli.ts:328`, `src/cli.ts:353-356`, `src/pr-template/run.ts:42-87`, `src/help.ts:464`, `src/help.ts:575-581`, `src/pr-template/catalog.ts:14`.
 - The init write mechanism is moved to src/pr-template/write.ts, and src/init/write.ts becomes thin wrappers (`src/init/write.ts:13`) — No change for init besides cleanup of a failed temporary file. If it fails: The temp-file write failing now unlinks the temp file in `finally`; an unlink error is swallowed as before. Evidence: `src/pr-template/write.ts:34-53`, `src/pr-template/write.ts:72-129`, `src/init/write.ts:13`, `src/init/write.ts:21-22`.
@@ -79,6 +80,7 @@ Questions the reviewer answered about what this change does to the running produ
 <details><summary>What the reviewer checked</summary>
 
 **Batch 1 of 13.** I found no blocker or bug in this part. `init` now optionally installs the template, and the shared write code in `src/pr-template/write.ts` keeps the old `init` behaviour. I read the adopt.ts rules against the loader's checks (name, guide, `after` and preamble rules) and found no adoption output the loader would reject. I only read the code and did not run it. The four findings are all at "consider":
+
 - The partial-install report in `init` depends on parsing install's stderr text.
 - `init`'s clock is not passed to the template install.
 - An explicit `--pr-template` that fails still exits 0.

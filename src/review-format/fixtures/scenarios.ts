@@ -75,6 +75,17 @@ export const scenarios: Record<string, ViewInput> = {
     },
   ),
 
+  // A re-review whose review-thread read failed: the count is unknown, so the lead is never "nothing to fix".
+  "re-review-threads-unknown": base({
+    since: SINCE,
+    commits: ["1111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    earlierThreads: "unknown",
+    footer: {
+      costLine: "<sub>Claude Sonnet 5.5 via Claude Code 2.1.304 · effort high · re-review · 1 commit · PR so far $0.24 over 2 automatic runs · $0.12</sub>",
+      markers: [AUTO, REVIEW, `<!-- wachiman sha=${HEAD} -->`],
+    },
+  }),
+
   // Nothing found, whole pull request.
   clean: base(),
 

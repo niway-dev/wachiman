@@ -27,6 +27,7 @@
 Questions the reviewer answered about what this change does to the running product. The engine checked that the cited lines exist, not that the answers are true.
 
 **Open: the reviewer could not close these**
+
 - Review workflow sends the ledger reserve/settle/record calls and requests the OIDC token for the new host `https://ledger.wachiman-api.dev` (`.github/workflows/wachiman-review.yml:23`) — Is the ledger deployed at ledger.wachiman-api.dev with its configured audience set to exactly `https://ledger.wachiman-api.dev`, and is the repository still linked to an account there? This lives outside the repository. Files that would answer it: `docs/ledger-api.md`, `docs/troubleshooting.md`.
 
 </details>

@@ -90,7 +90,20 @@ const codeSpan = (text: string) => `\`${neutralise(flat(text)).replaceAll("`", "
 /** Model text as one line of a bullet or a bold title: comments defused, whitespace collapsed. */
 const oneLineText = (text: string) => defuseDetails(neutralise(flat(text)));
 /** Model text as a block inside `<details>`: a stray `</details>` in it cannot close the block early. */
-const block = (text: string) => defuseDetails(neutralise(text.trim()));
+const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
+/** A list that follows a line of prose gets a blank line before it, so Markdown renders it as a list. Fenced code is left alone. */
+function blankBeforeLists(text: string): string {
+  let fenced = false;
+  const out: string[] = [];
+  for (const line of text.split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    const prev = out[out.length - 1];
+    if (!fenced && LIST_ITEM.test(line) && prev !== undefined && prev.trim() !== "" && !LIST_ITEM.test(prev) && !/^\s/.test(prev)) out.push("");
+    out.push(line);
+  }
+  return out.join("\n");
+}
+const block = (text: string) => blankBeforeLists(defuseDetails(neutralise(text.trim())));
 const collapsed = (summary: string, inner: string) => `<details><summary>${summary}</summary>\n\n${inner}\n\n</details>`;
 
 /** The address of a location at the head commit, or null when the repository is not known (decision 7). */

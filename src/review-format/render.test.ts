@@ -144,6 +144,7 @@ describe("S2: one colour emoji in the bold lead", () => {
     "pre-existing": "⏳",
     "blocker-outside-diff": "🔴",
     "re-review-open-threads": "⏳",
+    "re-review-threads-unknown": "⏳",
     "small-281": "🟣",
     "strange-partial-242": "⚠️",
   };
@@ -190,7 +191,7 @@ describe("S3: never says the pull request is good", () => {
 
 describe("S4: the question comes first", () => {
   test("the #281 golden leads with one question for you", () => {
-    expect(lead(bodies["small-281"]!)).toContain("🟣 **1 question for you**");
+    expect(lead(bodies["small-281"]!).startsWith("👮 **Wachiman** · 🟣 **1 question for you**")).toBe(true);
   });
 });
 
@@ -207,6 +208,27 @@ describe("S5: the partial review is readable", () => {
     expect(missing.length).toBeGreaterThan(0);
     for (const path of missing) expect(body, path).toContain(path.split("/").pop()!);
     expect(body).toContain("Files not reviewed");
+  });
+
+  test("the callout's per-reason counts add up to the files not reviewed, and each path is under its reason", () => {
+    const input = realReviews["strange-partial-242"];
+    const reviewed = new Set(input.output.files_reviewed);
+    const missing = input.files.map((f) => f.filename).filter((f) => !reviewed.has(f));
+    const callout = body.split("\n").find((l) => l.startsWith("> "))!;
+    const counted = [...callout.matchAll(/(\d+) because /g)].map((m) => Number(m[1]));
+    expect(counted.length).toBeGreaterThan(0);
+    expect(counted.reduce((a, b) => a + b, 0)).toBe(missing.length);
+    const section = body.slice(body.indexOf("<summary>Files not reviewed"));
+    const groups = [...section.matchAll(/\*\*(Because [^\n]*?) \((\d+)\)\*\*\n\n((?:- [^\n]*\n?)+)/g)];
+    expect(groups.length).toBe(counted.length);
+    const listed: string[] = [];
+    for (const [, reason, n, items] of groups) {
+      const paths = items!.trim().split("\n").map((l) => l.slice(3, -1));
+      expect(paths.length).toBe(Number(n));
+      expect(callout).toContain(`${n} ${reason!.toLowerCase()}`);
+      listed.push(...paths);
+    }
+    expect([...listed].sort()).toEqual([...missing].sort());
   });
 
   test("the callout counts add up to the files of the pull request", () => {
@@ -250,12 +272,46 @@ describe("S7: files with one name are told apart", () => {
 describe("the Findings row", () => {
   test("its total equals the sum of its parts", () => {
     for (const [name, body] of Object.entries(bodies)) {
-      const row = body.split("\n").find((l) => l.startsWith("| Findings |"));
-      if (!row) continue;
-      const total = Number(row.match(/\*\*(\d+)\*\*/)?.[1] ?? row.match(/\| (\d+) /)?.[1]);
-      const parts = [...row.matchAll(/(\d+) (Blocker|Fix|Consider|Info|Important|Nit)/g)].map((m) => Number(m[1]));
-      if (parts.length > 0 && Number.isFinite(total)) expect(parts.reduce((a, b) => a + b, 0), name).toBe(total);
+      const hasFindings = inputs[name]!.output.findings.length > 0;
+      const row = body.split("\n").find((l) => l.startsWith("| **Findings** |") || l.startsWith("| Findings |"));
+      if (!row) {
+        // A body that keeps no glance table (a cut one) may lose the row; a whole body with findings may not.
+        expect(hasFindings && !fitted[name] && !refused.has(name), `${name} has findings but no Findings row`).toBe(false);
+        continue;
+      }
+      const total = Number(row.match(/\((\d+)\)/)?.[1]);
+      const parts = [...row.matchAll(/(\d+) (blockers?|to fix|to consider|for your information)/g)].map((m) => Number(m[1]));
+      expect(parts.length, name).toBe(4);
+      expect(Number.isFinite(total), name).toBe(true);
+      expect(parts.reduce((a, b) => a + b, 0), name).toBe(total);
     }
+  });
+});
+
+describe("the lead never says nothing to fix when something is open", () => {
+  test("open or unknown earlier threads and a pre-existing Fix keep the lead out of modes 8 and 9", () => {
+    for (const [name, input] of Object.entries(inputs)) {
+      const f = buildView(input).findings;
+      const open = input.earlierThreads === "unknown" || (input.earlierThreads ?? 0) > 0 || f.preExisting.some((r) => r.severity === "blocker" || r.severity === "fix");
+      if (!open) continue;
+      const first = lead(bodies[name]!);
+      expect(first, name).not.toMatch(/nothing to fix/i);
+      expect(first.includes("🟡") || first.includes("⚪"), name).toBe(false);
+    }
+  });
+});
+
+describe("a verifier that did not finish", () => {
+  test("the verifier-failed golden says so on its first line", () => {
+    expect(lead(bodies["verifier-failed"]!)).toContain("verifier did not finish");
+  });
+});
+
+describe("a re-review whose thread read failed", () => {
+  const body = bodies["re-review-threads-unknown"]!;
+  test("leads with the waiting mode and says the earlier threads were not counted", () => {
+    expect(lead(body).split(" · ")[1]!.startsWith("⏳ ")).toBe(true);
+    expect(lead(body)).toContain("earlier threads not counted");
   });
 });
 
