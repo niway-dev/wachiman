@@ -2197,7 +2197,9 @@ export class GhTimeoutError extends GhError {
 }
 
 function runGh(args: string[], input: string | undefined, timeoutMs?: number, bin: readonly string[] = ["gh"]): string {
-  const run = spawnSync(bin[0], [...bin.slice(1), ...args], { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, Math.ceil(timeoutMs)), killSignal: "SIGKILL" as const }) });
+  // `env: process.env` is explicit on purpose: on Linux, Bun looks the executable up in the PATH the
+  // process started with unless an env is passed, so a PATH changed at runtime is ignored.
+  const run = spawnSync(bin[0], [...bin.slice(1), ...args], { env: process.env, input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, Math.ceil(timeoutMs)), killSignal: "SIGKILL" as const }) });
   if ((run.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") throw new GhTimeoutError(args);
   if (run.status !== 0) {
     const { status, message, errors } = parseGhFailure(run.stderr ?? "", run.stdout ?? "");
