@@ -532,6 +532,24 @@ describe("buildLocalInput", () => {
     expect(existsSync(snapshotDir)).toBe(false);
   });
 
+  test("refs the caller already resolved give the same input and are not resolved again", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined);
+    const fresh = buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {} });
+    const reused = buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {}, git: counting, refs });
+    snapshots.push(fresh.snapshotDir, reused.snapshotDir);
+    expect(reused.refs).toEqual(fresh.refs);
+    const { headDir: a, ...freshInput } = fresh.input;
+    const { headDir: b, ...reusedInput } = reused.input;
+    expect(reusedInput).toEqual(freshInput);
+    expect(calls.filter((c) => c[0] === "merge-base" || c[0] === "symbolic-ref")).toEqual([]);
+  });
+
   test("a refused HEAD leaves no snapshot behind", () => {
     const r = branchRepo();
     git(r.dir, "switch", "-q", "--detach", "feat/x");

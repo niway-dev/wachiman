@@ -62,6 +62,14 @@ export interface LocalRefs {
   mode?: { kind: "commit"; rev: string; merge: boolean } | { kind: "from"; rev: string };
 }
 
+/**
+ * Where `localSettingsCommit` leaves the refs it resolved, so the input built a moment later reads
+ * the same commits and does not resolve them again (every resolution is several git processes).
+ */
+export interface ResolvedRefs {
+  refs?: LocalRefs;
+}
+
 /** Runs git in the clone and returns stdout; a non-zero exit throws with the command and stderr. */
 function run(git: GitRunner, cwd: string, args: string[], maxBytes?: number) {
   const out = git(args, { cwd, timeoutMs: TIMEOUT_MS, maxBytes });
@@ -384,11 +392,13 @@ export interface SettingsScope {
  * Undefined when the scope does not resolve; the review's own ref checks report that, with their
  * message, a moment later.
  */
-export function localSettingsCommit(repoDir: string, scope: SettingsScope, git: GitRunner = spawnGit): string | undefined {
+export function localSettingsCommit(repoDir: string, scope: SettingsScope, git: GitRunner = spawnGit, resolved?: ResolvedRefs): string | undefined {
   if (scope.inputBase !== undefined) return scope.inputBase;
   try {
     if (scope.workingTree) return run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
-    return resolveRefs(repoDir, scope.base, git, scope.maxDepth, { commit: scope.commit, from: scope.from }).mergeBase;
+    const refs = resolveRefs(repoDir, scope.base, git, scope.maxDepth, { commit: scope.commit, from: scope.from });
+    if (resolved) resolved.refs = refs;
+    return refs.mergeBase;
   } catch {
     return undefined;
   }
@@ -664,9 +674,11 @@ export function buildLocalInput(p: {
   log: (line: string) => void;
   warn: (line: string) => void;
   git?: GitRunner;
+  /** Refs the caller already resolved for these same flags (`localSettingsCommit` leaves them); resolved here when absent. */
+  refs?: LocalRefs;
 }): { input: ReviewInput; snapshotDir: string; refs: LocalRefs } {
   const git = p.git ?? spawnGit;
-  const refs = resolveRefs(p.repoDir, p.base, git, p.maxDepth, { commit: p.commit, from: p.from });
+  const refs = p.refs ?? resolveRefs(p.repoDir, p.base, git, p.maxDepth, { commit: p.commit, from: p.from });
   const files = localFiles(p.repoDir, refs.mergeBase, refs.headSha, git);
   const { paths, ignored } = resolveScope(
     p.paths,
