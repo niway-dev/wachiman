@@ -265,15 +265,19 @@ describe("buildReview and the partial marker", () => {
       // Listed in the body, in a section the fitting cuts to fit.
       origin: "pre-existing" as const,
     }));
+    // One finding on a diff line: an inline comment GitHub may refuse.
+    const inline = { path: "big.ts", line: 1, severity: "fix" as const, topic: "bug" as const, confidence: "high" as const, title: "inline", body: "c".repeat(30_000) };
     const built = buildReview({
       ...base,
-      output: out({ files_reviewed: ["big.ts"], findings, summary: "s".repeat(5_000) }),
+      output: out({ files_reviewed: ["big.ts"], findings: [inline, ...findings], summary: "s".repeat(5_000) }),
       files: [file("big.ts"), ...names.map(file)],
     });
     expect(readSignedState(built.body)?.rest).toEqual(names);
     expect(built.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+    expect(built.comments).toHaveLength(1);
     // Inline comments refused by GitHub move into the body: the marker is still the footer.
-    const moved = moveCommentsToBody({ body: built.body, comments: [{ path: "big.ts", line: 1, side: "RIGHT", body: "c".repeat(30_000) }] });
+    const moved = moveCommentsToBody(built);
+    expect(moved.comments).toEqual([]);
     expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
     expect(readSignedState(moved.body)?.rest).toEqual(names);
   });

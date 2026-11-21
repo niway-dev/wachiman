@@ -21,15 +21,24 @@ import { parseLabel, parseModel } from "../precision";
 import { readReviews } from "../pr-state";
 import { REVIEW_STATE_FORMAT, encodeStateBlock } from "../review-state";
 import { realReviews } from "./fixtures/real";
-import { scenarios } from "./fixtures/scenarios";
+import { fitted, scenarios } from "./fixtures/scenarios";
 import { renderReviewBody } from "./render";
-import { buildView, type ViewInput } from "./view";
+import { buildView, refusedView, type ViewInput } from "./view";
 
 const DIR = join(import.meta.dir, "fixtures");
-const render = (input: ViewInput) => renderReviewBody(buildView(input));
 
-const inputs: Record<string, ViewInput> = { ...scenarios, ...realReviews };
-const bodies = Object.fromEntries(Object.entries(inputs).map(([name, input]) => [name, render(input)]));
+const MAX = 60_000;
+const inputs: Record<string, ViewInput> = { ...scenarios, ...realReviews, ...Object.fromEntries(Object.entries(fitted).map(([name, f]) => [name, f.input])) };
+const renderFitted = (f: (typeof fitted)[string]) => {
+  const view = buildView(f.input);
+  return renderReviewBody(f.refused ? refusedView(view) : view, f.limit);
+};
+const bodies: Record<string, string> = {
+  ...Object.fromEntries(Object.entries({ ...scenarios, ...realReviews }).map(([name, input]) => [name, renderReviewBody(buildView(input), MAX)])),
+  ...Object.fromEntries(Object.entries(fitted).map(([name, f]) => [name, renderFitted(f)])),
+};
+/** The 422 bodies have no thread to answer in, so no answer line. */
+const refused = new Set(Object.entries(fitted).filter(([, f]) => f.refused).map(([name]) => name));
 
 /** The goldens this file owns, so a stray file in the folder is noticed. */
 const goldenPath = (name: string) => join(DIR, `${name}.md`);
@@ -58,6 +67,66 @@ describe("goldens", () => {
       expect(body).not.toMatch(/[ \t]+\n/);
       expect(body).not.toMatch(/\n\n\n/);
     }
+  });
+});
+
+describe("size-trimmed and 422 goldens: what must survive", () => {
+  const MARKERS = ["wachi:auto", "wachi:review", "wachiman sha=", "wachi:attempt", "wachi:partial", "wachi:receipt"];
+  /** Every Blocker and Fix of this change or inconclusive, pre-existing or not: a row in some table of the body. */
+  const demandingTitles = (name: string) => inputs[name]!.output.findings.filter((f) => f.severity === "blocker" || f.severity === "fix").map((f) => f.title);
+  const ATTEMPT = "<!-- wachi:attempt id=0b1c2d3e-0000-4000-8000-000000000001 -->";
+
+  for (const [name, f] of Object.entries(fitted)) {
+    test(`${name}: fits, keeps the cost line and every marker, and readAutoCost reads it`, () => {
+      const body = bodies[name]!;
+      expect(body.length).toBeLessThanOrEqual(f.limit);
+      expect(body).toContain(f.input.footer.costLine);
+      for (const marker of f.input.footer.markers) expect(body).toContain(marker);
+      if (f.input.footer.receipt) expect(body).toContain(f.input.footer.receipt);
+      const cost = Number([...f.input.footer.costLine.matchAll(/\$(\d+(?:\.\d+)?)/g)].pop()![1]);
+      expect(readAutoCost(body)).toBe(cost);
+      // The poster adds the attempt line after the body: the markers it lists are the ones the readers need.
+      const posted = `${body}\n\n${ATTEMPT}`;
+      expect(readAutoCost(posted)).toBe(cost);
+      for (const marker of MARKERS) if (f.input.footer.markers.join(" ").includes(marker) || marker === "wachi:attempt") expect(posted).toContain(marker);
+    });
+  }
+
+  for (const name of ["size-trimmed", "refused-422", "refused-422-trimmed"]) {
+    test(`${name}: every Blocker and Fix keeps its row`, () => {
+      for (const title of demandingTitles(name)) expect(bodies[name]!, title).toContain(title);
+    });
+  }
+
+  test("size-trimmed: slots 12, 11 and 13 are gone, the Blocker and Fix rows are there", () => {
+    const body = bodies["size-trimmed"]!;
+    expect(body).not.toContain("<summary>What the reviewer checked");
+    expect(body).not.toContain("<summary>What the change connects to");
+    expect(body).not.toContain("<summary>Coverage by batch");
+    expect(body).toContain("### To fix (4)");
+    // The whole body was longer than the limit.
+    expect(renderReviewBody(buildView(fitted["size-trimmed"]!.input)).length).toBeGreaterThan(fitted["size-trimmed"]!.limit);
+  });
+
+  test("never-dropped-over-limit: the To fix table ends with how many rows it leaves out, Blockers first, and the body fits", () => {
+    const body = bodies["never-dropped-over-limit"]!;
+    expect(body).toMatch(/\n- … and \d+ more not shown because of GitHub's size limit, they are on their lines\.\n/);
+    expect(body).toContain("The token is written to the log");
+    const whole = renderReviewBody(buildView(fitted["never-dropped-over-limit"]!.input));
+    // Dropping every slot on the list still leaves it over the limit, so the tables were cut.
+    expect(whole.length).toBeGreaterThan(fitted["never-dropped-over-limit"]!.limit);
+  });
+
+  test("422 bodies: no row is on its line, each finding is listed once and numbered, the details follow the tables", () => {
+    for (const name of refused) {
+      const body = bodies[name]!;
+      expect(body).not.toContain("(see Files changed)");
+      expect(body).not.toContain(", they are on their lines");
+      expect(body).toContain("| # | | Where | Finding |");
+      const numbers = [...body.matchAll(/^\| (\d+) \| /gm)].map((m) => Number(m[1]));
+      expect(new Set(numbers).size).toBe(numbers.length);
+    }
+    expect(bodies["refused-422"]!).toContain("<summary>Details of each finding (3)");
   });
 });
 
@@ -150,9 +219,11 @@ describe("S5: the partial review is readable", () => {
 
 describe("S6: the answer line and the cost line", () => {
   test("no body has an Answer row, and every one has the answer sub line", () => {
-    for (const body of Object.values(bodies)) {
+    for (const [name, body] of Object.entries(bodies)) {
       expect(body).not.toMatch(/^\| Answer /m);
-      expect(body).toContain("<sub>Answer a finding in its thread: `Verdict: correct` or `Verdict: wrong`, and why.</sub>");
+      const line = "<sub>Answer a finding in its thread: `Verdict: correct` or `Verdict: wrong`, and why.</sub>";
+      if (refused.has(name)) expect(body).not.toContain(line);
+      else expect(body).toContain(line);
     }
   });
 

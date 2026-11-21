@@ -7,14 +7,15 @@
  *      7 Needs a person       8 Risk facts              9 Pre-existing
  *     10 For your information 11 What the change connects to
  *     12 What the reviewer checked   13 Coverage by batch   13a Files not reviewed
- *        Details of findings with no thread
+ *        Details of findings (no thread; in the 422 body, of each finding)
  *        the answer line, the receipt, the cost line, the hidden markers
  *
- * This build keeps today's `<sub>` cost line text: Run details (slot 14) and the shortened line are
+ * Size fitting is by name (spec "The review body"): whole slots go in a fixed order, then the row
+ * tables are cut; see `fit`. This build keeps today's `<sub>` cost line text: Run details (slot 14) and the shortened line are
  * a later change. Text Wachiman did not write (titles, paths, reasons) goes through `escapeCell` in
  * a table cell and through `neutralise` anywhere else, so it cannot break a row or forge a marker.
  */
-import { renderContracts, SEVERITY, TOPIC } from "../engine";
+import { oneLine, renderContracts, SEVERITY, TOPIC } from "../engine";
 import { A_MEANS } from "../fidelity/summary";
 import { inertText } from "../fidelity/inert";
 import { MUTED_HEADING } from "../memory/mute";
@@ -52,6 +53,25 @@ export type SlotId =
   | "receipt"
   | "cost"
   | "markers";
+
+/**
+ * What the size fitting has done to the body so far. The default is the whole body. Only the
+ * fitting sets anything here; the slots read it.
+ */
+export interface Fit {
+  /** How many rows of each cuttable table to show; absent means all. */
+  limits: RowLimits;
+  /** Slots left out whole. */
+  dropped: ReadonlySet<SlotId>;
+  /** Slot 13a shrunk to one count per reason, no file names. */
+  filesAsCounts?: boolean;
+  /** Slot 6 shrunk to its rows with no inline thread, and a count for the rest. */
+  considerShrunk?: boolean;
+  /** The Consider and Info bodies left out of the details. */
+  lightDetailsDropped?: boolean;
+  /** The Blocker and Fix bodies in the details cut to their first paragraph. */
+  bodiesShortened?: boolean;
+}
 
 /** The line that says how to answer a finding. It holds no `$`, so `readAutoCost` still reads the cost line. */
 export const ANSWER_LINE = "<sub>Answer a finding in its thread: `Verdict: correct` or `Verdict: wrong`, and why.</sub>";
@@ -92,6 +112,15 @@ function where(view: ReviewView, loc: { path: string; line: number; location: st
 
 const LEVEL_WORD: Record<RiskLevel, string> = { low: "Low", medium: "Medium", high: "High" };
 
+/** The whole body: nothing dropped, nothing cut. */
+const WHOLE: Fit = { limits: {}, dropped: new Set() };
+
+/** What slot 13a shows: every path, one count per reason, or nothing (the callout and the partial marker keep the rest). */
+const listing = (fit: Fit): "paths" | "counts" | "none" => (fit.dropped.has("notReviewedFiles") ? "none" : fit.filesAsCounts ? "counts" : "paths");
+
+/** Where the names of the files not reviewed are, as the end of a sentence. */
+const NAMES_GONE = "The file names are not listed because of GitHub's size limit.";
+
 // ---- The status line and what stands under it (slots 1 and 2) -----------------------------------
 
 /** Why a group of files was not reviewed, as the end of a sentence. */
@@ -113,7 +142,7 @@ function because(reason: string): string {
 const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** The partial callout: counts per reason, and how to ask for the rest. */
-function partialCallout(view: ReviewView): string | null {
+function partialCallout(view: ReviewView, fit: Fit): string | null {
   const { files } = view;
   const notReviewed = files.total - files.reviewed;
   if (notReviewed === 0) return null;
@@ -126,12 +155,15 @@ function partialCallout(view: ReviewView): string | null {
     files.notReviewedTwice.length > 0
       ? ` ${files.notReviewedTwice.length} of them ${files.notReviewedTwice.length === 1 ? "was" : "were"} not reviewed after two tries, so the next push will not carry ${files.notReviewedTwice.length === 1 ? "it" : "them"}.`
       : "";
-  return `> ⚠️ **Partial review: ${files.reviewed} of ${files.total} files reviewed.** ${detail}${twice} They are listed under "Files not reviewed". Ask ${codeSpan(`${view.mention} review <paths>`)} for the rest.`;
+  return `> ⚠️ **Partial review: ${files.reviewed} of ${files.total} files reviewed.** ${detail}${twice} ${listing(fit) === "paths" ? 'They are listed under "Files not reviewed".' : NAMES_GONE} Ask ${codeSpan(`${view.mention} review <paths>`)} for the rest.`;
 }
 
 /** Instructions, policy and verifier notices, and what memory did: one visible paragraph each (slot 2). */
 function notices(view: ReviewView): string | null {
   const out: string[] = [];
+  if (view.inlineRefused) {
+    out.push("ℹ️ **GitHub would not anchor these findings on their lines**, so none of them is an inline comment. Each finding is listed once below, with a number.");
+  }
   const { instructionChanges, pathPolicyChange } = view.notices;
   if (instructionChanges) {
     const names = instructionChanges.files.map(codeSpan).join(", ");
@@ -218,7 +250,7 @@ function commitsText(commits: string[]): string {
   return ` (${count(commits.length, "commit", "commits")}: ${shown.join(", ")}${more > 0 ? ` and ${more} more` : ""})`;
 }
 
-function coverageCell(view: ReviewView, c: Extract<GlanceRow, { key: "coverage" }>): string {
+function coverageCell(view: ReviewView, c: Extract<GlanceRow, { key: "coverage" }>, fit: Fit): string {
   const { scope, files } = view;
   const since = scope.since === null ? "" : codeSpan(short(scope.since));
   const of =
@@ -230,7 +262,8 @@ function coverageCell(view: ReviewView, c: Extract<GlanceRow, { key: "coverage" 
   const carried = scope.carried > 0 ? `, plus the ${count(scope.carried, "file", "files")} the previous review did not reach` : "";
   let text = `${c.reviewed} of ${c.total} files reviewed, ${of}${carried}`;
   if (c.total > c.reviewed) {
-    text += `; ${c.total - c.reviewed} not reviewed, listed under Files not reviewed. Ask ${codeSpan(`${view.mention} review <paths>`)} for the rest`;
+    const where = listing(fit) === "paths" ? "listed under Files not reviewed" : "file names not listed because of GitHub's size limit";
+    text += `; ${c.total - c.reviewed} not reviewed, ${where}. Ask ${codeSpan(`${view.mention} review <paths>`)} for the rest`;
   }
   if (files.notReviewable.length > 0) {
     const shown = files.notReviewable.slice(0, 3).map((u) => `${codeSpan(u.path)} (${oneLineText(u.reason)})`);
@@ -246,7 +279,7 @@ function confidenceCell(c: Extract<GlanceRow, { key: "confidence" }>): string {
   return `${label}${why.length > 0 ? `: ${why.join("; ")}` : ""}`;
 }
 
-function glanceTable(view: ReviewView): string {
+function glanceTable(view: ReviewView, fit: Fit): string {
   const rows: [string, string][] = [];
   for (const row of view.glance) {
     switch (row.key) {
@@ -260,7 +293,7 @@ function glanceTable(view: ReviewView): string {
         rows.push(["Needs a person", needsPersonCell(row, view)]);
         break;
       case "coverage":
-        rows.push(["Coverage", coverageCell(view, row)]);
+        rows.push(["Coverage", coverageCell(view, row, fit)]);
         break;
       case "earlierThreads":
         rows.push(["Earlier threads", row.count === "unknown" ? "not counted: a page of threads could not be read" : row.count === 0 ? "none open" : `${row.count} open`]);
@@ -291,36 +324,83 @@ function kindCell(view: ReviewView, row: FindingRow, prefix: RowPrefix): string 
   return `${prefix ? `${prefix} · ` : ""}${sev.emoji} ${sev.word} · ${word} · ${topic.emoji} ${topic.word}`;
 }
 
+/** A row's number in the 422 body: its place among the rows of the body, slot by slot, as the tables list them. */
+function numbering(view: ReviewView): Map<FindingRow, number> {
+  const f = view.findings;
+  return new Map([...f.toFix, ...f.investigate, ...f.consider, ...f.preExisting, ...f.info].map((r, i) => [r, i + 1] as const));
+}
+
+/**
+ * A table of findings, the first `shown` rows of `rows`. The rows left out are one line after it;
+ * "they are on their lines" only when every one of them has a thread. In the 422 body the first
+ * column is the row's number, which the details of each finding repeat.
+ */
 function findingTable(view: ReviewView, rows: FindingRow[], prefix: RowPrefix, shown = rows.length): string {
+  const numbers = view.inlineRefused ? numbering(view) : null;
   const lines = rows
     .slice(0, shown)
-    .map((r) => `| ${kindCell(view, r, prefix)} | ${where(view, r)} | ${escapeCell(r.title)} |`);
-  const table = ["| | Where | Finding |", "| --- | --- | --- |", ...lines].join("\n");
+    .map((r) => `| ${numbers ? `${numbers.get(r)} | ` : ""}${kindCell(view, r, prefix)} | ${where(view, r)} | ${escapeCell(r.title)} |`);
+  const table = [`| ${numbers ? "# | " : ""}| Where | Finding |`, `| ${numbers ? "--- | " : ""}--- | --- | --- |`, ...lines].join("\n");
   const left = rows.length - shown;
   if (left === 0) return table;
   const onLines = rows.slice(shown).every((r) => r.inlineThread);
-  return `${table}\n\n- … and ${left} more not shown because of GitHub's size limit${onLines ? ", they are on their lines" : ""}.`;
+  const note = `- … and ${left} more not shown because of GitHub's size limit${onLines ? ", they are on their lines" : ""}.`;
+  return shown === 0 ? note : `${table}\n\n${note}`;
 }
 
 const visible = (heading: string, n: number, inner: string) => `### ${heading} (${n})\n\n${inner}`;
 
+/** The rows of a slot the body shows now, after the size fitting. */
+function shownRows(view: ReviewView, fit: Fit) {
+  const f = view.findings;
+  const { limits, dropped } = fit;
+  // Slot 6 shrunk keeps the rows with no thread (they are the only place their finding is); the 422 body has none of those to keep.
+  const considerKept = fit.considerShrunk ? f.consider.filter((r) => !r.inlineThread) : f.consider;
+  return {
+    toFix: f.toFix.slice(0, limits.toFix),
+    investigate: f.investigate.slice(0, limits.investigate),
+    consider: dropped.has("consider") ? [] : considerKept,
+    preExisting: dropped.has("preExisting") ? [] : f.preExisting.slice(0, limits.preExisting),
+    info: dropped.has("info") ? [] : f.info,
+  };
+}
+
+/** To consider, whole or shrunk: the rows with no thread, then a count of the rest and where they are. */
+function considerSlot(view: ReviewView, fit: Fit): string | null {
+  const all = view.findings.consider;
+  if (all.length === 0) return null;
+  const kept = shownRows(view, fit).consider;
+  const rest = all.length - kept.length;
+  let inner: string;
+  if (rest === 0) inner = findingTable(view, all, "");
+  else {
+    const note = view.inlineRefused ? `${rest} more to consider, not shown because of GitHub's size limit.` : `${rest} more to consider, on their lines (see Files changed).`;
+    inner = kept.length > 0 ? `${findingTable(view, kept, "")}\n\n${note}` : note;
+  }
+  return all.length > CONSIDER_OPEN_ROWS ? collapsed(`To consider (${all.length})`, inner) : visible("To consider", all.length, inner);
+}
+
 // ---- The rest of the slots -----------------------------------------------------------------------
 
 /** `- `kind` · `loc` — why` for each risk fact, then the files a path rule or a heuristic marked. */
-function riskFacts(view: ReviewView, shown?: number): string | null {
+function riskFactBullets(view: ReviewView): string[] {
   const risk = view.risk;
-  if (!risk) return null;
+  if (!risk) return [];
   const covered = new Set(risk.facts.map((f) => f.path));
   const MAX_PATH_BULLETS = 20;
   const ruleReasons = risk.pathReasons.filter((r) => r.rule);
   const heuristic = risk.pathReasons.filter((r) => !r.rule && !covered.has(r.path));
   const bullet = (r: { displayPath: string; why: string }) => `- ${codeSpan(r.displayPath)} — ${oneLineText(r.why)}`;
-  const bullets = [
+  return [
     ...risk.facts.map((f) => `- ${codeSpan(f.kind)} · ${where(view, f)} — ${oneLineText(f.why)}`),
     ...ruleReasons.slice(0, MAX_PATH_BULLETS).map(bullet),
     ...(ruleReasons.length > MAX_PATH_BULLETS ? [`- and ${ruleReasons.length - MAX_PATH_BULLETS} more files matched by path rules`] : []),
     ...heuristic.map(bullet),
   ];
+}
+
+function riskFacts(view: ReviewView, shown?: number): string | null {
+  const bullets = riskFactBullets(view);
   if (bullets.length === 0) return null;
   const kept = shown === undefined ? bullets : bullets.slice(0, shown);
   const left = bullets.length - kept.length;
@@ -328,33 +408,52 @@ function riskFacts(view: ReviewView, shown?: number): string | null {
   return `### Risk facts\n\n${[...kept, ...note].join("\n")}`;
 }
 
-function needsPerson(view: ReviewView): string | null {
-  if (view.needsPerson.length === 0) return null;
-  const items = view.needsPerson.map((i) => `- ${where(view, i)} · ${KIND_WORD[i.kind]} — ${oneLineText(i.why)}`);
-  return `### Needs a person\n\n${items.join("\n")}`;
+/** `path:line` or `path:from-to` as a contract writes a location; anything else is shown as written. */
+const CONTRACT_LOCATION = /^(.+?):(\d+)(?:-\d+)?$/;
+
+/**
+ * Slot 7: what only a person can answer, visible. The needs-a-person items first (the risk map
+ * keeps three), then every open "connects to" question with its location and the files that would
+ * answer it. The status counts the same items.
+ */
+function questions(view: ReviewView): string | null {
+  const people = view.needsPerson.map((i) => `- ${where(view, i)} · ${KIND_WORD[i.kind]} — ${oneLineText(i.why)}`);
+  const open = view.contracts.open.map((c) => {
+    const location = c.location.trim();
+    const at = CONTRACT_LOCATION.exec(location);
+    const place = at ? where(view, { path: at[1]!, line: Number(at[2]), location }) : codeSpan(location);
+    const question = oneLine(c.open_question ?? "Not answered from the files the reviewer could read.", 400);
+    const candidates = c.candidates?.length ? ` Files that would answer it: ${c.candidates.slice(0, 6).map(codeSpan).join(", ")}.` : "";
+    const unverified = c.evidence_checked === false ? " ⚠️ A citation did not resolve in the head." : "";
+    return `- ${place} · open question — ${oneLine(c.action, 160)}: ${question}${candidates}${unverified}`;
+  });
+  const items = [...people, ...open];
+  return items.length === 0 ? null : visible("Questions for you", items.length, items.join("\n"));
 }
 
-/** The rows with no inline thread, each with the model's body: a finding with no thread has nowhere else to put it. */
-function detailRows(view: ReviewView, limits: RowLimits, dropped: ReadonlySet<SlotId>): FindingRow[] {
-  const f = view.findings;
-  const shown = (rows: FindingRow[], id: SlotId, n?: number) => (dropped.has(id) ? [] : rows.slice(0, n));
-  return [
-    ...shown(f.toFix, "toFix", limits.toFix),
-    ...shown(f.investigate, "investigate", limits.investigate),
-    ...shown(f.consider, "consider"),
-    ...shown(f.preExisting, "preExisting", limits.preExisting),
-    ...shown(f.info, "info"),
-  ].filter((r) => !r.inlineThread);
-}
+/** The first paragraph of a model's text: where a body is cut when the details must shrink. */
+const firstParagraph = (text: string) => text.trim().split(/\n\s*\n/)[0]!;
 
-function details(view: ReviewView, limits: RowLimits, dropped: ReadonlySet<SlotId>): string | null {
-  const rows = detailRows(view, limits, dropped);
+const demanding = (r: FindingRow) => r.severity === "blocker" || r.severity === "fix";
+
+/**
+ * The details of the rows the tables show: the model's text for each. In a normal body only the
+ * rows with no inline thread have one (a finding with no thread has nowhere else to put its text);
+ * in the 422 body every row has one, numbered like its row.
+ */
+function details(view: ReviewView, fit: Fit): string | null {
+  const shown = shownRows(view, fit);
+  const rows = [...shown.toFix, ...shown.investigate, ...shown.consider, ...shown.preExisting, ...shown.info]
+    .filter((r) => !r.inlineThread)
+    .filter((r) => !(fit.lightDetailsDropped && !demanding(r)));
   if (rows.length === 0) return null;
+  const numbers = view.inlineRefused ? numbering(view) : null;
   const items = rows.map((r) => {
     const confidence = r.confidence ? ` (confidence ${r.confidence})` : "";
-    return `**${oneLineText(r.title)}${confidence}** (${where(view, r)})\n\n${block(r.body)}`;
+    const text = fit.bodiesShortened && demanding(r) ? firstParagraph(r.body) : r.body;
+    return `**${numbers ? `${numbers.get(r)}. ` : ""}${oneLineText(r.title)}${confidence}** (${where(view, r)})\n\n${block(text)}`;
   });
-  return collapsed(`Details of findings with no thread (${rows.length})`, items.join("\n\n"));
+  return collapsed(numbers ? `Details of each finding (${rows.length})` : `Details of findings with no thread (${rows.length})`, items.join("\n\n"));
 }
 
 function coverage(view: ReviewView): string | null {
@@ -371,11 +470,16 @@ function coverage(view: ReviewView): string | null {
   return collapsed("Coverage by batch", table);
 }
 
-/** Every file not reviewed, grouped by reason (partial reviews only). */
-function notReviewedFiles(view: ReviewView): string | null {
+/** Every file not reviewed, grouped by reason (partial reviews only); or, shrunk, one count per reason. */
+function notReviewedFiles(view: ReviewView, fit: Fit): string | null {
   const { files } = view;
   const total = files.total - files.reviewed;
   if (total === 0) return null;
+  if (fit.filesAsCounts) {
+    const lines = files.notReviewed.map((g) => `- ${capitalise(because(g.reason))}: ${count(g.paths.length, "file", "files")}`);
+    if (files.notReviewable.length > 0) lines.push(`- Not reviewable by a model: ${count(files.notReviewable.length, "file", "files")}`);
+    return collapsed(`Files not reviewed (${total})`, `${lines.join("\n")}\n\n${NAMES_GONE}`);
+  }
   const groups = files.notReviewed.map(
     (g) => `**${capitalise(because(g.reason))} (${g.paths.length})**\n\n${g.paths.map((p) => `- ${codeSpan(p)}`).join("\n")}`,
   );
@@ -390,41 +494,41 @@ function notReviewedFiles(view: ReviewView): string | null {
 /** How many rows of each cuttable table to show; absent means all. Used only by the size fitting. */
 export type RowLimits = Partial<Record<"toFix" | "investigate" | "preExisting" | "riskFacts", number>>;
 
-/** The slots of the review body in their order, empty ones left out. `limits` cuts a table to its first rows. */
-export function renderSlots(view: ReviewView, limits: RowLimits = {}, dropped: ReadonlySet<SlotId> = new Set()): Slot[] {
+/** The slots of the review body in their order, empty ones and dropped ones left out. `fit` says what the size fitting has cut. */
+export function renderSlots(view: ReviewView, fit: Fit = WHOLE): Slot[] {
   const f = view.findings;
+  const shown = shownRows(view, fit);
+  const { limits, dropped } = fit;
   const slots: Slot[] = [];
   const add = (id: SlotId, text: string | null | undefined) => {
-    if (text) slots.push({ id, text });
+    if (text && !dropped.has(id)) slots.push({ id, text });
   };
 
   add("status", renderStatusLine(computeStatus(view)));
-  add("callout", partialCallout(view));
+  add("callout", partialCallout(view, fit));
   add("notices", notices(view));
-  add("glance", glanceTable(view));
+  add("glance", glanceTable(view, fit));
   if (f.toFix.length > 0) add("toFix", visible("To fix", f.toFix.length, findingTable(view, f.toFix, "", limits.toFix)));
   if (f.investigate.length > 0) {
     add("investigate", visible("Needs investigation", f.investigate.length, findingTable(view, f.investigate, "Needs investigation", limits.investigate)));
   }
-  if (f.consider.length > 0) {
-    const table = findingTable(view, f.consider, "");
-    add("consider", f.consider.length > CONSIDER_OPEN_ROWS ? collapsed(`To consider (${f.consider.length})`, table) : visible("To consider", f.consider.length, table));
-  }
-  add("needsPerson", needsPerson(view));
+  if (!dropped.has("consider")) add("consider", considerSlot(view, fit));
+  add("needsPerson", questions(view));
   add("riskFacts", riskFacts(view, limits.riskFacts));
-  if (f.preExisting.length > 0) {
+  if (f.preExisting.length > 0 && !dropped.has("preExisting")) {
     const table = findingTable(view, f.preExisting, "Pre-existing", limits.preExisting);
-    const demanding = f.preExisting.some((r) => r.severity === "blocker" || r.severity === "fix");
-    add("preExisting", demanding ? visible("Pre-existing", f.preExisting.length, table) : collapsed(`Pre-existing (${f.preExisting.length})`, table));
+    const holdsFix = f.preExisting.some(demanding);
+    add("preExisting", holdsFix ? visible("Pre-existing", f.preExisting.length, table) : collapsed(`Pre-existing (${f.preExisting.length})`, table));
   }
-  if (f.info.length > 0) add("info", collapsed(`For your information (${f.info.length})`, findingTable(view, f.info, "")));
+  if (f.info.length > 0 && !dropped.has("info")) add("info", collapsed(`For your information (${f.info.length})`, findingTable(view, f.info, "")));
   const contracts = [...view.contracts.open, ...view.contracts.closed];
   add("connects", renderContracts(contracts));
   if (view.batchProse.trim()) add("checked", collapsed("What the reviewer checked", block(view.batchProse)));
   add("coverage", coverage(view));
-  add("notReviewedFiles", notReviewedFiles(view));
-  add("details", details(view, limits, dropped));
-  add("answer", ANSWER_LINE);
+  add("notReviewedFiles", notReviewedFiles(view, fit));
+  add("details", details(view, fit));
+  // No thread in the 422 body: "answer in its thread" would point nowhere.
+  if (!view.inlineRefused) add("answer", ANSWER_LINE);
   add("receipt", view.footer.receipt);
   add("cost", view.footer.costLine);
   if (view.footer.markers.length > 0) add("markers", view.footer.markers.join("\n\n"));
@@ -432,9 +536,6 @@ export function renderSlots(view: ReviewView, limits: RowLimits = {}, dropped: R
 }
 
 const join = (slots: Slot[]) => slots.map((s) => s.text).join("\n\n");
-
-/** Slots the size fitting drops whole, in this order (spec: 12, 11, 13, 13a, details, 10, 9, 6). */
-const DROP_ORDER: SlotId[] = ["checked", "connects", "coverage", "notReviewedFiles", "details", "info", "preExisting", "consider"];
 
 /**
  * The "Muted by memory" paragraph cut to `room` characters: a count line, then as many entries as
@@ -457,61 +558,95 @@ export function fitMemoryNotices(notices: string, room: number): string {
   return `${lead}${[count, ...kept].join("\n")}`;
 }
 
+/** One step of the slot drops: leave a slot out, or shrink it, or cut text inside the details. */
+type Step = { drop: SlotId } | { shrink: "filesAsCounts" | "considerShrunk" | "lightDetailsDropped" | "bodiesShortened" };
+
 /**
- * Interim size fitting (unit 3 replaces it with the full rule): whole slots go in `DROP_ORDER`
- * until the body fits, never one that holds a Blocker or Fix (Pre-existing) or a row with no other
- * home (the details of To fix and Needs investigation); then the long tables (and the details of
- * the rows they show) are cut to their first rows, Blockers first, with a note. The "Muted by
- * memory" list is cut only when it alone would not fit. The status, glance, answer line, receipt,
- * cost line and markers are never touched.
+ * The steps of the size fitting, in the spec's order ("The review body"). Slots 1 to 3, 7, 15 and
+ * 16 are not in it, and neither are 4, 5, 8 and 9: they are never removed as slots (a Pre-existing
+ * slot goes only when it holds no Blocker or Fix). Slot 13a shrinks to counts before it goes. Slot 6
+ * shrinks to its rows with no thread. The details are the interim home of a finding's text:
+ * in the normal body the Consider and Info bodies go after slot 13a (before 10); in the 422 body
+ * they go right after slot 12, as the spec says; the Blocker and Fix bodies are cut to their first
+ * paragraph last of all.
  */
-function fit(view: ReviewView, limit: number): string {
-  const render = (v: ReviewView, limits: RowLimits, dropped: ReadonlySet<SlotId>) =>
-    join(renderSlots(v, limits, dropped).filter((s) => !dropped.has(s.id)));
-  const dropped = new Set<SlotId>();
-  const whole = render(view, {}, dropped);
-  if (whole.length <= limit) return whole;
-  const f = view.findings;
-  const demandingPre = f.preExisting.some((r) => r.severity === "blocker" || r.severity === "fix");
-  const detailsHold = [...f.toFix, ...f.investigate].some((r) => !r.inlineThread);
-  for (const id of DROP_ORDER) {
-    if (id === "preExisting" && demandingPre) continue;
-    if (id === "details" && detailsHold) continue;
-    dropped.add(id);
-    const text = render(view, {}, dropped);
-    if (text.length <= limit) return text;
-  }
-  // Still over: the memory list keeps what fits next to the smallest body the tables can make, then
-  // the largest cuttable table is halved until the body fits or nothing is left to cut.
-  const limits: RowLimits = {};
-  const sizes = () => ({
-    toFix: f.toFix.length,
-    investigate: f.investigate.length,
-    preExisting: f.preExisting.length,
-    riskFacts: view.risk ? view.risk.facts.length + view.risk.pathReasons.length : 0,
-  });
-  const smallest: RowLimits = { toFix: 0, investigate: 0, preExisting: 0, riskFacts: 0 };
-  let shownView = view;
-  if (view.memoryNotices) {
-    const rest = render({ ...view, memoryNotices: "" }, smallest, dropped).length;
-    const room = limit - rest - 2;
-    if (view.memoryNotices.length > room) shownView = { ...view, memoryNotices: fitMemoryNotices(view.memoryNotices, room) };
-  }
-  let text = render(shownView, limits, dropped);
-  for (let guard = 0; guard < 64 && text.length > limit; guard++) {
-    const now = sizes();
-    const shown = (k: keyof RowLimits) => limits[k] ?? now[k];
-    const widest = (Object.keys(now) as (keyof RowLimits)[]).sort((a, b) => shown(b) - shown(a))[0];
-    if (shown(widest) === 0) break;
-    limits[widest] = Math.floor(shown(widest) / 2);
-    text = render(shownView, limits, dropped);
-  }
-  return text;
+function stepsOf(view: ReviewView): Step[] {
+  const holdsFix = view.findings.preExisting.some(demanding);
+  const light: Step = { shrink: "lightDetailsDropped" };
+  const rest: Step[] = [
+    { drop: "connects" },
+    { drop: "coverage" },
+    { shrink: "filesAsCounts" },
+    { drop: "notReviewedFiles" },
+    ...(view.inlineRefused ? [] : [light]),
+    { drop: "info" },
+    ...(holdsFix ? [] : [{ drop: "preExisting" } as Step]),
+    { shrink: "considerShrunk" },
+    { shrink: "bodiesShortened" },
+  ];
+  return [{ drop: "checked" }, ...(view.inlineRefused ? [light] : []), ...rest];
 }
 
 /**
- * The review body for GitHub. With `limit`, a body over it is fitted as above (the interim rule);
- * without, the whole body.
+ * The review body at most `limit` characters, from the same view as the whole body:
+ *
+ * 1. whole slots go from the named list (`stepsOf`) until it fits, one at a time;
+ * 2. if the never-dropped slots alone are still too long, the row tables are cut in order: Risk
+ *    facts (down to the first, which sets the level), Pre-existing, Needs investigation, To fix,
+ *    each as little as needed, Blockers first, each ending with a line that says how many are not
+ *    shown. A cut row takes its details with it.
+ *
+ * The "Muted by memory" list is cut only when it alone would not fit. The status, glance, answer
+ * line, receipt, cost line and markers are never touched.
+ */
+function fit(view: ReviewView, limit: number): string {
+  const render = (v: ReviewView, f: Fit) => join(renderSlots(v, f));
+  let state: Fit = { limits: {}, dropped: new Set() };
+  const whole = render(view, state);
+  if (whole.length <= limit) return whole;
+  for (const step of stepsOf(view)) {
+    state =
+      "drop" in step
+        ? { ...state, dropped: new Set([...state.dropped, step.drop]) }
+        : { ...state, [step.shrink]: true };
+    const text = render(view, state);
+    if (text.length <= limit) return text;
+  }
+
+  // Still over. The memory list keeps what fits next to the smallest body the tables can make.
+  const f = view.findings;
+  const bullets = riskFactBullets(view).length;
+  const sizes: Record<keyof RowLimits, number> = { riskFacts: bullets, preExisting: f.preExisting.length, investigate: f.investigate.length, toFix: f.toFix.length };
+  // Risk facts keep the one that sets the level, To fix and Needs investigation their first row (a Blocker when there is one): a body a little over the limit is better than one with no finding in it.
+  const least = (key: keyof RowLimits) => (key === "preExisting" ? 0 : Math.min(1, sizes[key]));
+  const smallest: Fit = { ...state, limits: { riskFacts: least("riskFacts"), preExisting: 0, investigate: least("investigate"), toFix: least("toFix") } };
+  let shownView = view;
+  if (view.memoryNotices) {
+    const rest = render({ ...view, memoryNotices: "" }, smallest).length;
+    const room = limit - rest - 2;
+    if (view.memoryNotices.length > room) shownView = { ...view, memoryNotices: fitMemoryNotices(view.memoryNotices, room) };
+  }
+  const limits: RowLimits = {};
+  const at = (k: keyof RowLimits, n: number): Fit => ({ ...state, limits: { ...limits, [k]: n } });
+  // Each table in turn keeps the most rows that make the body fit; when none does, it keeps the least and the next one is cut.
+  for (const key of ["riskFacts", "preExisting", "investigate", "toFix"] as const) {
+    const min = least(key);
+    if (render(shownView, { ...state, limits }).length <= limit) break;
+    let [low, high] = [min, sizes[key] - 1];
+    if (render(shownView, at(key, min)).length > limit) high = min;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (render(shownView, at(key, mid)).length <= limit) low = mid;
+      else high = mid - 1;
+    }
+    limits[key] = low;
+  }
+  return render(shownView, { ...state, limits });
+}
+
+/**
+ * The review body for GitHub. With `limit`, a body over it is fitted as above; without, the whole
+ * body. A view from `refusedView` renders the 422 body.
  */
 export function renderReviewBody(view: ReviewView, limit = Number.POSITIVE_INFINITY): string {
   return Number.isFinite(limit) ? fit(view, limit) : join(renderSlots(view));

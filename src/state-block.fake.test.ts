@@ -278,7 +278,8 @@ describe("what postReview writes (AC1, AC16)", () => {
     expect(retried.attempt).toBe(first.attempt);
     expect(stateOf(posts[1]!.body)).toHaveLength(1);
     // The fallback still moves them: the body lists both, and no inline comment is left.
-    expect(posts[1]!.body).toContain("GitHub refused them inline");
+    expect(posts[1]!.body).toContain("GitHub would not anchor these findings on their lines");
+    expect(posts[1]!.body).toContain("### To fix (2)");
   });
 
   test("moveCommentsToBody keeps the draft, so any caller of it settles the same way", () => {

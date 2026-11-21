@@ -13,6 +13,10 @@
 | --- | --- | --- |
 | 🟡 Consider · Nit · ❓ question | [`wachiman-review.yml:23`](https://github.com/niway-dev/wachiman/blob/e943b35660df37e27aab6ddfbe8ed8cded38e64d/.github/workflows/wachiman-review.yml#L23) | Ledger's configured audience must also change to the new host, not just be serving there |
 
+### Questions for you (1)
+
+- [`.github/workflows/wachiman-review.yml:23`](https://github.com/niway-dev/wachiman/blob/e943b35660df37e27aab6ddfbe8ed8cded38e64d/.github/workflows/wachiman-review.yml#L23) · open question — Review workflow sends the ledger reserve/settle/record calls and requests the OIDC token for the new host `https://ledger.wachiman-api.dev`: Is the ledger deployed at ledger.wachiman-api.dev with its configured audience set to exactly `https://ledger.wachiman-api.dev`, and is the repository still linked to an account there? This lives outside the repository. Files that would answer it: `docs/ledger-api.md`, `docs/troubleshooting.md`.
+
 ### Risk facts
 
 - `auth` · [`wachiman-review.yml:23`](https://github.com/niway-dev/wachiman/blob/e943b35660df37e27aab6ddfbe8ed8cded38e64d/.github/workflows/wachiman-review.yml#L23) — The job's GitHub OIDC identity token is now issued for and sent to a different host.

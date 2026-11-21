@@ -35,7 +35,7 @@
 
 </details>
 
-### Needs a person
+### Questions for you (1)
 
 - [`run.test.ts:327`](https://github.com/niway-dev/wachiman/blob/711da9ee6faf7775d0cbf396674413c8c19c7993/src/init/run.test.ts#L327) · trade-off — The interactive template question defaults to Yes, so pressing Enter adopts and replaces a team's existing PR template. Only a `.bak` copy and the prompt wording protect it. Whether the default should be No for an existing file is a product decision.
 

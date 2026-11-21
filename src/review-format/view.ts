@@ -147,6 +147,12 @@ export interface FooterView {
 }
 
 export interface ReviewView {
+  /**
+   * GitHub refused the inline comments, so this is the 422 body: no finding has a thread, the model's
+   * text for each one goes into a numbered "Details of each finding" (spec "The review body").
+   * Set by `refusedView`.
+   */
+  inlineRefused?: true;
   /** `owner/name`, for the links of a location; absent when the caller does not know it. */
   repo?: string;
   /** The command keyword that asks for the rest of a partial review. */
@@ -203,6 +209,17 @@ export function countFindingRows(findings: ReviewView["findings"]): FindingCount
     preExistingDemanding: findings.preExisting.filter((r) => r.severity === "blocker" || r.severity === "fix").length,
     investigate: findings.investigate.length,
     byPriority,
+  };
+}
+
+/** The same review as the 422 fallback posts it: every finding is listed in the body, none on its line. */
+export function refusedView(view: ReviewView): ReviewView {
+  const none = (rows: FindingRow[]) => rows.map((r) => ({ ...r, inlineThread: false }));
+  const f = view.findings;
+  return {
+    ...view,
+    inlineRefused: true,
+    findings: { toFix: none(f.toFix), investigate: none(f.investigate), consider: none(f.consider), preExisting: none(f.preExisting), info: none(f.info) },
   };
 }
 
@@ -305,7 +322,9 @@ export function buildView(input: ViewInput): ReviewView {
     });
   }
   // Blockers first: the size fitting keeps the first rows, and a Blocker is the last thing to cut.
-  findings.toFix.sort((a, b) => Number(b.severity === "blocker") - Number(a.severity === "blocker"));
+  for (const slot of ["toFix", "investigate", "preExisting"] as const) {
+    findings[slot].sort((a, b) => Number(b.severity === "blocker") - Number(a.severity === "blocker"));
+  }
 
   const expected = files.map((f) => f.filename);
   const reviewed = new Set(output.files_reviewed);

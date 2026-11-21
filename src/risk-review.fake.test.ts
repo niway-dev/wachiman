@@ -129,7 +129,8 @@ describe("the risk map of a review", () => {
     expect(body).toContain("### Risk facts\n\n- `auth` · `a.ts:2` — The check is skipped on this path.");
     expect(body).not.toContain("a.ts:99");
     expect(body).not.toContain("missing.ts");
-    expect(body).toContain("### Needs a person\n\n- `a.ts:3` · trade-off");
+    expect(body).toContain("### Questions for you (1)\n\n- `a.ts:3` · trade-off");
+    expect(body.indexOf("### Questions for you")).toBeLessThan(body.indexOf("### Risk facts"));
     expect(body).toContain("| **Read first** | `a.ts` |");
     expect(body.indexOf("| **Risk** |")).toBeLessThan(body.indexOf("### To fix"));
     expect(body.indexOf("### To fix")).toBeLessThan(body.indexOf("### Risk facts"));

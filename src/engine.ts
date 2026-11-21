@@ -50,7 +50,7 @@ import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote
 import { newCandidate, proposability, renderEntry, today, type Candidate } from "./memory/candidates";
 import { renderProposal } from "./memory/proposal";
 import { MEMORY_DIR, cutMemoryNote, loadMemory, memoryNotice, memoryRecord, type MemoryLoad, type MemorySource } from "./memory/load";
-import { MATCH_SCHEMA, applyMatches, buildMatchPrompt, matchRequest, parseMatches, planExceptions, MUTED_HEADING, renderConventions, renderMuting, type ExceptionPlan, type MutedFinding } from "./memory/mute";
+import { MATCH_SCHEMA, applyMatches, buildMatchPrompt, matchRequest, parseMatches, planExceptions, renderConventions, renderMuting, type ExceptionPlan, type MutedFinding } from "./memory/mute";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -91,8 +91,8 @@ import {
 } from "./contracts";
 import { describeCall } from "./call-message";
 import { neutralise } from "./review-format/escape";
-import { fitMemoryNotices, renderReviewBody } from "./review-format/render";
-import { buildView } from "./review-format/view";
+import { renderReviewBody } from "./review-format/render";
+import { buildView, refusedView, type ReviewView } from "./review-format/view";
 import { batchDistributed, distributedResultFields, plainText, verifierDistributed, type DistributedContext } from "./distributed";
 import { settleModelText } from "./sibling-references";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
@@ -276,6 +276,12 @@ export interface Review {
    * trusted only in a signed footer, so a body without the signature gets none.
    */
   state?: ReviewStateDraft;
+  /**
+   * The data the body was rendered from. The 422 fallback renders the body again from it (as the
+   * body of a review with no inline comments), so it needs no text split point. Absent on a
+   * review that was not built by `buildReview`: that one has no fallback.
+   */
+  view?: ReviewView;
 }
 
 /** `force` is `--force` after `review`: spend past a spent limit. Only the operator's comment may honour it. */
@@ -430,10 +436,6 @@ function findingLine(body: string, lead: (t: NonNullable<ReturnType<typeof parse
  * rows never reach the model. A comment without a table is returned as is.
  */
 export const legacyFindingComment = (body: string) => findingLine(body, (t) => t.severity.tier);
-
-/** A finding comment as a person reads it in a list: the same line, led by the word its table showed. */
-const shownFindingComment = (body: string) =>
-  findingLine(body, (t) => (t.priority ? `${t.priority.word}${t.priority.preExisting ? " · Pre-existing" : ""}` : t.severity.tier));
 
 /** The default command keyword. A slash command, so writing it notifies no GitHub account. */
 export const DEFAULT_MENTION = "/wachiman";
@@ -1168,7 +1170,7 @@ export function countLine(findings: Finding[]): string {
   return `${findings.length} finding(s)${shown.length > 0 ? `: ${shown.join(", ")}` : ""}`;
 }
 
-/** The `<summary>` of the contracts block; `trimMiddle` finds the block by it. */
+/** The `<summary>` of the contracts block. */
 export const CONTRACTS_SUMMARY = "What the change connects to";
 
 /** One line of model text: whitespace collapsed, comments defused, cut at `max` characters. */
@@ -1438,106 +1440,26 @@ export function buildReview(input: {
     ...(scoped && input.scopePaths ? { scope: input.scopePaths } : {}),
     ...countFindings(output.findings, onLines, outsideDiff),
   };
-  return { body: renderReviewBody(view, MAX_BODY_CHARS), comments, state };
+  return { body: renderReviewBody(view, MAX_BODY_CHARS), comments, state, view };
 }
 
 
-/** Where the 422 fallback puts the moved findings: before the first of these slots of the body, which stay after them. */
-const TAIL_SLOT = /\n\n(?:<details><summary>(?:What the change connects to|What the reviewer checked|Coverage by batch|Files not reviewed|Details of findings)|<sub>Answer a finding)/;
-
 /**
- * For a review GitHub refused with a validation 422: every inline finding moves to the body. The
- * result stays within `MAX_BODY_CHARS`: the room for the heading and the omission note is reserved
- * first, the moved list is cut to what is left and ends with "N more not shown", and when the rest
- * of the body is itself near the limit, its collapsed blocks are dropped whole, then the start of
- * the body is cut at a line break, so the status line, the marker and the signature are never
- * dropped.
+ * For a review GitHub refused with a validation 422: no inline comment is created, so every
+ * finding is listed in the body, once, in its table, and the model's text for each one follows
+ * in "Details of each finding" (spec "The review body"). The body is rendered from the same view
+ * as the review's own, fitted to `MAX_BODY_CHARS` by the same slot rules, so the status line, the
+ * cost line and the markers are never dropped and no text is split at a heading. The state draft
+ * is kept: `postReview` counts the comments it actually sends, which are none.
  */
 export function moveCommentsToBody(review: Review): Review {
   if (review.comments.length === 0) return review;
-  const moved = review.comments.map(
-    (c) => `- \`${neutralise(c.path)}:${c.line}\`: ${shownFindingComment(c.body).replace(SIGNATURE.finding, "").trim().replace(/\n\n/, " ")}`,
-  );
-  const base = review.body;
-  const heading = "### On their lines (GitHub refused them inline)";
-  const note = (left: number) => `- … and ${left} more not shown (GitHub refused them inline).`;
-  // Interim split point (the slot-based 422 body is a later change): the moved findings go after the
-  // visible slots, before the first collapsed slot below them or the answer line.
-  const split = base.search(TAIL_SLOT);
-  let head = split === -1 ? base : base.slice(0, split);
-  let tail = split === -1 ? "" : base.slice(split);
-  // The section is "\n\n<heading>\n\n<items joined by \n>" between head and tail; at the least it
-  // holds the heading and the note.
-  const overhead = 4 + heading.length;
-  const overflow = head.length + tail.length + overhead + note(moved.length).length - MAX_BODY_CHARS;
-  if (overflow > 0) tail = trimMiddle(tail, overflow);
-  // The tables before the collapsed blocks can fill the body on their own; then the start is cut too.
-  const still = head.length + tail.length + overhead + note(moved.length).length - MAX_BODY_CHARS;
-  if (still > 0) head = trimHead(head, still);
-  const room = MAX_BODY_CHARS - head.length - tail.length - overhead;
-  const kept: string[] = [];
-  let used = 0;
-  for (const [i, item] of moved.entries()) {
-    const next = used + (kept.length > 0 ? 1 : 0) + item.length;
-    const left = moved.length - (i + 1);
-    if (next + (left > 0 ? 1 + note(left).length : 0) > room) break;
-    kept.push(item);
-    used = next;
-  }
-  if (kept.length < moved.length) kept.push(note(moved.length - kept.length));
-  const section = `${heading}\n\n${kept.join("\n")}`;
-  return { body: `${head}\n\n${section}${tail}`, comments: [], ...(review.state ? { state: review.state } : {}) };
-}
-
-/**
- * Makes the start of a review body (status line, tables) at least `cut` characters shorter, at a
- * line break, so the status line survives whenever it can.
- */
-function trimHead(head: string, cut: number) {
-  const trimmed = "\n\n(Trimmed: this review is at GitHub's size limit.)";
-  const target = Math.max(head.length - cut - trimmed.length, 0);
-  // The "Muted by memory" list is protected (ADR 0057: every muted finding is shown): the text after it goes first, then the list shrinks to a count and the entries that fit.
-  const mutedAt = head.indexOf(`\n\n${MUTED_HEADING}`);
-  if (mutedAt !== -1) {
-    const next = head.indexOf("\n\n", mutedAt + 2);
-    const end = next === -1 ? head.length : next;
-    if (target < end) {
-      const before = head.slice(0, mutedAt);
-      const room = Math.max(target - before.length - 2, 0);
-      return `${before}\n\n${fitMemoryNotices(head.slice(mutedAt + 2, end), room)}${trimmed}`;
-    }
-  }
-  const at = head.lastIndexOf("\n", target);
-  return `${head.slice(0, at > 0 ? at : target)}${trimmed}`;
-}
-
-/**
- * Makes the collapsed blocks of a review body (what the reviewer checked, the contracts, the
- * coverage table, the files not reviewed, the details of findings) at least `cut` characters
- * shorter. The footer (answer line, receipt, cost line, markers) is kept whole. The blocks go whole,
- * in the order the body fitting drops its slots: findings are never traded for contracts.
- */
-function trimMiddle(tail: string, cut: number) {
-  // The footer starts at the answer line (then the receipt, the cost line and the markers).
-  const answer = tail.indexOf("\n\n<sub>Answer a finding");
-  const footerAt = answer !== -1 ? answer : Math.max(tail.lastIndexOf(`\n\n${SIGNATURE.review}`), 0);
-  const middle = tail.slice(0, footerAt);
-  const footer = tail.slice(footerAt);
-  const trimmed = "\n\n(Trimmed: this review is at GitHub's size limit.)";
-  const target = middle.length - cut - trimmed.length;
-  const blocks = middle.split(/(?=\n\n<details>)/).filter(Boolean);
-  // The blocks go whole, in the order the body fitting drops its slots; the details of findings with no thread go last, since they hold a finding's only text.
-  const order = ["What the reviewer checked", CONTRACTS_SUMMARY, "Coverage by batch", "Files not reviewed", "Details of findings"];
-  const rank = (b: string) => {
-    const at = order.findIndex((name) => b.startsWith(`\n\n<details><summary>${name}`));
-    return at === -1 ? order.length - 1 : at;
+  if (!review.view) throw new Error("A review without its view cannot be rendered as a body with no inline comments.");
+  return {
+    body: renderReviewBody(refusedView(review.view), MAX_BODY_CHARS),
+    comments: [],
+    ...(review.state ? { state: review.state } : {}),
   };
-  let kept = blocks;
-  for (const block of [...blocks].sort((a, b) => rank(a) - rank(b))) {
-    if (kept.reduce((n, b) => n + b.length, 0) <= target) break;
-    kept = kept.filter((b) => b !== block);
-  }
-  return `${kept.join("")}${trimmed}${footer}`;
 }
 
 // ---------------------------------------------------------------------------------------------
