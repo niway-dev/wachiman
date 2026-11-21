@@ -14,6 +14,7 @@ import {
   marker,
   readAutoCost,
   readLimitNotice,
+  readSignedStateBlock,
   review,
   threadReplies,
   type Deps,
@@ -475,6 +476,8 @@ describe("a limit refuses the run", () => {
         expect(t.posted[0]).toContain("/wachiman review --force");
         expect(t.posted[0]).not.toMatch(/hard (maximum|limit|cap)/i);
         expect(readLimitNotice(t.posted[0]!.replace(/\n\n<!-- wachi:attempt id=[0-9a-f-]+ -->$/, ""))).toBe(c.key);
+        // ADR 0060: the notice says it is not a review and why, in a block before the attempt line.
+        expect(readSignedStateBlock(t.posted[0]!)).toMatchObject({ status: "not-reviewed", reason: "limit", findings: { total: 0 } });
         expect(t.notes[0]).toContain("refused this run");
 
         // The same period, the notice is already on the pull request: still refused, nothing more posted.
