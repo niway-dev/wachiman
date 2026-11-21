@@ -107,7 +107,7 @@ export function blankBeforeLists(text: string): string {
       else if (mark[0] === fence[0] && mark.length >= fence.length && line.trim() === mark) fence = null;
     }
     const prev = out[out.length - 1];
-    if (fence === null && !mark && LIST_START.test(line) && prev !== undefined && prev.trim() !== "" && !LIST_ITEM.test(prev) && !/^( {4}|\t)/.test(prev)) out.push("");
+    if (fence === null && !mark && LIST_START.test(line) && prev !== undefined && prev.trim() !== "" && !LIST_ITEM.test(prev) && !/^\s/.test(prev)) out.push("");
     out.push(line);
   }
   return out.join("\n");

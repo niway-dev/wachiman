@@ -433,6 +433,10 @@ describe("round trip: the readers still read the footer", () => {
 });
 
 describe("blankBeforeLists", () => {
+  test("a bullet after an indented continuation line of a list item stays tight", () => {
+    const text = "- a\n  more text\n- b";
+    expect(blankBeforeLists(text)).toBe(text);
+  });
   test("a bullet after prose gets a blank line", () => {
     expect(blankBeforeLists("Steps:\n- one\n- two")).toBe("Steps:\n\n- one\n- two");
   });
