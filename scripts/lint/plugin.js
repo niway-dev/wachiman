@@ -1,6 +1,6 @@
 // See docs/code-comments.md
-import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 const TOOL_WITH_REASON = /^(?:@ts-(?:expect-error|ignore|nocheck)|(?:eslint|oxlint)-disable(?:-next-line|-line)?)\s+.*\S/;
 const TOOL_BARE = /^(?:@ts-check|(?:eslint|oxlint)-enable)\b/;
@@ -33,6 +33,18 @@ function looksLikePath(target) {
   return target.includes("/") || /\.\w+$/.test(target);
 }
 
+function isFileInside(root, target) {
+  if (isAbsolute(target)) return false;
+  const path = resolve(root, target);
+  const rel = relative(root, path);
+  if (rel.startsWith("..") || isAbsolute(rel)) return false;
+  try {
+    return statSync(path).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function classify(comment, root) {
   if (comment.type === "Shebang" || comment.type === "Hashbang") return { ok: true };
   const body = text(comment);
@@ -45,7 +57,7 @@ function classify(comment, root) {
   if (/^@ts-(?:expect-error|ignore|nocheck)\b/.test(body)) return { ok: false, messageId: "directiveWithoutReason" };
   const pointer = POINTER.exec(body);
   if (pointer && looksLikePath(pointer[1])) {
-    return existsSync(resolve(root, pointer[1])) ? { ok: true } : { ok: false, messageId: "missingTarget", data: { target: pointer[1] } };
+    return isFileInside(root, pointer[1]) ? { ok: true } : { ok: false, messageId: "missingTarget", data: { target: pointer[1] } };
   }
   return { ok: false, messageId: "prose" };
 }

@@ -37,6 +37,10 @@ const source = [
   "// const old = 1;",
   "export const b = 1; // trailing explanation",
   "// See docs/real.md.",
+  "/* a block comment with prose */",
+  "// See docs/",
+  "// See ../outside.md",
+  "// See /etc/hosts",
   "",
 ].join("\n");
 
@@ -59,7 +63,7 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("local/comments-point-to-docs, run through bun lint", () => {
   test("reports prose: a line comment, a block comment, a TODO, commented-out code and a trailing comment", () => {
-    for (const line of [3, 8, 9, 22, 23, 24])
+    for (const line of [3, 8, 9, 22, 23, 24, 26])
       expect(reported(line).map((m) => m.message)).toEqual([expect.stringContaining("Comments are not allowed")]);
   });
 
@@ -74,6 +78,11 @@ describe("local/comments-point-to-docs, run through bun lint", () => {
 
   test("a pointer may end with a period", () => {
     expect(reported(25)).toHaveLength(0);
+  });
+
+  test("a pointer to a directory, outside the repository or to an absolute path is reported as a missing target", () => {
+    for (const line of [27, 28, 29])
+      expect(reported(line).map((m) => m.message)).toEqual([expect.stringContaining("which does not exist")]);
   });
 
   test("reports a pointer to a missing file with its own message naming the target", () => {
@@ -92,6 +101,6 @@ describe("local/comments-point-to-docs, run through bun lint", () => {
   });
 
   test("reports nothing else", () => {
-    expect(messages.map((m) => m.line).sort((a, b) => a - b)).toEqual([3, 6, 7, 8, 9, 11, 15, 16, 19, 22, 23, 24]);
+    expect(messages.map((m) => m.line).sort((a, b) => a - b)).toEqual([3, 6, 7, 8, 9, 11, 15, 16, 19, 22, 23, 24, 26, 27, 28, 29]);
   });
 });
