@@ -244,15 +244,17 @@ describe("AC15: the process listener, over a fake process", () => {
     let push!: (s: string) => void;
     let end!: () => void;
     let endStream!: () => void;
+    let breakStream!: (e: Error) => void;
     const events = new ReadableStream<Uint8Array>({
       start(c) {
         push = (s) => c.enqueue(encoder.encode(s));
         endStream = () => c.close();
+        breakStream = (e) => c.error(e);
       },
     });
     const ended = new Promise<void>((r) => (end = r));
     let killed = false;
-    return { events, ended, kill: () => { killed = true; }, push, exit: () => { endStream(); end(); }, killed: () => killed };
+    return { events, ended, kill: () => { killed = true; }, push, endStream: () => endStream(), breakStream: (e: Error) => breakStream(e), exit: () => { endStream(); end(); }, killed: () => killed };
   }
 
   test("an event line wakes it before the time is up, and the content is ignored", async () => {
@@ -288,6 +290,36 @@ describe("AC15: the process listener, over a fake process", () => {
     p.exit();
     expect(await woke).toBe("failed");
     expect(await l.wake(10)).toBe("failed");
+  });
+
+  test("a stream that ends while the process lives is a failure, so the loop can fall back to polling", async () => {
+    const p = fakeProcess();
+    const l = listenerOver(p.events, p.ended, p.kill);
+    const woke = l.wake(5_000);
+    p.endStream();
+    expect(await woke).toBe("failed");
+    expect(await l.wake(10)).toBe("failed");
+  });
+
+  test("a stream that breaks while the process lives is a failure too", async () => {
+    const p = fakeProcess();
+    const l = listenerOver(p.events, p.ended, p.kill);
+    const woke = l.wake(5_000);
+    p.breakStream(new Error("EPIPE"));
+    expect(await woke).toBe("failed");
+  });
+
+  test("the wait says once on stderr that the listener stopped when its stream ends, and stdout stays one JSON object", async () => {
+    const w = world({ reviewAtMs: 10 ** 9 });
+    const p = fakeProcess();
+    p.endStream();
+    const r = await run(w, { ...ARGS, timeoutS: 100 }, { openListener: () => listenerOver(p.events, p.ended, p.kill) });
+    expect(r.err.filter((l) => l.includes("gh event listen stopped"))).toHaveLength(1);
+    expect(p.killed()).toBe(true);
+    expect(r.out).toHaveLength(1);
+    expect([r.code, r.json.why]).toEqual([21, "timeout"]);
+    const gaps = w.readsAt.slice(1).map((t, i) => t - w.readsAt[i]);
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(30_000);
   });
 
   test("closing kills the process", () => {

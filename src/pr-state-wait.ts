@@ -43,8 +43,10 @@ export interface WaitDeps {
   /** A timer for the deadline of one read: `promise` resolves to null when `ms` pass, until `cancel` is called. */
   timeout: (ms: number) => { promise: Promise<null>; cancel: () => void };
   /** Installs a handler for SIGINT and SIGTERM and returns what removes it. Only used while waiting. */
-  signals: { install: (handler: (signal: "SIGINT" | "SIGTERM") => void) => () => void };
+  signals: { install: (handler: (signal: WaitSignal) => void) => () => void };
 }
+
+export type WaitSignal = "SIGINT" | "SIGTERM";
 
 export interface PrStateWaitArgs extends PrStateArgs {
   wait: true;
@@ -208,6 +210,9 @@ export function listenerOver(events: ReadableStream<Uint8Array>, ended: Promise<
     } catch {
       // A broken stream is the same as an ended process.
     }
+    // The stream ended or broke: no more events will come, even if the process lives on.
+    dead = true;
+    poke();
   })();
   void ended.then(() => (dead = true, poke()), () => (dead = true, poke()));
   return {
