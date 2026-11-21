@@ -4,7 +4,8 @@
  * less than its last name. The link carries the full path, so the short text is never the only
  * address. Two rules keep the short text honest: a very long name is shortened to its first and
  * last words, and two different files that would show the same text each show the shortest
- * directory suffix that tells them apart.
+ * directory suffix that tells them apart. Two that still match at full depth (shortening made
+ * their names equal) show their full paths.
  */
 
 /** A displayed name longer than this is shortened. */
@@ -42,7 +43,8 @@ function suffix(segments: string[], depth: number): string {
  * When two different paths would show the same text, each of them takes one more directory until
  * the texts differ, so `src/init/run.ts` and `src/setup/run.ts` show `init/run.ts` and
  * `setup/run.ts`, and a path that no other collides with keeps its short name. Pass every path the
- * body shows, whatever slot it is in: the rule is about one body.
+ * body shows, whatever slot it is in: the rule is about one body. A group still equal at full depth,
+ * because shortening made the names equal, shows the full paths, which always differ.
  */
 export function displayPaths(paths: Iterable<string>): Map<string, string> {
   const unique = [...new Set(paths)];
@@ -63,8 +65,10 @@ export function displayPaths(paths: Iterable<string>): Map<string, string> {
         }
       }
     }
-    // Nothing left to widen: the remaining texts are as distinct as the paths allow.
-    if (!widened) return now;
+    if (!widened) {
+      for (const group of byText.values()) if (group.length > 1) for (const path of group) now.set(path, path);
+      return now;
+    }
   }
 }
 

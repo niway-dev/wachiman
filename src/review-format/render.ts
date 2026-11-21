@@ -22,7 +22,7 @@ import { MUTED_HEADING } from "../memory/mute";
 import { PRIORITY_WORD } from "../priority";
 import { SETTINGS_PATH } from "../repo-settings";
 import type { RiskLevel } from "../risk";
-import { escapeCell, neutralise } from "./escape";
+import { defuseDetails, escapeCell, neutralise } from "./escape";
 import { computeStatus, renderStatusLine } from "./status";
 import type { FindingRow, GlanceRow, ReviewView } from "./view";
 
@@ -88,9 +88,9 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 /** Inline code from text Wachiman did not write: no backtick to end the span, a pipe escaped for a table cell. */
 const codeSpan = (text: string) => `\`${neutralise(flat(text)).replaceAll("`", "'").replaceAll("|", "\\|")}\``;
 /** Model text as one line of a bullet or a bold title: comments defused, whitespace collapsed. */
-const oneLineText = (text: string) => neutralise(flat(text));
+const oneLineText = (text: string) => defuseDetails(neutralise(flat(text)));
 /** Model text as a block inside `<details>`: a stray `</details>` in it cannot close the block early. */
-const block = (text: string) => neutralise(text.trim()).replace(/<(\/?)details/gi, "&lt;$1details");
+const block = (text: string) => defuseDetails(neutralise(text.trim()));
 const collapsed = (summary: string, inner: string) => `<details><summary>${summary}</summary>\n\n${inner}\n\n</details>`;
 
 /** The address of a location at the head commit, or null when the repository is not known (decision 7). */
@@ -470,10 +470,11 @@ function coverage(view: ReviewView): string | null {
   return collapsed("Coverage by batch", table);
 }
 
-/** Every file not reviewed, grouped by reason (partial reviews only); or, shrunk, one count per reason. */
+/** Every file not reviewed, grouped by reason (partial reviews, and any binary files); or, shrunk, one count per reason. */
 function notReviewedFiles(view: ReviewView, fit: Fit): string | null {
   const { files } = view;
-  const total = files.total - files.reviewed;
+  // Binary files are not part of `files`: they are listed whenever any exist, even in a complete review.
+  const total = files.total - files.reviewed || files.notReviewable.length;
   if (total === 0) return null;
   if (fit.filesAsCounts) {
     const lines = files.notReviewed.map((g) => `- ${capitalise(because(g.reason))}: ${count(g.paths.length, "file", "files")}`);

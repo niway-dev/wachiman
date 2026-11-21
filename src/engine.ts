@@ -337,8 +337,6 @@ export const detail = (f: Finding, status?: string) => {
   const parts = [f.confidence ? `confidence ${f.confidence}` : "", status ?? ""].filter(Boolean);
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 };
-const at = (f: { path: string; line: number }) =>
-  neutralise(f.line > 0 ? `${f.path}:${f.line}` : f.path);
 
 /**
  * The first thing on every comment the engine posts, so a reader knows at a glance it is Wachi's.
@@ -1317,9 +1315,9 @@ export function buildReview(input: {
   estimate?: boolean;
   /** The trial arm (ADR 0059): `word` renders today's Important/Nit word in each inline table. Default: the priority. */
   arm?: Arm;
-  /** The risk map (ADR 0031), rendered right after the count line. */
+  /** The risk map (ADR 0031), shown in the glance table. */
   riskMap?: RiskMap;
-  /** PR Confidence (ADR 0033): the grade as one line after the count line; the description block holds the rest. */
+  /** PR Confidence (ADR 0033): the grade as one line in the glance table; the description block holds the rest. */
   fidelity?: Fidelity;
   /** A review of one push to the pull request: the map says it covers that push (ADR 0011). */
   pushOnly?: boolean;
@@ -1442,7 +1440,6 @@ export function buildReview(input: {
   };
   return { body: renderReviewBody(view, MAX_BODY_CHARS), comments, state, view };
 }
-
 
 /**
  * For a review GitHub refused with a validation 422: no inline comment is created, so every
@@ -2472,8 +2469,9 @@ export function fetchThreadPages(gh: GhFn, repo: string, pr: number): ThreadPage
       if (!page || !Array.isArray(page.nodes)) throw new GhError(`GitHub answered no review threads for ${repo}#${pr}.`, null, "");
       threads.push(...page.nodes);
       pages++;
-      const next: unknown = page.pageInfo?.hasNextPage ? page.pageInfo.endCursor : null;
-      if (next === null) return { threads, complete: true, pages };
+      if (!page.pageInfo?.hasNextPage) return { threads, complete: true, pages };
+      // `hasNextPage` with no usable cursor is a page we cannot continue from, not the last one.
+      const next: unknown = page.pageInfo.endCursor;
       if (typeof next !== "string" || next === after) {
         return { threads, complete: false, pages, error: new GhError("GitHub's review-thread pagination did not advance.", null, "") };
       }
@@ -2485,14 +2483,10 @@ export function fetchThreadPages(gh: GhFn, repo: string, pr: number): ThreadPage
   return { threads, complete: false, pages: MAX_THREAD_PAGES, error: new GhError(`More than ${MAX_THREAD_PAGES * 100} review threads on ${repo}#${pr}.`, null, "") };
 }
 
-/**
- * Every review thread of the pull request that could be read. A first page that fails throws, as it
- * always has; a later page that fails leaves the pages before it, so a caller that only replies
- * to threads keeps working. Use `fetchThreadPages` when a missing page changes the answer.
- */
+/** Every review thread of the pull request. A page that fails throws, so a partial list is never mistaken for the whole one. */
 export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
   const read = fetchThreadPages(gh, repo, pr);
-  if (read.pages === 0 && !read.complete) throw read.error;
+  if (!read.complete) throw read.error;
   return read.threads;
 }
 
@@ -4705,7 +4699,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     scopePaths: paths.length,
     mention: config.mention,
     repo,
-    earlierThreads: earlierThreadCount(gh, repo, pr),
+    earlierThreads: last ? earlierThreadCount(gh, repo, pr) : 0,
     automatic,
     receiptLine,
     instructionChanges: {

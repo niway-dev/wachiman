@@ -77,6 +77,18 @@ describe("displayPaths", () => {
   });
 });
 
+describe("displayPaths at full depth", () => {
+  test("two files of one directory whose shortened names are equal show their full paths", () => {
+    const a = `docs/adr/0051-a-${"x".repeat(30)}-from-wachiman.md`;
+    const b = `docs/adr/0051-b-${"y".repeat(30)}-from-wachiman.md`;
+    expect(shortName(a.split("/")[2])).toBe(shortName(b.split("/")[2]));
+    const shown = displayPaths([a, b, "src/other.ts"]);
+    expect(shown.get(a)).toBe(a);
+    expect(shown.get(b)).toBe(b);
+    expect(shown.get("src/other.ts")).toBe("other.ts");
+  });
+});
+
 describe("displayLocation", () => {
   test("adds the line, and none for a finding about the whole file", () => {
     expect(displayLocation("run.ts", 12)).toBe("run.ts:12");

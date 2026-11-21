@@ -223,7 +223,9 @@ describe("size fitting: the never-dropped slots alone pass the limit", () => {
     for (const m of MARKERS) expect(body).toContain(m);
     // Pre-existing rows have no thread: no "on their lines" there.
     const pre = body.slice(body.indexOf("### Pre-existing"));
-    expect(pre.split("\n\n")[2] ?? "").not.toContain("on their lines");
+    const note = pre.slice(pre.indexOf("\n\n") + 2).split(/\n### |<sub>/)[0]!;
+    expect(note.length).toBeGreaterThan(0);
+    expect(note).not.toContain("on their lines");
   });
 
   test("the cut To fix table keeps the Blockers before any Fix", () => {

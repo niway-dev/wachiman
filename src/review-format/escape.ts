@@ -14,6 +14,9 @@
 export const neutralise = (text: string) =>
   text.replaceAll("<!--", "&lt;!--").replaceAll("-->", "--&gt;");
 
+/** `<details` and `</details>` become `&lt;details` and `&lt;/details>`: model text cannot open or close a collapsed block. */
+export const defuseDetails = (text: string) => text.replace(/<(\/?)details/gi, "&lt;$1details");
+
 /** A line break of any kind: LF, CR, the Unicode line and paragraph separators, NEL, vertical tab, form feed. */
 const BREAKS = new RegExp(String.raw`\s*[\r\n${String.fromCharCode(0x2028, 0x2029, 0x85)}\v\f]+\s*`, "g");
 
@@ -24,7 +27,7 @@ const BREAKS = new RegExp(String.raw`\s*[\r\n${String.fromCharCode(0x2028, 0x202
  * escape placed before a pipe or a backtick. Every table cell with such text goes through here.
  */
 export const escapeCell = (text: string) =>
-  neutralise(text.replace(BREAKS, " ").trim())
+  defuseDetails(neutralise(text.replace(BREAKS, " ").trim()))
     .replaceAll("\\", "\\\\")
     .replaceAll("|", "\\|")
     .replaceAll("`", "\\`");

@@ -58,9 +58,9 @@ describe("fetchThreads", () => {
     expect(asked).toEqual([null, "cursor-1"]);
   });
 
-  test("a page that fails after the first keeps what was read, as before pagination existed", () => {
+  test("a page that fails after the first throws: a partial list is never returned as the whole one", () => {
     const { gh } = pagedGh([{ nodes: [botThread(1)], next: "c1" }, down()]);
-    expect(fetchThreads(gh, "o/r", 7)).toHaveLength(1);
+    expect(() => fetchThreads(gh, "o/r", 7)).toThrow(GhError);
   });
 
   test("a first page that fails still throws, as it always did", () => {
@@ -84,6 +84,13 @@ describe("fetchThreadPages", () => {
     const result = fetchThreadPages(gh, "o/r", 7);
     expect(result.complete).toBe(false);
     expect(asked).toHaveLength(2);
+  });
+
+  test("hasNextPage with no endCursor is an incomplete read, not the last page", () => {
+    const gh: GhFn = () =>
+      JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: true, endCursor: null }, nodes: [botThread(1)] } } } } });
+    expect(fetchThreadPages(gh, "o/r", 7).complete).toBe(false);
+    expect(earlierThreadCount(gh, "o/r", 7)).toBe("unknown");
   });
 
   test("an answer that is not a list of threads is a failed page, not an empty one", () => {

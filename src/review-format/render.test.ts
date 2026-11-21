@@ -268,6 +268,28 @@ describe("a title with a pipe and a newline", () => {
   });
 });
 
+describe("details tags in model text", () => {
+  const input = scenarios["first-review"]!;
+  const evil: ViewInput = {
+    ...input,
+    output: { ...input.output, findings: input.output.findings.map((f, i) => (i === 0 ? { ...f, title: "Closes </details> early" } : f)) },
+  };
+  test("a finding title cannot close the collapsed details block", () => {
+    const body = renderReviewBody(buildView(evil), MAX);
+    expect(body).toContain("Closes &lt;/details> early");
+    expect(body.split("</details>").length).toBe(body.split("<details>").length);
+  });
+});
+
+describe("binary files in a complete review", () => {
+  test("every one is listed in the not-reviewed slot, not only the first three in the Coverage cell", () => {
+    const binaries = ["a.png", "b.png", "c.png", "d.png"].map((path) => ({ path, reason: "binary" }));
+    const body = renderReviewBody(buildView({ ...scenarios.clean!, unreviewable: binaries }), MAX);
+    expect(body).toContain("Files not reviewed (4)");
+    expect(body).toContain("`d.png`");
+  });
+});
+
 describe("round trip: the readers still read the footer", () => {
   const ATTEMPT = "<!-- wachi:attempt id=0b1c2d3e-0000-4000-8000-000000000001 -->";
   /** The commit a marker the readers accept names; null for the old `agent-review` marker, which none of them reads. */

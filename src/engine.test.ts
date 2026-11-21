@@ -1858,7 +1858,7 @@ describe("moveCommentsToBody limits", () => {
     expect(b.indexOf("### To fix (1)")).toBeGreaterThan(-1);
     expect(b.indexOf("### To fix (1)")).toBeLessThan(b.indexOf("<summary>What the reviewer checked"));
     expect(b.indexOf("<summary>What the reviewer checked")).toBeLessThan(b.indexOf("<summary>Details of each finding"));
-    expect(b.indexOf("<summary>Details of each finding")).toBeLessThan(b.indexOf("<sub>Answer") === -1 ? b.indexOf("<sub>m ·") : b.indexOf("<sub>Answer"));
+    expect(b.indexOf("<summary>Details of each finding")).toBeLessThan(b.indexOf("<sub>m ·"));
   });
 
   test("a body already near the limit stays within it, with the cost line and the markers", () => {

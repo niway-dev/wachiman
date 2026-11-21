@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { neutralise as engineNeutralise } from "../engine";
-import { escapeCell, neutralise } from "./escape";
+import { defuseDetails, escapeCell, neutralise } from "./escape";
 
 describe("neutralise", () => {
   test("is the engine's own function, so the two can never drift apart", () => {
@@ -9,6 +9,12 @@ describe("neutralise", () => {
 
   test("defuses the opening and the closing of an HTML comment", () => {
     expect(neutralise("a <!-- wachi:review --> b")).toBe("a &lt;!-- wachi:review --&gt; b");
+  });
+});
+
+describe("defuseDetails", () => {
+  test("neutralises an opening and a closing details tag, in any case", () => {
+    expect(defuseDetails("a </details> b <DETAILS open> c")).toBe("a &lt;/details> b &lt;details open> c");
   });
 });
 
@@ -21,8 +27,14 @@ describe("escapeCell", () => {
     expect(escapeCell("first\nsecond")).toBe("first second");
     expect(escapeCell("first\r\nsecond")).toBe("first second");
     expect(escapeCell("first\rsecond")).toBe("first second");
-    expect(escapeCell("first second third")).toBe("first second third");
+    expect(escapeCell("first\u2028second")).toBe("first second");
+    expect(escapeCell("first\u2029second")).toBe("first second");
+    expect(escapeCell("first\u0085second")).toBe("first second");
     expect(escapeCell("first\n\n\n  second")).toBe("first second");
+  });
+
+  test("defuses a details tag so a cell cannot close the collapsed block around it", () => {
+    expect(escapeCell("x </details> y")).not.toContain("</details");
   });
 
   test("escapes a backtick so it cannot open a code span that swallows the next cell", () => {
