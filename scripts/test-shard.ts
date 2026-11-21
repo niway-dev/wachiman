@@ -4,7 +4,8 @@
  * pins, has no `--shard`, so the split is done here, by file.
  *
  *   bun scripts/test-shard.ts <index> <total>   print the files of shard <index> (1-based), one per line
- *   bun scripts/test-shard.ts --check [total]   exit 1 unless every test file is in exactly one shard
+ *   bun scripts/test-shard.ts --check [total]   exit 1 unless every file this script finds is in exactly one
+ *                                                shard and no tracked test file is outside what it finds
  *
  * Files are packed greedily, slowest first, into the shard with the least time so far, using the
  * seconds per file in `scripts/test-timings.json`. A file missing from it gets the median of the
@@ -13,11 +14,12 @@
  *
  * Refresh the timings when the suite changes a lot: read the per-file times from a CI run of
  * `bun test` (the time between one file's header and the next) and rewrite the JSON as
- * `{ "path/to/file.test.ts": seconds }`, rounded to 0.1. Stale entries for deleted files are ignored.
+ * `{ "path/to/file.test.ts": seconds }`, rounded to 0.01. \`--check\` warns about files with no entry. Stale entries for deleted files are ignored.
  *
  * Paths are printed with a leading `./`: Bun treats an argument that starts with `./` as a file
  * and any other argument as a substring filter.
  */
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -48,6 +50,19 @@ export function loadTimings(path: string = TIMINGS_PATH): Record<string, number>
   return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
 }
 
+/** A file costs at least this much (process start, imports), even when its recorded time rounds to zero. */
+const MIN_SECONDS = 0.05;
+
+/** The weight of a file when packing: its recorded seconds, floored; `fallback` when it has no entry. */
+export function weight(file: string, timings: Record<string, number>, fallback: number): number {
+  return Math.max(timings[file] ?? fallback, MIN_SECONDS);
+}
+
+/** The weight a file with no recorded time gets: the median of the recorded ones. */
+export function fallbackWeight(files: string[], timings: Record<string, number>): number {
+  return Math.max(median(files.filter((f) => f in timings).map((f) => timings[f]!)), MIN_SECONDS);
+}
+
 function median(values: number[]): number {
   if (values.length === 0) return 1;
   const sorted = [...values].sort((a, b) => a - b);
@@ -57,9 +72,8 @@ function median(values: number[]): number {
 
 /** `total` shards of `files`, each a sorted list. Greedy, slowest file first, into the lightest shard (lowest index on a tie). */
 export function assign(files: string[], timings: Record<string, number>, total: number): string[][] {
-  const known = files.filter((f) => f in timings).map((f) => timings[f]!);
-  const fallback = median(known);
-  const seconds = (f: string) => timings[f] ?? fallback;
+  const fallback = fallbackWeight(files, timings);
+  const seconds = (f: string) => weight(f, timings, fallback);
   const order = [...files].sort((a, b) => seconds(b) - seconds(a) || (a < b ? -1 : a > b ? 1 : 0));
   const shards: string[][] = Array.from({ length: total }, () => []);
   const load = new Array<number>(total).fill(0);
@@ -86,6 +100,17 @@ export function checkSplit(files: string[], shards: string[][]): string[] {
   return problems;
 }
 
+/** Tracked test files that `discover()` misses (a symlink, a dot directory): Bun might run them, the shards would not. */
+export function missedByDiscovery(files: string[], dir: string = root): string[] {
+  const out = spawnSync("git", ["ls-files", "-z"], { cwd: dir, encoding: "utf8" });
+  if (out.status !== 0) return [];
+  const have = new Set(files);
+  return out.stdout
+    .split("\0")
+    .filter((f) => f && TEST_FILE.test(f) && !f.split("/").includes("node_modules") && !have.has(f))
+    .sort();
+}
+
 function main(args: string[]): number {
   const files = discover();
   if (files.length === 0) {
@@ -98,7 +123,11 @@ function main(args: string[]): number {
       console.error("usage: test-shard.ts --check [total]");
       return 2;
     }
-    const problems = checkSplit(files, assign(files, loadTimings(), total));
+    const timings = loadTimings();
+    const problems = checkSplit(files, assign(files, timings, total));
+    for (const f of missedByDiscovery(files)) problems.push(`tracked test file the shards cannot see: ${f}`);
+    const untimed = files.filter((f) => !(f in timings));
+    if (untimed.length > 0) console.error(`warning: no recorded time for ${untimed.length} file(s), weighed as the median: ${untimed.join(", ")}`);
     for (const p of problems) console.error(p);
     if (problems.length === 0) console.error(`ok: ${files.length} test files in ${total} shards, each exactly once`);
     return problems.length === 0 ? 0 : 1;

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { assign, checkSplit, discover, loadTimings } from "./test-shard";
+import { assign, checkSplit, discover, fallbackWeight, loadTimings, weight } from "./test-shard";
 
 describe("test sharding", () => {
   const files = discover();
@@ -31,12 +31,18 @@ describe("test sharding", () => {
     expect(checkSplit(withNew, shards)).toEqual([]);
   });
 
-  test("the load is balanced: no shard is far above the average", () => {
-    const seconds = (f: string) => timings[f] ?? 1;
+  test("a file with no recorded time weighs something, so it is not piled onto one shard for free", () => {
+    expect(fallbackWeight(files, timings)).toBeGreaterThan(0);
+    expect(weight("x.test.ts", { "x.test.ts": 0 }, 1)).toBeGreaterThan(0);
+  });
+
+  test("the load is balanced within the greedy bound", () => {
+    const fallback = fallbackWeight(files, timings);
+    const seconds = (f: string) => weight(f, timings, fallback);
     const loads = assign(files, timings, 4).map((s) => s.reduce((sum, f) => sum + seconds(f), 0));
     const total = loads.reduce((a, b) => a + b, 0);
-    // The slowest file alone sets the floor; allow it on top of an even share.
-    expect(Math.max(...loads)).toBeLessThanOrEqual(total / 4 + Math.max(...files.map(seconds)));
+    // Longest-first greedy packing never exceeds the average by more than 3/4 of the largest item.
+    expect(Math.max(...loads)).toBeLessThanOrEqual(total / 4 + (3 / 4) * Math.max(...files.map(seconds)) + 1e-9);
   });
 
   test("checkSplit reports a missing, duplicated and unknown file and an empty shard", () => {
