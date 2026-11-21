@@ -1,7 +1,7 @@
 # Skip a review the run cannot pay for in full, and stop paying for calls that cannot work
 
 - **Status:** proposed (2026-11-21). Tracker: [NIW2-910](https://linear.app/niway/issue/NIW2-910/wachiman-skip-a-review-the-run-cannot-pay-for-in-full-and-let-the).
-- **ADRs:** [a review the run cannot pay for in full is skipped, and the operator approves a budget for one head](../adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md).
+- **ADRs:** [a review the run cannot pay for in full is skipped, and the operator approves a budget for one head](../adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md); [files changed only by commits in `.git-blame-ignore-revs` are reviewed by a cheaper model](../adr/0063-files-changed-only-by-commits-in-git-blame-ignore-revs-are-reviewed-by-a-cheaper-model.md).
 
 ## Summary (one minute)
 
@@ -13,7 +13,8 @@ on their budget, two of them with less room than the floor this spec sets, and a
 budget was retried. This spec makes the
 room the gate: an estimate above what the run may spend makes no model call and posts the price
 with a command only the operator can use to approve that head. It also stops the wasted calls,
-makes the partial-review comment readable, and honours `linguist-generated` from the base commit.
+makes the partial-review comment readable, honours `linguist-generated` from the base commit, and
+sends files changed only by commits listed in `.git-blame-ignore-revs` to a cheaper model.
 
 <!-- visual: budget-gate-flow -->
 
@@ -35,8 +36,8 @@ flowchart TD
 | Estimate between run budget and $6 | Partial review, paid in full | No model call; priced comment |
 | Approving a larger review | Edit `budget_usd` in the workflow | `/wachiman review --budget N --head SHA`, operator only |
 | `size_gate_usd` | Gate, never below the run budget | Accepted, ignored, logged as deprecated |
-| Batch start floor | $0.05 of room | About 60% of the model's mean batch cost (Sonnet ≈ $0.19) |
-| Retry after a budget cut | Retried with what is left | Never retried; files reported as not reached |
+| Batch floor and retry | Starts with $0.05; retried after a budget cut | Starts with about 60% of a mean batch (Sonnet ≈ $0.19); not retried when the room cut it |
+| Files changed only by commits in `.git-blame-ignore-revs` | Reviewed by the main model | Reviewed by `format_model` (Haiku, low effort), priced apart |
 | Partial-review comment | Every unread file inline with its reason | Counts by reason on one line; the list in a collapsed block |
 | `linguist-generated` / `linguist-vendored` | Reviewed | Excluded, read from the base commit's `.gitattributes` |
 
@@ -53,6 +54,7 @@ flowchart TD
 | 7 | Partial comment: one count line, list collapsed; hidden marker unchanged | The 312-file comment was unreadable; ADR 0036's marker is not touched | reuses 0036 |
 | 8 | `linguist-generated` and `linguist-vendored` from the base commit exclude a file | The owner's own marker, like `exclude`; base so a pull request cannot mark itself | reuses 0058's base-commit rule |
 | 9 | Release: `release: direct` for each layer, with a changelog line for the behaviour change | No flag: the old partial path is the defect | — |
+| 10 | Files touched only by commits listed in `.git-blame-ignore-revs` (read from the head) go to `format_model`, default Haiku at low effort; nothing is dropped | The standard place repositories name formatting commits; the owner wants them read, cheaper | 0063 (new) |
 
 ## Layers
 
@@ -60,7 +62,8 @@ flowchart TD
 | --- | --- | --- | --- | --- |
 | 1 | Batch floor, no retry after a budget cut, readable partial comment | AC1, AC2, AC3 | 🟢 Low | — |
 | 2 | Room as the gate, priced comment, `--budget N --head SHA`, `approve_max_usd`, `size_gate_usd` deprecation, local warning threshold, docs | AC4–AC10, AC13–AC15 | 🟡 Medium | — |
-| 3 | `linguist-generated` / `linguist-vendored` exclusion from the base commit | AC11, AC12 | 🟢 Low | — |
+| 3 | `linguist-generated` / `linguist-vendored` exclusion from the base commit, in CI and local | AC11, AC12, AC16 | 🟢 Low | — |
+| 4 | `.git-blame-ignore-revs` routing to `format_model`, its estimate figure measured on pull request 287, in CI and local | AC17–AC21 | 🟡 Medium | 2 (the gate prices each group) |
 
 ## Open questions
 
@@ -69,9 +72,9 @@ flowchart TD
 
 ## Out of scope
 
-- Filtering or grouping formatting-only, whitespace or syntax-equivalent changes.
+- Detecting formatting by content (whitespace or syntax-tree comparison); only listed commits count.
 - Approval by anyone other than the operator.
-- Local mode (`wachiman local` keeps warning and continuing, ADR 0037 decision 10).
+- Refusing in local mode (`wachiman local` keeps warning and continuing, ADR 0037 decision 10); layers 1, 3 and 4 apply to it.
 - Any change to budget defaults, the per-batch figures, or the ledger.
 
 ## Failures this must protect against
@@ -92,6 +95,9 @@ flowchart TD
 - An automatic run with less than $0.05 of the ceiling left: today's pause notice, not the priced comment; with $0.10 left and a $2 estimate: the priced comment.
 - The ceiling and `budget_usd` both below the estimate: the comment offers `--budget`, never a plain `/wachiman review` that would be skipped again.
 - A pull request edits `.gitattributes` to mark its own files as generated: ignored, the base commit's file applies.
+- A file changed by a listed formatting commit and by a later unlisted commit: reviewed by the main model, whole diff.
+- `.git-blame-ignore-revs` lists an abbreviated hash, a hash not in the range, a comment or a blank line: handled, never an error.
+- A listed commit hides a real change: the file is still read, by `format_model`; the review says which model read it.
 - A batch with room below the floor while other batches run: it waits for room, and is reported as not reached only when none comes back.
 
 ## Acceptance criteria
@@ -109,6 +115,12 @@ flowchart TD
 - [ ] **AC11** Files with `linguist-generated` or `linguist-vendored` set by the base commit's `.gitattributes` are excluded before the estimate, with one `git check-attr --source=<base> --stdin -z` call per run.
 - [ ] **AC12** A pull request that adds `linguist-generated` for its own files in `.gitattributes` still has them reviewed.
 - [ ] **AC13** `wachiman local` warns when the estimate is above `budget_usd` and continues; `size_gate_usd` has no effect on the warning.
+- [ ] **AC16** `wachiman local` excludes the same `linguist-generated` / `linguist-vendored` files, read from the base of its range.
+- [ ] **AC17** A file whose every commit in the range is listed in the head's `.git-blame-ignore-revs` is batched apart and reviewed by `format_model` (default Haiku, effort low); a file also touched by an unlisted commit is reviewed by the main model.
+- [ ] **AC18** The estimate prices each group with its model's per-batch figure, and the size-gate comment shows both groups.
+- [ ] **AC19** The review lists the files `format_model` read under their own line naming the model and the reason.
+- [ ] **AC20** A low-effort Haiku batch is measured on pull request 287's formatter files; the figure and its source go into `src/estimate.ts` and `docs/costs.md` before AC18 uses it.
+- [ ] **AC21** `wachiman local` routes files the same way, from the working tree's `.git-blame-ignore-revs`.
 - [ ] **AC14** When the ledger grants less than the estimate after the gate passed, `review` makes no model call, settles $0.00 before it posts anything, and the comment names the grant and `--force`, not `--budget`; a fake test where the comment post fails still shows the reservation settled.
 - [ ] **AC15** When only the ceiling is short and `budget_usd` covers the estimate, the comment offers plain `/wachiman review`; with `verify` on, the room and `N` include the reserves.
 

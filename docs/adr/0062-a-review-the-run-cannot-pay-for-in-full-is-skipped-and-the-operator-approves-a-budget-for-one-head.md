@@ -94,7 +94,8 @@ configured `operator` may start a review from a comment today (`comment` in `src
 - **Drop or group formatting-only changes before estimating.** Proposed with a syntax-tree
   comparison that matched 299 of the 312 files of pull request 287. The owner rejected it: a
   change that looks like formatting can still break something, and the model reads everything it
-  is asked to review. The gate, not a filter, bounds the cost.
+  is asked to review. The gate, not a filter, bounds the cost. Commits the repository itself lists
+  as formatting are read by a cheaper model instead ([ADR 0063](0063-files-changed-only-by-commits-in-git-blame-ignore-revs-are-reviewed-by-a-cheaper-model.md)).
 
 ## Consequences
 
