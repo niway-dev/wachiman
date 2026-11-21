@@ -6,9 +6,17 @@ on:
 permissions:
   contents: read
 jobs:
-  test:
+  # The tests run in four parallel jobs, because Bun 1.3.4 (the pinned version) has no `--shard`.
+  # scripts/test-shard.ts splits the files by recorded time (scripts/test-timings.json) and its
+  # --check step fails when a test file would be in no shard or in two.
+  tests:
+    name: tests (shard ${{ matrix.shard }} of 4)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -21,7 +29,29 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi
-      - run: bun test
+      - name: Every test file is in exactly one shard
+        run: bun scripts/test-shard.ts --check 4
+      - name: Run this shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          mapfile -t files < <(bun scripts/test-shard.ts "$SHARD" 4)
+          [ "${#files[@]}" -gt 0 ] || { echo "shard $SHARD has no files" >&2; exit 1; }
+          bun test "${files[@]}"
+  # The check named `test` stays, as one result for all shards: anything that waits on `test`
+  # (a branch rule, a reviewer) keeps working. It fails when any shard failed or was skipped.
+  test:
+    needs: tests
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: All shards passed
+        env:
+          RESULT: ${{ needs.tests.result }}
+        run: |
+          echo "tests: $RESULT"
+          [ "$RESULT" = success ]
   actionlint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
