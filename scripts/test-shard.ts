@@ -104,7 +104,10 @@ export function checkSplit(files: string[], shards: string[][]): string[] {
 /** Tracked test files that `discover()` misses (a symlink, a dot directory): Bun might run them, the shards would not. */
 export function missedByDiscovery(files: string[], dir: string = root): string[] {
   const out = spawnSync("git", ["ls-files", "-z"], { cwd: dir, encoding: "utf8" });
-  if (out.status !== 0) return [];
+  if (out.status !== 0) {
+    console.error("warning: `git ls-files` failed, so tracked test files were not cross-checked");
+    return [];
+  }
   const have = new Set(files);
   return out.stdout
     .split("\0")
