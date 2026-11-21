@@ -11,7 +11,7 @@
  * `WACHIMAN_HOME`, and must exit 0: one nonzero exit fails the whole bench (exit 1).
  * The `local review` case drives the real `wachiman local` pipeline with the same fake `claude`
  * the launcher test uses (test/local-fake-provider.test.ts), on a fixed fixture repo and diff.
- * The fake is compiled once, outside the timings. The host name is never recorded.
+ * The fake is a shell script written once, outside the timings. The host name is never recorded.
  * POSIX only (macOS, Linux): the child PATH holds no Git for Windows. Each run has a 120 s timeout.
  */
 import { spawnSync } from "node:child_process";
@@ -69,10 +69,11 @@ const cleanup = () => {
   for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
 };
 
-// The fake claude: a compiled executable, as in the launcher test. REVIEW and the source below are a
-// copy of test/local-fake-provider.test.ts (minus its call log): keep them in step if that fixture changes.
-// It answers the version probe
-// and the sign-in check, reads the prompt and prints one fixed review.
+// The fake claude: a POSIX shell script on PATH, spawned by name as the real binary is. The launcher
+// test compiles one with Bun instead, but a Bun 1.3.4 compiled executable is killed on some macOS
+// versions, and a script also keeps a 60 MB process start out of the timings. It answers the version
+// probe and the sign-in check, drains the prompt and prints one fixed review. REVIEW is a copy of
+// test/local-fake-provider.test.ts: keep it in step if that fixture changes.
 const REVIEW = {
   is_error: false,
   subtype: "success",
@@ -88,12 +89,12 @@ const REVIEW = {
     summary: "Reviewed by the fake provider.",
   },
 };
-const fakeSource = `
-const args = process.argv.slice(2);
-if (args[0] === "--version") { console.log("9.9.9 (Claude Code)"); process.exit(0); }
-if (args[0] === "auth" && args[1] === "status") { console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai" })); process.exit(0); }
-await Bun.stdin.text();
-console.log(${JSON.stringify(JSON.stringify(REVIEW))});
+const fakeScript = (reviewFile: string) => `#!/bin/sh
+case "$1" in
+  --version) echo "9.9.9 (Claude Code)" ;;
+  auth) echo '{"loggedIn":true,"authMethod":"claude.ai"}' ;;
+  *) cat > /dev/null; cat '${reviewFile}' ;;
+esac
 `;
 
 type Case = { name: string; cmd: string[]; cwd: string; runs: number; warmup: number; env: Record<string, string>; expect?: string };
@@ -112,11 +113,9 @@ function build(): Case[] {
   for (const k of ["TMPDIR"]) if (process.env[k] !== undefined) base[k] = process.env[k] as string;
 
   const fakeBin = temp("wachiman-bench-fake-");
-  const source = join(temp("wachiman-bench-fake-src-"), "fake-claude.ts");
-  writeFileSync(source, fakeSource);
-  const exe = join(fakeBin, "claude");
-  const built = spawnSync(pinned, ["build", "--compile", "--no-compile-autoload-dotenv", "--no-compile-autoload-bunfig", source, "--outfile", exe], { encoding: "utf8" });
-  if (built.status !== 0) throw new Error(`could not compile the fake claude: ${built.stderr}`);
+  const reviewFile = join(fakeBin, "review.json");
+  writeFileSync(reviewFile, JSON.stringify(REVIEW));
+  writeFileSync(join(fakeBin, "claude"), fakeScript(reviewFile), { mode: 0o755 });
 
   // The fixed fixture: test/support/temp-repo.ts `branchRepo()`, five files changed between main and feat/x.
   const repo = branchRepo();
