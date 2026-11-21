@@ -28,8 +28,15 @@ let asJson = false;
 let runs = 15;
 for (let i = 0; i < argv.length; i++) {
   const [flag, inline] = argv[i].split("=", 2);
-  if (flag === "--json") asJson = true;
-  else if (flag === "--runs") runs = Number(inline ?? argv[++i]);
+  if (flag === "--json" && inline === undefined) asJson = true;
+  else if (flag === "--runs") {
+    const value = inline ?? argv[++i];
+    if (value === undefined) {
+      console.error("--runs needs a value, for example --runs 25");
+      process.exit(2);
+    }
+    runs = Number(value);
+  }
   else {
     console.error(`Unknown argument ${argv[i]}. Usage: bun run bench [--json] [--runs N]`);
     process.exit(2);
@@ -40,7 +47,7 @@ if (!Number.isInteger(runs) || runs < 3) {
   process.exit(2);
 }
 
-const pinned = join(root, "node_modules", ".bin", process.platform === "win32" ? "bun.exe" : "bun");
+const pinned = join(root, "node_modules", ".bin", "bun");
 if (!existsSync(pinned)) {
   console.error(`The pinned Bun is missing at ${pinned}. Run \`bun install --frozen-lockfile\` first.`);
   process.exit(2);
@@ -98,12 +105,12 @@ function build(): Case[] {
     WACHIMAN_HOME: join(home, ".wachiman"),
     NO_COLOR: "1",
   };
-  for (const k of ["SystemRoot", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "PATHEXT", "ComSpec"]) if (process.env[k] !== undefined) base[k] = process.env[k] as string;
+  for (const k of ["TMPDIR"]) if (process.env[k] !== undefined) base[k] = process.env[k] as string;
 
   const fakeBin = temp("wachiman-bench-fake-");
   const source = join(temp("wachiman-bench-fake-src-"), "fake-claude.ts");
   writeFileSync(source, fakeSource);
-  const exe = join(fakeBin, process.platform === "win32" ? "claude.exe" : "claude");
+  const exe = join(fakeBin, "claude");
   const built = spawnSync(pinned, ["build", "--compile", "--no-compile-autoload-dotenv", "--no-compile-autoload-bunfig", source, "--outfile", exe], { encoding: "utf8" });
   if (built.status !== 0) throw new Error(`could not compile the fake claude: ${built.stderr}`);
 
