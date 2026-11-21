@@ -13,6 +13,7 @@ import {
   lastEngineMarker,
   ownChangeSince,
   readAutoCost,
+  readSignedStateBlock,
   rebaseDelta,
   review,
   SIGNATURE,
@@ -1224,6 +1225,17 @@ describe("a push after a review (incremental, rebase-aware)", () => {
       // The marker moved to the new head, in the shape the next push reads.
       expect(lastEngineMarker([{ body: r.posted?.body ?? "" }])).toBe(HEAD);
     }
+  });
+
+  test("a push of only excluded files posts a signed notice with a state block, so pr-state does not read it as missing", async () => {
+    const lock = [{ filename: "bun.lock", additions: 3, deletions: 1, patch: "@@ -1 +1,3 @@\n+a\n+b\n+c" }];
+    const r = await run({ status: "diverged", old: [], current: lock });
+    expect(r.provider.requests).toHaveLength(0);
+    const body = r.posted?.body ?? "";
+    expect(body.split("\n")[0]).toContain("Nothing to review at `head123`");
+    expect(body).toContain(SIGNATURE.review);
+    expect(body).toContain(`<!-- wachiman sha=${HEAD} -->`);
+    expect(readSignedStateBlock(body)).toMatchObject({ status: "complete", reason: null });
   });
 
   test("a rebase where one file changed reviews only that file, and says so", async () => {

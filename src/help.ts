@@ -600,17 +600,20 @@ const prStatePage: Page = {
     ["<pr>", "The pull request number. Default: the pull request of the current branch"],
     ["--repo <owner/repo>", "The repository. Default: the one `gh` resolves for the current directory"],
     ["--json", "Accepted; JSON is the only output"],
+    ["--wait", "Read again until `next` is not `wait`, one read per interval, then print that last state. On timeout it prints the last state with `why: timeout`. Uses `gh event listen` to wake sooner when this `gh` has it, and polls when it does not (said once on stderr)"],
+    ["--timeout <s>", "With --wait: seconds to wait before giving up. Default: 540"],
+    ["--interval <s>", "With --wait: seconds between reads, at least 20. Default: 30"],
   ],
   env: [["GH_TOKEN", "Optional: `gh` uses its own sign-in when it is not set"]],
   exit: [
     ["0", "done (nothing pending on the head) or closed (the pull request is closed or merged)"],
     ["20", "act: an unresolved Wachiman finding thread, or a Blocker or Fix finding with no thread"],
-    ["21", "wait: no review of the current head yet, or the head moved while reading"],
+    ["21", "wait: no review of the current head yet, or the head moved while reading; with --wait, also the timeout (`why: timeout`)"],
     ["22", "blocked: the review was refused, skipped or partial, or its job finished without one"],
     ["1", "GitHub or `gh` failed; nothing is printed on stdout"],
     ["2", "Usage error"],
   ],
-  examples: ["wachiman pr-state 42 --json", "wachiman pr-state --repo niway-dev/wachiman 42 --json", "wachiman pr-state --json   # the current branch's pull request"],
+  examples: ["wachiman pr-state 42 --json", "wachiman pr-state --repo niway-dev/wachiman 42 --json", "wachiman pr-state --json   # the current branch's pull request", "wachiman pr-state 42 --wait --timeout 300   # until Wachiman's review of the head lands"],
   docs: `${DOCS}/pr-state.md`,
 };
 

@@ -39,6 +39,7 @@ import {
   encodeStateBlock,
   noFindings,
   STATE_SOURCE,
+  STATE_SOURCE_NO_GROUP,
   type NotReviewedReason,
   type ReviewStateBlock,
   type ReviewStateDraft,
@@ -940,7 +941,7 @@ const ATTEMPT_SOURCE = "<!-- wachi:attempt id=[0-9a-f-]{36} -->";
  * the attempt line. Every footer reader below ends with them, so a body reads the same with or
  * without either. The state pattern is group-free here: the readers' capture groups stay where they were.
  */
-const STATE_LINE = `(?:\\n\\n${STATE_SOURCE.replace("([A-Za-z0-9_-]+)", "[A-Za-z0-9_-]+")})?`;
+const STATE_LINE = `(?:\\n\\n${STATE_SOURCE_NO_GROUP})?`;
 const ATTEMPT_LINE = `(?:\\n\\n${ATTEMPT_SOURCE})?`;
 const SIGNATURE_REPLY_SOURCE = "<!-- wachi:reply -->";
 const AUTO_SOURCE = "<!-- wachi:auto -->";
@@ -2188,13 +2189,37 @@ export function parseGhFailure(
   return { status: null, message, errors };
 }
 
-export const defaultGh: GhFn = (args, input) => {
-  const run = spawnSync("gh", args, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+/** A `gh` call that was killed because its time ran out. Not a GitHub answer: there is no status to read. */
+export class GhTimeoutError extends GhError {
+  constructor(args: readonly string[]) {
+    super(`gh ${args.slice(0, 3).join(" ")} timed out`, null, "");
+    this.name = "GhTimeoutError";
+  }
+}
+
+function runGh(args: string[], input: string | undefined, timeoutMs?: number, bin: readonly string[] = ["gh"]): string {
+  // `env: process.env` is explicit on purpose: on Linux, Bun looks the executable up in the PATH the
+  // process started with unless an env is passed, so a PATH changed at runtime is ignored.
+  const run = spawnSync(bin[0], [...bin.slice(1), ...args], { env: process.env, input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, Math.ceil(timeoutMs)), killSignal: "SIGKILL" as const }) });
+  if ((run.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") throw new GhTimeoutError(args);
   if (run.status !== 0) {
     const { status, message, errors } = parseGhFailure(run.stderr ?? "", run.stdout ?? "");
     throw new GhError(`gh ${args.slice(0, 3).join(" ")} failed: ${run.stderr}`, status, message, errors);
   }
   return run.stdout;
+}
+
+export const defaultGh: GhFn = (args, input) => runGh(args, input);
+
+/**
+ * A `gh` whose every call is killed (SIGKILL) when `remainingMs()` runs out, and refused without
+ * starting once it is zero or less. A call that is killed throws `GhTimeoutError`. `bin` replaces the
+ * command (and its leading arguments); it exists so a test can run a process that really hangs.
+ */
+export const ghWithin = (remainingMs: () => number, bin?: readonly string[]): GhFn => (args, input) => {
+  const left = remainingMs();
+  if (left <= 0) throw new GhTimeoutError(args);
+  return runGh(args, input, left, bin);
 };
 
 /** What the review core needs from outside: the agent and the engine's own I/O. No GitHub. */
@@ -4686,9 +4711,17 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   }
   const { kept, dropped } = filterFiles(files, [...DEFAULT_EXCLUDE, ...config.exclude], paths);
   if (kept.length === 0) {
-    bodyOnly(
-      `Nothing to review at \`${short(headSha)}\`: the ${dropped.length} changed file(s) are all lockfiles, build output or generated, or outside the requested paths.`,
-    );
+    // Signed, with a block: an unsigned notice would leave `pr-state` at `review_missing` for a head
+    // the engine decided on purpose has nothing to review. The marker moves unless the request was scoped.
+    postReview(deps, repo, pr, headSha, {
+      body: [
+        branded(`Nothing to review at \`${short(headSha)}\`: the ${dropped.length} changed file(s) are all lockfiles, build output or generated, or outside the requested paths.`),
+        SIGNATURE.review,
+        ...(paths.length === 0 ? [marker(headSha)] : []),
+      ].join("\n\n"),
+      comments: [],
+      state: { status: paths.length === 0 ? "complete" : "scoped", findings: noFindings() },
+    });
     return;
   }
   // A push whose kept files are all binaries has nothing to send a model: it costs nothing, so it
