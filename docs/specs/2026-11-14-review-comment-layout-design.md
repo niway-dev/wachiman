@@ -236,7 +236,7 @@ Slots, in order. An empty slot is omitted.
 | 4 | To fix (Blocker, Fix) | yes | findings |
 | 5 | Needs investigation (inconclusive Blocker/Fix) | yes | findings |
 | 6 | To consider | collapsed above eight rows | findings |
-| 7 | Needs a person (up to three, with the model's why) | yes | risk map |
+| 7 | Questions for you: the needs-a-person items (up to three, with the model's why), then every open "connects to" question with its location. Amended 2026-11-21 | yes | risk map, contracts |
 | 8 | Risk facts | yes | risk map |
 | 9 | Pre-existing | visible if it holds a Blocker or Fix, else collapsed | findings |
 | 10 | For your information (Info) | collapsed | findings |
@@ -291,7 +291,7 @@ called the status, never a verdict: "Verdict" is the reply a person gives a find
    | 3 | Blocker | `🔴 **N blockers before merge**` | a Blocker of this PR |
    | 4 | Fix | `🟠 **N to fix in this PR**` | a Fix of this PR |
    | 5 | Needs investigation | `🔍 **Needs investigation: N**` | an inconclusive Blocker or Fix |
-   | 6 | Questions for you | `🟣 **N questions for you**` | needs-a-person items plus open "connects to" questions |
+   | 6 | Questions for you | `🟣 **N questions for you**` | needs-a-person items plus open "connects to" questions, all listed visibly in slot 7 |
    | 7 | No new findings to fix | `⏳ **No new findings to fix**` | earlier bot threads unresolved, a pre-existing Blocker or Fix, or the thread count unknown |
    | 8 | Only Consider | `🟡 **Nothing to fix · N to consider**` | Consider findings, no Blocker or Fix |
    | 9 | Clean | `⚪ **Wachiman found nothing to fix**` | none of the above |
