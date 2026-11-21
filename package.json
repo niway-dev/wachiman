@@ -38,6 +38,7 @@
     "provenance": true
   },
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "bench": "bun scripts/bench.ts"
   }
 }
