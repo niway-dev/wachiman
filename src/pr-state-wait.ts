@@ -281,7 +281,7 @@ export const processSignals: WaitDeps["signals"] = {
 export const realWaitDeps: WaitDeps = {
   now: () => performance.now(),
   sleep: (ms) => Bun.sleep(ms),
-  openListener: openGhEventListener,
+  openListener: (repo, remainingMs) => openGhEventListener(repo, realGhProbe, remainingMs),
   timeout: (ms) => {
     let id: ReturnType<typeof setTimeout>;
     const promise = new Promise<null>((resolve) => (id = setTimeout(() => resolve(null), ms)));
