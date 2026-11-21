@@ -109,7 +109,7 @@ function build(): Case[] {
     WACHIMAN_HOME: join(home, ".wachiman"),
     NO_COLOR: "1",
   };
-  for (const k of ["TMPDIR"]) if (process.env[k] !== undefined) base[k] = process.env[k] as string;
+  if (process.env.TMPDIR !== undefined) base.TMPDIR = process.env.TMPDIR;
 
   const fakeBin = temp("wachiman-bench-fake-");
   const reviewFile = join(fakeBin, "review.json");
