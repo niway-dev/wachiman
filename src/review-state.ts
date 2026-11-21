@@ -16,7 +16,10 @@
 export const REVIEW_STATE_FORMAT = "wachiman.review-state/1";
 
 /** The comment as it is written, with the encoded JSON in the group. The alphabet has no `>`, so no content can close it. */
-export const STATE_SOURCE = "<!-- wachi:state ([A-Za-z0-9_-]+) -->";
+export const STATE_ALPHABET = "[A-Za-z0-9_-]+";
+export const STATE_SOURCE = `<!-- wachi:state (${STATE_ALPHABET}) -->`;
+/** The same comment with no capture group, for readers that embed it and keep their own group indexes. */
+export const STATE_SOURCE_NO_GROUP = `<!-- wachi:state ${STATE_ALPHABET} -->`;
 
 /**
  * The most characters the whole `<!-- wachi:state … -->` comment may take. A real block is about
