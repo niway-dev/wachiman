@@ -39,6 +39,7 @@ import {
   encodeStateBlock,
   noFindings,
   STATE_SOURCE,
+  STATE_SOURCE_NO_GROUP,
   type NotReviewedReason,
   type ReviewStateBlock,
   type ReviewStateDraft,
@@ -940,7 +941,7 @@ const ATTEMPT_SOURCE = "<!-- wachi:attempt id=[0-9a-f-]{36} -->";
  * the attempt line. Every footer reader below ends with them, so a body reads the same with or
  * without either. The state pattern is group-free here: the readers' capture groups stay where they were.
  */
-const STATE_LINE = `(?:\\n\\n${STATE_SOURCE.replace("([A-Za-z0-9_-]+)", "[A-Za-z0-9_-]+")})?`;
+const STATE_LINE = `(?:\\n\\n${STATE_SOURCE_NO_GROUP})?`;
 const ATTEMPT_LINE = `(?:\\n\\n${ATTEMPT_SOURCE})?`;
 const SIGNATURE_REPLY_SOURCE = "<!-- wachi:reply -->";
 const AUTO_SOURCE = "<!-- wachi:auto -->";
@@ -4710,9 +4711,17 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   }
   const { kept, dropped } = filterFiles(files, [...DEFAULT_EXCLUDE, ...config.exclude], paths);
   if (kept.length === 0) {
-    bodyOnly(
-      `Nothing to review at \`${short(headSha)}\`: the ${dropped.length} changed file(s) are all lockfiles, build output or generated, or outside the requested paths.`,
-    );
+    // Signed, with a block: an unsigned notice would leave `pr-state` at `review_missing` for a head
+    // the engine decided on purpose has nothing to review. The marker moves unless the request was scoped.
+    postReview(deps, repo, pr, headSha, {
+      body: [
+        branded(`Nothing to review at \`${short(headSha)}\`: the ${dropped.length} changed file(s) are all lockfiles, build output or generated, or outside the requested paths.`),
+        SIGNATURE.review,
+        ...(paths.length === 0 ? [marker(headSha)] : []),
+      ].join("\n\n"),
+      comments: [],
+      state: { status: paths.length === 0 ? "complete" : "scoped", findings: noFindings() },
+    });
     return;
   }
   // A push whose kept files are all binaries has nothing to send a model: it costs nothing, so it

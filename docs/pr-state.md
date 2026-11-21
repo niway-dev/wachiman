@@ -146,9 +146,10 @@ Rules the table does not repeat:
 - **The latest attempt decides.** With several own reviews of the same head, the most recent by creation time decides. A push makes every older review `stale`.
 - **A `scoped` review never decides.** A review an operator asked for on some paths says nothing about the rest of the head. It is skipped when choosing the head's review, and its threads are still listed under `findings.open`.
 - **A base-update line counts as `complete`** for its head: the engine carries the earlier review over (`carried_from`) and repeats its counts.
+- **"Nothing to review" is a review.** A push whose changed files are all excluded (lockfiles, build output, generated) or outside the requested paths gets a signed notice with a block (`complete`, zero findings; `scoped` when paths were requested), so `pr-state` reads it as a finished review and not as `review_missing`.
 - **Row 4 is `wait`, not `blocked`,** because the workflow's push debounce can delay the check run. A caller decides how long to accept it.
 - **A thread never drops out because someone replied.** Resolving a thread stays with the operator; an agent acting for them resolves it, or waits for Wachiman's automatic reply.
-- **Reviews from an engine without the block** are read from `wachiman sha=` (complete) and `wachi:partial` (partial) with `source: "legacy-markers"`. A notice with no sha (a refusal, ceiling or limit notice from before the block) says nothing about any head and reads as `none`, never `complete`. A legacy review of the head has no counts (`findings.unthreaded` is null), so with no unresolved Wachiman finding thread it is `done` with `why: clean_legacy`, never `clean`.
+- **Reviews from an engine without the block** are read from `wachiman sha=` (complete) and `wachi:partial` (partial) with `source: "legacy-markers"`. A notice with no sha (a refusal, ceiling or limit notice from before the block) says nothing about any head, so it is skipped and never reads as `complete`: the review state is `stale` when an earlier review of another head exists, and `none` when no review is read. A legacy review of the head has no counts (`findings.unthreaded` is null), so with no unresolved Wachiman finding thread it is `done` with `why: clean_legacy`, never `clean`.
 - **Threads are read in full.** Review threads are read 100 at a time until the last page, and each thread's first and last comment are read by name, so no thread or comment count hides one.
 
 ## The state block: `wachiman.review-state/1`
@@ -188,7 +189,7 @@ counts them under `body`.
 | `status` | `complete`, `partial` (some files not reached; the `wachi:partial` marker keeps the continuation state), `scoped` (a review of some paths an operator asked for) or `not-reviewed` (a notice: nothing was reviewed) |
 | `reason` | Required when `not-reviewed`, null otherwise: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout`, `budget` |
 | `carried_from` | Optional. On a base-update line, the earlier head whose review it carries over |
-| `scope` | Optional. `binary_only` on the all-binary notice (`complete`, zero findings); the number of paths on a scoped review |
+| `scope` | Optional. `binary_only` on the all-binary notice (zero findings; `complete`, or `scoped` when the request named paths); otherwise, on a scoped review, the number of paths |
 | `findings.total` | The headline count |
 | `findings.by_severity`, `findings.by_placement` | Counts that each add up to `total`. `inline` findings have a thread; `outside_diff` ones are listed under "Outside the diff"; `body` ones (information, pre-existing, inconclusive, or inline findings GitHub refused to anchor) are in the body only. This is why the headline count can differ from the inline comments |
 | `findings.unthreaded_blocking` | Blocker and Fix findings that have no thread |
