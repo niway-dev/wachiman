@@ -349,21 +349,14 @@ describe("the deadline bounds a read in progress, not only the sleeps", () => {
   });
 
   test("ghWithin kills the gh subprocess when the time runs out", () => {
-    const dir = mkdtempSync(join(tmpdir(), "wm-gh-"));
-    writeFileSync(join(dir, "gh"), "#!/bin/sh\nexec sleep 20\n");
-    chmodSync(join(dir, "gh"), 0o755);
-    const saved = process.env.PATH;
-    process.env.PATH = `${dir}:${saved}`;
-    try {
-      const started = Date.now();
-      expect(() => ghWithin(() => 300)(["api", "x"])).toThrow(GhTimeoutError);
-      expect(Date.now() - started).toBeLessThan(5_000);
-      // The clock is fractional (performance.now): spawnSync only takes whole milliseconds.
-      expect(() => ghWithin(() => 300.7)(["api", "x"])).toThrow(GhTimeoutError);
-      expect(() => ghWithin(() => 0)(["api", "x"])).toThrow(GhTimeoutError);
-    } finally {
-      process.env.PATH = saved;
-    }
+    // A process that really hangs, so the test never depends on the machine's gh or its credentials.
+    const hang = [process.execPath, "-e", "setTimeout(()=>{},30000)", "--"];
+    const started = Date.now();
+    expect(() => ghWithin(() => 300, hang)(["api", "x"])).toThrow(GhTimeoutError);
+    expect(Date.now() - started).toBeLessThan(5_000);
+    // The clock is fractional (performance.now): spawnSync only takes whole milliseconds.
+    expect(() => ghWithin(() => 300.7, hang)(["api", "x"])).toThrow(GhTimeoutError);
+    expect(() => ghWithin(() => 0, hang)(["api", "x"])).toThrow(GhTimeoutError);
   });
 
   test("a gh call that times out on the real wait path is a timeout document, never exit 1", async () => {

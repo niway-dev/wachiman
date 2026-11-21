@@ -2196,8 +2196,8 @@ export class GhTimeoutError extends GhError {
   }
 }
 
-function runGh(args: string[], input: string | undefined, timeoutMs?: number): string {
-  const run = spawnSync("gh", args, { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, Math.ceil(timeoutMs)), killSignal: "SIGKILL" as const }) });
+function runGh(args: string[], input: string | undefined, timeoutMs?: number, bin: readonly string[] = ["gh"]): string {
+  const run = spawnSync(bin[0], [...bin.slice(1), ...args], { input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, Math.ceil(timeoutMs)), killSignal: "SIGKILL" as const }) });
   if ((run.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") throw new GhTimeoutError(args);
   if (run.status !== 0) {
     const { status, message, errors } = parseGhFailure(run.stderr ?? "", run.stdout ?? "");
@@ -2210,12 +2210,13 @@ export const defaultGh: GhFn = (args, input) => runGh(args, input);
 
 /**
  * A `gh` whose every call is killed (SIGKILL) when `remainingMs()` runs out, and refused without
- * starting once it is zero or less. A call that is killed throws `GhTimeoutError`.
+ * starting once it is zero or less. A call that is killed throws `GhTimeoutError`. `bin` replaces the
+ * command (and its leading arguments); it exists so a test can run a process that really hangs.
  */
-export const ghWithin = (remainingMs: () => number): GhFn => (args, input) => {
+export const ghWithin = (remainingMs: () => number, bin?: readonly string[]): GhFn => (args, input) => {
   const left = remainingMs();
   if (left <= 0) throw new GhTimeoutError(args);
-  return runGh(args, input, left);
+  return runGh(args, input, left, bin);
 };
 
 /** What the review core needs from outside: the agent and the engine's own I/O. No GitHub. */
