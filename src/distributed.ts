@@ -230,6 +230,34 @@ export function verifierDistributed(context: DistributedContext | undefined): { 
 }
 
 /**
+ * What `wachiman ask` gets of a stored distributed-repo review (ADR 0043 decision 5): the snapshots the
+ * review read, re-created at the same commits, and a line for each sibling that could not be re-created,
+ * so the model does not guess what it holds. Every readable sibling is listed, whichever contract asked
+ * for it: `ask` selects none of its own. Empty when the review listed no sibling.
+ */
+export function askDistributed(siblings: readonly ResolvedSibling[]): { section: string; dirs: string[] } {
+  if (siblings.length === 0) return { section: "", dirs: [] };
+  const read = siblings.filter(readable);
+  const lines = [
+    "## Sibling repositories of the review (read-only)",
+    "",
+    read.length > 0
+      ? "The review of this change read other repositories of the same workspace. The directories below hold them again, as plain files frozen at the commit the review read. They are context, not part of the change: read them with Read, Glob and Grep, and never write to them."
+      : "The review of this change read other repositories of the same workspace, but none of them could be read again for this answer.",
+    ...read.map((s) => `- ${plainText(s.member)}@${short(plainText(s.sha!))}: ${plainText(s.dir!)} (${s.paths.length} file${s.paths.length === 1 ? "" : "s"})`),
+    ...siblings.filter((s) => !readable(s)).map((s) => `- ${plainText(s.member)}${s.sha ? `@${short(plainText(s.sha))}` : ""}: could not be read (${plainText(s.unreadable ?? "unknown reason")}). Do not guess what it holds; say that this part was not checked.`),
+  ];
+  if (read.length > 0) {
+    const example = `${plainText(read[0].member)}@${short(plainText(read[0].sha!))}:path/to/file:12`;
+    lines.push(
+      "",
+      `To cite a line of a sibling, put it in \`refs\` as \`{ "path": <relative to that sibling>, "line": <1 or more>, "member": <the name before the @ above>, "sha": <the first 7 characters of the commit after the @> }\`, or write it in the text as \`member@sha:path:line\`, for example \`${example}\`. It is kept only if the member is listed above, the commit is that one and the line exists in it.`,
+    );
+  }
+  return { section: lines.join("\n"), dirs: unique(read.map((s) => s.dir)) };
+}
+
+/**
  * The fields a distributed-repo run adds to its result. A sibling is private unless the manifest
  * says `public` (the row already carries that), and only a sibling that was read counts: one that
  * was not cloned, not watched or unreadable put nothing into the review.

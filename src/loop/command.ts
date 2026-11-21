@@ -22,7 +22,7 @@ import { historyRoot, readRuns, readVerdicts, repositoryKey } from "../history/s
 import { LOCAL_FLAGS, parseFlags, runLocal, type LocalArgs, type LocalDeps } from "../local";
 import { candidatesForRound } from "../memory/candidates";
 import { loadMemorySettings } from "../memory/settings";
-import { location, sha7 } from "../sinks/common";
+import { location, privateLineFor, privateNote, sha7 } from "../sinks/common";
 import { LOOP_STATE_FORMAT, readLoop, writeLoop, type LedgerEntry, type LoopState } from "./state";
 import { evaluate, isRefutedBy, roundCapReached, type Decision, type LoopFinding, type LoopStatus, type OpenFinding, type Released } from "./stop-rule";
 
@@ -30,7 +30,8 @@ export const LOOP_RESULT_FORMAT = "wachiman.loop-round/1";
 export const DEFAULT_MAX_ROUNDS = 3;
 
 export const loopUsage = `wachiman loop [--base <ref>] [--max-rounds <n>] [--max-depth <n>] [--repo-dir <dir>]
-               [--format terminal|json] [--profile <name>] [--verify | --no-verify]`;
+               [--format terminal|json] [--profile <name>] [--verify | --no-verify]
+               [--distributed-repo | --no-distributed-repo] [--sibling <dir>]…`;
 
 export interface LoopArgs {
   /** Starts a loop (round 1 reviews the whole range from here). Absent: continue the open loop. */
@@ -40,10 +41,13 @@ export interface LoopArgs {
   profile?: string;
   verify: boolean | undefined;
   maxDepth?: number;
+  /** `--distributed-repo` (true) or `--no-distributed-repo` (false); unset leaves it to the per-user default, as in `local`. */
+  distributedRepo?: boolean;
+  siblings?: string[];
 }
 
 /** The flags `loop` takes, a subset of `local`'s plus `--max-rounds`. */
-const LOOP_LOCAL_FLAGS = LOCAL_FLAGS.filter((f) => ["--base", "--format", "--profile", "--verify", "--no-verify", "--max-depth"].includes(f));
+const LOOP_LOCAL_FLAGS = LOCAL_FLAGS.filter((f) => ["--base", "--format", "--profile", "--verify", "--no-verify", "--max-depth", "--distributed-repo", "--no-distributed-repo", "--sibling"].includes(f));
 
 /** The arguments after `loop` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLoopArgs(argv: string[]): LoopArgs {
@@ -71,6 +75,8 @@ export function parseLoopArgs(argv: string[]): LoopArgs {
     ...(local.profile !== undefined ? { profile: local.profile } : {}),
     verify: local.verify,
     ...(local.maxDepth !== undefined ? { maxDepth: local.maxDepth } : {}),
+    ...(local.distributedRepo !== undefined ? { distributedRepo: local.distributedRepo } : {}),
+    ...(local.siblings ? { siblings: local.siblings } : {}),
   };
 }
 
@@ -96,6 +102,8 @@ export interface RoundReport {
   exitCode: 0 | 10 | 11;
   /** Proposable memory candidates that cite a finding of this loop or whose scope matches its files. Absent when there are none. */
   memoryCandidates?: { id: string; title: string }[];
+  /** The private-context line: the round's review read a non-public sibling, or the retained findings came from one that did. */
+  privateContext?: string;
 }
 
 const GIT_TIMEOUT_MS = 30_000;
@@ -220,7 +228,10 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   const roundsRun = state.rounds.length;
   const render = (report: RoundReport) => {
     const candidates = memoryCandidatesOf(state, home, key, repoDir);
-    const full: RoundReport = candidates.length > 0 ? { ...report, memoryCandidates: candidates } : report;
+    // Retained findings may hold private sibling text, so any call that prints them carries the label.
+    const retained = report.privateContext ? null : state.ledger.length > 0 ? privateLineFor(state.privateContext?.members) : null;
+    const labelled: RoundReport = retained ? { ...report, privateContext: retained } : report;
+    const full: RoundReport = candidates.length > 0 ? { ...labelled, memoryCandidates: candidates } : labelled;
     io.stdout(args.format === "json" ? renderJson(full) : renderTerminal(full));
     return report.exitCode;
   };
@@ -260,8 +271,9 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
     resultVersion: 2,
     agentPrompt: false,
     history: true,
-    // The loop has no flag for sibling repositories yet, so it never reads them, whatever the per-user default is.
-    distributedRepo: false,
+    // Exactly what `local` would get: unset leaves the mode to the per-user default.
+    ...(args.distributedRepo !== undefined ? { distributedRepo: args.distributedRepo } : {}),
+    ...(args.siblings ? { siblings: args.siblings } : {}),
     verify: args.verify,
     base: from,
     ...(args.profile !== undefined ? { profile: args.profile } : {}),
@@ -288,15 +300,23 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
 
   const { result } = made;
   const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts());
+  // A labelled round that reported findings makes the retained set private; an emptied ledger holds nothing.
+  const members = [...new Set([...(state.privateContext?.members ?? []), ...(result.findings.length > 0 ? result.privateContext?.members ?? [] : [])])];
+  const { privateContext: _before, ...stateWithout } = state;
   state = {
-    ...state,
+    ...stateWithout,
     rounds: [...state.rounds, { round, head: result.change.head.sha, at: now() }],
     ledger: decision.ledger,
     status: decision.decision.converged ? "converged" : "open",
+    ...(members.length > 0 && decision.ledger.length > 0 ? { privateContext: { members } } : {}),
   };
   writeLoop(root, key, state);
   const range: RoundReport["range"] = previous ? { kind: "since-previous-round", from: previous.head } : { kind: "whole", base: from };
-  return render(report(state, round, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, args)));
+  const privateContext = privateNote(result);
+  return render({
+    ...report(state, round, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, args)),
+    ...(privateContext ? { privateContext } : {}),
+  });
 }
 
 /** The memory candidates worth asking the owner about after this round; none when memory is not in use. */
@@ -432,6 +452,7 @@ export function renderJson(r: RoundReport): string {
     open: r.open.map((f) => ({ ...cleanFinding(f), ...(f.unreasonedWrong ? { unreasonedWrong: true } : {}) })),
     released: r.released.map((x) => ({ ...cleanFinding(x.finding), why: x.why, ...(x.reason ? { reason: x.reason } : {}) })),
     notes: r.notes.map(cleanFinding),
+    ...(r.privateContext ? { privateContext: r.privateContext } : {}),
     ...(r.memoryCandidates ? { memoryCandidates: r.memoryCandidates } : {}),
   };
   return `${JSON.stringify(doc, null, 2)}\n`;
@@ -447,6 +468,7 @@ export function renderTerminal(r: RoundReport): string {
         ? `the commits since round ${r.round - 1} (${sha7(r.range.from)})`
         : "no review this call";
   const lines = [`wachiman loop · ${neutralise(r.branch)} · round ${r.round} of ${r.maxRounds} · ${range} → ${sha7(r.head)}`, ""];
+  if (r.privateContext) lines.push(r.privateContext, "");
   lines.push(`Keeps the loop open (${r.open.length}):`);
   for (const f of r.open) lines.push(`  ${row(f)}`, `      history: ${f.status}${f.unreasonedWrong ? " · judged wrong without a reason: still counts" : ""}`);
   if (r.open.length === 0) lines.push("  none");

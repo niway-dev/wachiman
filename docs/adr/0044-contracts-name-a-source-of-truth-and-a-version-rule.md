@@ -1,8 +1,8 @@
 # ADR 0044: The engine picks siblings from declared contracts, and each contract names a source of truth and a version rule
 
-- **Status:** proposed 2026-11-13. **Not implemented.** Phase 1 of the
-  [distributed-repo review design](../specs/2026-11-13-distributed-repo-review-design.md) builds it,
-  after phase 0. Reuses [ADR 0016](0016-data-path-questions-chosen-by-the-engine.md) (the engine,
+- **Status:** proposed 2026-11-13, accepted 2026-11-19. **Implemented** by phase 1 of the
+  [distributed-repo review design](../specs/2026-11-13-distributed-repo-review-design.md), local only
+  and behind the explicit mode. Reuses [ADR 0016](0016-data-path-questions-chosen-by-the-engine.md) (the engine,
   not the model, chooses what to add, from text, deterministically) and
   [ADR 0029](0029-named-account-profiles-external-config-directories-and-home-kept-project-bindings.md)
   (per-user settings kept in the home directory, never in a repository).

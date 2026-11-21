@@ -467,19 +467,22 @@ describe("wachiman loop", () => {
 
 describe("runLoop with a fake review", () => {
   /** What one fake review call reports besides an empty `src/a.ts` read: findings and the verifier's entries. */
-  type Shape = { findings?: object[]; entries?: object[] };
+  type Shape = { findings?: object[]; entries?: object[]; privateContext?: object };
   /** A `review` seam that answers like `runLocal` with `--format json`, minus the history save. */
   function fakeReview(repo: BranchRepo, outcomes: ("fail" | "throw" | "ok")[], shapes: Shape[] = []) {
     const calls: string[] = [];
     const distributed: unknown[] = [];
+    const siblings: unknown[] = [];
     return {
       calls,
       distributed,
-      review: ((args: { base?: string; distributedRepo?: boolean }, _repo: string, _env: unknown, io: { stdout: (t: string) => void }) => {
+      siblings,
+      review: ((args: { base?: string; distributedRepo?: boolean; siblings?: string[] }, _repo: string, _env: unknown, io: { stdout: (t: string) => void }) => {
         const outcome = outcomes[calls.length] ?? "fail";
         const shape = shapes[calls.length];
         calls.push(args.base ?? "");
         distributed.push(args.distributedRepo);
+        siblings.push(args.siblings);
         if (outcome === "throw") throw new Error("claude crashed");
         if (outcome === "fail") return 1;
         io.stdout(
@@ -490,6 +493,7 @@ describe("runLoop with a fake review", () => {
             execution: { stop: "complete" },
             findings: shape?.findings ?? [],
             ...(shape?.entries ? { verification: { entries: shape.entries } } : {}),
+            ...(shape?.privateContext ? { privateContext: shape.privateContext } : {}),
           }),
         );
         return 0;
@@ -514,13 +518,94 @@ describe("runLoop with a fake review", () => {
     }
   }, 30_000);
 
-  test("every round turns the sibling-repository read off, whatever the per-user default is", async () => {
+  test("the mode flags reach each round's review exactly as given, and unset stays unset", async () => {
     const repo = branchRepo();
-    const fake = fakeReview(repo, ["ok"]);
-    const r = await run(repo, fake, temp("wachiman-home-"), "--base", "main");
-    expect(r.code).toBe(0);
-    expect(fake.distributed).toEqual([false]);
+    const cases: [string[], unknown, unknown][] = [
+      [[], undefined, undefined],
+      [["--distributed-repo"], true, undefined],
+      [["--no-distributed-repo"], false, undefined],
+      [["--distributed-repo", "--sibling", "desktop-app"], true, ["desktop-app"]],
+    ];
+    for (const [flags, on, siblings] of cases) {
+      const fake = fakeReview(repo, ["ok"]);
+      const r = await run(repo, fake, temp("wachiman-home-"), "--base", "main", ...flags);
+      expect(r.code).toBe(0);
+      expect(fake.distributed).toEqual([on]);
+      expect(fake.siblings).toEqual([siblings]);
+    }
   }, 30_000);
+
+  test("a round whose result carries privateContext prints the private-context line once, in the terminal and json summaries", async () => {
+    const repo = branchRepo();
+    const line = "Built with private context from: desktop-app. Do not paste its text into a public place.";
+    const fake = fakeReview(repo, ["ok"], [{ privateContext: { members: ["desktop-app"] } }]);
+    const text = await run(repo, fake, temp("wachiman-home-"), "--base", "main", "--distributed-repo");
+    expect(text.out.split(line)).toHaveLength(2);
+    const again = fakeReview(repo, ["ok"], [{ privateContext: { members: ["desktop-app"] } }]);
+    const json = await run(repo, again, temp("wachiman-home-"), "--base", "main", "--format", "json");
+    expect(JSON.parse(json.out).privateContext).toBe(line);
+    const none = await run(repo, fakeReview(repo, ["ok"]), temp("wachiman-home-"), "--base", "main");
+    expect(none.out).not.toContain("private context");
+  }, 30_000);
+
+  describe("retained findings from a labelled round", () => {
+    const LINE = "Built with private context from: desktop-app. Do not paste its text into a public place.";
+    const PRIV = { members: ["desktop-app"] };
+    const FINDING = { id: "bbbbbbbbbb", path: "src/a.ts", line: 2, severity: "blocker", topic: "bug", title: "Off by ten" };
+    const labelledFirst = async (outcomes: ("fail" | "throw" | "ok")[], shapes: object[], ...later: string[][]) => {
+      const repo = branchRepo();
+      const home = temp("wachiman-home-");
+      const fake = fakeReview(repo, outcomes, shapes);
+      expect((await run(repo, fake, home, "--base", "main", "--distributed-repo")).code).toBe(10);
+      return { repo, home, fake };
+    };
+
+    test("a call that reviews nothing prints the line in the terminal and json forms", async () => {
+      const { repo, home, fake } = await labelledFirst(["ok"], [{ findings: [FINDING], privateContext: PRIV }]);
+      const text = await run(repo, fake, home);
+      expect(fake.calls).toHaveLength(1);
+      expect(text.out.split(LINE)).toHaveLength(2);
+      expect(JSON.parse((await run(repo, fake, home, "--format", "json")).out).privateContext).toBe(LINE);
+    }, 60_000);
+
+    test("a later --no-distributed-repo round that keeps the finding still prints the line", async () => {
+      const { repo, home, fake } = await labelledFirst(["ok", "ok"], [{ findings: [FINDING], privateContext: PRIV }, {}]);
+      commit(repo.dir, { "docs/more.md": "one more commit\n" }, "one more commit");
+      const r = await run(repo, fake, home, "--no-distributed-repo", "--format", "json");
+      expect(fake.calls).toHaveLength(2);
+      expect(r.code).toBe(10);
+      expect(JSON.parse(r.out).privateContext).toBe(LINE);
+      expect(readLoop(historyRoot(wachimanHome({ WACHIMAN_HOME: home })), repositoryKey(repo.dir).key, git(repo.dir, "symbolic-ref", "--short", "HEAD").trim())?.privateContext).toEqual(PRIV);
+    }, 60_000);
+
+    test("the round-cap and review-failed stops carry the line", async () => {
+      const { repo, home, fake } = await labelledFirst(["ok", "fail", "fail"], [{ findings: [FINDING], privateContext: PRIV }]);
+      commit(repo.dir, { "docs/more.md": "one more commit\n" }, "one more commit");
+      const failed = await run(repo, fake, home, "--format", "json");
+      expect(JSON.parse(failed.out).outcome.reason).toBe("review failed");
+      expect(JSON.parse(failed.out).privateContext).toBe(LINE);
+      const capped = await run(repo, fake, home, "--max-rounds", "1");
+      expect(capped.out).toContain("round cap");
+      expect(capped.out.split(LINE)).toHaveLength(2);
+    }, 60_000);
+
+    test("a loop that never read a private sibling prints no line, and a fixed finding clears the label", async () => {
+      const repo = branchRepo();
+      const home = temp("wachiman-home-");
+      const plain = fakeReview(repo, ["ok"], [{ findings: [FINDING] }]);
+      expect((await run(repo, plain, home, "--base", "main")).code).toBe(10);
+      const none = await run(repo, plain, home);
+      expect(none.out).not.toContain("private context");
+      expect(JSON.parse((await run(repo, plain, home, "--format", "json")).out).privateContext).toBeUndefined();
+      expect(readLoop(historyRoot(wachimanHome({ WACHIMAN_HOME: home })), repositoryKey(repo.dir).key, git(repo.dir, "symbolic-ref", "--short", "HEAD").trim())?.privateContext).toBeUndefined();
+    }, 60_000);
+  });
+
+  test("the exit-2 combinations of local are refused by loop", () => {
+    expect(() => parseLoopArgs(["--distributed-repo", "--no-distributed-repo"])).toThrow(UsageError);
+    expect(() => parseLoopArgs(["--no-distributed-repo", "--sibling", "desktop-app"])).toThrow(UsageError);
+    expect(() => parseLoopArgs(["--sibling", "a", "--sibling", "a"])).toThrow(UsageError);
+  });
 
   test("a review that fails twice stops with review failed after exactly two attempts", async () => {
     const repo = branchRepo();

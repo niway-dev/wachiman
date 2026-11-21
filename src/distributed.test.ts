@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { batchDistributed, plainText, verifierDistributed, type ContractReading, type DistributedContext, type ResolvedSibling } from "./distributed";
+import { askDistributed, batchDistributed, plainText, verifierDistributed, type ContractReading, type DistributedContext, type ResolvedSibling } from "./distributed";
 import { distributedLines } from "./local";
 
 // Names, directories and paths in the manifest are the repository's text, not Wachiman's: a backtick,
@@ -93,6 +93,27 @@ describe("the verifier's sibling section", () => {
     expect(CONTROL.test(section)).toBe(false);
     expect(headings(section)).toEqual(["## Sibling repositories (read-only)"]);
     expect(dirs).toEqual(["/tmp/wachiman-sibling-AbC123"]);
+  });
+});
+
+describe("ask's sibling section", () => {
+  test("lists every readable snapshot, names a sibling that could not be read, and has no control character or heading of its own", () => {
+    const gone = sibling({ member: "billing`\nservice", status: "unreadable", sha: "b".repeat(40), dir: undefined, unreadable: "the commit is gone\n## Injected" });
+    const { section, dirs } = askDistributed([sibling(), gone]);
+    expect(CONTROL.test(section)).toBe(false);
+    expect(headings(section)).toEqual(["## Sibling repositories of the review (read-only)"]);
+    expect(dirs).toEqual(["/tmp/wachiman-sibling-AbC123"]);
+    expect(section).toContain("3f2a9c1: /tmp/wachiman-sibling-AbC123 (1 file)");
+    expect(section).toContain("bbbbbbb: could not be read (the commit is gone ## Injected). Do not guess what it holds");
+    expect(section).toContain('"member"');
+  });
+
+  test("with nothing readable it says so and adds no directory; with no sibling at all it is empty", () => {
+    const { section, dirs } = askDistributed([sibling({ status: "not-cloned", sha: undefined, dir: undefined, unreadable: "not cloned" })]);
+    expect(dirs).toEqual([]);
+    expect(section).toContain("none of them could be read again");
+    expect(section).not.toContain("To cite a line");
+    expect(askDistributed([])).toEqual({ section: "", dirs: [] });
   });
 });
 

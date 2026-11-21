@@ -362,6 +362,40 @@ on for one run with `--history`, or for every run with `WACHIMAN_HISTORY=1`.
   `--forget --all` deletes `~/.wachiman/history`. Neither touches `~/.wachiman/claude-*`.
 - **Nothing is exported.** No upload, no sync. The files never leave the laptop unless you copy them.
 
+### Reviewing with sibling repositories
+
+If your project is one of several repositories that work together (say `desktop-app` and `web-site`
+under one `acme` folder), a change in one can break another. Distributed-repo mode lets the review
+read the others.
+
+- **The workspace manifest** is a file that lists the repositories of the workspace, which of them
+  share a contract, and which side is the source of truth. See the
+  [workspace manifest format](formats/workspace-manifest.md).
+- **Turn it on** for one run with `--distributed-repo`, or for every run with the per-user default
+  in `~/.wachiman/workspaces.json`. **Turn it off** for one run with `--no-distributed-repo`.
+  `--sibling <dir>` also reads one named member in full. Without any of these, no sibling is read.
+- **Nothing is fetched.** Each sibling is read from its clone on disk, at the commit its version
+  rule picks (`pinned`, `local` or `tip`; see the manifest format), as a read-only snapshot of
+  committed files. A member that is not cloned is skipped and named.
+- **The report shows** one line per sibling with the member, the contract rule and the commit SHA.
+  When no contract applied, the report says "No workspace contract applied to this change." A
+  member that is not cloned says "not cloned: not checked", and "source of truth not cloned: not
+  checked" when it holds the source of truth. If a non-public sibling was read, the report
+  ends with the private-context line: do not paste its text into a public place.
+- **References into a sibling** read `member@sha7:path:line`, for example
+  `web-site@1a2b3c4:src/api.ts:12`. A finding keeps such a reference only if that line exists in
+  the snapshot.
+- **`wachiman ask`** re-creates the snapshots the stored review read, by SHA, and labels its answer.
+  **`wachiman loop`** takes the same flags. It prints the private-context line
+  whenever it prints findings that came from a review that read a non-public sibling: in the
+  round that read it, and again on any later call that shows those findings, including a call
+  that reviews nothing, a stop, and a round run with `--no-distributed-repo`. A loop that never
+  read a non-public sibling prints no line.
+- **Results of this mode never go to GitHub.** The GitHub sink refuses them, and they use result
+  format `/2` (see [cli.md](cli.md)).
+
+Design detail: [the distributed-repo review spec](specs/2026-11-13-distributed-repo-review-design.md).
+
 ### Let your coding agent run it
 
 [`skills/wachiman-review`](../skills/wachiman-review/SKILL.md) is an agent skill. It teaches a coding

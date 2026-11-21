@@ -1,8 +1,6 @@
 # Distributed-repo review: a local review that reads the sibling repositories of a workspace
 
-- **Status:** proposed 2026-11-13. **Not implemented.** Nothing in `src/` reads a workspace
-  manifest or a sibling repository today. Phase 0 (an experiment, below) must pass before phase 1
-  is built. Written on Claude Opus 5.5.
+- **Status:** phase 1 is implemented (local only, behind the explicit mode); phase 0 was measured on 2026-11-19. Proposed 2026-11-13. Written on Claude Opus 5.5.
 - **Date:** 2026-11-13
 - **Tracker:** NIW2-761 (this spec and its ADRs), child of NIW2-760 (the feature).
 - **Creates:** [ADR 0042](../adr/0042-what-a-run-may-read-depends-on-where-its-output-goes.md)

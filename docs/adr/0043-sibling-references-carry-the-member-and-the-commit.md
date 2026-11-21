@@ -1,8 +1,8 @@
 # ADR 0043: References into a sibling carry the member and the commit, and every reader sees the same snapshots
 
-- **Status:** proposed 2026-11-13. **Not implemented.** Phase 1 of the
-  [distributed-repo review design](../specs/2026-11-13-distributed-repo-review-design.md) builds it,
-  after phase 0. When implemented, it **supersedes, for runs with `--distributed-repo` only,**
+- **Status:** proposed 2026-11-13, accepted 2026-11-19. **Implemented** by phase 1 of the
+  [distributed-repo review design](../specs/2026-11-13-distributed-repo-review-design.md), local only
+  and behind the explicit mode. It **supersedes, for runs with `--distributed-repo` only,**
   decision 3 of [ADR 0031](0031-a-risk-map-whose-level-the-engine-computes-from-checked-facts.md)
   and of [ADR 0032](0032-one-ask-core-for-pull-request-and-laptop-grounded-in-the-review.md), and
   ADR 0032's non-goal "answering questions about code outside the change's repository"; it

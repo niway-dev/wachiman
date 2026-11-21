@@ -10,10 +10,16 @@
 import { neutralise } from "./engine";
 import { validate } from "./json-schema";
 
-/** One reference a section makes: a line the model read, in a file of the checkout. */
+/**
+ * One reference a section makes: a line the model read, in a file of the checkout. In an answer
+ * grounded in a distributed-repo review it may instead name a sibling: `member` and the commit `sha`
+ * (7 characters or more) the line was read at (ADR 0043 decision 2). Absent means the reviewed head.
+ */
 export interface AskRef {
   path: string;
   line: number;
+  member?: string;
+  sha?: string;
 }
 
 export interface AskSection {
@@ -35,28 +41,48 @@ const REF_SCHEMA = {
   properties: { path: { type: "string" }, line: { type: "integer", minimum: 1 } },
 };
 
-/** The answer's JSON schema, passed to the provider as `--json-schema`. Every property is required. */
-export const ASK_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["sections", "not_answered"],
-  properties: {
-    sections: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["title", "body", "refs"],
-        properties: {
-          title: { type: "string" },
-          body: { type: "string" },
-          refs: { type: "array", items: REF_SCHEMA },
+/** A reference that may also name the sibling and commit its line is in; both or neither, which the check enforces. */
+const SIBLING_REF_SCHEMA = {
+  ...REF_SCHEMA,
+  properties: { ...REF_SCHEMA.properties, member: { type: "string" }, sha: { type: "string" } },
+};
+
+function answerSchema(ref: typeof REF_SCHEMA) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["sections", "not_answered"],
+    properties: {
+      sections: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "body", "refs"],
+          properties: {
+            title: { type: "string" },
+            body: { type: "string" },
+            refs: { type: "array", items: ref },
+          },
         },
       },
+      not_answered: { type: "string" },
     },
-    not_answered: { type: "string" },
-  },
-};
+  };
+}
+
+/** The answer's JSON schema, passed to the provider as `--json-schema`. Every property is required. */
+export const ASK_SCHEMA = answerSchema(REF_SCHEMA);
+
+const SIBLING_ASK_SCHEMA = answerSchema(SIBLING_REF_SCHEMA);
+
+/**
+ * The schema for one answer: `ASK_SCHEMA` itself, unchanged, unless the stored review read sibling
+ * snapshots, when a reference may also name the member and commit it is in.
+ */
+export function askSchema(siblings: boolean) {
+  return siblings ? SIBLING_ASK_SCHEMA : ASK_SCHEMA;
+}
 
 /** The five sections of a walkthrough (no question), in order. The titles are fixed. */
 export const WALKTHROUGH_SECTIONS = [
@@ -94,6 +120,8 @@ export interface AskInput {
   asker?: string;
   /** Set for `wachiman ask` on the laptop: the developer asked, and the material is the local scope. */
   local?: boolean;
+  /** The prompt section about the sibling snapshots of a distributed-repo review (`askDistributed`), or "". */
+  siblings?: string;
 }
 
 /**
@@ -103,8 +131,8 @@ export interface AskInput {
 const defuseWrapperTags = (text: string) => text.replace(/<(\/?)(thread|request)>/gi, "&lt;$1$2&gt;");
 
 /** Whether a structured answer is schema-valid and says something: a section, or a reason it did not answer. */
-export function isAskAnswer(value: unknown): value is AskAnswer {
-  if (validate(ASK_SCHEMA, value).length > 0) return false;
+export function isAskAnswer(value: unknown, schema: object = ASK_SCHEMA): value is AskAnswer {
+  if (validate(schema, value).length > 0) return false;
   const answer = value as AskAnswer;
   return answer.sections.length > 0 || answer.not_answered.trim() !== "";
 }
@@ -127,6 +155,7 @@ export function buildAskPrompt(input: AskInput): string {
     );
   }
   if (input.instructions.trim()) parts.push(input.instructions.trim());
+  if (input.siblings?.trim()) parts.push(input.siblings.trim());
   if (input.focus) {
     parts.push(
       `The question is about ${input.focus.path} at line ${input.focus.line}. Answer about that file and line first. The rest of the change is available in the diff if the answer needs it.`,
@@ -172,22 +201,23 @@ export function buildAskPrompt(input: AskInput): string {
 
 /**
  * Drops each reference the engine cannot find: the path is not in the checkout, or the line is past
- * its end (`exists` decides). A reference repeated in one section is kept once. Returns how many
+ * its end (`exists` decides, and gets the whole reference, so it can look in a sibling's snapshot
+ * when the reference names one). A reference repeated in one section is kept once. Returns how many
  * distinct references were removed, for the notice in `renderAnswer`.
  */
 export function checkRefs(
   answer: AskAnswer,
-  exists: (path: string, line: number) => boolean,
+  exists: (path: string, line: number, ref: AskRef) => boolean,
 ): { answer: AskAnswer; removed: number } {
   let removed = 0;
   const sections = answer.sections.map((section) => {
     const seen = new Set<string>();
     const refs: AskRef[] = [];
     for (const ref of section.refs) {
-      const key = `${ref.path}:${ref.line}`;
+      const key = `${ref.member ?? ""}@${ref.sha ?? ""}:${ref.path}:${ref.line}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      if (exists(ref.path, ref.line)) refs.push(ref);
+      if (exists(ref.path, ref.line, ref)) refs.push(ref);
       else removed++;
     }
     return { ...section, refs };
@@ -234,6 +264,11 @@ export function renderAnswer(answer: AskAnswer, opts: RenderOptions): string {
 }
 
 function renderRef(ref: AskRef, opts: RenderOptions, markdown: boolean) {
+  // A sibling line is written as in a finding, `member@sha:path:line` with the short commit; it has no link.
+  if (ref.member !== undefined && ref.sha !== undefined) {
+    const code = `${ref.member}@${ref.sha.slice(0, 7)}:${ref.path}:${ref.line}`;
+    return markdown ? `\`${code}\`` : code;
+  }
   const code = `${ref.path}:${ref.line}`;
   if (!markdown) return code;
   return opts.link ? `[\`${code}\`](${opts.link(ref.path, ref.line)})` : `\`${code}\``;

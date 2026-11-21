@@ -231,6 +231,9 @@ export function privateNote(result: ReviewResult) {
   return result.privateContext ? privateContextLine(result.privateContext.members.map(manifestText)) : null;
 }
 
+/** The private-context line for a set of member names, or null when there are none. */
+export const privateLineFor = (members: string[] | undefined) => (members && members.length > 0 ? privateContextLine(members.map(manifestText)) : null);
+
 /** The checked references a finding makes into a sibling, as `member@sha:path:line` with the short commit. */
 export const siblingReferences = (f: { references?: { member: string; sha: string; path: string; line: number }[] }) =>
   (f.references ?? []).map((r) => manifestText(`${r.member}@${sha7(r.sha)}:${r.path}:${r.line}`));

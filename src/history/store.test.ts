@@ -134,6 +134,50 @@ describe("writeRun / readRuns", () => {
     expect(runs[0].format).toBe("wachiman.history-run/1");
   });
 
+  test("a distributed-repo run keeps its siblings and privateContext; a run saved before them still loads", () => {
+    const root = historyRoot(home());
+    const siblings = [
+      {
+        member: "desktop-app",
+        repo: "acme/desktop-app",
+        visibility: "private",
+        contracts: ["brand-palette"],
+        byHand: false,
+        rule: "pinned",
+        ruleSource: "default",
+        readAs: "pinned",
+        sha: "a".repeat(40),
+        paths: ["Assets/palette.json"],
+        status: "read",
+        droppedSymlinks: [],
+        droppedSubmodules: [],
+      },
+    ];
+    const withSiblings = run("2026-11-05T11:00:00.000Z");
+    (withSiblings.result as any).siblings = siblings;
+    (withSiblings.result as any).privateContext = { members: ["desktop-app"] };
+    (withSiblings.result as any).removedSiblingReferences = 2;
+    writeRun(root, withSiblings);
+    // An older record: no distributed fields at all, and a run whose result is still /1.
+    writeRun(root, run("2026-11-05T10:00:00.000Z"));
+    const old = run("2026-11-05T09:00:00.000Z");
+    (old.result as any).format = "wachiman.review-result/1";
+    writeFileSync(join(root, "r-12345678", "runs", "2026-11-05T09-00-00-000Z-old.json"), JSON.stringify(old));
+
+    const runs = readRuns(root, "r-12345678", (line) => {
+      throw new Error(`unexpected warning: ${line}`);
+    });
+    expect(runs).toHaveLength(3);
+    const [oldest, plain, distributed] = runs;
+    expect(distributed.result.siblings).toEqual(siblings as any);
+    expect(distributed.result.privateContext).toEqual({ members: ["desktop-app"] });
+    expect(distributed.result.removedSiblingReferences).toBe(2);
+    for (const r of [oldest, plain]) {
+      expect(r.result.siblings).toBeUndefined();
+      expect(r.result.privateContext).toBeUndefined();
+    }
+  });
+
   test("every save tightens the history root and the repository directories to 0700", () => {
     const h = join(home(), ".wachiman");
     const root = historyRoot(h);
