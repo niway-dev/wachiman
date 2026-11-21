@@ -1,6 +1,7 @@
 # ADR 0055: The review comment is rendered in fixed slots from a view model
 
-- **Status:** proposed 2026-11-14. Not implemented. Amends
+- **Status:** proposed 2026-11-14; amended 2026-11-21 (decision 3: nine status modes, one colour,
+  the clean lead; decision 4: the partial callout and the answer line). Not implemented. Amends
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
   (the GitHub sink's output was to stay unchanged) and
   [ADR 0010](0010-name-wachiman.md) decision 2 (an inline finding's first line is now the table
@@ -43,12 +44,19 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
    Blocker and Fix rows and the risk facts are cut row by row, and only when the never-dropped
    slots alone pass the size limit; the tables then keep the rows that fit, Blockers first, and say
    how many more are on their lines.
-3. The first line after the brand is a computed status with a fixed precedence: Not reviewed,
-   Partial, Blocker, Fix, Needs investigation, none. "before merge" is said only for blockers.
-   "Nothing to fix" appears only when no earlier bot thread is unresolved, and a verifier that did
-   not finish or a pre-existing Blocker/Fix is always named on the same line. No status uses a
-   check mark.
-4. Counts add up: every severity, Info included, appears in the Findings row with its total;
+3. The first line after the brand is a computed status with a fixed precedence of nine modes: Not
+   reviewed, Partial, Blocker, Fix, Needs investigation, Questions for you, No new findings to fix,
+   Nothing to fix with Consider, and Wachiman found nothing to fix (spec, "Status line"). The lead
+   is bold and carries the only colour emoji on the line; the other parts are plain text, and risk
+   is not on the line. "before merge" is said only for blockers. The clean lead says what the
+   reviewer did, "Wachiman found nothing to fix", never that the pull request can merge. It appears
+   only when no earlier bot thread is unresolved, and a verifier that did not finish or a
+   pre-existing Blocker/Fix is always named on the same line. No status uses a check mark. The
+   line is called the status, never a verdict, because `Verdict:` is the reply a person gives a
+   finding.
+4. A partial review adds a callout under the status line with the files not reviewed counted per
+   reason and how to ask for the rest; the paths move to a collapsed slot. How to answer a finding
+   is a `<sub>` line above the cost line, not a glance-table row. Counts add up: every severity, Info included, appears in the Findings row with its total;
    pre-existing and inconclusive findings are counted after the total, in their own slots, and a
    slot holding a Blocker or Fix is visible and never dropped.
 5. The re-review row shows only what the engine knows: new findings, unresolved bot threads and the
@@ -109,6 +117,9 @@ footer. About 280 test lines assert on rendered fragments, so every wording chan
 - Changing the local loop summary.
 
 ## What would reopen this
+
+- The owner wants the status to say a pull request can merge: that supersedes decision 3 and must
+  also supersede ADR 0031 point 5 and ADR 0033, and change the README's "never approves".
 
 - A reader of posted comments outside this repository and the benchmarks repository appears and
   cannot follow the new format.
