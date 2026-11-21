@@ -238,7 +238,7 @@ export function listenerOver(events: ReadableStream<Uint8Array>, ended: Promise<
  * the listener (killing `gh event listen`) first, removes itself, and passes the signal on so the
  * exit status is the usual one.
  */
-const processSignals: WaitDeps["signals"] = {
+export const processSignals: WaitDeps["signals"] = {
   install: (handler) => {
     const handlers = (["SIGINT", "SIGTERM"] as const).map((signal) => {
       const fn = () => {
