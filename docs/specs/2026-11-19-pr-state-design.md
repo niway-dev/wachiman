@@ -99,7 +99,7 @@ flowchart TD
 - "No findings" on a refused or partial review is read as clean.
 - The block grows past what a review body can hold on a large review and breaks the post.
 - A review from an engine version without the block is reported as `not-reviewed` instead of falling back to its sha and partial markers.
-- More than 100 threads, or a thread with more than 100 comments, hides an unresolved Wachiman finding thread.
+- More than 100 threads, or a thread with more than 100 comments (whose last author decides who the thread awaits), hides an unresolved Wachiman finding thread.
 - An outdated but unresolved Wachiman thread disappears from the answer.
 - `--wait` exceeds the GitHub rate limit or a harness's foreground time limit.
 - An agent reads `done` as "ready to merge".
@@ -123,9 +123,9 @@ flowchart TD
 - [ ] **AC9** If the PR head read at the end differs from the head read at the start, the answer is `wait` with `why: head_moved`.
 - [ ] **AC10** With several own reviews on the same head, the block of the most recent attempt by creation time decides; a newer push makes every older block `stale`.
 - [ ] **AC11** Reviews posted by an engine without the block are read from `wachiman sha=` and `wachi:partial` with `source: legacy-markers`; a legacy notice without a sha yields `review.state: none`, never `complete`. A legacy review of the current head has no counts, so `findings.unthreaded` is `null`, and with no unresolved Wachiman finding thread it yields `done` with `why: clean_legacy`, never `clean`.
-- [ ] **AC12** Threads and their comments are read with pagination, so an unresolved finding thread beyond the first 100 threads or comments is reported (fake-GitHub test with 150 threads).
+- [ ] **AC12** Threads are read with pagination, and each thread's first and last comment are asked for by name, so an unresolved finding thread beyond the first 100 threads, or the last author of a thread with more than 100 comments, is reported (fake-GitHub test with 150 threads).
 - [ ] **AC13** `pr-state --wait` returns as soon as `next` is not `wait`; on timeout it prints the last state with `why: timeout` and exits 21; the default timeout is under 10 minutes and the default interval at least 20 seconds.
-- [ ] **AC14** `--wait` makes at most one state read per interval; an event from `gh event listen` only moves the next read earlier, never sooner than one interval after the last read. A read is one GraphQL query, plus extra pages only when threads or comments exceed 100, plus the end-of-read head check of AC9; never two state reads within one interval, however many events arrive (counted in a fake-GitHub test).
+- [ ] **AC14** `--wait` makes at most one state read per interval; an event from `gh event listen` only moves the next read earlier, never sooner than one interval after the last read. A read is one GraphQL query, plus extra pages only when there are more than 100 threads, plus the end-of-read head check of AC9; never two state reads within one interval, however many events arrive (counted in a fake-GitHub test).
 - [ ] **AC15** When `gh event listen` is missing or fails, `--wait` falls back to polling and says so once on stderr; stdout stays a single JSON object.
 
 ---

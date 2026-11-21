@@ -89,7 +89,7 @@ describe("the footer position of the block (AC3)", () => {
     expect(readSignedStateBlock(`x\n\n${SIGNATURE.finding}\n\n${comment()}`)).toBeNull();
   });
 
-  test("two blocks do not count: only the last one at the footer is read, and a doubled footer is not one", () => {
+  test("two blocks in a row are read as neither: the first is not at the footer, and a doubled footer is not one", () => {
     const body = `x\n\n${SIGNATURE.review}\n\n${comment()}\n\n${comment()}`;
     expect(readSignedStateBlock(body)).toBeNull();
   });

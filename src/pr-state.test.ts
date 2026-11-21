@@ -278,8 +278,8 @@ describe("AC11: reviews from an engine without the block", () => {
     expect(read({ reviews: [rev(partialLegacy, 1)] })).toMatchObject({ next: "blocked", why: "partial", review: { state: "partial", source: "legacy-markers" } });
   });
   test("a legacy notice without a sha is none, never complete", () => {
-    for (const marker of ["<!-- wachi:refusal kind=billing -->", "<!-- wachi:ceiling usd=1.50 -->", "<!-- wachi:limit reason=limit on=2026-11-18 -->"]) {
-      const body = `Notice\n\n${marker}\n\n${SIGNATURE.review}`;
+    for (const legacyLine of ["<!-- wachi:refusal kind=billing -->", "<!-- wachi:ceiling usd=1.50 -->", "<!-- wachi:limit reason=limit on=2026-11-18 -->"]) {
+      const body = `Notice\n\n${legacyLine}\n\n${SIGNATURE.review}`;
       const doc = read({ reviews: [rev(body, 1)] });
       expect(doc.review).toMatchObject({ state: "none", source: null });
       expect(doc.next).toBe("wait");
