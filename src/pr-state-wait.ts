@@ -201,7 +201,7 @@ export function makeGhProbe(bin: readonly string[] = ["gh"]): GhProbe {
   };
 }
 
-const realGhProbe = makeGhProbe();
+export const realGhProbe = makeGhProbe();
 
 /**
  * A listener over a stream of event lines and a promise that settles when the process ends. Any bytes

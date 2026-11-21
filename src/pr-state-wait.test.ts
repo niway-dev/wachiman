@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { GhTimeoutError, SIGNATURE, ghWithin, marker, type GhFn } from "./engine";
 import { buildStateBlock, encodeStateBlock, noFindings } from "./review-state";
 import { parsePrStateArgs, type PrState } from "./pr-state";
-import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, makeGhProbe, openGhEventListener, processSignals, realWaitDeps, runPrStateWait, type GhProbe, type Listener, type WaitDeps, type WaitSignal } from "./pr-state-wait";
+import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, makeGhProbe, openGhEventListener, processSignals, realGhProbe, realWaitDeps, runPrStateWait, type GhProbe, type Listener, type WaitDeps, type WaitSignal } from "./pr-state-wait";
 
 const REPO = "o/r";
 const HEAD = "a".repeat(40);
@@ -367,11 +367,15 @@ describe("the gh event listen probe is inside the deadline", () => {
   test("the production wiring forwards the time left as the probe limit, not as the gh probe", () => {
     // Passing the number straight to `openGhEventListener` put it in the `gh` parameter; the resulting
     // TypeError was swallowed as "unsupported", so the real `gh event listen` was never used.
-    // Calling the real opener with no time left must still be a plain null, and it must not hand the
-    // number over as the probe: the wrapper names both.
-    expect(realWaitDeps.openListener(REPO, 0)).toBeNull();
-    expect(realWaitDeps.openListener.length).toBe(2);
-    expect(String(realWaitDeps.openListener)).toMatch(/openGhEventListener\(\w+, \w+, \w+\)/);
+    const seen: number[] = [];
+    const original = realGhProbe.supported;
+    realGhProbe.supported = (limitMs) => (seen.push(limitMs), false);
+    try {
+      expect(realWaitDeps.openListener(REPO, 1234)).toBeNull();
+    } finally {
+      realGhProbe.supported = original;
+    }
+    expect(seen).toEqual([1234]);
   });
 
   test("a probe that hangs still ends the wait by --timeout", async () => {
