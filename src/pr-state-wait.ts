@@ -7,7 +7,9 @@
  * content is never read (the state is read again). Nothing here stores anything or posts anything.
  *
  * The timeout bounds the whole call, reads included: each `gh` call of a read is killed when the
- * time left runs out, and the wait then ends with the last known state and `why: timeout`.
+ * time left runs out, and the wait then ends with the last known state and `why: timeout`. The one
+ * exception is the probe for `gh event listen`, which has its own 5 s limit: the call can end up to
+ * 5 s after the timeout.
  */
 import { UsageError } from "./config";
 import { GhTimeoutError, ghWithin, type GhFn } from "./engine";
@@ -45,7 +47,7 @@ export interface WaitDeps {
   read?: (remainingMs: number) => Promise<PrState>;
   /** A timer for the deadline of one read: `promise` resolves to null when `ms` pass, until `cancel` is called. */
   timeout: (ms: number) => { promise: Promise<null>; cancel: () => void };
-  /** Installs a handler for SIGINT, SIGTERM and SIGHUP and returns what removes it. Only used while waiting. */
+  /** Installs a handler for SIGINT, SIGTERM and SIGHUP and returns what removes it. Installed for the whole call and removed when it ends. */
   signals: { install: (handler: (signal: WaitSignal) => void) => () => void };
 }
 

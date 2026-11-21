@@ -1,6 +1,6 @@
 # A machine-readable review state and `wachiman pr-state`
 
-- **Status:** proposed (2026-11-19). Tracker: [NIW2-881](https://linear.app/niway/issue/NIW2-881/wachiman-a-machine-readable-review-state-and-wachiman-pr-state-so-any).
+- **Status:** proposed (2026-11-19); implemented by the pull request that adds it. Tracker: [NIW2-881](https://linear.app/niway/issue/NIW2-881/wachiman-a-machine-readable-review-state-and-wachiman-pr-state-so-any).
 - **ADRs:** [the review state is one versioned block in the signed footer, and `pr-state` derives the next step from it](../adr/0060-the-review-state-is-one-versioned-block-in-the-signed-footer-and-pr-state-derives-the-next-step.md) (new; extends the signed-footer-only reading rule of [ADR 0036](../adr/0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md) decision 1 to one more marker, and reuses the advisory posture of [ADR 0034](../adr/0034-a-review-loop-driven-by-the-cli-that-never-edits-code.md)).
 
 ## Summary (one minute)

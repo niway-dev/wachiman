@@ -1,6 +1,6 @@
 # ADR 0060: The review state is one versioned block in the signed footer, and `pr-state` derives the next step from it
 
-- **Status:** proposed 2026-11-19. Not implemented. Extends the signed-footer-only
+- **Status:** proposed 2026-11-19. Implemented by the pull request that adds this file. Extends the signed-footer-only
   reading rule of [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
   decision 1 (a marker is read only from the engine's signed footer; the code is `SIGNED_FOOTER`
   and `neutralise` in `src/engine.ts`) to one more marker; reuses the

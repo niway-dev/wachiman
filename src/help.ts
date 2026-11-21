@@ -601,7 +601,7 @@ const prStatePage: Page = {
     ["--repo <owner/repo>", "The repository. Default: the one `gh` resolves for the current directory"],
     ["--json", "Accepted; JSON is the only output"],
     ["--wait", "Read again until `next` is not `wait`, one read per interval, then print that last state. On timeout it prints the last state with `why: timeout`. Uses `gh event listen` to wake sooner when this `gh` has it, and polls when it does not (said once on stderr)"],
-    ["--timeout <s>", "With --wait: seconds to wait before giving up. Default: 540"],
+    ["--timeout <s>", "With --wait: seconds to wait before giving up (a probe for `gh event listen` may add up to 5 s). Default: 540"],
     ["--interval <s>", "With --wait: seconds between reads, at least 20. Default: 30"],
   ],
   env: [["GH_TOKEN", "Optional: `gh` uses its own sign-in when it is not set"]],
