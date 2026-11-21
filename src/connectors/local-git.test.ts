@@ -11,11 +11,13 @@ import { A_HEAD, branchRepo, commit, emptyRepo, git, removeTempRepos } from "../
 import { personalMemoryDir, personalSourceFor } from "../memory/personal";
 import { entryId } from "../memory/entries";
 import {
+  blobReader,
   buildLocalInput,
   localFiles,
   localInstructions,
   localMemory,
   localMemorySource,
+  localRepoSettings,
   removeSnapshot,
   resolveRefs,
   snapshotHead,
@@ -238,6 +240,40 @@ describe("localInstructions", () => {
     const dir = emptyRepo();
     const base = commit(dir, { "CLAUDE.md/inner.md": "not a file\n" }, "base");
     expect(localInstructions(dir, base, () => {}).files).toEqual([]);
+  });
+
+  test("one listing of the tree serves every instruction file and the settings file, with the same answers", () => {
+    const dir = emptyRepo();
+    const long = `${"x".repeat(MAX_INSTRUCTION_BYTES)}é and more`;
+    const base = commit(
+      dir,
+      { ".github/claude-review.md": "focus\n", "AGENTS.md": long, "CLAUDE.md/inner.md": "a directory, not a file\n", ".wachiman.yml": "effort: high\n" },
+      "base",
+    );
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const read = blobReader(dir, base, counting);
+    const separate: string[] = [];
+    const shared: string[] = [];
+    expect(localInstructions(dir, base, (l) => shared.push(l), counting, read)).toEqual(localInstructions(dir, base, (l) => separate.push(l)));
+    expect(shared).toEqual(separate);
+    expect(localRepoSettings(dir, base, counting, read)).toEqual(localRepoSettings(dir, base));
+    expect(read(".wachiman.yml")?.toString()).toBe("effort: high\n");
+    expect(read("CLAUDE.md")).toBeNull();
+    expect(read("not-listed.txt")).toBeNull();
+    // Four instruction paths, the old focus path and the settings file: one `ls-tree`, plus the one for the unlisted path.
+    expect(calls.filter((c) => c[0] === "ls-tree").length).toBe(2);
+  });
+
+  test("a tree this clone does not have fails every read, as separate listings did", () => {
+    const r = branchRepo();
+    const read = blobReader(r.dir, "0".repeat(40));
+    expect(() => read("CLAUDE.md")).toThrow();
+    expect(() => read(".wachiman.yml")).toThrow();
+    expect(() => localInstructions(r.dir, "0".repeat(40), () => {})).toThrow();
   });
 });
 

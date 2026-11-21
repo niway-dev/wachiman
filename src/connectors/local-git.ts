@@ -17,7 +17,9 @@ import { UsageError } from "../config";
 import {
   instructionFileOf,
   instructionsFrom,
+  INSTRUCTION_PATHS,
   MAX_INSTRUCTION_BYTES,
+  OLD_FOCUS_PATHS,
   REVIEW_INPUT_FORMAT,
   resolveScope,
   type BaseInstructions,
@@ -334,23 +336,63 @@ export function localFiles(repoDir: string, mergeBase: string, head: string, git
   return files.sort((a, b) => (a.filename < b.filename ? -1 : a.filename > b.filename ? 1 : 0));
 }
 
-/** One blob's bytes, or null when `<sha>:<path>` is not a regular file (absent, a folder, a link). */
-function blobAt(repoDir: string, sha: string, path: string, git: GitRunner): Buffer | null {
-  const entry = git(["ls-tree", "-z", sha, "--", path], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
-  if (entry.status !== 0) throw new Error(`git ls-tree ${short(sha)} -- ${path} failed: ${entry.stderr ?? entry.error}`);
-  // `<mode> <type> <sha>\t<path>`; only the exact path, as a regular file, counts.
-  const [meta, name] = entry.stdout.split("\0")[0].split("\t");
-  if (name !== path) return null;
-  const [mode, type, blob] = meta.split(" ");
-  if (type !== "blob" || (mode !== "100644" && mode !== "100755")) return null;
-  const out = spawnSync("git", [...GIT_BASE_ARGS, "cat-file", "blob", blob], {
+type TreeEntry = { mode: string; type: string; blob: string };
+
+/** The `<mode> <type> <sha>\t<path>` entries of `git ls-tree -z`, by path. */
+function treeEntries(stdout: string): Map<string, TreeEntry> {
+  const entries = new Map<string, TreeEntry>();
+  for (const line of stdout.split("\0")) {
+    if (line === "") continue;
+    const [meta, name] = line.split("\t");
+    const [mode, type, blob] = meta.split(" ");
+    entries.set(name, { mode, type, blob });
+  }
+  return entries;
+}
+
+/** The bytes of a regular file's blob, or null for anything else (a folder, a link, a submodule). */
+function regularBlob(repoDir: string, entry: TreeEntry | undefined): Buffer | null {
+  if (!entry || entry.type !== "blob" || (entry.mode !== "100644" && entry.mode !== "100755")) return null;
+  const out = spawnSync("git", [...GIT_BASE_ARGS, "cat-file", "blob", entry.blob], {
     cwd: repoDir,
     env: gitEnv(),
     timeout: TIMEOUT_MS,
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (out.status !== 0) throw new Error(`git cat-file blob ${blob} failed: ${out.stderr?.toString() ?? out.error}`);
+  if (out.status !== 0) throw new Error(`git cat-file blob ${entry.blob} failed: ${out.stderr?.toString() ?? out.error}`);
   return out.stdout;
+}
+
+/** One blob's bytes, or null when `<sha>:<path>` is not a regular file (absent, a folder, a link). */
+function blobAt(repoDir: string, sha: string, path: string, git: GitRunner): Buffer | null {
+  const entry = git(["ls-tree", "-z", sha, "--", path], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  if (entry.status !== 0) throw new Error(`git ls-tree ${short(sha)} -- ${path} failed: ${entry.stderr ?? entry.error}`);
+  // Only the exact path, as a regular file, counts.
+  return regularBlob(repoDir, treeEntries(entry.stdout.split("\0")[0]).get(path));
+}
+
+/** Reads a file of one commit: the bytes, or null when it is not a regular file there. */
+export type BlobReader = (path: string) => Buffer | null;
+
+/** The files a local review reads at its start commit: the instruction files (and the old focus file) and the settings file. */
+const START_COMMIT_PATHS: readonly string[] = [...INSTRUCTION_PATHS, ...OLD_FOCUS_PATHS, SETTINGS_PATH];
+
+/**
+ * A `BlobReader` for `sha` that lists `paths` with one `git ls-tree` the first time any of them is
+ * read, where `blobAt` runs one per file; other paths still take their own. A listing that fails
+ * (a `sha` this clone does not have) fails every read, as the separate runs did.
+ */
+export function blobReader(repoDir: string, sha: string, git: GitRunner = spawnGit, paths: readonly string[] = START_COMMIT_PATHS): BlobReader {
+  let listing: Map<string, TreeEntry> | Error | undefined;
+  return (path) => {
+    if (!paths.includes(path)) return blobAt(repoDir, sha, path, git);
+    if (listing === undefined) {
+      const out = git(["ls-tree", "-z", sha, "--", ...paths], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+      listing = out.status !== 0 ? new Error(`git ls-tree ${short(sha)} failed: ${out.stderr ?? out.error}`) : treeEntries(out.stdout);
+    }
+    if (listing instanceof Error) throw listing;
+    return regularBlob(repoDir, listing.get(path));
+  };
 }
 
 /**
@@ -362,11 +404,12 @@ export function localInstructions(
   mergeBase: string,
   warn: (line: string) => void,
   git: GitRunner = spawnGit,
+  read: BlobReader = (path) => blobAt(repoDir, mergeBase, path, git),
 ): BaseInstructions {
   return instructionsFrom(
     mergeBase,
     (path) => {
-      const bytes = blobAt(repoDir, mergeBase, path, git);
+      const bytes = read(path);
       return bytes ? instructionFileOf(path, bytes) : null;
     },
     warn,
@@ -408,10 +451,10 @@ export function localSettingsCommit(repoDir: string, scope: SettingsScope, git: 
  * `.wachiman.yml` as it is at `sha`, parsed, or undefined when there is none there (or `sha` is
  * not in this clone: an `--input` file can name one that is not). An invalid file is a usage error.
  */
-export function localRepoSettings(repoDir: string, sha: string, git: GitRunner = spawnGit): RepoSettings | undefined {
+export function localRepoSettings(repoDir: string, sha: string, git: GitRunner = spawnGit, read: BlobReader = (path) => blobAt(repoDir, sha, path, git)): RepoSettings | undefined {
   let bytes: Buffer | null;
   try {
-    bytes = blobAt(repoDir, sha, SETTINGS_PATH, git);
+    bytes = read(SETTINGS_PATH);
   } catch {
     return undefined;
   }
@@ -426,9 +469,9 @@ export function localRepoSettings(repoDir: string, sha: string, git: GitRunner =
  * one warning naming `where`, like the model and effort read: the change that fixes it must be
  * reviewable.
  */
-export function localPathRules(repoDir: string, sha: string, where: string, warn: (line: string) => void, git: GitRunner = spawnGit): PathRule[] | undefined {
+export function localPathRules(repoDir: string, sha: string, where: string, warn: (line: string) => void, git: GitRunner = spawnGit, read?: BlobReader): PathRule[] | undefined {
   try {
-    return localRepoSettings(repoDir, sha, git)?.paths;
+    return localRepoSettings(repoDir, sha, git, read)?.paths;
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     warn(ignoredSettingsNote(error.message, `${where} ${short(sha)}`));
@@ -685,11 +728,13 @@ export function buildLocalInput(p: {
     files.map((f) => f.filename),
   );
   if (ignored.length > 0) p.log(`Not paths in this change, ignored: ${ignored.join(" ")}`);
-  const instructions = localInstructions(p.repoDir, refs.mergeBase, p.warn, git);
+  // The instruction files and the settings file at the merge-base come from one listing of its tree.
+  const atStart = blobReader(p.repoDir, refs.mergeBase, git);
+  const instructions = localInstructions(p.repoDir, refs.mergeBase, p.warn, git, atStart);
   const { pathRules, pathPolicyChanged } = localPathPolicy(
     () => blobAt(p.repoDir, refs.headSha, SETTINGS_PATH, git),
     files,
-    localPathRules(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git),
+    localPathRules(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git, atStart),
   );
   const top = run(git, p.repoDir, ["rev-parse", "--show-toplevel"]).trim();
   const name = basename(top);
