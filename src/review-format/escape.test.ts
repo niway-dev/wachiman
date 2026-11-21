@@ -20,11 +20,12 @@ describe("defuseDetails", () => {
 
 describe("escapeCell", () => {
   test("a long run of spaces with no line break is linear", () => {
+    // A quadratic pattern takes minutes on 200,000 spaces; a linear one takes milliseconds.
+    // The bound is that loose so a loaded CI runner cannot fail it.
     const start = performance.now();
-    expect(escapeCell(`a${" ".repeat(50_000)}b`)).toBe(`a${" ".repeat(50_000)}b`);
-    expect(performance.now() - start).toBeLessThan(200);
+    expect(escapeCell(`a${" ".repeat(200_000)}b`)).toBe(`a${" ".repeat(200_000)}b`);
+    expect(performance.now() - start).toBeLessThan(2_000);
   });
-
 
   test("escapes a pipe so it cannot end the cell", () => {
     expect(escapeCell("a | b")).toBe("a \\| b");
