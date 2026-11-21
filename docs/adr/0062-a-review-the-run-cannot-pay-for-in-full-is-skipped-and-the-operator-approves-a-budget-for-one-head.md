@@ -1,0 +1,90 @@
+# ADR 0062: A review the run cannot pay for in full is skipped, and the operator approves a budget for one head
+
+- **Status:** proposed 2026-11-21. Amends decisions 3, 5 and 7 and the rejected alternative "Ask in
+  the pull request before reviewing" of
+  [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md). Builds on
+  [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md) (the per-pull-request ceiling)
+  and [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
+  (a partial review resumes on the next push).
+  Design: [budget gate spec](../specs/2026-11-21-budget-gate-design.md).
+- **Date:** 2026-11-21
+
+## Context
+
+ADR 0037 made the size gate never lower than what a run may spend, and kept a partial review for
+every estimate between the run budget and the gate (its decision 7). With the defaults
+(`budget_usd` $3, `size_gate_usd` $6) a pull request estimated anywhere from $3 to $6 starts a
+review it cannot finish.
+
+[Pull request 287](https://github.com/niway-dev/wachiman/pull/287) shows the cost of that rule:
+312 files, 16,384 changed lines, 95% from one formatter commit. It was estimated at $5.76, below
+the $6 gate, so it started with $3. The
+[run](https://github.com/niway-dev/wachiman/actions/runs/44953987894/job/136997919290) spent
+$3.15, reviewed 138 of the 312 files, and four of its twelve calls produced nothing. A partial
+review that is certain before the first call is spend with no decision behind it.
+
+ADR 0037 rejected asking in the pull request because anyone who can comment could approve
+spending the owner's key. That objection is about who approves, not about asking: only the
+configured `operator` may start a review from a comment today (`comment` in `src/engine.ts`), and
+`/wachiman review --force` already lets that one login spend past a ledger limit.
+
+## Decision
+
+1. **The gate is the room.** Before any model call, the engine compares the estimate with what the
+   run may actually spend: `min(budget_usd, room left in auto_budget_usd)` for an automatic run,
+   `budget_usd` (or the approved budget, point 3) for the operator's run, and in both cases no more
+   than the ledger grants. An estimate above the room makes no model call.
+2. **One priced comment.** The skip posts or edits the one comment ADR 0037 decision 4 defines.
+   It states the estimate, the room, the head it was estimated on, and the exact command to
+   approve it: `/wachiman review --budget <N> --head <short sha>`, where `N` is the suggested
+   budget (1.5 times the estimate, rounded up, ADR 0037 decision 5) capped by `approve_max_usd`.
+   When the suggestion is above that cap, the comment says to raise `approve_max_usd` instead.
+3. **The operator approves one head, once.** `--budget N` is honoured only on the operator's
+   comment, only when `--head` names the pull request's current head, and only when `N` is a
+   finite number above 0 and at or below `approve_max_usd` (new input, default $20). The run's
+   budget becomes `N`. A push after the comment makes the head differ, so the run refuses and the
+   next automatic run estimates the new head. A rerun of the same job finds the head already
+   reviewed and spends nothing. The ledger still applies; `--force` stays the only way past it.
+4. **The budget is soft and the comment says so.** A provider call can finish above its cap (ADR
+   0036 records $3.10 against $3; pull request 287 spent $3.15). The comment says the run may pass
+   the approved figure by about one call.
+5. **`size_gate_usd` no longer gates.** With the room as the gate, a separate dollar gate either
+   equals the room or skips reviews the run could pay for (the case ADR 0037 decision 3 was written
+   against). The input is still accepted so existing callers do not fail, is ignored, and the run
+   logs one line saying so. It is removed in the next major version.
+6. **Local runs are unchanged.** ADR 0037 decision 10 stands: `wachiman local` warns and continues.
+
+## Alternatives rejected
+
+- **Keep the partial review between the budget and the gate** (ADR 0037 decision 7). It reads the
+  riskiest batches, but when the estimate is above the room the gap is known before the first call,
+  and pull request 287 shows the result: less than half of the files, paid in full.
+- **Approve by reaction, or by any OWNER, MEMBER or COLLABORATOR.** Wider than today's authority:
+  a member who is not the operator cannot start a review now, and membership is not a delegation of
+  the owner's key.
+- **Approve by editing `budget_usd` in the workflow only.** It works today and stays possible, but
+  it is a commit to the shared workflow for a one-off review.
+- **Drop or group formatting-only changes before estimating.** Proposed with a syntax-tree
+  comparison that matched 299 of the 312 files of pull request 287. The owner rejected it: a
+  change that looks like formatting can still break something, and the model reads everything it
+  is asked to review. The gate, not a filter, bounds the cost.
+
+## Consequences
+
+- With the defaults, every pull request estimated above $3 gets a comment and no review until the
+  operator approves or pushes a smaller change. Estimates between $3 and $6 were partial reviews
+  before; they are skipped now.
+- The estimate keeps its error of about ±40% (ADR 0037 decision 2). A run that passes the gate can
+  still end partial when the real cost is above the estimate; it is reported and resumed as today.
+- `approve_max_usd` is a new reusable-workflow input. `size_gate_usd` is deprecated.
+
+## Non-goals
+
+- Filtering files by content (formatting, whitespace or syntax-tree equality).
+- Letting anyone other than the operator approve spend.
+- A monthly or per-repository limit, or a change to any budget default.
+
+## Reopen when
+
+Owners report that skipping estimates between the run budget and the old $6 gate loses reviews
+they wanted, or the estimate is shown off by more than 40% on several pull requests near the room.
