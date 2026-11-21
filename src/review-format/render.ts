@@ -89,20 +89,30 @@ const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : 
 const codeSpan = (text: string) => `\`${neutralise(flat(text)).replaceAll("`", "'").replaceAll("|", "\\|")}\``;
 /** Model text as one line of a bullet or a bold title: comments defused, whitespace collapsed. */
 const oneLineText = (text: string) => defuseDetails(neutralise(flat(text)));
-/** Model text as a block inside `<details>`: a stray `</details>` in it cannot close the block early. */
-const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
-/** A list that follows a line of prose gets a blank line before it, so Markdown renders it as a list. Fenced code is left alone. */
-function blankBeforeLists(text: string): string {
-  let fenced = false;
+/** What GitHub starts a list with: a bullet, or an ordered item numbered 1, indented at most 3 spaces. */
+const LIST_START = /^ {0,3}(?:[-*+]|1[.)])[ \t]/;
+/** Any list item, whatever its number or indent. */
+const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])[ \t]/;
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+
+/** A blank line before a line that starts a list right after prose, so Markdown renders a list. Fenced code is left alone. */
+export function blankBeforeLists(text: string): string {
+  let fence: string | null = null;
   const out: string[] = [];
   for (const line of text.split("\n")) {
-    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+    const mark = FENCE.exec(line)?.[1];
+    if (mark) {
+      // Only the same character, at least as long, closes a fence; any other fence inside is plain text.
+      if (fence === null) fence = mark;
+      else if (mark[0] === fence[0] && mark.length >= fence.length && line.trim() === mark) fence = null;
+    }
     const prev = out[out.length - 1];
-    if (!fenced && LIST_ITEM.test(line) && prev !== undefined && prev.trim() !== "" && !LIST_ITEM.test(prev) && !/^\s/.test(prev)) out.push("");
+    if (fence === null && !mark && LIST_START.test(line) && prev !== undefined && prev.trim() !== "" && !LIST_ITEM.test(prev) && !/^( {4}|\t)/.test(prev)) out.push("");
     out.push(line);
   }
   return out.join("\n");
 }
+/** Model text as a block inside `<details>`: a stray `</details>` in it cannot close the block early, and a list after a line of prose gets the blank line it needs. */
 const block = (text: string) => blankBeforeLists(defuseDetails(neutralise(text.trim())));
 const collapsed = (summary: string, inner: string) => `<details><summary>${summary}</summary>\n\n${inner}\n\n</details>`;
 

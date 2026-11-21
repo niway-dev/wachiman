@@ -22,7 +22,7 @@ import { readReviews } from "../pr-state";
 import { REVIEW_STATE_FORMAT, encodeStateBlock } from "../review-state";
 import { realReviews } from "./fixtures/real";
 import { fitted, scenarios } from "./fixtures/scenarios";
-import { renderReviewBody } from "./render";
+import { blankBeforeLists, renderReviewBody } from "./render";
 import { buildView, refusedView, type ViewInput } from "./view";
 
 const DIR = join(import.meta.dir, "fixtures");
@@ -429,5 +429,34 @@ describe("round trip: the readers still read the footer", () => {
         expect(reviews.length).toBe(sha === null ? 0 : 1);
       });
     }
+  });
+});
+
+describe("blankBeforeLists", () => {
+  test("a bullet after prose gets a blank line", () => {
+    expect(blankBeforeLists("Steps:\n- one\n- two")).toBe("Steps:\n\n- one\n- two");
+  });
+
+  test("an ordered list that starts at 1 after prose gets a blank line", () => {
+    expect(blankBeforeLists("Steps:\n1. one\n2. two")).toBe("Steps:\n\n1. one\n2. two");
+    expect(blankBeforeLists("Steps:\n1) one")).toBe("Steps:\n\n1) one");
+  });
+
+  test("a line that only looks numbered is not a list start", () => {
+    expect(blankBeforeLists("It was\n2024. was a good year")).toBe("It was\n2024. was a good year");
+    expect(blankBeforeLists("See\n3) note")).toBe("See\n3) note");
+  });
+
+  test("a line indented 4 spaces is not a list start", () => {
+    expect(blankBeforeLists("Steps:\n    - code")).toBe("Steps:\n    - code");
+  });
+
+  test("a list item after a list item is unchanged", () => {
+    expect(blankBeforeLists("- a\n1. b")).toBe("- a\n1. b");
+  });
+
+  test("inside a ``` fence, a nested ~~~ does not close it", () => {
+    const text = "```\n~~~\nprose\n- item\n```";
+    expect(blankBeforeLists(text)).toBe(text);
   });
 });
