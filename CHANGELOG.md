@@ -5,6 +5,20 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.18.0](https://github.com/niway-dev/wachiman/compare/v1.17.0...v1.18.0) (2026-11-21)
+
+
+### Features
+
+* **ask:** answer and loop over a distributed-repo review on the sibling commits it read ([#279](https://github.com/niway-dev/wachiman/issues/279)) ([e6c1ca7](https://github.com/niway-dev/wachiman/commit/e6c1ca71b667cc766a1c9a101c7477e99052224e))
+* **local:** review a change together with the sibling repositories it can break ([#277](https://github.com/niway-dev/wachiman/issues/277)) ([7baf00e](https://github.com/niway-dev/wachiman/commit/7baf00ee28400b4899913edcd935842afe737423))
+* **workspace:** work out which sibling repos a change can break, and read them without fetching ([#272](https://github.com/niway-dev/wachiman/issues/272)) ([48d3ab7](https://github.com/niway-dev/wachiman/commit/48d3ab7c1ad935325fb38f464df8f2b7b101c692))
+
+
+### Bug Fixes
+
+* **ledger:** treat a refusal status without a ledger body as unreachable ([#280](https://github.com/niway-dev/wachiman/issues/280)) ([73c5a9c](https://github.com/niway-dev/wachiman/commit/73c5a9ca801a28512375efad412d64fc05641848))
+
 ## [1.17.0](https://github.com/niway-dev/wachiman/compare/v1.16.0...v1.17.0) (2026-11-20)
 
 
