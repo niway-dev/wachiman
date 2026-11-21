@@ -54,7 +54,9 @@ if (!existsSync(pinned)) {
   console.error(`The pinned Bun is missing at ${pinned}. Run \`bun install --frozen-lockfile\` first.`);
   process.exit(2);
 }
-const node = Bun.which("node");
+// A version-manager shim (mise, asdf) needs the real HOME, so the real binary is resolved here.
+const nodeShim = Bun.which("node");
+const node = nodeShim ? spawnSync(nodeShim, ["-p", "process.execPath"], { encoding: "utf8" }).stdout.trim() || nodeShim : null;
 
 const scratch: string[] = [];
 const temp = (prefix: string) => {
