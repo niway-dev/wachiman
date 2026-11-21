@@ -50,6 +50,15 @@ describe("countCheck", () => {
     expect(countCheck(out)).toEqual({ TS2322: { "test/b.test.ts": 1 }, TS2345: { "src/a.ts": 2 } });
   });
 
+  test("an error with no file (a tsconfig problem, a missing type package) is counted under (no file), not dropped", () => {
+    const out = checkText(
+      "error TS2688: Cannot find type definition file for 'bun'.",
+      "src/a.ts(3,5): error TS2345: Argument of type 'x' is not assignable.",
+      "error TS2688: Cannot find type definition file for 'node'.",
+    );
+    expect(countCheck(out)).toEqual({ TS2345: { "src/a.ts": 1 }, TS2688: { "(no file)": 2 } });
+  });
+
   test("a clean run is an empty count", () => {
     expect(countCheck("")).toEqual({});
   });
@@ -208,6 +217,8 @@ describe("the toolchain pins", () => {
     expect(pkg.scripts["fmt:check"]).toContain(`bun@${CHECK_BUN}`);
     expect(pkg.scripts["lint:raw"]).toContain(`bun@${LINT_BUN}`);
     expect(pkg.scripts["check:raw"]).toContain(`bun@${CHECK_BUN}`);
+    // The raw scripts show what the gates count, so they take the flags the ratchet runs with.
+    expect(pkg.scripts["check:raw"]).toContain("--all");
   });
 
   test("the gates CI runs are the ratcheted ones, and the CI jobs run them", () => {

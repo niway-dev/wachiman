@@ -44,7 +44,7 @@
     "lint": "bun scripts/ratchet.ts lint",
     "lint:raw": "bunx bun@1.4.5-canary.20261121.1 lint --no-script",
     "check": "bun scripts/ratchet.ts check",
-    "check:raw": "bunx bun@1.4.5 check --no-script",
+    "check:raw": "bunx bun@1.4.5 check --all --no-script",
     "ratchet": "bun scripts/ratchet.ts",
     "ratchet:update": "bun scripts/ratchet.ts --update"
   },

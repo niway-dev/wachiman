@@ -98,6 +98,10 @@ Two facts shape the decision:
   are real findings, not noise, and each fix lowers the baseline in the same pull request.
   Renaming or moving a file with a baseline entry looks like a rise in the new path; update the
   baseline in that pull request.
+- A fall is reported but does not fail the run. Until the baseline is updated, the same count can
+  come back without a rise being seen. The rule is that the pull request that fixes something
+  runs `bun run ratchet:update` and commits the lower baseline; a reviewer who sees a fix
+  without a baseline change can ask for it.
 - `@types/bun` and `@types/node` are development dependencies. They are not published (the
   package `files` list is unchanged) and the runtime still has `bun`, `chalk` and `@clack/prompts` only.
 - The lint job runs a canary Bun. If that build disappears or changes behaviour, the job fails

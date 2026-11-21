@@ -57,14 +57,18 @@ export function countLint(output: string, dir: string): Counts {
 
 /** The line `bun check --no-pretty` prints for an error, like `tsc --pretty false`. Continuation lines are indented and annotation lines start with `::`. */
 const CHECK_LINE = /^(\S.*)\((\d+),(\d+)\): error (TS\d+):/;
+/** An error that belongs to no file: a `tsconfig.json` problem or a missing type package. */
+const CHECK_GLOBAL_LINE = /^error (TS\d+):/;
 
 /** Counts from `bun check --no-pretty` output. */
 export function countCheck(output: string): Counts {
   const counts: Counts = {};
   for (const line of output.split("\n")) {
     const match = CHECK_LINE.exec(line);
-    if (!match) continue;
-    const [, file, , , code] = match as unknown as [string, string, string, string, string];
+    const global = match ? null : CHECK_GLOBAL_LINE.exec(line);
+    if (!match && !global) continue;
+    const code = match ? match[4]! : global![1]!;
+    const file = match ? match[1]! : "(no file)";
     counts[code] ??= {};
     counts[code][file] = (counts[code][file] ?? 0) + 1;
   }
