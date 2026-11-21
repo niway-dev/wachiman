@@ -47,6 +47,8 @@ import { parseStatusArgs, runStatus } from "./status/command";
 import { parseDashboardArgs, runDashboard } from "./store/command";
 import { parseLedgerArgs, runLedger } from "./ledger-read/command";
 import { pullLedger } from "./ledger-read/pull";
+import { parsePrStateArgs, runPrState } from "./pr-state";
+import { realWaitDeps, runPrStateWait } from "./pr-state-wait";
 import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, withBaseSettings, type Deps, type GhFn, type ReviewLineComment } from "./engine";
 import { parseLocalArgs, runLocal } from "./local";
 import { parseLoopArgs, runLoop } from "./loop/command";
@@ -350,6 +352,14 @@ export async function main(argv: string[], env: Record<string, string | undefine
       const parsed = parseLedgerArgs(argv.slice(1));
       if ("help" in parsed) return (writeAll(1, commandHelp(["ledger"])!), 0);
       return await runLedger(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (text) => void process.stderr.write(text) });
+    }
+    if (mode === "pr-state") {
+      // Before extractRepoDir: no clone is read, so `--repo-dir` is a usage error here. Read-only: it never posts (ADR 0060).
+      const parsed = parsePrStateArgs(argv.slice(1));
+      if ("help" in parsed) return (writeAll(1, commandHelp(["pr-state"])!), 0);
+      const io = { stdout: (text: string) => writeAll(1, text), stderr: (line: string) => console.error(line) };
+      if (parsed.wait) return await runPrStateWait({ ...parsed, wait: true, timeoutS: parsed.timeoutS!, intervalS: parsed.intervalS! }, defaultGh, io, realWaitDeps);
+      return runPrState(parsed, defaultGh, io);
     }
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {

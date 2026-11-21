@@ -12,6 +12,7 @@ import {
   neutralise,
   readAutoCost,
   readCeilingNotice,
+  readSignedStateBlock,
   review,
   type Deps,
   type GhFn,
@@ -447,6 +448,9 @@ describe("review() under the ceiling", () => {
     expect(t.posted[0]).toContain("Automatic reviews paused: $0.50 of $0.50 spent on this pull request.");
     expect(t.posted[0]).toContain("Comment `/wachiman review` to review now.");
     expect(readCeilingNotice(t.posted[0].trimEnd().replace(/\n\n<!-- wachi:attempt id=[0-9a-f-]+ -->$/, ""))).toBe("0.50");
+    // ADR 0060: the notice carries a not-reviewed block with the ceiling as its reason, before the attempt line.
+    expect(readSignedStateBlock(t.posted[0])).toMatchObject({ status: "not-reviewed", reason: "ceiling", findings: { total: 0 } });
+    expect(t.posted[0]).toMatch(/<!-- wachi:state [A-Za-z0-9_-]+ -->\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/);
 
     // The next push: the notice for this ceiling already exists.
     await review(t.deps, "o/r", 7, []);
@@ -544,6 +548,31 @@ describe("review() under the ceiling", () => {
     expect(manual.posted[0]).toContain("ran out of its budget");
     expect(manual.posted[0]).not.toContain(SIGNATURE.auto);
   });
+
+  // ADR 0060, AC1: the notices of a run that stopped before any batch finished say so in a block.
+  for (const [stop, reason] of [
+    ["budget", "budget"],
+    ["turns", "turn_limit"],
+    ["timeout", "timeout"],
+  ] as const) {
+    test(`an automatic run that stops at its ${stop} limit posts a not-reviewed block with reason ${reason}; a manual run's notice has none`, async () => {
+      const call = () => ({ costUsd: 0.1, terminalReason: stop, isError: true });
+      const t = setup({ env: { WACHIMAN_TRIGGER: "synchronize" }, script: [call, call] });
+      t.provider.record = false;
+      await review(t.deps, "o/r", 7, []);
+      expect(t.posted).toHaveLength(1);
+      expect(readSignedStateBlock(t.posted[0])).toMatchObject({ status: "not-reviewed", reason, findings: { total: 0 } });
+      // Before the attempt line, after the signature, like every other notice; the ceiling still sums its cost.
+      expect(t.posted[0]).toMatch(/<!-- wachi:review -->\n\n<!-- wachi:state [A-Za-z0-9_-]+ -->\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/);
+      expect(readAutoCost(t.posted[0])).toBeGreaterThan(0);
+      const manual = setup({ script: [call, call] });
+      manual.provider.record = false;
+      await review(manual.deps, "o/r", 7, []);
+      expect(manual.posted).toHaveLength(1);
+      expect(readSignedStateBlock(manual.posted[0])).toBeNull();
+      expect(manual.posted[0]).not.toContain("wachi:state");
+    });
+  }
 
   test("a marker-less partial review's spend still counts toward the next automatic run", async () => {
     const t = setup({
