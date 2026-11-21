@@ -8,6 +8,7 @@ export const SINCE = "9a8b7c6bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 export const row = (over: Partial<FindingRow> = {}): FindingRow => ({
   severity: "fix",
   priority: "should",
+  tier: "Important",
   topic: "bug",
   confidence: "high",
   origin: "introduced",
@@ -48,7 +49,7 @@ export function makeView(over: Omit<Partial<ReviewView>, "findings"> & { finding
   const findings = { toFix: [], investigate: [], consider: [], preExisting: [], info: [], ...slots };
   const glance: GlanceRow[] = [{ key: "findings", ...countFindingRows(findings) }];
   return {
-    scope: { kind: "whole", since: null, head: SHA, carried: 0 },
+    scope: { kind: "whole", since: null, head: SHA, carried: 0, commits: [] },
     files: { total: 4, reviewed: 4, notReviewed: [], notReviewedTwice: [], notReviewable: [] },
     notices: {},
     verifier: { status: "verified", notChecked: 0 },
@@ -57,7 +58,10 @@ export function makeView(over: Omit<Partial<ReviewView>, "findings"> & { finding
     needsPerson: [],
     risk: null,
     contracts: { open: [], closed: [] },
+    mention: "/wachiman",
+    arm: "priority",
     batchProse: "",
+    memoryNotices: "",
     coverage: { rows: [], estimate: false },
     footer: { costLine: "<sub>m via c · $0.10</sub>", markers: [] },
     ...rest,

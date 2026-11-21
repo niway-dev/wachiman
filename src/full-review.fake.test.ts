@@ -84,7 +84,7 @@ describe("a dry run that ignores the previous-review marker", () => {
     expect(r.provider.requests).toHaveLength(1);
     expect(r.logs).not.toContain("Already reviewed");
     expect(r.logs).toContain(`--- review at ${HEAD.slice(0, 7)} ---`);
-    expect(r.logs).toContain("review of the whole pull request");
+    expect(r.logs).toContain("whole PR at `head123`");
     expect(r.posts).toEqual([]);
   });
 });

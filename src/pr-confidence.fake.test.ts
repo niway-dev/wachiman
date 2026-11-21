@@ -464,7 +464,7 @@ describe("result /2 and /1", () => {
       automatic: false,
       instructionChanges: { files: [], baseSha: "b".repeat(40) },
     }).body;
-    expect(body).toContain("**PR Confidence: B.** One unexplained change.");
-    expect(body.indexOf("on their lines")).toBeLessThan(body.indexOf("PR Confidence: B"));
+    expect(body).toContain("| **PR Confidence** | B: One unexplained change |");
+    expect(body.indexOf("| **Findings** |")).toBeLessThan(body.indexOf("| **PR Confidence** |"));
   });
 });

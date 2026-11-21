@@ -274,10 +274,28 @@ describe("buildView: coverage, partial and scope", () => {
   });
 
   test("scope: whole, since, after a rebase, with the head and the carried files", () => {
-    expect(buildView(input()).scope).toEqual({ kind: "whole", since: null, head: SHA, carried: 0 });
+    expect(buildView(input()).scope).toEqual({ kind: "whole", since: null, head: SHA, carried: 0, commits: [] });
     expect(buildView(input({ since: SINCE })).scope.kind).toBe("since");
     expect(buildView(input({ since: SINCE, rebased: true })).scope.kind).toBe("rebase");
     expect(buildView(input({ since: SINCE, carried: ["src/a.ts", "gone.ts"] })).scope.carried).toBe(1);
+    expect(buildView(input({ since: SINCE, commits: ["c1", "c2"] })).scope.commits).toEqual(["c1", "c2"]);
+  });
+
+  test("the memory notices the engine appends to the summary are split from the model's prose", () => {
+    const notice = "**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):\n- x (`a.ts:1`): muted by entry `e1`";
+    const stale = "ℹ️ **Memory entry `e1` may be out of date** (\"t\"): its `holds while` paths are touched by this diff (a.ts).";
+    const view = buildView(input({ output: { summary: `Prose one.\n\nProse two.\n\n${stale}\n\n${notice}` } }));
+    expect(view.batchProse).toBe("Prose one.\n\nProse two.");
+    expect(view.memoryNotices).toBe(`${stale}\n\n${notice}`);
+    expect(buildView(input({ output: { summary: "Only prose." } })).memoryNotices).toBe("");
+    expect(buildView(input({ output: { summary: notice } })).batchProse).toBe("");
+  });
+
+  test("the row's tier word and the arm, mention and repo pass through", () => {
+    const view = buildView(input({ arm: "word", mention: "/w", repo: "o/r", output: { findings: [{ path: "a.ts", line: 1, severity: "fix", topic: "bug", title: "t", body: "b", anchor: "diff" }] } }));
+    expect(view.findings.toFix[0].tier).toBe("Important");
+    expect([view.arm, view.mention, view.repo]).toEqual(["word", "/w", "o/r"]);
+    expect(buildView(input()).arm).toBe("priority");
   });
 
   test("coverage rows, the estimate flag, the prose and the notices pass through", () => {

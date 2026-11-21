@@ -29,7 +29,6 @@ import {
   commentableLines,
   coverageGaps,
   filterFiles,
-  fitList,
   headContent,
   isBinaryAtHead,
   readAutoCost,
@@ -1014,8 +1013,9 @@ describe("buildReview", () => {
         body: "| 👮 **Wachiman** | Naming |\n|:--|:--|\n| **Priority** | **Could** · worth a look; change on the merits |\n| **Severity** | 🟡 Consider |\n| **Area** | 🧹 cleanup |\n| **Track record** | no record yet · seed |\n\nConsider a clearer name.\n\n<!-- wachi:finding -->",
       },
     ]);
-    expect(review.body).toContain("2 finding(s): 1 to fix, 1 to consider; 2 on their lines");
-    expect(review.body).not.toContain("block");
+    expect(review.body.split("\n")[0]).toBe("👮 **Wachiman** · 🟠 **1 to fix in this PR** · 1 to consider · whole PR at `head123`");
+    expect(review.body).toContain("| **Findings** | 🔴 0 blockers · 🟠 1 to fix · 🟡 1 to consider · ⚪ 0 for your information (2) · 1 Should · 1 Could |");
+    expect(review.body.split("\n")[0]).not.toContain("blocker");
     expect(review.body).toContain(marker("head1234567"));
   });
 
@@ -1037,8 +1037,9 @@ describe("buildReview", () => {
       }),
     });
     expect(review.comments).toEqual([]);
-    expect(review.body).toContain("### Outside the diff");
-    expect(review.body).toContain("Must · 🔴🔐 **Blocker · security: Key in log** (`src/b.ts:9`)");
+    expect(review.body.split("\n")[0]).toContain("🔴 **1 blocker before merge**");
+    expect(review.body).toContain("| 🔴 Blocker · Must · 🔐 security | `b.ts:9` | Key in log |");
+    expect(review.body).toMatch(/Details of findings with no thread \(1\)<\/summary>\n\n\*\*Key in log\*\* \(`b.ts:9`\)\n\nRemove it\./);
   });
 
   test("puts info findings in the body under their own heading, never inline, even on a diff line", () => {
@@ -1060,27 +1061,24 @@ describe("buildReview", () => {
       }),
     });
     expect(review.comments).toEqual([]);
-    expect(review.body).not.toContain("### Outside the diff");
-    expect(review.body).toContain("2 finding(s); 0 on their lines");
-    const info = review.body.slice(review.body.indexOf("### For your information"));
-    expect(info).toContain("- FYI · ⚪❓ **Info · question: Heads up** (`src/a.ts:2`): Nothing to change.");
-    expect(info).toContain(
-      "- FYI · ⚪🏛️ **Info · adr: Edits an accepted decision record** (`docs/adr/0001-x.md`): This pull request edits",
-    );
-    expect(review.body.indexOf("### For your information")).toBeLessThan(
-      review.body.indexOf("### Summary"),
-    );
+    expect(review.body).toContain("⚪ **Wachiman found nothing to fix**");
+    const info = review.body.slice(review.body.indexOf("<summary>For your information (2)"));
+    expect(info).toContain("| ⚪ Info · FYI · ❓ question | `a.ts:2` | Heads up |");
+    expect(info).toContain("| ⚪ Info · FYI · 🏛️ adr | `0001-x.md` | Edits an accepted decision record |");
+    expect(info).toContain("**Heads up** (`a.ts:2`)\n\nNothing to change.");
+    expect(review.body.indexOf("For your information (2)")).toBeLessThan(review.body.indexOf("What the reviewer checked"));
   });
 
   test("says 0 findings when there are none", () => {
     const review = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"] }) });
-    expect(review.body).toContain("0 findings; 0 on their lines");
+    expect(review.body).toContain("⚪ **Wachiman found nothing to fix**");
+    expect(review.body).toContain("⚪ 0 for your information (0) |");
   });
 
   test("opens with a partial-coverage warning when files are missing", () => {
     const review = buildReview({ ...base, output: output({ files_reviewed: [] }) });
-    expect(review.body.split("\n")[0]).toContain("Partial review");
-    expect(review.body).toContain("`src/a.ts`");
+    expect(review.body.split("\n")[0]).toContain("⚠️ **Partial: 1 of 1 files not reviewed**");
+    expect(review.body).toContain("- `src/a.ts`");
   });
 
   test("writes the incremental marker only for a complete, unscoped review", () => {
@@ -1498,12 +1496,13 @@ describe("contracts in the review body", () => {
   });
   const fix: Finding = { path: "src/a.ts", line: 2, severity: "fix", topic: "bug", confidence: "high", title: "Face is lost", body: "The feed result is ignored." };
 
-  test("sits after the findings and the summary, and before the coverage table", () => {
+  test("sits after the findings, before what the reviewer checked and the coverage table", () => {
     const { body } = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], findings: [{ ...fix, line: 99 }], contracts: [contract()] }) });
     const at = (text: string) => body.indexOf(text);
-    expect(at("### Outside the diff")).toBeGreaterThan(-1);
-    expect(at(CONTRACTS_SUMMARY)).toBeGreaterThan(at("### Summary"));
-    expect(at(CONTRACTS_SUMMARY)).toBeLessThan(at("<summary>Coverage by batch"));
+    expect(at("### To fix (1)")).toBeGreaterThan(-1);
+    expect(at(CONTRACTS_SUMMARY)).toBeGreaterThan(at("### To fix (1)"));
+    expect(at(CONTRACTS_SUMMARY)).toBeLessThan(at("<summary>What the reviewer checked"));
+    expect(at("<summary>What the reviewer checked")).toBeLessThan(at("<summary>Coverage by batch"));
     expect(at("<summary>Coverage by batch")).toBeLessThan(at("<sub>"));
   });
 
@@ -1512,7 +1511,7 @@ describe("contracts in the review body", () => {
     expect(body).not.toContain(CONTRACTS_SUMMARY);
   });
 
-  test("shows the confidence in the header of an inline comment and of a listed finding", () => {
+  test("shows the confidence in the header of an inline comment and, for a finding with no thread, in its details", () => {
     const { comments, body } = buildReview({
       ...base,
       output: output({ files_reviewed: ["src/a.ts"], findings: [fix, { ...fix, line: 99, confidence: "low", title: "Outside" }] }),
@@ -1527,19 +1526,20 @@ describe("contracts in the review body", () => {
       "| **Track record** | no record yet · seed |",
       "",
     ]);
-    expect(body).toContain("Could · 🟠🐛 **Fix · bug: Outside (confidence low)** (`src/a.ts:99`)");
+    expect(body).toContain("| 🟠 Fix · Could · 🐛 bug | `a.ts:99` | Outside |");
+    expect(body).toContain("**Outside (confidence low)** (`a.ts:99`)");
   });
 
-  test("a body over the limit loses its contracts down to what fits, never a finding", () => {
+  test("a body over the limit loses its contracts whole, never a finding", () => {
     const many = Array.from({ length: 2000 }, (_, i) => contract({ action: `action ${i}`, location: `src/f${i}.ts:1`, visible_effect: "x".repeat(250) }));
     const { body, comments } = buildReview({
       ...base,
       output: output({ files_reviewed: ["src/a.ts"], findings: [fix, { ...fix, line: 99, title: "Outside" }], contracts: many }),
     });
     expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-    expect(body).toContain(CONTRACTS_SUMMARY);
-    expect(body).toMatch(/… and \d+ more not shown \(size limit\)/);
-    expect(body).toContain("Outside");
+    expect(body).not.toContain(CONTRACTS_SUMMARY);
+    expect(body).toContain("| 🟠 Fix · Should · 🐛 bug | `a.ts:99` | Outside |");
+    expect(body).toContain("| 🟠 Fix · Should · 🐛 bug | `a.ts:2` | Face is lost |");
     expect(comments).toHaveLength(1);
     expect(body).toContain("<summary>Coverage by batch");
     expect(body.endsWith(marker("head1234567"))).toBe(true);
@@ -1551,12 +1551,13 @@ describe("contracts in the review body", () => {
       ...base,
       output: output({ files_reviewed: ["src/a.ts"], findings: outside, contracts: [contract()] }),
     });
-    const withoutContracts = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], findings: outside }) }).body;
-    if (withoutContracts.length > MAX_BODY_CHARS - 600) expect(body).not.toContain(CONTRACTS_SUMMARY);
-    expect(body).toContain("Outside 399");
+    expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+    expect(body).not.toContain(CONTRACTS_SUMMARY);
+    expect(body).toContain("Outside 0");
+    expect(body.endsWith(marker("head1234567"))).toBe(true);
   });
 
-  test("pre-existing and inconclusive sections are cut to what fits, with the footer and the marker kept", () => {
+  test("pre-existing fixes and findings to investigate are cut to what fits, Blockers first, with the footer and the marker kept", () => {
     const old = Array.from({ length: 500 }, (_, i) => ({ ...fix, line: 100 + i, title: `Old ${i}`, body: "z".repeat(200), origin: "pre-existing" as const }));
     const unsettled = Array.from({ length: 500 }, (_, i) => ({
       ...fix,
@@ -1568,20 +1569,19 @@ describe("contracts in the review body", () => {
     const input = { ...base, output: output({ files_reviewed: ["src/a.ts"], findings: [...old, ...unsettled] }) };
     const { body } = buildReview(input);
     expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-    expect(body).toMatch(/- … and \d+ more \(see the JSON result \/ logs\)/);
-    expect(body.match(/… and \d+ more \(see the JSON result \/ logs\)/g)).toHaveLength(2);
-    expect(body).toContain("### Pre-existing");
-    expect(body).toContain("### Inconclusive");
-    expect(body).toContain("Old 0");
-    expect(body).toContain("Open 0");
-    expect(body).toContain("<summary>Coverage by batch");
-    expect(body).toContain("### Summary");
+    expect(body.match(/… and \d+ more not shown because of GitHub's size limit/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(body).toContain("### Pre-existing (500)");
+    expect(body).toContain("### Needs investigation (500)");
+    expect(body).toContain("`a.ts:100` | Old 0 |");
+    expect(body).toContain("`a.ts:700` | Open 0 |");
+    expect(body).toContain("**Old 0");
+    expect(body.split("\n")[0]).toContain("🔍 **Needs investigation: 500**");
     expect(body).toContain(SIGNATURE.review);
     expect(body.endsWith(marker("head1234567"))).toBe(true);
     // Under the limit nothing is cut and no note appears.
     const few = buildReview({ ...input, output: output({ files_reviewed: ["src/a.ts"], findings: [...old.slice(0, 3), ...unsettled.slice(0, 3)] }) }).body;
-    expect(few).not.toContain("see the JSON result");
-    expect(few).toContain("Old 2");
+    expect(few).not.toContain("not shown because of GitHub's size limit");
+    expect(few).toContain("| Old 2 |");
   });
 
   test("a long list of unreviewed files gives way before pre-existing findings that fit", () => {
@@ -1590,56 +1590,79 @@ describe("contracts in the review body", () => {
     const input = { ...base, files: [...base.files, ...many], output: output({ files_reviewed: ["src/a.ts"], findings: old }) };
     const { body } = buildReview(input);
     expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-    expect(body).toContain("Old 39");
-    expect(body).not.toContain("see the JSON result");
-    expect(body).toContain("(see the Coverage by batch table)");
+    expect(body).toContain("| Old 39 |");
+    expect(body).not.toContain("not shown because of GitHub's size limit");
+    expect(body).not.toContain("<summary>Files not reviewed");
+  });
+
+  test("the Muted by memory list stays whole when it fits and becomes a count and the entries that fit when it does not", () => {
+    const muted = (n: number) =>
+      ["**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):", ...Array.from({ length: n }, (_, i) => `- muted finding ${i} (\`src/a.ts:${i + 1}\`): muted by entry \`e${i}\``)].join("\n");
+    const few = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], summary: `Ok.\n\n${muted(5)}` }) });
+    for (let i = 0; i < 5; i++) expect(few.body).toContain(`- muted finding ${i} `);
+    const many = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], summary: `Ok.\n\n${muted(2000)}` }) });
+    expect(many.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+    expect(many.body).toContain("2000 findings muted by memory");
+    expect(many.body).toContain("- muted finding 0 ");
+    expect(many.body).not.toContain("- muted finding 1999 ");
+    expect(many.body).toContain(SIGNATURE.review);
   });
 
   describe("when GitHub refuses the inline comments", () => {
     const comments = [{ path: "src/a.ts", line: 2, side: "RIGHT" as const, body: `Title\n\n${"x".repeat(400)}\n\n${SIGNATURE.finding}` }];
     const block = renderContracts([contract()]) ?? "";
     const coverage = "<details><summary>Coverage by batch</summary>\n\n| Batch |\n\n</details>";
-    const body = (summary: string) =>
+    const ANSWER = "<sub>Answer a finding in its thread: `Verdict: correct` or `Verdict: wrong`, and why.</sub>";
+    const MOVED = "### On their lines (GitHub refused them inline)";
+    // The new layout in miniature: `head` fills the visible slots, `checked` is the collapsed prose.
+    const body = (checked: string, head = "") =>
       [
-        "👮 **Wachiman** · review of the whole pull request, at `abc1234`: all 1 files reviewed.",
-        "1 finding(s): 1 to fix; 1 on their lines. Reply in a comment's thread to answer it.",
-        `### Summary\n\n${summary}`,
+        "👮 **Wachiman** · 🟠 **1 to fix in this PR** · whole PR at `abc1234`",
+        ...(head ? [head] : []),
+        "| At a glance | |\n| --- | --- |\n| **Coverage** | 1 of 1 files reviewed, whole pull request |",
+        `<details><summary>What the reviewer checked</summary>\n\n${checked}\n\n</details>`,
         block,
         coverage,
+        ANSWER,
         "<sub>m · $0.07</sub>",
         SIGNATURE.review,
         marker("abc1234def"),
       ].join("\n\n");
 
-    test("trims the contracts first: a small overflow costs the contracts, not the coverage table or the summary", () => {
+    test("drops what the reviewer checked first: a small overflow costs it, not the contracts or the coverage table", () => {
       const roomy = body("Ok.");
       // About 50 characters under the limit: the moved list's heading and note push it over.
       const input = body(`Ok.${"y".repeat(MAX_BODY_CHARS - roomy.length - 50)}`);
       expect(input.length).toBeLessThan(MAX_BODY_CHARS);
       const moved = moveCommentsToBody({ body: input, comments });
       expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-      expect(moved.body).not.toContain(CONTRACTS_SUMMARY);
+      expect(moved.body).not.toContain("yyyy");
+      expect(moved.body).toContain(CONTRACTS_SUMMARY);
       expect(moved.body).toContain("<summary>Coverage by batch");
-      expect(moved.body).toContain("yyyy");
-      expect(moved.body).toContain("1 listed below");
+      expect(moved.body).toContain(MOVED);
       expect(moved.body).toContain(SIGNATURE.review);
     });
 
     describe("the Muted by memory list", () => {
       const muted = (n: number) =>
         ["**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):", ...Array.from({ length: n }, (_, i) => `- muted finding ${i} (\`src/a.ts:${i + 1}\`): muted by entry \`e${i}\``)].join("\n");
+      const table = (rows: number) =>
+        ["| | Where | Finding |", "| --- | --- | --- |", ...Array.from({ length: rows }, (_, i) => `| 🟠 Fix | \`a.ts:${i}\` | ${"y".repeat(40)} ${i} |`)].join("\n");
 
-      test("survives a body at the limit: the text before it is cut, the list stays whole", () => {
-        const roomy = body(`Ok.\n\n${muted(5)}`);
+      test("survives a body at the limit: the blocks after it go, then the tables, the list stays whole", () => {
+        const roomy = body("Ok.", muted(5));
         const filler = Array.from({ length: Math.ceil((MAX_BODY_CHARS - roomy.length + 2000) / 50) }, () => "y".repeat(49)).join("\n");
-        const moved = moveCommentsToBody({ body: body(`${filler}\n\n${muted(5)}`), comments });
+        const moved = moveCommentsToBody({ body: body(filler, muted(5)), comments });
         expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-        expect(moved.body).toContain("(Trimmed: this review is at GitHub's size limit.)");
         for (let i = 0; i < 5; i++) expect(moved.body).toContain(`- muted finding ${i} `);
+        const tables = moveCommentsToBody({ body: body("Ok.", `${muted(5)}\n\n${table(1000)}`), comments });
+        expect(tables.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
+        expect(tables.body).toContain("(Trimmed: this review is at GitHub's size limit.)");
+        for (let i = 0; i < 5; i++) expect(tables.body).toContain(`- muted finding ${i} `);
       });
 
       test("a list too long for the body becomes a count and the entries that fit", () => {
-        const moved = moveCommentsToBody({ body: body(`Ok.\n\n${muted(2000)}`), comments });
+        const moved = moveCommentsToBody({ body: body("Ok.", muted(2000)), comments });
         expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
         expect(moved.body).toContain("2000 findings muted by memory");
         expect(moved.body).toContain("- muted finding 0 ");
@@ -1648,14 +1671,14 @@ describe("contracts in the review body", () => {
       });
     });
 
-    test("a bigger overflow takes the coverage table next, then the summary, and keeps the footer", () => {
-      const roomy = body("Ok.");
-      const input = body(`Ok.${"y".repeat(MAX_BODY_CHARS - roomy.length + (block.length + coverage.length + 300))}`);
+    test("a bigger overflow takes the contracts and the coverage table next, and keeps the status line and the footer", () => {
+      const roomy = body("Ok.", "head");
+      const input = body("Ok.", `head ${"y".repeat(MAX_BODY_CHARS - roomy.length + (block.length + coverage.length + 300))}`);
       const moved = moveCommentsToBody({ body: input, comments });
       expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
       expect(moved.body).not.toContain(CONTRACTS_SUMMARY);
       expect(moved.body).not.toContain("<summary>Coverage by batch");
-      expect(moved.body).toContain("all 1 files reviewed");
+      expect(moved.body).toContain("🟠 **1 to fix in this PR**");
       expect(moved.body).toContain("(Trimmed: this review is at GitHub's size limit.)");
       expect(moved.body).toContain(SIGNATURE.review);
       expect(moved.body.endsWith(marker("abc1234def"))).toBe(true);
@@ -1665,6 +1688,7 @@ describe("contracts in the review body", () => {
       const moved = moveCommentsToBody({ body: body("Ok."), comments });
       expect(moved.body).toContain(CONTRACTS_SUMMARY);
       expect(moved.body).toContain("<summary>Coverage by batch");
+      expect(moved.body.indexOf(MOVED)).toBeLessThan(moved.body.indexOf("<summary>What the reviewer checked"));
     });
   });
 });
@@ -1753,25 +1777,6 @@ describe("attempt", () => {
   });
 });
 
-describe("fitList", () => {
-  const items = ["`a`", "`b` (binary)", "`c`", "`d`"];
-
-  test("returns the whole list when it fits", () => {
-    expect(fitList(items, 1000)).toBe("`a`, `b` (binary), `c`, `d`");
-  });
-
-  test("cuts to what fits and says how many are left", () => {
-    const long = Array.from({ length: 4 }, (_, n) => `${n}`.repeat(30));
-    const out = fitList(long, 100);
-    expect(out.length).toBeLessThanOrEqual(100);
-    expect(out).toBe(`${"0".repeat(30)}, … and 3 more (see the Coverage by batch table)`);
-  });
-
-  test("keeps only the count when nothing fits", () => {
-    expect(fitList(items, 5)).toBe("… and 4 more (see the Coverage by batch table)");
-  });
-});
-
 describe("buildReview body size", () => {
   test("keeps a review of thousands of unreviewed files under the ceiling", () => {
     const names = Array.from({ length: 3000 }, (_, i) => `src/module-${i}/some/long/path/f${i}.ts`);
@@ -1786,12 +1791,12 @@ describe("buildReview body size", () => {
       modelLabel: "m",
     });
     expect(review.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-    expect(review.body).toContain("Partial review");
-    expect(review.body).toMatch(/… and \d+ more \(see the Coverage by batch table\)/);
+    expect(review.body.split("\n")[0]).toContain("⚠️ **Partial: 3000 of 3000 files not reviewed**");
+    expect(review.body).not.toContain("<summary>Files not reviewed");
     expect(review.body).not.toContain("wachiman sha=");
   });
 
-  test("leaves a short list untouched", () => {
+  test("lists a short run of unreviewed files, grouped by reason", () => {
     const review = buildReview({
       output: output(),
       files: [file("a.ts", 1, 0, "@@ -0,0 +1 @@\n+x")],
@@ -1801,51 +1806,61 @@ describe("buildReview body size", () => {
       costUsd: 0,
       modelLabel: "m",
     });
-    expect(review.body).toContain("Not reviewed: `a.ts`.");
+    expect(review.body).toMatch(/<summary>Files not reviewed \(1\)<\/summary>\n\n\*\*[^\n]*\(1\)\*\*\n\n- `a.ts`/);
   });
 });
 
 describe("moveCommentsToBody limits", () => {
-  const body = (extra = "") =>
-    `👮 **Wachiman** · review of the whole pull request, at \`abc1234\`: all 2 files reviewed.\n\n1 finding(s): 1 to fix; 1 on their lines. Reply in a comment's thread to answer it.\n\n### Summary\n\nOk.${extra}\n\n${SIGNATURE.review}\n\n${marker("abc1234def")}`;
+  const ANSWER = "<sub>Answer a finding in its thread: `Verdict: correct` or `Verdict: wrong`, and why.</sub>";
+  const body = (extra = "", head = "") =>
+    [
+      "👮 **Wachiman** · 🟠 **1 to fix in this PR** · whole PR at `abc1234`",
+      "| At a glance | |\n| --- | --- |\n| **Coverage** | 2 of 2 files reviewed, whole pull request |",
+      ...(head ? [head] : []),
+      `<details><summary>What the reviewer checked</summary>\n\nOk.${extra}\n\n</details>`,
+      ANSWER,
+      SIGNATURE.review,
+      marker("abc1234def"),
+    ].join("\n\n");
 
-  test("states that the comments moved instead of claiming inline ones", () => {
+  test("lists the moved findings under their own heading, before the collapsed blocks", () => {
     const moved = moveCommentsToBody({
       body: body(),
       comments: [{ path: "a.ts", line: 3, side: "RIGHT", body: "X\n\nY" }],
     });
-    expect(moved.body).not.toContain("on their lines. Reply");
-    expect(moved.body).toContain("1 listed below");
+    expect(moved.body).toContain("### On their lines (GitHub refused them inline)\n\n- `a.ts:3`: X Y");
+    expect(moved.body.indexOf("### On their lines")).toBeLessThan(moved.body.indexOf("<summary>What the reviewer checked"));
+    expect(moved.body.indexOf("<summary>What the reviewer checked")).toBeLessThan(moved.body.indexOf("<sub>Answer a finding"));
   });
 
-  test("a body already near the limit stays within it, trimming the summary and coverage first", () => {
+  test("a body already near the limit stays within it, dropping the collapsed blocks first", () => {
     const comments = [{ path: "a.ts", line: 1, side: "RIGHT" as const, body: `Title\n\n${"x".repeat(500)}\n\n${SIGNATURE.finding}` }];
     for (const extra of [MAX_BODY_CHARS - 400, MAX_BODY_CHARS - 300, MAX_BODY_CHARS - 150, MAX_BODY_CHARS, MAX_BODY_CHARS + 105]) {
       const big = body("y".repeat(extra - body().length));
       const moved = moveCommentsToBody({ body: big, comments });
       expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-      expect(moved.body).toContain("all 2 files reviewed");
-      expect(moved.body).toContain("1 listed below");
+      expect(moved.body).toContain("2 of 2 files reviewed");
+      expect(moved.body).toContain("### On their lines");
       expect(moved.body).toContain(SIGNATURE.review);
       expect(moved.body.endsWith(marker("abc1234def"))).toBe(true);
     }
   });
 
-  test("findings listed before the Summary that fill the body are cut too", () => {
-    const listed = Array.from({ length: 400 }, (_, i) => `- outside ${i}: ${"z".repeat(140)}`).join("\n");
-    const filled = body().replace("### Summary", `### Outside the diff\n\n${listed}\n\n### Summary`);
-    const big = filled.length > MAX_BODY_CHARS ? filled : filled.replace("Ok.", `Ok.${"y".repeat(MAX_BODY_CHARS - filled.length)}`);
+  test("tables before the collapsed blocks that fill the body are cut too", () => {
+    const listed = Array.from({ length: 400 }, (_, i) => `| 🟠 Fix | \`a.ts:${i}\` | ${"z".repeat(140)} ${i} |`).join("\n");
+    const filled = body("", `| | Where | Finding |\n| --- | --- | --- |\n${listed}`);
+    const big = filled.length > MAX_BODY_CHARS ? filled : body("y".repeat(MAX_BODY_CHARS - filled.length), `| | Where | Finding |\n| --- | --- | --- |\n${listed}`);
     const comments = [{ path: "a.ts", line: 1, side: "RIGHT" as const, body: `Title\n\n${"x".repeat(500)}` }];
     for (const input of [big, filled]) {
       const moved = moveCommentsToBody({ body: input, comments });
       expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-      expect(moved.body).toContain("all 2 files reviewed");
+      expect(moved.body).toContain("🟠 **1 to fix in this PR**");
       expect(moved.body).toContain(SIGNATURE.review);
       expect(moved.body.endsWith(marker("abc1234def"))).toBe(true);
     }
   });
 
-  test("an oversized moved list is cut and keeps the coverage line, marker and signature", () => {
+  test("an oversized moved list is cut and keeps the glance table, marker and signature", () => {
     const comments = Array.from({ length: 200 }, (_, i) => ({
       path: "a.ts",
       line: i + 1,
@@ -1855,7 +1870,7 @@ describe("moveCommentsToBody limits", () => {
     const moved = moveCommentsToBody({ body: body(), comments });
     expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
     expect(moved.body).toMatch(/- … and \d+ more not shown/);
-    expect(moved.body).toContain("all 2 files reviewed");
+    expect(moved.body).toContain("2 of 2 files reviewed");
     expect(moved.body).toContain(SIGNATURE.review);
     expect(moved.body).toContain(marker("abc1234def"));
     expect(moved.comments).toEqual([]);
@@ -2094,16 +2109,17 @@ describe("buildReview with unreviewable files, commits and the running total", (
 
   test("a binary is named in the headline and the review stays complete and marked", () => {
     const review = buildReview({ ...base, unreviewable: [{ path: "mock.png", reason: "binary" }] });
-    expect(review.body).toContain("all 1 files reviewed, not reviewable: `mock.png` (binary).");
-    expect(review.body).not.toContain("Partial review");
+    expect(review.body).toContain("| **Coverage** | 1 of 1 files reviewed, whole pull request; 1 not reviewable: `mock.png` (binary) |");
+    expect(review.body).not.toContain("Partial");
     expect(review.body).toContain(marker("head1234567"));
   });
 
   test("a re-review headline lists the commits, at most ten, then says how many more", () => {
     const shas = Array.from({ length: 12 }, (_, i) => `${(i + 10).toString(16).padStart(2, "0")}${"0".repeat(38)}`);
     const review = buildReview({ ...base, since: "e41c267".padEnd(40, "0"), commits: shas });
-    expect(review.body).toContain("the changes since `e41c267` (12 commits: `0a00000`");
-    expect(review.body).toContain("`1300000` and 2 more), at `head123`");
+    expect(review.body.split("\n")[0]).toContain("since `e41c267`");
+    expect(review.body).toContain("12 commits: `0a00000`");
+    expect(review.body).toContain("`1300000` and 2 more");
     expect(review.body).not.toContain("`1400000`");
   });
 

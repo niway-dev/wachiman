@@ -10,10 +10,10 @@
 import type { Contract } from "../contracts";
 import type { BatchReport, Confidence, Finding, ReviewFile, ReviewOutput, Severity, Topic, Unreviewable } from "../engine";
 import type { Fidelity } from "../fidelity/types";
-import type { Origin, ResultFinding, ResultVerificationV2, VerifierStop } from "../formats";
-import { priorityOf, type Priority } from "../priority";
+import type { Origin, ResultFinding, ResultVerificationV2, Tier, VerifierStop } from "../formats";
+import { priorityOf, type Arm, type Priority } from "../priority";
 import type { JudgementKind, JudgementItem, RiskFact, RiskKind, RiskLevel, RiskMap } from "../risk";
-import { sectionOf } from "../verify";
+import { sectionOf, tierWord } from "../verify";
 import { displayLocation, displayPaths } from "./paths";
 
 /** The slots that hold findings, in the order of the body (spec slots 4, 5, 6, 9, 10). */
@@ -24,6 +24,8 @@ export interface FindingRow {
   severity: Severity;
   /** The stored priority, or the one `priorityOf` gives a result written before it existed. */
   priority: Priority;
+  /** The word of the trial's word arm (ADR 0059): `Pre-existing`, else `Important` for a Blocker or Fix, else `Nit`. */
+  tier: Tier;
   topic: Topic;
   confidence?: Confidence;
   origin: Origin;
@@ -87,6 +89,8 @@ export interface ScopeView {
   head: string;
   /** Files the previous partial review did not reach, reviewed now whole. */
   carried: number;
+  /** The commits since `since`, full shas, oldest first; empty when the connector gave none. */
+  commits: string[];
 }
 
 export interface NotReviewedGroup {
@@ -143,6 +147,12 @@ export interface FooterView {
 }
 
 export interface ReviewView {
+  /** `owner/name`, for the links of a location; absent when the caller does not know it. */
+  repo?: string;
+  /** The command keyword that asks for the rest of a partial review. */
+  mention: string;
+  /** The trial arm (ADR 0059): which word a finding row and the priority counts show. */
+  arm: Arm;
   scope: ScopeView;
   files: {
     total: number;
@@ -165,8 +175,10 @@ export interface ReviewView {
   needsPerson: NeedsPersonItem[];
   risk: RiskView | null;
   contracts: { open: Contract[]; closed: Contract[] };
-  /** The batches' prose, as the engine merged it (memory notices included), raw. */
+  /** The batches' prose, as the engine merged it (memory notices left out), raw. */
   batchProse: string;
+  /** What memory exceptions did and the "Muted by memory" list: visible, never collapsed (ADR 0057), raw. Empty when none. */
+  memoryNotices: string;
   coverage: { rows: BatchReport[]; estimate: boolean };
   footer: FooterView;
 }
@@ -201,9 +213,15 @@ export interface ViewInput {
     findings: (Finding & Partial<Pick<ResultFinding, "anchor" | "origin" | "verification" | "priority" | "rank">>)[];
   };
   files: ReviewFile[];
+  /** `owner/name`: with `headSha` it makes a location a link to its file and line. */
+  repo?: string;
+  mention?: string;
+  arm?: Arm;
   headSha: string;
   since: string | null;
   rebased?: boolean;
+  /** The commits since `since` (full shas, oldest first). */
+  commits?: string[];
   /** Limited to `<mention> review <paths>`: nothing is carried to the next push, so nothing is "tried twice". */
   scoped: boolean;
   /** The new-side lines of each file a review comment can target (`commentableLines`). */
@@ -225,6 +243,17 @@ export interface ViewInput {
 }
 
 const notReached = (reason: string) => reason.startsWith("not reached");
+
+/** The paragraphs the memory step appends to the summary: the engine's own notices, which start with one of these. */
+const MEMORY_NOTICE_START = /^(?:⚠️ \*\*Memory over budget|ℹ️ \*\*Memory entry|⚠️ \*\*Memory exceptions were not applied|\*\*Muted by memory\*\*)/;
+
+/** The summary split at the first memory notice: the model's prose, then what the engine appended (ADR 0057 keeps that visible). */
+export function splitMemoryNotices(summary: string): { prose: string; notices: string } {
+  const paragraphs = summary.split("\n\n");
+  const at = paragraphs.findIndex((p) => MEMORY_NOTICE_START.test(p));
+  if (at === -1) return { prose: summary, notices: "" };
+  return { prose: paragraphs.slice(0, at).join("\n\n"), notices: paragraphs.slice(at).join("\n\n") };
+}
 
 export function buildView(input: ViewInput): ReviewView {
   const { output, files, headSha, since } = input;
@@ -261,6 +290,7 @@ export function buildView(input: ViewInput): ReviewView {
     findings[slot].push({
       severity: f.severity,
       priority: f.priority ?? priorityOf(f).priority,
+      tier: tierWord(f),
       topic: f.topic,
       ...(f.confidence ? { confidence: f.confidence } : {}),
       origin: f.origin ?? "unknown",
@@ -317,6 +347,7 @@ export function buildView(input: ViewInput): ReviewView {
     since,
     head: headSha,
     carried: carried.length,
+    commits: input.commits ?? [],
   };
   const counts = countFindingRows(findings);
   const topReason = riskView?.facts[0]?.why ?? riskView?.pathReasons[0]?.why ?? null;
@@ -343,7 +374,11 @@ export function buildView(input: ViewInput): ReviewView {
       }
     : { status: "none", notChecked: 0 };
 
+  const memory = splitMemoryNotices(output.summary);
   return {
+    ...(input.repo ? { repo: input.repo } : {}),
+    mention: input.mention ?? "/wachiman",
+    arm: input.arm ?? "priority",
     scope,
     files: {
       total: expected.length,
@@ -363,7 +398,8 @@ export function buildView(input: ViewInput): ReviewView {
     needsPerson,
     risk: riskView,
     contracts: { open, closed },
-    batchProse: output.summary,
+    batchProse: memory.prose,
+    memoryNotices: memory.notices,
     coverage: { rows: input.batches ?? [], estimate: input.estimate === true },
     footer: input.footer,
   };

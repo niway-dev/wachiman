@@ -1,0 +1,273 @@
+/**
+ * The review body, rendered from data: goldens compared byte for byte, the acceptance criteria of
+ * the layout spec (S2 to S7), and a round trip through every reader that parses a body's footer.
+ *
+ * `WACHI_UPDATE_GOLDEN=1 bun test src/review-format/render.test.ts` rewrites the goldens; read each
+ * one by eye before committing the change.
+ */
+import { describe, expect, test } from "bun:test";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  isPartialFooter,
+  readAutoCost,
+  readLegacyMarker,
+  readSignedMarker,
+  readSignedState,
+  readSignedStateBlock,
+} from "../engine";
+import { readReceipt } from "../ledger";
+import { parseLabel, parseModel } from "../precision";
+import { readReviews } from "../pr-state";
+import { REVIEW_STATE_FORMAT, encodeStateBlock } from "../review-state";
+import { realReviews } from "./fixtures/real";
+import { scenarios } from "./fixtures/scenarios";
+import { renderReviewBody } from "./render";
+import { buildView, type ViewInput } from "./view";
+
+const DIR = join(import.meta.dir, "fixtures");
+const render = (input: ViewInput) => renderReviewBody(buildView(input));
+
+const inputs: Record<string, ViewInput> = { ...scenarios, ...realReviews };
+const bodies = Object.fromEntries(Object.entries(inputs).map(([name, input]) => [name, render(input)]));
+
+/** The goldens this file owns, so a stray file in the folder is noticed. */
+const goldenPath = (name: string) => join(DIR, `${name}.md`);
+
+describe("goldens", () => {
+  for (const [name, body] of Object.entries(bodies)) {
+    test(`${name} equals its golden, byte for byte`, () => {
+      const path = goldenPath(name);
+      if (process.env.WACHI_UPDATE_GOLDEN === "1") {
+        writeFileSync(path, body);
+        return;
+      }
+      if (!existsSync(path)) throw new Error(`${path} is missing: run WACHI_UPDATE_GOLDEN=1 bun test src/review-format/render.test.ts`);
+      expect(body).toBe(readFileSync(path, "utf8"));
+    });
+  }
+
+  test("every golden file belongs to a scenario, and every legacy file to a real review", () => {
+    const files = readdirSync(DIR).filter((f) => f.endsWith(".md"));
+    const known = new Set([...Object.keys(inputs).map((n) => `${n}.md`), ...Object.keys(realReviews).map((n) => `legacy-${n}.md`), "legacy-strange-offline-283.md"]);
+    expect(files.filter((f) => !known.has(f))).toEqual([]);
+  });
+
+  test("a body never has trailing spaces or three blank lines in a row", () => {
+    for (const body of Object.values(bodies)) {
+      expect(body).not.toMatch(/[ \t]+\n/);
+      expect(body).not.toMatch(/\n\n\n/);
+    }
+  });
+});
+
+const EMOJIS = ["⛔", "⚠️", "🔴", "🟠", "🔍", "🟣", "⏳", "🟡", "⚪"];
+const lead = (body: string) => body.split("\n")[0]!;
+
+describe("S2: one colour emoji in the bold lead", () => {
+  const expected: Record<string, string> = {
+    clean: "⚪",
+    "first-review": "🟠",
+    "many-findings": "🔴",
+    partial: "⚠️",
+    "verifier-failed": "🟠",
+    "inconclusive-blocker": "🔍",
+    "pre-existing": "⏳",
+    "blocker-outside-diff": "🔴",
+    "re-review-open-threads": "⏳",
+    "small-281": "🟣",
+    "strange-partial-242": "⚠️",
+  };
+
+  for (const [name, body] of Object.entries(bodies)) {
+    test(`${name}: exactly one mode emoji in the lead, and it opens the bold phrase`, () => {
+      const parts = lead(body).split(" · ");
+      expect(parts[0]).toBe("👮 **Wachiman**");
+      const mode = parts[1]!;
+      expect(mode).toMatch(/^\S+ \*\*[^*]+\*\*$/);
+      const all = EMOJIS.map((e) => lead(body).split(e).length - 1).reduce((a, b) => a + b, 0);
+      expect(all).toBe(1);
+      expect(EMOJIS.some((e) => mode.startsWith(e))).toBe(true);
+    });
+  }
+
+  for (const [name, emoji] of Object.entries(expected)) {
+    test(`${name} is in the ${emoji} mode`, () => {
+      expect(lead(bodies[name]!).split(" · ")[1]!.startsWith(`${emoji} `)).toBe(true);
+    });
+  }
+});
+
+describe("S3: never says the pull request is good", () => {
+  test("no body says good to merge, LGTM, or shows a check mark", () => {
+    for (const body of Object.values(bodies)) {
+      expect(body).not.toMatch(/good to merge/i);
+      expect(body).not.toMatch(/\bLGTM\b/);
+      expect(body).not.toContain("✅");
+    }
+  });
+
+  test("the clean golden opens with the nothing-to-fix lead", () => {
+    expect(bodies.clean!.startsWith("👮 **Wachiman** · ⚪ **Wachiman found nothing to fix** · whole PR at")).toBe(true);
+  });
+
+  test('"before merge" appears only in a body with a Blocker', () => {
+    for (const [name, body] of Object.entries(bodies)) {
+      const hasBlocker = inputs[name]!.output.findings.some((f) => f.severity === "blocker" && f.verification?.status !== "inconclusive");
+      if (/before merge/i.test(body)) expect(hasBlocker, name).toBe(true);
+    }
+  });
+});
+
+describe("S4: the question comes first", () => {
+  test("the #281 golden leads with one question for you", () => {
+    expect(lead(bodies["small-281"]!)).toContain("🟣 **1 question for you**");
+  });
+});
+
+describe("S5: the partial review is readable", () => {
+  const body = bodies["strange-partial-242"]!;
+  test("the first line is short", () => {
+    expect(lead(body).length).toBeLessThan(300);
+  });
+
+  test("every path not reviewed is listed, grouped by reason", () => {
+    const input = realReviews["strange-partial-242"];
+    const reviewed = new Set(input.output.files_reviewed);
+    const missing = input.files.map((f) => f.filename).filter((f) => !reviewed.has(f));
+    expect(missing.length).toBeGreaterThan(0);
+    for (const path of missing) expect(body, path).toContain(path.split("/").pop()!);
+    expect(body).toContain("Files not reviewed");
+  });
+
+  test("the callout counts add up to the files of the pull request", () => {
+    const input = realReviews["strange-partial-242"];
+    const total = input.files.length;
+    const reviewed = input.output.files_reviewed.length;
+    expect(body).toContain(`${reviewed} of ${total}`);
+  });
+});
+
+describe("S6: the answer line and the cost line", () => {
+  test("no body has an Answer row, and every one has the answer sub line", () => {
+    for (const body of Object.values(bodies)) {
+      expect(body).not.toMatch(/^\| Answer /m);
+      expect(body).toContain("<sub>Answer a finding in its thread: `Verdict: correct` or `Verdict: wrong`, and why.</sub>");
+    }
+  });
+
+  test("readAutoCost returns the cost of the run on every body", () => {
+    for (const [name, input] of Object.entries(inputs)) {
+      const cost = Number([...input.footer.costLine.matchAll(/\$(\d+(?:\.\d+)?)/g)].pop()![1]);
+      // medium-236 has an old marker name no reader accepts, and rerebase-276 never had the automatic flag: no cost to read, before and after.
+      const readable = readSignedMarker(bodies[name]!) !== null && input.footer.markers.includes("<!-- wachi:auto -->");
+      expect(readAutoCost(bodies[name]!), name).toBe(readable ? cost : null);
+    }
+  });
+});
+
+describe("S7: files with one name are told apart", () => {
+  test("init/run.ts and setup/run.ts keep their folder, a lone file keeps its bare name", () => {
+    const body = bodies["same-name-files"]!;
+    expect(body).toContain("init/run.ts");
+    expect(body).toContain("setup/run.ts");
+    expect(body).toMatch(/`store\.ts:2`|\[`store\.ts:2`\]/);
+    expect(body).not.toContain("`run.ts:");
+  });
+});
+
+describe("the Findings row", () => {
+  test("its total equals the sum of its parts", () => {
+    for (const [name, body] of Object.entries(bodies)) {
+      const row = body.split("\n").find((l) => l.startsWith("| Findings |"));
+      if (!row) continue;
+      const total = Number(row.match(/\*\*(\d+)\*\*/)?.[1] ?? row.match(/\| (\d+) /)?.[1]);
+      const parts = [...row.matchAll(/(\d+) (Blocker|Fix|Consider|Info|Important|Nit)/g)].map((m) => Number(m[1]));
+      if (parts.length > 0 && Number.isFinite(total)) expect(parts.reduce((a, b) => a + b, 0), name).toBe(total);
+    }
+  });
+});
+
+describe("a title with a pipe and a newline", () => {
+  test("stays in one table cell", () => {
+    const row = bodies["title-pipe-newline"]!.split("\n").find((l) => l.includes("Handles"))!;
+    expect(row).toContain("a \\| b");
+    expect(row).not.toContain("\n");
+    expect(row.endsWith("|")).toBe(true);
+  });
+});
+
+describe("round trip: the readers still read the footer", () => {
+  const ATTEMPT = "<!-- wachi:attempt id=0b1c2d3e-0000-4000-8000-000000000001 -->";
+  /** The commit a marker the readers accept names; null for the old `agent-review` marker, which none of them reads. */
+  const shaOf = (name: string) => inputs[name]!.footer.markers.at(-1)!.match(/<!-- (?:wachiman|claude-review|wachi:partial) sha=([A-Za-z0-9]+)/)?.[1] ?? null;
+  const block = (head: string) =>
+    encodeStateBlock({
+      format: REVIEW_STATE_FORMAT,
+      engine: "9.9.9",
+      head,
+      attempt: "0b1c2d3e-0000-4000-8000-000000000001",
+      status: "complete",
+      reason: null,
+      findings: { total: 0, by_severity: { blocker: 0, fix: 0, consider: 0, info: 0 }, by_placement: { inline: 0, body: 0, outside_diff: 0 }, unthreaded_blocking: 0 },
+    });
+
+  for (const [name, input] of Object.entries(inputs)) {
+    test(`${name}: cost, model, markers, receipt`, () => {
+      const body = bodies[name]!;
+      expect(parseModel(body)).toBe(input.footer.costLine.match(/<sub>(.+?) via /)![1]);
+      const marker = input.footer.markers.at(-1)!;
+      const sha = shaOf(name);
+      expect(readSignedMarker(body)).toBe(sha);
+      expect(readSignedState(body)?.sha ?? null).toBe(sha);
+      expect(isPartialFooter(body)).toBe(sha !== null && marker.includes("wachi:partial"));
+      expect(readReceipt(body)).toEqual(input.footer.receipt ? readReceipt(input.footer.receipt) : null);
+    });
+
+    test(`${name}: with the state block and the attempt line the poster adds`, () => {
+      const sha = shaOf(name) ?? inputs[name]!.headSha;
+      const posted = `${bodies[name]}\n\n${block(sha)}\n\n${ATTEMPT}`;
+      // After an old-named marker no block is read, as before this change.
+      expect(readSignedStateBlock(posted)?.head ?? null).toBe(shaOf(name) === null ? null : sha);
+      expect(readSignedMarker(posted)).toBe(shaOf(name));
+      expect(readAutoCost(posted)).toBe(readAutoCost(bodies[name]!));
+      const reviews = readReviews([{ body: posted, createdAt: "2026-11-14T00:00:00Z" }]);
+      expect(reviews.length).toBe(shaOf(name) === null ? 0 : 1);
+      if (reviews.length > 0) {
+        expect(reviews[0]!.head).toBe(sha);
+        expect(reviews[0]!.source).toBe("block");
+      }
+    });
+
+    test(`${name}: with no state block, pr-state reads the markers`, () => {
+      const reviews = readReviews([{ body: bodies[name]!, createdAt: "2026-11-14T00:00:00Z" }]);
+      expect(reviews.length).toBe(shaOf(name) === null ? 0 : 1);
+      if (reviews.length > 0) expect(reviews[0]!.source).toBe("legacy-markers");
+    });
+  }
+
+  test("parseLabel still reads the label of an inline finding", () => {
+    expect(parseLabel("🟠🐛 **Fix · bug: The store drops the last session (confidence high)**\n\nBody.")?.severity).toBe("fix");
+  });
+
+  describe("the old real bodies", () => {
+    const legacy = readdirSync(DIR).filter((f) => f.startsWith("legacy-") && f.endsWith(".md"));
+    expect(legacy.length).toBe(6);
+    for (const file of legacy) {
+      test(`${file} is still read`, () => {
+        const body = readFileSync(join(DIR, file), "utf8");
+        expect(parseModel(body)).not.toBe("unknown");
+        // Every real body ends with the attempt line the poster adds; the readers accept it.
+        const marker = body.match(/<!-- (wachiman|claude-review|wachi:partial|agent-review) sha=([A-Za-z0-9]+)/)!;
+        expect(marker).not.toBeNull();
+        // `agent-review` is a marker from before the rename: no reader accepts it, and it was never read.
+        const sha = marker[1] === "agent-review" ? null : marker[2]!;
+        expect(readSignedMarker(body)).toBe(sha);
+        expect(readLegacyMarker(body)).toBeNull();
+        if (sha !== null && body.includes("<!-- wachi:auto -->")) expect(readAutoCost(body)).toBeGreaterThan(0);
+        const reviews = readReviews([{ body, createdAt: "2026-11-14T00:00:00Z" }]);
+        expect(reviews.length).toBe(sha === null ? 0 : 1);
+      });
+    }
+  });
+});

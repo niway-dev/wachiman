@@ -174,7 +174,7 @@ describe("buildReview and the partial marker", () => {
       output: out({ files_reviewed: ["a.ts"] }),
       files: [file("a.ts"), file("b.ts")],
     }).body;
-    expect(body).toContain("⚠️ **Partial review**");
+    expect(body.split("\n")[0]).toContain("⚠️ **Partial: 1 of 2 files not reviewed**");
     expect(body).not.toContain("wachi:partial");
     expect(body).not.toContain("wachiman sha=");
   });
@@ -196,7 +196,8 @@ describe("buildReview and the partial marker", () => {
     // Second time: the stubborn one has had its two tries. It is named, not carried, and the notice says so.
     const second = run(["stubborn.ts"]);
     expect(readSignedState(second)).toEqual({ sha: SHA, rest: ["late.ts"], tried: [] });
-    expect(second).toContain("Not reviewed after two tries, so the next push will not carry it: `stubborn.ts`.");
+    expect(second).toContain("1 of them was not reviewed after two tries, so the next push will not carry it.");
+    expect(second).toContain("- `stubborn.ts`");
     expect(second).toContain("review <paths>");
     // A file tried before and now not reached is not reviewed after two tries: it stays, tried.
     expect(readSignedState(run(["late.ts"]))?.tried).toEqual(["late.ts", "stubborn.ts"]);
@@ -209,7 +210,7 @@ describe("buildReview and the partial marker", () => {
       output: out({ files_reviewed: ["fresh.ts"] }),
       files: ["fresh.ts", "stubborn.ts"].map(file),
     }).body;
-    expect(last).toContain("⚠️ **Partial review**");
+    expect(last.split("\n")[0]).toContain("⚠️ **Partial: 1 of 2 files not reviewed**");
     expect(last.endsWith(`${SIGNATURE.review}\n\n${marker(SHA)}`)).toBe(true);
   });
 
@@ -221,9 +222,8 @@ describe("buildReview and the partial marker", () => {
       output: out({ files_reviewed: ["fresh.ts", "x.ts", "y.ts"] }),
       files: ["fresh.ts", "x.ts", "y.ts"].map(file),
     }).body;
-    expect(body.split("\n")[0]).toBe(
-      "👮 **Wachiman** · review of the changes since `old0000` and the 2 files the previous review did not reach, at `abc1234`: all 3 files reviewed.",
-    );
+    expect(body.split("\n")[0]).toBe("👮 **Wachiman** · ⚪ **Wachiman found nothing to fix** · changes since `old0000` at `abc1234`");
+    expect(body).toContain("| **Coverage** | 3 of 3 files reviewed, changes since `old0000`, plus the 2 files the previous review did not reach |");
     const only = buildReview({
       ...base,
       since: "old0000111",
@@ -231,7 +231,7 @@ describe("buildReview and the partial marker", () => {
       output: out({ files_reviewed: ["x.ts"] }),
       files: [file("x.ts")],
     }).body;
-    expect(only.split("\n")[0]).toContain("review of the 1 file the previous review did not reach, at `abc1234`: all 1 files reviewed.");
+    expect(only).toContain("| **Coverage** | 1 of 1 files reviewed, changes since `old0000`, plus the 1 file the previous review did not reach |");
   });
 
   test("a list too long to store writes no partial marker, warns, and still fits the body", () => {
@@ -243,7 +243,7 @@ describe("buildReview and the partial marker", () => {
       files: names.map(file),
       warn: (line) => void warnings.push(line),
     });
-    expect(built.body).toContain("⚠️ **Partial review**");
+    expect(built.body.split("\n")[0]).toContain("⚠️ **Partial: 400 of 400 files not reviewed**");
     expect(built.body).not.toContain("wachi:partial");
     expect(built.body).not.toContain("wachiman sha=");
     expect(built.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);

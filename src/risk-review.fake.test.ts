@@ -125,15 +125,14 @@ describe("the risk map of a review", () => {
   test("the GitHub body carries the map after the count line, with the valid references only", async () => {
     const { result } = await reviewWithFacts();
     const body = githubReview(result, GITHUB).body;
-    expect(body).toContain("### Risk map");
-    expect(body).toContain("**High.**");
-    expect(body).toContain("`src/a.ts:2`");
-    expect(body).not.toContain("src/a.ts:99");
-    expect(body).not.toContain("src/missing.ts");
-    expect(body).toContain("`src/a.ts:3`");
-    expect(body).toContain("**Read first:** `src/a.ts`.");
-    expect(body.indexOf("on their lines")).toBeLessThan(body.indexOf("### Risk map"));
-    expect(body.indexOf("### Risk map")).toBeLessThan(body.indexOf("### Summary"));
+    expect(body).toContain("| **Risk** | High: top fact `auth` at `a.ts:2`, see Risk facts |");
+    expect(body).toContain("### Risk facts\n\n- `auth` · `a.ts:2` — The check is skipped on this path.");
+    expect(body).not.toContain("a.ts:99");
+    expect(body).not.toContain("missing.ts");
+    expect(body).toContain("### Needs a person\n\n- `a.ts:3` · trade-off");
+    expect(body).toContain("| **Read first** | `a.ts` |");
+    expect(body.indexOf("| **Risk** |")).toBeLessThan(body.indexOf("### To fix"));
+    expect(body.indexOf("### To fix")).toBeLessThan(body.indexOf("### Risk facts"));
   });
 
   test("a review with no facts on files without a risky path renders the two-line form and no heading", async () => {
@@ -142,8 +141,9 @@ describe("the risk map of a review", () => {
     expect(result.batches[0].status).toBe("reviewed");
     expect(result.riskMap?.level).toBe("low");
     const body = githubReview(result, GITHUB).body;
-    expect(body).toContain("**Risk map:** low — no risk facts in this change.\n**Read first:** `src/a.ts`.");
-    expect(body).not.toContain("### Risk map");
+    expect(body).toContain("| **Risk** | Low: no risk facts reported, no risky paths |");
+    expect(body).toContain("| **Read first** | `a.ts` |");
+    expect(body).not.toContain("### Risk facts");
   });
 
   test("a partial review says at least, with the count of files not read", async () => {
@@ -160,7 +160,7 @@ describe("the risk map of a review", () => {
     expect(result.coverage.partial).toBe(true);
     expect(result.riskMap?.floor).toBe(true);
     const body = githubReview(result, GITHUB).body;
-    expect(body).toContain("**At least high.** 1 file was not reviewed.");
+    expect(body).toContain("| **Risk** | At least high: 1 file was not reviewed; top fact `auth` at `a.ts:2`, see Risk facts |");
   });
 
   test("a trimmed body keeps the map: the long part is cut, the map is not", async () => {
@@ -176,14 +176,14 @@ describe("the risk map of a review", () => {
     ];
     const body = githubReview(result, GITHUB).body;
     expect(body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
-    expect(body).toContain("### Risk map");
-    expect(body).toContain("**High.**");
+    expect(body).toContain("| **Risk** | High: ");
+    expect(body).toContain("### Risk facts");
   });
 
   test("a push-only review says so on the level line", async () => {
     const { result } = await reviewWithFacts();
     const body = githubReview(result, { ...GITHUB, since: "c".repeat(40) }).body;
-    expect(body).toContain("This push only. **High.**");
+    expect(body).toContain("| **Risk** | High (this push only): ");
   });
 
   test("an absolute path in a fact is made relative to the head, as findings are", async () => {

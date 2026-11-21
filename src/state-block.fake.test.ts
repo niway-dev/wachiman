@@ -289,13 +289,13 @@ describe("what postReview writes (AC1, AC16)", () => {
   });
 
   test("a review at the size limit still posts: the block fits in what the fitting leaves free (AC4)", () => {
-    const withSummary = (summary: string) =>
-      build([finding({ line: 1 })], {
-        output: { files_reviewed: ["src/a.ts"], files_skipped: [], findings: [finding({ line: 1 })], thread_replies: [], summary },
+    const withTitle = (title: string) =>
+      build([finding({ line: 1, title })], {
+        output: { files_reviewed: ["src/a.ts"], files_skipped: [], findings: [finding({ line: 1, title })], thread_replies: [], summary: "" },
       });
-    // A summary that brings the body to exactly the limit the fitting keeps it under.
-    const overhead = withSummary("").body.length;
-    const review = withSummary("x".repeat(MAX_BODY_CHARS - overhead));
+    // A title that brings the body to exactly the limit the fitting keeps it under (the table row is never dropped).
+    const overhead = withTitle("").body.length;
+    const review = withTitle("x".repeat(MAX_BODY_CHARS - overhead));
     expect(review.body.length).toBe(MAX_BODY_CHARS);
     const sent: number[] = [];
     const deps: Deps = {
