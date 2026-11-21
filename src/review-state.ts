@@ -152,8 +152,8 @@ const encodeJson = (value: unknown) => `<!-- wachi:state ${Buffer.from(JSON.stri
 
 /**
  * The comment to write: `<!-- wachi:state <base64url JSON> -->`. When it would pass
- * `MAX_STATE_BLOCK_CHARS` the optional fields go first and the engine version is shortened, so the
- * counts always stay; never throws and never returns something longer than the cap.
+ * `MAX_STATE_BLOCK_CHARS` the optional fields go first and the engine version becomes `unknown`, so the
+ * counts always stay (a guard for hand-built blocks: `buildStateBlock` already keeps a block far under the cap); never throws and never returns something longer than the cap.
  */
 export function encodeStateBlock(block: ReviewStateBlock): string {
   const full = encodeJson(block);
