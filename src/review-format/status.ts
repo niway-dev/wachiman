@@ -78,7 +78,7 @@ export function computeStatus(view: ReviewView): Status {
   const parts: string[] = [];
   if (counts.blockers > 0 && mode !== 3) parts.push(`${plural(counts.blockers, "blocker", "blockers")} before merge`);
   if (counts.fixes > 0 && mode !== 4) parts.push(`${counts.fixes} to fix in this PR`);
-  // Not in the spec's list of parts: without it a Fix lead, or a partial one, would hide an inconclusive Blocker.
+  // Without this part a Fix lead, or a partial one, would hide an inconclusive Blocker (spec, decision 2).
   if (counts.investigate > 0 && mode !== 5) parts.push(`${counts.investigate} to investigate`);
   if (verifierStopped) {
     parts.push(v.notChecked > 0 ? `verifier did not finish: ${plural(v.notChecked, "finding", "findings")} not checked` : "verifier did not finish");

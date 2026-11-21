@@ -245,6 +245,7 @@ Slots, in order. An empty slot is omitted.
 | 13 | Coverage by batch | collapsed | computed |
 | 13a | Files not reviewed, grouped by reason (partial only) | collapsed | computed |
 | 14 | Run details | collapsed (provisional, open question 1) | computed |
+| 14a | Answer line: how to answer a finding (`<sub>`), then the receipt | yes | fixed text |
 | 15 | `<sub>` cost line | yes | computed |
 | 16 | Hidden markers | — | computed |
 
@@ -260,7 +261,7 @@ Size fitting drops whole slots from a named list, in this order: 12, 11, 13, 13a
 to one count per reason; the callout in slot 2 keeps the counts, and the partial marker keeps every
 path), 14, 10, 9 (only when it holds no Blocker or Fix), then 6. Slot 6 keeps its rows that have no inline thread (outside the
 diff) and shrinks the rest to a count: "11 more to consider, on their lines (see Files changed)".
-There is no link to a thread, for the reason of decision 7. Slots 1–3, 7, 15 and 16 are never dropped. Slots 4, 5, 8 and 9 are never removed as slots; their
+There is no link to a thread, for the reason of decision 7. Slots 1–3, 7, 14a (with the receipt), 15 and 16 are never dropped. Slots 4, 5, 8 and 9 are never removed as slots; their
 rows are cut when the body is over the limit, as below.
 
 If the never-dropped slots alone pass `MAX_BODY_CHARS`, the row tables are cut in this order until
@@ -297,7 +298,8 @@ called the status, never a verdict: "Verdict" is the reply a person gives a find
    | 9 | Clean | `⚪ **Wachiman found nothing to fix**` | none of the above |
 
 2. The parts after the lead are plain text, in this order, each only when it applies and is not
-   already the lead: `N blockers before merge`, `N to fix in this PR`, `verifier did not finish: N
+   already the lead: `N blockers before merge`, `N to fix in this PR`, `N to investigate` (so a Fix
+   or Partial lead cannot hide an inconclusive Blocker), `verifier did not finish: N
    findings not checked`, `N pre-existing issues to fix, not from this PR`, `N questions for you`,
    `N earlier threads open` or `earlier threads not counted`, `N to consider`. So a partial review
    with fixes reads `⚠️ **Partial: 2 of 9 files not reviewed** · 1 blocker before merge · 2 to fix
@@ -322,7 +324,7 @@ The partial callout (slot 2), with the real counts of wachiman #242:
 
 The glance table has no "Answer a finding" row, and its "Needs a person" row appears only when there
 is an item. The Findings row ends with today's priority counts: `… (9) · 1 Should · 5 Could`. How
-to answer a finding is a `<sub>` line placed after slot 14 and before the receipt; it is never
+to answer a finding is a `<sub>` line (slot 14a) placed after slot 14 and before the receipt; it is never
 dropped and holds no `$`, so `readAutoCost` still reads the cost line:
 
 ```markdown
@@ -336,7 +338,7 @@ Example, with the real data of wachiman #238 (the version and duration in Run de
 illustrative):
 
 ```markdown
-👮 **Wachiman** · 🟡 **Nothing to fix · 6 to consider** · 1 question for you · whole PR at `d6f4431`
+👮 **Wachiman** · 🟣 **1 question for you** · 6 to consider · whole PR at `d6f4431`
 
 | At a glance | |
 | --- | --- |
