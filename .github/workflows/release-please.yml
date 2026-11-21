@@ -93,13 +93,70 @@ jobs:
             warn "Pushing ${MAJOR_TAG} failed (token expired, missing contents: write, or the account is not a ruleset bypass actor)."
           fi
 
-  # Verifies the tagged commit and packs the tarball that `publish` uploads, byte for byte.
-  verify:
-    name: Verify the tagged commit
+  # Mirrors the `tests` job in ci.yml: the tagged commit's tests run in four parallel jobs.
+  # One unsharded `bun test` took most of the verify time, and Bun 1.3.4 (the pinned version) has
+  # no `--shard`, so scripts/test-shard.ts splits the files, as in CI.
+  verify-tests:
+    name: Test the tagged commit (shard ${{ matrix.shard }} of ${{ strategy.job-total }})
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.sha }}
+          persist-credentials: false
+          # The full history: the connector parity test (test/parity.test.ts) needs the recorded commits.
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.4
+      - run: bun install --ignore-scripts
+      - name: The checked-out commit is the one release-please tagged
+        env:
+          EXPECTED_SHA: ${{ needs.release-please.outputs.sha }}
+          EXPECTED_VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(node -p "require('./package.json').version")" = "$EXPECTED_VERSION"
+          test "$(node -p "require('./package.json').name")" = "wachiman"
+      # The shard count comes from the matrix itself (strategy.job-total), so the split cannot
+      # disagree with the number of jobs.
+      - name: Every test file is in exactly one shard
+        env:
+          TOTAL: ${{ strategy.job-total }}
+        run: bun scripts/test-shard.ts --check "$TOTAL"
+      - name: Run this shard
+        env:
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ strategy.job-total }}
+        run: |
+          mapfile -t files < <(bun scripts/test-shard.ts "$SHARD" "$TOTAL")
+          [ "${#files[@]}" -gt 0 ] || { echo "shard $SHARD has no files" >&2; exit 1; }
+          bun test "${files[@]}" 2>&1 | tee "$RUNNER_TEMP/shard.log"
+          status=${PIPESTATUS[0]}
+          [ "$status" -eq 0 ] || exit "$status"
+          # Bun must have run as many files as this shard listed (a count; it is what its summary reports).
+          grep -Eq "across ${#files[@]} files?\." "$RUNNER_TEMP/shard.log" || { echo "bun did not report ${#files[@]} files" >&2; exit 1; }
+
+  # Packs the tarball that `publish` uploads, byte for byte, and verifies it. The tests ran in
+  # `verify-tests` (four shards); this job packs only after all four passed.
+  verify:
+    name: Verify the tagged commit
+    needs: [release-please, verify-tests]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -125,7 +182,6 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           test "$(node -p "require('./package.json').version")" = "$EXPECTED_VERSION"
           test "$(node -p "require('./package.json').name")" = "wachiman"
-      - run: bun test
       - name: Pack the tarball
         run: |
           mkdir dist
