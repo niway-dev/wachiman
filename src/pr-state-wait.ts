@@ -42,11 +42,11 @@ export interface WaitDeps {
   read?: (remainingMs: number) => Promise<PrState>;
   /** A timer for the deadline of one read: `promise` resolves to null when `ms` pass, until `cancel` is called. */
   timeout: (ms: number) => { promise: Promise<null>; cancel: () => void };
-  /** Installs a handler for SIGINT and SIGTERM and returns what removes it. Only used while waiting. */
+  /** Installs a handler for SIGINT, SIGTERM and SIGHUP and returns what removes it. Only used while waiting. */
   signals: { install: (handler: (signal: WaitSignal) => void) => () => void };
 }
 
-export type WaitSignal = "SIGINT" | "SIGTERM";
+export type WaitSignal = "SIGINT" | "SIGTERM" | "SIGHUP";
 
 export interface PrStateWaitArgs extends PrStateArgs {
   wait: true;
@@ -239,13 +239,13 @@ export function listenerOver(events: ReadableStream<Uint8Array>, ended: Promise<
 }
 
 /**
- * SIGINT and SIGTERM end the process, but `finally` does not run on a signal, so the handler closes
+ * SIGINT, SIGTERM and SIGHUP (what the launcher forwards, and what a closed terminal sends) end the process, but `finally` does not run on a signal, so the handler closes
  * the listener (killing `gh event listen`) first, removes itself, and passes the signal on so the
  * exit status is the usual one.
  */
 export const processSignals: WaitDeps["signals"] = {
   install: (handler) => {
-    const handlers = (["SIGINT", "SIGTERM"] as const).map((signal) => {
+    const handlers = (["SIGINT", "SIGTERM", "SIGHUP"] as const).map((signal) => {
       const fn = () => {
         handler(signal);
         remove();

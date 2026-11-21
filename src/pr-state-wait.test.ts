@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { GhTimeoutError, SIGNATURE, ghWithin, marker, type GhFn } from "./engine";
 import { buildStateBlock, encodeStateBlock, noFindings } from "./review-state";
 import { parsePrStateArgs, type PrState } from "./pr-state";
-import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, openGhEventListener, processSignals, runPrStateWait, type GhProbe, type Listener, type WaitDeps } from "./pr-state-wait";
+import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, openGhEventListener, processSignals, runPrStateWait, type GhProbe, type Listener, type WaitDeps, type WaitSignal } from "./pr-state-wait";
 
 const REPO = "o/r";
 const HEAD = "a".repeat(40);
@@ -409,25 +409,27 @@ describe("the deadline bounds a read in progress, not only the sleeps", () => {
 });
 
 describe("the gh event listen child never outlives the wait", () => {
-  test("the real signal handler closes the listener, then re-raises the signal so the process dies by it", () => {
-    // In a child: a signal sent to the test process itself would kill the test run.
-    const script = `import { processSignals } from ${JSON.stringify(join(import.meta.dir, "pr-state-wait"))};
-      processSignals.install((sig) => process.stdout.write("closed:" + sig + "\\n"));
-      process.kill(process.pid, "SIGTERM");
-      setTimeout(() => process.stdout.write("survived\\n"), 3000);`;
-    const child = Bun.spawnSync([process.execPath, "-e", script], { stdout: "pipe", stderr: "pipe" });
-    expect(child.stdout.toString()).toBe("closed:SIGTERM\n");
-    expect(child.signalCode).toBe("SIGTERM");
+  test("the real signal handler closes the listener, then re-raises the signal so the process dies by it (SIGINT, SIGTERM and SIGHUP)", () => {
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+      // In a child: a signal sent to the test process itself would kill the test run.
+      const script = `import { processSignals } from ${JSON.stringify(join(import.meta.dir, "pr-state-wait"))};
+        processSignals.install((sig) => process.stdout.write("closed:" + sig + "\\n"));
+        process.kill(process.pid, ${JSON.stringify(signal)});
+        setTimeout(() => process.stdout.write("survived\\n"), 3000);`;
+      const child = Bun.spawnSync([process.execPath, "-e", script], { stdout: "pipe", stderr: "pipe" });
+      expect(child.stdout.toString()).toBe(`closed:${signal}\n`);
+      expect(child.signalCode).toBe(signal);
+    }
   });
 
   test("a SIGTERM or SIGINT while waiting closes the listener, and the handlers are installed only for the wait", async () => {
     for (const sig of ["SIGTERM", "SIGINT"] as const) {
       const w = world({ reviewAtMs: 10 ** 9 });
       const { listener, closed } = fakeListener(w, {});
-      let handler: ((s: "SIGINT" | "SIGTERM") => void) | null = null;
+      let handler: ((s: WaitSignal) => void) | null = null;
       let installed = 0;
       let removed = 0;
-      const signals = { install: (h: (s: "SIGINT" | "SIGTERM") => void) => (installed++, (handler = h), () => { removed++; handler = null; }) };
+      const signals = { install: (h: (s: WaitSignal) => void) => (installed++, (handler = h), () => { removed++; handler = null; }) };
       const wrapped: Listener = {
         wake: async (ms) => { handler?.(sig); return listener.wake(ms); },
         close: () => listener.close(),
@@ -443,8 +445,8 @@ describe("the gh event listen child never outlives the wait", () => {
   test("the signal handler itself kills the child, before the wait ends", async () => {
     const w = world({ reviewAtMs: 10 ** 9 });
     const { listener, closed } = fakeListener(w, {});
-    let handler: ((s: "SIGINT" | "SIGTERM") => void) | null = null;
-    const signals = { install: (h: (s: "SIGINT" | "SIGTERM") => void) => ((handler = h), () => {}) };
+    let handler: ((s: WaitSignal) => void) | null = null;
+    const signals = { install: (h: (s: WaitSignal) => void) => ((handler = h), () => {}) };
     let closedAtSignal: boolean | null = null;
     const wrapped: Listener = {
       wake: async (ms) => { handler?.("SIGTERM"); closedAtSignal = closed(); return listener.wake(ms); },
