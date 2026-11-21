@@ -1,6 +1,6 @@
 # ADR 0062: A review the run cannot pay for in full is skipped, and the operator approves a budget for one head
 
-- **Status:** proposed 2026-11-21. Amends decisions 3, 4, 5, 7, 8 and 10 and the rejected
+- **Status:** proposed 2026-11-21. Amends decisions 3, 4, 5, 6, 7, 8 and 10 and the rejected
   alternative "Ask in the pull request before reviewing" of
   [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md). Builds on
   [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md) (the per-pull-request ceiling)
@@ -20,8 +20,9 @@ review it cannot finish.
 312 files, 16,384 changed lines, 95% from one formatter commit. It was estimated at $5.76, below
 the $6 gate, so it started with $3. The
 [run](https://github.com/niway-dev/wachiman/actions/runs/44953987894/job/136997919290) spent
-$3.15, reviewed 138 of the 312 files, and four of its twelve calls produced nothing. A partial
-review that is certain before the first call is spend with no decision behind it.
+$3.15, reviewed 138 of the 312 files, and four of its twelve calls produced nothing. The estimate
+was nearly twice the room, so the partial review was close to certain before the first call, and
+nobody decided to pay for it.
 
 ADR 0037 rejected asking in the pull request because anyone who can comment could approve
 spending the owner's key. That objection is about who approves, not about asking: only the
@@ -36,16 +37,17 @@ configured `operator` may start a review from a comment today (`comment` in `src
    than the ledger grants. The room is what the batches get: the verifier and memory-matching
    reserves that `reviewChange` takes out of the total first are subtracted. An estimate above the
    room makes no model call. ADR 0037 decision 8 put the gate before the ceiling; the ceiling now
-   comes first, so an automatic run whose ceiling has less than one batch left posts today's
-   "Automatic reviews paused" notice (which already gives the operator's command) instead of the
-   priced comment.
+   comes first. `ceilingRoom` keeps its threshold: with less than $0.05 of the ceiling left, the run
+   posts today's "Automatic reviews paused" notice (which already gives the operator's command);
+   with more than that but less than the estimate, it posts the priced comment.
 2. **One priced comment.** The skip posts or edits the one comment ADR 0037 decision 4 defines.
    It states the estimate, the room, the head it was estimated on, and what lifts it, by which
    term of the room was the smallest:
-   - the ceiling, with `budget_usd` large enough: plain `/wachiman review`, because the operator's
-     run is not bounded by the ceiling.
-   - the run budget: the command `/wachiman review --budget <N> --head <short sha>`, with `N` = 1.5
-     times the estimate, rounded up (ADR 0037 decision 5), plus the reserves. The command is offered
+   - the ceiling, while the batch budget left from `budget_usd` covers the estimate: plain
+     `/wachiman review`, because the operator's run is not bounded by the ceiling.
+   - the run budget, whether or not the ceiling is also short: the command `/wachiman review --budget <N> --head <short sha>`, with `N` = 1.5
+     times the estimate (ADR 0037 decision 5), raised until what the batches get from `N` after the
+     reserves is at least that figure, and rounded up to a whole dollar. The command is offered
      only when `N` is at or below `approve_max_usd`; otherwise the comment says to raise
      `approve_max_usd`, or to review part of the pull request with `/wachiman review <paths>`.
    - the ledger grant (known only after the reservation): the run settles $0.00, makes no call,
@@ -60,7 +62,10 @@ configured `operator` may start a review from a comment today (`comment` in `src
    anyone else is ignored as every non-operator review request is today. A rerun of the same job on
    a head whose review is complete spends nothing; after a partial review, a rerun resumes the
    unread files (ADR 0036) and may spend up to `N` again, because a rerun is the operator's own
-   action. The ledger still applies; `--force` stays the only way past it.
+   action. The ledger still applies; `--force` stays the only way past it. This amends ADR 0037
+   decision 6 ("the largest a run can spend is still `budget_usd`"): the largest is now `budget_usd`,
+   or the approved `N`, which is itself a number at or below `approve_max_usd`. No value is
+   unlimited.
 4. **The budget is soft and the comment says so.** A provider call can finish above its cap (ADR
    0036 records $3.10 against $3; pull request 287 spent $3.15). The comment says the run may pass
    the approved figure by about one call.
@@ -75,8 +80,10 @@ configured `operator` may start a review from a comment today (`comment` in `src
 ## Alternatives rejected
 
 - **Keep the partial review between the budget and the gate** (ADR 0037 decision 7). It reads the
-  riskiest batches, but when the estimate is above the room the gap is known before the first call,
-  and pull request 287 shows the result: less than half of the files, paid in full.
+  riskiest batches. Above the room the review is likely partial, and at about 1.4 times the room
+  (the estimate's error) nearly certain; pull request 287 shows the result: less than half of the
+  files, paid in full. The owner accepts losing the borderline reviews that would have finished,
+  because the operator can approve each of them with one command.
 - **Approve by reaction, or by any OWNER, MEMBER or COLLABORATOR.** Wider than today's authority:
   a member who is not the operator cannot start a review now, and membership is not a delegation of
   the owner's key.

@@ -87,7 +87,8 @@ flowchart TD
 - A ledger that grants less than the estimate after the gate passed: no call, $0.00 settled, a comment naming the grant and `--force`.
 - `--budget 8` without `--head`, `--head <sha>` without `--budget`, `--budget` as the last word, `--budget=8`: refused with one reply, never read as paths.
 - `verify` on: the reserves are subtracted from the room, so an approved `N` still leaves the batches what the estimate needs.
-- An automatic run whose ceiling is spent: today's pause notice, not the priced comment.
+- An automatic run with less than $0.05 of the ceiling left: today's pause notice, not the priced comment; with $0.10 left and a $2 estimate: the priced comment.
+- The ceiling and `budget_usd` both below the estimate: the comment offers `--budget`, never a plain `/wachiman review` that would be skipped again.
 - A pull request edits `.gitattributes` to mark its own files as generated: ignored, the base commit's file applies.
 - A batch with room below the floor while other batches run: it waits for room, and is reported as not reached only when none comes back.
 
@@ -101,8 +102,8 @@ flowchart TD
 - [ ] **AC6** `/wachiman review --budget N --head SHA` from the operator, with the current head and a valid `N`, runs with budget `N`; the run's footer names the approved budget.
 - [ ] **AC7** From the operator, a stale head, an invalid or too-large `N`, `--budget` without `--head` or the reverse, a missing value, or `--budget=N` makes no model call and replies once with the reason; none of these words is read as a path. From anyone else the command is ignored as today: no call, no reply.
 - [ ] **AC8** A rerun of an approved job on a head whose review is complete spends nothing; after a partial review it resumes the unread files within `N`.
-- [ ] **AC9** `size_gate_usd` set in a caller still validates; the run logs one deprecation line and the value has no effect on the gate.
-- [ ] **AC10** Every doc and template that mentions the size gate describes the room gate and the approval command: `docs/costs.md`, `docs/configuration.md`, `docs/review-policy.md`, `docs/faq.md`, `docs/setup-copy.md`, `docs/cli.md`, `docs/troubleshooting.md`, `docs/local-review.md`, `docs/pr-state.md`, `templates/caller-workflow.yml`, `templates/wachiman-review-caller.yml`. `grep -ri "never below" docs templates` finds no gate rule.
+- [ ] **AC9** The workflows and `src/config.ts` drop the default of `size_gate_usd`, so an unset input is empty. Set in a caller, it still validates, the run logs one deprecation line, and the value has no effect on the gate; unset, no line is logged.
+- [ ] **AC10** Every doc and template that mentions the size gate describes the room gate and the approval command: `docs/costs.md`, `docs/configuration.md`, `docs/review-policy.md`, `docs/faq.md`, `docs/setup-copy.md`, `docs/cli.md`, `docs/troubleshooting.md`, `docs/local-review.md`, `docs/pr-state.md`, `templates/caller-workflow.yml`, `templates/wachiman-review-caller.yml`, the `size_gate_usd` input description in `.github/workflows/review.yml`, `review-platform.yml` and `wachiman-platform.yml`, and the `sizeGateUsd` comment in `src/config.ts`. Those three workflows declare `approve_max_usd` and pass it in both env blocks. `grep -ri "never below" docs templates .github src` finds no gate rule.
 - [ ] **AC11** Files with `linguist-generated` or `linguist-vendored` set by the base commit's `.gitattributes` are excluded before the estimate, with one `git check-attr --source=<base> --stdin -z` call per run.
 - [ ] **AC12** A pull request that adds `linguist-generated` for its own files in `.gitattributes` still has them reviewed.
 - [ ] **AC13** `wachiman local` warns when the estimate is above `budget_usd` and continues; `size_gate_usd` has no effect on the warning.
@@ -119,7 +120,13 @@ The size gate runs today before `ceilingRoom` and `spendReserve` (`src/engine.ts
 calls `sizeGate`). Layer 2 moves the comparison after the ceiling is read and compares again after
 the ledger grant: `totalBudget = min(budget, ceiling.room, grant.roomUsd)` is already computed
 there. The comparison uses what the batches get, `totalBudget` minus the verifier and
-memory-matching reserves that `reviewChange` takes first. A skip after a reservation settles it
+memory-matching reserves that `reviewChange` takes first. Layer 2 moves the reserve arithmetic
+out of `reviewChange` into one function, `batchRoom(total, verify, exceptionPlan)`: the verifier
+reserve is `min(verify budget, total / 2)` and the match reserve is
+`min(MEMORY_MATCH_BUDGET_USD, (total - verifier reserve) / 4)` when `planExceptions` finds active
+exceptions for the kept files. The gate calls `planExceptions` on the same files and then
+`batchRoom`, and `reviewChange` calls the same function, so they cannot disagree. The suggested
+`N` is the smallest whole dollar at which `batchRoom(N, …)` is at least 1.5 times the estimate. A skip after a reservation settles it
 with $0.00; `review` has no such check today (`grantTooSmall` serves thread replies and answers
 only), so this is new behaviour with its own criterion, AC14.
 
