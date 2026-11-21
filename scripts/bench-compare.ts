@@ -14,6 +14,9 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 
+/** The harness copy dirties the base checkout; the table names the commit. */
+const clean = (c?: string) => (c ?? "unknown").replace(/-dirty$/, "");
+
 /** First line of the PR comment: how the workflow finds the comment to update. */
 export const MARKER = "<!-- wachiman-bench -->";
 
@@ -116,8 +119,8 @@ if (import.meta.main) {
   const md = render(result, {
     thresholdPct: args.thresholdPct,
     rounds: Math.min(base.length, head.length),
-    baseCommit: base[0].commit ?? "unknown",
-    headCommit: head[0].commit ?? "unknown",
+    baseCommit: clean(base[0].commit),
+    headCommit: clean(head[0].commit),
   });
   if (args.out) writeFileSync(args.out, md);
   else process.stdout.write(md);
