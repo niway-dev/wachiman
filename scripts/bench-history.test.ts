@@ -42,6 +42,6 @@ describe("bench-history", () => {
     const out = renderTable(entries);
     expect(out).toContain("| 2026-11-20 | c1 | 100.0 | 50.0 |");
     expect(out).toContain("| 2026-11-21 | c2 | 110.0 | 45.0 |");
-    expect(out).toContain("| change since first |  | +10.0% | -10.0% |");
+    expect(out).toContain("| change over these rows |  | +10.0% | -10.0% |");
   });
 });

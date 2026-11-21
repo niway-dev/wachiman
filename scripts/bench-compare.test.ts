@@ -59,7 +59,10 @@ describe("bench-compare", () => {
       thresholdPct: 30,
       minDeltaMs: 5,
       out: "x.md",
+      baseCommit: undefined,
+      headCommit: undefined,
     });
+    expect(parseArgs(["--base", "b", "--head", "h", "--head-commit", "abc1234"]).headCommit).toBe("abc1234");
     expect(() => parseArgs(["--base", "b"])).toThrow(/--head/);
     expect(() => parseArgs(["--threshold", "x", "--base", "b", "--head", "h"])).toThrow(/threshold/);
   });

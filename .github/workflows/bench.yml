@@ -19,8 +19,9 @@ jobs:
   # base, head, ...), so a slow minute on the machine hits both sides alike. A PR is checked out
   # as GitHub's merge commit, whose first parent is the base commit: comparing the two measures
   # this PR's change on top of the current base, not other PRs merged meanwhile.
-  # scripts/bench.ts and its helper always come from the head checkout and are copied into the
-  # base one, so both sides are measured by the same harness (the base may predate it).
+  # scripts/bench.ts and its fixture helper (test/support/temp-repo.ts) always come from the head
+  # checkout and are copied into the base one, so both sides are measured by the same harness
+  # (the base may predate it).
   compare:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -50,6 +51,7 @@ jobs:
             (cd "$side" && if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi)
           done
           cp head/scripts/bench.ts base/scripts/bench.ts
+          cp head/test/support/temp-repo.ts base/test/support/temp-repo.ts
       - name: Measure, interleaved
         run: |
           mkdir -p "$RUNNER_TEMP/bench"
@@ -60,10 +62,15 @@ jobs:
           done
       - name: Compare
         id: compare
+        env:
+          # The head checkout is GitHub's merge commit; the table names the commit the author pushed.
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           cd head
           set +e
           bun scripts/bench-compare.ts --threshold "$BENCH_THRESHOLD_PCT" \
+            --base-commit "${BASE_SHA::7}" --head-commit "${HEAD_SHA::7}" \
             --base "$RUNNER_TEMP"/bench/base-*.json --head "$RUNNER_TEMP"/bench/head-*.json \
             --out "$RUNNER_TEMP/bench/comment.md"
           status=$?
@@ -71,9 +78,9 @@ jobs:
           cat "$RUNNER_TEMP/bench/comment.md" >> "$GITHUB_STEP_SUMMARY"
           echo "status=$status" >> "$GITHUB_OUTPUT"
       # One sticky comment, found by the hidden marker on its first line. A pull request from a
-      # fork gets a read-only token, so it only gets the job summary above.
+      # fork, and one opened by Dependabot, gets a read-only token, so it only gets the job summary above.
       - name: Post or update the comment
-        if: github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -100,16 +107,13 @@ jobs:
   # branch (an orphan branch holding only that file). A branch needs no service and no secret,
   # is plain text that diffs and clones, and survives the 90-day expiry of workflow artifacts.
   # The same JSON is also kept as an artifact for download. Only this job can write contents.
+  # Two merges close together may push at once: the loop below fetches and tries again.
   history:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write
-    # Two quick merges must not push to the branch at once.
-    concurrency:
-      group: bench-history
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -132,7 +136,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          url="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          # The token goes in a header, not in the URL, so it is never written to .git/config.
+          auth="Authorization: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git() { command git -c "http.extraheader=$auth" "$@"; }
+          url="https://github.com/${REPO}.git"
           hist="$RUNNER_TEMP/history"
           if git ls-remote --exit-code --heads "$url" bench-history > /dev/null; then
             git clone --quiet --branch bench-history --single-branch "$url" "$hist"

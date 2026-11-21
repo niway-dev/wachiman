@@ -63,7 +63,7 @@ export function renderTable(entries: Entry[]): string {
       const p = ((b - a) / a) * 100;
       return `${p >= 0 ? "+" : ""}${p.toFixed(1)}%`;
     });
-    lines.push(`| change since first |  | ${drift.join(" | ")} |`);
+    lines.push(`| change over these rows |  | ${drift.join(" | ")} |`);
   }
   return lines.join("\n") + "\n";
 }

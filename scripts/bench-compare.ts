@@ -3,7 +3,7 @@
  * Compares the `bun run bench --json` output of a base checkout and a head checkout and prints a
  * Markdown table: per case, the base median, the head median and the change in percent.
  *
- *   bun scripts/bench-compare.ts --threshold 15 --base b1.json b2.json --head h1.json h2.json [--out table.md]
+ *   bun scripts/bench-compare.ts --threshold 15 --base b1.json b2.json --head h1.json h2.json [--base-commit sha] [--head-commit sha] [--out table.md]
  *
  * Each side may be several files (rounds measured one after the other, interleaved with the other
  * side, so runner noise lands on both). A case's figure for a side is the median of that side's
@@ -73,7 +73,7 @@ export function render(
 }
 
 export function parseArgs(argv: string[]) {
-  const out = { base: [] as string[], head: [] as string[], thresholdPct: 15, minDeltaMs: 10, out: undefined as string | undefined };
+  const out = { base: [] as string[], head: [] as string[], thresholdPct: 15, minDeltaMs: 10, out: undefined as string | undefined, baseCommit: undefined as string | undefined, headCommit: undefined as string | undefined };
   let target: "base" | "head" | null = null;
   const num = (name: string, v: string | undefined) => {
     const n = Number(v);
@@ -90,6 +90,9 @@ export function parseArgs(argv: string[]) {
       target = null;
     } else if (flag === "--min-delta-ms") {
       out.minDeltaMs = num("min-delta-ms", inline ?? argv[++i]);
+      target = null;
+    } else if (flag === "--base-commit" || flag === "--head-commit") {
+      out[flag === "--base-commit" ? "baseCommit" : "headCommit"] = inline ?? argv[++i];
       target = null;
     } else if (flag === "--out") {
       out.out = inline ?? argv[++i];
@@ -119,8 +122,8 @@ if (import.meta.main) {
   const md = render(result, {
     thresholdPct: args.thresholdPct,
     rounds: Math.min(base.length, head.length),
-    baseCommit: clean(base[0].commit),
-    headCommit: clean(head[0].commit),
+    baseCommit: args.baseCommit ?? clean(base[0].commit),
+    headCommit: args.headCommit ?? clean(head[0].commit),
   });
   if (args.out) writeFileSync(args.out, md);
   else process.stdout.write(md);
