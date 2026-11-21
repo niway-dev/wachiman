@@ -449,7 +449,17 @@ describe("the gh event listen child never outlives the wait", () => {
     }
   });
 
-  test("a SIGTERM or SIGINT while waiting closes the listener, and the handlers are installed only for the wait", async () => {
+  test("when the first read already answers, the handlers installed are removed too", async () => {
+    const w = world({ reviewAtMs: 0 });
+    let installed = 0;
+    let removed = 0;
+    const signals = { install: () => (installed++, () => { removed++; }) };
+    const r = await run(w, { ...ARGS, timeoutS: 100 }, { signals });
+    expect(r.code).toBe(0);
+    expect([installed, removed]).toEqual([1, 1]);
+  });
+
+  test("a SIGTERM or SIGINT while waiting closes the listener, and the handlers are installed and removed once", async () => {
     for (const sig of ["SIGTERM", "SIGINT"] as const) {
       const w = world({ reviewAtMs: 10 ** 9 });
       const { listener, closed } = fakeListener(w, {});
@@ -461,7 +471,6 @@ describe("the gh event listen child never outlives the wait", () => {
         wake: async (ms) => { handler?.(sig); return listener.wake(ms); },
         close: () => listener.close(),
       };
-      expect(installed).toBe(0);
       await run(w, { ...ARGS, timeoutS: 100 }, { openListener: () => wrapped, signals });
       expect(installed).toBe(1);
       expect(removed).toBe(1);

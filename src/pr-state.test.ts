@@ -36,7 +36,7 @@ function fake(w: World) {
         const c = t.comments.map((x) => ({ author: { login: x.login }, body: x.body, createdAt: "2026-11-19T00:00:00Z", url: `https://github.com/${REPO}/pull/1#discussion_r${from + i}` }));
         return {
           id: t.id ?? `T${from + i}`, isResolved: t.resolved ?? false, isOutdated: t.outdated ?? false, path: t.path ?? "a.ts", line: t.line === undefined ? 10 : t.line, originalLine: 10,
-          first: { nodes: c.slice(0, 1) }, last: { nodes: c.slice(-1) },
+          first: { nodes: c.slice(0, 1) }, last: { nodes: joined.includes("last: comments(last: 1)") ? c.slice(-1) : c.slice(0, 100).slice(-1) },
         };
       });
       const end = from + 100;
@@ -248,7 +248,7 @@ describe("AC9: the head moves while reading", () => {
   test("a stable head is read twice and changes nothing", () => {
     const f = fake({ reviews: [rev(complete(HEAD), 1)] });
     expect(readPrState(f.gh, REPO, 1).next).toBe("done");
-    expect(f.calls.filter((a) => a.join(" ").includes(`pulls/1 `) || a[1] === `repos/${REPO}/pulls/1`)).toHaveLength(2);
+    expect(f.calls.filter((a) => a[1] === `repos/${REPO}/pulls/1`)).toHaveLength(2);
   });
 });
 
