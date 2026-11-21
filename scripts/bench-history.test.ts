@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { appendEntry, parseHistory, renderTable, toEntry } from "./bench-history";
+import { appendEntry, parseHistory, parseTableArgs, renderTable, toEntry } from "./bench-history";
 
 const bench = (commit: string, a: number, b: number) => ({
   commit,
@@ -43,5 +43,14 @@ describe("bench-history", () => {
     expect(out).toContain("| 2026-11-20 | c1 | 100.0 | 50.0 |");
     expect(out).toContain("| 2026-11-21 | c2 | 110.0 | 45.0 |");
     expect(out).toContain("| change over these rows |  | +10.0% | -10.0% |");
+  });
+
+  test("table arguments: --last in both forms, unknown flags are errors", () => {
+    expect(parseTableArgs(["h.jsonl", "--last", "5"])).toEqual({ file: "h.jsonl", last: 5 });
+    expect(parseTableArgs(["--last=7", "h.jsonl"])).toEqual({ file: "h.jsonl", last: 7 });
+    expect(parseTableArgs(["h.jsonl"]).last).toBe(Infinity);
+    expect(() => parseTableArgs(["h.jsonl", "--lst=5"])).toThrow(/Unknown/);
+    expect(() => parseTableArgs(["h.jsonl", "--last=0"])).toThrow(/--last/);
+    expect(() => parseTableArgs([])).toThrow(/usage/);
   });
 });

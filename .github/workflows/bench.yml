@@ -26,6 +26,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # A newer push to the PR replaces the run in progress, so an older run cannot overwrite the
+    # comment of a newer one.
+    concurrency:
+      group: bench-compare-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     # The job goes red on a regression. It is not a required check in the repository settings
     # until the noise has been watched over several merged PRs.
     permissions:
@@ -96,6 +101,8 @@ jobs:
         if: always()
         with:
           name: bench-pr
+          # A re-run of the job must not fail on the name the first attempt already used.
+          overwrite: true
           path: ${{ runner.temp }}/bench
       - name: Fail when a case regressed
         env:
@@ -129,6 +136,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bench-main
+          overwrite: true
           path: ${{ runner.temp }}/bench.json
       - name: Append to the bench-history branch
         env:

@@ -68,6 +68,23 @@ export function renderTable(entries: Entry[]): string {
   return lines.join("\n") + "\n";
 }
 
+/** Parses the arguments of the table mode: `<history.jsonl> [--last N | --last=N]`. */
+export function parseTableArgs(argv: string[]): { file: string; last: number } {
+  let file: string | undefined;
+  let last = Infinity;
+  for (let i = 0; i < argv.length; i++) {
+    const [flag, inline] = argv[i].split("=", 2);
+    if (flag === "--last") {
+      last = Number(inline ?? argv[++i]);
+      if (!(last >= 1)) throw new Error("--last needs a positive number");
+    } else if (flag.startsWith("--")) throw new Error(`Unknown argument ${argv[i]}`);
+    else if (file === undefined) file = argv[i];
+    else throw new Error(`Unexpected argument ${argv[i]}`);
+  }
+  if (!file) throw new Error("usage: <history.jsonl> [--last N]");
+  return { file, last };
+}
+
 if (import.meta.main) {
   const argv = process.argv.slice(2);
   const read = (f: string) => (existsSync(f) ? readFileSync(f, "utf8") : "");
@@ -78,11 +95,7 @@ if (import.meta.main) {
       const entry = toEntry(JSON.parse(readFileSync(benchFile, "utf8")), new Date().toISOString());
       writeFileSync(historyFile, appendEntry(read(historyFile), entry));
     } else {
-      const file = argv.find((a) => !a.startsWith("--") && argv[argv.indexOf(a) - 1] !== "--last");
-      if (!file) throw new Error("usage: <history.jsonl> [--last N]");
-      const li = argv.indexOf("--last");
-      const last = li >= 0 ? Number(argv[li + 1]) : Infinity;
-      if (li >= 0 && !(last >= 1)) throw new Error("--last needs a positive number");
+      const { file, last } = parseTableArgs(argv);
       const entries = parseHistory(read(file));
       process.stdout.write(renderTable(Number.isFinite(last) ? entries.slice(-last) : entries));
     }

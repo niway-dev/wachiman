@@ -44,11 +44,11 @@ describe("bench-compare", () => {
 
   test("the table has the hidden marker, one line per case and the threshold", () => {
     const result = compare([run("b", { a: 100, b: 100 })], [run("h", { a: 150, b: 90 })], { thresholdPct: 25, minDeltaMs: 0 });
-    const md = render(result, { thresholdPct: 25, rounds: 1, baseCommit: "abc1234", headCommit: "def5678" });
+    const md = render(result, { thresholdPct: 25, minDeltaMs: 10, rounds: 1, baseCommit: "abc1234", headCommit: "def5678" });
     expect(md.startsWith(MARKER)).toBe(true);
     expect(md).toContain("| a | 100.0 ms | 150.0 ms | +50.0% | regressed |");
     expect(md).toContain("| b | 100.0 ms | 90.0 ms | -10.0% | ok |");
-    expect(md).toContain("25%");
+    expect(md).toContain("more than 25% and at least 10 ms slower");
     expect(md).toContain("abc1234");
   });
 

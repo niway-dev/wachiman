@@ -55,13 +55,13 @@ const pct = (n: number | null) => (n === null ? "n/a" : `${n >= 0 ? "+" : ""}${n
 
 export function render(
   result: { rows: Row[]; failed: boolean },
-  info: { thresholdPct: number; rounds: number; baseCommit: string; headCommit: string },
+  info: { thresholdPct: number; minDeltaMs: number; rounds: number; baseCommit: string; headCommit: string },
 ): string {
   const lines = [
     MARKER,
     "### Wachiman benchmark: base vs head",
     "",
-    `Base \`${info.baseCommit}\`, head \`${info.headCommit}\`. Median of ${info.rounds} interleaved round${info.rounds === 1 ? "" : "s"} on the same runner; a case fails when it is more than ${info.thresholdPct}% slower.`,
+    `Base \`${info.baseCommit}\`, head \`${info.headCommit}\`. Median of ${info.rounds} interleaved round${info.rounds === 1 ? "" : "s"} on the same runner; a case fails when it is more than ${info.thresholdPct}% and at least ${info.minDeltaMs} ms slower.`,
     "",
     "| case | base | head | change | status |",
     "| --- | ---: | ---: | ---: | --- |",
@@ -121,6 +121,7 @@ if (import.meta.main) {
   const result = compare(base, head, args);
   const md = render(result, {
     thresholdPct: args.thresholdPct,
+    minDeltaMs: args.minDeltaMs,
     rounds: Math.min(base.length, head.length),
     baseCommit: args.baseCommit ?? clean(base[0].commit),
     headCommit: args.headCommit ?? clean(head[0].commit),
