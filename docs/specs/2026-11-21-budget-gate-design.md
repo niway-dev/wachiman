@@ -97,7 +97,7 @@ flowchart TD
 - [ ] **AC2** A batch whose call ended on its budget is not retried; a fake test shows one call, not two, and the unaccounted files reported as "the call ran out of its budget".
 - [ ] **AC3** The partial-review comment's first line has the reviewed count and the not-reviewed count by reason; the file list is inside a `<details>` block; the hidden marker of ADR 0036 is byte-identical to today's for the same input.
 - [ ] **AC4** An automatic run whose estimate is above `min(budget_usd, ceiling left)` makes no model call and posts or edits the one size-gate comment; a fake test with pull request 287's numbers ($5.76 vs $3) passes.
-- [ ] **AC5** The comment states the estimate, the room, the short head SHA and the "may pass by about one call" note. When the run budget or the ceiling is the smallest term, it gives the command with `N = ceil(1.5 × estimate)` if `N ≤ approve_max_usd`, and otherwise no command but the instruction to raise `approve_max_usd` or review paths. When the ledger grant is the smallest term, it gives the ledger message and `--force` instead.
+- [ ] **AC5** The comment states the estimate, the room, the short head SHA and the "may pass by about one call" note. When the run budget is the smallest term, it gives the command with `N = ceil(1.5 × estimate)` plus the reserves if `N ≤ approve_max_usd`, and otherwise no command but the instruction to raise `approve_max_usd` or review paths. The ceiling case is AC15 and the ledger case is AC14.
 - [ ] **AC6** `/wachiman review --budget N --head SHA` from the operator, with the current head and a valid `N`, runs with budget `N`; the run's footer names the approved budget.
 - [ ] **AC7** From the operator, a stale head, an invalid or too-large `N`, `--budget` without `--head` or the reverse, a missing value, or `--budget=N` makes no model call and replies once with the reason; none of these words is read as a path. From anyone else the command is ignored as today: no call, no reply.
 - [ ] **AC8** A rerun of an approved job on a head whose review is complete spends nothing; after a partial review it resumes the unread files within `N`.
@@ -105,9 +105,9 @@ flowchart TD
 - [ ] **AC10** Every doc and template that mentions the size gate describes the room gate and the approval command: `docs/costs.md`, `docs/configuration.md`, `docs/review-policy.md`, `docs/faq.md`, `docs/setup-copy.md`, `docs/cli.md`, `docs/troubleshooting.md`, `docs/local-review.md`, `docs/pr-state.md`, `templates/caller-workflow.yml`, `templates/wachiman-review-caller.yml`. `grep -ri "never below" docs templates` finds no gate rule.
 - [ ] **AC11** Files with `linguist-generated` or `linguist-vendored` set by the base commit's `.gitattributes` are excluded before the estimate, with one `git check-attr --source=<base> --stdin -z` call per run.
 - [ ] **AC12** A pull request that adds `linguist-generated` for its own files in `.gitattributes` still has them reviewed.
+- [ ] **AC13** `wachiman local` warns when the estimate is above `budget_usd` and continues; `size_gate_usd` has no effect on the warning.
 - [ ] **AC14** When the ledger grants less than the estimate after the gate passed, `review` makes no model call, settles $0.00, and the comment names the grant and `--force`, not `--budget`.
 - [ ] **AC15** When only the ceiling is short and `budget_usd` covers the estimate, the comment offers plain `/wachiman review`; with `verify` on, the room and `N` include the reserves.
-- [ ] **AC13** `wachiman local` warns when the estimate is above `budget_usd` and continues; `size_gate_usd` has no effect on the warning.
 
 ---
 
