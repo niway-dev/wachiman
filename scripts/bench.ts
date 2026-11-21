@@ -10,6 +10,7 @@
  * The `local review` case drives the real `wachiman local` pipeline with the same fake `claude`
  * the launcher test uses (test/local-fake-provider.test.ts), on a fixed fixture repo and diff.
  * The fake is compiled once, outside the timings. The host name is never recorded.
+ * POSIX only (macOS, Linux): the child PATH holds no Git for Windows. Each run has a 120 s timeout.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -19,9 +20,17 @@ import { branchRepo, removeTempRepos } from "../test/support/temp-repo";
 
 const root = join(import.meta.dir, "..");
 const argv = process.argv.slice(2);
-const asJson = argv.includes("--json");
-const runsFlag = argv.indexOf("--runs");
-const runs = runsFlag >= 0 ? Number(argv[runsFlag + 1]) : 15;
+let asJson = false;
+let runs = 15;
+for (let i = 0; i < argv.length; i++) {
+  const [flag, inline] = argv[i].split("=", 2);
+  if (flag === "--json") asJson = true;
+  else if (flag === "--runs") runs = Number(inline ?? argv[++i]);
+  else {
+    console.error(`Unknown argument ${argv[i]}. Usage: bun run bench [--json] [--runs N]`);
+    process.exit(2);
+  }
+}
 if (!Number.isInteger(runs) || runs < 3) {
   console.error("--runs needs an integer of at least 3");
   process.exit(2);
@@ -143,10 +152,10 @@ try {
     const times: number[] = [];
     for (let i = 0; i < c.warmup + c.runs; i++) {
       const t0 = performance.now();
-      const p = Bun.spawnSync(c.cmd, { cwd: c.cwd, env: c.env, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+      const p = Bun.spawnSync(c.cmd, { cwd: c.cwd, env: c.env, stdin: "ignore", stdout: "pipe", stderr: "pipe", timeout: 120_000 });
       const ms = performance.now() - t0;
       if (p.exitCode !== 0 || (c.expect && !p.stdout.toString().includes(c.expect))) {
-        failure = `${c.name}: exit ${p.exitCode}${c.expect && p.exitCode === 0 ? ` and stdout lacks "${c.expect}"` : ""}\n${p.stderr.toString().slice(-600)}`;
+        failure = `${c.name}: ${p.exitedDueToTimeout ? "timed out, exit" : "exit"} ${p.exitCode}${c.expect && p.exitCode === 0 ? ` and stdout lacks "${c.expect}"` : ""}\n${p.stderr.toString().slice(-600)}`;
         break;
       }
       if (i >= c.warmup) times.push(ms);
