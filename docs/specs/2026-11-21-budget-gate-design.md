@@ -9,7 +9,7 @@
 started anyway with a $3 budget, because the size gate ($6) is never below the run budget. It
 [spent $3.15](https://github.com/niway-dev/wachiman/actions/runs/44953987894/job/136997919290),
 reviewed 138 of 312 files, and four of its twelve calls produced nothing: three batches stopped
-on their budget, two of them started with less room than one turn costs, and a batch cut by its
+on their budget, two of them with less room than the floor this spec sets, and a batch cut by its
 budget was retried. This spec makes the
 room the gate: an estimate above what the run may spend makes no model call and posts the price
 with a command only the operator can use to approve that head. It also stops the wasted calls,
@@ -59,7 +59,7 @@ flowchart TD
 | # | What it builds | Criteria | Risk | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | Batch floor, no retry after a budget cut, readable partial comment | AC1, AC2, AC3 | 🟢 Low | — |
-| 2 | Room as the gate, priced comment, `--budget N --head SHA`, `approve_max_usd`, `size_gate_usd` deprecation, local warning threshold, docs | AC4–AC10, AC13 | 🟡 Medium | — |
+| 2 | Room as the gate, priced comment, `--budget N --head SHA`, `approve_max_usd`, `size_gate_usd` deprecation, local warning threshold, docs | AC4–AC10, AC13–AC15 | 🟡 Medium | — |
 | 3 | `linguist-generated` / `linguist-vendored` exclusion from the base commit | AC11, AC12 | 🟢 Low | — |
 
 ## Open questions
@@ -84,7 +84,10 @@ flowchart TD
 - `--budget` with `0`, a negative number, `NaN`, `Infinity`, or a value above `approve_max_usd`: refused with a reply that says why.
 - `--budget` and `--head` words leak into the path list of `/wachiman review <paths>`.
 - An automatic run with $5.50 of the $6 ceiling spent and a $2 estimate: skipped (room $0.50), not started.
-- A ledger that grants less than the estimate after the gate passed: no call; the same priced comment.
+- A ledger that grants less than the estimate after the gate passed: no call, $0.00 settled, a comment naming the grant and `--force`.
+- `--budget 8` without `--head`, `--head <sha>` without `--budget`, `--budget` as the last word, `--budget=8`: refused with one reply, never read as paths.
+- `verify` on: the reserves are subtracted from the room, so an approved `N` still leaves the batches what the estimate needs.
+- An automatic run whose ceiling is spent: today's pause notice, not the priced comment.
 - A pull request edits `.gitattributes` to mark its own files as generated: ignored, the base commit's file applies.
 - A batch with room below the floor while other batches run: it waits for room, and is reported as not reached only when none comes back.
 
@@ -96,12 +99,14 @@ flowchart TD
 - [ ] **AC4** An automatic run whose estimate is above `min(budget_usd, ceiling left)` makes no model call and posts or edits the one size-gate comment; a fake test with pull request 287's numbers ($5.76 vs $3) passes.
 - [ ] **AC5** The comment states the estimate, the room, the short head SHA and the "may pass by about one call" note. When the run budget or the ceiling is the smallest term, it gives the command with `N = ceil(1.5 × estimate)` if `N ≤ approve_max_usd`, and otherwise no command but the instruction to raise `approve_max_usd` or review paths. When the ledger grant is the smallest term, it gives the ledger message and `--force` instead.
 - [ ] **AC6** `/wachiman review --budget N --head SHA` from the operator, with the current head and a valid `N`, runs with budget `N`; the run's footer names the approved budget.
-- [ ] **AC7** From the operator, a stale head or an invalid or too-large `N` makes no model call and replies once with the reason. From anyone else the command is ignored as today: no call, no reply.
+- [ ] **AC7** From the operator, a stale head, an invalid or too-large `N`, `--budget` without `--head` or the reverse, a missing value, or `--budget=N` makes no model call and replies once with the reason; none of these words is read as a path. From anyone else the command is ignored as today: no call, no reply.
 - [ ] **AC8** A rerun of an approved job on a head whose review is complete spends nothing; after a partial review it resumes the unread files within `N`.
 - [ ] **AC9** `size_gate_usd` set in a caller still validates; the run logs one deprecation line and the value has no effect on the gate.
 - [ ] **AC10** Every doc and template that mentions the size gate describes the room gate and the approval command: `docs/costs.md`, `docs/configuration.md`, `docs/review-policy.md`, `docs/faq.md`, `docs/setup-copy.md`, `docs/cli.md`, `docs/troubleshooting.md`, `docs/local-review.md`, `docs/pr-state.md`, `templates/caller-workflow.yml`, `templates/wachiman-review-caller.yml`. `grep -ri "never below" docs templates` finds no gate rule.
 - [ ] **AC11** Files with `linguist-generated` or `linguist-vendored` set by the base commit's `.gitattributes` are excluded before the estimate, with one `git check-attr --source=<base> --stdin -z` call per run.
 - [ ] **AC12** A pull request that adds `linguist-generated` for its own files in `.gitattributes` still has them reviewed.
+- [ ] **AC14** When the ledger grants less than the estimate after the gate passed, `review` makes no model call, settles $0.00, and the comment names the grant and `--force`, not `--budget`.
+- [ ] **AC15** When only the ceiling is short and `budget_usd` covers the estimate, the comment offers plain `/wachiman review`; with `verify` on, the room and `N` include the reserves.
 - [ ] **AC13** `wachiman local` warns when the estimate is above `budget_usd` and continues; `size_gate_usd` has no effect on the warning.
 
 ---
@@ -113,7 +118,10 @@ flowchart TD
 The size gate runs today before `ceilingRoom` and `spendReserve` (`src/engine.ts`, the block that
 calls `sizeGate`). Layer 2 moves the comparison after the ceiling is read and compares again after
 the ledger grant: `totalBudget = min(budget, ceiling.room, grant.roomUsd)` is already computed
-there. A skip after a reservation releases it with $0.00 settled, as `grantTooSmall` does.
+there. The comparison uses what the batches get, `totalBudget` minus the verifier and
+memory-matching reserves that `reviewChange` takes first. A skip after a reservation settles it
+with $0.00; `review` has no such check today (`grantTooSmall` serves thread replies and answers
+only), so this is new behaviour with its own criterion, AC14.
 
 ### Parsing the approval
 

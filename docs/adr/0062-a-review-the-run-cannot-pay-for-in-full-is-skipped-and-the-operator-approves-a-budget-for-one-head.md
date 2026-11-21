@@ -33,18 +33,25 @@ configured `operator` may start a review from a comment today (`comment` in `src
 1. **The gate is the room.** Before any model call, the engine compares the estimate with what the
    run may actually spend: `min(budget_usd, room left in auto_budget_usd)` for an automatic run,
    `budget_usd` (or the approved budget, point 3) for the operator's run, and in both cases no more
-   than the ledger grants. An estimate above the room makes no model call. The ceiling is read
-   before the gate, so ADR 0037 decision 8's order (gate, then ceiling) is reversed; a skip still
-   posts no "Automatic reviews paused" notice.
+   than the ledger grants. The room is what the batches get: the verifier and memory-matching
+   reserves that `reviewChange` takes out of the total first are subtracted. An estimate above the
+   room makes no model call. ADR 0037 decision 8 put the gate before the ceiling; the ceiling now
+   comes first, so an automatic run whose ceiling has less than one batch left posts today's
+   "Automatic reviews paused" notice (which already gives the operator's command) instead of the
+   priced comment.
 2. **One priced comment.** The skip posts or edits the one comment ADR 0037 decision 4 defines.
    It states the estimate, the room, the head it was estimated on, and what lifts it, by which
    term of the room was the smallest:
-   - the run budget or the ceiling: the command `/wachiman review --budget <N> --head <short sha>`,
-     with `N` = 1.5 times the estimate, rounded up (ADR 0037 decision 5). The command is offered
+   - the ceiling, with `budget_usd` large enough: plain `/wachiman review`, because the operator's
+     run is not bounded by the ceiling.
+   - the run budget: the command `/wachiman review --budget <N> --head <short sha>`, with `N` = 1.5
+     times the estimate, rounded up (ADR 0037 decision 5), plus the reserves. The command is offered
      only when `N` is at or below `approve_max_usd`; otherwise the comment says to raise
      `approve_max_usd`, or to review part of the pull request with `/wachiman review <paths>`.
-   - the ledger grant: the ledger's own limit message and `--force`, as today; `--budget` cannot
-     lift a ledger limit, so it is not offered.
+   - the ledger grant (known only after the reservation): the run settles $0.00, makes no call,
+     and the comment names the grant and `--force`; `--budget` cannot lift a ledger limit, so it is
+     not offered. This check is new in `review`; today only thread replies and answers refuse a
+     grant that is too small.
 3. **The operator approves one head.** `--budget N` is honoured only on the operator's comment,
    only when `--head` names the pull request's current head, and only when `N` is a finite number
    above 0 and at or below `approve_max_usd` (new input, default $20). The run's budget becomes
