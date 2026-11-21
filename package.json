@@ -38,6 +38,11 @@
     "provenance": true
   },
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "fmt": "bunx bun@1.4.5 fmt --no-script",
+    "fmt:check": "bunx bun@1.4.5 fmt --check --no-script"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.4"
   }
 }
