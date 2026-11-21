@@ -1,12 +1,14 @@
 name: Wachiman review
-# Wachiman reviews its own pull requests with the last released engine, pinned like every other
-# consumer (ADR 0001): a release reviews the pull requests after it, never itself.
+# Wachiman reviews its own pull requests with the last released engine, through the floating `@v1` tag
+# like every other consumer: a release reviews the pull requests after it, never itself.
 # The review runs once, when a pull request opens ready for review or leaves draft, and on
 # `/wachiman review` from the operator. Add `synchronize` to the `pull_request` types to review every
 # push. Save a `CLAUDE_CODE_OAUTH_TOKEN` repository secret made with `claude setup-token` (the review runs on the Claude subscription).
-# To update, resolve the new tag's SHA and replace it together with the trailing version comment;
-# never use a floating tag.
-# This caller uses `review-platform.yml`, the variant that carries `id-token: write`, so each run asks the spend ledger for room before the review and records what it spent.
+# Follows the floating `@v1` tag: each stable 1.x release, security fixes included, runs here
+# without editing this file. A breaking change ships as v2 and needs this line edited. The cost:
+# a new release runs with this repository's credentials before anyone here has read it. To hold
+# one version, pin an exact tag or a full commit SHA instead.
+# This caller uses `wachiman-platform.yml`, the variant that carries `id-token: write`, so each run asks the spend ledger for room before the review and records what it spent.
 # When the ledger cannot be reached (a network error, a timeout, a 5xx or a 429), the review still runs under its normal budgets; a rejected token or a wrong `ledger_url` stops it instead.
 on:
   pull_request: { types: [opened, ready_for_review] }
@@ -14,7 +16,7 @@ on:
 permissions: { contents: read, pull-requests: write, issues: read, id-token: write }
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review-platform.yml@bfb1ad1e71c97e7b06c8fbf709ead8a013a31fdb # v1.14.0
+    uses: niway-dev/wachiman/.github/workflows/wachiman-platform.yml@v1
     with:
       operator: csdev19
       model: claude-sonnet-5-5
