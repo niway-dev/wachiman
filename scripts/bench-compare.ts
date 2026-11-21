@@ -3,7 +3,7 @@
  * Compares the `bun run bench --json` output of a base checkout and a head checkout and prints a
  * Markdown table: per case, the base median, the head median and the change in percent.
  *
- *   bun scripts/bench-compare.ts --threshold 30 --base b1.json b2.json --head h1.json h2.json [--out table.md]
+ *   bun scripts/bench-compare.ts --threshold 15 --base b1.json b2.json --head h1.json h2.json [--out table.md]
  *
  * Each side may be several files (rounds measured one after the other, interleaved with the other
  * side, so runner noise lands on both). A case's figure for a side is the median of that side's
@@ -73,7 +73,7 @@ export function render(
 }
 
 export function parseArgs(argv: string[]) {
-  const out = { base: [] as string[], head: [] as string[], thresholdPct: 30, minDeltaMs: 10, out: undefined as string | undefined };
+  const out = { base: [] as string[], head: [] as string[], thresholdPct: 15, minDeltaMs: 10, out: undefined as string | undefined };
   let target: "base" | "head" | null = null;
   const num = (name: string, v: string | undefined) => {
     const n = Number(v);

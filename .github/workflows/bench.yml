@@ -7,7 +7,10 @@ permissions:
   contents: read
 env:
   # A case fails when head is more than this many percent slower than base (and at least 10 ms slower).
-  BENCH_THRESHOLD_PCT: "30"
+  # Measured on ubuntu-latest with base and head being the same commit: the median of 5 interleaved
+  # rounds differed by at most 3.4% (18 case results over 3 runs), a single round by up to 14.2%.
+  # 15% is above both. Revisit it after a few merged PRs.
+  BENCH_THRESHOLD_PCT: "15"
   # Interleaved rounds per side, and timed runs per case within a round (scripts/bench.ts --runs).
   BENCH_ROUNDS: "5"
   BENCH_RUNS: "7"
@@ -22,9 +25,8 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Not a required check until the runner's noise has been watched over several merged PRs: the
-    # table is posted either way, and a red job means "look at this", not "do not merge".
-    continue-on-error: true
+    # The job goes red on a regression. It is not a required check in the repository settings
+    # until the noise has been watched over several merged PRs.
     permissions:
       contents: read
       # Only to post and update the one comment of this job.
