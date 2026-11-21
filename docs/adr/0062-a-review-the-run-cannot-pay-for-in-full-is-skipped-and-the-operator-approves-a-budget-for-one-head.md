@@ -62,7 +62,9 @@ configured `operator` may start a review from a comment today (`comment` in `src
    anyone else is ignored as every non-operator review request is today. A rerun of the same job on
    a head whose review is complete spends nothing; after a partial review, a rerun resumes the
    unread files (ADR 0036) and may spend up to `N` again, because a rerun is the operator's own
-   action. The ledger still applies; `--force` stays the only way past it. This amends ADR 0037
+   action. When the unread list is over ADR 0036's 10,000-character marker cap (about 110 files),
+   no marker is written and a rerun reviews the whole pull request again; the comment of that
+   partial review says so, and the operator decides whether to rerun. The ledger still applies; `--force` stays the only way past it. This amends ADR 0037
    decision 6 ("the largest a run can spend is still `budget_usd`"): the largest is now `budget_usd`,
    or the approved `N`, which is itself a number at or below `approve_max_usd`. No value is
    unlimited.
