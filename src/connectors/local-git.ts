@@ -97,21 +97,30 @@ export function resolveRefs(
   const symbolic = git(["symbolic-ref", "-q", "--short", "HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
   if (symbolic.status !== 0) throw new UsageError("HEAD is detached; check out a branch, or pass --input");
   const headRef = symbolic.stdout.trim();
-  if (!ok(git, repoDir, ["rev-parse", "--verify", "-q", "HEAD"])) {
+  // One run is both the "has a commit" probe and the sha read: a probe and a read of the same
+  // revision are the same `git rev-parse`, and each git process costs several milliseconds.
+  const headProbe = git(["rev-parse", "--verify", "-q", "HEAD^{commit}"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  if (headProbe.status !== 0) {
     throw new UsageError(`HEAD (${headRef}) has no commit yet; commit the change first, or pass --input`);
   }
+  const headSha = headProbe.stdout.trim();
   let baseRef = base;
+  let baseSha: string | undefined;
   if (baseRef === undefined) {
     const upstream = git(["symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
     if (upstream.status === 0 && upstream.stdout.trim() !== "") baseRef = upstream.stdout.trim();
-    else if (ok(git, repoDir, ["rev-parse", "--verify", "-q", "main^{commit}"])) baseRef = "main";
-    else throw new UsageError("No base branch found; pass --base <ref>");
+    else {
+      const main = git(["rev-parse", "--verify", "-q", "main^{commit}"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+      if (main.status !== 0) throw new UsageError("No base branch found; pass --base <ref>");
+      baseRef = "main";
+      baseSha = main.stdout.trim();
+    }
   }
-  if (!ok(git, repoDir, ["rev-parse", "--verify", "-q", `${baseRef}^{commit}`])) {
-    throw new UsageError(`--base ${baseRef} is not a commit in this clone.`);
+  if (baseSha === undefined) {
+    const baseProbe = git(["rev-parse", "--verify", "-q", `${baseRef}^{commit}`], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+    if (baseProbe.status !== 0) throw new UsageError(`--base ${baseRef} is not a commit in this clone.`);
+    baseSha = baseProbe.stdout.trim();
   }
-  const baseSha = run(git, repoDir, ["rev-parse", "--verify", `${baseRef}^{commit}`]).trim();
-  const headSha = run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
   const mb = git(["merge-base", baseSha, headSha], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
   if (mb.status !== 0 || mb.stdout.trim() === "") throw new UsageError(`\`${baseRef}\` and HEAD have no common ancestor`);
   const mergeBase = mb.stdout.trim();

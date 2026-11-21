@@ -52,6 +52,32 @@ describe("resolveRefs", () => {
     expect(resolveRefs(r.dir, "main").mergeBase).toBe(r.mergeBase);
   });
 
+  test("each revision is resolved by one git process, and the answer does not change", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting);
+    expect(refs).toEqual(resolveRefs(r.dir, undefined));
+    // HEAD and the default base `main`: probing a revision and then reading it was two processes each.
+    expect(calls.filter((c) => c[0] === "rev-parse")).toEqual([
+      ["rev-parse", "--verify", "-q", "HEAD^{commit}"],
+      ["rev-parse", "--verify", "-q", "main^{commit}"],
+    ]);
+    calls.length = 0;
+    expect(resolveRefs(r.dir, "main", counting)).toEqual(refs);
+    expect(calls.filter((c) => c[0] === "rev-parse").length).toBe(2);
+  });
+
+  test("a missing commit or base is still refused, in the same order", () => {
+    const dir = emptyRepo();
+    expect(() => resolveRefs(dir, "main")).toThrow("has no commit yet");
+    const r = branchRepo();
+    expect(() => resolveRefs(r.dir, "nope")).toThrow("--base nope is not a commit in this clone.");
+  });
+
   test("the upstream's default branch wins over main when origin/HEAD resolves", () => {
     const r = branchRepo();
     const bare = mkdtempSync(join(tmpdir(), "wachiman-bare-"));
