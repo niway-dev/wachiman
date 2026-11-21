@@ -8,8 +8,9 @@
 [Pull request 287](https://github.com/niway-dev/wachiman/pull/287) was estimated at $5.76 and
 started anyway with a $3 budget, because the size gate ($6) is never below the run budget. It
 [spent $3.15](https://github.com/niway-dev/wachiman/actions/runs/44953987894/job/136997919290),
-reviewed 138 of 312 files, and four of its twelve calls produced nothing: three batches started
-with less room than one turn costs, and a batch cut by its budget was retried. This spec makes the
+reviewed 138 of 312 files, and four of its twelve calls produced nothing: three batches stopped
+on their budget, two of them started with less room than one turn costs, and a batch cut by its
+budget was retried. This spec makes the
 room the gate: an estimate above what the run may spend makes no model call and posts the price
 with a command only the operator can use to approve that head. It also stops the wasted calls,
 makes the partial-review comment readable, and honours `linguist-generated` from the base commit.
@@ -58,7 +59,7 @@ flowchart TD
 | # | What it builds | Criteria | Risk | Depends on |
 | --- | --- | --- | --- | --- |
 | 1 | Batch floor, no retry after a budget cut, readable partial comment | AC1, AC2, AC3 | 🟢 Low | — |
-| 2 | Room as the gate, priced comment, `--budget N --head SHA`, `approve_max_usd`, `size_gate_usd` deprecation, docs | AC4–AC10 | 🟡 Medium | — |
+| 2 | Room as the gate, priced comment, `--budget N --head SHA`, `approve_max_usd`, `size_gate_usd` deprecation, local warning threshold, docs | AC4–AC10, AC13 | 🟡 Medium | — |
 | 3 | `linguist-generated` / `linguist-vendored` exclusion from the base commit | AC11, AC12 | 🟢 Low | — |
 
 ## Open questions
@@ -75,9 +76,11 @@ flowchart TD
 
 ## Failures this must protect against
 
-- A collaborator who is not the operator comments `--budget 50`: nothing is spent.
+- A collaborator who is not the operator comments `--budget 50`: ignored as today, nothing is spent.
+- An estimate above `approve_max_usd`: the comment offers no command that would be skipped again.
+- A skip caused by the ledger grant: the comment points at the ledger and `--force`, not at `--budget`.
 - The operator approves head A, a push makes the head B before the job starts: the run refuses.
-- A GitHub rerun of the approved job: the head is already reviewed, nothing is spent twice.
+- A GitHub rerun of the approved job on a completely reviewed head: nothing is spent twice.
 - `--budget` with `0`, a negative number, `NaN`, `Infinity`, or a value above `approve_max_usd`: refused with a reply that says why.
 - `--budget` and `--head` words leak into the path list of `/wachiman review <paths>`.
 - An automatic run with $5.50 of the $6 ceiling spent and a $2 estimate: skipped (room $0.50), not started.
@@ -87,18 +90,19 @@ flowchart TD
 
 ## Acceptance criteria
 
-- [ ] **AC1** A batch never starts with room below `0.6 × per-batch mean` for the model (floor $0.05); a fake-provider test with $0.06 left shows no call and the files reported as not reached.
+- [ ] **AC1** A batch never starts with room below `0.6 × per-batch mean` for the model (floor $0.05); a fake-provider test with $0.06 left shows no call and the files reported as not reached. (On pull request 287 this removes batches 10 and 11; batch 8 started with $0.24 and would still run.)
 - [ ] **AC2** A batch whose call ended on its budget is not retried; a fake test shows one call, not two, and the unaccounted files reported as "the call ran out of its budget".
 - [ ] **AC3** The partial-review comment's first line has the reviewed count and the not-reviewed count by reason; the file list is inside a `<details>` block; the hidden marker of ADR 0036 is byte-identical to today's for the same input.
 - [ ] **AC4** An automatic run whose estimate is above `min(budget_usd, ceiling left)` makes no model call and posts or edits the one size-gate comment; a fake test with pull request 287's numbers ($5.76 vs $3) passes.
-- [ ] **AC5** The comment states the estimate, the room, the short head SHA, the "may pass by about one call" note, and the exact command with `N = min(ceil(1.5 × estimate), approve_max_usd)`, or the instruction to raise `approve_max_usd` when the suggestion is above it.
+- [ ] **AC5** The comment states the estimate, the room, the short head SHA and the "may pass by about one call" note. When the run budget or the ceiling is the smallest term, it gives the command with `N = ceil(1.5 × estimate)` if `N ≤ approve_max_usd`, and otherwise no command but the instruction to raise `approve_max_usd` or review paths. When the ledger grant is the smallest term, it gives the ledger message and `--force` instead.
 - [ ] **AC6** `/wachiman review --budget N --head SHA` from the operator, with the current head and a valid `N`, runs with budget `N`; the run's footer names the approved budget.
-- [ ] **AC7** The same command from a non-operator, with a stale head, or with an invalid or too-large `N` makes no model call and replies once with the reason.
-- [ ] **AC8** A rerun of an approved job on an already reviewed head spends nothing.
+- [ ] **AC7** From the operator, a stale head or an invalid or too-large `N` makes no model call and replies once with the reason. From anyone else the command is ignored as today: no call, no reply.
+- [ ] **AC8** A rerun of an approved job on a head whose review is complete spends nothing; after a partial review it resumes the unread files within `N`.
 - [ ] **AC9** `size_gate_usd` set in a caller still validates; the run logs one deprecation line and the value has no effect on the gate.
-- [ ] **AC10** `docs/costs.md`, `docs/configuration.md`, `docs/review-policy.md`, `docs/faq.md` and `docs/setup-copy.md` describe the room gate and the approval command; no doc still says the gate is never below the run budget.
+- [ ] **AC10** Every doc and template that mentions the size gate describes the room gate and the approval command: `docs/costs.md`, `docs/configuration.md`, `docs/review-policy.md`, `docs/faq.md`, `docs/setup-copy.md`, `docs/cli.md`, `docs/troubleshooting.md`, `docs/local-review.md`, `docs/pr-state.md`, `templates/caller-workflow.yml`, `templates/wachiman-review-caller.yml`. `grep -ri "never below" docs templates` finds no gate rule.
 - [ ] **AC11** Files with `linguist-generated` or `linguist-vendored` set by the base commit's `.gitattributes` are excluded before the estimate, with one `git check-attr --source=<base> --stdin -z` call per run.
 - [ ] **AC12** A pull request that adds `linguist-generated` for its own files in `.gitattributes` still has them reviewed.
+- [ ] **AC13** `wachiman local` warns when the estimate is above `budget_usd` and continues; `size_gate_usd` has no effect on the warning.
 
 ---
 
@@ -130,4 +134,5 @@ The hidden marker that ADR 0036 caps at 10,000 characters is built separately an
 - Run log of pull request 287: twelve calls, $3.150325 total; batches 8, 10 and 11 started with
   $0.24, $0.18 and $0.06 of room and stopped on their budget at $0.26, $0.25 and $0.27; the retry
   of batch 11 cost $0.27 and produced nothing.
-- `MIN_BATCH_USD = 0.05` and the retry condition (`timeout` and refusal only) in `src/engine.ts`.
+- `MIN_BATCH_USD = 0.05` in `src/engine.ts`, and the retry condition there: every batch with gaps
+  is retried except after a timeout or its own refusal, so a budget cut is retried.

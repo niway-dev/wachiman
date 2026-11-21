@@ -1,7 +1,7 @@
 # ADR 0062: A review the run cannot pay for in full is skipped, and the operator approves a budget for one head
 
-- **Status:** proposed 2026-11-21. Amends decisions 3, 5 and 7 and the rejected alternative "Ask in
-  the pull request before reviewing" of
+- **Status:** proposed 2026-11-21. Amends decisions 3, 4, 5, 7, 8 and 10 and the rejected
+  alternative "Ask in the pull request before reviewing" of
   [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md). Builds on
   [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md) (the per-pull-request ceiling)
   and [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
@@ -33,18 +33,27 @@ configured `operator` may start a review from a comment today (`comment` in `src
 1. **The gate is the room.** Before any model call, the engine compares the estimate with what the
    run may actually spend: `min(budget_usd, room left in auto_budget_usd)` for an automatic run,
    `budget_usd` (or the approved budget, point 3) for the operator's run, and in both cases no more
-   than the ledger grants. An estimate above the room makes no model call.
+   than the ledger grants. An estimate above the room makes no model call. The ceiling is read
+   before the gate, so ADR 0037 decision 8's order (gate, then ceiling) is reversed; a skip still
+   posts no "Automatic reviews paused" notice.
 2. **One priced comment.** The skip posts or edits the one comment ADR 0037 decision 4 defines.
-   It states the estimate, the room, the head it was estimated on, and the exact command to
-   approve it: `/wachiman review --budget <N> --head <short sha>`, where `N` is the suggested
-   budget (1.5 times the estimate, rounded up, ADR 0037 decision 5) capped by `approve_max_usd`.
-   When the suggestion is above that cap, the comment says to raise `approve_max_usd` instead.
-3. **The operator approves one head, once.** `--budget N` is honoured only on the operator's
-   comment, only when `--head` names the pull request's current head, and only when `N` is a
-   finite number above 0 and at or below `approve_max_usd` (new input, default $20). The run's
-   budget becomes `N`. A push after the comment makes the head differ, so the run refuses and the
-   next automatic run estimates the new head. A rerun of the same job finds the head already
-   reviewed and spends nothing. The ledger still applies; `--force` stays the only way past it.
+   It states the estimate, the room, the head it was estimated on, and what lifts it, by which
+   term of the room was the smallest:
+   - the run budget or the ceiling: the command `/wachiman review --budget <N> --head <short sha>`,
+     with `N` = 1.5 times the estimate, rounded up (ADR 0037 decision 5). The command is offered
+     only when `N` is at or below `approve_max_usd`; otherwise the comment says to raise
+     `approve_max_usd`, or to review part of the pull request with `/wachiman review <paths>`.
+   - the ledger grant: the ledger's own limit message and `--force`, as today; `--budget` cannot
+     lift a ledger limit, so it is not offered.
+3. **The operator approves one head.** `--budget N` is honoured only on the operator's comment,
+   only when `--head` names the pull request's current head, and only when `N` is a finite number
+   above 0 and at or below `approve_max_usd` (new input, default $20). The run's budget becomes
+   `N`, and the gate compares the estimate with `N`. A push after the comment makes the head
+   differ, so the run refuses and the next automatic run estimates the new head. A comment from
+   anyone else is ignored as every non-operator review request is today. A rerun of the same job on
+   a head whose review is complete spends nothing; after a partial review, a rerun resumes the
+   unread files (ADR 0036) and may spend up to `N` again, because a rerun is the operator's own
+   action. The ledger still applies; `--force` stays the only way past it.
 4. **The budget is soft and the comment says so.** A provider call can finish above its cap (ADR
    0036 records $3.10 against $3; pull request 287 spent $3.15). The comment says the run may pass
    the approved figure by about one call.
@@ -52,7 +61,9 @@ configured `operator` may start a review from a comment today (`comment` in `src
    equals the room or skips reviews the run could pay for (the case ADR 0037 decision 3 was written
    against). The input is still accepted so existing callers do not fail, is ignored, and the run
    logs one line saying so. It is removed in the next major version.
-6. **Local runs are unchanged.** ADR 0037 decision 10 stands: `wachiman local` warns and continues.
+6. **Local runs still never refuse.** `wachiman local` warns and continues, as ADR 0037 decision 10
+   says, but its warning threshold becomes `budget_usd` instead of `max(size_gate_usd, budget_usd)`,
+   because `size_gate_usd` no longer means anything (point 5).
 
 ## Alternatives rejected
 
@@ -77,6 +88,8 @@ configured `operator` may start a review from a comment today (`comment` in `src
 - The estimate keeps its error of about ±40% (ADR 0037 decision 2). A run that passes the gate can
   still end partial when the real cost is above the estimate; it is reported and resumed as today.
 - `approve_max_usd` is a new reusable-workflow input. `size_gate_usd` is deprecated.
+- More pull requests read `blocked` with `review_missing` in `wachiman pr-state` (its rule for a
+  gate-skipped pull request), because every estimate above $3 is now skipped by default.
 
 ## Non-goals
 

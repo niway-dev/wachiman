@@ -5,7 +5,7 @@
   (the per-pull-request ceiling) and [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
   (a partial review resumes on the next push). It changes what a pull request far larger than one
   run budget gets: no review instead of a partial review of its riskiest batches.
-  Decisions 3, 5 and 7 and the rejected alternative "Ask in the pull request before reviewing" are
+  Decisions 3, 4, 5, 7, 8 and 10 and the rejected alternative "Ask in the pull request before reviewing" are
   amended by [ADR 0062](0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)
   (amendment pending implementation): the gate becomes the room the run may spend, and the
   operator approves a budget for one head. The text below is still the current behaviour.
