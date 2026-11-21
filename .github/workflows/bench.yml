@@ -1,0 +1,154 @@
+name: Bench
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+env:
+  # A case fails when head is more than this many percent slower than base (and at least 10 ms slower).
+  BENCH_THRESHOLD_PCT: "30"
+  # Interleaved rounds per side, and timed runs per case within a round (scripts/bench.ts --runs).
+  BENCH_ROUNDS: "5"
+  BENCH_RUNS: "7"
+jobs:
+  # Base and head run on the SAME runner, one after the other, round after round (base, head,
+  # base, head, ...), so a slow minute on the machine hits both sides alike. A PR is checked out
+  # as GitHub's merge commit, whose first parent is the base commit: comparing the two measures
+  # this PR's change on top of the current base, not other PRs merged meanwhile.
+  # scripts/bench.ts and its helper always come from the head checkout and are copied into the
+  # base one, so both sides are measured by the same harness (the base may predate it).
+  compare:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Not a required check until the runner's noise has been watched over several merged PRs: the
+    # table is posted either way, and a red job means "look at this", not "do not merge".
+    continue-on-error: true
+    permissions:
+      contents: read
+      # Only to post and update the one comment of this job.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: head
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: base
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.4
+      - name: Install both sides
+        run: |
+          for side in base head; do
+            (cd "$side" && if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi)
+          done
+          cp head/scripts/bench.ts base/scripts/bench.ts
+      - name: Measure, interleaved
+        run: |
+          mkdir -p "$RUNNER_TEMP/bench"
+          for round in $(seq 1 "$BENCH_ROUNDS"); do
+            for side in base head; do
+              (cd "$side" && bun scripts/bench.ts --json --runs "$BENCH_RUNS") > "$RUNNER_TEMP/bench/$side-$round.json"
+            done
+          done
+      - name: Compare
+        id: compare
+        run: |
+          cd head
+          set +e
+          bun scripts/bench-compare.ts --threshold "$BENCH_THRESHOLD_PCT" \
+            --base "$RUNNER_TEMP"/bench/base-*.json --head "$RUNNER_TEMP"/bench/head-*.json \
+            --out "$RUNNER_TEMP/bench/comment.md"
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/bench/comment.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      # One sticky comment, found by the hidden marker on its first line. A pull request from a
+      # fork gets a read-only token, so it only gets the job summary above.
+      - name: Post or update the comment
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq '.[] | select(.body | startswith("<!-- wachiman-bench -->")) | .id' | head -n 1)
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$id" -F body=@"$RUNNER_TEMP/bench/comment.md" > /dev/null
+          else
+            gh api --method POST "repos/$REPO/issues/$PR/comments" -F body=@"$RUNNER_TEMP/bench/comment.md" > /dev/null
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: bench-pr
+          path: ${{ runner.temp }}/bench
+      - name: Fail when a case regressed
+        env:
+          STATUS: ${{ steps.compare.outputs.status }}
+        run: |
+          echo "bench-compare exit status: $STATUS"
+          [ "$STATUS" = 0 ]
+  # The history of main: one line per merged commit in bench-history.jsonl, on the `bench-history`
+  # branch (an orphan branch holding only that file). A branch needs no service and no secret,
+  # is plain text that diffs and clones, and survives the 90-day expiry of workflow artifacts.
+  # The same JSON is also kept as an artifact for download. Only this job can write contents.
+  history:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    # Two quick merges must not push to the branch at once.
+    concurrency:
+      group: bench-history
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.4
+      - name: Install dependencies
+        run: |
+          if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi
+      - name: Measure
+        run: bun scripts/bench.ts --json --runs 15 > "$RUNNER_TEMP/bench.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-main
+          path: ${{ runner.temp }}/bench.json
+      - name: Append to the bench-history branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          url="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          hist="$RUNNER_TEMP/history"
+          if git ls-remote --exit-code --heads "$url" bench-history > /dev/null; then
+            git clone --quiet --branch bench-history --single-branch "$url" "$hist"
+          else
+            git init --quiet --initial-branch bench-history "$hist"
+            git -C "$hist" remote add origin "$url"
+          fi
+          git -C "$hist" config user.name "github-actions[bot]"
+          git -C "$hist" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for _ in 1 2 3; do
+            bun scripts/bench-history.ts --append "$RUNNER_TEMP/bench.json" "$hist/bench-history.jsonl"
+            git -C "$hist" add bench-history.jsonl
+            if git -C "$hist" diff --cached --quiet; then echo "commit already recorded"; exit 0; fi
+            git -C "$hist" commit --quiet -m "bench: ${GITHUB_SHA::7}"
+            git -C "$hist" push --quiet origin bench-history && exit 0
+            # Someone else pushed first: start again from the new tip.
+            git -C "$hist" fetch --quiet origin bench-history
+            git -C "$hist" reset --quiet --hard origin/bench-history
+          done
+          echo "could not push the history" >&2
+          exit 1
