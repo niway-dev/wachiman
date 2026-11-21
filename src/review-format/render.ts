@@ -474,7 +474,7 @@ function coverage(view: ReviewView): string | null {
 function notReviewedFiles(view: ReviewView, fit: Fit): string | null {
   const { files } = view;
   // Binary files are not part of `files`: they are listed whenever any exist, even in a complete review.
-  const total = files.total - files.reviewed || files.notReviewable.length;
+  const total = files.total - files.reviewed + files.notReviewable.length;
   if (total === 0) return null;
   if (fit.filesAsCounts) {
     const lines = files.notReviewed.map((g) => `- ${capitalise(because(g.reason))}: ${count(g.paths.length, "file", "files")}`);

@@ -290,6 +290,17 @@ describe("binary files in a complete review", () => {
   });
 });
 
+describe("the not-reviewed heading counts what it lists", () => {
+  test("a partial review with binary files counts both", () => {
+    const input = realReviews["strange-partial-242"];
+    const binaries = ["a.png", "b.png"].map((path) => ({ path, reason: "binary" }));
+    const view = buildView({ ...input, unreviewable: binaries });
+    const partial = view.files.total - view.files.reviewed;
+    expect(partial).toBeGreaterThan(0);
+    expect(renderReviewBody(view, MAX)).toContain(`Files not reviewed (${partial + 2})`);
+  });
+});
+
 describe("round trip: the readers still read the footer", () => {
   const ATTEMPT = "<!-- wachi:attempt id=0b1c2d3e-0000-4000-8000-000000000001 -->";
   /** The commit a marker the readers accept names; null for the old `agent-review` marker, which none of them reads. */

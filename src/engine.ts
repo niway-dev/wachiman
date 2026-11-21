@@ -4699,7 +4699,8 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     scopePaths: paths.length,
     mention: config.mention,
     repo,
-    earlierThreads: last ? earlierThreadCount(gh, repo, pr) : 0,
+    // A genuine first review has no earlier threads; a full review (no marker read) may.
+    earlierThreads: last || config.fullReview ? earlierThreadCount(gh, repo, pr) : 0,
     automatic,
     receiptLine,
     instructionChanges: {
