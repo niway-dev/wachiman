@@ -65,8 +65,15 @@ Two facts shape the decision:
    ratcheted gates; `lint:raw` and `check:raw` show everything.
 8. **CI.** Three jobs run beside the test shards and do not wait for them: format check, lint and
    ratchet, typecheck and ratchet. Actions are pinned by SHA like the existing ones.
+   The aggregate `test` check still means "the test shards passed" and does not wait for them.
+   `main` has no required-status-check list today; if one is added, `format`, `lint` and
+   `typecheck` belong in it.
 9. **The formatting commit is hidden from blame.** It is one commit with no logic change, and its
-   SHA is in `.git-blame-ignore-revs`.
+   SHA is in `.git-blame-ignore-revs`. The SHA survives only a **merge commit**: this pull request
+   is merged with "Create a merge commit", never squashed or rebased, because either would give
+   the commit a new SHA and leave the entry pointing at nothing. If it is squashed by mistake,
+   the dead entry is removed in a follow-up and blame shows the squash commit on the reformatted
+   lines.
 
 ## Alternatives rejected
 
