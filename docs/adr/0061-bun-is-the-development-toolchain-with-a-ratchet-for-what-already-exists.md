@@ -50,9 +50,13 @@ Two facts shape the decision:
    same code before and after, and each changed JSON or YAML file parses to the same value.
 5. **Lint rules.** Bun's recommended rules, plus `no-empty` and `max-depth` (limit 4, ESLint's own
    default; nine existing places are deeper and go to the baseline). Both are errors.
-6. **Typecheck.** `strict`, over `src/`, `scripts/` and `test/`, with `@types/bun` pinned to 1.3.4
-   as a development dependency: the declarations match the runtime consumers get, and `bun
-   check` cannot see `Bun`, `bun:test` or `node:` modules without them.
+6. **Typecheck.** `strict`, over `src/`, `scripts/` and `test/`, with two exact development
+   dependencies: `@types/bun` 1.3.4 (the declarations match the runtime consumers get; without
+   them `bun check` cannot see `Bun`, `bun:test` or `node:` modules) and `@types/node` 26.6.6.
+   `@types/bun` depends on `bun-types`, which asks for any `@types/node`; left unpinned, a new
+   release could change the type errors with no change in the repository. A test requires every
+   development dependency to be an exact version. `bun.lock` is not committed (the repository
+   ignores it), so these two pins are what keep the typecheck baseline stable across installs.
 7. **A ratchet for what already exists.** `scripts/ratchet.ts` counts `bun lint` diagnostics by
    rule and file, and `bun check` errors by code and file, and compares them with the committed
    `scripts/ratchet-baseline.json`. A count that rises (or appears) fails and names the rule and
@@ -94,10 +98,13 @@ Two facts shape the decision:
   are real findings, not noise, and each fix lowers the baseline in the same pull request.
   Renaming or moving a file with a baseline entry looks like a rise in the new path; update the
   baseline in that pull request.
-- `@types/bun` is a development dependency. It is not published (the package `files` list is
-  unchanged) and the runtime still has `bun`, `chalk` and `@clack/prompts` only.
+- `@types/bun` and `@types/node` are development dependencies. They are not published (the
+  package `files` list is unchanged) and the runtime still has `bun`, `chalk` and `@clack/prompts` only.
 - The lint job runs a canary Bun. If that build disappears or changes behaviour, the job fails
   until the pin moves; a failure there is a tooling failure, not a code failure.
+- `bun run ratchet:update` records a rise as readily as a fall. The baseline is the gate, so a
+  reviewer reads a change to `scripts/ratchet-baseline.json` as closely as code; a rise there is
+  new debt accepted on purpose. The baseline is keyed by file path, so a rename also needs it.
 - A developer needs network access the first time `bunx bun@<version>` runs for a version; Bun
   caches it afterwards.
 - Printing and sorting choices (width 140, no import sorting) are tuned to today's code. Changing

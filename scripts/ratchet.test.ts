@@ -193,6 +193,7 @@ describe("ratchet", () => {
 describe("the toolchain pins", () => {
   const pkg = JSON.parse(readFileSync(join(repo, "package.json"), "utf8")) as {
     scripts: Record<string, string>;
+    dependencies: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
   const ci = readFileSync(join(repo, ".github/workflows/ci.yml"), "utf8");
@@ -216,11 +217,14 @@ describe("the toolchain pins", () => {
     for (const command of ["bun run fmt:check", "bun run lint", "bun run check"]) expect(ci).toContain(command);
   });
 
-  test("the consumer runtime and the test shards stay on Bun 1.3.4", () => {
-    const runtime = (JSON.parse(readFileSync(join(repo, "package.json"), "utf8")) as { dependencies: Record<string, string> }).dependencies[
-      "bun"
-    ];
-    expect(runtime).toBe("1.3.4");
-    expect(ci).toContain("bun-version: 1.3.4");
+  test("the consumer runtime stays on Bun 1.3.4", () => {
+    expect(pkg.dependencies["bun"]).toBe("1.3.4");
+  });
+
+  test("the typecheck's inputs are exact pins: bun-types asks for any @types/node, so an unpinned one would move the baseline", () => {
+    const dev = pkg.devDependencies ?? {};
+    expect(Object.keys(dev).sort()).toEqual(["@types/bun", "@types/node"]);
+    for (const version of Object.values(dev)) expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(dev["@types/bun"]).toBe(pkg.dependencies["bun"]);
   });
 });
