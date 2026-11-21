@@ -5,7 +5,9 @@
  *   bun run bench --json          JSON on stdout (the table is not printed)
  *   bun run bench --runs 25       CLI and review runs (default 15); the test case runs 5
  *
- * Every case spawns the repo's own pinned Bun by path (never PATH), with a temporary
+ * Every launcher case runs `bin/wachiman.js`, so each run includes the launcher's `bun --version` probe
+ * and the child Bun on `src/cli.ts`; the "under node" case only changes which runtime hosts the launcher.
+ * Every other case spawns the repo's own pinned Bun by path (never PATH), with a temporary
  * `WACHIMAN_HOME`, and must exit 0: one nonzero exit fails the whole bench (exit 1).
  * The `local review` case drives the real `wachiman local` pipeline with the same fake `claude`
  * the launcher test uses (test/local-fake-provider.test.ts), on a fixed fixture repo and diff.
@@ -127,10 +129,10 @@ function build(): Case[] {
     env: base,
   });
   return [
-    cli("cli --version (bun)", ["--version"]),
-    ...(node ? [cli("cli --version (node launcher)", ["--version"], node)] : []),
-    cli("cli --help (bun)", ["--help"]),
-    cli("cli local --help (bun)", ["local", "--help"]),
+    cli("launcher --version (under bun)", ["--version"]),
+    ...(node ? [cli("launcher --version (under node)", ["--version"], node)] : []),
+    cli("launcher --help (under bun)", ["--help"]),
+    cli("launcher local --help (under bun)", ["local", "--help"]),
     {
       name: "tests: engine fakes",
       cmd: [pinned, "test", "src/engine.fake.test.ts", "src/full-review.fake.test.ts"],
@@ -187,7 +189,7 @@ if (failure) {
 
 const meta = {
   date: new Date().toISOString().slice(0, 10),
-  commit: spawnSync("git", ["rev-parse", "--short", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim(),
+  commit: (spawnSync("git", ["rev-parse", "--short", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim() || "unknown") + (spawnSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).stdout.trim() ? "-dirty" : ""),
   bun: spawnSync(pinned, ["--version"], { encoding: "utf8" }).stdout.trim(),
   node: node ? spawnSync(node, ["--version"], { encoding: "utf8" }).stdout.trim() : null,
   cpu: cpus()[0]?.model ?? "unknown",
