@@ -11,6 +11,8 @@ import type { Contract } from "../contracts";
 import type { BatchReport, Confidence, Finding, ReviewFile, ReviewOutput, Severity, Topic, Unreviewable } from "../engine";
 import type { Fidelity } from "../fidelity/types";
 import type { Origin, ResultFinding, ResultVerificationV2, Tier, VerifierStop } from "../formats";
+import { MEMORY_OVER_BUDGET } from "../memory/load";
+import { MEMORY_ENTRY_NOTICE, MEMORY_EXCEPTIONS_NOT_APPLIED, MUTED_HEADING } from "../memory/mute";
 import { priorityOf, type Arm, type Priority } from "../priority";
 import type { JudgementKind, JudgementItem, RiskFact, RiskKind, RiskLevel, RiskMap } from "../risk";
 import { sectionOf, tierWord } from "../verify";
@@ -262,7 +264,9 @@ export interface ViewInput {
 const notReached = (reason: string) => reason.startsWith("not reached");
 
 /** The paragraphs the memory step appends to the summary: the engine's own notices, which start with one of these. */
-const MEMORY_NOTICE_START = /^(?:⚠️ \*\*Memory over budget|ℹ️ \*\*Memory entry|⚠️ \*\*Memory exceptions were not applied|\*\*Muted by memory\*\*)/;
+const MEMORY_NOTICE_START = new RegExp(
+  `^(?:${[MEMORY_OVER_BUDGET, MEMORY_ENTRY_NOTICE, MEMORY_EXCEPTIONS_NOT_APPLIED, MUTED_HEADING].map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+);
 
 /** The summary split at the first memory notice: the model's prose, then what the engine appended (ADR 0057 keeps that visible). */
 export function splitMemoryNotices(summary: string): { prose: string; notices: string } {

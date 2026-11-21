@@ -15,6 +15,9 @@
  * a later change. Text Wachiman did not write (titles, paths, reasons) goes through `escapeCell` in
  * a table cell and through `neutralise` anywhere else, so it cannot break a row or forge a marker.
  */
+// Module cycle: this imports values from the engine, and the engine imports `renderReviewBody` from
+// here. It works only because every use is inside a function. A top-level use of an engine export
+// in this file (or of this file in the engine) would run before initialisation.
 import { oneLine, renderContracts, SEVERITY, TOPIC } from "../engine";
 import { A_MEANS } from "../fidelity/summary";
 import { inertText } from "../fidelity/inert";
@@ -456,10 +459,23 @@ function questions(view: ReviewView): string | null {
 
 /** The first paragraph of a model's text: where a body is cut when the details must shrink. */
 const FIRST_PARAGRAPH_MAX = 600;
-const firstParagraph = (text: string) => {
+export const firstParagraph = (text: string) => {
   const first = text.trim().split(/\n\s*\n/)[0]!;
-  return first.length > FIRST_PARAGRAPH_MAX ? `${first.slice(0, FIRST_PARAGRAPH_MAX - 1).trimEnd()}…` : first;
+  const cut = first.length > FIRST_PARAGRAPH_MAX ? `${first.slice(0, FIRST_PARAGRAPH_MAX - 1).trimEnd()}…` : first;
+  return closeOpenFence(cut);
 };
+
+/** Closes a code fence the text leaves open, with the same marker, so what follows the text does not render as code. */
+function closeOpenFence(text: string): string {
+  let fence: string | null = null;
+  for (const line of text.split("\n")) {
+    const mark = FENCE.exec(line)?.[1];
+    if (!mark) continue;
+    if (fence === null) fence = mark;
+    else if (mark[0] === fence[0] && mark.length >= fence.length && line.trim() === mark) fence = null;
+  }
+  return fence === null ? text : `${text}\n${fence}`;
+}
 
 const demanding = (r: FindingRow) => r.severity === "blocker" || r.severity === "fix";
 

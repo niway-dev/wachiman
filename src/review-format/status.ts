@@ -11,7 +11,7 @@
  */
 import { countFindingRows, type ReviewView } from "./view";
 
-/** `BRAND` in `engine.ts`; a test holds the two equal. The review format imports nothing from the engine. */
+/** `BRAND` in `engine.ts`; a test holds the two equal. This file imports nothing from the engine (`render.ts` does, see there). */
 export const BRAND = "👮 **Wachiman**";
 
 /** 1 Not reviewed (the notice template; the review body never produces it), then 2 to 9 as in the spec's table. */

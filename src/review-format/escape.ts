@@ -9,7 +9,7 @@
 /**
  * Defuses HTML comments in text a model wrote, so it cannot forge the incremental marker or a
  * signature: `<!--` becomes `&lt;!--` and `-->` becomes `--&gt;`. Markdown shows both as before.
- * `engine.ts` re-exports it; it lives here so the review format needs nothing from the engine.
+ * `engine.ts` re-exports it. This file imports nothing from the engine, so it is safe to load first.
  */
 export const neutralise = (text: string) =>
   text.replaceAll("<!--", "&lt;!--").replaceAll("-->", "--&gt;");
@@ -18,7 +18,19 @@ export const neutralise = (text: string) =>
 export const defuseDetails = (text: string) => text.replace(/<(\/?)details/gi, "&lt;$1details");
 
 /** A line break of any kind: LF, CR, the Unicode line and paragraph separators, NEL, vertical tab, form feed. */
-const BREAKS = new RegExp(String.raw`\s*[\r\n${String.fromCharCode(0x2028, 0x2029, 0x85)}\v\f]+\s*`, "g");
+const BREAKS = new RegExp(`[${String.raw`\r\n`}${String.fromCharCode(0x2028, 0x2029, 0x85)}${String.raw`\v\f`}]+`);
+
+/**
+ * Joins the lines of `text` with one space each, dropping the whitespace around every break. It
+ * splits on the breaks and trims each piece; a regex with `\s*` padding around the breaks would
+ * backtrack quadratically on a long run of spaces that holds no break.
+ */
+const oneLineOf = (text: string) =>
+  text
+    .split(BREAKS)
+    .map((piece) => piece.trim())
+    .filter((piece) => piece !== "")
+    .join(" ");
 
 /**
  * One cell of a Markdown table, from text Wachiman did not write: one line, no leading or trailing
@@ -27,7 +39,7 @@ const BREAKS = new RegExp(String.raw`\s*[\r\n${String.fromCharCode(0x2028, 0x202
  * escape placed before a pipe or a backtick. Every table cell with such text goes through here.
  */
 export const escapeCell = (text: string) =>
-  defuseDetails(neutralise(text.replace(BREAKS, " ").trim()))
+  defuseDetails(neutralise(oneLineOf(text)))
     .replaceAll("\\", "\\\\")
     .replaceAll("|", "\\|")
     .replaceAll("`", "\\`");

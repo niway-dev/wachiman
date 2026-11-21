@@ -22,7 +22,7 @@ import { readReviews } from "../pr-state";
 import { REVIEW_STATE_FORMAT, encodeStateBlock } from "../review-state";
 import { realReviews } from "./fixtures/real";
 import { fitted, scenarios } from "./fixtures/scenarios";
-import { blankBeforeLists, renderReviewBody } from "./render";
+import { blankBeforeLists, firstParagraph, renderReviewBody } from "./render";
 import { buildView, refusedView, type ViewInput } from "./view";
 
 const DIR = join(import.meta.dir, "fixtures");
@@ -412,7 +412,9 @@ describe("round trip: the readers still read the footer", () => {
 
   describe("the old real bodies", () => {
     const legacy = readdirSync(DIR).filter((f) => f.startsWith("legacy-") && f.endsWith(".md"));
-    expect(legacy.length).toBe(6);
+    test("there are six legacy bodies", () => {
+      expect(legacy.length).toBe(6);
+    });
     for (const file of legacy) {
       test(`${file} is still read`, () => {
         const body = readFileSync(join(DIR, file), "utf8");
@@ -462,5 +464,25 @@ describe("blankBeforeLists", () => {
   test("inside a ``` fence, a nested ~~~ does not close it", () => {
     const text = "```\n~~~\nprose\n- item\n```";
     expect(blankBeforeLists(text)).toBe(text);
+  });
+});
+
+describe("firstParagraph", () => {
+  const fences = (text: string) => text.split("\n").filter((l) => /^\s*(```|~~~)/.test(l)).length;
+
+  test("a blank line inside a fence does not leave the fence open", () => {
+    const out = firstParagraph("```ts\nfoo\n\nbar\n```");
+    expect(out).toBe("```ts\nfoo\n```");
+    expect(fences(out) % 2).toBe(0);
+  });
+
+  test("a fence crossing the character limit is closed after the cut", () => {
+    const out = firstParagraph(`Intro.\n~~~\n${"x".repeat(700)}\n~~~`);
+    expect(out.endsWith("\n~~~")).toBe(true);
+    expect(fences(out) % 2).toBe(0);
+  });
+
+  test("text without a fence is only cut", () => {
+    expect(firstParagraph("One.\n\nTwo.")).toBe("One.");
   });
 });

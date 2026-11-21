@@ -19,6 +19,13 @@ describe("defuseDetails", () => {
 });
 
 describe("escapeCell", () => {
+  test("a long run of spaces with no line break is linear", () => {
+    const start = performance.now();
+    expect(escapeCell(`a${" ".repeat(50_000)}b`)).toBe(`a${" ".repeat(50_000)}b`);
+    expect(performance.now() - start).toBeLessThan(200);
+  });
+
+
   test("escapes a pipe so it cannot end the cell", () => {
     expect(escapeCell("a | b")).toBe("a \\| b");
   });

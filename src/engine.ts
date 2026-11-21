@@ -968,7 +968,7 @@ export const SIGNATURE = {
 } as const;
 const ANY_SIGNATURE = /<!-- wachi:(?:review|finding|reply|auto|answer|ask|ask-limit) -->/;
 
-// Defined in the review format, which needs nothing from this module; re-exported for its many readers here.
+// Defined in `review-format/escape.ts`, which imports nothing from this module; re-exported for its many readers here.
 export { neutralise };
 
 /**
