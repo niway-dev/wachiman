@@ -48,7 +48,7 @@ provider binary are needed for local reviews; GitHub commands also need `gh`.
 
 Argument rules, as implemented:
 
-- The command (`review`, `comment`, `threads`, `reset-confidence`, `local`, `loop`, `ask`, `history`, `status`, `dashboard`, `ledger`, `setup`, `init`, `doctor`, `profile`, `project`, `skills` or `upgrade`) must be the first argument. `--help`/`-h`,
+- The command (`review`, `comment`, `threads`, `reset-confidence`, `local`, `loop`, `ask`, `pr-state`, `history`, `status`, `dashboard`, `ledger`, `setup`, `init`, `doctor`, `profile`, `project`, `skills` or `upgrade`) must be the first argument. `--help`/`-h`,
   `--version`/`-v`, `help` and `--setup-profile` are recognised only as the first argument too. `--help` or `-h` after a command prints that command's help and exits 0, before any other argument is checked. It is not a request where it is text or a value: after a `--`, as the value of `--reason`, or anywhere but the first argument of `ask`, whose other words are the question.
 - `<pr>` must be digits only and greater than 0.
 - `--repo-dir` may appear anywhere after the command. It is removed from the arguments before the
@@ -83,6 +83,7 @@ equals sign: `-c <path>` did not replace the working directory's config in Bun 1
 | `threads <pr>` | Answers the Wachiman threads that wait for an answer, with no review, and only when the pull request's head was already reviewed. See "What `threads` does" below. |
 | `local [paths…]` | Reviews the committed branch of a clone on your own signed-in `claude` and prints the review; no GitHub call, nothing posted. See [`local`](#local) below and [the guide](local-review.md). |
 | `loop [--base <ref>]` | One round of a review loop on your own signed-in `claude`: a review with history on, a comparison with the rounds before it, and an exit code to branch on (`0` converged, `10` findings open, `11` stopped). A coding agent fixes between calls; the CLI never edits code. See [`loop`](#loop) below. |
+| `pr-state [<pr>] [--repo <owner/repo>] [--json]` | Read-only: prints what Wachiman's own review of a pull request needs next as one JSON object (`wachiman.pr-state/1`: `wait`, `act`, `blocked`, `done` or `closed`) and exits 0, 20, 21 or 22 to match. Never posts, resolves or edits. See [`pr-state`](pr-state.md). |
 | `dashboard [--json] [--out <file>] [--refresh]` | Writes one static HTML page, or prints JSON, with the spend, findings and loop rounds of every repository in the local history, from a rebuildable SQLite index. With a ledger connected it also shows GitHub Actions spend. No model call; a request only with `--refresh`. See [`dashboard`](#dashboard) and [the guide](local-dashboard.md). |
 | `ledger connect <url>`, `ledger disconnect`, `ledger pull [--since <n>d]` | Connect to the spend ledger with a read token, and download its entries to the laptop so `status` and `dashboard` can show Actions runs next to laptop runs. See [`ledger`](#ledger). |
 | `ask [question…]` | Answers one question about the local change (or walks through it when there is no question), on your own signed-in `claude`; no GitHub call, nothing posted. See [`ask`](#ask) below. |
@@ -1504,6 +1505,8 @@ rest are listed as not reviewed.
 | `130` | Interrupted with `Ctrl-C`; the snapshot was removed |
 
 `loop` has its own codes: 0 converged, 10 findings still open, 11 stopped without converging, 2 usage error, 130 interrupted.
+
+`pr-state` has its own codes: 0 done or closed, 20 act, 21 wait, 22 blocked, 1 GitHub or `gh` error, 2 usage error. See [pr-state.md](pr-state.md#exit-codes).
 
 `setup` and `init` use 0 done (including a "no" answer), 1 for an engine error (also a `setup` whose closing `doctor` summary failed), 2 usage error and 130 cancelled with Escape, Ctrl-C or Ctrl-D.
 
