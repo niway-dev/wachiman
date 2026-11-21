@@ -19,6 +19,10 @@ import { delimiter, dirname, join } from "node:path";
 import { branchRepo, removeTempRepos } from "../test/support/temp-repo";
 
 const root = join(import.meta.dir, "..");
+if (process.platform === "win32") {
+  console.error("bun run bench is POSIX only (macOS, Linux).");
+  process.exit(2);
+}
 const argv = process.argv.slice(2);
 let asJson = false;
 let runs = 15;
@@ -54,7 +58,9 @@ const cleanup = () => {
   for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
 };
 
-// The fake claude: a compiled executable, as in the launcher test. It answers the version probe
+// The fake claude: a compiled executable, as in the launcher test. REVIEW and the source below are a
+// copy of test/local-fake-provider.test.ts (minus its call log): keep them in step if that fixture changes.
+// It answers the version probe
 // and the sign-in check, reads the prompt and prints one fixed review.
 const REVIEW = {
   is_error: false,
@@ -140,6 +146,7 @@ function build(): Case[] {
 
 const quantile = (xs: number[], p: number) => {
   const s = [...xs].sort((a, b) => a - b);
+  if (p === 0.5 && s.length % 2 === 0) return (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
   return s[Math.min(s.length - 1, Math.floor(p * s.length))];
 };
 const round = (n: number) => Math.round(n * 10) / 10;
