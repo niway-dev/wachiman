@@ -38,6 +38,10 @@ export function emptyRepo(prefix = "wachiman-repo-") {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   made.push(dir);
   git(dir, "init", "-q");
+  // Git starts maintenance and auto-gc in the background after commits, and that can create and
+  // remove files under .git (e.g. objects/maintenance.lock) while a test compares snapshots.
+  git(dir, "config", "maintenance.auto", "false");
+  git(dir, "config", "gc.auto", "0");
   return dir;
 }
 
